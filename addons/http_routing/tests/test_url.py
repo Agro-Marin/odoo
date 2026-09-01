@@ -570,7 +570,7 @@ class TestUrlRewrite(TestUrlCommon):
         )
         with (
             MockRequest(self.env, mock_router=False),
-            patch("odoo.http.root.get_db_router", router),
+            patch("odoo.http.root.get_routing_map", router),
         ):
             self.assertEqual(
                 self.env["ir.http"].url_rewrite("/put/only"), ("/put/only", False)
@@ -592,7 +592,7 @@ class TestUrlRewrite(TestUrlCommon):
         router.return_value.bind.return_value.match.side_effect = fake_match
         with (
             MockRequest(self.env, mock_router=False),
-            patch("odoo.http.root.get_db_router", router),
+            patch("odoo.http.root.get_routing_map", router),
             self.assertLogs(
                 "odoo.addons.http_routing.models.ir_http", level="WARNING"
             ) as capture,
@@ -612,7 +612,7 @@ class TestUrlRewrite(TestUrlCommon):
         router.return_value.bind.return_value.match.side_effect = fake_match
         with (
             MockRequest(self.env, mock_router=False),
-            patch("odoo.http.root.get_db_router", router),
+            patch("odoo.http.root.get_routing_map", router),
             self.assertLogs("odoo.addons.http_routing.models.ir_http", level="WARNING"),
         ):
             path_a, func_a = self.env["ir.http"].url_rewrite("/loop/a")

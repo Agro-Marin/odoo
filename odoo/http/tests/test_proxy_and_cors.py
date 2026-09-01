@@ -6,7 +6,7 @@ import pytest
 
 from odoo.http.application import _get_proxy_fix
 from odoo.http.dispatcher import Dispatcher, HttpDispatcher
-from odoo.http.wrappers import FutureResponse, no_content
+from odoo.http.wrappers import FutureResponse, prepare_no_content_response
 
 
 def _environ(forwarded_for, forwarded_host=None, forwarded_proto=None):
@@ -143,14 +143,14 @@ def test_cors_expose_headers_is_a_declared_route_parameter():
 
 
 def test_a_bodyless_status_carries_no_content_type():
-    response = no_content(headers=[("Allow", "GET, HEAD, OPTIONS")])
+    response = prepare_no_content_response(headers=[("Allow", "GET, HEAD, OPTIONS")])
     assert response.status_code == 204
     assert "Content-Type" not in response.headers
     assert response.headers["Allow"] == "GET, HEAD, OPTIONS"
 
 
 def test_the_headers_facade_can_delete():
-    response = no_content()
+    response = prepare_no_content_response()
     response.headers["X-Gone"] = "1"
     del response.headers["X-Gone"]
     assert "X-Gone" not in response.headers
@@ -187,16 +187,16 @@ def test_the_abstract_dispatcher_still_declares_no_expose_headers():
 
 def test_cors_methods_resolves_each_step_with_is_none():
     from odoo.http.constants import CORS_DEFAULT_ALLOWED_METHODS
-    from odoo.http.dispatcher import _cors_methods
+    from odoo.http.dispatcher import _get_cors_methods
 
-    assert tuple(_cors_methods(None, {})) == tuple(CORS_DEFAULT_ALLOWED_METHODS)
-    assert tuple(_cors_methods(None, {"methods": None})) == tuple(
+    assert tuple(_get_cors_methods(None, {})) == tuple(CORS_DEFAULT_ALLOWED_METHODS)
+    assert tuple(_get_cors_methods(None, {"methods": None})) == tuple(
         CORS_DEFAULT_ALLOWED_METHODS
     )
-    assert tuple(_cors_methods((), {"methods": ("PUT",)})) == ()
-    assert tuple(_cors_methods(None, {"methods": ()})) == ()
-    assert tuple(_cors_methods(("POST",), {"methods": ("PUT",)})) == ("POST",)
-    assert tuple(_cors_methods(None, {"methods": ("PUT",)})) == ("PUT",)
+    assert tuple(_get_cors_methods((), {"methods": ("PUT",)})) == ()
+    assert tuple(_get_cors_methods(None, {"methods": ()})) == ()
+    assert tuple(_get_cors_methods(("POST",), {"methods": ("PUT",)})) == ("POST",)
+    assert tuple(_get_cors_methods(None, {"methods": ("PUT",)})) == ("PUT",)
 
 
 class _Sec:
@@ -207,9 +207,9 @@ class _Sec:
 
 
 def _same_host(origin, host_url="http://app.example.com/", is_secure=False):
-    from odoo.http.helpers import cors_same_host
+    from odoo.http.helpers import resolve_cors_same_host
 
-    return cors_same_host(
+    return resolve_cors_same_host(
         SimpleNamespace(httprequest=_Sec(origin, host_url, is_secure))
     )
 

@@ -13,7 +13,7 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-def get_installed_modules(cursor: SqlReader) -> list[str]:
+def get_installed_module_names(cursor: SqlReader) -> list[str]:
     cursor.execute("""
         SELECT name
           FROM ir_module_module
@@ -45,7 +45,9 @@ def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
 
 
 def neutralize_database(cursor: SqlReader) -> None:
-    for module, query in iter_neutralization_queries(get_installed_modules(cursor)):
+    for module, query in iter_neutralization_queries(
+        get_installed_module_names(cursor)
+    ):
         try:
             cursor.execute(query)
         except Exception as exc:

@@ -56,7 +56,7 @@ except ImportError:
     GEOIP_EMPTY_CITY = _GEOIP_NULL
 
 
-def _none_if_null(value: Any) -> Any:
+def _null_to_none(value: Any) -> Any:
     return None if value is _GEOIP_NULL else value
 
 
@@ -135,11 +135,11 @@ class GeoIP:
 
     @property
     def country_name(self) -> str | None:
-        return _none_if_null(self.country.name or self.continent.name)
+        return _null_to_none(self.country.name or self.continent.name)
 
     @property
     def country_code(self) -> str | None:
-        return _none_if_null(self.country.iso_code or self.continent.code)
+        return _null_to_none(self.country.iso_code or self.continent.code)
 
     def __getattr__(self, attr: str) -> Any:
         if geoip2 is None:
@@ -164,17 +164,17 @@ class GeoIP:
             case "country_code":
                 return self.country_code
             case "city":
-                return _none_if_null(self.city.name)
+                return _null_to_none(self.city.name)
             case "latitude":
-                return _none_if_null(self.location.latitude)
+                return _null_to_none(self.location.latitude)
             case "longitude":
-                return _none_if_null(self.location.longitude)
+                return _null_to_none(self.location.longitude)
             case "region":
-                return _none_if_null(
+                return _null_to_none(
                     self.subdivisions[0].iso_code if self.subdivisions else None
                 )
             case "time_zone":
-                return _none_if_null(self.location.time_zone)
+                return _null_to_none(self.location.time_zone)
             case _:
                 raise KeyError(item)
 

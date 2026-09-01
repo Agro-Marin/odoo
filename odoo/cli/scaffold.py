@@ -24,7 +24,9 @@ class Scaffold(Command):
     def __init__(self) -> None:
         super().__init__()
         try:
-            templates = sorted(d.name for d in _builtins_dir().iterdir() if d.is_dir())
+            templates = sorted(
+                d.name for d in _get_template_path().iterdir() if d.is_dir()
+            )
         except OSError:
             templates = []
         self.epilog = (
@@ -64,7 +66,7 @@ class Scaffold(Command):
             modname = args.template.get_module_name(args.name, params)
         except ValueError as err:
             parser.error(str(err))
-        dest = directory(args.dest, create=True)
+        dest = _get_or_create_directory(args.dest)
         if not args.force and (dest / modname).exists():
             parser.error(
                 f"{dest / modname} already exists; pass --force to overwrite it"
@@ -72,24 +74,24 @@ class Scaffold(Command):
         args.template.render_to_directory(modname, dest, params=params)
 
 
-def _builtins_dir(*parts: str) -> Path:
+def _get_template_path(*parts: str) -> Path:
     base = Path(__file__).resolve().parent / "templates"
     return base / Path(*parts) if parts else base
 
 
-def snake(s: str) -> str:
+def _str_to_snake_case(s: str) -> str:
     s = re.sub(r"(?<=[A-Z])([A-Z][a-z])", r" \1", s)
     s = re.sub(r"(?<=[a-z0-9])([A-Z])", r" \1", s)
     return "_".join(s.lower().split())
 
 
-def pascal(s: str) -> str:
+def _str_to_pascal_case(s: str) -> str:
     return "".join(ss.capitalize() for ss in re.sub(r"[_\s]+", " ", s).split())
 
 
-def directory(p: str, create: bool = False) -> Path:
+def _get_or_create_directory(p: str) -> Path:
     expanded = Path(os.path.expandvars(p)).expanduser().resolve()
-    if create and not expanded.exists():
+    if not expanded.exists():
         expanded.mkdir(parents=True)
     if not expanded.is_dir():
         sys.exit(f"{p} is not a directory")
@@ -97,7 +99,7 @@ def directory(p: str, create: bool = False) -> Path:
 
 
 @functools.cache
-def _env() -> Environment:
+def _get_jinja_env() -> Environment:
     try:
         import jinja2
     except ImportError:
@@ -106,18 +108,18 @@ def _env() -> Environment:
             "    pip install Jinja2      (or: pip install 'odoo[scaffold]')"
         )
     env = jinja2.Environment()  # noqa: S701  see comment above
-    env.filters["snake"] = snake
-    env.filters["pascal"] = pascal
+    env.filters["snake"] = _str_to_snake_case
+    env.filters["pascal"] = _str_to_pascal_case
     return env
 
 
 @dataclasses.dataclass(frozen=True)
 class NamingConvention:
-    parse: Callable[[str], dict[str, str]]
-    modname: Callable[[str, dict[str, str]], str]
+    parse_params: Callable[[str], dict[str, str]]
+    get_module_name: Callable[[str, dict[str, str]], str]
 
 
-def _parse_country_code(name: str) -> dict[str, str]:
+def _parse_country_name_and_code(name: str) -> dict[str, str]:
     if "-" not in name:
         raise ValueError(
             "l10n_payroll template requires a name of the form "
@@ -128,14 +130,14 @@ def _parse_country_code(name: str) -> dict[str, str]:
 
 
 DEFAULT_NAMING = NamingConvention(
-    parse=lambda name: {"name": name},
-    modname=lambda name, params: snake(name),
+    parse_params=lambda name: {"name": name},
+    get_module_name=lambda name, params: _str_to_snake_case(name),
 )
 
 NAMING_CONVENTIONS = {
     "l10n_payroll": NamingConvention(
-        parse=_parse_country_code,
-        modname=lambda name, params: f"l10n_{params['code']}_hr_payroll",
+        parse_params=_parse_country_name_and_code,
+        get_module_name=lambda name, params: f"l10n_{params['code']}_hr_payroll",
     ),
 }
 
@@ -143,7 +145,7 @@ NAMING_CONVENTIONS = {
 class Template:
     def __init__(self, identifier: str) -> None:
         self.id = identifier
-        self.path = _builtins_dir(identifier)
+        self.path = _get_template_path(identifier)
         if self.path.is_dir():
             return
         self.path = Path(identifier)
@@ -156,7 +158,7 @@ class Template:
     def __str__(self) -> str:
         return self.id
 
-    def files(self) -> Generator[tuple[Path, bytes]]:
+    def _read_files(self) -> Generator[tuple[Path, bytes]]:
         for dirpath, _, filenames in self.path.walk():
             for f in filenames:
                 filepath = dirpath / f
@@ -164,11 +166,11 @@ class Template:
 
     def parse_params(self, name: str) -> dict[str, str]:
         convention = NAMING_CONVENTIONS.get(self.id, DEFAULT_NAMING)
-        return convention.parse(name)
+        return convention.parse_params(name)
 
     def get_module_name(self, name: str, params: dict[str, str]) -> str:
         convention = NAMING_CONVENTIONS.get(self.id, DEFAULT_NAMING)
-        modname = convention.modname(name, params)
+        modname = convention.get_module_name(name, params)
         if not _MODNAME_RE.match(modname):
             msg = (
                 f"{modname!r} is not a valid module name: expected "
@@ -180,8 +182,8 @@ class Template:
     def render_to_directory(
         self, modname: str, directory: Path, params: dict[str, str] | None = None
     ) -> None:
-        env = _env()
-        for path, content in self.files():
+        env = _get_jinja_env()
+        for path, content in self._read_files():
             rendered = Path(env.from_string(str(path)).render(params))
             local = rendered.relative_to(self.path)
             ext = rendered.suffix

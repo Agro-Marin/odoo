@@ -8,7 +8,7 @@ from lxml import etree as ET
 from lxml import html
 from lxml.html import builder as h
 
-from odoo.exceptions import MissingError
+from odoo.exceptions import MissingError, UserError
 from odoo.modules.module import _DEFAULT_MANIFEST, Manifest
 from odoo.tests import HttpCase, common, tagged
 
@@ -448,7 +448,7 @@ class TestViewSaving(TestViewSavingCommon):
         )
 
     def test_multiple_xpath_matches(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(UserError):
             self.view_id.replace_arch_section("/div/div/h3", h.H6("Lol nope"))
 
     def test_save(self):

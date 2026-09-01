@@ -278,11 +278,11 @@ class TestFSWatcherInotifyRewatch:
         obj.watcher = _watcher_raising("IN_Q_OVERFLOW")
         calls = []
 
-        def _resync():
+        def _sync_watches_after_overflow():
             calls.append(1)
             obj.started = False
 
-        obj._resync = _resync
+        obj._sync_watches_after_overflow = _sync_watches_after_overflow
         obj.run()
         assert calls == [1], "overflow did not trigger a resync"
 
@@ -346,7 +346,7 @@ class TestBothBackendsWatchTheSameTree:
         from odoo.service._watcher import FSWatcherBase
 
         with patch.dict(odoo.tools.config.options, {"dev_mode": dev_mode}):
-            return FSWatcherBase.watch_paths()
+            return FSWatcherBase.get_watch_paths()
 
     def test_reload_mode_watches_the_addons_roots(self):
         import odoo.addons
@@ -366,7 +366,7 @@ class TestBothBackendsWatchTheSameTree:
             "the per-backend tree calculation is back"
         )
         source = pathlib.Path(w.__file__).read_text(encoding="utf-8")
-        assert source.count("self.watch_paths()") == 2
+        assert source.count("self.get_watch_paths()") == 2
         assert "odoo.addons.__path__" not in source.split("class FSWatcherWatchdog")[1]
 
 

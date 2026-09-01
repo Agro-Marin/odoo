@@ -20,14 +20,14 @@ from odoo.tools import SQL
 from odoo.tools.misc import Callbacks, real_time
 
 from .bulk import _BulkAccessMixin
-from .ddl import _changes_schema, _inline_ddl_params, classify_statement
+from .ddl import _inline_ddl_params, _is_schema_change, classify_statement
 from .errors import (
     PG_STALE_PLAN_EXCEPTIONS,
     _log_sql_error,
+    has_reached_server,
     is_handled_by_seam,
     mark_handled_by_seam,
     mark_stale_cached_plan,
-    reached_the_server,
 )
 from .lifecycle import clear_prepared_cache
 from .metrics import _MetricsMixin
@@ -44,7 +44,7 @@ _logger = logging.getLogger(__name__)
 _TX_IDLE = _TxStatus.IDLE
 
 
-def _statement_text(query: Any) -> str:
+def _get_statement_text(query: Any) -> str:
     if isinstance(query, bytes):
         try:
             return query.decode()
@@ -53,7 +53,7 @@ def _statement_text(query: Any) -> str:
     return query if isinstance(query, str) else str(query)
 
 
-def _rendered(query: Any) -> Any:
+def _render_query(query: Any) -> Any:
     return query() if callable(query) else query
 
 
@@ -105,7 +105,7 @@ class BaseCursor:
         if self.transaction is not None:
             self.transaction.reset()
 
-    def discard_cached_plans(self) -> None:
+    def invalidate_cached_plans(self) -> None:
         pass
 
     if TYPE_CHECKING:
@@ -277,7 +277,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             if obj is not None:
                 with suppress(Exception):
                     obj.close()
-            pool.give_back(self._cnx, keep_in_pool=self._connection_is_clean())
+            pool.give_back(self._cnx, keep_in_pool=self._is_connection_clean())
             raise
 
     def dictfetchone(self) -> dict[str, Any] | None:
@@ -288,11 +288,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             col.name: val for col, val in zip(self._obj.description, row, strict=True)
         }
 
-    def _col_names(self) -> tuple[str, ...]:
+    def _get_column_names(self) -> tuple[str, ...]:
         return tuple(col.name for col in self._obj.description)
 
     def _rows_to_dict_list(self, rows: list[tuple[Any, ...]]) -> list[dict[str, Any]]:
-        return _rows_to_dicts(self._col_names(), rows)
+        return _rows_to_dicts(self._get_column_names(), rows)
 
     def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
         if size <= 0:
@@ -360,8 +360,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 debug=_logger.isEnabledFor(logging.DEBUG),
             )
 
-    def _refuse_copy(self) -> NoReturn:
-        raise TypeError(
+    def _prepare_copy_refused_error(self) -> TypeError:
+        return TypeError(
             f"{type(self).__name__} cannot be copied: it owns a borrowed pooled "
             f"connection and an open transaction.  A shallow copy shares "
             f"``_obj``/``_cnx``, so the copy's ``__del__`` would roll back and "
@@ -372,10 +372,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         )
 
     def __copy__(self) -> NoReturn:
-        self._refuse_copy()
+        raise self._prepare_copy_refused_error()
 
     def __deepcopy__(self, memo: dict) -> NoReturn:
-        self._refuse_copy()
+        raise self._prepare_copy_refused_error()
 
     def __del__(self) -> None:
         if not self._closed and not self._cnx.closed:
@@ -397,13 +397,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         prepared: bool = True,
     ) -> bool:
         if is_handled_by_seam(exc):
-            return reached_the_server(exc)
+            return has_reached_server(exc)
         mark_handled_by_seam(exc)
         if prepared:
             self._note_stale_cached_plan(exc)
         if log_exceptions:
-            _log_sql_error(exc, _rendered(query), label=label)
-        return reached_the_server(exc)
+            _log_sql_error(exc, _render_query(query), label=label)
+        return has_reached_server(exc)
 
     def _statement_done(
         self,
@@ -425,13 +425,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 1000 * delay,
                 label,
                 rows,
-                self._format(_rendered(query), params),
+                self._format_statement(_render_query(query), params),
             )
         if counts:
             self._record_metrics(
                 delay,
                 count,
-                query=_rendered(query) if hooks else None,
+                query=_render_query(query) if hooks else None,
                 params=params,
                 start=start,
                 hooks=hooks,
@@ -462,7 +462,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     f"SQL query parameters should be a tuple, list or dict; got {params!r}"
                 )
 
-        query, params, prepare, qs, ddl_kw, rollback_to = self._resolve_ddl(
+        query, params, prepare, qs, ddl_kw, rollback_to = self._prepare_ddl_statement(
             query, params, prepare
         )
 
@@ -502,18 +502,18 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             self._record_sql_log(query_type, table, delay)
 
     def _after_statement(self, qs: str, ddl_kw: str | None, rollback_to: bool) -> None:
-        if _changes_schema(qs, ddl_kw):
+        if _is_schema_change(qs, ddl_kw):
             self._invalidate_caches_after_ddl()
         elif rollback_to:
             self._on_rollback_to_savepoint()
 
-    def _resolve_ddl(
+    def _prepare_ddl_statement(
         self,
         query: Any,
         params: tuple | list | dict | None,
         prepare: bool | None,
     ) -> tuple[Any, tuple | list | dict | None, bool | None, str, str | None, bool]:
-        qs = _statement_text(query)
+        qs = _get_statement_text(query)
         ddl_kw, rollback_to = classify_statement(qs)
         if ddl_kw is not None:
             if params:
@@ -523,7 +523,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 prepare = False
         return query, params, prepare, qs, ddl_kw, rollback_to
 
-    def discard_cached_plans(self) -> None:
+    def invalidate_cached_plans(self) -> None:
         if not clear_prepared_cache(self._cnx):
             _logger.warning(
                 "psycopg no longer exposes Connection._prepared.clear(); "
@@ -533,7 +533,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             )
             self._cnx.prepare_threshold = None
             self.execute("DEALLOCATE ALL")
-        self._schema_cache.clear_catalog_facts()
+        self._schema_cache.invalidate_catalog_facts()
 
     def _on_rollback_to_savepoint(self) -> None:
         self._schema_cache.clear()
@@ -545,7 +545,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         if prepared is None or not getattr(prepared, "_names", None):
             return False
         clear_prepared_cache(self._cnx)
-        self._schema_cache.clear_catalog_facts()
+        self._schema_cache.invalidate_catalog_facts()
         mark_stale_cached_plan(exc)
         return True
 
@@ -555,7 +555,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         drain_db(self.dbname)
 
     def _invalidate_caches_after_ddl(self) -> None:
-        self.discard_cached_plans()
+        self.invalidate_cached_plans()
         self._schema_changed = True
 
     def executemany(
@@ -577,7 +577,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         elif isinstance(query, _sql.Composable):
             query = query.as_string(self._cnx)
 
-        qs = _statement_text(query)
+        qs = _get_statement_text(query)
         ddl_kw, rollback_to = classify_statement(qs)
 
         rows: Collection[tuple | list | dict] = (
@@ -655,7 +655,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 self._pipeline_stack = stack
                 yield
         except Exception as e:
-            if reached_the_server(e):
+            if has_reached_server(e):
                 self._statement_failed(
                     e,
                     query
@@ -684,10 +684,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 try:
                     self._rollback()
                 except Exception as exc:
-                    keep_in_pool = self._connection_is_clean()
+                    keep_in_pool = self._is_connection_clean()
                     if keep_in_pool:
                         _logger.warning("Failed to roll back on cursor close")
-                    elif not reached_the_server(exc):
+                    elif not has_reached_server(exc):
                         _logger.warning(
                             "Discarding a connection whose backend is gone: %s",
                             exc,
@@ -702,7 +702,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             del self._obj
             self.__pool.give_back(self._cnx, keep_in_pool=keep_in_pool)
 
-    def _connection_is_clean(self) -> bool:
+    def _is_connection_clean(self) -> bool:
         try:
             return self._cnx.info.transaction_status == _TX_IDLE
         except Exception:

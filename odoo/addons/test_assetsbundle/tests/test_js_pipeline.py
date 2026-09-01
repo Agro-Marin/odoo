@@ -80,7 +80,7 @@ class TestModuleSyntaxGuard(TransactionCase):
 
     def test_module_file_is_stubbed_and_excluded_in_production(self):
         with config.patch(test_enable=False, dev_mode=[]):
-            self.assertFalse(JsPipeline._fails_closed())
+            self.assertFalse(JsPipeline._is_asset_error_fatal())
             bundle = self._legacy_bundle(f"{self.BUNDLE}_prod")
             with self.assertLogs("odoo.assets.bundle", level="ERROR") as cm:
                 attachment = bundle.js()

@@ -4,13 +4,13 @@ from .core import OrmCore
 from .model_graph import ModelGraph, TriggerTree
 from .recompute import RecomputeScheduler
 from .storage import DictBackend
-from .unit_of_work import LoopResult, UnitOfWork
+from .unit_of_work import ConvergenceResult, UnitOfWork
 
 __all__ = [
     "ComputeEngine",
+    "ConvergenceResult",
     "DictBackend",
     "FieldCache",
-    "LoopResult",
     "ModelGraph",
     "OrmCore",
     "RecomputeScheduler",

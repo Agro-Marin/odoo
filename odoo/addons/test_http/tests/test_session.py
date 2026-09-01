@@ -649,7 +649,7 @@ class TestSessionRotation(HttpCase):
         self.assertEqual(session_three, session_two)
         self.assertEqual(get_amount_sessions(session_three), 1)
         self.logout()
-        root.session_store.remove_from_identifiers(
+        root.session_store.remove_sessions_for_identifiers(
             [session_three[:STORED_SESSION_BYTES]]
         )
         self.assertEqual(get_amount_sessions(session_three), 0)
@@ -681,7 +681,7 @@ class TestSessionRotation(HttpCase):
         )
 
         self.logout()
-        root.session_store.remove_from_identifiers([session_two[:STORED_SESSION_BYTES]])
+        root.session_store.remove_sessions_for_identifiers([session_two[:STORED_SESSION_BYTES]])
 
     def test_session_token_lookup_does_not_clear_cache(self):
         with patch.object(self.env.registry, "clear_cache") as mock_clear:

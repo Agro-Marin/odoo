@@ -9,7 +9,7 @@ import psutil
 
 from odoo.tools.config import config
 
-from ._limits import over_memory_soft_limit
+from ._limits import get_memory_over_soft_limit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -24,11 +24,11 @@ _on_stop_hooks: list[Callable] = []
 
 A process runs one server, and a hook registered by (say) the sass compiler has
 no opinion about which flavour is running, so a module-level list is the right
-shape.  What was misleading was reaching it only through `CommonServer.on_stop`,
+shape.  What was misleading was reaching it only through `CommonServer.register_on_stop_hook`,
 a `@classmethod`, which reads as class state.  Verified, not inferred: one hook
 registered on `CommonServer` ran on `stop()` for two unrelated subclasses, and
 was still registered afterwards.  So the storage and the functions that touch it
-live together here, and `CommonServer.on_stop` is the alias two callers outside
+live together here, and `CommonServer.register_on_stop_hook` is the alias two callers outside
 `service/` already import (`tools/sass_embedded.py`, `tools/assets/esm_lexer.py`).
 
 There is deliberately no unregister.  Nothing in production wants one, and the
@@ -38,7 +38,7 @@ watches this list.
 """
 
 
-def register_on_stop(func: Callable) -> None:
+def register_on_stop_hook(func: Callable) -> None:
     if func not in _on_stop_hooks:
         _on_stop_hooks.append(func)
 
@@ -77,21 +77,23 @@ class CommonServer:
             f"server flavour has to"
         )
 
-    def metrics(self) -> dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         return {}
 
-    def check_memory_limit(self) -> int | None:
-        memory = over_memory_soft_limit(self._process_handle, self.memory_soft_limit())
+    def get_memory_over_soft_limit(self) -> int | None:
+        memory = get_memory_over_soft_limit(
+            self._process_handle, self.get_memory_soft_limit()
+        )
         if memory is not None:
             self.logger.warning("RSS memory soft-limit reached: %s bytes.", memory)
         return memory
 
-    def memory_soft_limit(self) -> int:
+    def get_memory_soft_limit(self) -> int:
         return config["limit_memory_soft"]
 
     @classmethod
-    def on_stop(cls, func: Callable) -> None:
-        register_on_stop(func)
+    def register_on_stop_hook(cls, func: Callable) -> None:
+        register_on_stop_hook(func)
 
     def stop(self) -> None:
         run_on_stop_hooks(self.logger)

@@ -34,6 +34,12 @@ class TestBound:
         with pytest.raises(ValueError, match="1-based"):
             backoff.bound(attempt, base=0.2, cap=2.0)
 
+    def test_a_runaway_attempt_returns_the_cap_rather_than_overflowing(self):
+        assert backoff.bound(10_001, base=1.0, cap=60.0) == 60.0
+
+    def test_the_cap_is_reached_by_the_doubling_it_is_due(self):
+        assert list(backoff.bounds(7, base=2.0, cap=60.0)) == [2, 4, 8, 16, 32, 60, 60]
+
     def test_a_non_positive_base_is_rejected(self):
         with pytest.raises(ValueError, match="base must be positive"):
             backoff.bound(1, base=0.0, cap=2.0)

@@ -292,7 +292,7 @@ class BundleWalk:
 
         targets: list[str] = []
         if directive in DIRECTIVES_WITH_TARGET:
-            targets = self._resolve_targets(directive, target, path_def, bundle)
+            targets = self._get_target_paths(directive, target, path_def, bundle)
             if not targets:
                 return
 
@@ -328,7 +328,7 @@ class BundleWalk:
             msg = f"Unexpected directive: {directive!r}"
             raise ValueError(msg)
 
-    def _resolve_targets(
+    def _get_target_paths(
         self, directive: str, target: str | None, path_def: str, bundle: str
     ) -> list[str]:
         if not target:

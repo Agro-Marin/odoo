@@ -92,7 +92,7 @@ class TestTypedParams(BaseCase):
         self.assertEqual(get_param_specs(lambda self, **kw: None), {})
 
     def test_override_inherits_typed_without_restating_it(self):
-        from odoo.http.routing import _check_and_complete_route_definition
+        from odoo.http.routing import _prepare_route_fragment
 
         def parent(self, n: int, **kw):
             return None
@@ -111,17 +111,17 @@ class TestTypedParams(BaseCase):
 
         merged = {"auth": "user", "methods": None, "routes": []}
         merged.update(
-            _check_and_complete_route_definition(FakeController, parent, merged)
+            _prepare_route_fragment(FakeController, parent, merged)
         )
         self.assertTrue(merged["typed"])
 
         merged.update(
-            _check_and_complete_route_definition(FakeController, child, merged)
+            _prepare_route_fragment(FakeController, child, merged)
         )
         self.assertTrue(merged["typed"], "the override must inherit parameter coercion")
 
     def test_override_can_opt_out_of_typed(self):
-        from odoo.http.routing import _check_and_complete_route_definition
+        from odoo.http.routing import _prepare_route_fragment
 
         def child(self, n: int, **kw):
             return None
@@ -134,12 +134,12 @@ class TestTypedParams(BaseCase):
 
         merged = {"auth": "user", "methods": None, "routes": [], "typed": True}
         merged.update(
-            _check_and_complete_route_definition(FakeController, child, merged)
+            _prepare_route_fragment(FakeController, child, merged)
         )
         self.assertFalse(merged["typed"])
 
     def test_merge_never_writes_specs_on_the_shared_wrapper(self):
-        from odoo.http.routing import _check_and_complete_route_definition
+        from odoo.http.routing import _prepare_route_fragment
 
         def parent(self, n: int, **kw):
             return None
@@ -151,7 +151,7 @@ class TestTypedParams(BaseCase):
             pass
 
         merged = {"auth": "user", "methods": None, "routes": []}
-        _check_and_complete_route_definition(FakeController, parent, merged)
+        _prepare_route_fragment(FakeController, parent, merged)
         self.assertFalse(hasattr(parent, "_param_specs"))
         self.assertFalse(hasattr(parent, "typed_list_params"))
 

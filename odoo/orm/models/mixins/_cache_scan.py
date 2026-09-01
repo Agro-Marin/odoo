@@ -9,7 +9,7 @@ def is_cache_detached(field: Field, env: Environment, captured) -> bool:
     return field._get_cache(env) is not captured
 
 
-def caches_lang_dicts(field: Field, env: Environment) -> bool:
+def has_lang_dict_cache(field: Field, env: Environment) -> bool:
     return callable(field.translate) and bool(env.context.get("prefetch_langs"))
 
 

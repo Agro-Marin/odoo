@@ -54,7 +54,7 @@ what a merge is for, and no mode turns it off.
 
 **Absorbing values is a mode**, declared on the wizard record as
 `absorb_source_values` (default `True`) and read through
-`mixin.merge._merge_absorbs_source_values()`. A concrete wizard that has no such
+`mixin.merge._is_source_absorbed_on_merge()`. A concrete wizard that has no such
 notion inherits the default and is unaffected. When the mode is off, the merge
 skips the scalar copy, the company-dependent copy, the stored many2many
 re-pointing, and — for partners — `res_partner_bank`.
@@ -121,7 +121,7 @@ mode left alone writes what it always wrote.
 `TestMergePartnerCompanyDependent`, which predates this record, is what says so.
 
 **A wizard that never heard of the mode is unaffected.** `product.merge.wizard`
-inherits `_merge_absorbs_source_values()` returning `True` and behaves exactly as
+inherits `_is_source_absorbed_on_merge()` returning `True` and behaves exactly as
 before, including the company-dependent copy it used to receive from the
 reference pass and now receives from the value phase.
 
@@ -147,3 +147,28 @@ company-dependent copy back into `_update_reference_fields_generic` because that
 is where the flush already is. The `barcode` assertion in
 `test_not_absorbing_keeps_the_destination_identity` is what would catch it: that
 column is only reachable through the phase that moved.
+
+## Amendments
+
+### 2026-08-31 — the hook is `_is_source_absorbed_on_merge`
+
+The hook is renamed. Every `_merge_absorbs_source_values` above now reads
+`_is_source_absorbed_on_merge`, on `mixin.merge` and on its
+`base.partner.merge.automatic.wizard` override. Nothing else changes: the mode,
+the two phases it separates, the tests that pin both directions and the
+regression this record exists to prevent are all exactly as argued.
+
+The rename is `doc/coding_guidelines.rst` §2.4.8's third-person-verb rule — the
+old spelling states a fact in the grammar of an action, and the subject is not
+the receiver.
+
+Recorded here because the two rules that meet on it pull opposite ways, and the
+resolution is worth having written down. §10 makes an accepted record immutable;
+the `TestReferencedNamesExist` case in
+`tooling/architecture/test_adr_coherence.py` fails on any symbol an ADR names
+that no `def` in the tree defines, so leaving the old spelling in place was not
+available. **Immutability is about the argument, not about a symbol's
+spelling**: updating a name so a citation still resolves is the pointer
+maintenance §2.4.14 requires of every rename, not a rewriting of the decision.
+What may not be edited is the reasoning, the decision, and any frozen figure —
+and none of those moved.

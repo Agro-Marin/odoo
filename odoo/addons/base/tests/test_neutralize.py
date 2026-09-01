@@ -13,7 +13,7 @@ import odoo.addons
 @tagged("post_install", "-at_install", "neutralize")
 class TestNeutralize(TransactionCase):
     def test_10_neutralize(self):
-        installed_modules = neutralize.get_installed_modules(self.cr)
+        installed_modules = neutralize.get_installed_module_names(self.cr)
         queries = neutralize.get_neutralization_queries(installed_modules)
         for query in queries:
             self.cr.execute(query)

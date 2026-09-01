@@ -477,7 +477,7 @@ class BaseCase(TestCase):
             httprequest=Mock(host="localhost"),
             db=self.env.cr.dbname,
             env=self.env,
-            session=DotDict(odoo.http.get_default_session(), debug="1"),
+            session=DotDict(odoo.http.prepare_default_session(), debug="1"),
         )
         try:
             self.env.flush_all()

@@ -6,7 +6,7 @@ from typing import Any, Literal, Self
 
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
-from odoo.db import insert_or_existing
+from odoo.db import get_or_create_row
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
@@ -511,7 +511,7 @@ class IrSequence(models.Model):
         if date_range:
             date_from = date_range.date_to + timedelta(days=1)
         seq_date_range = self.env["ir.sequence.date_range"].sudo()
-        date_range, _created = insert_or_existing(
+        date_range, _created = get_or_create_row(
             self.env.cr,
             lambda: seq_date_range.create(
                 {

@@ -129,13 +129,13 @@ def test_abstract_intermediate_dispatcher_is_not_registered():
 
     class _AbstractBase(Dispatcher):
         @classmethod
-        def is_compatible_with(cls, request):
+        def is_compatible_with_request(cls, request):
             return False
 
         def dispatch(self, endpoint, args):
             return None
 
-        def handle_error(self, exc):
+        def prepare_error_response(self, exc):
             return None
 
     assert _dispatchers == before, "an abstract base must not register itself"

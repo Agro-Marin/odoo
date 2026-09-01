@@ -17,8 +17,8 @@ def _clean_env():
 
 
 PARSERS = [
-    pytest.param(_env.env_float, "45", 45.0, 30.0, id="env_float"),
-    pytest.param(_env.env_int, "45", 45, 30, id="env_int"),
+    pytest.param(_env.get_env_float, "45", 45.0, 30.0, id="get_env_float"),
+    pytest.param(_env.get_env_int, "45", 45, 30, id="get_env_int"),
 ]
 
 
@@ -80,31 +80,31 @@ class TestGuardedParserContract:
 class TestEnvFloat:
     def test_parses_float_string(self):
         with patch.dict(os.environ, {VAR: "0.25"}):
-            assert _env.env_float(VAR, 30.0) == 0.25
+            assert _env.get_env_float(VAR, 30.0) == 0.25
 
     @pytest.mark.parametrize(
         "raw", ["inf", "-inf", "Infinity", "nan", "NaN", "1e400", "-1e400"]
     )
     def test_non_finite_falls_back_to_default(self, raw):
         with patch.dict(os.environ, {VAR: raw}):
-            assert _env.env_float(VAR, 30.0) == 30.0
+            assert _env.get_env_float(VAR, 30.0) == 30.0
 
     def test_non_finite_is_refused_even_with_a_minimum(self):
         with patch.dict(os.environ, {VAR: "nan"}):
-            assert _env.env_float(VAR, 30.0, minimum=0.1) == 30.0
+            assert _env.get_env_float(VAR, 30.0, minimum=0.1) == 30.0
 
     def test_warns_on_non_finite_when_logger_given(self):
         logger = logging.getLogger("odoo.service.test_env")
         with patch.dict(os.environ, {VAR: "inf"}):
             with patch.object(logger, "warning") as warn:
-                assert _env.env_float(VAR, 30.0, logger=logger) == 30.0
+                assert _env.get_env_float(VAR, 30.0, logger=logger) == 30.0
         warn.assert_called_once()
 
     def test_non_finite_warning_does_not_double_the_article(self):
         logger = logging.getLogger("odoo.service.test_env")
         with patch.dict(os.environ, {VAR: "nan"}):
             with patch.object(logger, "warning") as warn:
-                assert _env.env_float(VAR, 1.5, logger=logger) == 1.5
+                assert _env.get_env_float(VAR, 1.5, logger=logger) == 1.5
         rendered = warn.call_args.args[0] % warn.call_args.args[1:]
         assert rendered == f"{VAR}='nan' is not finite; using default 1.5"
 
@@ -112,9 +112,9 @@ class TestEnvFloat:
 class TestEnvInt:
     def test_float_string_is_malformed(self):
         with patch.dict(os.environ, {VAR: "2.0"}):
-            assert _env.env_int(VAR, 8) == 8
+            assert _env.get_env_int(VAR, 8) == 8
         with patch.dict(os.environ, {VAR: "2.0"}):
-            assert _env.env_float(VAR, 8.0) == 2.0
+            assert _env.get_env_float(VAR, 8.0) == 2.0
 
 
 class TestEnvStr:
@@ -133,14 +133,14 @@ class TestEnvStr:
     def test_blank_is_treated_as_unset(self, raw, expected):
         if raw is not None:
             os.environ[VAR] = raw
-        assert _env.env_str(VAR) == expected
+        assert _env.get_env_str(VAR) == expected
 
     @pytest.mark.usefixtures("_clean_env")
     def test_default_is_returned_when_unset(self):
-        assert _env.env_str(VAR, "fallback") == "fallback"
+        assert _env.get_env_str(VAR, "fallback") == "fallback"
 
     @pytest.mark.parametrize("raw", ["", "   "])
     @pytest.mark.usefixtures("_clean_env")
     def test_blank_does_not_shadow_the_default(self, raw):
         os.environ[VAR] = raw
-        assert _env.env_str(VAR, "fallback") == "fallback"
+        assert _env.get_env_str(VAR, "fallback") == "fallback"

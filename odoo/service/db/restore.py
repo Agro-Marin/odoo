@@ -15,10 +15,10 @@ import odoo.tools
 from odoo.tools.misc import exec_pg_environ, get_pg_tool_path
 
 from .._db_helpers import check_db_management_enabled, check_db_name
-from .._dump_scanner import _assert_dump_sql_safe
-from .._env import env_float, env_int
+from .._dump_scanner import _check_dump_sql_safe
+from .._env import get_env_float, get_env_int
 from .lifecycle import (
-    _assert_filestore_dest_free,
+    _check_filestore_dest_free,
     _create_empty_database,
     _rollback_new_database,
 )
@@ -63,7 +63,7 @@ def _extract_members_bounded(
     return written
 
 
-def _source_size(dump_file: str | os.PathLike | IO[bytes]) -> int:
+def _get_source_size(dump_file: str | os.PathLike | IO[bytes]) -> int:
     if isinstance(dump_file, (str, os.PathLike)):
         return Path(dump_file).stat().st_size
     pos = dump_file.tell()
@@ -75,17 +75,17 @@ def _source_size(dump_file: str | os.PathLike | IO[bytes]) -> int:
 
 
 def _unpack_budget(dump_file: str | os.PathLike | IO[bytes]) -> int:
-    ratio = env_int(
+    ratio = get_env_int(
         "ODOO_RESTORE_MAX_EXPANSION_RATIO",
         _RESTORE_MAX_EXPANSION_RATIO,
         minimum=1,
         logger=_logger,
     )
-    return max(_source_size(dump_file) * ratio, _RESTORE_MIN_UNPACKED_BYTES)
+    return max(_get_source_size(dump_file) * ratio, _RESTORE_MIN_UNPACKED_BYTES)
 
 
-def _pg_restore_total_timeout() -> float:
-    return env_float("ODOO_PG_RESTORE_TOTAL_TIMEOUT", 3600.0, logger=_logger)
+def _get_pg_restore_total_timeout() -> float:
+    return get_env_float("ODOO_PG_RESTORE_TOTAL_TIMEOUT", 3600.0, logger=_logger)
 
 
 @check_db_management_enabled
@@ -143,13 +143,13 @@ def _extract_zip_dump(
     return str(Path(dump_dir, "filestore")) if filestore else None
 
 
-def _restore_command(
+def _get_restore_command(
     dump_file: str | os.PathLike | IO[bytes], dump_dir: str
 ) -> tuple[str, list[str], str | None]:
     if zipfile.is_zipfile(dump_file):
         filestore_path = _extract_zip_dump(dump_file, dump_dir)
         dump_sql_path = str(Path(dump_dir, "dump.sql"))
-        _assert_dump_sql_safe(dump_sql_path)
+        _check_dump_sql_safe(dump_sql_path)
         pg_args = ["-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", dump_sql_path]
         return "psql", pg_args, filestore_path
 
@@ -165,7 +165,7 @@ def _restore_command(
 
 
 def _run_pg_restore(db: str, pg_cmd: str, pg_args: list[str]) -> None:
-    timeout = _pg_restore_total_timeout()
+    timeout = _get_pg_restore_total_timeout()
     try:
         r = subprocess.run(
             [get_pg_tool_path(pg_cmd), "--dbname=" + db, *pg_args],
@@ -223,7 +223,7 @@ def restore_db(
         raise RuntimeError(f"Database {db!r} already exists")
 
     fs_dest = odoo.tools.config.filestore(db)
-    _assert_filestore_dest_free(fs_dest, f"Cannot restore to {db!r}")
+    _check_filestore_dest_free(fs_dest, f"Cannot restore to {db!r}")
 
     _logger.info("RESTORING DB: %s", db)
     _create_empty_database(
@@ -232,7 +232,7 @@ def restore_db(
 
     try:
         with tempfile.TemporaryDirectory() as dump_dir:
-            pg_cmd, pg_args, filestore_path = _restore_command(dump_file, dump_dir)
+            pg_cmd, pg_args, filestore_path = _get_restore_command(dump_file, dump_dir)
             _run_pg_restore(db, pg_cmd, pg_args)
             _finalize_restored_db(db, copy, neutralize_database, filestore_path)
 

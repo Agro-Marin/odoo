@@ -7,8 +7,8 @@ import werkzeug.routing
 
 from odoo.http.openapi import (
     RouteInfo,
-    _effective_methods,
-    _operation_id,
+    _get_methods_effective,
+    _prepare_operation_id,
     prepare_openapi_document,
     prepare_openapi_from_map,
 )
@@ -29,16 +29,16 @@ def _route(rule, *, methods=frozenset(), routing=None, handler=None):
 
 def test_effective_methods_defaults_when_no_allow_list():
     http_route = _route("/v", methods=frozenset(), routing={"type": "http"})
-    assert _effective_methods(http_route) == frozenset({"GET", "POST"})
+    assert _get_methods_effective(http_route) == frozenset({"GET", "POST"})
     rpc_route = _route("/rpc", methods=frozenset(), routing={"type": "jsonrpc"})
-    assert _effective_methods(rpc_route) == frozenset({"POST"})
+    assert _get_methods_effective(rpc_route) == frozenset({"POST"})
 
 
 def test_effective_methods_strips_implicit_verbs():
     r = _route("/v", methods=frozenset({"GET", "HEAD", "OPTIONS"}))
-    assert _effective_methods(r) == frozenset({"GET"})
+    assert _get_methods_effective(r) == frozenset({"GET"})
     only_implicit = _route("/v", methods=frozenset({"HEAD", "OPTIONS"}))
-    assert _effective_methods(only_implicit) == frozenset({"GET", "POST"})
+    assert _get_methods_effective(only_implicit) == frozenset({"GET", "POST"})
 
 
 def test_methods_none_route_emits_operations():
@@ -48,8 +48,8 @@ def test_methods_none_route_emits_operations():
 
 def test_operation_id_disambiguates_realistic_collision():
     used: set[str] = set()
-    first = _operation_id("GET", "/shop/cart", used)
-    second = _operation_id("GET", "/shop-cart", used)
+    first = _prepare_operation_id("GET", "/shop/cart", used)
+    second = _prepare_operation_id("GET", "/shop-cart", used)
     assert first == "get_shop_cart"
     assert second == "get_shop_cart_2"
     assert first != second

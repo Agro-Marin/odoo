@@ -558,8 +558,8 @@ class ResCompany(models.Model):
             )
         return company_sudo.batch_payment_sequence_id.next_by_id()
 
-    def _get_root_delegated_field_names(self):
-        return super()._get_root_delegated_field_names() + [
+    def _get_field_names_delegated_to_root(self):
+        return super()._get_field_names_delegated_to_root() + [
             "fiscalyear_last_day",
             "fiscalyear_last_month",
             "account_storno",

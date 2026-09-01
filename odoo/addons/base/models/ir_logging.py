@@ -37,7 +37,7 @@ class IrLogging(models.Model):
 
     def init(self) -> None:
         super().init()
-        if sql.constraint_definition(
+        if sql.get_constraint_definition(
             self.env.cr, "ir_logging", "ir_logging_write_uid_fkey"
         ):
             self.env.cr.execute(

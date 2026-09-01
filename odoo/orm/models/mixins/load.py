@@ -114,7 +114,7 @@ class LoadMixin(_ModelStubs):
         if isinstance(exc, psycopg.Error):
             pg_error_info = {"message": self._sql_error_to_message(exc)}
             if exc.diag.table_name == self._table:
-                e_fields = sql.constraint_columns(
+                e_fields = sql.get_column_names_in_constraint(
                     self.env.cr, exc.diag, check_registry=True
                 )
                 if len(e_fields) == 1:

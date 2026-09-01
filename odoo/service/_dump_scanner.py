@@ -6,7 +6,7 @@ import string
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ._env import env_int
+from ._env import get_env_int
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -105,10 +105,10 @@ class _PsqlSqlScanner:
         elif len(self._word) <= _COPY_WORD_MAX_LEN:
             self._word += c
 
-    def _meta_command_violation(
+    def _get_meta_command_violation(
         self, line: str, i: int, n: int
     ) -> tuple[int, str] | None:
-        word = self._cmd_word(line, i, n)
+        word = self._get_command_word(line, i, n)
         arg_pattern = _ALLOWED_PSQL_META_COMMANDS.get(word)
         if arg_pattern is None:
             return (self.lineno, word)
@@ -144,7 +144,7 @@ class _PsqlSqlScanner:
                 self._reset_ident_run()
                 i = self._resume_block_comment(line, i + 2, n)
                 continue
-            if c == "$" and not self._continues_identifier():
+            if c == "$" and not self._is_identifier_continued():
                 m = _DOLLAR_TAG_RE.match(line, i)
                 if m:
                     self.dollar_tag = m.group(0)
@@ -168,7 +168,7 @@ class _PsqlSqlScanner:
                 i = self._resume_double_quote(line, i + 1, n)
                 continue
             if c == "\\":
-                violation = self._meta_command_violation(line, i, n)
+                violation = self._get_meta_command_violation(line, i, n)
                 if violation is not None:
                     return violation
                 self._reset_ident_run()
@@ -191,7 +191,7 @@ class _PsqlSqlScanner:
             i += 1
         return None
 
-    def _continues_identifier(self) -> bool:
+    def _is_identifier_continued(self) -> bool:
         return self._ident_run_is_ident
 
     def _reset_ident_run(self) -> None:
@@ -223,7 +223,7 @@ class _PsqlSqlScanner:
         self._stmt_is_copy = False
 
     @staticmethod
-    def _cmd_word(line: str, pos: int, n: int) -> str:
+    def _get_command_word(line: str, pos: int, n: int) -> str:
         j = pos + 1
         if j < n and line[j] in "!.?\\":
             return line[pos : j + 1]
@@ -319,8 +319,8 @@ def _drain_physical_line(fh: TextIO, cap: int) -> None:
             return
 
 
-def _assert_dump_sql_safe(sql_path: str) -> None:
-    max_line = env_int(
+def _check_dump_sql_safe(sql_path: str) -> None:
+    max_line = get_env_int(
         "ODOO_DUMP_SCAN_MAX_LINE",
         _DEFAULT_MAX_SCAN_LINE,
         minimum=_MIN_MAX_SCAN_LINE,
@@ -359,7 +359,7 @@ def _assert_dump_sql_safe(sql_path: str) -> None:
 
 __all__ = (
     "_PsqlSqlScanner",
-    "_assert_dump_sql_safe",
+    "_check_dump_sql_safe",
     "_get_disallowed_psql_meta_command",
     "_iter_physical_lines",
 )

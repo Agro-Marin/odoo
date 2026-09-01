@@ -4,7 +4,7 @@ from typing import Any, Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
-from odoo.db import insert_or_existing
+from odoo.db import get_or_create_row
 from odoo.exceptions import ValidationError
 from odoo.tools import config, mute_logger, ormcache
 
@@ -132,7 +132,7 @@ class IrConfig_Parameter(models.Model):
         if not param:
             if value is False or value is None:
                 return False
-            param, created = insert_or_existing(
+            param, created = get_or_create_row(
                 self.env.cr,
                 lambda: self.create({"key": key, "value": value}),
                 lambda: self.search([("key", "=", key)]),

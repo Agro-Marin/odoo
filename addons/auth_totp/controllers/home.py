@@ -41,7 +41,7 @@ class Home(web_home.Home):
                     scope="browser", key=key, uid=user.id
                 )
                 if user_match:
-                    request.session.finalize(request.env)
+                    request.session.finalize_login(request.env)
                     request.update_env(user=request.session.uid)
                     request.update_context(**request.session.context)
                     return request.redirect(
@@ -61,7 +61,7 @@ class Home(web_home.Home):
             except ValueError:
                 error = _("Invalid authentication code format.")
             else:
-                request.session.finalize(request.env)
+                request.session.finalize_login(request.env)
                 request.update_env(user=request.session.uid)
                 request.update_context(**request.session.context)
                 response = request.redirect(
@@ -114,11 +114,11 @@ class Home(web_home.Home):
                         samesite="Lax",
                     )
                 # Crapy workaround for unupdatable Odoo Mobile App iOS (Thanks Apple :@)
-                request.session.touch()
+                request.session.mark_dirty()
                 return response
 
         # Crapy workaround for unupdatable Odoo Mobile App iOS (Thanks Apple :@)
-        request.session.touch()
+        request.session.mark_dirty()
         return request.render(
             "auth_totp.auth_totp_form",
             {

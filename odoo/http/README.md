@@ -84,7 +84,7 @@ decides read-only versus read/write: `check_signaling`, `match` and
 
 **`Request._serve_aborted`** — the short path for a request werkzeug rejected
 before dispatch; it does not appear in the graph above. An exception carrying
-its own response (`abort(no_content())`, the CORS preflight) is delivered
+its own response (`abort(prepare_no_content_response())`, the CORS preflight) is delivered
 verbatim; a status-less one goes through the dispatcher, so the error body
 matches the route's media type rather than always being werkzeug's HTML page.
 
@@ -153,14 +153,14 @@ post_dispatch out of band.
 | `controller.py` | serving | `Controller` and the controller registry |
 | `session.py` | serving | `Session`, `FilesystemSessionStore`, session rotation and GC |
 | `stream.py` | serving | `Stream`: file/attachment streaming and conditional responses |
-| `wrappers.py` | serving | `HTTPRequest`, `_Response`, `Headers`, `ResponseCacheControl`, `no_content` — the werkzeug wrappers, cookie defaults, and the `HTTPException.get_response` override that keeps a status-less exception from answering 200. **`HTTPRequest.environ` is a filtered copy**: every `werkzeug.*`, `wsgi.*` and `socket*` key is dropped except `wsgi.url_scheme` and `werkzeug.proxy_fix.orig`, so `environ["wsgi.input"]` raises `KeyError` — `raw_environ` is the unfiltered one |
+| `wrappers.py` | serving | `HTTPRequest`, `_Response`, `Headers`, `ResponseCacheControl`, `prepare_no_content_response` — the werkzeug wrappers, cookie defaults, and the `HTTPException.get_response` override that keeps a status-less exception from answering 200. **`HTTPRequest.environ` is a filtered copy**: every `werkzeug.*`, `wsgi.*` and `socket*` key is dropped except `wsgi.url_scheme` and `werkzeug.proxy_fix.orig`, so `environ["wsgi.input"]` raises `KeyError` — `raw_environ` is the unfiltered one |
 | `core.py` | serving | `_request_stack` (a werkzeug `LocalStack`), the `request` proxy bound to it, and `borrow_request` |
 | `helpers.py` | serving | `content_disposition`, `rewind_uploaded_files`, `db_list` — the package's one database-listing entry point, cached and read by both the selector and `Request._get_session_and_dbname` — and the `dbfilter` machinery |
 | `_retry.py` | serving | `RequestRetryParticipant`: restores the session and rewinds uploads when `retrying()` replays a handler, installed on `service.transaction` at import |
 | `openapi.py` | features | `prepare_openapi_document`: an OpenAPI `3.1.0` document generated from the routing map |
 | `_params.py` | features | `ParamSpec` and the annotation-driven coercion behind `@route(typed=True)` |
 | `geoip.py` | features | `GeoIP` lookup exposed on the request (`_GeoIPNull` when unavailable) |
-| `constants.py` | features | Package-wide constants, `allow_header`, and the session/ensure-db path registries with their `is_ensure_db_path` predicate |
+| `constants.py` | features | Package-wide constants, `prepare_allow_header`, and the session/ensure-db path registries with their `is_ensure_db_path` predicate |
 | `exceptions.py` | features | `RegistryError`, `SessionExpiredException`, and `get_error_response`/`set_error_response` — the only sanctioned way to read and write the `error_response` an exception carries |
 | `_protocols.py` | features | `HttpExtension` — the `Protocol` `ir.http` satisfies, pinned by `TestIrHttpImplementsProtocol`; `Endpoint`/`HasRouting`/`RoutedMethod` for the attributes `@route` stuffs onto a handler; `HasHttpStatus`. `RequestState` alone is `if TYPE_CHECKING:` — it is `object` at runtime |
 

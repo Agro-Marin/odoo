@@ -58,7 +58,7 @@ re_cte_name = re.compile(
 re_cte_comma = re.compile(r"\s*,\s*")
 
 
-def _skip_ctes(decoded_query: str) -> int:
+def _get_offset_after_ctes(decoded_query: str) -> int:
     m = re_cte_start.match(decoded_query)
     if not m:
         return 0
@@ -95,7 +95,7 @@ _NESTED = "\x00"
 re_from_keyword = re.compile(r"\bfrom\b", re.IGNORECASE)
 
 
-def _mask_nested(sql_text: str) -> str:
+def _mask_nested_parentheses(sql_text: str) -> str:
     out = []
     depth = 0
     for char in sql_text:
@@ -111,7 +111,7 @@ def _mask_nested(sql_text: str) -> str:
 
 
 def _match_from_clause(body: str) -> re.Match | None:
-    masked = _mask_nested(body)
+    masked = _mask_nested_parentheses(body)
     match = re_from.search(masked)
     if match is not None:
         return match
@@ -121,7 +121,7 @@ def _match_from_clause(body: str) -> re.Match | None:
 
 
 def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
-    body = decoded_query[_skip_ctes(decoded_query) :]
+    body = decoded_query[_get_offset_after_ctes(decoded_query) :]
 
     res_update = re_update.match(body)
     if res_update:
@@ -161,7 +161,9 @@ _HEALTH_PARAMS: dict[str, str] = {
 }
 
 
-def get_connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, dict]:
+def get_connection_info_for_database(
+    db_or_uri: str, readonly: bool = False
+) -> tuple[str, dict]:
     global _ODOO_PGAPPNAME_WARNED  # noqa: PLW0603  warn-once latch for the whole process
     app_name = tools.config["db_app_name"]
     if "ODOO_PGAPPNAME" in os.environ:

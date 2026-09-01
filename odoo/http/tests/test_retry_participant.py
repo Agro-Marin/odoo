@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from odoo.http._retry import RequestRetryParticipant, current_request_participant
+from odoo.http._retry import RequestRetryParticipant, resolve_retry_participant
 
 
 def _request(**kwargs):
@@ -68,17 +68,17 @@ class TestOnRetry:
 class TestUncommittedWarningSuppression:
     def test_a_detached_database_suppresses_the_warning(self):
         request = _request(database_detached=True)
-        assert RequestRetryParticipant(request).suppresses_uncommitted_warning()
+        assert RequestRetryParticipant(request).is_uncommitted_warning_suppressed()
 
     def test_an_ordinary_request_does_not(self):
         request = _request(database_detached=False)
-        assert not RequestRetryParticipant(request).suppresses_uncommitted_warning()
+        assert not RequestRetryParticipant(request).is_uncommitted_warning_suppressed()
 
     def test_a_stand_in_request_without_the_attribute_does_not(self):
         request = MagicMock(spec=["_get_session_and_dbname", "httprequest", "session"])
-        assert not RequestRetryParticipant(request).suppresses_uncommitted_warning()
+        assert not RequestRetryParticipant(request).is_uncommitted_warning_suppressed()
 
 
 class TestResolution:
     def test_off_request_there_is_no_participant(self):
-        assert current_request_participant() is None
+        assert resolve_retry_participant() is None

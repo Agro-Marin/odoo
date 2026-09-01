@@ -99,7 +99,7 @@ class MixinMailGateway(models.AbstractModel):
             error_message,
         )
         if raise_exception:
-            raise ValueError(_("Mailbox unavailable - %s", error_message))
+            raise ValueError(f"Mailbox unavailable - {error_message}")
 
     def _routing_create_bounce_email(
         self, email_from: str, body_html: Markup, message: EmailMessage, **mail_values

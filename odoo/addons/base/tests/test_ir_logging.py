@@ -10,7 +10,7 @@ class TestIrLoggingInit(TransactionCase):
 
     def test_write_uid_fkey_absent_after_install(self):
         self.assertIsNone(
-            sql.constraint_definition(self.env.cr, "ir_logging", self.CONSTRAINT),
+            sql.get_constraint_definition(self.env.cr, "ir_logging", self.CONSTRAINT),
             "ir.logging.init must drop the legacy write_uid foreign key",
         )
 
@@ -18,12 +18,12 @@ class TestIrLoggingInit(TransactionCase):
         model = self.env["ir.logging"]
         model.init()
         self.assertIsNone(
-            sql.constraint_definition(self.env.cr, "ir_logging", self.CONSTRAINT),
+            sql.get_constraint_definition(self.env.cr, "ir_logging", self.CONSTRAINT),
             "a second init() must not recreate the FK",
         )
         model.init()
         self.assertIsNone(
-            sql.constraint_definition(self.env.cr, "ir_logging", self.CONSTRAINT)
+            sql.get_constraint_definition(self.env.cr, "ir_logging", self.CONSTRAINT)
         )
 
 

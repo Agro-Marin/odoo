@@ -94,12 +94,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     _MERGE_SIZE_LIMIT = 3
     _IDENTIFYING_GROUPBY_FIELDS = frozenset({"email", "name", "vat"})
 
-    def _merge_absorbs_source_values(self) -> bool:
+    def _is_source_absorbed_on_merge(self) -> bool:
         return not self or self.absorb_source_values
 
     def _get_merge_tables_excluded(self, model: str) -> set[str]:
         tables = super()._get_merge_tables_excluded(model)
-        if model == "res.partner" and not self._merge_absorbs_source_values():
+        if model == "res.partner" and not self._is_source_absorbed_on_merge():
             tables.add("res_partner_bank")
         return tables
 
@@ -230,12 +230,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             )
 
         deferred_values = {}
-        if self._merge_absorbs_source_values():
+        if self._is_source_absorbed_on_merge():
             self._merge_bank_accounts(src_partners, dst_partner)
 
         self._update_foreign_keys(src_partners, dst_partner)
         self._update_reference_fields(src_partners, dst_partner)
-        if self._merge_absorbs_source_values():
+        if self._is_source_absorbed_on_merge():
             deferred_values = self._update_values(src_partners, dst_partner)
 
         self.env.add_to_compute(dst_partner._fields["partner_share"], dst_partner)
@@ -519,12 +519,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             "target": "new",
         }
 
-    def _process_query(self, query: SQL) -> None:
+    def _create_merge_lines_from_query(self, query: SQL) -> None:
         self.check_singleton()
         self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query or parent_migration_process_cb, not from user input
-        self._process_groups(self.env.cr.fetchall())
+        self._create_merge_lines(self.env.cr.fetchall())
 
-    def _process_groups(self, groups: list[tuple[int, list[int]]]) -> None:
+    def _create_merge_lines(self, groups: list[tuple[int, list[int]]]) -> None:
         self.check_singleton()
         model_mapping = self._get_exclusion_models()
 
@@ -574,7 +574,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         if self.match_similar_names:
             groups.extend(self._similar_name_groups(self.maximum_group))
 
-        self._process_groups(groups)
+        self._create_merge_lines(groups)
         return self._action_next_screen()
 
     def action_start_automatic_process(self) -> dict[str, Any]:
@@ -624,7 +624,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 min(p1.id)
         """)
 
-        self._process_query(query)
+        self._create_merge_lines_from_query(query)
 
         for line in self.line_ids:
             self._merge_duplicate_group(literal_eval(line.aggr_ids))

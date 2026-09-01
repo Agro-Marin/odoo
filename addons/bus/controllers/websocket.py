@@ -1,8 +1,8 @@
 from odoo.http import (
     Controller,
     SessionExpiredException,
-    cors_same_host,
     request,
+    resolve_cors_same_host,
     route,
 )
 from odoo.libs.json import dumps as json_dumps
@@ -49,7 +49,7 @@ class WebsocketController(Controller):
         "/bus/websocket_worker_bundle",
         type="http",
         auth="public",
-        cors=cors_same_host,
+        cors=resolve_cors_same_host,
         cors_credentials=True,
     )
     def get_websocket_worker_bundle(self, v=None):  # pylint: disable=unused-argument

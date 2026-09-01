@@ -91,6 +91,8 @@ Run the module's harness after changing its docs, and before believing them:
 bash addons/<module>/machine_doc_v1/factcheck.sh
 ```
 
+**And after changing its `tests/`.** A gated figure is derived from the tree, so a page counting test classes and methods is a function of `tests/`, and any commit adding or removing a test invalidates it — while every suite of the changed module still passes, because the page is checked by `machine_doc.yml` and not by the tests. Adding four tests to `addons/base` took this harness to 716/1 with `/base` green at 3,721. **A file you did not edit can be invalidated by the one you did, and no run of the changed file will say so**; the lane is blocking and unratcheted, so the cost is a red gate nobody owns.
+
 ### The machine_doc lane
 
 `.github/workflows/machine_doc.yml` runs every harness it discovers, blocking. **The workflow is the authority on what is quarantined — never this file.**

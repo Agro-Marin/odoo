@@ -152,7 +152,7 @@ class TestSavepointSeam(unittest.TestCase):
         cr._on_rollback_to_savepoint()
 
     def test_discard_cached_plans_is_a_noop_on_the_base(self):
-        _Cursor().discard_cached_plans()
+        _Cursor().invalidate_cached_plans()
 
 
 class TestDictFetchHelpers(unittest.TestCase):
@@ -231,15 +231,15 @@ class TestMetricsMixin(unittest.TestCase):
         self.assertNotIn(None, self.cur.sql_from_log)
 
     def test_format_interpolates_positional_and_named_params(self):
-        self.assertEqual(self.cur._format("SELECT 1"), "SELECT 1")
-        self.assertEqual(self.cur._format("a=%s", (1,)), "a=1")
-        self.assertEqual(self.cur._format("a=%(k)s", {"k": 2}), "a=2")
+        self.assertEqual(self.cur._format_statement("SELECT 1"), "SELECT 1")
+        self.assertEqual(self.cur._format_statement("a=%s", (1,)), "a=1")
+        self.assertEqual(self.cur._format_statement("a=%(k)s", {"k": 2}), "a=2")
 
     def test_format_unwraps_sql_objects(self):
-        self.assertEqual(self.cur._format(SQL("a=%s", 3)), "a=3")
+        self.assertEqual(self.cur._format_statement(SQL("a=%s", 3)), "a=3")
 
     def test_format_falls_back_instead_of_raising(self):
-        out = self.cur._format("a=%s b=%s", (1,))
+        out = self.cur._format_statement("a=%s b=%s", (1,))
         self.assertIn("a=%s b=%s", out)
         self.assertIn("(1,)", out)
 
@@ -355,7 +355,7 @@ class TestTheDiscardPathTellsAnOutageFromAFault(unittest.TestCase):
                 ),
                 patch.object(type(cur), "print_log", MagicMock(), create=True),
                 patch.object(
-                    type(cur), "_connection_is_clean", return_value=clean, create=True
+                    type(cur), "_is_connection_clean", return_value=clean, create=True
                 ),
                 patch.object(cur, "_Cursor__pool", MagicMock(), create=True),
             ):

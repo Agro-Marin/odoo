@@ -46,14 +46,14 @@ class CircuitBreaker:
     @property
     def cooldown_remaining(self) -> float:
         with self._lock:
-            return self._cooldown_remaining_locked()
+            return self._get_cooldown_remaining_locked()
 
-    def _cooldown_remaining_locked(self) -> float:
+    def _get_cooldown_remaining_locked(self) -> float:
         if not self._open:
             return 0.0
         return max(0.0, self._opened_at + self._cooldown - monotonic())
 
-    def allow(self) -> bool:
+    def acquire_attempt(self) -> bool:
         with self._lock:
             if not self._open:
                 return True
@@ -88,10 +88,10 @@ class CircuitBreaker:
                 self._opened_at = monotonic()
                 self._probing_since = 0.0
 
-    def snapshot(self) -> dict:
+    def get_snapshot(self) -> dict:
         with self._lock:
             closed = not self._open
-            remaining = self._cooldown_remaining_locked()
+            remaining = self._get_cooldown_remaining_locked()
             return {
                 "closed": closed,
                 "failures": self.failures,

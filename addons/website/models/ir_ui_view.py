@@ -349,8 +349,8 @@ class IrUiView(models.Model):
                     """
 
     @api.model
-    def _get_cached_template_prefetched_keys(self):
-        return super()._get_cached_template_prefetched_keys() + [
+    def _get_field_names_in_cached_template(self):
+        return super()._get_field_names_in_cached_template() + [
             "active",
             "visibility",
             "track",
@@ -370,8 +370,8 @@ class IrUiView(models.Model):
         )
 
     @api.model
-    def _get_template_views(self, ids_or_xmlids):
-        data = super()._get_template_views(ids_or_xmlids)
+    def _get_views_by_ref(self, ids_or_xmlids):
+        data = super()._get_views_by_ref(ids_or_xmlids)
         for key in list(data):
             if isinstance(data[key], MissingError):
                 data[key] = MissingError(

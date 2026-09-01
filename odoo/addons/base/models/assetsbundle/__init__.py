@@ -24,6 +24,6 @@ from .common import (
     CompileError,
     XMLAssetError,
 )
-from .css_pipeline import CssPipeline, _check_rtlcss
+from .css_pipeline import CssPipeline, _is_rtlcss_available
 from .store import AssetAttachmentStore
 from .xml_pipeline import XmlTemplatePipeline

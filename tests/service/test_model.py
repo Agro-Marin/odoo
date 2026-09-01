@@ -951,7 +951,7 @@ class _RecordingParticipant:
     def on_retry(self, exc):
         self.retries.append(exc)
 
-    def suppresses_uncommitted_warning(self):
+    def is_uncommitted_warning_suppressed(self):
         return self.suppress
 
 

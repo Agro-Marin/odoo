@@ -275,7 +275,7 @@ class TestCommand(BaseCase):
             try:
                 with mock.patch.object(
                     scaffold_mod,
-                    "_builtins_dir",
+                    "_get_template_path",
                     missing.joinpath,
                 ):
                     with self.assertRaises(SystemExit) as ctx:
@@ -434,7 +434,7 @@ class TestCommand(BaseCase):
     def test_db_connection_flag_map_covers_all_flags(self):
         from odoo.cli import db as dbmod
 
-        dest_flags = dbmod.Db._connection_dest_flags()
+        dest_flags = dbmod.Db._get_connection_flags_by_dest()
         for flags in dbmod.Db._CONNECTION_FLAGS:
             long_flag = flags[-1]
             dest = long_flag.lstrip("-").replace("-", "_")
@@ -444,7 +444,7 @@ class TestCommand(BaseCase):
     def test_obfuscate_select_fields(self):
         import argparse
 
-        from odoo.cli.obfuscate import DEFAULT_FIELDS, _select_fields
+        from odoo.cli.obfuscate import DEFAULT_FIELDS, _get_fields_selected
 
         base = {
             "fields": None,
@@ -457,42 +457,42 @@ class TestCommand(BaseCase):
         def ns(**kw):
             return argparse.Namespace(**{**base, **kw})
 
-        self.assertEqual(_select_fields(ns()), list(DEFAULT_FIELDS))
+        self.assertEqual(_get_fields_selected(ns()), list(DEFAULT_FIELDS))
         self.assertEqual(
-            _select_fields(ns(fields="t.c")),
+            _get_fields_selected(ns(fields="t.c")),
             list(DEFAULT_FIELDS) + [("t", "c")],
             msg="--fields appends to the built-in list",
         )
         self.assertEqual(
-            _select_fields(ns(fields="t.c", no_default_fields=True)),
+            _get_fields_selected(ns(fields="t.c", no_default_fields=True)),
             [("t", "c")],
             msg="--no-default-fields restricts to the manual selection",
         )
-        excluded = _select_fields(ns(exclude="res_partner.name"))
+        excluded = _get_fields_selected(ns(exclude="res_partner.name"))
         self.assertNotIn(("res_partner", "name"), excluded)
         self.assertEqual(len(excluded), len(DEFAULT_FIELDS) - 1)
         self.assertEqual(
-            _select_fields(ns(fields="t.c", allfields=True)),
+            _get_fields_selected(ns(fields="t.c", allfields=True)),
             list(DEFAULT_FIELDS),
             msg="--allfields ignores manual selection (expanded later)",
         )
         with self.assertRaises(ValueError):
-            _select_fields(ns(fields="no_dot_here"))
+            _get_fields_selected(ns(fields="no_dot_here"))
 
     def test_populate_model_factors(self):
-        from odoo.cli.populate import _parse_model_factors
+        from odoo.cli.populate import _prepare_factors_by_model_name
 
         errors = []
         self.assertEqual(
-            _parse_model_factors("1,2,3,4", "a,b", errors.append),
+            _prepare_factors_by_model_name("1,2,3,4", "a,b", errors.append),
             {"a": 1, "b": 2},
         )
         self.assertEqual(
-            _parse_model_factors("7", "a,b,c", errors.append),
+            _prepare_factors_by_model_name("7", "a,b,c", errors.append),
             {"a": 7, "b": 7, "c": 7},
         )
         self.assertFalse(errors)
-        _parse_model_factors("x", "a", errors.append)
+        _prepare_factors_by_model_name("x", "a", errors.append)
         self.assertTrue(errors and "--factors" in errors[0])
 
     def test_deploy_requests_have_timeouts(self):
@@ -572,7 +572,7 @@ class TestCommand(BaseCase):
                 with (
                     mock.patch.object(
                         start_mod,
-                        "main",
+                        "run_server",
                         lambda cmdargs: captured.update(args=list(cmdargs)),
                     ),
                     mock.patch.dict(os.environ, {"VIRTUAL_ENV": tmp}),
@@ -655,7 +655,7 @@ class TestCommand(BaseCase):
             evil.write_text("def upgrade(fm):\n    pass\n")
             with mock.patch.object(upgrade_code, "UPGRADE", upgrade_dir):
                 with self.assertRaises(FileNotFoundError) as ctx:
-                    upgrade_code.migrate(
+                    upgrade_code.migrate_source_files(
                         addons_path=[tmp], glob="*.py", script="../evil"
                     )
             self.assertIn("outside", str(ctx.exception))
@@ -786,7 +786,7 @@ class TestCommand(BaseCase):
             with (
                 mock.patch.object(
                     start_mod,
-                    "main",
+                    "run_server",
                     lambda cmdargs: captured.update(args=list(cmdargs)),
                 ),
                 mock.patch.object(odoo.cli, "BOOTSTRAP_ADDONS_PATH", "/custom/addons"),
@@ -812,7 +812,7 @@ class TestCommand(BaseCase):
             with (
                 mock.patch.object(
                     start_mod,
-                    "main",
+                    "run_server",
                     lambda cmdargs: captured.update(args=list(cmdargs)),
                 ),
                 isolated_config(),
@@ -891,7 +891,7 @@ class TestCommand(BaseCase):
                 ob.cr = mock.MagicMock()
                 ob.cr.rowcount = 1
                 ob.cr.fetchone.return_value = ("varchar",)
-                ob.convert_table(
+                ob._update_table_values(
                     "res_partner", ["name"], "pwd", unobfuscate=unobfuscate
                 )
                 update_sql = ob.cr.execute.call_args[0][0].code
@@ -919,21 +919,25 @@ class TestCommand(BaseCase):
                 ]
 
         ob.cr = FakeCur()
-        ob._prefetch_field_kinds({"res_partner"})
+        ob._load_field_catalog({"res_partner"})
         self.assertEqual(len(executed), 1, msg="prefetch must be a single query")
         self.assertEqual(
             executed[0], [["res_partner"]], msg="tables passed via ANY(%s)"
         )
 
         before = len(executed)
-        self.assertEqual(ob.check_field("res_partner", "name"), "string")
-        self.assertEqual(ob.check_field("res_partner", "extra"), "json")
-        self.assertIsNone(ob.check_field("res_partner", "active"), msg="non-text type")
-        self.assertIsNone(ob.check_field("res_partner", "ghost"), msg="absent column")
+        self.assertEqual(ob._get_field_kind("res_partner", "name"), "string")
+        self.assertEqual(ob._get_field_kind("res_partner", "extra"), "json")
+        self.assertIsNone(
+            ob._get_field_kind("res_partner", "active"), msg="non-text type"
+        )
+        self.assertIsNone(
+            ob._get_field_kind("res_partner", "ghost"), msg="absent column"
+        )
         self.assertEqual(
             len(executed),
             before,
-            msg="check_field issued a catalog query despite the prefetch",
+            msg="_get_field_kind issued a catalog query despite the prefetch",
         )
         self.assertEqual(
             ob._field_widths,
@@ -1000,16 +1004,16 @@ class TestCommand(BaseCase):
             )
 
     def test_build_config_args_forwards_only_connection_flags(self):
-        from odoo.cli.command import get_config_argv
+        from odoo.cli.command import prepare_config_args
 
         self.assertEqual(
-            get_config_argv("cfg", "db"),
+            prepare_config_args("cfg", "db"),
             ["--no-http", "-c", "cfg", "-d", "db"],
         )
-        self.assertNotIn("--addons-path", get_config_argv("cfg", "db"))
+        self.assertNotIn("--addons-path", prepare_config_args("cfg", "db"))
         self.assertIn(
             "--workers=4",
-            get_config_argv(None, None, extra_args=["--workers=4"]),
+            prepare_config_args(None, None, extra_args=["--workers=4"]),
         )
 
     def test_db_refuses_system_databases(self):
@@ -1070,7 +1074,7 @@ class TestCommand(BaseCase):
             with (
                 mock.patch.object(
                     startmod,
-                    "main",
+                    "run_server",
                     lambda cmdargs: captured.update(args=list(cmdargs)),
                 ),
                 isolated_config(),
@@ -1093,9 +1097,9 @@ class TestCommand(BaseCase):
 
         with (
             mock.patch.object(config, "parse_config"),
-            mock.patch.object(server_mod, "check_postgres_user"),
+            mock.patch.object(server_mod, "check_db_user_not_postgres"),
             mock.patch.object(server_mod, "report_configuration"),
-            mock.patch.object(server_mod, "setup_pid_file"),
+            mock.patch.object(server_mod, "write_pid_file"),
             mock.patch.object(server_mod.db, "_create_empty_database"),
             mock.patch.object(server_mod.server, "start", return_value=0),
             mock.patch.dict(config._runtime_options, {"init": {}}, clear=False),
@@ -1103,7 +1107,7 @@ class TestCommand(BaseCase):
         ):
             config._runtime_options["db_name"] = ["freshdb"]
             with self.assertRaises(SystemExit):
-                server_mod.main([])
+                server_mod.run_server([])
             self.assertEqual(
                 config["init"],
                 {"base": True},
@@ -1114,12 +1118,12 @@ class TestCommand(BaseCase):
         from odoo.cli import start as startmod
 
         with (
-            mock.patch.object(startmod, "main") as main_mock,
+            mock.patch.object(startmod, "run_server") as run_server_mock,
             self.assertRaises(SystemExit) as ctx,
             isolated_config(),
         ):
             startmod.Start().run(["-p", "8070"])
-        main_mock.assert_not_called()
+        run_server_mock.assert_not_called()
         self.assertEqual(ctx.exception.code, 2)
 
     def test_start_prefers_the_configured_db_name_over_the_directory(self):
@@ -1134,7 +1138,7 @@ class TestCommand(BaseCase):
             with (
                 mock.patch.object(
                     startmod,
-                    "main",
+                    "run_server",
                     lambda cmdargs: captured.update(args=list(cmdargs)),
                 ),
                 isolated_config(),
@@ -1155,7 +1159,7 @@ class TestCommand(BaseCase):
             mock.patch.object(dbmod, "list_dbs", return_value=["alpha", "beta"]) as m,
             contextlib.redirect_stdout(out),
         ):
-            dbmod.Db().list(mock.Mock())
+            dbmod.Db().list_databases(mock.Mock())
         m.assert_called_once_with(force=True)
         self.assertEqual(out.getvalue(), "alpha\nbeta\n")
 
@@ -1202,11 +1206,11 @@ class TestCommand(BaseCase):
         self.assertIn("__manifest__.py", names)
 
     def test_populate_rejects_nonpositive_factors(self):
-        from odoo.cli.populate import _parse_model_factors
+        from odoo.cli.populate import _prepare_factors_by_model_name
 
         for factors in ("0", "-1", "3,0"):
             errors = []
-            _parse_model_factors(factors, "a,b", errors.append)
+            _prepare_factors_by_model_name(factors, "a,b", errors.append)
             self.assertTrue(
                 errors and ">= 1" in errors[0],
                 msg=f"factors {factors!r} not rejected: {errors}",
@@ -1238,13 +1242,13 @@ class TestCommand(BaseCase):
 
         from odoo.cli.shell import Shell
 
-        self.assertTrue(Shell._repl_available("python"))
+        self.assertTrue(Shell._is_repl_installed("python"))
         self.assertEqual(
             set(Shell._REPL_MODULES),
             set(Shell.supported_shells) - {"python"},
         )
         with mock.patch.object(importlib.util, "find_spec", return_value=None):
-            self.assertFalse(Shell._repl_available("ipython"))
+            self.assertFalse(Shell._is_repl_installed("ipython"))
 
     def test_cloc_counts_path(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1370,9 +1374,9 @@ class TestCommand(BaseCase):
 
         cmd = Module()
         for sub, method in (
-            ("install", cmd._install),
-            ("uninstall", cmd._uninstall),
-            ("upgrade", cmd._upgrade),
+            ("install", cmd._install_modules),
+            ("uninstall", cmd._uninstall_modules),
+            ("upgrade", cmd._upgrade_modules),
         ):
             with self.subTest(sub=sub):
                 env = mock.MagicMock()
@@ -1383,7 +1387,7 @@ class TestCommand(BaseCase):
                 env.__getitem__.return_value.search.return_value = empty
                 ns = mock.Mock(db_name="db", modules=["no_such_module"], outdated=False)
                 with (
-                    mock.patch("odoo.cli.module.odoo_env") as env_ctx,
+                    mock.patch("odoo.cli.module.open_environment") as env_ctx,
                     self.assertRaises(SystemExit) as ctx,
                 ):
                     env_ctx.return_value.__enter__.return_value = env
@@ -1414,7 +1418,7 @@ class TestCommand(BaseCase):
                 self.assertNotIn("--addons-path", " ".join(rest))
         self.assertNotIn(
             "addons_path",
-            Db._connection_dest_flags(),
+            Db._get_connection_flags_by_dest(),
             msg="db re-declares a flag the bootstrap parser always eats first",
         )
 
@@ -1445,10 +1449,10 @@ class TestCommand(BaseCase):
                 return (projections[self.last],)
 
         ob.cr = FakeCur()
-        ob._prefetch_field_kinds({"t"})
+        ob._load_field_catalog({"t"})
         fields = [("t", "roomy"), ("t", "snug"), ("t", "wide_open")]
         self.assertEqual(
-            ob.get_fields_unfittable(fields, "pw"),
+            ob._get_fields_unfittable(fields, "pw"),
             [(("t", "snug"), 150, 180)],
             msg="only the column that actually cannot hold the ciphertext",
         )
@@ -1460,14 +1464,14 @@ class TestCommand(BaseCase):
         fields = [("t", "snug"), ("t", "other")]
         with mock.patch.object(
             Obfuscate,
-            "get_fields_unfittable",
+            "_get_fields_unfittable",
             return_value=[(("t", "snug"), 150, 180)],
         ):
             with self.assertRaises(SystemExit) as ctx:
-                ob._drop_unfittable_fields(fields, "pw", {("t", "snug")})
+                ob._exclude_fields_unfittable(fields, "pw", {("t", "snug")})
             self.assertIn("cannot hold ciphertext", str(ctx.exception.code))
             self.assertEqual(
-                ob._drop_unfittable_fields(fields, "pw", set()),
+                ob._exclude_fields_unfittable(fields, "pw", set()),
                 [("t", "other")],
                 msg="a built-in default entry is skipped, not fatal",
             )
@@ -1476,9 +1480,11 @@ class TestCommand(BaseCase):
         from odoo.cli.obfuscate import Obfuscate
 
         opt = mock.Mock(fields="typo.column", file=None)
-        self.assertEqual(Obfuscate._explicitly_requested(opt), {("typo", "column")})
+        self.assertEqual(
+            Obfuscate._get_fields_requested_explicitly(opt), {("typo", "column")}
+        )
         opt = mock.Mock(fields=None, file=None)
-        self.assertEqual(Obfuscate._explicitly_requested(opt), set())
+        self.assertEqual(Obfuscate._get_fields_requested_explicitly(opt), set())
 
     def test_commands_declare_their_arguments_on_construction(self):
         load_internal_commands()
@@ -1517,16 +1523,16 @@ class TestCommand(BaseCase):
     def test_maintenance_db_rule_has_one_spelling(self):
         from odoo.cli.command import (
             MAINTENANCE_DB_MESSAGE,
-            refuse_maintenance_db,
+            check_db_not_maintenance,
         )
 
         with self.assertRaises(SystemExit) as ctx:
-            refuse_maintenance_db("postgres")
+            check_db_not_maintenance("postgres")
         self.assertEqual(
             str(ctx.exception.code),
             MAINTENANCE_DB_MESSAGE.format(db_name="postgres"),
         )
-        refuse_maintenance_db("a_perfectly_ordinary_database")
+        check_db_not_maintenance("a_perfectly_ordinary_database")
 
     def test_shell_tolerates_a_stdin_without_a_fileno(self):
         from odoo.cli.shell import Shell
@@ -1537,7 +1543,7 @@ class TestCommand(BaseCase):
 
         for stdin in (None, NoFileno()):
             with mock.patch.object(sys, "stdin", stdin):
-                self.assertFalse(Shell._stdin_is_a_tty())
+                self.assertFalse(Shell._is_stdin_a_tty())
 
     def test_obfuscate_json_transform_only_touches_string_values(self):
         from odoo.cli.obfuscate import Obfuscate
@@ -1558,7 +1564,7 @@ class TestCommand(BaseCase):
         ob.cr = FakeCur()
         ob._field_kinds = {("t", "val"): "json"}
         ob._field_widths = {}
-        ob.convert_table("t", ["val"], "pw")
+        ob._update_table_values("t", ["val"], "pw")
         update = executed[-1]
         self.assertIn("jsonb_typeof", update)
         self.assertIn("= 'string'", update)
@@ -1582,7 +1588,7 @@ class TestCommand(BaseCase):
 
         ob.cr = FakeCur()
         with self.assertLogs("odoo.cli.obfuscate", level="WARNING") as logs:
-            self.assertEqual(ob._json_keys("t", "val"), ["en_US"])
+            self.assertEqual(ob._get_keys_in_jsonb_column("t", "val"), ["en_US"])
         self.assertIn("not an object", logs.output[0])
         self.assertIn("<> 'object'", executed[0], msg="the non-object count")
         self.assertIn("= 'object'", executed[1], msg="the guarded key probe")
@@ -1607,9 +1613,9 @@ class TestCommand(BaseCase):
 
         from lxml import etree
 
-        from odoo.cli.scaffold import Template, _builtins_dir
+        from odoo.cli.scaffold import Template, _get_template_path
 
-        names = sorted(d.name for d in _builtins_dir().iterdir() if d.is_dir())
+        names = sorted(d.name for d in _get_template_path().iterdir() if d.is_dir())
         self.assertTrue(names, msg="no built-in templates found")
 
         argument = {"l10n_payroll": "mexico-mx"}
@@ -1668,15 +1674,15 @@ class TestCommand(BaseCase):
             DEFAULT_NAMING,
             NAMING_CONVENTIONS,
             Template,
-            _builtins_dir,
+            _get_template_path,
         )
 
         samples = {"l10n_payroll": "mexico-mx"}
         for template_id, convention in NAMING_CONVENTIONS.items():
             with self.subTest(template=template_id):
                 given = samples[template_id]
-                params = convention.parse(given)
-                modname = convention.modname(given, params)
+                params = convention.parse_params(given)
+                modname = convention.get_module_name(given, params)
                 self.assertTrue(modname and not modname.startswith("_"), msg=modname)
                 self.assertEqual(
                     Template(template_id).get_module_name(given, params),
@@ -1684,12 +1690,12 @@ class TestCommand(BaseCase):
                     msg="Template disagrees with its own convention",
                 )
 
-        self.assertEqual(DEFAULT_NAMING.parse("MyThing"), {"name": "MyThing"})
+        self.assertEqual(DEFAULT_NAMING.parse_params("MyThing"), {"name": "MyThing"})
         self.assertEqual(
-            DEFAULT_NAMING.modname("MyThing", {"name": "MyThing"}), "my_thing"
+            DEFAULT_NAMING.get_module_name("MyThing", {"name": "MyThing"}), "my_thing"
         )
 
-        for directory in _builtins_dir().iterdir():
+        for directory in _get_template_path().iterdir():
             if directory.is_dir():
                 with self.subTest(template=directory.name):
                     given = samples.get(directory.name, "probe")
@@ -1723,7 +1729,9 @@ class TestCommand(BaseCase):
         cmd = I18n()
         parsed = cmd.parser.parse_args(["export", "base", "-l", "pot", "-l", "es_MX"])
         before = list(parsed.languages)
-        with mock.patch("odoo.cli.i18n.odoo_env", side_effect=RuntimeError("stop")):
+        with mock.patch(
+            "odoo.cli.i18n.open_environment", side_effect=RuntimeError("stop")
+        ):
             with self.assertRaises((RuntimeError, SystemExit)):
-                cmd._export(parsed)
+                cmd._export_translations(parsed)
         self.assertEqual(parsed.languages, before)

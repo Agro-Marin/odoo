@@ -101,7 +101,7 @@ class EnvironmentMixin(_ModelStubs):
         return self._spawn(self.env, self._ids, prefetch_ids)
 
     @staticmethod
-    def _cache_value_may_hold_new_ids(value: typing.Any) -> bool:
+    def _can_cache_value_hold_new_ids(value: typing.Any) -> bool:
         if type(value) is tuple:
             return any(not id_ for id_ in value)
         return not (value is None or type(value) is int)
@@ -130,7 +130,7 @@ class EnvironmentMixin(_ModelStubs):
                 inverses = field_inverses[field]
                 if not inverses:
                     continue
-                if not self._cache_value_may_hold_new_ids(value):
+                if not self._can_cache_value_hold_new_ids(value):
                     continue
                 inv_recs = self[field.name]._new_records
                 if not inv_recs:

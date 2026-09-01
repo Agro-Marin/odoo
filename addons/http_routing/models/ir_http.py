@@ -154,7 +154,7 @@ class IrHttp(models.AbstractModel):
 
         url = cls._lang_url_unprefix(url)
 
-        router = http.root.get_db_router(request.db, env=request.env)
+        router = http.root.get_routing_map(request.db, env=request.env)
         try:
             rule, args = router.bind_to_environ(request.httprequest.environ).match(
                 path_info=url, return_rule=True
@@ -664,7 +664,7 @@ class IrHttp(models.AbstractModel):
     def _url_rewrite(
         self, path: str, _visited: frozenset[str]
     ) -> tuple[str, typing.Any]:
-        router = http.root.get_db_router(self.env.registry.db_name, env=self.env).bind(
+        router = http.root.get_routing_map(self.env.registry.db_name, env=self.env).bind(
             ""
         )
         try:

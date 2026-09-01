@@ -206,19 +206,19 @@ class TestCycleDetection(BaseCase):
 
     def test_shared_node_two_cycles(self):
         graph = self._graph({"a": ["b", "c"], "b": ["d"], "c": ["d"], "d": ["a"]})
-        self.assertEqual(graph._get_cycle_members(), {"a", "b", "c", "d"})
+        self.assertEqual(graph._get_module_names_in_cycles(), {"a", "b", "c", "d"})
 
     def test_acyclic_graph_has_no_members(self):
         graph = self._graph({"base": [], "a": ["base"], "b": ["a", "base"]})
-        self.assertEqual(graph._get_cycle_members(), set())
+        self.assertEqual(graph._get_module_names_in_cycles(), set())
 
     def test_self_loop_is_a_cycle(self):
         graph = self._graph({"x": ["x"], "y": ["x"]})
-        self.assertEqual(graph._get_cycle_members(), {"x"})
+        self.assertEqual(graph._get_module_names_in_cycles(), {"x"})
 
     def test_simple_two_cycle_leaves_dependents_clean(self):
         graph = self._graph({"p": ["q"], "q": ["p"], "r": ["p"]})
-        self.assertEqual(graph._get_cycle_members(), {"p", "q"})
+        self.assertEqual(graph._get_module_names_in_cycles(), {"p", "q"})
 
     @mute_logger("odoo.modules.module_graph")
     def test_update_from_database_skips_cascaded_removed_module(self):

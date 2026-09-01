@@ -24,16 +24,13 @@ from .constants import (
     SESSION_LIFETIME,
     SESSION_ROTATION_EXCLUDED_PATHS,
     SESSION_ROTATION_INTERVAL,
-    get_default_session,
+    prepare_default_session,
 )
 from .dispatcher import _dispatchers
 from .geoip import GeoIP
-from .helpers import (
-    clear_db_list_cache,
-    get_session_max_inactivity,
-)
+from .helpers import get_session_max_inactivity
 from .session import Session
-from .wrappers import FutureResponse, HTTPRequest, Response, cookie_name
+from .wrappers import FutureResponse, HTTPRequest, Response, get_cookie_name
 
 _logger = logging.getLogger(__name__)
 
@@ -52,13 +49,10 @@ def _union_header_tokens(values: Iterable[str]) -> str:
     return ", ".join(seen.values())
 
 
-def _monodb_dblist(host: str) -> list[str]:
+def _get_db_list_uncached(host: str) -> list[str]:
     from odoo import http
 
     return http.db_list(force=True, host=host)
-
-
-clear_monodb_cache = clear_db_list_cache
 
 
 class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
@@ -103,12 +97,12 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         else:
             session = root.session_store.get(sid)
 
-        for key, val in get_default_session().items():
+        for key, val in prepare_default_session().items():
             session.setdefault(key, val)
         if not isinstance(session.context, dict):
             session.context = {}
         if not session.context.get("lang"):
-            session.context["lang"] = self.default_lang()
+            session.context["lang"] = self.get_default_lang()
         if session.pop("_rotate_pending", None):
             session.should_rotate = True
 
@@ -129,7 +123,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             if http.db_filter([header_dbname], host=host):
                 dbname = header_dbname
         else:
-            all_dbs = _monodb_dblist(host)
+            all_dbs = _get_db_list_uncached(host)
             if len(all_dbs) == 1:
                 dbname = all_dbs[0]
 
@@ -206,10 +200,10 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self._cookies_memo = (sanitized, result)
         return result
 
-    def default_context(self) -> dict[str, Any]:
-        return {"lang": self.default_lang()}
+    def get_default_context(self) -> dict[str, Any]:
+        return {"lang": self.get_default_lang()}
 
-    def default_lang(self) -> str:
+    def get_default_lang(self) -> str:
         return self.best_lang or DEFAULT_LANG
 
     def get_http_params(self) -> dict[str, Any]:
@@ -222,7 +216,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     def get_json_data(self) -> Any:
         return _fast_loads(self.httprequest.get_data())
 
-    def _get_profiler_context_manager(self) -> contextlib.AbstractContextManager:
+    def _profile_request(self) -> contextlib.AbstractContextManager:
         if self.session.get("profile_session") and self.db:
             if self.session.get("profile_expiration", "") < str(
                 odoo.fields.Datetime.now()
@@ -265,11 +259,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         staged_cookies = staged.getlist("Set-Cookie")
         if staged_cookies:
-            staged_names = {cookie_name(cookie) for cookie in staged_cookies}
+            staged_names = {get_cookie_name(cookie) for cookie in staged_cookies}
             kept = [
                 cookie
                 for cookie in headers.getlist("Set-Cookie")
-                if cookie_name(cookie) not in staged_names
+                if get_cookie_name(cookie) not in staged_names
             ]
             headers.setlist("Set-Cookie", kept + staged_cookies)
 

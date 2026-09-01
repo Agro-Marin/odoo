@@ -52,7 +52,7 @@ class TestDumpSqlMetaCommandScanner:
             path = f.name
         try:
             with pytest.raises(RuntimeError, match="Refusing to restore"):
-                db_mod._assert_dump_sql_safe(path)
+                db_mod._check_dump_sql_safe(path)
         finally:
             pathlib.Path(path).unlink()
 
@@ -63,7 +63,7 @@ class TestDumpSqlMetaCommandScanner:
             f.write("\\restrict TOK\nCREATE TABLE t (id int);\n\\unrestrict TOK\n")
             path = f.name
         try:
-            db_mod._assert_dump_sql_safe(path)
+            db_mod._check_dump_sql_safe(path)
         finally:
             pathlib.Path(path).unlink()
 
@@ -122,12 +122,12 @@ class TestDumpSqlScannerLineBound:
         monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
         path = self._write(tmp_path, "SELECT '" + "A" * (5 * 1024 * 1024) + "';\n")
         with pytest.raises(RuntimeError, match="longer than"):
-            db_mod._assert_dump_sql_safe(path)
+            db_mod._check_dump_sql_safe(path)
 
     def test_line_at_the_limit_is_accepted(self, db_mod, tmp_path, monkeypatch):
         monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
         path = self._write(tmp_path, "SELECT '" + "A" * (2 * 1024 * 1024) + "';\n")
-        db_mod._assert_dump_sql_safe(path)
+        db_mod._check_dump_sql_safe(path)
 
     def test_cap_does_not_blind_the_scanner(self, db_mod, tmp_path, monkeypatch):
         monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
@@ -135,14 +135,14 @@ class TestDumpSqlScannerLineBound:
             tmp_path, "\\! touch /tmp/pwn\nSELECT '" + "A" * (9 * 1024 * 1024) + "';\n"
         )
         with pytest.raises(RuntimeError, match="meta-command"):
-            db_mod._assert_dump_sql_safe(path)
+            db_mod._check_dump_sql_safe(path)
 
     def test_malformed_env_override_falls_back_to_the_default(
         self, db_mod, tmp_path, monkeypatch
     ):
         monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", "not-a-number")
         path = self._write(tmp_path, "SELECT 1;\n")
-        db_mod._assert_dump_sql_safe(path)
+        db_mod._check_dump_sql_safe(path)
 
     def test_overlong_copy_data_line_is_accepted(self, db_mod, tmp_path, monkeypatch):
         monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
@@ -153,7 +153,7 @@ class TestDumpSqlScannerLineBound:
             "COPY ir_attachment (id, db_datas) FROM stdin;\n"
             f"1\t{big}\n\\.\nSELECT 1;\n",
         )
-        db_mod._assert_dump_sql_safe(path)
+        db_mod._check_dump_sql_safe(path)
 
     def test_overlong_copy_data_does_not_blind_a_later_meta_command(
         self, db_mod, tmp_path, monkeypatch
@@ -165,13 +165,13 @@ class TestDumpSqlScannerLineBound:
             f"COPY t (a) FROM stdin;\n{big}\n\\.\n\\! touch /tmp/pwn\n",
         )
         with pytest.raises(RuntimeError, match="meta-command"):
-            db_mod._assert_dump_sql_safe(path)
+            db_mod._check_dump_sql_safe(path)
 
     def test_overlong_sql_line_still_refused(self, db_mod, tmp_path, monkeypatch):
         monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
         path = self._write(tmp_path, "SELECT '" + "A" * (8 * 1024 * 1024) + "';\n")
         with pytest.raises(RuntimeError, match="longer than"):
-            db_mod._assert_dump_sql_safe(path)
+            db_mod._check_dump_sql_safe(path)
 
 
 class TestDumpSqlScannerLexerDivergence:
@@ -349,21 +349,21 @@ class TestDumpSqlScannerStreaming:
             def readline(self, *a, **kw):
                 limit = a[0] if a else kw.get("size")
                 assert limit is not None and limit > 0, (
-                    "_assert_dump_sql_safe must bound each readline, else a "
+                    "_check_dump_sql_safe must bound each readline, else a "
                     "newline-free dump is slurped one 'line' at a time"
                 )
                 return self._fh.readline(*a, **kw)
 
             def read(self, *a, **kw):
                 raise AssertionError(
-                    "_assert_dump_sql_safe must stream, not read() the dump"
+                    "_check_dump_sql_safe must stream, not read() the dump"
                 )
 
         def spy_open(self, *a, **kw):
             return NoSlurp(real_open(self, *a, **kw))
 
         with patch.object(type(p), "open", spy_open):
-            db_mod._assert_dump_sql_safe(str(p))
+            db_mod._check_dump_sql_safe(str(p))
 
     def test_peak_memory_is_independent_of_dump_size(self, db_mod, tmp_path):
         import tracemalloc
@@ -372,7 +372,7 @@ class TestDumpSqlScannerStreaming:
             p = tmp_path / f"dump_{n_lines}.sql"
             p.write_text("SELECT 1;\n" * n_lines, encoding="latin-1")
             tracemalloc.start()
-            db_mod._assert_dump_sql_safe(str(p))
+            db_mod._check_dump_sql_safe(str(p))
             _cur, peak = tracemalloc.get_traced_memory()
             tracemalloc.stop()
             return peak

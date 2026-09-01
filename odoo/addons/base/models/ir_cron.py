@@ -23,7 +23,7 @@ from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules import Manifest
 from odoo.modules.loading import reset_modules_state
 from odoo.modules.registry import Registry
-from odoo.service._limits import cron_real_time_budget
+from odoo.service._limits import get_cron_real_time_budget
 from odoo.service.transaction import retrying
 from odoo.tools import SQL, str2bool
 from odoo.tools.constants import CRON_TRIGGER_CHANNEL
@@ -567,7 +567,7 @@ class IrCron(models.Model):
 
     @staticmethod
     def _get_deadline_run(start_time: float) -> float | None:
-        budget = cron_real_time_budget()
+        budget = get_cron_real_time_budget()
         return start_time + budget * RUN_BUDGET_RATIO if budget else None
 
     @staticmethod
@@ -625,7 +625,7 @@ class IrCron(models.Model):
         return end_time, hard_deadline
 
     @staticmethod
-    def _refuse_archived_user(job: CronJob, env: api.Environment) -> bool:
+    def _is_user_archived(job: CronJob, env: api.Environment) -> bool:
         if env.user.active or env.uid == SUPERUSER_ID:
             return False
         _logger.warning(
@@ -655,7 +655,7 @@ class IrCron(models.Model):
 
             _logger.info("Job %r (%s) starting", job.cron_name, job.id)
             status = (
-                CompletionStatus.FAILED if cls._refuse_archived_user(job, env) else None
+                CompletionStatus.FAILED if cls._is_user_archived(job, env) else None
             )
 
             status, loop_count, done_total, remaining = cls._drain_cron_job(

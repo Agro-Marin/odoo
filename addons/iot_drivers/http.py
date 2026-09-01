@@ -7,8 +7,8 @@ from werkzeug.exceptions import Forbidden
 
 
 class JsonRPCDispatcherPatch(JsonRPCDispatcher):
-    def handle_error(self, exc: Exception) -> collections.abc.Callable:
-        """Monkey patch the handle_error method to add HTTP 403 Forbidden
+    def prepare_error_response(self, exc: Exception) -> collections.abc.Callable:
+        """Monkey patch the prepare_error_response method to add HTTP 403 Forbidden
         error handling.
 
         :param exc: the exception that occurred.

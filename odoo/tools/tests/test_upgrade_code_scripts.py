@@ -245,7 +245,7 @@ def test_the_script_directory_is_not_empty():
 def test_the_name_is_one_the_cli_can_select(script):
     assert SCRIPT_NAME_RE.match(script.name), (
         f"{script.name} does not match {SCRIPT_NAME_RE.pattern}; "
-        "get_upgrade_code_scripts would never select it and would not say so"
+        "load_upgrade_code_scripts would never select it and would not say so"
     )
 
 

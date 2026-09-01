@@ -77,10 +77,10 @@ class ResUsers(models.Model):
         for r, v in zip(self, self.sudo(), strict=True):
             r.totp_enabled = bool(v.totp_secret)
 
-    def _rpc_api_keys_only(self):
+    def _is_rpc_api_key_only(self):
         # 2FA enabled means we can't allow password-based RPC
         self.check_singleton()
-        return self.totp_enabled or super()._rpc_api_keys_only()
+        return self.totp_enabled or super()._is_rpc_api_key_only()
 
     def _get_fields_session_token(self):
         return super()._get_fields_session_token() | {"totp_secret"}

@@ -11,7 +11,7 @@ class TestCronDatabaseList:
             patch("odoo.service._cron.config", {"db_name": ["db1", "db2"]}),
             patch("odoo.service._cron.list_dbs") as mock_list,
         ):
-            result = _cron.cron_database_list()
+            result = _cron.get_cron_databases()
         assert result == ["db1", "db2"]
         mock_list.assert_not_called()
 
@@ -20,7 +20,7 @@ class TestCronDatabaseList:
             patch("odoo.service._cron.config", {"db_name": ["mydb"]}),
             patch("odoo.service._cron.list_dbs"),
         ):
-            result = _cron.cron_database_list()
+            result = _cron.get_cron_databases()
         assert list(result) == ["mydb"]
 
     def test_falls_back_to_list_dbs_when_empty(self):
@@ -31,7 +31,7 @@ class TestCronDatabaseList:
             ) as mock_list,
             patch("odoo.service._cron.is_maintenance_db", return_value=False),
         ):
-            result = _cron.cron_database_list()
+            result = _cron.get_cron_databases()
         mock_list.assert_called_once_with(True)
         assert result == ["db1", "db2"]
 
@@ -42,7 +42,7 @@ class TestCronDatabaseList:
             patch("odoo.service._cron.config", {"db_name": ["mydb"]}),
             patch("odoo.service._cron.list_dbs"),
         ):
-            assert list(OrderedSet(_cron.cron_database_list())) == ["mydb"]
+            assert list(OrderedSet(_cron.get_cron_databases())) == ["mydb"]
 
 
 class TestOrderNotifiedFirst:

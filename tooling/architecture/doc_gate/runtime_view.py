@@ -482,7 +482,7 @@ class TestLifecycleSketches(unittest.TestCase):
         src = (ROOT / "odoo" / "orm" / "runtime" / "environment.py").read_text(
             encoding="utf-8"
         )
-        self.assertIn("envs.lookup(envs.key(uid, su, frozen_context))", src)
+        self.assertIn("envs.get_environment(envs.key(uid, su, frozen_context))", src)
 
     def test_flush_loop_names_and_cap(self) -> None:
         match = re.search(r"MAX_FIXPOINT_ITERATIONS`? \((\d+)\)", DOC_FLAT)
@@ -507,7 +507,7 @@ class TestLifecycleSketches(unittest.TestCase):
             ROOT / "odoo" / "orm" / "models" / "mixins" / "recompute.py"
         ).read_text(encoding="utf-8")
         for name, src in (
-            ("run_flush_loop", uow),
+            ("flush_until_converged", uow),
             ("flush_model", recompute),
             ("_flush", recompute),
         ):

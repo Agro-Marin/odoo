@@ -22,7 +22,11 @@ class IrActionsAct_WindowView(models.Model):
 
     sequence = fields.Integer()
     view_id = fields.Many2one("ir.ui.view", string="View")
-    view_mode = fields.Selection(VIEW_TYPES, string="View Type", required=True)
+    view_mode = fields.Selection(
+        VIEW_TYPES,
+        string="View Type",
+        required=True,
+    )
     act_window_id = fields.Many2one(
         "ir.actions.act_window",
         string="Action",

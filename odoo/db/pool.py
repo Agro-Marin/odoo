@@ -24,7 +24,7 @@ from .lifecycle import (
     _configure_connection,
     _reset_connection,
 )
-from .probe import PROBE_CONNECT_TIMEOUT, ReachabilityProbe, libpq_connect_timeout
+from .probe import PROBE_CONNECT_TIMEOUT, ReachabilityProbe, get_libpq_connect_timeout
 from .reaper import IdlePoolReaper, note_activity
 from .stats import PoolStats
 from .utils import is_maintenance_db
@@ -66,11 +66,11 @@ _DIRECT_IDLE_SESSION_TIMEOUT_MS = 900 * 1000
 _LEAK_REPORT_INTERVAL = 60.0
 
 
-def _remaining(deadline: float | None) -> float:
+def _get_seconds_remaining(deadline: float | None) -> float:
     return float("inf") if deadline is None else deadline - monotonic()
 
 
-def _base_conn_options(conninfo: str, kwargs: dict) -> str:
+def _get_base_connection_options(conninfo: str, kwargs: dict) -> str:
     options = kwargs.get("options", "")
     if not options and conninfo:
         options = _expand_conninfo(conninfo).get("options", "")
@@ -82,7 +82,7 @@ def _base_conn_options(conninfo: str, kwargs: dict) -> str:
 _GUC_NAME_RE = re.compile(r"-c\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=")
 
 
-def _session_gucs(base_options: str) -> str:
+def _prepare_session_gucs(base_options: str) -> str:
     already_set = set(_GUC_NAME_RE.findall(base_options))
     configured = tools.config["db_session_gucs"] or ""
     gucs = []
@@ -94,19 +94,19 @@ def _session_gucs(base_options: str) -> str:
     return " ".join(gucs)
 
 
-def _connection_options(
+def _prepare_connection_options(
     conninfo: str, kwargs: dict, idle_session_ms: int, *, session_gucs: bool = True
 ) -> str:
-    base = _base_conn_options(conninfo, kwargs)
+    base = _get_base_connection_options(conninfo, kwargs)
     parts = [
         base,
-        _session_gucs(base) if session_gucs else "",
+        _prepare_session_gucs(base) if session_gucs else "",
         f"-c idle_session_timeout={idle_session_ms}",
     ]
     return " ".join(p for p in parts if p)
 
 
-def _borrow_caller() -> str | None:
+def _get_borrow_caller() -> str | None:
     frame: FrameType | None = sys._getframe(1)
     while frame is not None:
         name = frame.f_code.co_filename
@@ -197,7 +197,9 @@ class ConnectionPool:
         kwargs["autocommit"] = False
 
         idle_session_ms = max(900, int(self._max_idle * 1.5)) * 1000
-        kwargs["options"] = _connection_options(conninfo, kwargs, idle_session_ms)
+        kwargs["options"] = _prepare_connection_options(
+            conninfo, kwargs, idle_session_ms
+        )
 
         self._probe.check_connectable(key, conninfo, kwargs, deadline)
 
@@ -235,13 +237,13 @@ class ConnectionPool:
                 and frozenset(t for t in k if t[0] != "password_fp") == ident
             ]
             stale_pools = [self._pools.pop(k) for k in stale_keys]
-            self._probe.forget_each(stale_keys)
+            self._probe.forget_keys(stale_keys)
 
-            reap_keys = self._reaper.collect(self._pools, exclude_key=key)
+            reap_keys = self._reaper.get_keys_reapable(self._pools, exclude_key=key)
             reaped_pools = [self._pools.pop(k) for k in reap_keys]
 
         for sp in stale_pools:
-            self._safe_close(sp)
+            self._close_pool_safely(sp)
         if stale_pools:
             self.stats.record_pools_evicted_stale(len(stale_pools))
             _logger.info(
@@ -250,7 +252,7 @@ class ConnectionPool:
                 len(stale_pools),
             )
         for rp in reaped_pools:
-            self._safe_close(rp)
+            self._close_pool_safely(rp)
         if reaped_pools:
             self.stats.record_pools_reaped(len(reaped_pools))
             _logger.info(
@@ -261,22 +263,22 @@ class ConnectionPool:
             )
         return pool
 
-    def _maybe_reap_idle_pools(self) -> None:
-        if not self._reaper.probably_due():
+    def _reap_idle_pools_if_due(self) -> None:
+        if not self._reaper.is_probably_due():
             return
         with self._lock:
-            if not self._reaper.due():
+            if not self._reaper.acquire_check_interval():
                 return
-            reap_keys = self._reaper.collect(self._pools)
+            reap_keys = self._reaper.get_keys_reapable(self._pools)
             reaped_pools = [self._pools.pop(k) for k in reap_keys]
         if reaped_pools:
-            IdlePoolReaper.close_in_background(
+            IdlePoolReaper.close_pools_in_background(
                 self._close_reaped_pools, reaped_pools, "odoo.db.pool-reaper"
             )
 
     def _close_reaped_pools(self, pools: list[_PsycopgPool]) -> None:
         for rp in pools:
-            self._safe_close(rp)
+            self._close_pool_safely(rp)
         self.stats.record_pools_reaped(len(pools))
         _logger.info(
             "%r: reaped %d idle pool(s) on return (>%.0fs since last borrow)",
@@ -294,7 +296,7 @@ class ConnectionPool:
             key = _normalize_dsn_key(connection_info)
         dbname = connection_info.get("dbname") or dict(key).get("database", "")
         if is_maintenance_db(dbname):
-            return self._borrow_direct(connection_info, deadline)
+            return self._borrow_directly(connection_info, deadline)
         try:
             pool = self._get_or_create_pool(key, connection_info, deadline)
         except BaseException:
@@ -303,13 +305,15 @@ class ConnectionPool:
 
         if not self._budget.acquire(deadline - monotonic()):
             self.stats.record_borrow_failed()
-            raise self._budget_exhausted()
+            raise self._prepare_budget_exhausted_error()
         conn = None
         try:
-            conn, pool = self._getconn_with_retry(pool, key, connection_info, deadline)
-            self._check_borrowed_conn(conn, pool)
+            conn, pool = self._get_connection_with_retry(
+                pool, key, connection_info, deadline
+            )
+            self._check_borrowed_connection(conn, pool)
             self._probe.mark_proven(key)
-            self._checkouts.track(conn, _borrow_caller())
+            self._checkouts.track(conn, _get_borrow_caller())
             self._warn_about_leaks()
             self.stats.record_borrow(started)
             return conn
@@ -318,7 +322,7 @@ class ConnectionPool:
             self._unwind_failed_borrow(conn)
             raise
 
-    def _budget_exhausted(self) -> PoolError:
+    def _prepare_budget_exhausted_error(self) -> PoolError:
         with self._lock:
             pools, direct_out = len(self._pools), self._direct_out
         return PoolError(
@@ -339,7 +343,9 @@ class ConnectionPool:
         threshold = tools.config["db_leak_detection"]
         if not threshold:
             return
-        if not self._checkouts.due_for_report(max(_LEAK_REPORT_INTERVAL, threshold)):
+        if not self._checkouts.acquire_report_interval(
+            max(_LEAK_REPORT_INTERVAL, threshold)
+        ):
             return
         held = self._checkouts.describe(older_than=threshold)
         if held:
@@ -351,22 +357,22 @@ class ConnectionPool:
                 held,
             )
 
-    def _borrow_direct(
+    def _borrow_directly(
         self, connection_info: dict, deadline: float | None = None
     ) -> psycopg.Connection:
         kwargs = dict(connection_info)
         conninfo = kwargs.pop("dsn", "")
         kwargs["autocommit"] = False
-        kwargs["options"] = _connection_options(
+        kwargs["options"] = _prepare_connection_options(
             conninfo, kwargs, _DIRECT_IDLE_SESSION_TIMEOUT_MS, session_gucs=False
         )
-        if not self._budget.acquire(_remaining(deadline)):
+        if not self._budget.acquire(_get_seconds_remaining(deadline)):
             self.stats.record_borrow_failed()
-            raise self._budget_exhausted()
+            raise self._prepare_budget_exhausted_error()
         conn = None
         try:
             if deadline is not None:
-                connect_timeout = libpq_connect_timeout(
+                connect_timeout = get_libpq_connect_timeout(
                     deadline, int(kwargs.get("connect_timeout", PROBE_CONNECT_TIMEOUT))
                 )
                 if not connect_timeout:
@@ -387,7 +393,7 @@ class ConnectionPool:
             conn._odoo_pool = _DIRECT_CONNECTION
             with self._lock:
                 self._direct_out += 1
-            self._checkouts.track(conn, _borrow_caller())
+            self._checkouts.track(conn, _get_borrow_caller())
             self.stats.record_direct_borrow()
             return conn
         except BaseException:
@@ -405,7 +411,7 @@ class ConnectionPool:
                 f"to PostgreSQL {MIN_PG_VERSION} or later."
             )
 
-    def _getconn_with_retry(
+    def _get_connection_with_retry(
         self,
         pool: _PsycopgPool,
         key: frozenset,
@@ -420,7 +426,7 @@ class ConnectionPool:
                 with self._lock:
                     if self._pools.get(key) is pool:
                         del self._pools[key]
-                self._safe_close(pool)
+                self._close_pool_safely(pool)
                 if attempt == 1:
                     _logger.info("Connection to the database failed: %s", e)
                     raise PoolError(str(e)) from e
@@ -431,7 +437,7 @@ class ConnectionPool:
                     with self._lock:
                         if self._pools.get(key) is pool:
                             del self._pools[key]
-                    self._safe_close(pool)
+                    self._close_pool_safely(pool)
                 self._probe.forget(key)
                 _logger.info("Connection to the database failed: %s", e)
                 raise PoolError(str(e)) from e
@@ -441,7 +447,7 @@ class ConnectionPool:
                 raise
         raise PoolError("getconn retry budget exhausted")
 
-    def _check_borrowed_conn(
+    def _check_borrowed_connection(
         self, conn: psycopg.Connection, pool: _PsycopgPool
     ) -> None:
         try:
@@ -474,7 +480,7 @@ class ConnectionPool:
             with self._lock:
                 self._direct_out -= 1
             self._budget.release()
-            self._reap_after_return()
+            self._reap_idle_pools_safely()
             return
 
         note_activity(pool)
@@ -490,23 +496,23 @@ class ConnectionPool:
                 _logger.debug("Failed to return connection to pool", exc_info=True)
         finally:
             self._budget.release()
-        self._reap_after_return()
+        self._reap_idle_pools_safely()
 
-    def _reap_after_return(self) -> None:
+    def _reap_idle_pools_safely(self) -> None:
         try:
-            self._maybe_reap_idle_pools()
+            self._reap_idle_pools_if_due()
         except Exception:
             _logger.debug("Idle-pool reap on give_back failed", exc_info=True)
 
     @staticmethod
-    def _safe_close(pool: _PsycopgPool) -> None:
+    def _close_pool_safely(pool: _PsycopgPool) -> None:
         try:
             pool.close()
         except Exception:
             _logger.debug("Failed to close pool during teardown", exc_info=True)
 
     @staticmethod
-    def _safe_drain(pool: _PsycopgPool) -> None:
+    def _drain_pool_safely(pool: _PsycopgPool) -> None:
         try:
             pool.drain()
         except Exception:
@@ -516,25 +522,27 @@ class ConnectionPool:
         with self._lock:
             return any(dict(k).get("database") == db_name for k in self._pools)
 
-    def _for_database(self, db_name: str) -> list[frozenset]:
+    def _get_keys_for_database(self, db_name: str) -> list[frozenset]:
         return [k for k in self._pools if dict(k).get("database") == db_name]
 
     def close_database(self, db_name: str) -> None:
         with self._lock:
-            pools = [self._pools.pop(k) for k in self._for_database(db_name)]
-            self._probe.forget_matching(lambda k: dict(k).get("database") == db_name)
-        self._close_each(pools, "for %s" % db_name)
+            pools = [self._pools.pop(k) for k in self._get_keys_for_database(db_name)]
+            self._probe.forget_keys_matching(
+                lambda k: dict(k).get("database") == db_name
+            )
+        self._close_pools(pools, "for %s" % db_name)
 
     def close_all(self) -> None:
         with self._lock:
             pools = list(self._pools.values())
             self._pools.clear()
             self._probe.forget_all()
-        self._close_each(pools, "")
+        self._close_pools(pools, "")
 
-    def _close_each(self, pools: list[_PsycopgPool], scope: str) -> None:
+    def _close_pools(self, pools: list[_PsycopgPool], scope: str) -> None:
         for pool in pools:
-            self._safe_close(pool)
+            self._close_pool_safely(pool)
         if pools:
             _logger.info(
                 "%r: Closed %d pool(s)%s",
@@ -545,18 +553,18 @@ class ConnectionPool:
 
     def drain_database(self, db_name: str) -> None:
         with self._lock:
-            pools = [self._pools[k] for k in self._for_database(db_name)]
-        self._drain_each(pools, "for %s" % db_name)
+            pools = [self._pools[k] for k in self._get_keys_for_database(db_name)]
+        self._drain_pools(pools, "for %s" % db_name)
 
-    def drain(self) -> None:
+    def drain_all(self) -> None:
         with self._lock:
             pools = list(self._pools.values())
-        self._drain_each(pools, "")
+        self._drain_pools(pools, "")
 
-    def _drain_each(self, pools: list[_PsycopgPool], scope: str) -> None:
+    def _drain_pools(self, pools: list[_PsycopgPool], scope: str) -> None:
         for pool in pools:
             if not pool.closed:
-                self._safe_drain(pool)
+                self._drain_pool_safely(pool)
         if pools:
             _logger.debug(
                 "%r: Drained %d pool(s)%s",
@@ -574,7 +582,7 @@ class ConnectionPool:
             stats[db_name] = pool.get_stats()
         return stats
 
-    def health(self) -> dict:
+    def get_health(self) -> dict:
         per_database = self.get_stats()
         with self._lock:
             n_pools = len(self._pools)
@@ -584,7 +592,7 @@ class ConnectionPool:
             "databases": n_pools,
             "backends": sum(s.get("pool_size", 0) for s in per_database.values())
             + direct_out,
-            "pool": self.stats.snapshot(
+            "pool": self.stats.get_snapshot(
                 budget=self._budget,
                 direct_out=direct_out,
                 pools=n_pools,

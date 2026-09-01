@@ -12,11 +12,11 @@ from odoo.db.pool import (
     ConnectionBudget,
     ConnectionPool,
     PoolError,
-    _base_conn_options,
-    _remaining,
+    _get_base_connection_options,
+    _get_seconds_remaining,
     _SuppressKnownPoolWarnings,
 )
-from odoo.db.probe import PROBE_CONNECT_TIMEOUT, libpq_connect_timeout
+from odoo.db.probe import PROBE_CONNECT_TIMEOUT, get_libpq_connect_timeout
 from odoo.db.reaper import _LAST_BORROW_ATTR, note_activity
 
 
@@ -26,32 +26,32 @@ def _fake_pool_factory(*_a, **_k):
 
 class TestBorrowBudgetHelpers(unittest.TestCase):
     def test_remaining_is_unbounded_without_a_deadline(self):
-        self.assertEqual(_remaining(None), float("inf"))
+        self.assertEqual(_get_seconds_remaining(None), float("inf"))
 
     def test_remaining_counts_down_and_goes_negative(self):
-        self.assertGreater(_remaining(monotonic() + 5), 4)
-        self.assertLess(_remaining(monotonic() - 1), 0)
+        self.assertGreater(_get_seconds_remaining(monotonic() + 5), 4)
+        self.assertLess(_get_seconds_remaining(monotonic() - 1), 0)
 
     def test_no_deadline_keeps_the_cap(self):
-        self.assertEqual(libpq_connect_timeout(None, PROBE_CONNECT_TIMEOUT), 5)
+        self.assertEqual(get_libpq_connect_timeout(None, PROBE_CONNECT_TIMEOUT), 5)
 
     def test_ample_budget_keeps_the_cap(self):
-        self.assertEqual(libpq_connect_timeout(monotonic() + 60, 5), 5)
+        self.assertEqual(get_libpq_connect_timeout(monotonic() + 60, 5), 5)
 
     def test_tight_budget_shrinks_below_the_cap(self):
-        self.assertEqual(libpq_connect_timeout(monotonic() + 3.9, 5), 3)
+        self.assertEqual(get_libpq_connect_timeout(monotonic() + 3.9, 5), 3)
 
     def test_exhausted_budget_returns_zero_not_a_libpq_forever(self):
         for deadline in (monotonic() + 0.9, monotonic(), monotonic() - 10):
             with self.subTest(deadline=deadline):
-                self.assertEqual(libpq_connect_timeout(deadline, 5), 0)
+                self.assertEqual(get_libpq_connect_timeout(deadline, 5), 0)
 
 
 class TestBaseConnOptions(unittest.TestCase):
     def test_explicit_kwarg_wins(self):
         with patch.dict(os.environ, {"PGOPTIONS": "-c from_env=1"}):
             self.assertEqual(
-                _base_conn_options(
+                _get_base_connection_options(
                     "postgresql://h/db?options=-c%20from_uri%3D1",
                     {"options": "-c from_kwarg=1"},
                 ),
@@ -61,17 +61,19 @@ class TestBaseConnOptions(unittest.TestCase):
     def test_uri_options_beat_the_environment(self):
         with patch.dict(os.environ, {"PGOPTIONS": "-c from_env=1"}):
             self.assertEqual(
-                _base_conn_options("postgresql://h/db?options=-c%20from_uri%3D1", {}),
+                _get_base_connection_options(
+                    "postgresql://h/db?options=-c%20from_uri%3D1", {}
+                ),
                 "-c from_uri=1",
             )
 
     def test_environment_is_the_last_resort(self):
         with patch.dict(os.environ, {"PGOPTIONS": "-c from_env=1"}):
-            self.assertEqual(_base_conn_options("", {}), "-c from_env=1")
+            self.assertEqual(_get_base_connection_options("", {}), "-c from_env=1")
 
     def test_nothing_configured_is_empty(self):
         with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(_base_conn_options("", {}), "")
+            self.assertEqual(_get_base_connection_options("", {}), "")
 
 
 class TestSuppressKnownPoolWarnings(unittest.TestCase):
@@ -191,7 +193,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         pool = self._pool(ttl=0)
         pool._pools = {_key(database="db"): _FakePool()}
         setattr(next(iter(pool._pools.values())), _LAST_BORROW_ATTR, monotonic() - 1e6)
-        self.assertEqual(pool._reaper.collect(pool._pools), [])
+        self.assertEqual(pool._reaper.get_keys_reapable(pool._pools), [])
 
     def test_reaps_only_pools_idle_past_the_ttl(self):
         pool = self._pool(ttl=10)
@@ -200,7 +202,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         setattr(stale, _LAST_BORROW_ATTR, monotonic() - 60)
         pool._pools = {_key(database="fresh"): fresh, _key(database="stale"): stale}
         self.assertEqual(
-            [dict(k)["database"] for k in pool._reaper.collect(pool._pools)],
+            [dict(k)["database"] for k in pool._reaper.get_keys_reapable(pool._pools)],
             ["stale"],
         )
 
@@ -209,7 +211,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         held = _FakePool(size=2, available=1)
         setattr(held, _LAST_BORROW_ATTR, monotonic() - 60)
         pool._pools = {_key(database="held"): held}
-        self.assertEqual(pool._reaper.collect(pool._pools), [])
+        self.assertEqual(pool._reaper.get_keys_reapable(pool._pools), [])
 
     def test_excluded_key_is_never_reaped(self):
         pool = self._pool(ttl=10)
@@ -217,7 +219,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         p = _FakePool()
         setattr(p, _LAST_BORROW_ATTR, monotonic() - 60)
         pool._pools = {k: p}
-        self.assertEqual(pool._reaper.collect(pool._pools, exclude_key=k), [])
+        self.assertEqual(pool._reaper.get_keys_reapable(pool._pools, exclude_key=k), [])
 
     def test_note_pool_activity_protects_a_returned_pool(self):
         pool = self._pool(ttl=10)
@@ -225,7 +227,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         setattr(p, _LAST_BORROW_ATTR, monotonic() - 60)
         pool._pools = {_key(database="db"): p}
         note_activity(p)
-        self.assertEqual(pool._reaper.collect(pool._pools), [])
+        self.assertEqual(pool._reaper.get_keys_reapable(pool._pools), [])
 
     def test_reap_check_interval_is_derived_and_floored(self):
         self.assertEqual(
@@ -284,7 +286,7 @@ class TestCloseAndDrainMatching(unittest.TestCase):
             _key(database="a"): _FakePool(size=3, available=3),
             _key(database="b"): _FakePool(size=2, available=2),
         }
-        health = cp.health()
+        health = cp.get_health()
         self.assertEqual(health["databases"], 2)
         self.assertEqual(health["backends"], 5)
         self.assertGreater(
@@ -297,7 +299,7 @@ class TestCloseAndDrainMatching(unittest.TestCase):
         cp = ConnectionPool(maxconn=4)
         cp._pools = {_key(database="a"): _FakePool(size=1, available=1)}
         cp._direct_out = 2
-        self.assertEqual(cp.health()["backends"], 3)
+        self.assertEqual(cp.get_health()["backends"], 3)
 
     def test_safe_close_and_drain_swallow_one_pools_failure(self):
 
@@ -308,8 +310,8 @@ class TestCloseAndDrainMatching(unittest.TestCase):
             def drain(self):
                 raise RuntimeError("boom")
 
-        ConnectionPool._safe_close(Boom())
-        ConnectionPool._safe_drain(Boom())
+        ConnectionPool._close_pool_safely(Boom())
+        ConnectionPool._drain_pool_safely(Boom())
 
 
 class TestPoolErrorIsRaisedForCapacity(unittest.TestCase):

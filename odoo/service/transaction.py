@@ -32,7 +32,7 @@ BASE_CONCURRENCY_BACKOFF_SECONDS = 0.2
 MAX_CONCURRENCY_BACKOFF_SECONDS = 2.0
 
 
-def _integrity_error_to_validation(
+def _integrity_error_to_validation_error(
     env: Environment, exc: IntegrityError
 ) -> ValidationError:
     rclass = env.registry.models_by_table.get(exc.diag.table_name)
@@ -49,7 +49,7 @@ class RetryParticipant(typing.Protocol):
 
     def on_retry(self, exc: BaseException) -> None: ...
 
-    def suppresses_uncommitted_warning(self) -> bool: ...
+    def is_uncommitted_warning_suppressed(self) -> bool: ...
 
 
 def _no_participant() -> RetryParticipant | None:
@@ -71,7 +71,7 @@ def _reset_env_state(env: Environment) -> None:
 def _warn_cursor_closed_before_commit(
     func: Callable[..., object], participant: RetryParticipant | None
 ) -> None:
-    if participant is not None and participant.suppresses_uncommitted_warning():
+    if participant is not None and participant.is_uncommitted_warning_suppressed():
         return
     _logger.warning(
         "retrying(): the cursor was closed before commit; %s's work was "
@@ -81,7 +81,7 @@ def _warn_cursor_closed_before_commit(
     )
 
 
-def _commit_and_signal(env: Environment) -> None:
+def _commit_and_signal_changes(env: Environment) -> None:
     commits_before = env.cr.commit_count
     try:
         env.cr.commit()
@@ -94,7 +94,7 @@ def _commit_and_signal(env: Environment) -> None:
             if not env.cr.closed and isinstance(exc, IntegrityError):
                 translated = None
                 with suppress(Exception):
-                    translated = _integrity_error_to_validation(env, exc)
+                    translated = _integrity_error_to_validation_error(env, exc)
                 if translated is not None:
                     raise translated from exc
         raise
@@ -132,7 +132,7 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                 if isinstance(exc, IntegrityError):
                     if env.cr.closed:
                         raise
-                    raise _integrity_error_to_validation(env, exc) from exc
+                    raise _integrity_error_to_validation_error(env, exc) from exc
 
                 if isinstance(exc, PG_RETRY_EXCEPTIONS):
                     error = errors.lookup(exc.sqlstate).__name__
@@ -173,7 +173,7 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
         _warn_cursor_closed_before_commit(func, participant)
         return result
 
-    _commit_and_signal(env)
+    _commit_and_signal_changes(env)
     return result
 
 

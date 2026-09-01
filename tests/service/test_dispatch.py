@@ -1,7 +1,7 @@
 import pytest
 
 from odoo.service import common
-from odoo.service._dispatch import dispatch_table, positional_bounds
+from odoo.service._dispatch import dispatch_through_table, get_positional_bounds
 from odoo.service.db import rpc
 
 
@@ -19,16 +19,16 @@ def _nullary():
 
 class TestPositionalBounds:
     def test_required_maximum_and_names(self):
-        assert positional_bounds(_no_op) == (2, 3, ("a", "b", "c"))
+        assert get_positional_bounds(_no_op) == (2, 3, ("a", "b", "c"))
 
     def test_var_positional_is_unbounded(self):
-        assert positional_bounds(_variadic) == (1, None, ("a",))
+        assert get_positional_bounds(_variadic) == (1, None, ("a",))
 
     def test_nullary(self):
-        assert positional_bounds(_nullary) == (0, 0, ())
+        assert get_positional_bounds(_nullary) == (0, 0, ())
 
     def test_a_wrapped_handler_keeps_its_signature(self):
-        assert positional_bounds(rpc.exp_change_admin_password) == (
+        assert get_positional_bounds(rpc.exp_change_admin_password) == (
             1,
             1,
             ("new_password",),
@@ -56,7 +56,7 @@ class TestArityIsCheckedBeforeTheSplat:
 
     def test_variadic_handler_accepts_any_surplus(self):
         table = {"anything": _variadic}
-        assert dispatch_table("anything", [1, 2, 3], table) == (1, (2, 3))
+        assert dispatch_through_table("anything", [1, 2, 3], table) == (1, (2, 3))
 
 
 class TestLegacyAuthenticateArity:
@@ -83,7 +83,7 @@ class TestCredentialStripping:
         called = []
         table = {"danger": lambda *a: called.append(a)}
         with pytest.raises(RuntimeError, match="no check_credential"):
-            dispatch_table(
+            dispatch_through_table(
                 "danger", ["secret"], table, credentialed=frozenset({"danger"})
             )
         assert not called, "the handler ran without its credential verified"
@@ -108,5 +108,5 @@ def test_a_type_checking_only_annotation_does_not_break_introspection():
     def handler(session: OnlyUnderTypeChecking, flag: bool = False):  # noqa: F821
         return session
 
-    assert positional_bounds(handler) == (1, 2, ("session", "flag"))
-    assert dispatch_table("h", ["x"], {"h": handler}) == "x"
+    assert get_positional_bounds(handler) == (1, 2, ("session", "flag"))
+    assert dispatch_through_table("h", ["x"], {"h": handler}) == "x"

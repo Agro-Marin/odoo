@@ -32,7 +32,7 @@ class TestMexicanPartnerIdentifiers(TransactionCase):
     def _reject(self, code, value):
         with self.assertRaises(ValidationError):
             with self.cr.savepoint():
-                self.partner._set_identifier(code, value)
+                self.partner._update_identifier(code, value)
 
     def test_the_types_are_seeded_for_mexico(self):
         mexico = self.env.ref("base.mx")
@@ -49,16 +49,16 @@ class TestMexicanPartnerIdentifiers(TransactionCase):
 
     def test_both_rfc_lengths_are_accepted(self):
         """12 for a legal entity, 13 for a natural person."""
-        self.partner._set_identifier("MX_RFC", "ABC010101AAA")
+        self.partner._update_identifier("MX_RFC", "ABC010101AAA")
         self.assertEqual(self.partner._get_identifier("MX_RFC"), "ABC010101AAA")
 
-        self.partner._set_identifier("MX_RFC", "ABCD010101AAA")
+        self.partner._update_identifier("MX_RFC", "ABCD010101AAA")
         self.assertEqual(self.partner._get_identifier("MX_RFC"), "ABCD010101AAA")
 
     def test_the_generic_rfcs_are_accepted(self):
         """The SAT issues these to everyone at once; they must not be refused."""
         for generic in ("XAXX010101000", "XEXX010101000"):
-            self.partner._set_identifier("MX_RFC", generic)
+            self.partner._update_identifier("MX_RFC", generic)
             self.assertEqual(self.partner._get_identifier("MX_RFC"), generic)
 
     def test_an_rfc_whose_date_cannot_exist_is_refused(self):
@@ -66,7 +66,7 @@ class TestMexicanPartnerIdentifiers(TransactionCase):
 
     def test_an_rfc_date_is_read_in_either_century(self):
         """29 February is the case a naive range check gets wrong."""
-        self.partner._set_identifier("MX_RFC", "ABCD000229AAA")
+        self.partner._update_identifier("MX_RFC", "ABCD000229AAA")
         self.assertEqual(self.partner._get_identifier("MX_RFC"), "ABCD000229AAA")
 
         self._reject("MX_RFC", "ABCD010229AAA")
@@ -75,7 +75,7 @@ class TestMexicanPartnerIdentifiers(TransactionCase):
         self._reject("MX_RFC", "AB010101AAA")
 
     def test_a_valid_curp_is_accepted(self):
-        self.partner._set_identifier("MX_CURP", VALID_CURP)
+        self.partner._update_identifier("MX_CURP", VALID_CURP)
 
         self.assertEqual(self.partner._get_identifier("MX_CURP"), VALID_CURP)
 
@@ -99,7 +99,7 @@ class TestMexicanPartnerIdentifiers(TransactionCase):
         """Normalization runs first, so a spaced CURP is the same CURP."""
         spaced = f"{VALID_CURP[:4]}-{VALID_CURP[4:10]}-{VALID_CURP[10:]}"
 
-        self.partner._set_identifier("MX_CURP", spaced)
+        self.partner._update_identifier("MX_CURP", spaced)
 
         self.assertEqual(
             self.partner.identifier_ids.filtered(

@@ -65,10 +65,10 @@ class ReplicaLagGate:
     def enabled(self) -> bool:
         return self.max_lag > 0
 
-    def allows(self) -> bool:
+    def is_replica_usable(self) -> bool:
         return not (self.enabled and self._lagging)
 
-    def due_for_sample(self) -> bool:
+    def acquire_sample_interval(self) -> bool:
         if not self.enabled:
             return False
         with self._lock:
@@ -84,7 +84,7 @@ class ReplicaLagGate:
             self.last_lag = lag
             self._lagging = self.enabled and lag > self.max_lag
 
-    def snapshot(self) -> dict:
+    def get_snapshot(self) -> dict:
         with self._lock:
             last_lag, lagging = self.last_lag, self._lagging
         return {

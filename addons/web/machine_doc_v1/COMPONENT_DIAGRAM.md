@@ -224,7 +224,7 @@ prose must not reach for them.
 - RPC cache invalidation triggered on write/unlink/create
 
 > **Error serialization** (`odoo/http/helpers.py:290-347`). Gate:
-> `_hide_exception_internals()` = `bool(request) and not config["dev_mode"]`.
+> `_is_exception_detail_hidden()` = `bool(request) and not config["dev_mode"]`.
 >
 > - `data.debug` = full traceback in `dev_mode`, else `_TRACEBACK_HIDDEN`.
 >   Full trace always reaches the server log via `Application.__call__`.
@@ -233,7 +233,7 @@ prose must not reach for them.
 >   `message=` / `arguments=` opt out.
 > - Callers: `dispatcher.py:405, 516, 519, 527`; `base/models/ir_cron.py:244`.
 > - `rpc_cache` does not filter `data.debug`. Server output reaches the browser
->   verbatim; keep `_hide_exception_internals()` the single decision point.
+>   verbatim; keep `_is_exception_detail_hidden()` the single decision point.
 
 ---
 

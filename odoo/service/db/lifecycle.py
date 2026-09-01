@@ -20,10 +20,10 @@ from odoo.tools import SQL
 
 from .._db_helpers import (
     DatabaseExists,
-    _drop_conn,
+    _terminate_backends,
     check_db_management_enabled,
     check_db_name,
-    database_identifier,
+    get_database_identifier,
 )
 from .listing import check_db_exposed, invalidate_catalog_caches
 
@@ -105,15 +105,15 @@ def _create_empty_database(
         if chosen_template == "template0":
             create_sql = SQL(
                 "CREATE DATABASE %s ENCODING 'unicode' LC_COLLATE 'C' TEMPLATE %s",
-                database_identifier(cr, name),
-                database_identifier(cr, chosen_template),
+                get_database_identifier(cr, name),
+                get_database_identifier(cr, chosen_template),
             )
         else:
             _warn_on_non_c_template(cr, chosen_template)
             create_sql = SQL(
                 "CREATE DATABASE %s ENCODING 'unicode' TEMPLATE %s",
-                database_identifier(cr, name),
-                database_identifier(cr, chosen_template),
+                get_database_identifier(cr, name),
+                get_database_identifier(cr, chosen_template),
             )
         already_exists = False
 
@@ -139,7 +139,7 @@ def _create_empty_database(
             cr.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
             if force_unaccent or odoo.tools.config["unaccent"]:
                 cr.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
-                if odoo.db.has_unaccent(cr) != odoo.db.FunctionStatus.INDEXABLE:
+                if odoo.db.get_unaccent_status(cr) != odoo.db.FunctionStatus.INDEXABLE:
                     cr.execute(
                         "ALTER FUNCTION unaccent(text) IMMUTABLE",
                         log_exceptions=False,
@@ -174,7 +174,7 @@ def _rollback_new_database(db_name: str, what: str) -> None:
         _drop_database(db_name)
 
 
-def _assert_filestore_dest_free(dest: str, problem: str) -> None:
+def _check_filestore_dest_free(dest: str, problem: str) -> None:
     if Path(dest).exists():
         raise RuntimeError(
             f"{problem}: destination filestore {dest!r} already exists.  "
@@ -193,7 +193,7 @@ def exp_create_database(
     phone: str | None = None,
 ) -> Literal[True]:
     check_db_name(db_name)
-    _assert_filestore_dest_free(
+    _check_filestore_dest_free(
         odoo.tools.config.filestore(db_name), f"Cannot create {db_name!r}"
     )
     _logger.info("Create database `%s`.", db_name)
@@ -226,7 +226,7 @@ def _duplicate_database(
     check_db_name(db_name)
 
     to_fs = odoo.tools.config.filestore(db_name)
-    _assert_filestore_dest_free(to_fs, f"Cannot duplicate to {db_name!r}")
+    _check_filestore_dest_free(to_fs, f"Cannot duplicate to {db_name!r}")
 
     _logger.info("Duplicate database `%s` to `%s`.", db_original_name, db_name)
     odoo.db.close_db(db_original_name)
@@ -239,8 +239,8 @@ def _duplicate_database(
                 cr.execute(
                     SQL(
                         "CREATE DATABASE %s ENCODING 'unicode' TEMPLATE %s",
-                        database_identifier(cr, db_name),
-                        database_identifier(cr, db_original_name),
+                        get_database_identifier(cr, db_name),
+                        get_database_identifier(cr, db_original_name),
                     )
                 )
             except (
@@ -322,7 +322,7 @@ def _retry_terminate_then_ddl(
     run: Callable[[], None],
 ) -> None:
     _retry_on_object_in_use(
-        op_label, run, before_attempt=lambda: _drop_conn(cr, terminate_target)
+        op_label, run, before_attempt=lambda: _terminate_backends(cr, terminate_target)
     )
 
 
@@ -351,7 +351,9 @@ def _drop_database(db_name: str) -> bool:
 
         def _drop() -> None:
             try:
-                cr.execute(SQL("DROP DATABASE %s", database_identifier(cr, db_name)))
+                cr.execute(
+                    SQL("DROP DATABASE %s", get_database_identifier(cr, db_name))
+                )
             except psycopg.errors.ObjectInUse:
                 raise
             except Exception as e:
@@ -387,7 +389,7 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
 
     old_fs = odoo.tools.config.filestore(old_name)
     new_fs = odoo.tools.config.filestore(new_name)
-    _assert_filestore_dest_free(
+    _check_filestore_dest_free(
         new_fs, f"Cannot rename database {old_name!r} to {new_name!r}"
     )
 
@@ -403,8 +405,8 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                 cr.execute(
                     SQL(
                         "ALTER DATABASE %s RENAME TO %s",
-                        database_identifier(cr, old_name),
-                        database_identifier(cr, new_name),
+                        get_database_identifier(cr, old_name),
+                        get_database_identifier(cr, new_name),
                     )
                 )
             except (
@@ -464,7 +466,7 @@ def _rollback_db_rename(cr: BaseCursor, old_name: str, new_name: str) -> None:
     cr.execute(
         SQL(
             "ALTER DATABASE %s RENAME TO %s",
-            database_identifier(cr, new_name),
-            database_identifier(cr, old_name),
+            get_database_identifier(cr, new_name),
+            get_database_identifier(cr, old_name),
         )
     )

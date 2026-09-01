@@ -34,7 +34,7 @@ PG_STALE_PLAN_EXCEPTIONS: tuple[type[Exception], ...] = (
 )
 
 
-def reached_the_server(exc: BaseException) -> bool:
+def has_reached_server(exc: BaseException) -> bool:
     return getattr(exc, "sqlstate", None) is not None
 
 

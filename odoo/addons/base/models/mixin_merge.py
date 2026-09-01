@@ -17,7 +17,7 @@ class MixinMerge(models.AbstractModel):
     _name = "mixin.merge"
     _description = "Record Merge Engine"
 
-    def _merge_absorbs_source_values(self) -> bool:
+    def _is_source_absorbed_on_merge(self) -> bool:
         return True
 
     def _get_merge_tables_excluded(self, model: str) -> set[str]:
@@ -25,7 +25,7 @@ class MixinMerge(models.AbstractModel):
         for field in self._fields.values():
             if field.type == "many2many" and field.relation:
                 tables.add(field.relation)
-        if not self._merge_absorbs_source_values():
+        if not self._is_source_absorbed_on_merge():
             for field in self.env[model]._fields.values():
                 if field.type == "many2many" and field.store and field.relation:
                     tables.add(field.relation)
@@ -109,7 +109,7 @@ class MixinMerge(models.AbstractModel):
 
         other_columns = [
             name
-            for name in sql_tools.table_columns(self.env.cr, table)
+            for name in sql_tools.get_table_columns(self.env.cr, table)
             if name != column
         ]
 

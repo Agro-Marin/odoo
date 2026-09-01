@@ -55,7 +55,7 @@ class _MetricsMixin:
         self.sql_into_log = {}
         self.sql_log_count = 0
 
-    def _format(self, query: Any, params: Any = None) -> str:
+    def _format_statement(self, query: Any, params: Any = None) -> str:
         if isinstance(query, SQL):
             query, params = query.code, query.params
         if params is None:
@@ -102,7 +102,7 @@ class _MetricsMixin:
         if not _logger.isEnabledFor(logging.DEBUG):
             return
 
-        def process(log_type: str) -> None:
+        def print_direction_log(log_type: str) -> None:
             sqllogs = {"from": self.sql_from_log, "into": self.sql_into_log}
             sqllog = sqllogs[log_type]
             total = 0.0
@@ -124,6 +124,6 @@ class _MetricsMixin:
                 sql_counter,
             )
 
-        process("from")
-        process("into")
+        print_direction_log("from")
+        print_direction_log("into")
         self.sql_log_count = 0

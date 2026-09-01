@@ -218,7 +218,10 @@ class IrMail_Server(models.Model):
         help="Comma-separated list of addresses or domains for which this server can be used.\n"
         'e.g.: "notification@odoo.com" or "odoo.com"',
     )
-    smtp_host = fields.Char(string="SMTP Server", help="Hostname or IP of SMTP server")
+    smtp_host = fields.Char(
+        string="SMTP Server",
+        help="Hostname or IP of SMTP server",
+    )
     smtp_port = fields.Integer(
         string="SMTP Port",
         default=25,
@@ -235,7 +238,8 @@ class IrMail_Server(models.Model):
         default="login",
     )
     smtp_authentication_info = fields.Text(
-        "Authentication Info", compute="_compute_smtp_authentication_info"
+        "Authentication Info",
+        compute="_compute_smtp_authentication_info",
     )
     smtp_user = fields.Char(
         string="Username",
@@ -355,7 +359,7 @@ class IrMail_Server(models.Model):
                     _("SSL certificate is missing for %s.", mail_server.name)
                 )
             try:
-                mail_server._load_certificate_material()
+                mail_server._read_certificate_material()
             except UserError as error:
                 raise ValidationError(str(error)) from None
 
@@ -642,10 +646,10 @@ class IrMail_Server(models.Model):
         if not mail_server:
             mail_server = self.env["ir.mail_server"]
 
-        transport = mail_server._resolve_smtp_transport()
+        transport = mail_server._prepare_smtp_transport()
         return self._open_smtp_connection(transport, smtp_from)
 
-    def _resolve_smtp_transport(
+    def _prepare_smtp_transport(
         self,
         *,
         host: str | None = None,
@@ -859,7 +863,7 @@ class IrMail_Server(models.Model):
             ssl_context.verify_mode = ssl.CERT_NONE
         return ssl_context
 
-    def _load_certificate_material(self) -> tuple[list[Any], Any]:
+    def _read_certificate_material(self) -> tuple[list[Any], Any]:
         self.check_singleton()
         try:
             chain = load_pem_x509_certificates(
@@ -884,7 +888,7 @@ class IrMail_Server(models.Model):
         ssl_context = self._prepare_client_ssl_context(
             self.smtp_encryption, self.smtp_host
         )
-        (leaf, *intermediates), private_key = self._load_certificate_material()
+        (leaf, *intermediates), private_key = self._read_certificate_material()
         try:
             ssl_context._ctx.use_certificate(leaf)
             for intermediate in intermediates:

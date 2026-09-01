@@ -11,7 +11,7 @@ from freezegun import freeze_time
 
 from odoo import http
 from odoo.api import Environment
-from odoo.service.security import check_session
+from odoo.service.security import is_session_valid
 from odoo.tests import common, new_test_user
 from odoo.tools import mute_logger
 
@@ -423,7 +423,7 @@ class TestWebsocketCaryall(WebsocketCase):
         user_session = self.authenticate("test_user", "Password!1")
         websocket = self.websocket_connect(cookie=f"session_id={user_session.sid};")
         with patch(
-            "odoo.addons.bus.websocket.check_session", wraps=check_session
+            "odoo.addons.bus.websocket.is_session_valid", wraps=is_session_valid
         ) as check_session_spy:
             self.subscribe(
                 websocket, ["ttl_channel"], self.env["bus.bus"]._bus_last_id()
@@ -457,7 +457,7 @@ class TestWebsocketCaryall(WebsocketCase):
         user_session = self.authenticate("test_user", "Password!1")
         websocket = self.websocket_connect(cookie=f"session_id={user_session.sid};")
         with patch(
-            "odoo.addons.bus.websocket.check_session", wraps=check_session
+            "odoo.addons.bus.websocket.is_session_valid", wraps=is_session_valid
         ) as check_session_spy:
             self.subscribe(
                 websocket, ["ttl_channel"], self.env["bus.bus"]._bus_last_id()

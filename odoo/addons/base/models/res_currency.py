@@ -243,14 +243,14 @@ class ResCurrency(models.Model):
             for currency_id, history in histories.items():
                 memo[currency_id, root_id, scope] = history
         return {
-            currency_id: self._resolve_rate_from_history(
+            currency_id: self._get_rate_from_history(
                 memo[currency_id, root_id, scope], date
             )
             for currency_id in self.ids
         }
 
     @staticmethod
-    def _resolve_rate_from_history(history: tuple, date: Any) -> float:
+    def _get_rate_from_history(history: tuple, date: Any) -> float:
         (specific_dates, specific_values), (global_dates, global_values) = history
         value = None
         if index := bisect_right(specific_dates, date):

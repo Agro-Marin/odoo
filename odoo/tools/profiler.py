@@ -198,7 +198,7 @@ class SQLCollector(Collector):
         self.progress(
             {
                 "query": str(query),
-                "full_query": str(cr._format(query, params)),
+                "full_query": str(cr._format_statement(query, params)),
                 "start": query_start,
                 "time": query_time,
             }

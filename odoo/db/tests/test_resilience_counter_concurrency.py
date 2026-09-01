@@ -62,9 +62,9 @@ def test_connection_budget_exhausted_count_is_not_lost():
     budget = ConnectionBudget(1)
     assert budget.acquire(0.0) is True
     _hammer(lambda: budget.acquire(0.0))
-    assert budget.exhausted == EXPECTED, (
-        f"lost {EXPECTED - budget.exhausted} of {EXPECTED} increments to "
-        f"ConnectionBudget.exhausted — the metric that says 'the pool ran out'."
+    assert budget.exhausted_count == EXPECTED, (
+        f"lost {EXPECTED - budget.exhausted_count} of {EXPECTED} increments to "
+        f"ConnectionBudget.exhausted_count — the metric that says 'the pool ran out'."
     )
 
 
@@ -150,7 +150,7 @@ def test_every_counter_has_a_recorder_that_takes_the_lock():
 def test_snapshot_reads_every_counter_under_the_lock():
     import inspect
 
-    src = inspect.getsource(PoolStats.snapshot)
+    src = inspect.getsource(PoolStats.get_snapshot)
     assert "with self._lock:" in src, (
         "snapshot() renders the histogram alongside the total it summarises; "
         "reading them unlocked lets health() report a histogram that does not "

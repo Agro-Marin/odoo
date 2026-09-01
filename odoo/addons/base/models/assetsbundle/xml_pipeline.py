@@ -36,7 +36,7 @@ class XmlTemplatePipeline:
                     inherit_mode = template_tree.get("t-inherit-mode", "primary")
                     if inherit_mode not in {"primary", "extension"}:
                         addon = asset.url.split("/")[1] if asset.url else asset.name
-                        raise asset._error(
+                        raise asset._prepare_asset_error(
                             bundle.env._(
                                 'Invalid inherit mode. Module "%(module)s" and template name "%(template_name)s"',
                                 module=addon,
@@ -59,7 +59,9 @@ class XmlTemplatePipeline:
                         blocks.append(block)
                     block["templates"].append((template_tree, asset.url, inherit_from))
                 else:
-                    raise asset._error(bundle.env._("Template name is missing."))
+                    raise asset._prepare_asset_error(
+                        bundle.env._("Template name is missing.")
+                    )
         return blocks
 
     def generate_xml_bundle(self) -> str:

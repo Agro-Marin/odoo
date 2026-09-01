@@ -24,7 +24,7 @@ class JsPipeline:
         self._bundle = bundle
 
     @staticmethod
-    def _fails_closed() -> bool:
+    def _is_asset_error_fatal() -> bool:
         return bool(config["test_enable"] or "assets" in config["dev_mode"])
 
     def _module_syntax_error_stub(self, asset: JavascriptAsset) -> str | None:
@@ -49,7 +49,7 @@ class JsPipeline:
             bundle=bundle.name,
             url=asset.url or "<inline>",
         )
-        if self._fails_closed():
+        if self._is_asset_error_fatal():
             raise ModuleSyntaxInLegacyBundleError(msg)
         return f"console.error({json.dumps(msg)});"
 

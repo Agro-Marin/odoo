@@ -1371,19 +1371,19 @@ class TestSelfServiceEscalation(TransactionCase):
     def test_shorthand_values_are_classified_by_effect(self):
         Users = self.env["res.users"]
         self.assertTrue(
-            Users._escapes_own_record({"category_id": [{"name": "forged"}]}),
+            Users._is_escaping_own_record({"category_id": [{"name": "forged"}]}),
             "the dict create shorthand must not be escalated",
         )
         self.assertFalse(
-            Users._escapes_own_record({"category_id": [self.tag.id]}),
+            Users._is_escaping_own_record({"category_id": [self.tag.id]}),
             "the bare-id link shorthand is a relation edit",
         )
         self.assertFalse(
-            Users._escapes_own_record({"category_id": self.tag}),
+            Users._is_escaping_own_record({"category_id": self.tag}),
             "assigning a recordset replaces the relation only",
         )
         self.assertFalse(
-            Users._escapes_own_record({"tz": "Europe/Brussels"}),
+            Users._is_escaping_own_record({"tz": "Europe/Brussels"}),
             "scalars never escape the row",
         )
 

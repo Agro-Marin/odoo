@@ -11,11 +11,11 @@ from odoo.db.errors import (
     PG_STALE_PLAN_EXCEPTIONS,
     PG_USER_FAULT_EXCEPTIONS,
     _log_sql_error,
+    has_reached_server,
     is_handled_by_seam,
     is_stale_cached_plan,
     mark_handled_by_seam,
     mark_stale_cached_plan,
-    reached_the_server,
 )
 
 
@@ -99,7 +99,7 @@ class TestReachedTheServer(unittest.TestCase):
             psycopg.errors.FeatureNotSupported,
         ):
             with self.subTest(cls=cls.__name__):
-                self.assertTrue(reached_the_server(cls("boom")))
+                self.assertTrue(has_reached_server(cls("boom")))
 
     def test_client_side_errors_do_not(self):
         for exc in (
@@ -108,7 +108,7 @@ class TestReachedTheServer(unittest.TestCase):
             ValueError("not a psycopg error at all"),
         ):
             with self.subTest(exc=type(exc).__name__):
-                self.assertFalse(reached_the_server(exc))
+                self.assertFalse(has_reached_server(exc))
 
 
 class TestLogSqlErrorLevels(unittest.TestCase):

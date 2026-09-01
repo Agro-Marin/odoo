@@ -168,7 +168,7 @@ class IrFieldsConverter(models.AbstractModel):
         return field_path
 
     @api.model
-    def _error_unknown_field(self, model: models.BaseModel) -> Exception:
+    def _prepare_unknown_field_error(self, model: models.BaseModel) -> Exception:
         return self._prepare_import_error(
             ValueError,
             self.env._("Field '%%(field)s' does not exist on model '%s'"),
@@ -176,7 +176,7 @@ class IrFieldsConverter(models.AbstractModel):
         )
 
     @api.model
-    def _error_unsupported_type(self, field: fields.Field) -> Exception:
+    def _prepare_unsupported_type_error(self, field: fields.Field) -> Exception:
         return self._prepare_import_error(
             ValueError,
             self.env._(
@@ -186,7 +186,7 @@ class IrFieldsConverter(models.AbstractModel):
         )
 
     @api.model
-    def _as_import_error(
+    def _prepare_import_error_from_exception(
         self, exception: Exception, fname: str, value: Any, in_import_file: Any
     ) -> Exception:
         if isinstance(exception, (UnicodeEncodeError, UnicodeDecodeError)):
@@ -231,13 +231,13 @@ class IrFieldsConverter(models.AbstractModel):
         def convert_one(fname: str, value: Any, log: Callable) -> Any:
             field = model_fields.get(fname)
             if field is None:
-                log(fname, self._error_unknown_field(model))
+                log(fname, self._prepare_unknown_field_error(model))
                 return _UNCONVERTED
             if not value:
                 return False
             converter = resolve_converter(fname, field)
             if converter is None:
-                log(fname, self._error_unsupported_type(field))
+                log(fname, self._prepare_unsupported_type_error(field))
                 return _UNCONVERTED
             try:
                 converted, warnings = converter(value)
@@ -247,7 +247,12 @@ class IrFieldsConverter(models.AbstractModel):
                 log(fname, ValueError(escape_import_message(str(e))))
                 return _UNCONVERTED
             except Exception as e:
-                log(fname, self._as_import_error(e, fname, value, in_import_file))
+                log(
+                    fname,
+                    self._prepare_import_error_from_exception(
+                        e, fname, value, in_import_file
+                    ),
+                )
                 return _UNCONVERTED
             for warning in warnings:
                 if isinstance(warning, str):

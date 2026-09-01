@@ -15,7 +15,11 @@ class IrActionsAct_Window(models.Model):
     _allow_sudo_commands = False
 
     type = fields.Char(default="ir.actions.act_window")
-    view_id = fields.Many2one("ir.ui.view", string="View Ref.", ondelete="set null")
+    view_id = fields.Many2one(
+        "ir.ui.view",
+        string="View Ref.",
+        ondelete="set null",
+    )
     domain = fields.Char(
         string="Domain Value",
         help="Optional domain filtering of the destination data, as a Python expression",
@@ -69,7 +73,10 @@ class IrActionsAct_Window(models.Model):
         "when displaying the result of an action, federating view mode, views and "
         "reference view. The result is returned as an ordered list of pairs (view_id,view_mode).",
     )
-    limit = fields.Integer(default=80, help="Default limit for the list view")
+    limit = fields.Integer(
+        default=80,
+        help="Default limit for the list view",
+    )
     group_ids = fields.Many2many(
         "res.groups",
         "ir_act_window_group_rel",
@@ -78,7 +85,9 @@ class IrActionsAct_Window(models.Model):
         string="Groups",
     )
     search_view_id = fields.Many2one(
-        "ir.ui.view", string="Search View Ref.", ondelete="set null"
+        "ir.ui.view",
+        string="Search View Ref.",
+        ondelete="set null",
     )
     all_embedded_action_ids = fields.One2many(
         "ir.embedded.actions",
@@ -86,7 +95,8 @@ class IrActionsAct_Window(models.Model):
         string="All Embedded Actions",
     )
     embedded_action_ids = fields.One2many(
-        "ir.embedded.actions", compute="_compute_embedded_action_ids"
+        "ir.embedded.actions",
+        compute="_compute_embedded_action_ids",
     )
     cache = fields.Boolean(
         string="Data Caching",

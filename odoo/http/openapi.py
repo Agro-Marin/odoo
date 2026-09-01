@@ -33,7 +33,7 @@ _DEFAULT_METHODS_JSONRPC = frozenset({"POST"})
 _DEFAULT_METHODS_OTHER = frozenset({"GET", "POST"})
 
 
-def _effective_methods(route: RouteInfo) -> frozenset[str]:
+def _get_methods_effective(route: RouteInfo) -> frozenset[str]:
     real = route.methods - _IMPLICIT_METHODS
     if real:
         return real
@@ -45,7 +45,9 @@ def _effective_methods(route: RouteInfo) -> frozenset[str]:
 _ID_SANITIZE_RE = re.compile(r"[^a-zA-Z0-9]+")
 
 
-def _operation_id(method: str, template: str, used: set[str] | None = None) -> str:
+def _prepare_operation_id(
+    method: str, template: str, used: set[str] | None = None
+) -> str:
     slug = _ID_SANITIZE_RE.sub("_", template).strip("_") or "root"
     base = f"{method.lower()}_{slug}"
     if used is None:
@@ -73,7 +75,7 @@ def _get_route_param_specs(route: RouteInfo) -> dict[str, ParamSpec]:
     return get_param_specs(route.handler)
 
 
-def _nullable(schema: dict[str, Any]) -> dict[str, Any]:
+def _prepare_schema_nullable(schema: dict[str, Any]) -> dict[str, Any]:
     kind = schema.get("type")
     if isinstance(kind, str):
         return {**schema, "type": [kind, "null"]}
@@ -86,13 +88,13 @@ def param_spec_to_schema(spec: ParamSpec) -> dict[str, Any]:
         schema: dict[str, Any] = {"type": "array", "items": dict(item) if item else {}}
     else:
         schema = dict(_PRIMITIVE_SCHEMA.get(spec.target, {}))
-    return _nullable(schema) if spec.allow_none else schema
+    return _prepare_schema_nullable(schema) if spec.allow_none else schema
 
 
-def _path_template(rule: str) -> tuple[str, list[dict[str, Any]]]:
+def _prepare_path_template_and_params(rule: str) -> tuple[str, list[dict[str, Any]]]:
     params: list[dict[str, Any]] = []
 
-    def repl(match: re.Match[str]) -> str:
+    def replace_rule_arg_with_placeholder(match: re.Match[str]) -> str:
         name = match.group("name")
         conv = match.group("conv") or "default"
         schema = _CONVERTER_SCHEMA.get(conv, {"type": "string"})
@@ -101,7 +103,7 @@ def _path_template(rule: str) -> tuple[str, list[dict[str, Any]]]:
         )
         return "{" + name + "}"
 
-    return _RULE_ARG_RE.sub(repl, rule), params
+    return _RULE_ARG_RE.sub(replace_rule_arg_with_placeholder, rule), params
 
 
 _SECURITY_SCHEMES: dict[str, tuple[str, dict[str, str]]] = {
@@ -110,7 +112,7 @@ _SECURITY_SCHEMES: dict[str, tuple[str, dict[str, str]]] = {
 }
 
 
-def _summary(handler: typing.Callable) -> str | None:
+def _get_handler_summary(handler: typing.Callable) -> str | None:
     doc = getattr(handler, "__doc__", None)
     return doc.strip().splitlines()[0] if doc and doc.strip() else None
 
@@ -124,10 +126,10 @@ def prepare_openapi_operation(
     used_operation_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     operation: dict[str, Any] = {
-        "operationId": _operation_id(method, template, used_operation_ids),
+        "operationId": _prepare_operation_id(method, template, used_operation_ids),
         "responses": {"200": {"description": "Successful response"}},
     }
-    if summary := _summary(route.handler):
+    if summary := _get_handler_summary(route.handler):
         operation["summary"] = summary
 
     parameters = list(path_params)
@@ -193,7 +195,7 @@ def prepare_openapi_document(
     for route in routes:
         if typed_only and not route.routing.get("typed"):
             continue
-        template, path_params = _path_template(route.rule)
+        template, path_params = _prepare_path_template_and_params(route.rule)
 
         repeated = {p["name"] for p in path_params}
         if len(repeated) != len(path_params):
@@ -205,7 +207,7 @@ def prepare_openapi_document(
             continue
 
         path_item = paths.setdefault(template, {})
-        for method in sorted(_effective_methods(route)):
+        for method in sorted(_get_methods_effective(route)):
             verb = method.lower()
             if verb in path_item:
                 _logger.warning(

@@ -102,6 +102,14 @@ class IrEmbeddedActions(models.Model):
 
         return super().create([normalised(vals) for vals in vals_list])
 
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_default_action(self) -> None:
+        for record in self:
+            if not record.is_deletable:
+                raise UserError(
+                    self.env._("You cannot delete a default embedded action")
+                )
+
     def _compute_is_deletable(self) -> None:
         external_ids = self._get_external_ids()
         for record in self:
@@ -155,14 +163,6 @@ class IrEmbeddedActions(models.Model):
                     )
                 else:
                     record.is_visible = False
-
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_default_action(self) -> None:
-        for record in self:
-            if not record.is_deletable:
-                raise UserError(
-                    self.env._("You cannot delete a default embedded action")
-                )
 
     def _get_fields_readable(self) -> frozenset[str]:
         return frozenset(

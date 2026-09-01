@@ -39,12 +39,12 @@ def test_normalize_dbfilter_host_strips_port_www_and_lowercases():
 
 
 def test_dbfilter_host_normalized_exactly_once():
-    from odoo.http.helpers import _compiled_dbfilter, db_filter
+    from odoo.http.helpers import _compile_dbfilter, db_filter
     from odoo.tools import config
 
     saved = config["dbfilter"]
     config["dbfilter"] = "^%h$"
-    _compiled_dbfilter.cache_clear()
+    _compile_dbfilter.cache_clear()
     try:
         assert db_filter(["www.example.com"], host="www.www.example.com") == [
             "www.example.com"
@@ -52,7 +52,7 @@ def test_dbfilter_host_normalized_exactly_once():
         assert db_filter(["example.com"], host="www.www.example.com") == []
     finally:
         config["dbfilter"] = saved
-        _compiled_dbfilter.cache_clear()
+        _compile_dbfilter.cache_clear()
 
 
 def _fake_request(method):
@@ -157,21 +157,21 @@ def test_no_registered_prefix_matches_nothing():
 
 
 def test_a_dbfilter_that_ignores_the_host_caches_one_regex_for_every_host():
-    helpers._compiled_dbfilter.cache_clear()
+    helpers._compile_dbfilter.cache_clear()
     with config.patch(dbfilter=".*", db_name=[]):
         for i in range(600):
             helpers.db_filter(["somedb"], host=f"attacker-{i}.example.com")
 
-    assert helpers._compiled_dbfilter.cache_info().currsize == 1
+    assert helpers._compile_dbfilter.cache_info().currsize == 1
 
 
 def test_a_dbfilter_that_reads_the_host_still_gets_a_regex_per_host():
-    helpers._compiled_dbfilter.cache_clear()
+    helpers._compile_dbfilter.cache_clear()
     with config.patch(dbfilter="^%d_", db_name=[]):
         assert helpers.db_filter(["alpha_x"], host="alpha.example.com") == ["alpha_x"]
         assert helpers.db_filter(["alpha_x"], host="beta.example.com") == []
 
-    assert helpers._compiled_dbfilter.cache_info().currsize == 2
+    assert helpers._compile_dbfilter.cache_info().currsize == 2
 
 
 def test_db_filter_orders_the_same_way_through_both_of_its_filters():
@@ -201,8 +201,8 @@ def test_db_filter_applies_both_filters_when_both_are_set():
 
 
 def _reset_dbfilter_caches():
-    helpers._compiled_dbfilter.cache_clear()
-    helpers._dbfilter_reads_the_host.cache_clear()
+    helpers._compile_dbfilter.cache_clear()
+    helpers._has_host_placeholder.cache_clear()
 
 
 HOSTILE_STRINGS = [
@@ -277,7 +277,7 @@ def test_no_hostile_host_header_escapes_the_dbfilter_path():
 
 def test_no_hostile_origin_escapes_cors_same_host():
     def resolve(origin):
-        return helpers.cors_same_host(
+        return helpers.resolve_cors_same_host(
             types.SimpleNamespace(
                 httprequest=types.SimpleNamespace(
                     headers={"Origin": origin},
@@ -300,7 +300,7 @@ def test_no_hostile_url_escapes_get_static_file():
 
 
 def test_no_hostile_cookie_or_filename_escapes():
-    from odoo.http.wrappers import cookie_name
+    from odoo.http.wrappers import get_cookie_name
 
-    assert _hostile_probe(cookie_name) == []
+    assert _hostile_probe(get_cookie_name) == []
     assert _hostile_probe(content_disposition) == []

@@ -18,7 +18,7 @@ _logger = logging.getLogger(__name__)
 PROBE_CONNECT_TIMEOUT = 5
 
 
-def libpq_connect_timeout(deadline: float | None, cap: int) -> int:
+def get_libpq_connect_timeout(deadline: float | None, cap: int) -> int:
     if deadline is None:
         return cap
     remaining = int(deadline - monotonic())
@@ -54,7 +54,7 @@ class ReachabilityProbe:
         with self._lock:
             self._proven.discard(key)
 
-    def forget_each(self, keys) -> None:
+    def forget_keys(self, keys) -> None:
         with self._lock:
             self._proven.difference_update(keys)
 
@@ -62,7 +62,7 @@ class ReachabilityProbe:
         with self._lock:
             self._proven.clear()
 
-    def forget_matching(self, predicate) -> None:
+    def forget_keys_matching(self, predicate) -> None:
         with self._lock:
             self._proven.difference_update(
                 [key for key in self._proven if predicate(key)]
@@ -121,7 +121,7 @@ class ReachabilityProbe:
     def probe_connectable(
         self, conninfo: str, kwargs: dict, deadline: float | None = None
     ) -> None:
-        probe_timeout = libpq_connect_timeout(deadline, PROBE_CONNECT_TIMEOUT)
+        probe_timeout = get_libpq_connect_timeout(deadline, PROBE_CONNECT_TIMEOUT)
         if not probe_timeout:
             return
         self._stats.record_probe_started()
@@ -137,7 +137,7 @@ class ReachabilityProbe:
             if translated is not None:
                 self._stats.record_probe_outcome("permanent")
                 raise translated from e
-            if self.database_absent(conninfo, kwargs, deadline):
+            if self.is_database_absent(conninfo, kwargs, deadline):
                 self._stats.record_probe_outcome("permanent")
                 raise psycopg.errors.InvalidCatalogName(str(e)) from e
             self._stats.record_probe_outcome("transient")
@@ -155,7 +155,7 @@ class ReachabilityProbe:
             with contextlib.suppress(Exception):
                 conn.close()
 
-    def database_absent(
+    def is_database_absent(
         self, conninfo: str, kwargs: dict, deadline: float | None = None
     ) -> bool:
         maint = (
@@ -167,7 +167,7 @@ class ReachabilityProbe:
         maint.pop("options", None)
         maint["dbname"] = "postgres"
         maint["autocommit"] = True
-        probe_timeout = libpq_connect_timeout(deadline, PROBE_CONNECT_TIMEOUT)
+        probe_timeout = get_libpq_connect_timeout(deadline, PROBE_CONNECT_TIMEOUT)
         if not probe_timeout:
             return False
         maint["connect_timeout"] = probe_timeout

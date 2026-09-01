@@ -6,10 +6,10 @@ from pathlib import Path
 from odoo.modules.migration import (
     VERSION_RE,
     _convert_version,
+    _get_addon_path,
+    _get_scripts_by_version,
+    _is_migration_applicable,
     _is_upgrade_version_dir,
-    _migration_applies,
-    _resolve_addon_path,
-    _scripts_by_version,
 )
 from odoo.modules.module import adapt_version
 from odoo.release import major_version
@@ -32,30 +32,38 @@ class TestConvertVersion(BaseCase):
 class TestMigrationApplies(BaseCase):
     def test_full_version_runs_once_then_stops(self):
         target = f"{major_version}.2.1"
-        self.assertTrue(_migration_applies(target, f"{major_version}.2.0", target))
-        self.assertFalse(_migration_applies(target, target, target))
+        self.assertTrue(
+            _is_migration_applicable(target, f"{major_version}.2.0", target)
+        )
+        self.assertFalse(_is_migration_applicable(target, target, target))
 
     def test_majorless_runs_when_module_subversion_advances(self):
         self.assertTrue(
-            _migration_applies("2.1", f"{major_version}.2.0", f"{major_version}.2.1")
+            _is_migration_applicable(
+                "2.1", f"{major_version}.2.0", f"{major_version}.2.1"
+            )
         )
 
     def test_majorless_not_replayed_on_server_major_bump(self):
-        self.assertFalse(_migration_applies("2.0", "9.0.2.0", "10.0.2.0"))
+        self.assertFalse(_is_migration_applicable("2.0", "9.0.2.0", "10.0.2.0"))
 
     def test_majorless_runs_across_major_when_subversion_advances(self):
-        self.assertTrue(_migration_applies("2.0", "9.0.1.0", "10.0.2.0"))
+        self.assertTrue(_is_migration_applicable("2.0", "9.0.1.0", "10.0.2.0"))
 
     def test_zero_marker_runs_iff_installed_below_target(self):
         self.assertTrue(
-            _migration_applies("0.0.0", f"{major_version}.2.0", f"{major_version}.2.1")
+            _is_migration_applicable(
+                "0.0.0", f"{major_version}.2.0", f"{major_version}.2.1"
+            )
         )
         self.assertFalse(
-            _migration_applies("0.0.0", f"{major_version}.2.1", f"{major_version}.2.1")
+            _is_migration_applicable(
+                "0.0.0", f"{major_version}.2.1", f"{major_version}.2.1"
+            )
         )
 
     def test_empty_installed_version_is_tolerated(self):
-        self.assertTrue(_migration_applies("0.0.0", "", f"{major_version}.1.0"))
+        self.assertTrue(_is_migration_applicable("0.0.0", "", f"{major_version}.1.0"))
 
 
 class TestVersionRegex(BaseCase):
@@ -97,24 +105,24 @@ class TestUpgradeScriptDiscovery(BaseCase):
         self.assertFalse(_is_upgrade_version_dir(d, "tests"))
         self.assertFalse(_is_upgrade_version_dir(d, "does_not_exist"))
 
-    def test_scripts_by_version_collects_py_and_skips_non_version_entries(self):
+    def test_get_scripts_by_version_collects_py_and_skips_non_version_entries(self):
         d = self._tmpdir()
         version_dir = Path(d, "19.0.1.0")
         version_dir.mkdir()
         (version_dir / "pre-a.py").write_text("def migrate(cr, version): pass\n")
         (version_dir / "README.txt").write_text("ignored")
         Path(d, "tests").mkdir()
-        result = _scripts_by_version(d)
+        result = _get_scripts_by_version(d)
         self.assertIn("19.0.1.0", result)
         self.assertNotIn("tests", result)
         self.assertTrue(any(f.endswith("pre-a.py") for f in result["19.0.1.0"]))
         self.assertFalse(any(f.endswith("README.txt") for f in result["19.0.1.0"]))
 
-    def test_scripts_by_version_empty_path_returns_empty(self):
-        self.assertEqual(_scripts_by_version(""), {})
+    def test_get_scripts_by_version_empty_path_returns_empty(self):
+        self.assertEqual(_get_scripts_by_version(""), {})
 
-    def test_resolve_addon_path_missing_returns_empty(self):
-        self.assertEqual(_resolve_addon_path("no/such/addon_xyz/migrations"), "")
+    def test_get_addon_path_missing_returns_empty(self):
+        self.assertEqual(_get_addon_path("no/such/addon_xyz/migrations"), "")
 
 
 class TestVersionAlreadyCarryingTheSeries(BaseCase):
@@ -141,13 +149,13 @@ class TestVersionAlreadyCarryingTheSeries(BaseCase):
         for version in (f"{major_version}.1.7", major_version, f"{major_version}.1"):
             for script in ("1.1", "2.0", "18.9"):
                 self.assertFalse(
-                    _migration_applies(script, version, version),
+                    _is_migration_applicable(script, version, version),
                     f"script {script} replayed for a module already at {version}",
                 )
 
     def test_a_real_upgrade_still_runs_the_scripts_it_should(self):
         installed, target = f"{major_version}.1.0", f"{major_version}.2.0"
-        self.assertTrue(_migration_applies("1.1", installed, target))
-        self.assertTrue(_migration_applies("2.0", installed, target))
-        self.assertFalse(_migration_applies("2.1", installed, target))
-        self.assertTrue(_migration_applies("0.0.0", installed, target))
+        self.assertTrue(_is_migration_applicable("1.1", installed, target))
+        self.assertTrue(_is_migration_applicable("2.0", installed, target))
+        self.assertFalse(_is_migration_applicable("2.1", installed, target))
+        self.assertTrue(_is_migration_applicable("0.0.0", installed, target))

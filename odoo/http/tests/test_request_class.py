@@ -13,9 +13,9 @@ from odoo.http.request_class import Request
 
 @pytest.fixture
 def fresh_monodb_cache():
-    request_class.clear_monodb_cache()
+    helpers.invalidate_db_list_cache()
     yield
-    request_class.clear_monodb_cache()
+    helpers.invalidate_db_list_cache()
 
 
 def _catalog(dbs):
@@ -30,17 +30,17 @@ def _passthrough_filter():
 
 def test_monodb_dblist_filters_the_catalog(fresh_monodb_cache):
     with _catalog(["a", "b"]), _passthrough_filter():
-        assert request_class._monodb_dblist("h") == ["a", "b"]
-        assert request_class._monodb_dblist("h") == ["a", "b"]
+        assert request_class._get_db_list_uncached("h") == ["a", "b"]
+        assert request_class._get_db_list_uncached("h") == ["a", "b"]
 
 
 def test_monodb_dblist_degrades_when_postgres_unreachable(fresh_monodb_cache):
     boom = psycopg.OperationalError("connection refused")
     with patch.object(helpers.odoo.service.db, "list_dbs", side_effect=boom):
-        assert request_class._monodb_dblist("h") == []
+        assert request_class._get_db_list_uncached("h") == []
 
     with _catalog(["only"]), _passthrough_filter():
-        assert request_class._monodb_dblist("h") == ["only"]
+        assert request_class._get_db_list_uncached("h") == ["only"]
 
 
 def test_monodb_dblist_degrades_on_any_psycopg_error(fresh_monodb_cache):
@@ -49,9 +49,9 @@ def test_monodb_dblist_degrades_on_any_psycopg_error(fresh_monodb_cache):
         psycopg.OperationalError("refused"),
         psycopg.errors.InsufficientPrivilege("denied"),
     ):
-        request_class.clear_monodb_cache()
+        helpers.invalidate_db_list_cache()
         with patch.object(helpers.odoo.service.db, "list_dbs", side_effect=exc):
-            assert request_class._monodb_dblist("h") == []
+            assert request_class._get_db_list_uncached("h") == []
 
 
 def test_db_list_degrades_on_any_psycopg_error(fresh_monodb_cache):
@@ -63,7 +63,7 @@ def test_db_list_degrades_on_any_psycopg_error(fresh_monodb_cache):
 
 def test_resolution_goes_through_the_public_db_list(fresh_monodb_cache):
     with patch.object(odoo.http, "db_list", return_value=[]) as public:
-        assert request_class._monodb_dblist("h") == []
+        assert request_class._get_db_list_uncached("h") == []
     assert public.call_args.kwargs == {"force": True, "host": "h"}
 
 
@@ -81,7 +81,7 @@ def test_resolution_goes_through_the_public_db_filter():
 def test_http_adds_no_second_cache_over_the_catalogue(fresh_monodb_cache):
     with _catalog(["a", "b"]) as lister, _passthrough_filter():
         for _ in range(5):
-            assert request_class._monodb_dblist("h") == ["a", "b"]
+            assert request_class._get_db_list_uncached("h") == ["a", "b"]
     assert lister.call_count == 5, "every call reaches the one cache that exists"
 
 
@@ -104,9 +104,9 @@ def test_each_host_gets_its_own_filtered_answer(fresh_monodb_cache):
             ],
         ),
     ):
-        assert request_class._monodb_dblist("a") == ["a_one"]
-        assert request_class._monodb_dblist("b") == ["b_two"]
-        assert request_class._monodb_dblist("a") == ["a_one"]
+        assert request_class._get_db_list_uncached("a") == ["a_one"]
+        assert request_class._get_db_list_uncached("b") == ["b_two"]
+        assert request_class._get_db_list_uncached("a") == ["a_one"]
 
 
 def test_the_caller_cannot_mutate_what_the_next_caller_sees(fresh_monodb_cache):
@@ -116,14 +116,12 @@ def test_the_caller_cannot_mutate_what_the_next_caller_sees(fresh_monodb_cache):
         assert odoo.http.db_list() == ["a"]
 
 
-def test_clear_monodb_cache_drops_the_catalogue_service_db_holds():
+def test_invalidate_db_list_cache_drops_the_catalogue_service_db_holds():
     from odoo.service.db import listing
 
-    assert request_class.clear_monodb_cache is helpers.clear_db_list_cache
-
-    listing._catalogue_cache = (float("inf"), ["stale"])
-    helpers.clear_db_list_cache()
-    assert listing._catalogue_cache is None
+    listing._catalog_cache = (float("inf"), ["stale"])
+    helpers.invalidate_db_list_cache()
+    assert listing._catalog_cache is None
 
 
 def test_a_listener_that_raises_does_not_break_the_mutation():
@@ -212,10 +210,8 @@ def test_the_fallback_defers_the_body_instead_of_decoding_it():
         httprequest=types.SimpleNamespace(max_content_length=None, content_length=1000),
         get_http_params=_decode,
     )
-    this._bound_registry = lambda: this.registry
-    this._reject_oversized_body = lambda: (
-        _serve._RequestServeMixin._reject_oversized_body(this)
-    )
+    this._get_bound_registry = lambda: this.registry
+    this._check_body_size = lambda: _serve._RequestServeMixin._check_body_size(this)
 
     with pytest.raises(NotFound):
         _serve._RequestServeMixin._serve_ir_http_fallback(this, NotFound())
@@ -248,6 +244,6 @@ def test_an_unmatched_path_refuses_an_oversized_body_by_its_declared_length(
     )
     if refused:
         with pytest.raises(RequestEntityTooLarge):
-            _serve._RequestServeMixin._reject_oversized_body(this)
+            _serve._RequestServeMixin._check_body_size(this)
     else:
-        _serve._RequestServeMixin._reject_oversized_body(this)
+        _serve._RequestServeMixin._check_body_size(this)

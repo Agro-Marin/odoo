@@ -57,7 +57,7 @@ def field_node(name: str) -> etree._Element:
 def declare(
     manager: NameManager, name: str, groups=DEFS.universe, model_groups=DEFS.universe
 ) -> None:
-    manager.has_field(
+    manager.add_available_field(
         field_node(name), name, node_info(view_groups=groups, model_groups=model_groups)
     )
 
@@ -81,12 +81,12 @@ class TestGetMissingFields:
         manager = make_manager({"field_a": StubField()})
         declare(manager, "field_a")
         use(manager, "field_a")
-        assert manager.get_missing_fields() == {}
+        assert manager.get_fields_missing() == {}
 
     def test_used_but_never_declared(self):
         manager = make_manager({"field_a": StubField()})
         node = use(manager, "field_a")
-        missing = manager.get_missing_fields()
+        missing = manager.get_fields_missing()
         assert set(missing) == {"field_a"}
         missing_groups, reasons = missing["field_a"]
         assert missing_groups is not False
@@ -97,7 +97,7 @@ class TestGetMissingFields:
         manager = make_manager({"field_a": StubField(groups="base.group_system")})
         declare(manager, "field_a", groups=SYSTEM, model_groups=SYSTEM)
         node = use(manager, "field_a", groups=PORTAL)
-        missing = manager.get_missing_fields()
+        missing = manager.get_fields_missing()
         missing_groups, reasons = missing["field_a"]
         assert missing_groups is False
         assert reasons == [(PORTAL, ("invisible", "field_a"), node)]
@@ -106,13 +106,13 @@ class TestGetMissingFields:
         manager = make_manager({"field_a": StubField()})
         declare(manager, "field_a", groups=SYSTEM)
         use(manager, "field_a", groups=SYSTEM)
-        assert manager.get_missing_fields() == {}
+        assert manager.get_fields_missing() == {}
 
     def test_use_wider_than_declared_groups(self):
         manager = make_manager({"field_a": StubField()})
         declare(manager, "field_a", groups=SYSTEM)
         use(manager, "field_a", groups=MANAGER)
-        missing = manager.get_missing_fields()
+        missing = manager.get_fields_missing()
         missing_groups, _reasons = missing["field_a"]
         assert missing_groups is not False
         assert missing_groups == MANAGER
@@ -123,14 +123,14 @@ class TestGetMissingFields:
         declare(manager, "field_a", groups=SYSTEM)
         declare(manager, "field_a", groups=PORTAL)
         use(manager, "field_a", groups=SYSTEM | PORTAL)
-        assert manager.get_missing_fields() == {}
+        assert manager.get_fields_missing() == {}
 
     def test_partial_declaration_union_still_missing(self):
         manager = make_manager({"field_a": StubField()})
         declare(manager, "field_a", groups=SYSTEM)
         declare(manager, "field_a", groups=PORTAL)
         use(manager, "field_a", groups=USER)
-        missing = manager.get_missing_fields()
+        missing = manager.get_fields_missing()
         missing_groups, _reasons = missing["field_a"]
         assert missing_groups == USER
 
@@ -138,12 +138,12 @@ class TestGetMissingFields:
         manager = make_manager({"field_a": StubField()})
         declare(manager, "field_a", groups=SYSTEM)
         use(manager, "field_a", groups=DEFS.empty)
-        assert manager.get_missing_fields() == {}
+        assert manager.get_fields_missing() == {}
 
     def test_admin_only_use_without_declared_field(self):
         manager = make_manager({"field_a": StubField()})
         use(manager, "field_a", groups=DEFS.empty)
-        missing = manager.get_missing_fields()
+        missing = manager.get_fields_missing()
         missing_groups, _reasons = missing["field_a"]
         assert missing_groups is not False
         assert missing_groups.is_empty()
@@ -151,7 +151,7 @@ class TestGetMissingFields:
     def test_unknown_field_gets_empty_access_groups(self):
         manager = make_manager({})
         node = use(manager, "no_such_field", groups=SYSTEM)
-        missing = manager.get_missing_fields()
+        missing = manager.get_fields_missing()
         missing_groups, reasons = missing["no_such_field"]
         assert missing_groups is False
         assert reasons == [(SYSTEM, ("invisible", "no_such_field"), node)]
@@ -160,7 +160,7 @@ class TestGetMissingFields:
         manager = make_manager({"field_a": StubField()})
         use(manager, "field_a", groups=SYSTEM)
         use(manager, "field_a", groups=PORTAL)
-        missing = manager.get_missing_fields()
+        missing = manager.get_fields_missing()
         missing_groups, reasons = missing["field_a"]
         assert missing_groups == SYSTEM | PORTAL
         assert len(reasons) == 2
@@ -193,4 +193,4 @@ class TestParentRouting:
             ("invisible", "parent.field_x"),
         )
         assert manager.used_fields == {}
-        assert manager.get_missing_fields() == {}
+        assert manager.get_fields_missing() == {}

@@ -40,7 +40,7 @@ def test_collects_the_idle_and_keeps_the_fresh(registries):
     fresh = registries("fresh", idle_for=0)
     Registry.idle_timeout = 60
 
-    Registry._drop_idle()
+    Registry._evict_idle_registries()
 
     assert idle not in Registry.registries, (
         "an idle registry survived collection: the LRU is then bounded only by "
@@ -57,7 +57,7 @@ def test_disabled_by_default(registries):
     idle = registries("idle", idle_for=10_000)
     Registry.idle_timeout = 0
 
-    Registry._drop_idle()
+    Registry._evict_idle_registries()
 
     assert idle in Registry.registries, (
         "collection ran with idle_timeout == 0. Zero is the default, so this "
@@ -70,7 +70,7 @@ def test_non_positive_timeout_never_collects(registries, timeout):
     idle = registries("idle", idle_for=10_000)
     Registry.idle_timeout = timeout
 
-    Registry._drop_idle()
+    Registry._evict_idle_registries()
 
     assert idle in Registry.registries
 
@@ -79,7 +79,7 @@ def test_a_loading_registry_is_never_collected(registries):
     loading = registries("loading", idle_for=10_000, ready=False)
     Registry.idle_timeout = 60
 
-    Registry._drop_idle()
+    Registry._evict_idle_registries()
 
     assert loading in Registry.registries, (
         "a registry still loading was collected. Registry.new publishes into "
@@ -93,7 +93,7 @@ def test_exactly_at_the_timeout_is_kept(registries):
     Registry.registries[boundary].last_used = time.monotonic() - 60
     Registry.idle_timeout = 600
 
-    Registry._drop_idle()
+    Registry._evict_idle_registries()
 
     assert boundary in Registry.registries
 
@@ -106,7 +106,7 @@ def test_the_fast_lookup_path_refreshes_last_used():
         assert Registry(db_name) is registry, "the fast path should return it"
         assert time.monotonic() - registry.last_used < 1, (
             "the fast path did not refresh last_used. Since a ready registry "
-            "never reaches the locked branch, _drop_idle would treat every "
+            "never reaches the locked branch, _evict_idle_registries would treat every "
             "healthy registry as idle regardless of how hard it is being used."
         )
     finally:

@@ -31,8 +31,8 @@ class Neutralize(DatabaseCommand):
         try:
             with odoo.db.db_connect(dbname).cursor() as cursor:
                 if parsed_args.to_stdout:
-                    installed_modules = odoo.modules.neutralize.get_installed_modules(
-                        cursor
+                    installed_modules = (
+                        odoo.modules.neutralize.get_installed_module_names(cursor)
                     )
                     queries = odoo.modules.neutralize.get_neutralization_queries(
                         installed_modules

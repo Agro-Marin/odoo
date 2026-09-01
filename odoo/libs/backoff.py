@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 import typing
 
@@ -19,7 +20,13 @@ def bound(attempt: int, *, base: float, cap: float) -> float:
             f"cap ({cap}) is below base ({base}), which flattens the curve: "
             f"every attempt would draw from the same interval"
         )
-    return min(base * 2.0 ** (attempt - 1), cap)
+    doublings = attempt - 1
+    if doublings >= math.ceil(math.log2(cap / base)):
+        # Short-circuit rather than clamp the product: a caller still
+        # retrying after ~1024 attempts overflows the float before `min`
+        # ever sees it, out of the retry path that exists to survive that.
+        return cap
+    return min(base * 2.0**doublings, cap)
 
 
 def bounds(attempts: int, *, base: float, cap: float) -> Iterator[float]:

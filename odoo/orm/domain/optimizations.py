@@ -287,11 +287,15 @@ def _optimize_any_domain_at_level(level: OptimizationLevel, condition, model):
         return condition
     field = condition._field(model)
     if not field.relational:
-        condition._raise("Cannot use 'any' with non-relational fields")
+        raise condition._prepare_condition_error(
+            "Cannot use 'any' with non-relational fields"
+        )
     try:
         comodel = model.env[field.comodel_name]
     except KeyError:
-        condition._raise("Cannot determine the comodel relation")
+        raise condition._prepare_condition_error(
+            "Cannot determine the comodel relation"
+        ) from None
     domain = domain._optimize(comodel, level)
     if domain.is_false():
         return _FALSE_DOMAIN if condition.operator in ("any", "any!") else _TRUE_DOMAIN
@@ -333,7 +337,9 @@ def _optimize_like_str(condition, model):
         )
         return condition
     if "=" in condition.operator:
-        condition._raise("The pattern to match must be a string", error=TypeError)
+        raise condition._prepare_condition_error(
+            "The pattern to match must be a string", error=TypeError
+        )
     return DomainCondition(condition.field_expr, condition.operator, str(value))
 
 
@@ -352,7 +358,7 @@ def _optimize_relational_name_search(condition, model):
     if operator[0] in ("<", ">") and (
         isinstance(value, (str, bool, *COLLECTION_TYPES)) or is_recordset(value)
     ):
-        condition._raise(
+        raise condition._prepare_condition_error(
             "Inequality on a relational field is only supported against a "
             "single record id",
             error=TypeError,
@@ -426,7 +432,7 @@ def _optimize_numeric_comparand(condition, model):
     if coerced is _NOT_A_NUMBER:
         if operator in ("in", "not in"):
             return Domain(operator == "not in")
-        condition._raise(
+        raise condition._prepare_condition_error(
             "Cannot compare the numeric field %r with a non-numeric value",
             condition.field_expr,
         )
@@ -502,13 +508,13 @@ def _optimize_boolean_in(condition, model):
     value = condition.value
     operator = condition.operator
     if operator not in ("in", "not in"):
-        condition._raise(
+        raise condition._prepare_condition_error(
             "Operator %r is not supported on boolean field %r",
             operator,
             condition.field_expr,
         )
     if not isinstance(value, COLLECTION_TYPES):
-        condition._raise(
+        raise condition._prepare_condition_error(
             "Cannot compare boolean field %r to %s which is not a collection",
             condition.field_expr,
             type(value),
@@ -584,7 +590,7 @@ def _optimize_inequality_against_null(condition, model):
 def _optimize_inequality_against_collection(condition, model):
     value = condition.value
     if isinstance(value, COLLECTION_TYPES):
-        condition._raise(
+        raise condition._prepare_condition_error(
             "Cannot compare %r with a collection using %r; an ordering "
             "comparison takes a single value",
             condition.field_expr,
@@ -597,7 +603,7 @@ def _optimize_inequality_against_collection(condition, model):
 @field_type_optimization(["one2many", "many2many"])
 def _optimize_x2many_inequality(condition, model):
     if condition.operator in (">", "<", ">=", "<="):
-        condition._raise(
+        raise condition._prepare_condition_error(
             "Cannot use an ordering comparison on the to-many field %r; "
             "use 'any' with a sub-domain",
             condition.field_expr,
@@ -825,12 +831,12 @@ def _optimize_type_binary_attachment(condition, model):
             and set(value) == {False}
         )
         if not is_existence_check:
-            condition._raise(
+            raise condition._prepare_condition_error(
                 "Binary field stored in attachment, accepts only existence "
                 "check (('field', 'in', [False]) or its negation)"
             )
     if operator.endswith("like"):
-        condition._raise(
+        raise condition._prepare_condition_error(
             "Cannot use like operators with binary fields",
             error=NotImplementedError,
         )
@@ -848,7 +854,7 @@ def _operator_hierarchy(condition, model):
     if value is False:
         return _FALSE_DOMAIN
     if value is True:
-        condition._raise("True is not a valid hierarchy value")
+        raise condition._prepare_condition_error("True is not a valid hierarchy value")
     field = condition._field(model)
     if field.is_many2one:
         comodel = model.env[field.comodel_name].with_context(active_test=False)
@@ -857,7 +863,7 @@ def _operator_hierarchy(condition, model):
     elif field.name == "id":
         comodel = model
     else:
-        condition._raise(
+        raise condition._prepare_condition_error(
             f"Cannot execute {condition.operator} for {field}, works only for relational fields"
         )
     comodel_sudo = comodel.sudo().with_context(active_test=False)
@@ -870,10 +876,14 @@ def _operator_hierarchy(condition, model):
     if isinstance(value, (int, str)):
         value = [value]
     elif not isinstance(value, COLLECTION_TYPES):
-        condition._raise(f"Value of type {type(value)} is not supported")
+        raise condition._prepare_condition_error(
+            f"Value of type {type(value)} is not supported"
+        )
     if any(isinstance(v, bool) for v in value):
         if any(v is True for v in value):
-            condition._raise("True is not a valid hierarchy value")
+            raise condition._prepare_condition_error(
+                "True is not a valid hierarchy value"
+            )
         value = [v for v in value if v is not False]
     coids, other_values = partition(lambda v: isinstance(v, int), value)
     search_domain: Domain = _FALSE_DOMAIN

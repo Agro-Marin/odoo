@@ -6,7 +6,7 @@ from werkzeug.exceptions import BadRequest
 
 from odoo.http._params import (
     ParamSpec,
-    _resolve,
+    _resolve_param_spec_fields,
     coerce_params,
     get_param_specs,
 )
@@ -16,21 +16,21 @@ def _spec(fn):
     return get_param_specs(fn)
 
 
-def test_resolve_optional_forms_are_equivalent():
+def test_resolve_param_spec_fields_optional_forms_are_equivalent():
     optional = typing.Optional  # noqa: TID251  legacy spelling under test
     union = typing.Union  # noqa: TID251  legacy spelling under test
-    assert _resolve(int | None) == (int, None, True)
-    assert _resolve(optional[int]) == (int, None, True)
-    assert _resolve(union[int, None]) == (int, None, True)
-    assert _resolve(int | str) == (None, None, False)
+    assert _resolve_param_spec_fields(int | None) == (int, None, True)
+    assert _resolve_param_spec_fields(optional[int]) == (int, None, True)
+    assert _resolve_param_spec_fields(union[int, None]) == (int, None, True)
+    assert _resolve_param_spec_fields(int | str) == (None, None, False)
 
 
-def test_resolve_list_forms():
+def test_resolve_param_spec_fields_list_forms():
     legacy_list = list
-    assert _resolve(list) == (list, None, False)
-    assert _resolve(list[int]) == (list, int, False)
-    assert _resolve(legacy_list[int]) == (list, int, False)
-    assert _resolve(list[dict]) == (list, None, False)
+    assert _resolve_param_spec_fields(list) == (list, None, False)
+    assert _resolve_param_spec_fields(list[int]) == (list, int, False)
+    assert _resolve_param_spec_fields(legacy_list[int]) == (list, int, False)
+    assert _resolve_param_spec_fields(list[dict]) == (list, None, False)
 
 
 def test_build_specs_skips_unannotated_and_unsupported():

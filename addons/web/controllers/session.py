@@ -24,7 +24,7 @@ class Session(http.Controller):
         readonly=True,
     )
     def get_session_info(self) -> dict[str, Any]:
-        request.session.touch()
+        request.session.mark_dirty()
         return request.env["ir.http"].session_info()
 
     @http.route(

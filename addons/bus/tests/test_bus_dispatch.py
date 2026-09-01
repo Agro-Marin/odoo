@@ -469,7 +469,7 @@ class TestKeepSessionAliveWhileIdle(BaseCase):
             patch.object(bus_module.psycopg, "connect", return_value=conn),
             patch.object(
                 bus_module.odoo.db,
-                "get_connection_info_for",
+                "get_connection_info_for_database",
                 return_value=("postgres", {}),
             ),
             patch.object(bus_module.stop_event, "is_set", return_value=True),

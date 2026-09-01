@@ -56,7 +56,7 @@ def _check_external_libs_once() -> None:
     try:
         AssetsBundle._check_external_libs(external_libs())
     except ValueError as exc:
-        if JsPipeline._fails_closed():
+        if JsPipeline._is_asset_error_fatal():
             raise
         log_event(
             _bundle_log,
@@ -99,7 +99,7 @@ class AssetsBundle:
             )
         missing_files = []
         for spec, url in import_map.items():
-            if not cls._addon_relative_path_exists(url.lstrip("/")):
+            if not cls._is_addon_path_present(url.lstrip("/")):
                 missing_files.append(f"{spec} -> {url}")
         if missing_files:
             raise ValueError(
@@ -110,7 +110,7 @@ class AssetsBundle:
         missing_aliases = []
         for alias, parts in lib_candidates.items():
             rel = "/".join(parts)
-            if cls._addon_is_present(rel) and not cls._addon_relative_path_exists(rel):
+            if cls._is_addon_present(rel) and not cls._is_addon_path_present(rel):
                 missing_aliases.append(f"{alias} -> {rel}")
         if missing_aliases:
             raise ValueError(
@@ -125,7 +125,7 @@ class AssetsBundle:
         return url.partition("#")[0].partition("?")[0].rpartition(".")[2].lower()
 
     @staticmethod
-    def _addon_is_present(rel: str) -> bool:
+    def _is_addon_present(rel: str) -> bool:
         module = rel.partition("/")[0]
         if not module:
             return False
@@ -136,7 +136,7 @@ class AssetsBundle:
         return True
 
     @staticmethod
-    def _addon_relative_path_exists(rel: str) -> bool:
+    def _is_addon_path_present(rel: str) -> bool:
         try:
             file_path(rel)
         except ValueError, FileNotFoundError:

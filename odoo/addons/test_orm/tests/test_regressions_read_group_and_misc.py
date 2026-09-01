@@ -208,11 +208,11 @@ class TestGroupingSetsPropertiesComodel(TransactionCase):
         source = self.env["test_orm.properties.source"]
         target = self.env["test_orm.properties.target"]
         self.assertTrue(
-            target._groupby_spec_might_duplicate_rows(target, "attributes.kind"),
+            target._can_groupby_spec_duplicate_rows(target, "attributes.kind"),
             "a tags property duplicates rows; this is the ground truth",
         )
         self.assertTrue(
-            source._groupby_spec_might_duplicate_rows(
+            source._can_groupby_spec_duplicate_rows(
                 source, "target_id.attributes.kind"
             ),
             "reached through a many2one it must give the same answer -- reading "
@@ -242,7 +242,7 @@ class TestGroupingSetsPropertiesComodel(TransactionCase):
     def test_grouping_by_a_bare_properties_field_says_so(self):
         source = self.env["test_orm.properties.source"]
         with self.assertRaisesRegex(ValueError, "group by one of its properties"):
-            source._groupby_spec_might_duplicate_rows(source, "attributes")
+            source._can_groupby_spec_duplicate_rows(source, "attributes")
 
 
 class TestExportXidDeterminism(TransactionCase):

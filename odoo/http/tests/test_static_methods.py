@@ -5,7 +5,7 @@ from werkzeug.exceptions import MethodNotAllowed
 
 from odoo.http import Response
 from odoo.http.application import Application
-from odoo.http.constants import DEFAULT_ALLOWED_METHODS, allow_header
+from odoo.http.constants import DEFAULT_ALLOWED_METHODS, prepare_allow_header
 
 SERVED = object()
 
@@ -51,22 +51,24 @@ def test_write_verbs_are_refused_and_never_open_the_file(method):
 
 
 def test_allow_header_always_advertises_options():
-    assert allow_header(("GET", "HEAD")) == "GET, HEAD, OPTIONS"
-    assert allow_header() == ", ".join([*DEFAULT_ALLOWED_METHODS, "OPTIONS"])
+    assert prepare_allow_header(("GET", "HEAD")) == "GET, HEAD, OPTIONS"
+    assert prepare_allow_header() == ", ".join([*DEFAULT_ALLOWED_METHODS, "OPTIONS"])
 
 
 def test_allow_header_does_not_repeat_a_declared_options():
-    assert allow_header(("GET", "OPTIONS")) == "GET, OPTIONS"
+    assert prepare_allow_header(("GET", "OPTIONS")) == "GET, OPTIONS"
 
 
 def test_allow_header_is_parseable_back_into_valid_methods():
-    assert allow_header(("GET",)).split(", ") == ["GET", "OPTIONS"]
+    assert prepare_allow_header(("GET",)).split(", ") == ["GET", "OPTIONS"]
 
 
 def test_allow_header_treats_empty_as_a_declaration_not_an_absence():
-    assert allow_header(()) == "OPTIONS"
-    assert allow_header([]) == "OPTIONS"
-    assert allow_header(None) == ", ".join([*DEFAULT_ALLOWED_METHODS, "OPTIONS"])
+    assert prepare_allow_header(()) == "OPTIONS"
+    assert prepare_allow_header([]) == "OPTIONS"
+    assert prepare_allow_header(None) == ", ".join(
+        [*DEFAULT_ALLOWED_METHODS, "OPTIONS"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -89,7 +91,7 @@ def test_get_static_file_answers_none_and_never_raises(resource):
 
     module_manager.initialize_sys_path()
     app = Application()
-    if app.static_path("web") is None:
+    if app.get_static_path("web") is None:
         pytest.skip("addons path not initialised in this environment")
 
     assert app.get_static_file(f"/web/static/{resource}") is None

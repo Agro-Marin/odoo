@@ -23,7 +23,7 @@ MAINTENANCE_DB_MESSAGE = "Refusing to operate on system or template database {db
 commands: dict[str, type[Command]] = {}
 
 
-def get_config_argv(
+def prepare_config_args(
     config_file: str | None = None,
     db_name: str | None = None,
     *,
@@ -74,7 +74,7 @@ def get_single_database(
     return db_name
 
 
-def refuse_maintenance_db(
+def check_db_not_maintenance(
     db_name: str,
     *,
     error_handler: Callable[[str], NoReturn] | None = None,
@@ -86,7 +86,7 @@ def refuse_maintenance_db(
 
 
 @contextlib.contextmanager
-def odoo_env(
+def open_environment(
     db_name: str,
     *,
     readonly: bool = False,
@@ -226,7 +226,7 @@ class DatabaseCommand(Command, register=False):
         forwarded = list(extra_args or [])
         if getattr(parsed_args, "data_dir", None):
             forwarded = ["-D", parsed_args.data_dir, *forwarded]
-        config_args = get_config_argv(
+        config_args = prepare_config_args(
             parsed_args.config,
             parsed_args.db_name,
             extra_args=forwarded or None,

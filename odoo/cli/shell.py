@@ -84,7 +84,7 @@ class Shell(Command):
         )
 
     @classmethod
-    def _repl_available(cls, shell: str) -> bool:
+    def _is_repl_installed(cls, shell: str) -> bool:
         module = cls._REPL_MODULES.get(shell)
         if module is None:
             return True
@@ -93,7 +93,7 @@ class Shell(Command):
         except ImportError, ValueError:
             return False
 
-    def init(self, args: list[str]) -> None:
+    def _start_server(self, args: list[str]) -> None:
         parsed_args, remaining = self.parser.parse_known_args(args)
         self._shell_file = parsed_args.shell_file
         self._shell_interface = parsed_args.shell_interface
@@ -104,14 +104,14 @@ class Shell(Command):
         signal.signal(signal.SIGINT, raise_keyboard_interrupt)
 
     @staticmethod
-    def _stdin_is_a_tty() -> bool:
+    def _is_stdin_a_tty() -> bool:
         try:
             return sys.stdin is not None and os.isatty(sys.stdin.fileno())
         except AttributeError, OSError, ValueError:
             return False
 
-    def console(self, local_vars: dict[str, Any]) -> None:
-        if not self._stdin_is_a_tty():
+    def _enter_console(self, local_vars: dict[str, Any]) -> None:
+        if not self._is_stdin_a_tty():
             local_vars["__name__"] = "__main__"
             exec(sys.stdin.read(), local_vars)  # noqa: S102  piped-in script IS what `odoo shell` runs
             return None
@@ -130,7 +130,7 @@ class Shell(Command):
             shells_to_try = list(self.supported_shells)
 
         for shell in shells_to_try:
-            if not self._repl_available(shell):
+            if not self._is_repl_installed(shell):
                 if shell == preferred_interface:
                     _logger.warning(
                         "Requested shell %r is not installed; falling back.",
@@ -138,6 +138,9 @@ class Shell(Command):
                     )
                 continue
             try:
+                # `supported_shells` is the enumerable domain of this getattr,
+                # so those four method names are keys in a dispatch table and
+                # are not free to be renamed (coding_guidelines 2.4.14).
                 shell_func = getattr(self, shell)
                 return shell_func(local_vars, pythonstartup)
             except Exception:
@@ -190,7 +193,7 @@ class Shell(Command):
             )
         console.interact(banner="")
 
-    def shell(self, dbname: str | None) -> None:
+    def _start_shell(self, dbname: str | None) -> None:
         local_vars: dict[str, Any] = {
             "odoo": odoo,
         }
@@ -204,12 +207,12 @@ class Shell(Command):
                 local_vars["env"] = env
                 local_vars["self"] = env.user
                 cr.rollback()
-                self.console(local_vars)
+                self._enter_console(local_vars)
                 cr.rollback()
         else:
-            self.console(local_vars)
+            self._enter_console(local_vars)
 
     def run(self, args: list[str]) -> None:
-        self.init(args)
+        self._start_server(args)
         dbname = get_single_database(config["db_name"], allow_none=True)
-        self.shell(dbname)
+        self._start_shell(dbname)

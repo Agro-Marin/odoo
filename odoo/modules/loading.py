@@ -52,7 +52,9 @@ _DATA_FILE_CHECKSUM_VERSION = 2
 _DYNAMIC_XML_MARKERS = (b"<function", b"<delete")
 
 
-def _scan_data_file(filename: str, content: bytes) -> tuple[str, bool]:
+def _get_data_file_digest_and_dynamic_flag(
+    filename: str, content: bytes
+) -> tuple[str, bool]:
     digest = cache_hash(content)
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     dynamic = ext == "sql" or (
@@ -115,7 +117,7 @@ def _load_tracked_file(
 ) -> dict:
     with tools.file_open(f"{package.name}/{filename}", "rb", env=env) as fp:
         content = fp.read()
-    digest, dynamic = _scan_data_file(filename, content)
+    digest, dynamic = _get_data_file_digest_and_dynamic_flag(filename, content)
     registry = env.registry
     entry = stored_files.get(filename)
     if not dynamic and _is_reusable_checksum_entry(entry, digest):
@@ -362,7 +364,7 @@ class _PackageLoader:
         if self.operation:
             self.log_level = logging.INFO
 
-    def announce(self) -> None:
+    def announce_module(self) -> None:
         _logger.log(
             self.log_level,
             "Loading module %s (%d/%d)",
@@ -446,7 +448,7 @@ class _PackageLoader:
         overwrite = tools.config["overwrite_existing_translations"]
         self.module._update_translations(overwrite=overwrite)
 
-    def mark_loaded(self) -> None:
+    def mark_module_loaded(self) -> None:
         self.registry._init_modules.add(self.name)
 
     def run_post_init_hook(self) -> None:
@@ -456,7 +458,7 @@ class _PackageLoader:
         elif self.operation == "upgrade":
             self.env["ir.ui.view"]._check_module_views(self.name)
 
-    def stamp_installed(self) -> None:
+    def mark_module_installed(self) -> None:
         if not self.operation:
             return
         env, registry = self.env, self.registry
@@ -531,16 +533,16 @@ class _PackageLoader:
 
     def run(self) -> None:
         self.update_operation()
-        self.announce()
+        self.announce_module()
         self.run_pre_migration()
         self.import_python_module()
         self.run_pre_init_hook()
         self.load_models()
         self.load_data_and_demo()
         self.run_post_migration()
-        self.mark_loaded()
+        self.mark_module_loaded()
         self.run_post_init_hook()
-        self.stamp_installed()
+        self.mark_module_installed()
         self.run_at_install_tests()
         self.report_cost()
 
@@ -618,7 +620,7 @@ def load_module_graph(
     )
 
 
-def _check_module_names(cr: BaseCursor, module_names: Iterable[str]) -> None:
+def _warn_invalid_module_names(cr: BaseCursor, module_names: Iterable[str]) -> None:
     mod_names = set(module_names)
     mod_names.discard("all")
     if mod_names:
@@ -715,7 +717,7 @@ class _ModuleLoader:
         if not (self.update_module and self.upgrade_modules):
             return
         for pyfile in tools.config["pre_upgrade_scripts"]:
-            odoo.modules.migration.exec_script(
+            odoo.modules.migration.run_migration_script(
                 self.cr, self.graph["base"].db_version or "", pyfile, "base", "pre"
             )
 
@@ -769,7 +771,7 @@ class _ModuleLoader:
         _logger.info("updating modules list")
         Module.update_list()
 
-        _check_module_names(
+        _warn_invalid_module_names(
             cr, itertools.chain(self.install_modules, self.upgrade_modules)
         )
 
@@ -1012,7 +1014,7 @@ class _ModuleLoader:
             {"models_to_check": True, "update_custom_fields": True},
         )
 
-    def check_custom_views(self) -> None:
+    def warn_invalid_custom_views(self) -> None:
         if not self.update_module:
             return
         View = self.env["ir.ui.view"]
@@ -1037,7 +1039,7 @@ class _ModuleLoader:
     def check_null_constraints(self) -> None:
         self.registry.check_null_constraints(self.cr)
 
-    def flag_partially_updated_database(self) -> None:
+    def mark_database_partially_updated(self) -> None:
         if not self.update_module:
             return
         self.cr.execute("""
@@ -1108,11 +1110,11 @@ def load_modules(
 
         loader.collect_models_with_manual_fields()
         loader.reinit_models_to_check()
-        loader.check_custom_views()
+        loader.warn_invalid_custom_views()
         loader.log_assertion_report()
         loader.register_model_hooks()
         loader.check_null_constraints()
-        loader.flag_partially_updated_database()
+        loader.mark_database_partially_updated()
 
 
 def reset_modules_state(db_name: str) -> None:

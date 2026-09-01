@@ -39,7 +39,7 @@ class _SeqCursor:
     def fetchone(self):
         return self._row
 
-    def discard_cached_plans(self):
+    def invalidate_cached_plans(self):
         self.plans_discarded += 1
 
 
@@ -367,7 +367,7 @@ def _run_setup_signaling(monkeypatch, existing_tables):
     cur = _SetupCursor()
     monkeypatch.setattr(Registry, "cursor", lambda self, readonly=False: cur)
     monkeypatch.setattr(
-        registry_module.sql, "existing_tables", lambda cr, names: existing_tables
+        registry_module.sql, "get_tables_existing", lambda cr, names: existing_tables
     )
     reg.setup_signaling()
     return reg, cur

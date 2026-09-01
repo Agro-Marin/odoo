@@ -10,8 +10,8 @@ from odoo.db import PoolError
 from odoo.exceptions import AccessDenied
 from odoo.modules.registry import Registry
 
-from ._db_helpers import rpc_db_exposed
-from ._dispatch import dispatch_table
+from ._db_helpers import is_db_rpc_exposed
+from ._dispatch import dispatch_through_table
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ _EXPECTED_CONNECT_FAILURES: tuple[type[BaseException], ...] = (
 )
 
 
-def _rpc_version_1() -> dict[str, Any]:
+def _get_rpc_version_1() -> dict[str, Any]:
     return {
         "server_version": odoo.release.version,
         "server_version_info": odoo.release.version_info,
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 def __getattr__(name: str) -> Any:
     if name == "RPC_VERSION_1":
-        return _rpc_version_1()
+        return _get_rpc_version_1()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -59,7 +59,7 @@ def exp_authenticate(
         user_agent_env = {}
     elif not isinstance(user_agent_env, dict):
         return False
-    if not rpc_db_exposed(db):
+    if not is_db_rpc_exposed(db):
         return False
     try:
         registry = Registry(db)
@@ -96,11 +96,11 @@ def exp_authenticate(
 
 
 def exp_version() -> dict[str, Any]:
-    return _rpc_version_1()
+    return _get_rpc_version_1()
 
 
 def dispatch(method: str, params: list | tuple) -> Any:
-    return dispatch_table(method, params, _DISPATCH)
+    return dispatch_through_table(method, params, _DISPATCH)
 
 
 _DISPATCH: dict[str, Callable] = {

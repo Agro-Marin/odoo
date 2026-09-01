@@ -45,8 +45,8 @@ __all__ = [
     "ResourceLocation",
     "adapt_version",
     "get_manifest",
+    "get_module_names",
     "get_module_path",
-    "get_modules",
     "get_resource_from_path",
     "initialize_sys_path",
     "load_odoo_module",
@@ -112,7 +112,7 @@ _ManifestStat = tuple[int, int] | None
 """``(st_mtime_ns, st_size)`` of a module's manifest, or None when it has none."""
 
 
-def _manifest_stat(path: str) -> _ManifestStat:
+def _get_manifest_stat(path: str) -> _ManifestStat:
     for manifest_name in MANIFEST_NAMES:
         try:
             st = Path(path, manifest_name).stat()
@@ -232,7 +232,7 @@ class Manifest(Mapping[str, typing.Any]):
 
     @functools.cached_property
     def __manifest_cached(self) -> dict[str, typing.Any]:
-        return _load_manifest(self.name, self.__manifest_content)
+        return _normalise_manifest(self.name, self.__manifest_content)
 
     @functools.cached_property
     def description(self) -> str:
@@ -345,7 +345,7 @@ class Manifest(Mapping[str, typing.Any]):
     def _from_path(path: str, env: typing.Any = None) -> Manifest | None:
         if env is not None:
             return Manifest._parse_from_path(path, env)
-        signature = _manifest_stat(path)
+        signature = _get_manifest_stat(path)
         cached = Manifest._parse_cache.get(path)
         if cached is not None and cached[0] == signature:
             return cached[1]
@@ -458,7 +458,7 @@ def _get_module_icon_path(module: str, declared: typing.Any) -> str:
         return "/base/static/description/icon.png"
 
 
-def get_module_icon(module: str) -> str:
+def get_module_icon_path(module: str) -> str:
     manifest = Manifest.for_addon(module, display_warning=False)
     declared = manifest.raw_value("icon") if manifest else None
     return _get_module_icon_path(module, declared)
@@ -510,7 +510,7 @@ def _normalise_version(module: str, manifest: dict) -> None:
         manifest["installable"] = False
 
 
-def _load_manifest(module: str, manifest_content: dict) -> dict:
+def _normalise_manifest(module: str, manifest_content: dict) -> dict:
 
     manifest = {
         k: (v.copy() if isinstance(v, (list, dict)) else v)
@@ -604,7 +604,7 @@ def load_odoo_module(module_name: str) -> None:
         raise
 
 
-def get_modules() -> list[str]:
+def get_module_names() -> list[str]:
     return [m.name for m in Manifest.all_addon_manifests()]
 
 

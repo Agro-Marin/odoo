@@ -6,11 +6,11 @@ import inspect
 from collections.abc import Callable, Sequence
 from typing import Any
 
-__all__ = ("dispatch_table", "positional_bounds")
+__all__ = ("dispatch_through_table", "get_positional_bounds")
 
 
 @functools.cache
-def positional_bounds(handler: Callable) -> tuple[int, int | None, tuple[str, ...]]:
+def get_positional_bounds(handler: Callable) -> tuple[int, int | None, tuple[str, ...]]:
     required = 0
     maximum = 0
     names: list[str] = []
@@ -30,7 +30,7 @@ def positional_bounds(handler: Callable) -> tuple[int, int | None, tuple[str, ..
 
 
 def _check_arity(method: str, handler: Callable, count: int) -> None:
-    required, maximum, names = positional_bounds(handler)
+    required, maximum, names = get_positional_bounds(handler)
     if count < required:
         expected = ", ".join(names[:required])
         raise TypeError(
@@ -44,7 +44,7 @@ def _check_arity(method: str, handler: Callable, count: int) -> None:
         )
 
 
-def dispatch_table(
+def dispatch_through_table(
     method: str,
     params: Sequence[Any],
     table: dict[str, Callable],

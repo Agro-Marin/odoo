@@ -130,7 +130,7 @@ def _hasclass(context: Any, *cls: str) -> bool:
     return node_classes.issuperset(cls)
 
 
-def _arch_is_absent(value: Any) -> bool:
+def _is_arch_absent(value: Any) -> bool:
     return value is None or (isinstance(value, str) and not value)
 
 
@@ -309,7 +309,10 @@ class IrUiView(models.Model):
                                                                          Useful to (soft) reset a broken view.""",
     )
     inherit_id = fields.Many2one(
-        "ir.ui.view", string="Inherited View", ondelete="restrict", index=True
+        "ir.ui.view",
+        string="Inherited View",
+        ondelete="restrict",
+        index=True,
     )
     inherit_children_ids = fields.One2many(
         "ir.ui.view", "inherit_id", string="Views which inherit from this one"
@@ -350,7 +353,8 @@ class IrUiView(models.Model):
     )
 
     warning_info = fields.Html(
-        string="Warning information", compute="_compute_warning_info"
+        string="Warning information",
+        compute="_compute_warning_info",
     )
 
     active = fields.Boolean(
@@ -407,10 +411,10 @@ class IrUiView(models.Model):
         if not arch:
             return None
         return self._translate_arch_from_file(
-            self._resolve_arch_fs_refs(arch, xml_id).replace("%%", "%")
+            self._rewrite_arch_fs_refs(arch, xml_id).replace("%%", "%")
         )
 
-    def _resolve_arch_fs_refs(self, arch: str, xml_id: str) -> str:
+    def _rewrite_arch_fs_refs(self, arch: str, xml_id: str) -> str:
 
         def replacer(m: re.Match[str]) -> str:
             ref = m.group("xmlid")
@@ -841,7 +845,7 @@ class IrUiView(models.Model):
             parent_types = {p.id: p.type for p in parents}
 
         for values in vals_list:
-            if "arch_db" in values and _arch_is_absent(values["arch_db"]):
+            if "arch_db" in values and _is_arch_absent(values["arch_db"]):
                 del values["arch_db"]
 
             for fname in ("arch", "arch_base", "arch_db"):
@@ -853,9 +857,9 @@ class IrUiView(models.Model):
                 else:
                     try:
                         arch = values.get("arch")
-                        if _arch_is_absent(arch):
+                        if _is_arch_absent(arch):
                             arch = values.get("arch_base")
-                        if _arch_is_absent(arch):
+                        if _is_arch_absent(arch):
                             raise ValidationError(_("Missing view architecture."))
                         values["type"] = etree.fromstring(arch).tag
                         if values["type"] not in valid_types:
@@ -881,7 +885,7 @@ class IrUiView(models.Model):
                 (
                     values[fname]
                     for fname in ("arch_base", "arch_db", "arch")
-                    if fname in values and not _arch_is_absent(values[fname])
+                    if fname in values and not _is_arch_absent(values[fname])
                 ),
                 values.get("arch"),
             )
@@ -927,9 +931,9 @@ class IrUiView(models.Model):
                 super(IrUiView, view).write({"arch_prev": view.arch_db})
 
         revalidate = not _REVALIDATE_ALWAYS.isdisjoint(vals)
-        recombines = not revalidate and self._changes_view_combination(vals)
+        recombines = not revalidate and self._is_recombination_required(vals)
         if recombines:
-            recombines = self._combines_cleanly()
+            recombines = self._can_combine()
 
         res = super().write(self._prepare_view_defaults(vals))
 
@@ -940,7 +944,7 @@ class IrUiView(models.Model):
 
         return res
 
-    def _combines_cleanly(self) -> bool:
+    def _can_combine(self) -> bool:
         try:
             self._check_xml()
         except _COMBINATION_ERRORS:
@@ -960,7 +964,7 @@ class IrUiView(models.Model):
                 e,
             )
 
-    def _changes_view_combination(self, vals: dict[str, Any]) -> bool:
+    def _is_recombination_required(self, vals: dict[str, Any]) -> bool:
         for fname in _REVALIDATE_ON_CHANGE.intersection(vals):
             if any(view[fname] != vals[fname] for view in self):
                 return True
@@ -1373,7 +1377,7 @@ class IrUiView(models.Model):
         }
 
     @api.model
-    def _get_cached_template_prefetched_keys(self) -> list[str]:
+    def _get_field_names_in_cached_template(self) -> list[str]:
         return ["id", "key", "active"]
 
     def _get_template_cache_keys_minimal(self) -> tuple[bool]:
@@ -1416,7 +1420,7 @@ class IrUiView(models.Model):
                 error = SyntaxError("Error compiling template")
         info = {
             f: view[f] if view else None
-            for f in self._get_cached_template_prefetched_keys()
+            for f in self._get_field_names_in_cached_template()
         }
         info["error"] = error
         return frozendict(info)
@@ -1443,7 +1447,7 @@ class IrUiView(models.Model):
         return "priority, id"
 
     @api.model
-    def _get_template_views(
+    def _get_views_by_ref(
         self, ids_or_xmlids: Sequence[int | str]
     ) -> dict[int | str, Self | Exception]:
         IrUiView = (
@@ -1544,7 +1548,7 @@ class IrUiView(models.Model):
         if not missing_refs:
             return compile_batch
 
-        unknown_views = self._get_template_views(missing_refs)
+        unknown_views = self._get_views_by_ref(missing_refs)
 
         for id_or_xmlid, view in unknown_views.items():
             if isinstance(view, models.BaseModel):
@@ -1872,7 +1876,7 @@ class IrUiView(models.Model):
         self, node: _Element, name_manager: NameManager
     ) -> dict[str, Any]:
         root = node
-        missing_fields = name_manager.get_missing_fields()
+        missing_fields = name_manager.get_fields_missing()
         for name, (missing_groups, reasons) in missing_fields.items():
             if name not in name_manager.field_info:
                 continue
@@ -1989,14 +1993,14 @@ class IrUiView(models.Model):
             if child.tag == "filter":
                 yield child.get("name")
 
-    def _has_calendar_fields(
+    def _add_available_calendar_fields(
         self,
         node: _Element,
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
         for name in self._calendar_field_names(node):
-            name_manager.has_field(node, name, node_info)
+            name_manager.add_available_field(node, name, node_info)
 
     def _postprocess_tag_calendar(
         self,
@@ -2004,7 +2008,7 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        self._has_calendar_fields(node, name_manager, node_info)
+        self._add_available_calendar_fields(node, name_manager, node_info)
 
     def _postprocess_tag_field(
         self,
@@ -2077,7 +2081,7 @@ class IrUiView(models.Model):
             ):
                 node.set("model_access_rights", field.comodel_name)
 
-        name_manager.has_field(node, name, node_info, attrs)
+        name_manager.add_available_field(node, name, node_info, attrs)
 
     def _postprocess_tag_form(
         self,
@@ -2108,7 +2112,7 @@ class IrUiView(models.Model):
         )
         node.attrib.update(scope.attrib)
         node.extend(scope)
-        name_manager.has_field(node, name, node_info)
+        name_manager.add_available_field(node, name, node_info)
 
     def _postprocess_tag_label(
         self,
@@ -2308,7 +2312,7 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        self._has_calendar_fields(node, name_manager, node_info)
+        self._add_available_calendar_fields(node, name_manager, node_info)
 
     def _check_view_tag_search(
         self,
@@ -2406,7 +2410,7 @@ class IrUiView(models.Model):
             )
             raise self._prepare_view_error(msg, node)
 
-        name_manager.has_field(
+        name_manager.add_available_field(
             node,
             name,
             node_info,
@@ -2562,7 +2566,7 @@ class IrUiView(models.Model):
                 )
             finally:
                 node.extend(groupby_node)
-            name_manager.has_field(node, name, node_info)
+            name_manager.add_available_field(node, name, node_info)
 
         elif node_info["validate"]:
             msg = _(
@@ -2978,7 +2982,7 @@ class IrUiView(models.Model):
             self.distribute_branding(arch_tree)
         return arch_trees
 
-    def _contains_branded(self, node: _Element) -> bool:
+    def _is_subtree_branded(self, node: _Element) -> bool:
         return (
             node.tag == "t"
             or "t-raw" in node.attrib
@@ -3028,7 +3032,7 @@ class IrUiView(models.Model):
 
         if {"t-esc", "t-raw", "t-out"}.intersection(e.attrib):
             self._pop_view_branding(e)
-        elif self._contains_branded(e):
+        elif self._is_subtree_branded(e):
             distributed_branding = self._pop_view_branding(e)
 
             if "t-raw" not in e.attrib:
@@ -3198,7 +3202,7 @@ class IrUiView(models.Model):
             except etree.XMLSyntaxError:
                 _logger.warning("Skipping unparsable arch on view %s", view.id)
                 continue
-            if not self._rewrite_self_handled(arch):
+            if not self._rewrite_self_handled_attributes(arch):
                 continue
             view.with_context(no_save_prev=True).write(
                 {"arch_db": etree.tostring(arch, encoding="unicode")}
@@ -3208,7 +3212,7 @@ class IrUiView(models.Model):
         return migrated
 
     @api.model
-    def _rewrite_self_handled(self, arch: _Element) -> bool:
+    def _rewrite_self_handled_attributes(self, arch: _Element) -> bool:
         changed = False
         for node in arch.iter(etree.Element):
             for (attr, value), (

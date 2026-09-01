@@ -91,7 +91,7 @@ def _insert_modules(cr: SqlReader, rows: list[tuple]) -> dict[str, int]:
     return ids
 
 
-def _run_base_schema_script(cr: Cursor) -> None:
+def _create_base_schema(cr: Cursor) -> None:
     try:
         f = odoo.tools.misc.file_path("base/data/base_data.sql")
     except FileNotFoundError as e:
@@ -152,7 +152,7 @@ def _mark_auto_install_modules(cr: Cursor) -> None:
 
 
 def initialize(cr: Cursor) -> None:
-    _run_base_schema_script(cr)
+    _create_base_schema(cr)
 
     manifests = odoo.modules.Manifest.all_addon_manifests()
     category_cache: dict[str, int] = {}
@@ -163,7 +163,7 @@ def initialize(cr: Cursor) -> None:
             info.name,
             Json({"en_US": info["name"]}),
             Json({"en_US": info["description"]}),
-            create_categories(cr, info["category"].split("/"), category_cache),
+            get_or_create_category_id(cr, info["category"].split("/"), category_cache),
             info["auto_install"] is not False,
             "uninstalled" if info["installable"] else "uninstallable",
             info["web"],
@@ -187,7 +187,7 @@ def initialize(cr: Cursor) -> None:
     _mark_auto_install_modules(cr)
 
 
-def create_categories(
+def get_or_create_category_id(
     cr: Cursor,
     categories: list[str],
     category_cache: dict[str, int] | None = None,

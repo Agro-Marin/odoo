@@ -162,13 +162,13 @@ def _lag_registry(lag, max_lag):
 def test_a_current_replica_serves_reads():
     reg = _lag_registry(lag=1.0, max_lag=30.0)
     assert isinstance(reg.cursor(readonly=True), _LagCursor)
-    assert reg._replica_lag.allows()
+    assert reg._replica_lag.is_replica_usable()
 
 
 def test_a_lagging_replica_is_demoted_to_the_primary():
     reg = _lag_registry(lag=120.0, max_lag=30.0)
     assert reg.cursor(readonly=True) == "primary-cursor"
-    assert not reg._replica_lag.allows()
+    assert not reg._replica_lag.is_replica_usable()
 
 
 def test_the_rejected_replica_cursor_is_closed_not_leaked():
@@ -206,7 +206,7 @@ def test_a_demoted_gate_recovers_when_the_replica_catches_up():
     assert reg.cursor(readonly=True) == "primary-cursor"
     reg._db_readonly.lag = 2.0
     assert isinstance(reg.cursor(readonly=True), _LagCursor)
-    assert reg._replica_lag.allows()
+    assert reg._replica_lag.is_replica_usable()
 
 
 def test_an_unreadable_measurement_does_not_demote():
@@ -222,7 +222,7 @@ def test_an_unreadable_measurement_does_not_demote():
     reg = _make_registry(max_lag=30.0)
     reg._db_readonly = _Boom("replica")
     assert isinstance(reg.cursor(readonly=True), _LagCursor)
-    assert reg._replica_lag.allows()
+    assert reg._replica_lag.is_replica_usable()
 
 
 def test_a_lag_demotion_does_not_consume_the_breakers_probe():
@@ -233,13 +233,13 @@ def test_a_lag_demotion_does_not_consume_the_breakers_probe():
 
     lag = reg._replica_lag
     lag.record(120.0)
-    lag.due_for_sample()
+    lag.acquire_sample_interval()
     lag.sample_interval = 1e9
-    assert not lag.allows() and not lag.due_for_sample(), "demoted, no sample due"
+    assert not lag.is_replica_usable() and not lag.acquire_sample_interval(), "demoted, no sample due"
 
     assert reg.cursor(readonly=True) == "primary-cursor"
     assert breaker._probing_since == 0.0, "the probe claim must be untouched"
-    assert breaker.allow(), "a real probe must still be grantable"
+    assert breaker.acquire_attempt(), "a real probe must still be grantable"
 
 
 def test_enabling_tests_is_what_opens_a_readonly_connection():
@@ -257,7 +257,7 @@ def test_enabling_tests_is_what_opens_a_readonly_connection():
         return mock.patch.object(registry_module, "config", base | overrides)
 
     with _with():
-        assert registry_module.serves_readonly_cursors() is False, (
+        assert registry_module.is_readonly_cursor_enabled() is False, (
             "a plain deployment must not open a second connection"
         )
 
@@ -267,4 +267,4 @@ def test_enabling_tests_is_what_opens_a_readonly_connection():
         ("dev_mode", ["replica"]),
     ):
         with _with(**{key: value}):
-            assert registry_module.serves_readonly_cursors() is True, key
+            assert registry_module.is_readonly_cursor_enabled() is True, key

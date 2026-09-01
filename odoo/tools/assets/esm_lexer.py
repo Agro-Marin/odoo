@@ -185,7 +185,7 @@ def _register_worker_cleanup() -> None:
     try:
         from odoo.service.server import CommonServer
 
-        CommonServer.on_stop(close_lexer_worker)
+        CommonServer.register_on_stop_hook(close_lexer_worker)
     except Exception:
         log_event(
             _lexer_log,

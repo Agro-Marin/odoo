@@ -121,7 +121,7 @@ Registry.new(db)
    ├─ run_end_migrations()                update only
    ├─ finalize_constraints()              deferred constraints, then NOT NULL
    ├─ uninstall_removed_modules()         update only; may force one full reload
-   ├─ check_custom_views()             update only
+   ├─ warn_invalid_custom_views()         update only
    └─ register_model_hooks() · check_null_constraints()
 ```
 
@@ -218,7 +218,7 @@ field can dirty another:
 
 ```
 env.flush_all()
-└─ UnitOfWork.run_flush_loop(recompute_fn, flush_fn)     ≤ MAX_FIXPOINT_ITERATIONS (1000)
+└─ UnitOfWork.flush_until_converged(recompute_fn, flush_fn)  ≤ MAX_FIXPOINT_ITERATIONS (1000)
    ├─ recompute_fn(field)  → model._recompute_field(field)
    └─ flush_fn(models)     → model.flush_model()   inside one cr.pipeline()
                               ├─ _recompute_fields(stored computed fields)

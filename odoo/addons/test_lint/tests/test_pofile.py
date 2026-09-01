@@ -1,7 +1,7 @@
 import logging
 from collections import Counter
 
-from odoo.modules import get_modules
+from odoo.modules import get_module_names
 from odoo.tools.misc import file_path
 from odoo.tools.translate import translation_file_reader
 
@@ -25,7 +25,7 @@ class PotLinter(lint_case.LintCase):
     def test_pot_duplicate_entries(self):
         offenders = []
         checked = 0
-        for module in get_modules():
+        for module in get_module_names():
             try:
                 filename = file_path(f"{module}/i18n/{module}.pot")
             except FileNotFoundError:

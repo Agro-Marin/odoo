@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from odoo.http.constants import STORED_SESSION_BYTES, get_default_session
+from odoo.http.constants import STORED_SESSION_BYTES, prepare_default_session
 from odoo.http.request_class import Request
 from odoo.http.session import FilesystemSessionStore, Session, _coerce_session_value
 from odoo.http.wrappers import FutureResponse
@@ -87,7 +87,7 @@ def test_delete_old_sessions_keeps_current_removes_predecessor(store):
 
 def test_delete_from_identifiers_rejects_bad_identifier(store):
     with pytest.raises(ValueError, match="Identifier format"):
-        store.remove_from_identifiers(["../etc"])
+        store.remove_sessions_for_identifiers(["../etc"])
 
 
 def test_vacuum_operates_on_own_path(store, tmp_path):
@@ -277,7 +277,7 @@ def test_touch_is_a_keep_alive_not_a_content_change():
     s["uid"] = 1
     s.mark_clean()
 
-    s.touch()
+    s.mark_dirty()
     assert s.is_dirty
     assert not s.has_content_changed()
     assert s.is_modified()
@@ -347,7 +347,7 @@ class _TokenEnv(dict):
 
 def _rotating_session(store, uid=7):
     session = store.new()
-    for key, value in get_default_session().items():
+    for key, value in prepare_default_session().items():
         session.setdefault(key, value)
     session["uid"] = uid
     session["session_token"] = _token_for(session.sid)

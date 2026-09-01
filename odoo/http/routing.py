@@ -16,7 +16,7 @@ from odoo.tools.misc import submap
 
 from ._params import get_param_specs
 from .constants import ROUTING_KEYS
-from .controller import Controller, newest_by_identity
+from .controller import Controller, _get_classes_newest_by_identity
 
 if TYPE_CHECKING:
     from ._protocols import Endpoint, HasRouting, RoutedMethod
@@ -84,7 +84,7 @@ class FasterRule(werkzeug.routing.Rule):
         return LazyCompiledBuilder(self, super()._compile_builder, append_unknown)
 
 
-def rule_routing_kwargs(endpoint: HasRouting) -> dict[str, Any]:
+def prepare_rule_kwargs(endpoint: HasRouting) -> dict[str, Any]:
     routing = dict(submap(endpoint.routing, ROUTING_KEYS))
     methods = routing.get("methods")
     if methods is not None and "OPTIONS" not in methods:
@@ -98,13 +98,15 @@ def prepare_routing_map(
 ) -> werkzeug.routing.Map:
     routing_map = werkzeug.routing.Map(strict_slashes=False, converters=converters)
     for url, endpoint in rules:
-        rule = FasterRule(url, endpoint=endpoint, **rule_routing_kwargs(endpoint))
+        rule = FasterRule(url, endpoint=endpoint, **prepare_rule_kwargs(endpoint))
         rule.merge_slashes = False
         routing_map.add(rule)
     return routing_map
 
 
-def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
+def _get_endpoint_param_acceptance(
+    endpoint: Callable,
+) -> tuple[bool, frozenset[str], str]:
     accepts_var_keyword = False
     named: set[str] = set()
     params = list(
@@ -133,21 +135,21 @@ def _apply_param_specs(endpoint: Endpoint, specs: dict[str, Any] | None) -> None
     )
 
 
-def _original_endpoint(method: Any) -> Callable:
+def _get_original_endpoint(method: Any) -> Callable:
     return method.original_endpoint
 
 
-def _reject_wildcard_credentials(who: str, routing: Any) -> None:
+def _check_cors_credentials(who: str, routing: Any) -> None:
     if routing.get("cors") == "*" and routing.get("cors_credentials"):
         e = (
             f"{who}: cors='*' cannot be combined with cors_credentials. Name the "
             "allowed origin explicitly, or pass a resolver callable such as "
-            "odoo.http.cors_same_host."
+            "odoo.http.resolve_cors_same_host."
         )
         raise ValueError(e)
 
 
-def _effective_route_type(declared_routing: dict[str, Any]) -> str:
+def _get_route_type_effective(declared_routing: dict[str, Any]) -> str:
     declared = declared_routing.get("type")
     if declared is not None:
         return declared
@@ -182,7 +184,7 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 fname,
             )
             routing["methods"] = wrong
-        _reject_wildcard_credentials(fname, routing)
+        _check_cors_credentials(fname, routing)
         unknown = routing.keys() - _KNOWN_ROUTING_PARAMETERS - {"routes"}
         if unknown:
             _logger.warning(
@@ -193,8 +195,8 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 sorted(unknown),
             )
 
-        accepts_var_keyword, accepted_params, bound_self_name = _route_param_filter(
-            endpoint
+        accepts_var_keyword, accepted_params, bound_self_name = (
+            _get_endpoint_param_acceptance(endpoint)
         )
 
         @functools.wraps(endpoint)
@@ -217,8 +219,8 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 _logger.warning("%s called ignoring args %s", fname, params_ko)
 
             result = endpoint(controller_self, *args, **params_ok)
-            if _effective_route_type(routing) == "http":
-                return Response.load(result, fname)
+            if _get_route_type_effective(routing) == "http":
+                return Response.from_endpoint_result(result, fname)
             return result
 
         routed = cast("RoutedMethod", route_wrapper)
@@ -241,7 +243,7 @@ def _get_leaf_classes(cls: type, modules: Collection[str]) -> list[type]:
             result.extend(_get_leaf_classes(subcls, modules))
     if not result and _is_from_installed_addon(cls, modules):
         result.append(cls)
-    return newest_by_identity(result)
+    return _get_classes_newest_by_identity(result)
 
 
 def _group_controller_trees(
@@ -260,7 +262,7 @@ def _group_controller_trees(
             for other in also:
                 groups[target].extend(groups[other])
                 groups[other] = []
-            groups[target] = newest_by_identity([*groups[target], *leaves])
+            groups[target] = _get_classes_newest_by_identity([*groups[target], *leaves])
         else:
             target = len(groups)
             groups.append(list(leaves))
@@ -340,9 +342,7 @@ def _merge_routing(ctrl: Controller, method_name: str) -> dict[str, Any] | None:
 
         defining_cls = cls
         try:
-            fragment = _check_and_complete_route_definition(
-                cls, submethod, merged_routing
-            )
+            fragment = _prepare_route_fragment(cls, submethod, merged_routing)
         except RouteDefinitionError as exc:
             _logger.error("%s The route is not served.", exc)
             return None
@@ -356,7 +356,7 @@ def _merge_routing(ctrl: Controller, method_name: str) -> dict[str, Any] | None:
         )
         return None
 
-    _reject_wildcard_credentials(f"{type(ctrl).__name__}.{method_name}", merged_routing)
+    _check_cors_credentials(f"{type(ctrl).__name__}.{method_name}", merged_routing)
     merged_routing.setdefault("save_session", merged_routing["auth"] != "bearer")
     if isinstance(merged_routing.get("methods"), list):
         merged_routing["methods"] = tuple(merged_routing["methods"])
@@ -379,7 +379,7 @@ def _generate_routing_rules(
 
             frozen_routing = MappingProxyType(merged_routing)
             param_specs = (
-                get_param_specs(_original_endpoint(method))
+                get_param_specs(_get_original_endpoint(method))
                 if merged_routing.get("typed")
                 else None
             )
@@ -394,7 +394,7 @@ def _generate_routing_rules(
                 yield (url, endpoint)
 
 
-def _check_and_complete_route_definition(
+def _prepare_route_fragment(
     controller_cls: type, submethod: Any, merged_routing: dict[str, Any]
 ) -> dict[str, Any]:
     fragment = dict(submethod.original_routing)
@@ -434,7 +434,7 @@ def _check_and_complete_route_definition(
 
 def fragment_to_query_string(func: Callable) -> Callable:
     @functools.wraps(func)
-    def wrapper(self, *a, **kw):
+    def fragment_wrapper(self, *a, **kw):
         if not (kw.keys() - {"debug"}):
             return Response("""<!DOCTYPE html>
             <html><head><script>
@@ -454,4 +454,4 @@ def fragment_to_query_string(func: Callable) -> Callable:
             </script></head><body></body></html>""")
         return func(self, *a, **kw)
 
-    return wrapper
+    return fragment_wrapper

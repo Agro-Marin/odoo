@@ -18,8 +18,8 @@ def mod():
 def pooled_db():
     from odoo import db
 
-    assert hasattr(db, "pool_health"), (
-        "odoo.db.pool_health is gone, but odoo/service/_metrics.py still calls "
+    assert hasattr(db, "get_pool_health"), (
+        "odoo.db.get_pool_health is gone, but odoo/service/_metrics.py still calls "
         "it while building the exposition — /metrics would raise"
     )
     return db
@@ -69,7 +69,7 @@ def parse_exposition(text: str) -> tuple[dict[str, str], list[str]]:
 class TestServiceMetrics:
     def test_no_server_yet_reports_flavor_none(self, mod):
         with patch.object(_process_state, "server", None):
-            out = mod.service_metrics()
+            out = mod.get_service_metrics()
         assert out["flavor"] == "none"
         assert "registries" in out
 
@@ -93,7 +93,7 @@ class TestServiceMetrics:
         server = self._prefork(os.getpid())
 
         with patch.object(_process_state, "server", server):
-            out = mod.service_metrics()
+            out = mod.get_service_metrics()
         assert out["flavor"] == "prefork"
         assert out["workers"] == {"http": 2, "cron": 1, "job": 0}
         assert out["worker_population"] == 4
@@ -104,7 +104,7 @@ class TestServiceMetrics:
         server = self._prefork(os.getpid() + 1)
 
         with patch.object(_process_state, "server", server):
-            out = mod.service_metrics()
+            out = mod.get_service_metrics()
         assert out["flavor"] == "prefork"
         for key in (
             "workers",
@@ -115,7 +115,7 @@ class TestServiceMetrics:
             assert key not in out, f"{key} is master-only but a worker emitted it"
 
         with patch.object(_process_state, "server", server):
-            text = mod.render_prometheus()
+            text = mod.render_prometheus_exposition()
         for family in (
             "odoo_workers",
             "odoo_worker_population",
@@ -137,7 +137,7 @@ class TestServiceMetrics:
 
         monkeypatch.setattr(threading.current_thread(), "type", "http", raising=False)
         with patch.object(_process_state, "server", server):
-            out = mod.service_metrics()
+            out = mod.get_service_metrics()
 
         assert out["flavor"] == "threaded"
         assert out["http_threads_max"] == 31
@@ -150,7 +150,7 @@ class TestServiceMetrics:
 
 
 class TestEveryServerAnswersForItself:
-    """`service_metrics` asks the server; it no longer recognises one."""
+    """`get_service_metrics` asks the server; it no longer recognises one."""
 
     def test_each_flavour_names_itself(self):
         from odoo.service._prefork import PreforkServer
@@ -173,8 +173,8 @@ class TestEveryServerAnswersForItself:
 
         server = object.__new__(CommonServer)
         with patch.object(_process_state, "server", server):
-            out = mod.service_metrics()
-            text = mod.render_prometheus()
+            out = mod.get_service_metrics()
+            text = mod.render_prometheus_exposition()
         assert out["flavor"] == "unknown"
         _, errors = parse_exposition(text)
         assert not errors, errors
@@ -184,7 +184,7 @@ class TestEveryServerAnswersForItself:
 
         server = object.__new__(EventServer)
         with patch.object(_process_state, "server", server):
-            out = mod.service_metrics()
+            out = mod.get_service_metrics()
         assert out["flavor"] == "evented"
         for key in ("threads", "http_threads_max", "limits_reached_threads"):
             assert key not in out, (
@@ -195,7 +195,7 @@ class TestEveryServerAnswersForItself:
 
 class TestPrometheusExposition:
     def test_default_render_is_well_formed(self, mod):
-        declared, errors = parse_exposition(mod.render_prometheus())
+        declared, errors = parse_exposition(mod.render_prometheus_exposition())
         assert not errors, errors
         assert "odoo_up" in declared
 
@@ -217,8 +217,8 @@ class TestPrometheusExposition:
                 "per_database": {"prod": {"pool_size": 5, "requests_waiting": 0}},
             }
         }
-        with patch.object(pooled_db, "pool_health", return_value=health):
-            text = mod.render_prometheus()
+        with patch.object(pooled_db, "get_pool_health", return_value=health):
+            text = mod.render_prometheus_exposition()
         declared, errors = parse_exposition(text)
         assert not errors, errors
         pid = os.getpid()
@@ -240,8 +240,8 @@ class TestPrometheusExposition:
                 "per_database": {'we"ird\\name': {"pool_size": 1}},
             }
         }
-        with patch.object(pooled_db, "pool_health", return_value=health):
-            text = mod.render_prometheus()
+        with patch.object(pooled_db, "get_pool_health", return_value=health):
+            text = mod.render_prometheus_exposition()
         _, errors = parse_exposition(text)
         assert not errors, errors
         assert r'database="we\"ird\\name"' in text
@@ -261,8 +261,8 @@ class TestPrometheusExposition:
                 },
             }
         }
-        with patch.object(pooled_db, "pool_health", return_value=health):
-            text = mod.render_prometheus()
+        with patch.object(pooled_db, "get_pool_health", return_value=health):
+            text = mod.render_prometheus_exposition()
 
         _, errors = parse_exposition(text)
         assert not errors, f"a non-numeric stat broke the exposition: {errors}"
@@ -286,15 +286,15 @@ class TestPrometheusExposition:
         server.pid = os.getpid()
 
         with patch.object(_process_state, "server", server):
-            text = mod.render_prometheus()
+            text = mod.render_prometheus_exposition()
         assert f'odoo_long_polling_alive{{pid="{os.getpid()}"}} 0' in text
         _, errors = parse_exposition(text)
         assert not errors, errors
 
     def test_every_series_carries_the_serving_pid(self, mod, pooled_db):
         health = {"read_write": {"pool": {"borrows": 3}, "per_database": {}}}
-        with patch.object(pooled_db, "pool_health", return_value=health):
-            text = mod.render_prometheus()
+        with patch.object(pooled_db, "get_pool_health", return_value=health):
+            text = mod.render_prometheus_exposition()
         samples = [
             line for line in text.splitlines() if line and not line.startswith("#")
         ]
@@ -306,11 +306,13 @@ class TestPrometheusExposition:
     def test_render_survives_a_failing_subsystem(self, mod, pooled_db):
         with (
             patch.object(
-                pooled_db, "pool_health", side_effect=RuntimeError("pool is gone")
+                pooled_db, "get_pool_health", side_effect=RuntimeError("pool is gone")
             ),
-            patch.object(mod, "service_metrics", side_effect=RuntimeError("no server")),
+            patch.object(
+                mod, "get_service_metrics", side_effect=RuntimeError("no server")
+            ),
         ):
-            text = mod.render_prometheus()
+            text = mod.render_prometheus_exposition()
         assert f'odoo_up{{pid="{os.getpid()}"}} 1' in text
         _, errors = parse_exposition(text)
         assert not errors, errors
@@ -400,7 +402,7 @@ class TestReportingAndRecyclingAreDifferentQuestions:
     """A websocket thread must be counted and must never be time-limited.
 
     The two used to share one tuple, which made the exemption `check_limits`
-    needs also blind `metrics()`: in --workers 0 the long-lived threads were
+    needs also blind `get_metrics()`: in --workers 0 the long-lived threads were
     the only ones an operator could not see.
     """
 
@@ -418,7 +420,7 @@ class TestReportingAndRecyclingAreDifferentQuestions:
         ws.type = "websocket"
         ws.start()
         try:
-            assert server.metrics()["threads"]["websocket"] >= 1
+            assert server.get_metrics()["threads"]["websocket"] >= 1
         finally:
             stop.set()
             ws.join()

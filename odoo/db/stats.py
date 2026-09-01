@@ -100,7 +100,7 @@ class PoolStats:
         with self._lock:
             self.leaks_reported += 1
 
-    def snapshot(
+    def get_snapshot(
         self, *, budget=None, direct_out: int = 0, pools: int = 0, checkouts=None
     ) -> dict:
         with self._lock:
@@ -164,10 +164,10 @@ class PoolStats:
         }
         if checkouts is not None:
             out["checked_out"] = len(checkouts)
-            out["checked_out_oldest_seconds"] = round(checkouts.oldest_age(), 3)
+            out["checked_out_oldest_seconds"] = round(checkouts.get_oldest_age(), 3)
         if budget is not None:
             out["budget_maxconn"] = budget.maxconn
             out["budget_available"] = budget.available
             out["budget_in_use"] = budget.in_use
-            out["budget_exhausted"] = budget.exhausted
+            out["budget_exhausted"] = budget.exhausted_count
         return out

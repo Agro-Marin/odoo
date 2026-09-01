@@ -1,5 +1,5 @@
 {
-  "count": 294,
-  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
-  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
+  "count": 292,
+  "measured_at": "5f19b270c5d781ec6ba709ca08ea9eb5a4d43ad1",
+  "note": "Banked at a resolvable commit. Measured 292 at the CI scope the floor is defined at (--addons-path=odoo/addons,addons, -i test_lint) on a pristine HEAD worktree at a8c1dc581b9, against a committed floor of 294 whose stamped commit b7b596cd004 git cannot resolve at all -- one of fourteen in that state, so the 294 may never have described this tree. The gate is exact in both directions, so 292 against 294 fails every PR; nobody banked the two the tree had already lost. Not measured in the workspace checkout: four sessions were dirty in it."
 }

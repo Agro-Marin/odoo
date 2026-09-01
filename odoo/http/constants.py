@@ -16,7 +16,7 @@ static tree accepts.
 """
 
 
-def allow_header(methods: Iterable[str] | None = None) -> str:
+def prepare_allow_header(methods: Iterable[str] | None = None) -> str:
     if methods is None:
         methods = DEFAULT_ALLOWED_METHODS
     return ", ".join(dict.fromkeys([*methods, "OPTIONS"]))
@@ -40,7 +40,7 @@ CSRF_TOKEN_MAX_AGE = 60 * 60 * 24 * 365
 DEFAULT_LANG = "en_US"
 
 
-def get_default_session() -> dict[str, object]:
+def prepare_default_session() -> dict[str, object]:
     return {
         "context": {},
         "create_time": time.time(),

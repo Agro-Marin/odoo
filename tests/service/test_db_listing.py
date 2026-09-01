@@ -10,9 +10,9 @@ from odoo.service.db import listing
 @pytest.fixture(autouse=True)
 def _fresh_catalogue():
     """The catalogue cache is process-global; no test may inherit another's."""
-    listing._forget_catalogue()
+    listing._invalidate_catalog_cache()
     yield
-    listing._forget_catalogue()
+    listing._invalidate_catalog_cache()
 
 
 @pytest.fixture
@@ -236,9 +236,9 @@ class TestListCountries:
 
     def test_the_parse_itself_happens_once(self):
         listing.exp_list_countries()
-        before = listing._scan_countries.cache_info().misses
+        before = listing._read_countries.cache_info().misses
         listing.exp_list_countries()
-        assert listing._scan_countries.cache_info().misses == before
+        assert listing._read_countries.cache_info().misses == before
 
 
 class TestDbExistDoesNotPayForWhatTheListingProved:
@@ -249,7 +249,7 @@ class TestDbExistDoesNotPayForWhatTheListingProved:
     def test_the_catalogue_branch_answers_without_connecting(self):
         with (
             self._config(),
-            patch.object(listing, "_cached_catalogue", return_value=["alpha"]),
+            patch.object(listing, "_get_catalog_cached", return_value=["alpha"]),
             patch.object(listing, "exp_db_exist") as connect,
         ):
             assert listing._rpc_db_exist("alpha") is True
@@ -283,7 +283,7 @@ class TestDbExistDoesNotPayForWhatTheListingProved:
     def test_a_name_absent_from_the_listing_never_connects(self):
         with (
             self._config(),
-            patch.object(listing, "_cached_catalogue", return_value=["alpha"]),
+            patch.object(listing, "_get_catalog_cached", return_value=["alpha"]),
             patch.object(listing, "exp_db_exist") as connect,
         ):
             assert listing._rpc_db_exist("absent") is False

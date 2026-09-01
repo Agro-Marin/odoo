@@ -1239,7 +1239,7 @@ class TestAuditRtlSilentDegradation(TransactionCase):
             rtl=True,
         )
         with patch(
-            "odoo.addons.base.models.assetsbundle.css_pipeline._check_rtlcss",
+            "odoo.addons.base.models.assetsbundle.css_pipeline._is_rtlcss_available",
             return_value=False,
         ):
             out = bundle._css.convert_css_to_rtl(PLAIN_CSS)
@@ -1253,7 +1253,7 @@ class TestRunRtlcssEmptyOutputGuard(BaseCase):
         pipe = CssPipeline(bundle)
         CssPipeline._compiled_cache.clear()
         with (
-            patch.object(_ab.css_pipeline, "_check_rtlcss", return_value=True),
+            patch.object(_ab.css_pipeline, "_is_rtlcss_available", return_value=True),
             patch.object(_ab.css_pipeline, "_rtlcss_bin", return_value="rtlcss"),
             patch.object(
                 _ab.css_pipeline, "_rtlcss_config_path", return_value="/x.json"
@@ -1545,8 +1545,8 @@ class TestCssCompileErrorReporting(TransactionCase):
 class TestRtlcssProbeFailures(BaseCase):
     def setUp(self):
         super().setUp()
-        _ab.css_pipeline._check_rtlcss.cache_clear()
-        self.addCleanup(_ab.css_pipeline._check_rtlcss.cache_clear)
+        _ab.css_pipeline._is_rtlcss_available.cache_clear()
+        self.addCleanup(_ab.css_pipeline._is_rtlcss_available.cache_clear)
 
     def test_a_missing_binary_disables_rtl(self):
         with (
@@ -1555,7 +1555,7 @@ class TestRtlcssProbeFailures(BaseCase):
             ),
             self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING") as log,
         ):
-            self.assertFalse(_ab.css_pipeline._check_rtlcss())
+            self.assertFalse(_ab.css_pipeline._is_rtlcss_available())
         self.assertIn("rtlcss is required", "\n".join(log.output))
 
     def test_a_hanging_probe_is_killed_and_disables_rtl(self):
@@ -1570,7 +1570,7 @@ class TestRtlcssProbeFailures(BaseCase):
             patch.object(_ab.css_pipeline, "Popen", return_value=probe),
             self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING") as log,
         ):
-            self.assertFalse(_ab.css_pipeline._check_rtlcss())
+            self.assertFalse(_ab.css_pipeline._is_rtlcss_available())
         probe.kill.assert_called_once()
         self.assertIn("probe timed out", "\n".join(log.output))
 
@@ -1582,7 +1582,7 @@ class TestRtlcssProbeFailures(BaseCase):
             patch.object(_ab.css_pipeline, "Popen", return_value=probe),
             self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING") as log,
         ):
-            self.assertFalse(_ab.css_pipeline._check_rtlcss())
+            self.assertFalse(_ab.css_pipeline._is_rtlcss_available())
         self.assertIn("exited with 127", "\n".join(log.output))
 
     def test_a_working_probe_enables_rtl(self):
@@ -1590,4 +1590,4 @@ class TestRtlcssProbeFailures(BaseCase):
         probe.communicate.return_value = (b"4.1.0", b"")
         probe.returncode = 0
         with patch.object(_ab.css_pipeline, "Popen", return_value=probe):
-            self.assertTrue(_ab.css_pipeline._check_rtlcss())
+            self.assertTrue(_ab.css_pipeline._is_rtlcss_available())

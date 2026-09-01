@@ -34,22 +34,22 @@ class TestEnvironmentSet(unittest.TestCase):
         es = _EnvironmentSet()
         e = _env(7, su=True, context=(("lang", "en"),))
         es.add(e)
-        self.assertIs(es.lookup(es.key(7, True, (("lang", "en"),))), e)
+        self.assertIs(es.get_environment(es.key(7, True, (("lang", "en"),))), e)
 
     def test_lookup_misses_for_an_unknown_key(self):
         es = _EnvironmentSet()
         es.add(_env(1))
-        self.assertIsNone(es.lookup(es.key(2, False, ())))
+        self.assertIsNone(es.get_environment(es.key(2, False, ())))
 
     def test_a_collected_env_is_gone_from_both_set_and_index(self):
         es = _EnvironmentSet()
         key = es.key(9, False, ())
         e = _env(9)
         es.add(e)
-        self.assertIs(es.lookup(key), e)
+        self.assertIs(es.get_environment(key), e)
         del e
         gc.collect()
-        self.assertIsNone(es.lookup(key), "the index kept a dead reference")
+        self.assertIsNone(es.get_environment(key), "the index kept a dead reference")
         self.assertEqual(list(es), [], "the weakset kept a dead reference")
 
     def test_discard_evicts_only_its_own_index_entry(self):
@@ -60,7 +60,7 @@ class TestEnvironmentSet(unittest.TestCase):
         second = _env(3)
         es.add(second)
         es.discard(first)
-        self.assertIs(es.lookup(key), second)
+        self.assertIs(es.get_environment(key), second)
 
     def test_iteration_is_sound_while_entries_are_collected(self):
         es = _EnvironmentSet()
@@ -74,7 +74,7 @@ class TestEnvironmentSet(unittest.TestCase):
             gc.collect()
             seen += 1
         for e in kept:
-            self.assertIs(es.lookup(es.key(e.uid, e.su, e.context)), e)
+            self.assertIs(es.get_environment(es.key(e.uid, e.su, e.context)), e)
         self.assertGreaterEqual(seen, 0)
 
 

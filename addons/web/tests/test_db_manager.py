@@ -315,7 +315,7 @@ class TestDatabaseOperations(BaseCase):
 
         session_store = odoo.http.root.session_store
         session = session_store.new()
-        session.update(odoo.http.get_default_session(), db=test_db_name)
+        session.update(odoo.http.prepare_default_session(), db=test_db_name)
         session.context["lang"] = odoo.http.DEFAULT_LANG
         self.session.cookies["session_id"] = session.sid
 

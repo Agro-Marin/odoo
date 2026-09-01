@@ -7781,7 +7781,7 @@ class TestTemplateKeyCollision(ViewCase):
 
     def test_a_view_sharing_a_key_stays_reachable_by_id(self):
         generic, specific = self._pair("base.collision_tpl")
-        fetched = self.View._get_template_views([generic.id, "base.collision_tpl"])
+        fetched = self.View._get_views_by_ref([generic.id, "base.collision_tpl"])
         self.assertEqual(fetched[generic.id], generic)
         self.assertEqual(fetched["base.collision_tpl"], specific)
 

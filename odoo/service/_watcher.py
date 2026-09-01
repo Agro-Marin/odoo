@@ -48,7 +48,7 @@ _OBSERVER_JOIN_TIMEOUT_S = 5.0
 _WATCHER_JOIN_TIMEOUT_S = 5.0
 
 
-def _fd_is_open(fd: int) -> bool:
+def _is_fd_open(fd: int) -> bool:
     try:
         os.fstat(fd)
     except OSError:
@@ -70,7 +70,7 @@ INOTIFY_SYSCTL_DIR = Path("/proc/sys/fs/inotify")
 INOTIFY_LIMITS = ("max_user_instances", "max_user_watches")
 
 
-def inotify_limit_diagnosis(exc: BaseException) -> str:
+def get_inotify_limit_diagnosis(exc: BaseException) -> str:
     if getattr(exc, "errno", None) != errno.ENOSPC:
         return ""
     limits = []
@@ -101,7 +101,7 @@ class FSWatcherBase:
         self._reload_triggered = False
 
     @staticmethod
-    def watch_paths() -> list[str]:
+    def get_watch_paths() -> list[str]:
         from odoo.tools import config
 
         roots = list(odoo.addons.__path__)
@@ -216,7 +216,7 @@ class FSWatcherWatchdog(FSWatcherBase):
     def __init__(self) -> None:
         super().__init__()
         self.observer = Observer()
-        paths = self.watch_paths()
+        paths = self.get_watch_paths()
         _logger.info("Watching %d folder(s) for changes", len(paths))
         for path in paths:
             self.observer.schedule(self, path, recursive=True)
@@ -264,7 +264,7 @@ class _InotifyInternals:
     def remove_watch_superficially(self, path: str) -> None:
         self._inotify.remove_watch(path, superficial=True)
 
-    def descriptors(self) -> tuple[int, ...]:
+    def get_descriptors(self) -> tuple[int, ...]:
         inot = self._inotify
         fds = [inot._Inotify__inotify_fd]
         epoll = getattr(inot, "_Inotify__epoll", None)
@@ -273,7 +273,7 @@ class _InotifyInternals:
         return tuple(fds)
 
     def set_cloexec(self) -> None:
-        for fd in self.descriptors():
+        for fd in self.get_descriptors():
             try:
                 os.set_inheritable(fd, False)
             except OSError:
@@ -290,7 +290,7 @@ class FSWatcherInotify(FSWatcherBase):
         self.started = False
         self.thread: threading.Thread | None = None
         inotify.adapters._LOGGER.setLevel(logging.ERROR)
-        paths = self.watch_paths()
+        paths = self.get_watch_paths()
         _logger.info("Watching %d folder(s) for changes", len(paths))
         self._arm_watcher(paths)
 
@@ -301,7 +301,7 @@ class FSWatcherInotify(FSWatcherBase):
                 paths, mask=INOTIFY_LISTEN_EVENTS, block_duration_s=block_duration_s
             )
         except Exception as exc:
-            diagnosis = inotify_limit_diagnosis(exc)
+            diagnosis = get_inotify_limit_diagnosis(exc)
             if not diagnosis:
                 raise
             raise OSError(errno.ENOSPC, diagnosis) from exc
@@ -309,7 +309,7 @@ class FSWatcherInotify(FSWatcherBase):
         self.internals.set_cloexec()
         self.internals.register_path(OVERFLOW_WD, OVERFLOW_PATH)
 
-    def _resync(self) -> None:
+    def _sync_watches_after_overflow(self) -> None:
         _logger.warning(
             "autoreload: inotify queue overflowed — events were lost; "
             "re-arming watches and dropping the asset caches"
@@ -338,7 +338,7 @@ class FSWatcherInotify(FSWatcherBase):
             _logger.warning(
                 "autoreload: cannot watch %s; edits below it will not be seen. %s",
                 directory,
-                inotify_limit_diagnosis(exc) or "See the traceback for the cause.",
+                get_inotify_limit_diagnosis(exc) or "See the traceback for the cause.",
                 exc_info=True,
             )
 
@@ -364,7 +364,7 @@ class FSWatcherInotify(FSWatcherBase):
             except TerminalEventException as exc:
                 if str(exc) != "IN_Q_OVERFLOW":
                     raise
-                self._resync()
+                self._sync_watches_after_overflow()
             self._end_burst()
 
     def start(self) -> None:
@@ -395,10 +395,10 @@ class FSWatcherInotify(FSWatcherBase):
         self.watcher = None
         if internals is None:
             return
-        fds = internals.descriptors()
+        fds = internals.get_descriptors()
         del internals
         gc.collect()
-        still_open = [fd for fd in fds if _fd_is_open(fd)]
+        still_open = [fd for fd in fds if _is_fd_open(fd)]
         if still_open:
             _logger.warning(
                 "autoreload: the inotify descriptors %s outlived the watcher; "

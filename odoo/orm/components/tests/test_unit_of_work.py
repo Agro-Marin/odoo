@@ -6,7 +6,7 @@ from odoo.orm.components.compute import ComputeEngine
 from odoo.orm.components.unit_of_work import (
     SNAPSHOT_AFTER,
     STALL_REPEATS,
-    LoopResult,
+    ConvergenceResult,
     UnitOfWork,
 )
 
@@ -64,7 +64,7 @@ class TestRunRecomputeLoop(unittest.TestCase):
         self.uow = UnitOfWork(self.cache, self.engine, max_iterations=10)
 
     def test_no_pending(self) -> None:
-        result = self.uow.run_recompute_loop(lambda f: None)
+        result = self.uow.recompute_until_converged(lambda f: None)
         self.assertTrue(result.converged)
         self.assertEqual(result.iterations, 0)
 
@@ -77,7 +77,7 @@ class TestRunRecomputeLoop(unittest.TestCase):
             self.cache.set_value(field, 2, 20)
             self.engine.mark_done(field, [1, 2])
 
-        result = self.uow.run_recompute_loop(recompute)
+        result = self.uow.recompute_until_converged(recompute)
         self.assertTrue(result.converged)
         self.assertEqual(result.iterations, 1)
 
@@ -95,7 +95,7 @@ class TestRunRecomputeLoop(unittest.TestCase):
                 self.cache.set_value(f_b, 1, 110)
                 self.engine.mark_done(f_b, [1])
 
-        result = self.uow.run_recompute_loop(recompute)
+        result = self.uow.recompute_until_converged(recompute)
         self.assertTrue(result.converged)
         self.assertEqual(result.iterations, 2)
 
@@ -108,14 +108,14 @@ class TestRunRecomputeLoop(unittest.TestCase):
             self.engine.mark_done(field, [1])
             self.engine.schedule(field, [1])
 
-        result = uow.run_recompute_loop(recompute)
+        result = uow.recompute_until_converged(recompute)
         self.assertFalse(result.converged)
         self.assertEqual(result.iterations, 3)
 
     def test_only_real_ids_count(self) -> None:
         f = _field("m", "total")
         self.engine.schedule(f, [0])
-        result = self.uow.run_recompute_loop(lambda field: None)
+        result = self.uow.recompute_until_converged(lambda field: None)
         self.assertTrue(result.converged)
         self.assertEqual(result.iterations, 0)
 
@@ -127,7 +127,7 @@ class TestRunFlushLoop(unittest.TestCase):
         self.uow = UnitOfWork(self.cache, self.engine, max_iterations=10)
 
     def test_no_dirty(self) -> None:
-        result = self.uow.run_flush_loop(
+        result = self.uow.flush_until_converged(
             recompute_fn=lambda f: None,
             flush_fn=lambda models: None,
         )
@@ -144,7 +144,7 @@ class TestRunFlushLoop(unittest.TestCase):
             flushed_models.extend(models)
             self.cache.pop_dirty(f)
 
-        result = self.uow.run_flush_loop(
+        result = self.uow.flush_until_converged(
             recompute_fn=lambda field: None,
             flush_fn=flush,
         )
@@ -171,7 +171,7 @@ class TestRunFlushLoop(unittest.TestCase):
             else:
                 self.cache.pop_dirty(f_tax)
 
-        result = self.uow.run_flush_loop(
+        result = self.uow.flush_until_converged(
             recompute_fn=recompute,
             flush_fn=flush,
         )
@@ -186,7 +186,7 @@ class TestRunFlushLoop(unittest.TestCase):
             self.cache.set_value(field, 1, 10)
             self.engine.mark_done(field, [1])
 
-        result = self.uow.run_flush_loop(
+        result = self.uow.flush_until_converged(
             recompute_fn=recompute,
             flush_fn=lambda models: self.fail("nothing dirty, must not flush"),
         )
@@ -194,7 +194,7 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertEqual(result.iterations, 1)
 
     def test_iterations_zero_when_nothing_to_do(self) -> None:
-        result = self.uow.run_flush_loop(
+        result = self.uow.flush_until_converged(
             recompute_fn=lambda f: None,
             flush_fn=lambda models: None,
         )
@@ -215,7 +215,7 @@ class TestRunFlushLoop(unittest.TestCase):
             else:
                 self.cache.pop_dirty(f2)
 
-        result = self.uow.run_flush_loop(
+        result = self.uow.flush_until_converged(
             recompute_fn=lambda field: None,
             flush_fn=flush,
         )
@@ -233,7 +233,7 @@ class TestRunFlushLoop(unittest.TestCase):
                 self.cache.pop_dirty(f)
             calls[0] += 1
 
-        result = self.uow.run_flush_loop(
+        result = self.uow.flush_until_converged(
             recompute_fn=lambda field: None,
             flush_fn=flush,
         )
@@ -253,7 +253,7 @@ class TestRunFlushLoop(unittest.TestCase):
         def flush(models):
             flush_called[0] = True
 
-        result = uow.run_flush_loop(
+        result = uow.flush_until_converged(
             recompute_fn=recompute,
             flush_fn=flush,
         )
@@ -287,7 +287,7 @@ class TestLoopExhaustionConsistency(unittest.TestCase):
             else:
                 engine.schedule(f_computed, [1, 2, 3])
 
-        result = uow.run_flush_loop(recompute_fn, flush_fn)
+        result = uow.flush_until_converged(recompute_fn, flush_fn)
         self.assertFalse(result.converged)
         self.assertIn("m.b", result.stalled_fields)
 
@@ -304,7 +304,7 @@ class TestLoopExhaustionConsistency(unittest.TestCase):
             if state["n"] >= 3:
                 engine.mark_done(f, [1])
 
-        result = uow.run_recompute_loop(recompute_fn)
+        result = uow.recompute_until_converged(recompute_fn)
         self.assertFalse(engine.pending_real_fields())
         self.assertTrue(result.converged)
         self.assertEqual(result.stalled_fields, [])
@@ -324,7 +324,7 @@ class TestStallDetection(unittest.TestCase):
             engine.mark_done(field, [1, 2])
             engine.schedule(field, [1, 2])
 
-        result = uow.run_recompute_loop(recompute_fn)
+        result = uow.recompute_until_converged(recompute_fn)
         self.assertFalse(result.converged)
         self.assertEqual(result.stalled_fields, ["m.cycle"])
         self.assertEqual(passes[0], SNAPSHOT_AFTER + STALL_REPEATS)
@@ -345,7 +345,7 @@ class TestStallDetection(unittest.TestCase):
             state["n"] += 1
             engine.schedule(field, [state["n"]])
 
-        result = uow.run_recompute_loop(recompute_fn)
+        result = uow.recompute_until_converged(recompute_fn)
         self.assertFalse(result.converged)
         self.assertEqual(result.iterations, uow.max_iterations)
 
@@ -363,7 +363,7 @@ class TestStallDetection(unittest.TestCase):
             cache.pop_dirty(f)
             cache.mark_dirty(f, [1])
 
-        result = uow.run_flush_loop(lambda field: None, flush_fn)
+        result = uow.flush_until_converged(lambda field: None, flush_fn)
         self.assertFalse(result.converged)
         self.assertEqual(result.stalled_fields, ["m.a"])
         self.assertEqual(flushes[0], SNAPSHOT_AFTER + STALL_REPEATS)
@@ -379,14 +379,14 @@ class TestStallDetection(unittest.TestCase):
         def _flush(_m: list[str]) -> None:
             cache.pop_dirty(f)
 
-        result = uow.run_flush_loop(lambda field: None, _flush)
+        result = uow.flush_until_converged(lambda field: None, _flush)
         self.assertTrue(result.converged)
         self.assertEqual(result.stalled_fields, [])
 
 
-class TestLoopResult(unittest.TestCase):
+class TestConvergenceResult(unittest.TestCase):
     def test_defaults(self) -> None:
-        r = LoopResult()
+        r = ConvergenceResult()
         self.assertEqual(r.iterations, 0)
         self.assertTrue(r.converged)
         self.assertEqual(r.stalled_fields, [])

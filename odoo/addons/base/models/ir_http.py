@@ -167,7 +167,7 @@ class IrHttp(models.AbstractModel):
                 return m.group(1).strip()
             return None
 
-        def check_sec_headers() -> bool:
+        def is_document_navigation() -> bool:
             return (
                 headers.get("Sec-Fetch-Dest") == "document"
                 and headers.get("Sec-Fetch-Mode") == "navigate"
@@ -190,7 +190,7 @@ class IrHttp(models.AbstractModel):
         elif not request.env.uid:
             e = "User not authenticated, use an API Key with a Bearer Authorization header."
             raise Unauthorized(e, www_authenticate=WWWAuthenticate("bearer"))
-        elif not check_sec_headers():
+        elif not is_document_navigation():
             e = 'Missing "Authorization" or Sec-headers for interactive usage.'
             raise werkzeug.exceptions.Unauthorized(
                 e, www_authenticate=WWWAuthenticate("bearer")
@@ -227,7 +227,7 @@ class IrHttp(models.AbstractModel):
     def _authenticate_explicit(cls, auth: str) -> None:
         try:
             if request.session.uid is not None:
-                if not security.check_session(request.session, request.env, request):
+                if not security.is_session_valid(request.session, request.env, request):
                     request.session.logout(keep_db=True)
                     request.env = api.Environment(
                         request.env.cr, None, request.session.context
@@ -327,7 +327,7 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _handle_error(cls, exception: Exception) -> Any:
-        return request.dispatcher.handle_error(exception)
+        return request.dispatcher.prepare_error_response(exception)
 
     @classmethod
     def _serve_fallback(cls) -> Response | None:

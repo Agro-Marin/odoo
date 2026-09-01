@@ -9,13 +9,13 @@ carry the detailed invariants — this file is the map.
 
 | Module | Contents | Pure? |
 |---|---|---|
-| `__init__.py` | Public API only: `db_connect`, `close_db`/`close_all`, `drain_db`/`drain_all`, `pool_health`, the process `registry`, and `sql_counter` via module `__getattr__` | no |
-| `endpoints.py` | `EndpointRegistry`: the lazy registry of `ConnectionPool`s keyed `(endpoint, readonly)` and of `ConnectionBudget`s keyed by endpoint, plus the endpoint resolution (`endpoint_key`, `base_maxconn`) both sides of the budget comparison share. Was module state in `__init__.py` | no |
+| `__init__.py` | Public API only: `db_connect`, `close_db`/`close_all`, `drain_db`/`drain_all`, `get_pool_health`, the process `registry`, and `sql_counter` via module `__getattr__` | no |
+| `endpoints.py` | `EndpointRegistry`: the lazy registry of `ConnectionPool`s keyed `(endpoint, readonly)` and of `ConnectionBudget`s keyed by endpoint, plus the endpoint resolution (`get_endpoint_key`, `get_base_maxconn`) both sides of the budget comparison share. Was module state in `__init__.py` | no |
 | `cursor.py` | `BaseCursor` (hooks, flush convergence, savepoint seam) and `Cursor` (the `cr` object: execute/executemany/pipeline, DDL handling, close/commit/rollback guards) | no |
 | `pool.py` | `ConnectionPool` (per-DSN psycopg_pool registry, borrow/give_back, idle-pool reaper, stale-credential eviction, direct maintenance-DB path, `health()`) and `Connection` | no |
 | `probe.py` | `ReachabilityProbe`: is this DSN connectable, and permanently or not — the pre-flight probe, its leader/follower dedup, the `postgres`-side existence check and the per-key proof. Was inlined in `pool.py` | no |
 | `budget.py` | `ConnectionBudget`: the shared `db_maxconn` cap, its permit `Condition` and its saturation counter | yes |
-| `stats.py` | `PoolStats`: borrow-wait histogram, pool churn and probe-outcome counters behind `ConnectionPool.health()` | yes |
+| `stats.py` | `PoolStats`: borrow-wait histogram, pool churn and probe-outcome counters behind `ConnectionPool.get_health()` | yes |
 | `reaper.py` | `IdlePoolReaper`: which quiet per-DSN pools to close and how often to look (the decision; the pool keeps the locking and teardown) | yes |
 | `leaks.py` | `CheckoutTracker`: which connections are out, since when, from which thread and borrow site | yes |
 | `breaker.py` | `CircuitBreaker`: failure gating with exponential backoff for an optional endpoint (the read replica) | yes |
@@ -23,13 +23,13 @@ carry the detailed invariants — this file is the map.
 | `bulk.py` | `_BulkAccessMixin`: `copy_from` (COPY, optional binary + pre-generated ids), `execute_values` | no |
 | `savepoint.py` | `Savepoint` / `_FlushingSavepoint` (ORM state restore is injected by `odoo.orm.runtime.savepoint`) | yes |
 | `ddl.py` | DDL keyword detection + client-side param inlining (`$N` is rejected in DDL positions) | yes |
-| `schema.py` | Schema DDL operations executed against a `cr`: create/alter tables, columns, constraints, foreign keys, indexes, views; `TableKind`, `SQL_ORDER_BY_TYPE` (relocated from the former `tools/sql.py`, ADR-0004); and the catalog capability probes `FunctionStatus` / `has_unaccent` / `has_trigram`, relocated from `modules/db.py` — reaching them through the module system dragged `odoo.orm.runtime` in behind them. `existing_tables` and `TableKind` must admit the same relkinds — a partitioned table (`'p'`) reported as absent makes `_auto_init` issue `CREATE TABLE` over it and the registry fails to load with `DuplicateTable` | no |
+| `schema.py` | Schema DDL operations executed against a `cr`: create/alter tables, columns, constraints, foreign keys, indexes, views; `TableKind`, `SQL_ORDER_BY_TYPE` (relocated from the former `tools/sql.py`, ADR-0004); and the catalog capability probes `FunctionStatus` / `get_unaccent_status` / `has_trigram`, relocated from `modules/db.py` — reaching them through the module system dragged `odoo.orm.runtime` in behind them. `get_tables_existing` and `TableKind` must admit the same relkinds — a partitioned table (`'p'`) reported as absent makes `_auto_init` issue `CREATE TABLE` over it and the registry fails to load with `DuplicateTable` | no |
 | `dsn.py` | DSN expansion/normalization (pool keys, password fingerprint), connect-error classification | yes |
-| `errors.py` | `CURSOR_LOGGER_NAME`, retry taxonomy (`PG_RETRY_*`), user-fault taxonomy (`PG_USER_FAULT_*`), the stale-plan marker (`PG_STALE_PLAN_EXCEPTIONS`, `mark_stale_cached_plan`, `is_stale_cached_plan`), `reached_the_server`, `_log_sql_error`'s four log tiers | yes |
+| `errors.py` | `CURSOR_LOGGER_NAME`, retry taxonomy (`PG_RETRY_*`), user-fault taxonomy (`PG_USER_FAULT_*`), the stale-plan marker (`PG_STALE_PLAN_EXCEPTIONS`, `mark_stale_cached_plan`, `is_stale_cached_plan`), `has_reached_server`, `_log_sql_error`'s four log tiers | yes |
 | `lifecycle.py` | psycopg_pool `configure`/`reset`/`check` callbacks (adapters, prepare tuning, session reset, grace-windowed health check sized by `db_healthcheck_grace`) | no |
 | `schema_cache.py` | `TransactionSchemaCache`: per-cursor, transaction-lifetime catalog facts for `copy_from` (id sequences, column types) | yes |
 | `metrics.py` | `_MetricsMixin` (query counters, thread metrics, DEBUG per-table stats), `sql_counter` | yes* |
-| `utils.py` | `get_connection_info_for`, `is_maintenance_db`, `categorize_query`, `seed_planner_stats`, adapter registration | no |
+| `utils.py` | `get_connection_info_for_database`, `is_maintenance_db`, `categorize_query`, `seed_planner_stats`, adapter registration | no |
 
 “Pure” = importable and testable without a database or the framework
 (`yes*`: pure logic, but pulls `odoo.tools` on import).
@@ -51,7 +51,7 @@ carry the detailed invariants — this file is the map.
 - **One budget per PostgreSQL server**: `db_maxconn` is the cap for a *server*,
   because that is what an operator sizes `max_connections` against, so
   `__init__.py` keys its `ConnectionBudget`s on the resolved `(host, port)` of
-  `get_connection_info_for`. This has been wrong in both directions. A budget per
+  `get_connection_info_for_database`. This has been wrong in both directions. A budget per
   *pool* let one worker hold `2 * db_maxconn` — 128 against a stock 100. One
   budget for *both* pools fixed that but bounded the sum of two independent
   servers once `db_replica_host` was set: the replica added no concurrency, and
@@ -88,7 +88,7 @@ carry the detailed invariants — this file is the map.
   `os.environ` decodes on every access, and one `os.environ.get("PGHOST")`
   measures 357 ns on a function that runs per `db_connect`.) The defaulting is
   the URI path's alone — the ordinary path has nothing to default, because
-  `get_connection_info_for` omits what has no value and that is the same "unset"
+  `get_connection_info_for_database` omits what has no value and that is the same "unset"
   the configured endpoint resolves to. An explicit socket directory is still
   not resolved against the compiled-in default; those two file apart, which
   errs toward an extra budget for one server rather than one budget spanning
@@ -100,7 +100,7 @@ carry the detailed invariants — this file is the map.
   pool factories, two budget lookups, and six fan-out functions each repeating
   the same three-way walk. The configured endpoint is not a special case, it is
   a key. That also closed a race the fan-out carried — `_get_uri_pool` inserted
-  under `_pool_lock` while `is_pooled`, `pool_health`, `close_db`, `close_all`,
+  under `_pool_lock` while `is_pooled`, `get_pool_health`, `close_db`, `close_all`,
   `drain_db` and `drain_all` iterated the dict bare, which one writer and one
   reader thread turned into `RuntimeError: dictionary changed size during
   iteration` in 1.5 s. `get_all_pools()` snapshots under the lock, so the shape is
@@ -119,7 +119,7 @@ carry the detailed invariants — this file is the map.
   a read-only one), but `db_borrow_timeout` bounds that to a `PoolError`, and a
   saturated budget now names its holders (see the checkout tracker above).
 - **Budget accounting**: a permit is taken in
-  `ConnectionPool.borrow`/`_borrow_direct` and travels with the connection via
+  `ConnectionPool.borrow`/`_borrow_directly` and travels with the connection via
   the `_odoo_pool` marker; `give_back` claims the marker with an atomic
   `dict.pop` and releases exactly once. No helper touches the budget.
   **A borrow ends exactly two ways, and each has one release site**:
@@ -188,16 +188,16 @@ carry the detailed invariants — this file is the map.
 - **The trades this layer makes are countable**: a shared budget that can
   starve itself, and a probe that trades a connect for a fast permanent
   failure, are only defensible if an operator can watch them. **Both borrow
-  paths therefore end in one guard, and that guard counts.** `_borrow_direct`
+  paths therefore end in one guard, and that guard counts.** `_borrow_directly`
   had four exits and only the last of them called `record_borrow_failed`, so a
   maintenance endpoint refusing every connect read `borrows_failed: 0` while
   the pooled path counted the same failure as 1 — and `db_connect("postgres")`
   is the cron's heartbeat, so an unreachable maintenance DB is exactly what
-  `db.pool_health()` is read to find. The permit was always released
+  `db.get_pool_health()` is read to find. The permit was always released
   correctly; what was missing was the ability to see that it had been. `PoolStats`
   records the borrow-wait histogram, pool churn and probe outcomes; the budget
   counts its own exhaustions (it is shared, so the count belongs to it, not to
-  whichever pool asked last); `ConnectionPool.health()` and `db.pool_health()`
+  whichever pool asked last); `ConnectionPool.get_health()` and `db.get_pool_health()`
   render both alongside the live per-DSN psycopg_pool view. Cost on the borrow
   path is 230 ns, against a ~140 µs cursor cycle.
 - **The pre-flight probe answers a question once**: it converts a permanent
@@ -210,7 +210,7 @@ carry the detailed invariants — this file is the map.
   `close_database` (Odoo's drop/rename path), stale-credential eviction, and any
   connect failure.
 - **Reaping is edge-triggered on a return, so every return triggers it.**
-  `_maybe_reap_idle_pools` has no timer, deliberately: a timer is a thread and
+  `_reap_idle_pools_if_due` has no timer, deliberately: a timer is a thread and
   this class already carries `db_pool_workers + 1` of them per database. That
   makes the set of returns that reach it the whole of the reaper's schedule, and
   the maintenance branch of `give_back` used to `return` before it. The direct
@@ -231,7 +231,7 @@ carry the detailed invariants — this file is the map.
   between returns *of the same database*. The default is 1, which is 2.0 threads
   per database.
 - **A cursor close only discards a DAMAGED connection**: `Cursor._close` asks
-  `transaction_status` (`_connection_is_clean`) rather than treating any
+  `transaction_status` (`_is_connection_clean`) rather than treating any
   exception from `_rollback` as connection damage — that method also runs
   `transaction.clear()` and the rollback hooks, so an application bug there used
   to cost a warm pooled connection on top of the error.
@@ -244,7 +244,7 @@ carry the detailed invariants — this file is the map.
   as "wait forever", so handing it a shrinking budget would make the tail of a
   deadline unbounded.
 - **Maintenance databases are never pooled** (`postgres`, templates,
-  `db_template`): `borrow` routes them to `_borrow_direct`, `give_back`
+  `db_template`): `borrow` routes them to `_borrow_directly`, `give_back`
   closes them outright. A psycopg_pool cannot keep a database
   connection-free — it replaces every discarded connection to hold its count —
   and one idle connection to a template blocks
@@ -270,9 +270,9 @@ carry the detailed invariants — this file is the map.
   when the DDL commits stays poisoned for the rest of its transaction (which is
   already racing a schema change), but cannot pool it: `drain()` stamps
   `_drained_at`, so it is discarded on return.
-  Two different questions, two functions: `_ddl_keyword` reports the **leading**
+  Two different questions, two functions: `_get_ddl_keyword` reports the **leading**
   keyword (all param inlining needs — psycopg cannot bind server-side params
-  into a multi-statement string at all), while `_changes_schema` scans **every**
+  into a multi-statement string at all), while `_is_schema_change` scans **every**
   statement, because `BEGIN; ALTER …; COMMIT` would otherwise slip past
   invalidation and make the next `SELECT *` raise `FeatureNotSupported`.
 - **Binary COPY reads the catalog under COPY's own lock**: binary COPY encodes
@@ -285,14 +285,14 @@ carry the detailed invariants — this file is the map.
   `close_db`/`drain_*` carry no schema-cache invalidation: no process-global
   schema state exists to go stale.
 - **The schema cache holds two different lifetimes**: the memoized catalog
-  reads expire whenever DDL lands (`clear_catalog_facts`, called from
-  `discard_cached_plans`), but `locked_tables` — the ledger of which tables
+  reads expire whenever DDL lands (`invalidate_catalog_facts`, called from
+  `invalidate_cached_plans`), but `locked_tables` — the ledger of which tables
   this transaction has already locked — expires only where the locks themselves
   do. DDL does not end a transaction, so the `ROW EXCLUSIVE` lock survives it
   and re-issuing `LOCK TABLE` is a wasted round-trip; a `ROLLBACK TO SAVEPOINT`
   *does* release locks taken inside the savepoint (verified against PG 18),
   which is why `_on_rollback_to_savepoint` still calls the full `clear()`.
-- **One resolution of the caller's table name**: `bulk._table_identifier`
+- **One resolution of the caller's table name**: `bulk._get_table_identifier`
   splits on `.` and builds a `psycopg.sql.Identifier`, and every consumer uses
   it — `LOCK TABLE`, `COPY`, and (via `Identifier.as_string()`) the
   `%s::regclass` catalog reads and `pg_get_serial_sequence`. They used to
@@ -304,7 +304,7 @@ carry the detailed invariants — this file is the map.
   schema-qualified table.
 - **`binary=True` means "the faster encoding", not "binary"**: `copy_from`
   degrades to text on two independent grounds, both decided in
-  `_binary_pays_off` where the column OIDs already are. psycopg has no binary
+  `_is_binary_copy_worthwhile` where the column OIDs already are. psycopg has no binary
   dumper for extension/composite/range types (`_can_dump_binary`); and it has
   no float→numeric binary dumper, so each numeric cell costs a `Decimal`
   conversion. Measured, 20k rows × 20 columns: binary beats text at 0–5 numeric
@@ -365,8 +365,8 @@ carry the detailed invariants — this file is the map.
   "what DDL keyword leads it" and "is it a `ROLLBACK TO`", and each answer used
   to do its own `lstrip`, its own two-character prefix test and its own
   frozenset lookup. Microbenchmarked over 200k iterations on a typical ORM
-  SELECT — a live round trip (~14 µs) cannot see this — `_ddl_keyword` cost
-  120 ns and `_is_rollback_to_savepoint` 113 ns against `_changes_schema`'s
+  SELECT — a live round trip (~14 µs) cannot see this — `_get_ddl_keyword` cost
+  120 ns and `_is_rollback_to_savepoint` 113 ns against `_is_schema_change`'s
   47 ns, so the duplicated prefix dance was most of the classification cost.
   `classify_statement` answers both in one pass; the DDL keywords and
   `ROLLBACK` share no two-character prefix (`RE`VOKE against `RO`LLBACK), so
@@ -379,7 +379,7 @@ carry the detailed invariants — this file is the map.
   test; only its `execute()` override did so, and the bulk APIs it does not
   override reach the real cursor via `__getattr__`, so their writes landed
   outside the savepoint and survived the rollback. The scan matches statements
-  on **both** `self._obj` and `self._cnx`: `discard_cached_plans` used to reach
+  on **both** `self._obj` and `self._cnx`: `invalidate_cached_plans` used to reach
   the connection directly for its `DEALLOCATE ALL` fallback, a wire call the
   `_obj`-only scan could not see. That branch goes through `self.execute` now,
   so it is counted and marked like any other statement. `TestCursor` now forwards
@@ -431,7 +431,7 @@ carry the detailed invariants — this file is the map.
   `transaction` attribute at import; `cursor.py` guards that a
   transaction-bearing cursor never runs a non-restoring savepoint.
 - **Odoo's session GUCs set defaults, they do not override the operator**:
-  `_session_gucs` renders `db_session_gucs` (`jit=off,work_mem=16MB`) into `-c`
+  `_prepare_session_gucs` renders `db_session_gucs` (`jit=off,work_mem=16MB`) into `-c`
   switches, skipping any GUC already named in the operator's `options` kwarg,
   URI `?options=`, or `PGOPTIONS`. libpq lets the last `-c` win, so appending
   unconditionally silently overrode them — `PGOPTIONS='-c work_mem=64MB -c
@@ -440,9 +440,9 @@ carry the detailed invariants — this file is the map.
   `db_conn_max_idle` and is what keeps the server from reaping a connection the
   pool still considers warm.
   **Maintenance connections are exempt from `db_session_gucs`, deliberately**,
-  and both borrow paths now render options through one `_connection_options`
-  where `_borrow_direct` passes `session_gucs=False`. They used to build the
-  string twice and the direct copy simply never gained `_session_gucs`, which
+  and both borrow paths now render options through one `_prepare_connection_options`
+  where `_borrow_directly` passes `session_gucs=False`. They used to build the
+  string twice and the direct copy simply never gained `_prepare_session_gucs`, which
   reads like drift — but applying them there "for consistency" is a regression,
   measured: under `db_session_gucs = statement_timeout=50ms` a `CREATE DATABASE
   … TEMPLATE` dies with `QueryCanceled`, and under
@@ -457,7 +457,7 @@ carry the detailed invariants — this file is the map.
   committed schema change, a sibling connection re-executing an auto-prepared
   statement gets `FeatureNotSupported: cached plan must not change result type`.
   It **cannot** be retried where it happens — measured, the transaction is left
-  `INERROR`, so both a bare retry and a `discard_cached_plans()` + retry raise
+  `INERROR`, so both a bare retry and a `invalidate_cached_plans()` + retry raise
   `InFailedSqlTransaction`, and recovering inside `Cursor.execute` would need a
   savepoint per statement: two extra round trips on every query in core. The
   replay is safe (the plan check runs *before* execution, so a failing prepared
@@ -508,7 +508,7 @@ carry the detailed invariants — this file is the map.
   raised out of a pipelined `res.partner` write logged **nothing at all**
   before this and logs `constraint violation (surfaced to the user):
   ForeignKeyViolation on res_partner_parent_id_fkey` after. `pipeline` now routes the deferred
-  error through the seam, gated on `reached_the_server` so that whatever the
+  error through the seam, gated on `has_reached_server` so that whatever the
   caller's own block raised — a plain Python error carries no SQLSTATE — is
   none of the seam's business. Only the outermost block hooks it; a nested one
   syncs nothing and can observe nothing.
@@ -546,12 +546,12 @@ carry the detailed invariants — this file is the map.
   answers), inside one the next statement raises `InFailedSqlTransaction`. It
   is silent — the caller's `except UniqueViolation` runs exactly as written and
   the transaction it believes it repaired is dead — and it takes out
-  `insert_or_existing`, whose whole contract is that branch, so
+  `get_or_create_row`, whose whole contract is that branch, so
   `BaseCursor.savepoint` refuses, the way `copy_from` refuses pipeline mode for
   its own reasons.
 
   **The refusal is not free and the cost was measured, not assumed**:
-  `insert_or_existing` inside a pipeline *works today on the happy path* —
+  `get_or_create_row` inside a pipeline *works today on the happy path* —
   `ir.config_parameter.set_param` inside a `cr.pipeline()` returns normally
   when no conflict occurs, because the savepoint is opened and released
   without ever rolling back — and this turns that into a `RuntimeError`. The
@@ -575,7 +575,7 @@ carry the detailed invariants — this file is the map.
   were still held afterwards (`budget_in_use=1, checked_out=1`) with nothing
   left to release them, and `maxconn` of those leave every later borrow timing
   out on "connection budget reached". It catches `BaseException` now, and asks
-  `_connection_is_clean` before pooling the connection for the same reason
+  `_is_connection_clean` before pooling the connection for the same reason
   `_close` does: a constructor that raised after a statement leaves a failed
   transaction behind.
 - **A statement that failed still cost a round trip**: `_record_metrics` ran
@@ -584,7 +584,7 @@ carry the detailed invariants — this file is the map.
   `assertQueryCount`, which reads the first. Any test wrapping a constraint
   violation in `assertRaises` under-reported its cost. Client-side rejections
   must stay uncounted, because psycopg raises before anything reaches the wire,
-  and `reached_the_server` is the discriminator that separates them: the server
+  and `has_reached_server` is the discriminator that separates them: the server
   supplies a SQLSTATE, psycopg's own errors do not. Blast radius was measured
   before landing it — `/base` gained no query-count failure, and the mail suite,
   which carries this fork's query-count debt, still reads 17 failed.
@@ -619,7 +619,7 @@ carry the detailed invariants — this file is the map.
   `snapshot` take the lock; `allows()` stays lock-free because it reads one
   flag and runs per read-only cursor.
 
-  The leak-report throttle (`CheckoutTracker.due_for_report`) is guarded on
+  The leak-report throttle (`CheckoutTracker.acquire_report_interval`) is guarded on
   policy rather than on evidence, and says so: 16 threads released from a
   barrier onto the unguarded body still produced exactly one winner, because
   its compare and store are adjacent bytecodes. `track`/`release` stay
@@ -649,9 +649,9 @@ carry the detailed invariants — this file is the map.
   demonstrated, `allow()` hung past a 2 s join. The lock-held path reads
   `_open` directly; the property exists for callers outside the lock. The
   cooldown expression that `cooldown_remaining` and `snapshot` had a copy of
-  each is now `_cooldown_remaining_locked`, which does not take the lock
+  each is now `_get_cooldown_remaining_locked`, which does not take the lock
   because both of its callers already hold it.
-- **A bug is not an unavailable database.** `_getconn_with_retry` ended in
+- **A bug is not an unavailable database.** `_get_connection_with_retry` ended in
   `except Exception: raise PoolError(str(e)) from e`, and `PoolError` is the
   one exception `ir_cron`, `ir_job`, `orm/runtime/registry.py` and
   `bus/websocket.py` all catch and treat as "carry on, the database is down" —
@@ -668,7 +668,7 @@ carry the detailed invariants — this file is the map.
   injected at `getconn`: `PoolError`, caught by `except PoolError` → the
   `AttributeError` itself, uncaught, with the permit still released either way.
 
-- **The saturation error reads one consistent pair.** `_budget_exhausted`
+- **The saturation error reads one consistent pair.** `_prepare_budget_exhausted_error`
   printed `len(self._pools)` and `self._direct_out` in one sentence, read
   half a microsecond apart with no lock between them, so the two halves of the
   message an operator gets when the pool is exhausted could add up to more
@@ -688,7 +688,7 @@ carry the detailed invariants — this file is the map.
   `in_use` and `exhausted` are exact and are read under the lock that hands the
   permits out. The semaphore version derived them from
   `threading.BoundedSemaphore._value`, a private CPython attribute read without
-  the semaphore's own lock, on the path that renders `db.pool_health()`. A
+  the semaphore's own lock, on the path that renders `db.get_pool_health()`. A
   `BoundedSemaphore` is itself a `Condition` plus a counter, so this costs the
   lock acquisition it always cost.
 - **Connect-error classification is locale-dependent, and that is bounded not
@@ -733,7 +733,7 @@ carry the detailed invariants — this file is the map.
   never reaches a pool key, `conninfo_to_dict` has one caller, `_libpq_connect_timeout`
   never returns a value libpq would read as "wait forever", the budget is keyed
   on the resolved endpoint rather than the presence of `db_replica_host`, the
-  two schema-cache clears keep their distinct call sites, `_changes_schema`
+  two schema-cache clears keep their distinct call sites, `_is_schema_change`
   cannot miss a hidden statement, the `SE` branch that claims `SET` runs no
   regex and `SET` stays out of `_DDL_KEYWORDS`, the lag gauge's pair is
   written and rendered under one lock while `allows()` stays lock-free, the
@@ -747,7 +747,7 @@ carry the detailed invariants — this file is the map.
   `ConnectionPool`, `ReachabilityProbe`, `CircuitBreaker` and `ReplicaLagGate`,
   with a control asserting the check can see both shapes -- the call and the
   bare property read that the first version of it missed), both entry points read a statement's text
-  through the one `_statement_text` (`executemany` spelled it `str(query)`,
+  through the one `_get_statement_text` (`executemany` spelled it `str(query)`,
   which turns a `bytes` DDL statement into the repr `b'CREATE …'` and hides it
   from `classify_statement`), the pipeline exit routes a deferred error through
   the seam and the seam short-circuits on its own mark, `savepoint` refuses
@@ -755,7 +755,7 @@ carry the detailed invariants — this file is the map.
   cursor's construction guard catches `BaseException` and returns the
   connection on the same terms as `_close`, a schema change arms a flag rather
   than draining inline and only `commit` consumes it, both borrow paths render their
-  libpq options through the one `_connection_options` with only the maintenance
+  libpq options through the one `_prepare_connection_options` with only the maintenance
   path opting out, nothing follows the guard that releases a permit, the cursor
   names a stale cached plan rather than re-listing the family, the failure seam
   takes that mark and every entry point routes through both halves, a URI that

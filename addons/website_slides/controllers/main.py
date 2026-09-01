@@ -89,7 +89,7 @@ class WebsiteSlides(WebsiteProfile):
             if slide_id not in viewed_slides:
                 if slide._increment_fields_skiplock("public_views", "total_views"):
                     viewed_slides[slide_id] = 1
-                    request.session.touch()
+                    request.session.mark_dirty()
         else:
             slide.action_set_viewed(quiz_attempts_inc=quiz_attempts_inc)
         return True

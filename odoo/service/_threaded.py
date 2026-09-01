@@ -30,23 +30,23 @@ from ._cron import (
     JOB_QUEUE_CHANNEL,
     CronSchedule,
     ReconnectBackoff,
+    close_cron_cursor,
     drain_cron_notifies,
+    drain_swept_database,
     open_cron_listener,
-    release_cron_cursor,
-    release_swept_database,
 )
 from ._env import _IS_POSIX, _IS_WINDOWS
 from ._limits import (
-    cron_real_time_budget,
-    job_max_age,
-    job_real_time_budget,
+    get_cron_real_time_budget,
+    get_job_max_age,
+    get_job_real_time_budget,
 )
 from .lifecycle import preload_registries, restart
 from .wsgi import RequestHandler, ThreadedWSGIServerReloadable
 
 _logger = logging.getLogger("odoo.service.server")
 
-_RECYCLE_MAX_AGE = "max_age"
+_RECYCLE_MAX_AGE = "get_max_age"
 _RECYCLE_CONN_LOST = "connection_lost"
 
 LIMIT_MONITOR_INTERVAL_S = 5.0
@@ -69,7 +69,7 @@ server under every connected client.
 """
 
 _REPORTED_THREAD_TYPES = (*_TIME_LIMITED_THREAD_TYPES, "websocket")
-"""Thread kinds `metrics()` counts, which is a different question.
+"""Thread kinds `get_metrics()` counts, which is a different question.
 
 An operator running --workers 0 wants to see the websocket threads precisely
 because they are long-lived: they hold a thread and a connection each, and
@@ -92,7 +92,7 @@ class ThreadedServer(CommonServer):
         self.limit_reached_time: float | None = None
         self._stop_after_init = False
 
-    def metrics(self) -> dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         by_type: dict[str, int] = {}
         for thread in threading.enumerate():
             kind = getattr(thread, "type", None)
@@ -122,7 +122,7 @@ class ThreadedServer(CommonServer):
             raise KeyboardInterrupt
 
     def check_limits(self) -> None:
-        memory_over_limit = self.check_memory_limit() is not None
+        memory_over_limit = self.get_memory_over_soft_limit() is not None
 
         now = time.monotonic()
         for thread in threading.enumerate():
@@ -132,9 +132,9 @@ class ThreadedServer(CommonServer):
                 if start_time:
                     thread_execution_time = now - start_time
                     if thread_type == "job":
-                        thread_limit_time_real = job_real_time_budget()
+                        thread_limit_time_real = get_job_real_time_budget()
                     elif thread_type == "cron":
-                        thread_limit_time_real = cron_real_time_budget()
+                        thread_limit_time_real = get_cron_real_time_budget()
                     else:
                         thread_limit_time_real = config["limit_time_real"]
                     if (
@@ -195,7 +195,7 @@ class ThreadedServer(CommonServer):
             finally:
                 thread.start_time = None
                 if release:
-                    release_swept_database(db_name)
+                    drain_swept_database(db_name)
 
     def _poll_cron_channel(
         self,
@@ -223,7 +223,7 @@ class ThreadedServer(CommonServer):
                         return _RECYCLE_CONN_LOST
                     raise
 
-                db_names = schedule.due(notified)
+                db_names = schedule.get_due_databases(notified)
                 if not db_names:
                     continue
 
@@ -239,7 +239,9 @@ class ThreadedServer(CommonServer):
         process_jobs: Any,
         label: str,
     ) -> None:
-        max_age = job_max_age() if label == "job" else config["limit_time_worker_cron"]
+        max_age = (
+            get_job_max_age() if label == "job" else config["limit_time_worker_cron"]
+        )
 
         cron_logger = self.logger.getChild(f"{label}{number}")
         cron_logger.info("Alive")
@@ -263,15 +265,15 @@ class ThreadedServer(CommonServer):
             except SystemExit:
                 raise
             except (psycopg.OperationalError, PoolError) as exc:
-                backoff.wait_after("Postgres unavailable", exc)
+                backoff.wait_after_failure("Postgres unavailable", exc)
             except Exception as exc:
                 cron_logger.critical("Uncaught error in cron main loop", exc_info=True)
-                backoff.wait_after("Cron main loop", exc)
+                backoff.wait_after_failure("Cron main loop", exc)
             finally:
                 if cr is not None:
-                    release_cron_cursor(cr)
+                    close_cron_cursor(cr)
 
-    def cron_spawn(self) -> None:
+    def spawn_cron_threads(self) -> None:
         for i in range(config["max_cron_threads"]):
             t = threading.Thread(
                 target=self.cron_thread,
@@ -282,7 +284,7 @@ class ThreadedServer(CommonServer):
             as_worker_thread(t).type = "cron"
             t.start()
 
-    def job_spawn(self) -> None:
+    def spawn_job_threads(self) -> None:
         for i in range(config["job_workers"]):
             t = threading.Thread(
                 target=self.job_thread,
@@ -413,8 +415,8 @@ class ThreadedServer(CommonServer):
                             log("%s when loading database %r", report, db_name)
                 return rc
 
-            self.cron_spawn()
-            self.job_spawn()
+            self.spawn_cron_threads()
+            self.spawn_job_threads()
 
             while self.quit_signals_received == 0:
                 self.check_limits()
@@ -466,7 +468,7 @@ class EventServer(CommonServer):
         self.httpd: werkzeug.serving.BaseWSGIServer | None = None
         self.ppid = os.getppid()
 
-    def memory_soft_limit(self) -> int:
+    def get_memory_soft_limit(self) -> int:
         return config["limit_memory_soft_gevent"] or config["limit_memory_soft"]
 
     def check_limits(self) -> None:
@@ -475,12 +477,12 @@ class EventServer(CommonServer):
         if self.ppid != new_ppid:
             self.logger.warning("Parent changed: %s -> %s", self.ppid, new_ppid)
             restart = True
-        if self.check_memory_limit() is not None:
+        if self.get_memory_over_soft_limit() is not None:
             restart = True
         if restart:
             os.kill(self.pid, signal.SIGTERM)
 
-    def watchdog(self, beat: int = 4) -> None:
+    def run_watchdog(self, beat: int = 4) -> None:
         self.ppid = os.getppid()
         while True:
             try:
@@ -504,7 +506,7 @@ class EventServer(CommonServer):
             signal.signal(signal.SIGUSR1, log_ormcache_stats)
             signal.signal(signal.SIGUSR2, log_ormcache_stats)
             threading.Thread(
-                target=self.watchdog,
+                target=self.run_watchdog,
                 daemon=True,
                 name="odoo.service.evented.watchdog",
             ).start()

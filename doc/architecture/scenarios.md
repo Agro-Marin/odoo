@@ -39,8 +39,8 @@ out split two ways, and the second group is not bookkeeping:
 
 | Left out | Why |
 |---|---|
-| `report_modules_that_never_loaded`, `report_pending_module_states`, `log_assertion_report`, `flag_partially_updated_database`, `collect_models_with_manual_fields` | reporting and bookkeeping — they cross no view |
-| `register_model_hooks`, `check_null_constraints`, `check_custom_views`, `run_post_update_model_checks` | real work, selected out of *this* thread rather than out of the loader. Three of the four appear in [`runtime.md`](runtime.md#registry-build)'s sketch, which selects fourteen for a different purpose |
+| `report_modules_that_never_loaded`, `report_pending_module_states`, `log_assertion_report`, `mark_database_partially_updated`, `collect_models_with_manual_fields` | reporting and bookkeeping — they cross no view |
+| `register_model_hooks`, `check_null_constraints`, `warn_invalid_custom_views`, `run_post_update_model_checks` | real work, selected out of *this* thread rather than out of the loader. Three of the four appear in [`runtime.md`](runtime.md#registry-build)'s sketch, which selects fourteen for a different purpose |
 
 Three things this ordering encodes that no other view states:
 

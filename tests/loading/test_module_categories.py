@@ -40,11 +40,11 @@ def _xmlids(cr):
 
 class TestDerivedXmlIds:
     def test_a_single_category(self, cr):
-        modules_db.create_categories(cr, ["Accounting"])
+        modules_db.get_or_create_category_id(cr, ["Accounting"])
         assert _xmlids(cr) == ["module_category_accounting"]
 
     def test_a_nested_category_accumulates_the_whole_path(self, cr):
-        modules_db.create_categories(cr, ["Accounting", "Accounting"])
+        modules_db.get_or_create_category_id(cr, ["Accounting", "Accounting"])
         assert _xmlids(cr) == [
             "module_category_accounting",
             "module_category_accounting_accounting",
@@ -55,35 +55,35 @@ class TestDerivedXmlIds:
         )
 
     def test_spaces_become_underscores(self, cr):
-        modules_db.create_categories(cr, ["Human Resources"])
+        modules_db.get_or_create_category_id(cr, ["Human Resources"])
         assert _xmlids(cr) == ["module_category_human_resources"]
 
     def test_an_ampersand_becomes_the_word_and(self, cr):
-        modules_db.create_categories(cr, ["Sales & CRM"])
+        modules_db.get_or_create_category_id(cr, ["Sales & CRM"])
         assert _xmlids(cr) == ["module_category_sales_and_crm"], (
             "an `&` left in place makes an xmlid the XML parser cannot "
             "reference, and every `ref=` to that category silently misses"
         )
 
     def test_the_replacements_apply_at_every_level(self, cr):
-        modules_db.create_categories(cr, ["Sales & CRM", "Lead Generation"])
+        modules_db.get_or_create_category_id(cr, ["Sales & CRM", "Lead Generation"])
         assert _xmlids(cr) == [
             "module_category_sales_and_crm",
             "module_category_sales_and_crm_lead_generation",
         ]
 
     def test_case_is_folded(self, cr):
-        modules_db.create_categories(cr, ["ACCOUNTING"])
+        modules_db.get_or_create_category_id(cr, ["ACCOUNTING"])
         assert _xmlids(cr) == ["module_category_accounting"]
 
 
 class TestParentChaining:
     def test_the_leaf_id_is_returned(self, cr):
-        leaf = modules_db.create_categories(cr, ["A", "B"])
+        leaf = modules_db.get_or_create_category_id(cr, ["A", "B"])
         assert leaf == cr.existing["module_category_a_b"]
 
     def test_each_level_is_the_next_ones_parent(self, cr):
-        modules_db.create_categories(cr, ["A", "B", "C"])
+        modules_db.get_or_create_category_id(cr, ["A", "B", "C"])
         created = [row for row in cr.inserted if row[0] == "category"]
         parents = [row[2] for row in created]
         ids = [row[3] for row in created]
@@ -93,30 +93,30 @@ class TestParentChaining:
         )
 
     def test_an_empty_path_creates_nothing(self, cr):
-        assert modules_db.create_categories(cr, []) is None
+        assert modules_db.get_or_create_category_id(cr, []) is None
         assert cr.inserted == []
 
 
 class TestReuseAndCache:
     def test_an_existing_category_is_not_created_twice(self, cr):
-        modules_db.create_categories(cr, ["A", "B"])
+        modules_db.get_or_create_category_id(cr, ["A", "B"])
         cr.inserted.clear()
-        leaf = modules_db.create_categories(cr, ["A", "B"])
+        leaf = modules_db.get_or_create_category_id(cr, ["A", "B"])
         assert cr.inserted == [], "a second module in the same category reuses it"
         assert leaf == cr.existing["module_category_a_b"]
 
     def test_a_sibling_reuses_the_shared_parent(self, cr):
-        modules_db.create_categories(cr, ["A", "B"])
+        modules_db.get_or_create_category_id(cr, ["A", "B"])
         cr.inserted.clear()
-        modules_db.create_categories(cr, ["A", "C"])
+        modules_db.get_or_create_category_id(cr, ["A", "C"])
         assert _xmlids(cr) == ["module_category_a_c"], "only the new leaf"
 
     def test_the_cache_short_circuits_the_lookup_entirely(self, cr):
         cache: dict[str, int] = {}
-        modules_db.create_categories(cr, ["A", "B"], cache)
+        modules_db.get_or_create_category_id(cr, ["A", "B"], cache)
         assert set(cache) == {"module_category_a", "module_category_a_b"}
         before = cr.execute.call_count
-        leaf = modules_db.create_categories(cr, ["A", "B"], cache)
+        leaf = modules_db.get_or_create_category_id(cr, ["A", "B"], cache)
         assert cr.execute.call_count == before, (
             "initialize() calls this once per module against the same handful "
             "of categories; without the cache that is two queries per level "
@@ -126,12 +126,12 @@ class TestReuseAndCache:
 
     def test_the_cache_still_returns_the_right_leaf_for_a_new_branch(self, cr):
         cache: dict[str, int] = {}
-        modules_db.create_categories(cr, ["A", "B"], cache)
-        leaf = modules_db.create_categories(cr, ["A", "C"], cache)
+        modules_db.get_or_create_category_id(cr, ["A", "B"], cache)
+        leaf = modules_db.get_or_create_category_id(cr, ["A", "C"], cache)
         assert leaf == cache["module_category_a_c"]
         assert leaf != cache["module_category_a_b"]
 
     def test_without_a_cache_it_still_works_through_the_database(self, cr):
-        modules_db.create_categories(cr, ["A"], None)
-        leaf = modules_db.create_categories(cr, ["A"], None)
+        modules_db.get_or_create_category_id(cr, ["A"], None)
+        leaf = modules_db.get_or_create_category_id(cr, ["A"], None)
         assert leaf == cr.existing["module_category_a"]

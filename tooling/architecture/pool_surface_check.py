@@ -139,7 +139,7 @@ class _PoolReachCollector(ast.NodeVisitor):
     """
 
     #: names bound to the pool in the function body being walked
-    _POOL_RETURNING = frozenset({"get_registry_of"})
+    _POOL_RETURNING = frozenset({"get_registry_of_model"})
 
     def __init__(self) -> None:
         self.hits: list[tuple[str, int, bool]] = []

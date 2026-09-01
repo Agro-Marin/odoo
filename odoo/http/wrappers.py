@@ -1,6 +1,7 @@
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, NoReturn, Self
 
 import werkzeug.datastructures
 import werkzeug.exceptions
@@ -17,11 +18,11 @@ from .core import request
 _logger = logging.getLogger(__name__)
 
 
-def cookie_name(set_cookie_value: str) -> str:
+def get_cookie_name(set_cookie_value: str) -> str:
     return set_cookie_value.partition("=")[0].strip()
 
 
-def _apply_cookie_defaults(
+def _prepare_set_cookie_args(
     expires: datetime | int | None,
     max_age: int | None,
     cookie_type: str,
@@ -46,7 +47,7 @@ def _apply_cookie_defaults(
     return expires, max_age, secure, samesite
 
 
-def prepare_request_wrap_methods(attr: str) -> tuple[Any, Any]:
+def _prepare_request_property_accessors(attr: str) -> tuple[Any, Any]:
 
     def getter(self: HTTPRequest) -> Any:
         return getattr(self._HTTPRequest__wrapped, attr)
@@ -172,7 +173,7 @@ HTTPREQUEST_ATTRIBUTES = [
     "values",
 ]
 for attr in HTTPREQUEST_ATTRIBUTES:
-    setattr(HTTPRequest, attr, property(*prepare_request_wrap_methods(attr)))
+    setattr(HTTPRequest, attr, property(*_prepare_request_property_accessors(attr)))
 
 
 class _Response(werkzeug.wrappers.Response):
@@ -183,10 +184,10 @@ class _Response(werkzeug.wrappers.Response):
         qcontext = kw.pop("qcontext", None)
         uid = kw.pop("uid", None)
         super().__init__(*args, **kw)
-        self.set_default(template, qcontext, uid)
+        self.update_qweb_state(template, qcontext, uid)
 
     @classmethod
-    def load(cls, result: Any, fname: str = "<function>") -> Response:
+    def from_endpoint_result(cls, result: Any, fname: str = "<function>") -> Response:
         if isinstance(result, Response):
             return result
 
@@ -196,7 +197,7 @@ class _Response(werkzeug.wrappers.Response):
 
         if isinstance(result, werkzeug.wrappers.Response):
             response = cls.force_type(result)
-            response.set_default()
+            response.update_qweb_state()
             return Response(response)
 
         if isinstance(result, (bytes, str, type(None))):
@@ -208,7 +209,7 @@ class _Response(werkzeug.wrappers.Response):
             "request.prepare_json_response(...) or use a jsonrpc/json2 route."
         )
 
-    def set_default(
+    def update_qweb_state(
         self,
         template: str | None = None,
         qcontext: dict[str, Any] | None = None,
@@ -253,7 +254,7 @@ class _Response(werkzeug.wrappers.Response):
         partitioned: bool = False,
         cookie_type: str = "required",
     ) -> None:
-        expires, max_age, secure, samesite = _apply_cookie_defaults(
+        expires, max_age, secure, samesite = _prepare_set_cookie_args(
             expires,
             max_age,
             cookie_type,
@@ -274,7 +275,7 @@ class _Response(werkzeug.wrappers.Response):
         )
 
 
-def no_content(status: int = 204, headers: Any = None) -> Response:
+def prepare_no_content_response(status: int = 204, headers: Any = None) -> Response:
     response = Response(status=status, headers=headers)
     del response.headers["Content-Type"]
     return response
@@ -386,8 +387,8 @@ class Response(Proxy):
     status_code = ProxyAttr(int)
     stream = ProxyAttr(ResponseStream)
 
-    load = ProxyFunc()
-    set_default = ProxyFunc(None)
+    from_endpoint_result = ProxyFunc()
+    update_qweb_state = ProxyFunc(None)
     qcontext = ProxyAttr()
     template = ProxyAttr(str)
     is_qweb = ProxyAttr(bool)
@@ -404,7 +405,7 @@ class Response(Proxy):
                 response = arg
             elif isinstance(arg, werkzeug.wrappers.Response):
                 response = _Response.force_type(arg)
-                response.set_default()
+                response.update_qweb_state()
         if response is not None and kwargs:
             raise TypeError(
                 f"Response(existing_response) ignores keyword arguments "
@@ -423,6 +424,8 @@ if not hasattr(werkzeug.exceptions, "_odoo_original_get_response"):
 if not hasattr(werkzeug.exceptions, "_odoo_original_abort"):
     werkzeug.exceptions._odoo_original_abort = werkzeug.exceptions.abort
 
+_original_abort: Callable[..., NoReturn] = werkzeug.exceptions._odoo_original_abort
+
 
 def get_response(
     self: HTTPException, environ: dict[str, Any] | None = None, scope: Any = None
@@ -434,9 +437,9 @@ def get_response(
     )
 
 
-def abort(status: int | Response, *args: Any, **kwargs: Any) -> None:
+def abort(status: int | Response, *args: Any, **kwargs: Any) -> NoReturn:
     target: Any = status._wrapped__ if isinstance(status, Response) else status
-    werkzeug.exceptions._odoo_original_abort(target, *args, **kwargs)
+    _original_abort(target, *args, **kwargs)
 
 
 HTTPException.get_response = get_response
@@ -449,9 +452,9 @@ class FutureResponse:
     def __init__(self) -> None:
         self.headers = werkzeug.datastructures.Headers()
 
-    def _drop_staged_cookie(self, key: str) -> None:
+    def _remove_staged_cookie(self, key: str) -> None:
         staged = self.headers.getlist("Set-Cookie")
-        kept = [cookie for cookie in staged if cookie_name(cookie) != key]
+        kept = [cookie for cookie in staged if get_cookie_name(cookie) != key]
         if len(kept) != len(staged):
             self.headers.setlist("Set-Cookie", kept)
 
@@ -469,14 +472,14 @@ class FutureResponse:
         partitioned: bool = False,
         cookie_type: str = "required",
     ) -> None:
-        expires, max_age, secure, samesite = _apply_cookie_defaults(
+        expires, max_age, secure, samesite = _prepare_set_cookie_args(
             expires,
             max_age,
             cookie_type,
             secure,
             samesite,
         )
-        self._drop_staged_cookie(key)
+        self._remove_staged_cookie(key)
         werkzeug.Response.set_cookie(
             self,
             key,

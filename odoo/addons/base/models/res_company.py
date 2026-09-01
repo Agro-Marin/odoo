@@ -271,11 +271,13 @@ class ResCompany(models.Model):
                 )
             )
 
-    @api.constrains(lambda self: self._get_root_delegated_field_names() + ["parent_id"])
-    def _check_root_delegated_fields(self) -> None:
+    @api.constrains(
+        lambda self: self._get_field_names_delegated_to_root() + ["parent_id"]
+    )
+    def _check_delegated_fields_match_root(self) -> None:
         for company in self:
             if company.parent_id:
-                for fname in company._get_root_delegated_field_names():
+                for fname in company._get_field_names_delegated_to_root():
                     if company[fname] != company.parent_id[fname]:
                         description = (
                             self.env["ir.model.fields"]
@@ -330,7 +332,7 @@ class ResCompany(models.Model):
 
         for vals in vals_list:
             if parent := self.browse(vals.get("parent_id")):
-                for fname in self._get_root_delegated_field_names():
+                for fname in self._get_field_names_delegated_to_root():
                     vals.setdefault(
                         fname,
                         self._fields[fname].convert_to_write(parent[fname], parent),
@@ -388,7 +390,7 @@ class ResCompany(models.Model):
         if vals.get("active") is False:
             self.child_ids.active = False
 
-        delegated_changed = set(vals) & set(self._get_root_delegated_field_names())
+        delegated_changed = set(vals) & set(self._get_field_names_delegated_to_root())
         if delegated_changed:
             roots = self.filtered(lambda company: not company.parent_id)
             all_branches = self.sudo().search(
@@ -420,7 +422,7 @@ class ResCompany(models.Model):
         self.env.registry.clear_cache()
         return res
 
-    def _get_root_delegated_field_names(self) -> list[str]:
+    def _get_field_names_delegated_to_root(self) -> list[str]:
         return ["currency_id"]
 
     def _get_address_field_names(self) -> list[str]:
@@ -513,7 +515,7 @@ class ResCompany(models.Model):
     @api.onchange("parent_id")
     def _onchange_parent_id(self) -> None:
         if self.parent_id:
-            for fname in self._get_root_delegated_field_names():
+            for fname in self._get_field_names_delegated_to_root():
                 if self[fname] != self.parent_id[fname]:
                     self[fname] = self.parent_id[fname]
 
@@ -579,7 +581,7 @@ class ResCompany(models.Model):
         view_type: str = "form",
         **options: Any,
     ) -> tuple:
-        delegated_fnames = set(self._get_root_delegated_field_names())
+        delegated_fnames = set(self._get_field_names_delegated_to_root())
         arch, view = super()._get_view(view_id, view_type, **options)
         for f in arch.iter("field"):
             if f.get("name") in delegated_fnames:
@@ -670,7 +672,7 @@ class ResCompany(models.Model):
             .partner_id.ids
         )
 
-    def _all_branches_selected(self) -> bool:
+    def _is_every_branch_selected(self) -> bool:
         return self == self.sudo().search([("id", "child_of", self.root_id.ids)])
 
     def action_all_company_branches(self) -> dict[str, Any]:

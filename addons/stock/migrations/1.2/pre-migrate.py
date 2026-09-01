@@ -1,4 +1,4 @@
-from odoo.db.schema import table_columns
+from odoo.db.schema import get_table_columns
 
 _METHOD_RENAMES = (
     ("action_open_product_lot", "action_view_product_lot"),
@@ -36,7 +36,7 @@ def migrate(cr, version):
             (old, new, f"%{old}%"),
         )
 
-    horizon_days = table_columns(cr, "res_company").get("horizon_days")
+    horizon_days = get_table_columns(cr, "res_company").get("horizon_days")
     if horizon_days is not None and horizon_days["udt_name"] != "int4":
         cr.execute(
             """

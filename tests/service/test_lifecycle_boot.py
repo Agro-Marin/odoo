@@ -142,7 +142,7 @@ def _demand(**overrides):
         **overrides,
     }
     with patch.object(lifecycle, "config", cfg):
-        return lifecycle._connection_budget_demand()
+        return lifecycle._get_connection_budget_demand()
 
 
 class TestConnectionBudgetDemand:

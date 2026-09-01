@@ -346,7 +346,7 @@ class IrModuleAutoInstallCase(TransactionCase):
         sql_says = {row[0] for row in self.env.cr.fetchall()}
 
         self.assertNotIn("airm_sql_victim", sql_says)
-        self.assertFalse(victim._auto_install_dependencies_satisfiable())
+        self.assertFalse(victim._is_auto_install_satisfiable())
 
 
 class IrModuleConcurrencyGuardCase(TransactionCase):

@@ -28,7 +28,7 @@ from odoo.libs import backoff
 from odoo.libs.worker_thread import working_on_database
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules.registry import Registry
-from odoo.service._limits import job_real_time_budget
+from odoo.service._limits import get_job_real_time_budget
 from odoo.tools import SQL
 from odoo.tools.constants import JOB_QUEUE_CHANNEL
 
@@ -661,7 +661,7 @@ class IrJob(models.Model):
 
     @staticmethod
     def _drain_deadline() -> float | None:
-        budget = job_real_time_budget()
+        budget = get_job_real_time_budget()
         return time.monotonic() + budget * DRAIN_BUDGET_RATIO if budget else None
 
     @staticmethod
@@ -726,7 +726,7 @@ class IrJob(models.Model):
         registry = Registry(db_name).check_signaling()
         worker_ident = f"{socket.gethostname()}:{os.getpid()}"
         with registry.cursor() as cr:
-            serialise = IrJob._any_capacity_declared(cr)
+            serialise = IrJob._has_job_channel(cr)
             cr.rollback()
             while True:
                 if deadline is not None and time.monotonic() >= deadline:
@@ -848,7 +848,7 @@ class IrJob(models.Model):
         return [row[0] for row in cr.fetchall()]
 
     @staticmethod
-    def _any_capacity_declared(cr) -> bool:
+    def _has_job_channel(cr) -> bool:
         cr.execute("SELECT EXISTS (SELECT 1 FROM ir_job_channel)")
         return cr.fetchone()[0]
 

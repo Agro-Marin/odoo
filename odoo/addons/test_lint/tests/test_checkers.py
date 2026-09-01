@@ -1505,6 +1505,64 @@ class TestTaxCompanySingularLint(BaseCase):
         self.assertIn("company_ids", violation.message)
         self.assertIn("_check_company_domain", violation.message)
 
+    def test_a_company_id_domain_on_a_diverged_model_is_flagged(self):
+        self.assertEqual(
+            self._check("""
+        groups = self.env["account.tax"].sudo()._read_group(
+            domain=[("company_id", "in", self.company_ids.ids)],
+            aggregates=["tax_group_id:recordset"],
+        )
+        """),
+            [2],
+        )
+
+    def test_a_model_bound_from_a_tuple_of_names_is_flagged(self):
+        self.assertEqual(
+            self._check("""
+        for model in ("account.tax", "account.tax.group"):
+            cls.env[model].search([("company_id", "=", company.id)])
+        """),
+            [2],
+        )
+
+    def test_account_account_is_diverged_too(self):
+        self.assertEqual(
+            self._check("""
+        accounts = self.env["account.account"].search([("company_id", "=", c.id)])
+        """),
+            [1],
+        )
+
+    def test_the_check_company_domain_idiom_is_clean(self):
+        self.assertFalse(
+            self._check("""
+        taxes = self.env["account.tax"].search(
+            self.env["account.tax"]._check_company_domain(company)
+        )
+        """)
+        )
+
+    def test_a_company_id_domain_on_another_model_is_clean(self):
+        self.assertFalse(
+            self._check("""
+        lines = self.env["account.move.line"].search([("company_id", "=", c.id)])
+        """)
+        )
+
+    def test_the_many2many_domain_spelling_is_clean(self):
+        self.assertFalse(
+            self._check("""
+        taxes = self.env["account.tax"].search([("company_ids", "in", c.ids)])
+        """)
+        )
+
+    def test_a_model_chosen_at_runtime_is_not_decided(self):
+        self.assertFalse(
+            self._check("""
+        records = self.env[template.model].search([("company_id", "in", ids)])
+        """)
+        )
+
 
 @no_retry
 class TestShadowedDefinitionLint(BaseCase):

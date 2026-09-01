@@ -11,7 +11,7 @@ from ._protocols import RequestState
 from .constants import CSRF_TOKEN_MAX_AGE, STORED_SESSION_BYTES
 
 
-def _csrf_secret(env: Any) -> str:
+def _get_csrf_secret(env: Any) -> str:
     assert env is not None, "CSRF tokens need a database-bound request"
     secret = env["ir.config_parameter"].sudo().get_param("database.secret")
     if not secret:
@@ -20,29 +20,29 @@ def _csrf_secret(env: Any) -> str:
     return secret
 
 
-def _csrf_digest(secret: str, sid: str, max_ts: int | str) -> str:
+def _get_csrf_digest(secret: str, sid: str, max_ts: int | str) -> str:
     payload = f"{sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
     return hmac.new(secret.encode("ascii"), payload, hashlib.sha256).hexdigest()
 
 
 class _RequestCsrfMixin(RequestState):
     def csrf_token(self, time_limit: int | None = None) -> str:
-        secret = _csrf_secret(self.env)
+        secret = _get_csrf_secret(self.env)
 
         if time_limit is None:
             time_limit = CSRF_TOKEN_MAX_AGE
         max_ts = int(time.time() + time_limit)
-        hm = _csrf_digest(secret, self.session.sid, max_ts)
+        hm = _get_csrf_digest(secret, self.session.sid, max_ts)
 
         if self.session.is_new:
-            self.session.touch()
+            self.session.mark_dirty()
         return f"{hm}o{max_ts}"
 
     def is_valid_csrf(self, csrf: str | None) -> bool:
         if not csrf:
             return False
 
-        secret = _csrf_secret(self.env)
+        secret = _get_csrf_secret(self.env)
 
         hm, _, max_ts = csrf.rpartition("o")
         if not max_ts:
@@ -56,4 +56,4 @@ class _RequestCsrfMixin(RequestState):
         if not hm.isascii():
             return False
 
-        return consteq(hm, _csrf_digest(secret, self.session.sid, max_ts))
+        return consteq(hm, _get_csrf_digest(secret, self.session.sid, max_ts))

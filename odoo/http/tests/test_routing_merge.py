@@ -194,13 +194,13 @@ def test_an_override_restating_the_same_type_is_fine():
 
 
 def test_options_added_to_methods_allow_list():
-    from odoo.http.routing import rule_routing_kwargs
+    from odoo.http.routing import prepare_rule_kwargs
 
     def _endpoint(self): ...
 
     endpoint = cast("HasRouting", _endpoint)
     endpoint.routing = {"methods": ["GET"], "cors": "*"}
-    kwargs = rule_routing_kwargs(endpoint)
+    kwargs = prepare_rule_kwargs(endpoint)
     assert "OPTIONS" in kwargs["methods"]
 
 

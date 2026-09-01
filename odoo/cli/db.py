@@ -28,7 +28,7 @@ from ..service.db import (
 )
 from ..tools import config
 from . import Command
-from .command import refuse_maintenance_db
+from .command import check_db_not_maintenance
 from .server import report_configuration
 
 _logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ class Db(Command):
                 p.add_argument(*flags, help=help_text)
 
     @classmethod
-    def _connection_dest_flags(cls) -> dict[str, str]:
+    def _get_connection_flags_by_dest(cls) -> dict[str, str]:
         dest_flags = {}
         for flags in cls._CONNECTION_FLAGS:
             long_flag = flags[-1]
@@ -304,13 +304,13 @@ class Db(Command):
             "has no meaning outside a web request, so this command lists "
             "every database dbfilter would otherwise narrow down.",
         )
-        list_parser.set_defaults(func=self.list)
+        list_parser.set_defaults(func=self.list_databases)
         return list_parser
 
     def run(self, cmdargs: list[str]) -> None:
         args, unknown = self.parser.parse_known_args(cmdargs)
 
-        dest_flags = self._connection_dest_flags()
+        dest_flags = self._get_connection_flags_by_dest()
         config_args: list[str] = []
         for key, value in vars(args).items():
             if value is None or key not in dest_flags:
@@ -324,7 +324,7 @@ class Db(Command):
 
     def init(self, args: argparse.Namespace) -> None:
         self._check_target_free(args.database, force=args.force)
-        self._drop_if_exists(args.database)
+        self._drop_database_if_exists(args.database)
         exp_create_database(
             db_name=args.database,
             demo=args.with_demo,
@@ -371,7 +371,7 @@ class Db(Command):
                 )
 
             if args.force:
-                self._drop_if_exists(db_name)
+                self._drop_database_if_exists(db_name)
             restore_db(
                 db=db_name,
                 dump_file=dump_file,
@@ -403,17 +403,17 @@ class Db(Command):
         self._check_source_not_target(args.source, args.target)
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
-        self._drop_if_exists(args.target)
+        self._drop_database_if_exists(args.target)
         _duplicate_database(
             args.source, args.target, neutralize_database=args.neutralize
         )
 
     def rename(self, args: argparse.Namespace) -> None:
         self._check_source_not_target(args.source, args.target)
-        self._check_not_protected(args.source)
+        check_db_not_maintenance(args.source)
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
-        self._drop_if_exists(args.target)
+        self._drop_database_if_exists(args.target)
         _rename_database(args.source, args.target)
         if args.neutralize:
             try:
@@ -428,19 +428,16 @@ class Db(Command):
                 sys.exit(1)
 
     def drop(self, args: argparse.Namespace) -> None:
-        self._check_not_protected(args.database)
+        check_db_not_maintenance(args.database)
         if not _drop_database(args.database):
             sys.exit(f"Database {args.database} does not exist.")
 
-    def list(self, _args: argparse.Namespace) -> None:
+    def list_databases(self, _args: argparse.Namespace) -> None:
         for db_name in list_dbs(force=True):
             print(db_name)
 
-    def _check_not_protected(self, db_name: str) -> None:
-        refuse_maintenance_db(db_name)
-
     def _check_target_free(self, target: str, *, force: bool) -> None:
-        self._check_not_protected(target)
+        check_db_not_maintenance(target)
         if not force and exp_db_exist(target):
             sys.exit(
                 f"Target database {target} exists, aborting.\n\n"
@@ -455,7 +452,7 @@ class Db(Command):
         if source == target:
             sys.exit(f"Source and target database are both {source!r}: aborting.")
 
-    def _drop_if_exists(self, target: str) -> None:
-        self._check_not_protected(target)
+    def _drop_database_if_exists(self, target: str) -> None:
+        check_db_not_maintenance(target)
         if exp_db_exist(target):
             _drop_database(target)

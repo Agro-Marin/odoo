@@ -47,7 +47,7 @@ def stamp_rpc_model_method(monkeypatch, value=""):
 def multi():
     m = MagicMock()
     pipes = [os.pipe(), os.pipe()]
-    m.pipe_new.side_effect = list(pipes)
+    m.open_pipe.side_effect = list(pipes)
     m.timeout = 60
     m.cron_timeout = None
     m.limit_request = 100
@@ -150,7 +150,7 @@ class TestEventServerWatchdogSurvivesErrors:
             patch.object(os, "getppid", return_value=1),
         ):
             with pytest.raises(_StopLoop):
-                server.watchdog(beat=0)
+                server.run_watchdog(beat=0)
         assert len(calls) == 2, "watchdog stopped checking after one failure"
 
 
@@ -204,7 +204,7 @@ class TestPreforkForkAndReloadNoSocket:
 
         with (
             patch("odoo.service._prefork.os.fork", return_value=4242),
-            patch("odoo.service._prefork._reexec", fake_reexec),
+            patch("odoo.service._prefork._reexec_server", fake_reexec),
             patch.dict("odoo.service._prefork.os.environ", {}, clear=False),
         ):
             with pytest.raises(SystemExit, match="reexec-sentinel"):
@@ -224,7 +224,7 @@ class TestPreforkForkAndReloadNoSocket:
 
         with (
             patch("odoo.service._prefork.os.fork", return_value=4242),
-            patch("odoo.service._prefork._reexec", fake_reexec),
+            patch("odoo.service._prefork._reexec_server", fake_reexec),
             patch("odoo.service._prefork.fcntl.fcntl", return_value=0),
             patch.dict("odoo.service._prefork.os.environ", {}, clear=False),
         ):
@@ -317,7 +317,7 @@ class TestWorkerCronProcessWorkReconnect:
             "SSL connection has been closed unexpectedly"
         )
         with (
-            patch("odoo.service._cron.cron_database_list", return_value=["testdb"]),
+            patch("odoo.service._cron.get_cron_databases", return_value=["testdb"]),
             patch.object(worker_cron, "_connect_postgres") as mock_reconnect,
         ):
             worker_cron.process_work()
@@ -328,7 +328,7 @@ class TestWorkerCronProcessWorkReconnect:
             "SSL"
         )
         with (
-            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch.object(worker_cron, "_connect_postgres"),
         ):
             worker_cron.process_work()
@@ -365,7 +365,7 @@ class TestWorkerCronProcessWorkReconnect:
         old_cnx.notifies.side_effect = psycopg.OperationalError("SSL")
 
         with (
-            patch("odoo.service._cron.cron_database_list", return_value=[]),
+            patch("odoo.service._cron.get_cron_databases", return_value=[]),
             patch.object(worker_cron, "_connect_postgres"),
         ):
             worker_cron.process_work()
@@ -380,7 +380,7 @@ class TestWorkerCronProcessWorkReconnect:
         worker_cron.dbcursor.close.side_effect = Exception("already closed")
 
         with (
-            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch.object(worker_cron, "_connect_postgres") as mock_reconnect,
         ):
             worker_cron.process_work()
@@ -392,7 +392,7 @@ class TestWorkerCronProcessWorkReconnect:
             "SSL"
         )
         with (
-            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch.object(
                 worker_cron,
                 "_connect_postgres",
@@ -410,7 +410,7 @@ class TestWorkerCronProcessWorkReconnect:
         per_cycle_sleeps: list[list[float]] = []
         current_cycle_sleeps: list[float] = []
         with (
-            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch.object(
                 worker_cron,
                 "_connect_postgres",
@@ -494,7 +494,7 @@ class TestWorkerCronProcessWorkScheduling:
 
     def test_no_databases_returns_immediately(self, worker_cron):
         worker_cron.dbcursor.connection.notifies.return_value = iter([])
-        with patch("odoo.service._cron.cron_database_list", return_value=[]):
+        with patch("odoo.service._cron.get_cron_databases", return_value=[]):
             worker_cron.process_work()
         assert len(worker_cron.db_queue) == 0
         assert worker_cron.db_count == 0
@@ -503,7 +503,7 @@ class TestWorkerCronProcessWorkScheduling:
         worker_cron.dbcursor.connection.notifies.return_value = iter([])
         with (
             patch(
-                "odoo.service._cron.cron_database_list",
+                "odoo.service._cron.get_cron_databases",
                 return_value=["db1", "db2", "db3"],
             ),
             patch("odoo.service._cron.db"),
@@ -520,7 +520,7 @@ class TestWorkerCronProcessWorkScheduling:
 
         with (
             patch(
-                "odoo.service._cron.cron_database_list",
+                "odoo.service._cron.get_cron_databases",
                 return_value=["slow_db", "urgent_db"],
             ),
             patch("odoo.service._cron.db"),
@@ -537,7 +537,7 @@ class TestWorkerCronProcessWorkScheduling:
         worker_cron.dbcursor.connection.notifies.return_value = iter([notif])
 
         with (
-            patch("odoo.service._cron.cron_database_list", return_value=["real_db"]),
+            patch("odoo.service._cron.get_cron_databases", return_value=["real_db"]),
             patch("odoo.service._cron.db"),
         ):
             worker_cron.process_work()
@@ -559,7 +559,7 @@ class TestWorkerCronProcessWorkScheduling:
     def test_request_count_incremented(self, worker_cron, mock_ir_cron):
         worker_cron.dbcursor.connection.notifies.return_value = iter([])
         with (
-            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch("odoo.service._cron.db"),
         ):
             worker_cron.process_work()
@@ -656,10 +656,10 @@ def worker_check_limits_env(memory_bytes=0, config_override=None):
     mock_memory_info = MagicMock(return_value=memory_bytes)
     with (
         patch("odoo.service._worker.config", cfg),
-        patch("odoo.service._limits.memory_info", mock_memory_info),
+        patch("odoo.service._limits.get_memory_rss", mock_memory_info),
         patch("odoo.service._worker.resource", mock_resource),
     ):
-        yield SimpleNamespace(resource=mock_resource, memory_info=mock_memory_info)
+        yield SimpleNamespace(resource=mock_resource, get_memory_rss=mock_memory_info)
 
 
 @pytest.fixture
@@ -728,7 +728,7 @@ class TestWorkerCheckLimits:
     def test_rss_not_read_when_soft_limit_disabled(self, bare_worker):
         with worker_check_limits_env(config_override={"limit_memory_soft": 0}) as env:
             bare_worker.check_limits()
-        env.memory_info.assert_not_called()
+        env.get_memory_rss.assert_not_called()
         assert bare_worker.alive is True
 
     def test_rss_read_when_soft_limit_enabled(self, bare_worker):
@@ -736,7 +736,7 @@ class TestWorkerCheckLimits:
             memory_bytes=50, config_override={"limit_memory_soft": 100}
         ) as env:
             bare_worker.check_limits()
-        env.memory_info.assert_called_once()
+        env.get_memory_rss.assert_called_once()
         assert bare_worker.alive is True
 
 
@@ -788,7 +788,7 @@ class TestCommonServerCallbacks:
 
     def test_on_stop_appends_callback(self, srv):
         cb = MagicMock()
-        srv.CommonServer.on_stop(cb)
+        srv.CommonServer.register_on_stop_hook(cb)
         assert cb in _base_server._on_stop_hooks
 
     def test_stop_calls_all_registered_callbacks(self, srv):
@@ -834,22 +834,22 @@ class TestCommonServerCallbacks:
 
 class TestPreforkProcessZombie:
     def test_normal_exit_pops_worker(self, prefork_server):
-        prefork_server.worker_pop = MagicMock()
+        prefork_server.remove_worker = MagicMock()
         with patch("os.waitpid", side_effect=[(1234, 0), (0, 0)]):
             prefork_server.reap_exited_workers()
-        prefork_server.worker_pop.assert_called_once_with(1234)
+        prefork_server.remove_worker.assert_called_once_with(1234)
 
     def test_exit_code_3_does_not_raise(self, prefork_server):
-        prefork_server.worker_pop = MagicMock()
+        prefork_server.remove_worker = MagicMock()
         with patch("os.waitpid", side_effect=[(5678, 3 << 8), (0, 0)]):
             prefork_server.reap_exited_workers()
-        prefork_server.worker_pop.assert_called_once_with(5678)
+        prefork_server.remove_worker.assert_called_once_with(5678)
 
     def test_echild_breaks_loop_cleanly(self, prefork_server):
-        prefork_server.worker_pop = MagicMock()
+        prefork_server.remove_worker = MagicMock()
         with patch("os.waitpid", side_effect=OSError(errno.ECHILD, "no children")):
             prefork_server.reap_exited_workers()
-        prefork_server.worker_pop.assert_not_called()
+        prefork_server.remove_worker.assert_not_called()
 
     def test_other_oserror_propagates(self, prefork_server):
         with patch("os.waitpid", side_effect=OSError(errno.EINTR, "interrupted")):
@@ -1012,11 +1012,11 @@ class TestPreforkRespawnBackoff:
 
     def test_spawn_missing_workers_skips_during_backoff(self, prefork_server):
         prefork_server._respawn_not_before = time.monotonic() + 100
-        prefork_server.worker_spawn = MagicMock()
-        prefork_server.long_polling_spawn = MagicMock()
+        prefork_server.spawn_worker = MagicMock()
+        prefork_server.spawn_long_polling_process = MagicMock()
         prefork_server.spawn_missing_workers()
-        prefork_server.worker_spawn.assert_not_called()
-        prefork_server.long_polling_spawn.assert_not_called()
+        prefork_server.spawn_worker.assert_not_called()
+        prefork_server.spawn_long_polling_process.assert_not_called()
 
     def test_fork_oserror_returns_none_and_releases_pipes(
         self, prefork_server, monkeypatch
@@ -1026,7 +1026,7 @@ class TestPreforkRespawnBackoff:
         klass = MagicMock(return_value=fake_worker)
         monkeypatch.setattr(os, "fork", MagicMock(side_effect=OSError("EAGAIN")))
         before = time.monotonic()
-        result = prefork_server.worker_spawn(klass, {})
+        result = prefork_server.spawn_worker(klass, {})
         assert result is None
         fake_worker.close.assert_called_once()
         assert prefork_server.workers == {}
@@ -1037,9 +1037,9 @@ class TestPreforkRespawnBackoff:
         prefork_server.generation = 0
         klass = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(os, "fork", MagicMock(side_effect=OSError("EMFILE")))
-        prefork_server.worker_spawn(klass, {})
+        prefork_server.spawn_worker(klass, {})
         first_hold = prefork_server._respawn_not_before - time.monotonic()
-        prefork_server.worker_spawn(klass, {})
+        prefork_server.spawn_worker(klass, {})
         second_hold = prefork_server._respawn_not_before - time.monotonic()
         assert prefork_server._consecutive_fast_deaths == 2
         assert second_hold > first_hold
@@ -1050,7 +1050,7 @@ class TestPreforkRespawnBackoff:
         klass = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(os, "fork", MagicMock(side_effect=OSError("EMFILE")))
         t = time.monotonic()
-        prefork_server.worker_spawn(klass, {})
+        prefork_server.spawn_worker(klass, {})
         assert (
             prefork_server._respawn_not_before - t
             <= _prefork.WORKER_RESPAWN_BACKOFF_CAP_S + 0.5
@@ -1066,7 +1066,7 @@ class TestPreforkRespawnBackoff:
             MagicMock(side_effect=OSError("EAGAIN")),
         )
         before = time.monotonic()
-        prefork_server.long_polling_spawn()
+        prefork_server.spawn_long_polling_process()
         assert prefork_server.long_polling_pid is None
         assert prefork_server._consecutive_fast_deaths == 1
         assert prefork_server._respawn_not_before > before
@@ -1079,7 +1079,7 @@ class TestPreforkGracefulStopEscalation:
         wedged = MagicMock()
         wedged.watchdog_timeout = None
         prefork_server.workers = {321: wedged}
-        prefork_server.worker_kill = MagicMock()
+        prefork_server.kill_worker = MagicMock()
         prefork_server.apply_pending_signals = MagicMock()
         prefork_server.kill_timed_out_workers = MagicMock()
         prefork_server.sleep = MagicMock()
@@ -1225,27 +1225,27 @@ class TestPreforkProcessTimeout:
         stale.watchdog_timeout = 30
         stale.watchdog_time = time.monotonic() - 60
         prefork_server.workers = {9999: stale}
-        prefork_server.worker_kill = MagicMock()
+        prefork_server.kill_worker = MagicMock()
         prefork_server.kill_timed_out_workers()
-        prefork_server.worker_kill.assert_called_once_with(9999, signal.SIGKILL)
+        prefork_server.kill_worker.assert_called_once_with(9999, signal.SIGKILL)
 
     def test_leaves_healthy_worker_alone(self, prefork_server):
         healthy = MagicMock()
         healthy.watchdog_timeout = 30
         healthy.watchdog_time = time.monotonic()
         prefork_server.workers = {1111: healthy}
-        prefork_server.worker_kill = MagicMock()
+        prefork_server.kill_worker = MagicMock()
         prefork_server.kill_timed_out_workers()
-        prefork_server.worker_kill.assert_not_called()
+        prefork_server.kill_worker.assert_not_called()
 
     def test_none_watchdog_timeout_never_kills(self, prefork_server):
         w = MagicMock()
         w.watchdog_timeout = None
         w.watchdog_time = time.monotonic() - 99999
         prefork_server.workers = {2222: w}
-        prefork_server.worker_kill = MagicMock()
+        prefork_server.kill_worker = MagicMock()
         prefork_server.kill_timed_out_workers()
-        prefork_server.worker_kill.assert_not_called()
+        prefork_server.kill_worker.assert_not_called()
 
 
 class TestPreforkWorkerPop:
@@ -1258,65 +1258,65 @@ class TestPreforkWorkerPop:
 
     def test_the_worker_is_closed_so_its_pipes_are_released(self, prefork_server):
         worker = self._register(prefork_server, 1234)
-        prefork_server.worker_pop(1234)
+        prefork_server.remove_worker(1234)
         worker.close.assert_called_once_with()
 
     def test_every_registry_forgets_the_pid(self, prefork_server):
         for kind in ("workers_http", "workers_cron", "workers_job"):
             self._register(prefork_server, 7, kind=kind)
-            prefork_server.worker_pop(7)
+            prefork_server.remove_worker(7)
             assert 7 not in prefork_server.workers, kind
             assert 7 not in getattr(prefork_server, kind), kind
 
     def test_a_worker_of_one_kind_does_not_disturb_the_others(self, prefork_server):
         self._register(prefork_server, 1, kind="workers_http")
         self._register(prefork_server, 2, kind="workers_cron")
-        prefork_server.worker_pop(1)
+        prefork_server.remove_worker(1)
         assert list(prefork_server.workers) == [2]
         assert list(prefork_server.workers_cron) == [2]
         assert prefork_server.workers_http == {}
 
     def test_the_evented_child_clears_long_polling_pid(self, prefork_server):
         prefork_server.long_polling_pid = 4321
-        prefork_server.worker_pop(4321)
+        prefork_server.remove_worker(4321)
         assert prefork_server.long_polling_pid is None
 
     def test_an_unknown_pid_is_a_noop(self, prefork_server):
         worker = self._register(prefork_server, 1234)
-        prefork_server.worker_pop(9999)
+        prefork_server.remove_worker(9999)
         assert 1234 in prefork_server.workers
         worker.close.assert_not_called()
 
     def test_popping_twice_does_not_raise(self, prefork_server):
         self._register(prefork_server, 1234)
-        prefork_server.worker_pop(1234)
-        prefork_server.worker_pop(1234)
+        prefork_server.remove_worker(1234)
+        prefork_server.remove_worker(1234)
 
 
 class TestPreforkWorkerKill:
     def test_sends_signal(self, prefork_server):
-        prefork_server.worker_pop = MagicMock()
+        prefork_server.remove_worker = MagicMock()
         with patch("os.kill") as mock_kill:
-            prefork_server.worker_kill(1234, signal.SIGTERM)
+            prefork_server.kill_worker(1234, signal.SIGTERM)
         mock_kill.assert_called_once_with(1234, signal.SIGTERM)
 
     def test_sigkill_also_pops_worker(self, prefork_server):
-        prefork_server.worker_pop = MagicMock()
+        prefork_server.remove_worker = MagicMock()
         with patch("os.kill"):
-            prefork_server.worker_kill(1234, signal.SIGKILL)
-        prefork_server.worker_pop.assert_called_once_with(1234)
+            prefork_server.kill_worker(1234, signal.SIGKILL)
+        prefork_server.remove_worker.assert_called_once_with(1234)
 
     def test_sigterm_does_not_pop_worker(self, prefork_server):
-        prefork_server.worker_pop = MagicMock()
+        prefork_server.remove_worker = MagicMock()
         with patch("os.kill"):
-            prefork_server.worker_kill(1234, signal.SIGTERM)
-        prefork_server.worker_pop.assert_not_called()
+            prefork_server.kill_worker(1234, signal.SIGTERM)
+        prefork_server.remove_worker.assert_not_called()
 
     def test_esrch_cleans_up_stale_entry(self, prefork_server):
-        prefork_server.worker_pop = MagicMock()
+        prefork_server.remove_worker = MagicMock()
         with patch("os.kill", side_effect=OSError(errno.ESRCH, "no such process")):
-            prefork_server.worker_kill(1234, signal.SIGTERM)
-        prefork_server.worker_pop.assert_called_once_with(1234)
+            prefork_server.kill_worker(1234, signal.SIGTERM)
+        prefork_server.remove_worker.assert_called_once_with(1234)
 
 
 @pytest.fixture
@@ -1571,7 +1571,10 @@ class TestCommonRequestHandlerLogRequestNoTTY:
             try:
                 reloaded = importlib.reload(wsgi_mod)
                 with patch.object(reloaded, "_is_ansi_enabled", return_value=True):
-                    assert reloaded._maybe_style("GET /x", "bold", "red") == "GET /x"
+                    assert (
+                        reloaded._style_if_ansi_enabled("GET /x", "bold", "red")
+                        == "GET /x"
+                    )
             finally:
                 importlib.reload(wsgi_mod)
         assert hasattr(werkzeug.serving, "_ansi_style")
@@ -1728,7 +1731,7 @@ class TestRequestHandlerSocketTimeout:
     def test_timeout_is_armed_outside_test_mode(self, srv, wsgi_mod):
         h = self._handler(srv)
         self._setup_with(wsgi_mod, h, test_enable=False)
-        assert h.timeout == wsgi_mod.http_socket_timeout()
+        assert h.timeout == wsgi_mod.get_http_socket_timeout()
         assert h.timeout > 0
 
     def test_test_mode_keeps_the_longer_preconnect_grace(self, srv, wsgi_mod):
@@ -1742,7 +1745,7 @@ class TestRequestHandlerSocketTimeout:
         monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", "7.5")
         worker = srv.WorkerHTTP(multi)
         try:
-            assert worker.sock_timeout == wsgi_mod.http_socket_timeout() == 7.5
+            assert worker.sock_timeout == wsgi_mod.get_http_socket_timeout() == 7.5
         finally:
             worker.close()
 
@@ -1754,7 +1757,7 @@ class TestRequestHandlerSocketTimeout:
         self, wsgi_mod, monkeypatch, raw, expected
     ):
         monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", raw)
-        assert wsgi_mod.http_socket_timeout() == expected
+        assert wsgi_mod.get_http_socket_timeout() == expected
 
     def test_upgrade_clears_the_deadline_for_the_websocket_loop(self, srv):
         h = object.__new__(srv.RequestHandler)
@@ -1889,7 +1892,7 @@ class TestThreadedServerProcessLimit:
             **(config_override or {}),
         }
         with (
-            patch("odoo.service._limits.memory_info", return_value=memory),
+            patch("odoo.service._limits.get_memory_rss", return_value=memory),
             patch("odoo.service._threaded.config", cfg),
             patch("odoo.service._limits.config", cfg),
             patch("odoo.service._base_server.config", cfg),
@@ -1912,7 +1915,7 @@ class TestThreadedServerProcessLimit:
 
         def tick(mem):
             with (
-                patch("odoo.service._limits.memory_info", return_value=mem),
+                patch("odoo.service._limits.get_memory_rss", return_value=mem),
                 patch("odoo.service._threaded.config", cfg),
                 patch("odoo.service._base_server.config", cfg),
                 patch("threading.enumerate", return_value=[]),
@@ -2043,7 +2046,7 @@ def _adopt_inherited_fd(fd, *, via_env, interface):
     server = object.__new__(_prefork.PreforkServer)
     server.logger = MagicMock()
     server.interface, server.port, server.population = interface, 0, 2
-    server.pipe_new = MagicMock(return_value=(0, 0))
+    server.open_pipe = MagicMock(return_value=(0, 0))
     cfg = MagicMock()
     cfg.__getitem__.side_effect = {"http_enable": True}.__getitem__
     cfg.http_socket_activation = not via_env
@@ -2207,14 +2210,14 @@ class TestOnStopFuncsModuleLevel:
 
     def test_on_stop_appends_to_module_list(self, srv):
         cb = MagicMock()
-        srv.CommonServer.on_stop(cb)
+        srv.CommonServer.register_on_stop_hook(cb)
         assert cb in _base_server._on_stop_hooks
 
     def test_on_stop_is_idempotent(self, srv):
         cb = MagicMock()
         before = len(_base_server._on_stop_hooks)
-        srv.CommonServer.on_stop(cb)
-        srv.CommonServer.on_stop(cb)
+        srv.CommonServer.register_on_stop_hook(cb)
+        srv.CommonServer.register_on_stop_hook(cb)
         assert len(_base_server._on_stop_hooks) == before + 1
 
         instance = object.__new__(srv.CommonServer)
@@ -2238,7 +2241,7 @@ class TestStopWorkersGracefullyDictRace:
             if pid == 2:
                 original_workers.pop(2, None)
 
-        prefork_server.worker_kill = fake_kill
+        prefork_server.kill_worker = fake_kill
 
         with (
             patch.object(
@@ -2277,7 +2280,7 @@ class TestMemoryLogStrings:
         cfg = {"limit_memory_soft_gevent": 100, "limit_memory_soft": 0}
         with (
             patch.object(_threaded, "config", cfg),
-            patch("odoo.service._limits.memory_info", return_value=500),
+            patch("odoo.service._limits.get_memory_rss", return_value=500),
             patch.object(_threaded.os, "kill"),
         ):
             event_server.check_limits()
@@ -2288,9 +2291,9 @@ class TestMemoryLogStrings:
 
     def test_memory_info_returns_rss(self):
         proc = MagicMock()
-        proc.memory_info.return_value = MagicMock(rss=111, vms=999)
-        assert _limits.memory_info(proc) == 111
-        assert _limits.memory_info(proc) != 999
+        proc.get_memory_rss.return_value = MagicMock(rss=111, vms=999)
+        assert _limits.get_memory_rss(proc) == 111
+        assert _limits.get_memory_rss(proc) != 999
 
 
 @pytest.fixture
@@ -2339,7 +2342,7 @@ class TestEventServerGracefulStop:
     def test_stop_tolerates_unstarted_httpd_and_runs_hooks(self, srv, event_server):
         sentinel = MagicMock()
         sentinel.__name__ = "sentinel"
-        srv.CommonServer.on_stop(sentinel)
+        srv.CommonServer.register_on_stop_hook(sentinel)
         event_server.httpd = None
         event_server.stop()
         sentinel.assert_called_once()
@@ -2347,7 +2350,7 @@ class TestEventServerGracefulStop:
     def test_run_runs_stop_even_when_start_raises(self, srv, event_server):
         sentinel = MagicMock()
         sentinel.__name__ = "sentinel"
-        srv.CommonServer.on_stop(sentinel)
+        srv.CommonServer.register_on_stop_hook(sentinel)
         event_server.httpd = MagicMock()
         with patch.object(event_server, "start", side_effect=RuntimeError("boom")):
             with pytest.raises(RuntimeError, match="boom"):
@@ -2403,7 +2406,7 @@ class TestProcessLimitRealTimeLog:
         }
         with (
             patch.object(_threaded, "config", cfg),
-            patch.object(_limits, "memory_info", return_value=0),
+            patch.object(_limits, "get_memory_rss", return_value=0),
             patch.object(threading, "enumerate", return_value=[fake_thread]),
         ):
             ts.check_limits()
@@ -2510,7 +2513,7 @@ def _drive_listen_thread(listen_server, process_jobs, *, sleeps_before_stop=2):
         patch("odoo.service._cron.db.db_connect"),
         patch("odoo.service._cron.arm_cron_listen", return_value=True),
         patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
-        patch("odoo.service._cron.cron_database_list", return_value=["db1"]) as db_list,
+        patch("odoo.service._cron.get_cron_databases", return_value=["db1"]) as db_list,
         patch("odoo.service._threaded.selectors.DefaultSelector"),
         patch("odoo.service._threaded.config", cfg),
         patch("odoo.service._threaded.time.sleep", fake_sleep),
@@ -2603,7 +2606,7 @@ class TestPreforkPhoenixStopTerminatesSurvivors:
         killed = []
         monkeypatch.setattr(
             srv.PreforkServer,
-            "worker_kill",
+            "kill_worker",
             lambda self, pid, sig: killed.append((pid, sig)),
         )
 
@@ -2624,7 +2627,7 @@ class TestPreforkPhoenixStopTerminatesSurvivors:
         killed = []
         monkeypatch.setattr(
             srv.PreforkServer,
-            "worker_kill",
+            "kill_worker",
             lambda self, pid, sig: killed.append((pid, sig)),
         )
 
@@ -2660,7 +2663,7 @@ class TestPreforkPhoenixStopRunsOnStopHooks:
         self._phoenix(prefork_server).stop()
 
         assert hooked == [1], (
-            "on_stop hooks did not run on a prefork reload; the outgoing master "
+            "on-stop hooks did not run on a prefork reload; the outgoing master "
             "exits leaving its subprocesses and bus connection behind"
         )
 
@@ -2713,7 +2716,7 @@ class TestListenThreadFirstPassIsImmediate:
             patch("odoo.service._cron.db.db_connect"),
             patch("odoo.service._cron.arm_cron_listen", return_value=True),
             patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
-            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch("odoo.service._threaded.selectors.DefaultSelector", _Sel),
             patch("odoo.service._threaded.config", cfg),
             patch("odoo.service._threaded.time.sleep", lambda _s: None),
@@ -2759,7 +2762,7 @@ class TestListenThreadFirstPassIsImmediate:
             patch("odoo.service._cron.db.db_connect"),
             patch("odoo.service._cron.arm_cron_listen", return_value=True),
             patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
-            patch("odoo.service._cron.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch("odoo.service._threaded.selectors.DefaultSelector", _Sel),
             patch("odoo.service._threaded.config", cfg),
             patch("odoo.service._threaded.time.sleep", lambda _s: None),
@@ -2871,7 +2874,7 @@ class TestTheStartupLineNamesTheSocketItActuallyGot:
         server = object.__new__(_prefork.PreforkServer)
         server.logger = MagicMock()
         server.interface, server.port, server.population = "127.0.0.1", 0, 1
-        server.pipe_new = MagicMock(return_value=(0, 0))
+        server.open_pipe = MagicMock(return_value=(0, 0))
         server._sweep_stale_censuses = MagicMock()
         cfg = MagicMock()
         cfg.__getitem__.side_effect = {"http_enable": True}.__getitem__
@@ -2910,7 +2913,7 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
     """`crashed_by_signal` is written for SIGKILL and was unreachable.
 
     `kill_timed_out_workers` SIGKILLs a worker that stopped pinging, and
-    `worker_kill` pops it so the watchdog cannot kill the same pid twice. But
+    `kill_worker` pops it so the watchdog cannot kill the same pid twice. But
     the exit is only *accounted* for later, when `reap_exited_workers` reaps it, and
     `_note_worker_exit` looked the worker up in `self.workers` to learn how
     long it lived — so after the pop it returned immediately, taking the whole

@@ -442,7 +442,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         env: Environment,
     ) -> None:
         model = model_cls(env, (), ())
-        pool = registration.get_registry_of(model_cls)
+        pool = registration.get_registry_of_model(model_cls)
         for name, field in model_cls._fields.items():
             try:
                 field.setup(model)
@@ -494,12 +494,12 @@ def model_test_env(
 
 def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
 
-    def _inject(table: str, record_id: int, data: dict) -> None:
+    def _insert_row(table: str, record_id: int, data: dict) -> None:
         data["id"] = record_id
         storage.put_rows(table, [data])
 
     if "res.partner" in registry:
-        _inject(
+        _insert_row(
             "res_partner",
             1,
             {
@@ -511,7 +511,7 @@ def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
         )
 
     if "res.company" in registry:
-        _inject(
+        _insert_row(
             "res_company",
             1,
             {
@@ -523,7 +523,7 @@ def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
         )
 
     if "res.users" in registry:
-        _inject(
+        _insert_row(
             "res_users",
             1,
             {

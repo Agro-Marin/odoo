@@ -164,13 +164,13 @@ class TestExternalLibsValidator(BaseCase):
         self.assertFalse(
             cross_addon,
             "a lib is declared by one addon and served by another; the strict "
-            "addon check in `_addon_relative_path_exists` assumes this does not "
+            "addon check in `_is_addon_path_present` assumes this does not "
             "happen, so decide which of the two changes:\n  "
             + "\n  ".join(cross_addon),
         )
         for alias, parts in EsbuildCompiler._LIB_CANDIDATES.items():
             self.assertTrue(
-                AssetsBundle._addon_relative_path_exists("/".join(parts)),
+                AssetsBundle._is_addon_path_present("/".join(parts)),
                 f"{alias} points at {'/'.join(parts)}, which this checkout cannot "
                 f"serve; a lib alias must live in a bundled addon",
             )
@@ -235,7 +235,7 @@ class TestBrokenManifestDoesNotTakeThePageDown(BaseCase):
             patch.object(bundle_mod, "external_libs", lambda: bad_table),
             patch.object(
                 bundle_mod.JsPipeline,
-                "_fails_closed",
+                "_is_asset_error_fatal",
                 staticmethod(lambda: fails_closed),
             ),
         ):

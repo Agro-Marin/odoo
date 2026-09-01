@@ -18,7 +18,7 @@ from odoo.db import schema as _db_schema
 from odoo.release import version_info
 
 from .._db_helpers import check_db_name
-from .._env import env_float
+from .._env import get_env_float
 
 _logger = logging.getLogger("odoo.service.db")
 
@@ -31,7 +31,7 @@ def register_catalog_listener(callback: Callable[[], None]) -> None:
 
 
 def invalidate_catalog_caches() -> None:
-    _forget_catalogue()
+    _invalidate_catalog_cache()
     for callback in _catalog_listeners:
         try:
             callback()
@@ -87,15 +87,15 @@ def _rpc_db_exist(db_name: str) -> bool:
     return True
 
 
-CATALOGUE_CACHE_TTL_S = 2.0
+CATALOG_CACHE_TTL_S = 2.0
 
-_catalogue_lock = threading.Lock()
-_catalogue_cache: tuple[float, list[str]] | None = None
+_catalog_lock = threading.Lock()
+_catalog_cache: tuple[float, list[str]] | None = None
 
-_catalogue_generation = 0
+_catalog_generation = 0
 """Bumped by every invalidation, so a query in flight can tell it was outrun.
 
-Dropping the cache is not enough on its own: `_cached_catalogue` runs the
+Dropping the cache is not enough on its own: `_get_catalog_cached` runs the
 `pg_database` scan OUTSIDE the lock, so a create/drop/rename that invalidates
 while a scan is travelling back would be undone the moment that scan stored
 its pre-change list -- and the stale list would then be served for a full TTL.
@@ -104,24 +104,24 @@ finds after, and declines to cache a result that an invalidation has outrun.
 """
 
 
-def _catalogue_ttl() -> float:
-    return env_float(
+def _get_catalog_ttl() -> float:
+    return get_env_float(
         "ODOO_DB_CATALOGUE_CACHE_TTL",
-        CATALOGUE_CACHE_TTL_S,
+        CATALOG_CACHE_TTL_S,
         minimum=0.0,
         logger=_logger,
     )
 
 
-def _forget_catalogue() -> None:
-    global _catalogue_cache, _catalogue_generation  # noqa: PLW0603  one catalogue per process
+def _invalidate_catalog_cache() -> None:
+    global _catalog_cache, _catalog_generation  # noqa: PLW0603  one catalogue per process
 
-    with _catalogue_lock:
-        _catalogue_cache = None
-        _catalogue_generation += 1
+    with _catalog_lock:
+        _catalog_cache = None
+        _catalog_generation += 1
 
 
-def _query_catalogue() -> list[str] | None:
+def _get_catalog_uncached() -> list[str] | None:
     chosen_template = odoo.tools.config["db_template"]
     templates_list = tuple({"postgres", chosen_template})
     db = odoo.db.db_connect("postgres")
@@ -146,24 +146,24 @@ def _query_catalogue() -> list[str] | None:
             return None
 
 
-def _cached_catalogue() -> list[str]:
-    global _catalogue_cache  # noqa: PLW0603  one catalogue per process
+def _get_catalog_cached() -> list[str]:
+    global _catalog_cache  # noqa: PLW0603  one catalogue per process
 
-    ttl = _catalogue_ttl()
+    ttl = _get_catalog_ttl()
     if ttl <= 0:
-        return _query_catalogue() or []
+        return _get_catalog_uncached() or []
     now = time.monotonic()
-    with _catalogue_lock:
-        cached = _catalogue_cache
+    with _catalog_lock:
+        cached = _catalog_cache
         if cached is not None and now - cached[0] < ttl:
             return list(cached[1])
-        generation = _catalogue_generation
-    names = _query_catalogue()
+        generation = _catalog_generation
+    names = _get_catalog_uncached()
     if names is None:
         return []
-    with _catalogue_lock:
-        if _catalogue_generation == generation:
-            _catalogue_cache = (now, names)
+    with _catalog_lock:
+        if _catalog_generation == generation:
+            _catalog_cache = (now, names)
     return list(names)
 
 
@@ -178,7 +178,7 @@ def list_dbs(force: bool = False) -> list[str]:
     if _is_db_list_configured():
         return sorted(odoo.tools.config["db_name"])
 
-    return _cached_catalogue()
+    return _get_catalog_cached()
 
 
 def list_db_incompatible(databases: list[str]) -> list[str]:
@@ -225,7 +225,7 @@ def exp_list_lang() -> list:
 
 
 @functools.cache
-def _scan_countries() -> tuple[tuple[str, str], ...]:
+def _read_countries() -> tuple[tuple[str, str], ...]:
     root = ET.parse(  # noqa: S314  parses Odoo's own res_country_data.xml from root_path
         Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
     ).getroot()
@@ -240,7 +240,7 @@ def _scan_countries() -> tuple[tuple[str, str], ...]:
 
 
 def exp_list_countries() -> list[list[str]]:
-    return [[code, name] for code, name in _scan_countries()]
+    return [[code, name] for code, name in _read_countries()]
 
 
 def exp_server_version() -> str:

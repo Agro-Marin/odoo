@@ -69,12 +69,12 @@ def _make_callable(body: str):
 
 
 def test_route_param_filter_survives_type_checking_annotation():
-    from odoo.http.routing import _route_param_filter
+    from odoo.http.routing import _get_endpoint_param_acceptance
 
     ns = _make_callable(
         "def endpoint(self, thing: Environment, limit: int = 10):\n    return thing"
     )
-    accepts_kw, named, bound = _route_param_filter(ns["endpoint"])
+    accepts_kw, named, bound = _get_endpoint_param_acceptance(ns["endpoint"])
     assert named == frozenset({"thing", "limit"})
     assert bound == "self"
     assert accepts_kw is False

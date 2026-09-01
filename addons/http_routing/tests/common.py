@@ -81,7 +81,7 @@ def MockRequest(
         future_response=odoo.http.FutureResponse(),
         params={},
         session=DotDict(
-            odoo.http.get_default_session(),
+            odoo.http.prepare_default_session(),
             context={"lang": ""},
             force_website_id=website and website.id,
         ),
@@ -139,6 +139,6 @@ def MockRequest(
         odoo.http._request_stack.push(request)
         s.callback(odoo.http._request_stack.pop)
         if mock_router:
-            s.enter_context(patch("odoo.http.root.get_db_router", router))
+            s.enter_context(patch("odoo.http.root.get_routing_map", router))
 
         yield request

@@ -35,10 +35,10 @@ class TransactionSchemaCache:
     ) -> None:
         self._column_types[table, tuple(columns)] = types
 
-    def clear_catalog_facts(self) -> None:
+    def invalidate_catalog_facts(self) -> None:
         self._id_sequences.clear()
         self._column_types.clear()
 
     def clear(self) -> None:
-        self.clear_catalog_facts()
+        self.invalidate_catalog_facts()
         self.locked_tables.clear()

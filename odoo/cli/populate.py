@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from odoo.logutils import RUNBOT
 from odoo.tools.populate import populate_models
 
-from . import DatabaseCommand, odoo_env
+from . import DatabaseCommand, open_environment
 
 if TYPE_CHECKING:
     from odoo import api
@@ -18,7 +18,7 @@ DEFAULT_MODELS = "res.partner,product.template,account.move,sale.order,crm.lead,
 _logger = logging.getLogger(__name__)
 
 
-def _parse_model_factors(
+def _prepare_factors_by_model_name(
     factors: str, models: str, error: Callable[[str], None]
 ) -> dict[str, int]:
     try:
@@ -80,7 +80,7 @@ class Populate(DatabaseCommand):
         parsed_args, unknown = self.parse_args(cmdargs)
 
         db_name = self.bootstrap_config(parsed_args, extra_args=unknown)
-        model_factors = _parse_model_factors(
+        model_factors = _prepare_factors_by_model_name(
             parsed_args.factors, parsed_args.models_to_populate, parser.error
         )
         if len(parsed_args.separator) != 1:
@@ -90,23 +90,23 @@ class Populate(DatabaseCommand):
             )
         separator_code = ord(parsed_args.separator)
 
-        with odoo_env(db_name, context={"active_test": False}) as env:
-            self.populate(env, model_factors, separator_code)
+        with open_environment(db_name, context={"active_test": False}) as env:
+            self._populate_models_named(env, model_factors, separator_code)
 
     @classmethod
-    def populate(
+    def _populate_models_named(
         cls,
         env: api.Environment,
-        modelname_factors: dict[str, int],
+        model_name_factors: dict[str, int],
         separator_code: int,
     ) -> None:
         model_factors = {
             model: factor
-            for model_name, factor in modelname_factors.items()
+            for model_name, factor in model_name_factors.items()
             if (model := env.get(model_name)) is not None
             and not (model._transient or model._abstract)
         }
-        if skipped := set(modelname_factors) - {m._name for m in model_factors}:
+        if skipped := set(model_name_factors) - {m._name for m in model_factors}:
             _logger.warning(
                 "Ignoring unknown, transient or abstract models: %s",
                 ", ".join(sorted(skipped)),

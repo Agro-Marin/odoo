@@ -13,17 +13,17 @@ from odoo.service import db, server
 from odoo.tools import config
 
 from . import Command
-from .command import refuse_maintenance_db
+from .command import check_db_not_maintenance
 
 _logger = logging.getLogger("odoo")
 
 
-def check_root_user() -> None:
+def warn_running_as_root() -> None:
     if os.name == "posix" and os.getuid() == 0:
         sys.stderr.write("Running as user 'root' is a security risk.\n")
 
 
-def check_postgres_user() -> None:
+def check_db_user_not_postgres() -> None:
     if (config["db_user"] or os.environ.get("PGUSER")) == "postgres":
         sys.stderr.write(
             "Using the database user 'postgres' is a security risk, aborting.\n"
@@ -63,27 +63,27 @@ def report_configuration() -> None:
         )
 
 
-def rm_pid_file(main_pid: int) -> None:
+def remove_pid_file(main_pid: int) -> None:
     if config["pidfile"] and main_pid == os.getpid():
         with contextlib.suppress(OSError):
             Path(config["pidfile"]).unlink()
 
 
-def setup_pid_file() -> None:
+def write_pid_file() -> None:
     if not odoo.evented and config["pidfile"]:
         pid = os.getpid()
         Path(config["pidfile"]).write_text(str(pid), encoding="utf-8")
-        atexit.register(rm_pid_file, pid)
+        atexit.register(remove_pid_file, pid)
 
 
-def main(args: list[str]) -> None:
-    check_root_user()
+def run_server(args: list[str]) -> None:
+    warn_running_as_root()
     config.parse_config(args, setup_logging=True)
-    check_postgres_user()
+    check_db_user_not_postgres()
     report_configuration()
 
     for db_name in config["db_name"]:
-        refuse_maintenance_db(
+        check_db_not_maintenance(
             db_name,
             error_handler=lambda msg: sys.exit(
                 f"{msg} Choose another with -d/--database, or db_name in the "
@@ -108,7 +108,7 @@ def main(args: list[str]) -> None:
 
     stop = config["stop_after_init"]
 
-    setup_pid_file()
+    write_pid_file()
     rc = server.start(preload=config["db_name"], stop=stop)
     sys.exit(rc)
 
@@ -118,4 +118,4 @@ class Server(Command):
 
     def run(self, args: list[str]) -> None:
         config.parser.prog = self.prog
-        main(args)
+        run_server(args)

@@ -189,3 +189,20 @@ covers reads as a statement rather than a question.
 The pointer is corrected in place; the argument it supports is unchanged. Before
 this, `test_adr_coherence` reported this record as describing code that does not
 exist, which was true of the name and false of the code.
+
+Both moves were naming work and neither touched the decision this record makes:
+
+- `7588043620c` moved the class out of `addons/stock/models/stock_quant.py` into
+  `addons/stock/tools/reservation.py` and dropped its leading underscore — a
+  helper two models import is not private to either.
+- `d6042c9b622` renamed the method to `is_covering`: it answers a question about
+  the cache and never raises, which is the Predicate row of
+  `doc/coding_guidelines.rst` §2.4.3.
+
+**The gate saw one of the two moves, and that is worth recording.**
+`tooling/architecture/test_adr_coherence.py` strips the trailing `()` and checks
+the **last dotted segment** against the tree's `def` and `class` names, so it
+went red at `d6042c9b622` and had nothing to say about `7588043620c` — the class
+half of the citation was wrong for a day and a half while the record read as
+green. A dotted citation is checked at its tail only; the qualifier in front of
+it is prose, and prose is what §2.4.14 says a rename has to carry by hand.

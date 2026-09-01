@@ -5900,7 +5900,7 @@ class TestUpdateDbNotNull(TransactionCase):
         self.env.cr.execute(
             "UPDATE test_orm_category SET color = 0 WHERE color IS NULL"
         )
-        column = tools_sql.table_columns(self.env.cr, model._table)[field.name]
+        column = tools_sql.get_table_columns(self.env.cr, model._table)[field.name]
         self.assertEqual(column["is_nullable"], "YES", "test premise")
         with (
             patch.object(field, "required", True),

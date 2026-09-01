@@ -8,11 +8,11 @@ from odoo.orm.fields.base import Field
 from odoo.orm.fields.misc import Id
 from odoo.orm.model_test_env import model_test_env
 from odoo.orm.models.mixins._cache_scan import (
-    caches_lang_dicts,
     can_scan_identity,
     can_scan_read,
     can_scan_sorted,
     can_scan_truthy,
+    has_lang_dict_cache,
 )
 
 _MOD = "test_cache_scan_allowlists"
@@ -293,14 +293,14 @@ class TestInstanceLevelGuards(unittest.TestCase):
         field = fields.Text()
         field.translate = per_term
         self.assertTrue(
-            caches_lang_dicts(
+            has_lang_dict_cache(
                 field, typing.cast("typing.Any", _Env(prefetch_langs=True))
             )
         )
-        self.assertFalse(caches_lang_dicts(field, typing.cast("typing.Any", _Env())))
+        self.assertFalse(has_lang_dict_cache(field, typing.cast("typing.Any", _Env())))
         field.translate = True
         self.assertFalse(
-            caches_lang_dicts(
+            has_lang_dict_cache(
                 field, typing.cast("typing.Any", _Env(prefetch_langs=True))
             )
         )

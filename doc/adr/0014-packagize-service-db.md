@@ -16,7 +16,7 @@ was large **and** flat, holding four unrelated concerns:
 | Database lifecycle DDL | `_create_empty_database`, `_drop_database`, `_duplicate_database`, `_rename_database`, the two rollbacks, the terminate-then-DDL retries |
 | Backup / restore, incl. archive-bomb defence | `dump_db`, `restore_db`, `_run_pg_dump_blocking`, `_run_pg_dump_streaming`, `_write_zip_dump`, `_extract_members_bounded`, `_unpack_budget` |
 | The `/web/database/manager` RPC surface | the 14 `exp_*` functions, `dispatch`, `_DISPATCH`, `_REQUIRES_MASTER_PASSWORD` |
-| Listing and static metadata | `list_dbs`, `list_db_incompatible`, `exp_list_lang`, `_scan_countries`, `exp_list_countries`, `exp_server_version` |
+| Listing and static metadata | `list_dbs`, `list_db_incompatible`, `exp_list_lang`, `_read_countries`, `exp_list_countries`, `exp_server_version` |
 
 Zip-bomb bounds and pg_dump timeout escalation were interleaved with DDL retry
 logic; "what does the database manager expose" had no one-file answer.
@@ -130,3 +130,24 @@ The direction here is asserted by construction and documented in the package
 still a package), `subsystem_map_check.py` (the map against the tree), and the
 standing `tests/service` suite — 232 tests over this code, same count as before
 the split.
+
+## Amendments
+
+### 2026-08-31 — `_scan_countries` is `_read_countries`
+
+The citation in *Decision*'s table is corrected in place. Nothing else changes:
+the four concerns the split is argued around, the module boundaries, the patch
+targets and the enforcement below are all exactly as decided.
+
+The rename is `doc/coding_guidelines.rst` §2.4.18 — `_scan_` is reserved for
+sweeping a directory, and the body parses one XML file into `(code, name)` pairs,
+which is that section's Read row: document to one representation.
+
+Recorded because the citation had already been dangling and **no gate said so**.
+`test_adr_coherence.py::TestReferencedNamesExist` resolves a symbol only in the
+`name()` spelling — `_CALL_RE` matches a trailing `()`, and a bare backticked
+identifier falls through every branch of `existence_findings`. `doc/adr/README.md`
+states this correctly ("every backticked path, `name()` and dotted model name");
+the table above uses the bare form throughout, so **every symbol in it is outside
+the checked set**, and the rename that broke it left Tier 1 green. Cite a callable
+as `name()` in a record that wants the gate to hold it.

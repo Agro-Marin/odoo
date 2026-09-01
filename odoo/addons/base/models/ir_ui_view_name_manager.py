@@ -53,7 +53,7 @@ class NameManager:
                 info["readonly"] = True
         return field_info
 
-    def has_field(
+    def add_available_field(
         self,
         node: etree._Element,
         name: str,
@@ -227,7 +227,7 @@ class NameManager:
         for name, (
             missing_groups,
             reasons,
-        ) in self.get_missing_fields().items():
+        ) in self.get_fields_missing().items():
             message, error_type = self._error_message_group_inconsistency(
                 name, missing_groups, reasons
             )
@@ -331,7 +331,7 @@ class NameManager:
         for name, info in self.available_fields.items():
             info.update(self.field_info.get(name, {}))
 
-    def get_missing_fields(self) -> dict[str, tuple[Any, list[tuple]]]:
+    def get_fields_missing(self) -> dict[str, tuple[Any, list[tuple]]]:
 
         missing_fields = {}
         for name, groups_uses in self.used_fields.items():

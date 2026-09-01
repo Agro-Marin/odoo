@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg
 
-from odoo.db import db_connect, get_connection_info_for
+from odoo.db import db_connect, get_connection_info_for_database
 from odoo.tools import SQL
 
 from . import DatabaseCommand
@@ -59,7 +59,7 @@ def _parse_field_spec(spec: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
-def _select_fields(opt: argparse.Namespace) -> list[tuple[str, str]]:
+def _get_fields_selected(opt: argparse.Namespace) -> list[tuple[str, str]]:
     fields = [] if opt.no_default_fields else list(DEFAULT_FIELDS)
     if opt.fields:
         if opt.allfields:
@@ -95,7 +95,7 @@ class Obfuscate(DatabaseCommand):
         self.dbname: str = ""
         self._field_kinds: dict[tuple[str, str], str] | None = None
         self._field_widths: dict[tuple[str, str], int] | None = None
-        self.add_arguments()
+        self._add_arguments()
 
     @property
     def cr(self) -> Cursor:
@@ -115,7 +115,7 @@ class Obfuscate(DatabaseCommand):
             raise RuntimeError(msg)
         return row
 
-    def _install_pgcrypto(self) -> None:
+    def _install_cypher_support(self) -> None:
         self.cr.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
         self.cr.execute(
             """
@@ -140,14 +140,14 @@ class Obfuscate(DatabaseCommand):
     def rollback(self) -> None:
         self.cr.rollback()
 
-    def set_pwd(self, pwd: str) -> None:
+    def _insert_password_marker(self, pwd: str) -> None:
         self.cr.execute(
             "INSERT INTO ir_config_parameter (key, value) VALUES ('odoo_cyph_pwd', 'odoo_cyph_'||encode(pgp_sym_encrypt(%s, %s), 'base64')) ON CONFLICT(key) DO NOTHING",
             [pwd, pwd],
         )
 
-    def check_pwd(self, pwd: str) -> bool:
-        uncypher_pwd = self.uncypher_string(SQL.identifier("value"), pwd)
+    def _is_password_valid(self, pwd: str) -> bool:
+        uncypher_pwd = self._prepare_uncypher_sql(SQL.identifier("value"), pwd)
 
         try:
             query = SQL(
@@ -163,17 +163,17 @@ class Obfuscate(DatabaseCommand):
             _logger.info("Password check failed: %s", e)
         return False
 
-    def clear_pwd(self) -> None:
+    def _remove_password_marker(self) -> None:
         self.cr.execute("DELETE FROM ir_config_parameter WHERE key='odoo_cyph_pwd'")
 
-    def cypher_string(self, sql_field: SQL, password: str) -> SQL:
+    def _prepare_cypher_sql(self, sql_field: SQL, password: str) -> SQL:
         return SQL(
             """CASE WHEN pg_temp.odoo_cyph_marked(%(field_name)s, %(pwd)s) THEN %(field_name)s ELSE 'odoo_cyph_'||encode(pgp_sym_encrypt(%(field_name)s, %(pwd)s), 'base64') END""",
             field_name=sql_field,
             pwd=password,
         )
 
-    def uncypher_string(self, sql_field: SQL, password: str) -> SQL:
+    def _prepare_uncypher_sql(self, sql_field: SQL, password: str) -> SQL:
         return SQL(
             """CASE WHEN pg_temp.odoo_cyph_marked(%(field_name)s, %(pwd)s) THEN pgp_sym_decrypt(decode(substring(%(field_name)s, 11)::text, 'base64'), %(pwd)s) ELSE %(field_name)s END""",
             field_name=sql_field,
@@ -195,7 +195,7 @@ class Obfuscate(DatabaseCommand):
         "   AND udt_name IN ('text', 'varchar', 'jsonb')"
     )
 
-    def _index_rows(self, rows: list[tuple]) -> None:
+    def _index_field_catalog(self, rows: list[tuple]) -> None:
         self._field_kinds = {}
         self._field_widths = {}
         for table, column, udt, max_length in rows:
@@ -204,7 +204,7 @@ class Obfuscate(DatabaseCommand):
                 if max_length is not None:
                     self._field_widths[table, column] = max_length
 
-    def _prefetch_field_kinds(self, tables: set[str] | list[str]) -> None:
+    def _load_field_catalog(self, tables: set[str] | list[str]) -> None:
         self._field_kinds = {}
         self._field_widths = {}
         if not tables:
@@ -213,9 +213,9 @@ class Obfuscate(DatabaseCommand):
             f"{self._CATALOG_COLUMNS} AND table_name = ANY(%s)",
             [list(tables)],
         )
-        self._index_rows(self.cr.fetchall())
+        self._index_field_catalog(self.cr.fetchall())
 
-    def check_field(self, table: str, field: str) -> str | None:
+    def _get_field_kind(self, table: str, field: str) -> str | None:
         if self._field_kinds is not None:
             return self._field_kinds.get((table, field))
         qry = "SELECT udt_name FROM information_schema.columns WHERE table_name=%s AND column_name=%s AND table_schema = current_schema"
@@ -224,7 +224,7 @@ class Obfuscate(DatabaseCommand):
             return self._get_column_kind(self._get_row()[0])
         return None
 
-    def get_fields_unfittable(
+    def _get_fields_unfittable(
         self, fields: list[tuple[str, str]], pwd: str
     ) -> list[tuple[tuple[str, str], int, int]]:
         unfittable = []
@@ -253,17 +253,17 @@ class Obfuscate(DatabaseCommand):
                 unfittable.append((field, width, projected))
         return unfittable
 
-    def get_all_fields(self) -> list[tuple[str, str]]:
+    def _get_fields_obfuscatable(self) -> list[tuple[str, str]]:
         self.cr.execute(
             f"{self._CATALOG_COLUMNS}"
             " AND NOT starts_with(table_name, 'ir_')"
             " ORDER BY 1, 2"
         )
         rows = self.cr.fetchall()
-        self._index_rows(rows)
+        self._index_field_catalog(rows)
         return [(table, column) for table, column, _udt, _len in rows]
 
-    def convert_table(
+    def _update_table_values(
         self,
         table: str,
         fields: set[str] | list[str],
@@ -273,10 +273,12 @@ class Obfuscate(DatabaseCommand):
     ) -> None:
         cypherings = []
         conditions = []
-        cyph_fct = self.uncypher_string if unobfuscate else self.cypher_string
+        cyph_fct = (
+            self._prepare_uncypher_sql if unobfuscate else self._prepare_cypher_sql
+        )
 
         for field in fields:
-            field_type = self.check_field(table, field)
+            field_type = self._get_field_kind(table, field)
             sql_field = SQL.identifier(field)
             if field_type == "string":
                 cypher_query = cyph_fct(sql_field, pwd)
@@ -296,7 +298,7 @@ class Obfuscate(DatabaseCommand):
                     )
             elif field_type == "json":
                 new_field_value = sql_field
-                for key in self._json_keys(table, field):
+                for key in self._get_keys_in_jsonb_column(table, field):
                     cypher_query = cyph_fct(SQL("%s->>%s", sql_field, key), pwd)
                     new_field_value = SQL(
                         "CASE WHEN jsonb_typeof(%s->%s) = 'string' "
@@ -323,7 +325,7 @@ class Obfuscate(DatabaseCommand):
             if with_commit:
                 self.commit()
 
-    def _json_keys(self, table: str, field: str) -> list[str]:
+    def _get_keys_in_jsonb_column(self, table: str, field: str) -> list[str]:
         sql_field = SQL.identifier(field)
         sql_table = SQL.identifier(table)
         self.cr.execute(
@@ -356,13 +358,13 @@ class Obfuscate(DatabaseCommand):
 
     def _vacuum_tables(self, tables: dict[str, set[str]]) -> None:
         _logger.info("Vacuuming obfuscated tables")
-        _, conn_info = get_connection_info_for(self.dbname)
+        _, conn_info = get_connection_info_for_database(self.dbname)
         with psycopg.connect(**conn_info, autocommit=True) as vac_conn:
             for table in tables:
                 _logger.debug("Vacuuming table %s", table)
                 vac_conn.execute(SQL("VACUUM FULL %s", SQL.identifier(table)).code)
 
-    def confirm_not_secure(self) -> bool:
+    def _confirm_insecure_operation(self) -> None:
         _logger.info(
             "The obfuscate method is not considered as safe to transfer anonymous datas to a third party."
         )
@@ -378,9 +380,8 @@ class Obfuscate(DatabaseCommand):
         if self.dbname.upper() != conf_db.strip():
             self.rollback()
             sys.exit("Cancelled: database name did not match.")
-        return True
 
-    def _resolve_password(self, opt: argparse.Namespace) -> str:
+    def _get_password(self, opt: argparse.Namespace) -> str:
         if opt.pwd:
             return opt.pwd
         if opt.pwd_file:
@@ -406,7 +407,7 @@ class Obfuscate(DatabaseCommand):
             )
         return pwd
 
-    def add_arguments(self) -> None:
+    def _add_arguments(self) -> None:
         parser = self.parser
         self.add_config_arguments(parser)
         pwd_group = parser.add_mutually_exclusive_group()
@@ -482,22 +483,22 @@ class Obfuscate(DatabaseCommand):
             )
 
         self.dbname = self.bootstrap_config(opt, extra_args=unknown)
-        pwd = self._resolve_password(opt)
+        pwd = self._get_password(opt)
 
         try:
             with db_connect(self.dbname).cursor() as cr:
                 self.cr = cr
-                self._install_pgcrypto()
-                if not self.check_pwd(pwd):
+                self._install_cypher_support()
+                if not self._is_password_valid(pwd):
                     self.rollback()
                     sys.exit(
                         "ERROR: invalid password (the database is encrypted with a different one)."
                     )
-                tables = self._resolve_targets(opt, pwd)
+                tables = self._get_columns_by_table(opt, pwd)
                 if opt.unobfuscate:
-                    self._unobfuscate(opt, pwd, tables)
+                    self._unobfuscate_tables(opt, pwd, tables)
                 else:
-                    self._obfuscate(opt, pwd, tables)
+                    self._obfuscate_tables(opt, pwd, tables)
                 self.commit()
 
         except psycopg.errors.ExternalRoutineInvocationException as e:
@@ -515,30 +516,30 @@ class Obfuscate(DatabaseCommand):
             self._field_widths = None
             _read_field_file.cache_clear()
 
-    def _resolve_targets(
+    def _get_columns_by_table(
         self, opt: argparse.Namespace, pwd: str
     ) -> dict[str, set[str]]:
         try:
-            fields = _select_fields(opt)
+            fields = _get_fields_selected(opt)
         except ValueError as e:
             self.parser.error(str(e))
 
         if opt.allfields:
-            fields = self.get_all_fields()
+            fields = self._get_fields_obfuscatable()
         else:
-            requested = self._explicitly_requested(opt)
-            self._prefetch_field_kinds({t for t, _ in fields})
-            absent = [f for f in fields if not self.check_field(f[0], f[1])]
+            requested = self._get_fields_requested_explicitly(opt)
+            self._load_field_catalog({t for t, _ in fields})
+            absent = [f for f in fields if not self._get_field_kind(f[0], f[1])]
             if absent:
-                self._report_absent(
+                self._report_absent_fields(
                     [f for f in absent if f in requested], level=logging.ERROR
                 )
-                self._report_absent(
+                self._report_absent_fields(
                     [f for f in absent if f not in requested], level=logging.INFO
                 )
                 fields = [f for f in fields if f not in absent]
             if not opt.unobfuscate:
-                fields = self._drop_unfittable_fields(fields, pwd, requested)
+                fields = self._exclude_fields_unfittable(fields, pwd, requested)
 
         _logger.info(
             "Processing fields: %s", ", ".join([f"{f[0]}.{f[1]}" for f in fields])
@@ -561,7 +562,9 @@ class Obfuscate(DatabaseCommand):
         return tables
 
     @staticmethod
-    def _explicitly_requested(opt: argparse.Namespace) -> set[tuple[str, str]]:
+    def _get_fields_requested_explicitly(
+        opt: argparse.Namespace,
+    ) -> set[tuple[str, str]]:
         requested: set[tuple[str, str]] = set()
         if opt.fields:
             requested |= {_parse_field_spec(f) for f in opt.fields.split(",")}
@@ -570,7 +573,7 @@ class Obfuscate(DatabaseCommand):
         return requested
 
     @staticmethod
-    def _report_absent(fields: list[tuple[str, str]], *, level: int) -> None:
+    def _report_absent_fields(fields: list[tuple[str, str]], *, level: int) -> None:
         if fields:
             _logger.log(
                 level,
@@ -580,13 +583,13 @@ class Obfuscate(DatabaseCommand):
                 ", ".join(f"{t}.{c}" for t, c in fields),
             )
 
-    def _drop_unfittable_fields(
+    def _exclude_fields_unfittable(
         self,
         fields: list[tuple[str, str]],
         pwd: str,
         requested: set[tuple[str, str]],
     ) -> list[tuple[str, str]]:
-        unfittable = self.get_fields_unfittable(fields, pwd)
+        unfittable = self._get_fields_unfittable(fields, pwd)
         if not unfittable:
             return fields
         described = ", ".join(
@@ -608,28 +611,28 @@ class Obfuscate(DatabaseCommand):
         unfittable_fields = {field for field, _w, _p in unfittable}
         return [f for f in fields if f not in unfittable_fields]
 
-    def _obfuscate(
+    def _obfuscate_tables(
         self, opt: argparse.Namespace, pwd: str, tables: dict[str, set[str]]
     ) -> None:
         if not opt.yes:
-            self.confirm_not_secure()
+            self._confirm_insecure_operation()
         _logger.info("Obfuscating datas")
         if opt.vacuum:
             _logger.warning("--vacuum only applies in unobfuscate mode; ignoring it")
-        self.set_pwd(pwd)
+        self._insert_password_marker(pwd)
         for table, columns in tables.items():
             _logger.info("Obfuscating table %s", table)
-            self.convert_table(table, columns, pwd, opt.pertablecommit)
+            self._update_table_values(table, columns, pwd, opt.pertablecommit)
 
-    def _unobfuscate(
+    def _unobfuscate_tables(
         self, opt: argparse.Namespace, pwd: str, tables: dict[str, set[str]]
     ) -> None:
         if not opt.yes:
-            self.confirm_not_secure()
+            self._confirm_insecure_operation()
         _logger.info("Unobfuscating datas")
         for table, columns in tables.items():
             _logger.info("Unobfuscating table %s", table)
-            self.convert_table(table, columns, pwd, opt.pertablecommit, True)
+            self._update_table_values(table, columns, pwd, opt.pertablecommit, True)
 
         partial_run = bool(opt.fields or opt.file or opt.exclude) and not opt.allfields
         if partial_run:
@@ -643,4 +646,4 @@ class Obfuscate(DatabaseCommand):
             self.commit()
             self._vacuum_tables(tables)
         if not partial_run:
-            self.clear_pwd()
+            self._remove_password_marker()

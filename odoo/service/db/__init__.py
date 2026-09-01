@@ -4,7 +4,7 @@ from .._db_helpers import (
     DatabaseExists,
     check_db_management_enabled,
     check_super,
-    database_identifier,
+    get_database_identifier,
     check_db_name,
 )
 from odoo.db import SYSTEM_DBS
@@ -48,7 +48,6 @@ __all__ = (
     "check_db_management_enabled",
     "check_db_name",
     "check_super",
-    "database_identifier",
     "dispatch",
     "dump_db",
     "dump_db_manifest",
@@ -65,6 +64,7 @@ __all__ = (
     "exp_rename",
     "exp_restore",
     "exp_server_version",
+    "get_database_identifier",
     "invalidate_catalog_caches",
     "list_db_incompatible",
     "list_dbs",

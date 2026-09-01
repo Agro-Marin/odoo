@@ -1,7 +1,7 @@
 from odoo.modules.db import (
     _AUTO_INSTALL_CANDIDATES_QUERY,
     _AUTO_INSTALL_CLOSURE_QUERY,
-    create_categories,
+    get_or_create_category_id,
 )
 from odoo.tests.common import TransactionCase
 
@@ -77,16 +77,18 @@ class TestAutoInstallQueries(TransactionCase):
         )
 
 
-class TestCreateCategoriesCache(TransactionCase):
+class TestGetOrCreateCategoryIdCache(TransactionCase):
     def test_warm_cache_short_circuits_queries(self):
         cache = {}
-        cat_id = create_categories(self.cr, ["Audit Cat", "Sub"], cache)
+        cat_id = get_or_create_category_id(self.cr, ["Audit Cat", "Sub"], cache)
         self.assertIsInstance(cat_id, int)
         queries_before = self.cr.sql_log_count
-        again = create_categories(self.cr, ["Audit Cat", "Sub"], cache)
+        again = get_or_create_category_id(self.cr, ["Audit Cat", "Sub"], cache)
         self.assertEqual(again, cat_id)
         self.assertEqual(self.cr.sql_log_count, queries_before, "expected 0 queries")
 
     def test_without_cache_behaviour_unchanged(self):
-        cat_id = create_categories(self.cr, ["Audit Cat", "Sub"])
-        self.assertEqual(create_categories(self.cr, ["Audit Cat", "Sub"]), cat_id)
+        cat_id = get_or_create_category_id(self.cr, ["Audit Cat", "Sub"])
+        self.assertEqual(
+            get_or_create_category_id(self.cr, ["Audit Cat", "Sub"]), cat_id
+        )

@@ -25,7 +25,7 @@ from ._protocols import RequestState, ir_http
 from ._retry import RequestRetryParticipant
 from .constants import NOT_FOUND_NODB, NOT_FOUND_NODB_TEXT, STATIC_CACHE
 from .core import borrow_request
-from .dispatcher import _dispatchers, infer_dispatcher_for_unmatched
+from .dispatcher import _dispatchers, get_dispatcher_for_unmatched_route
 from .exceptions import RegistryError, get_error_response, set_error_response
 from .helpers import is_cors_preflight, rewind_uploaded_files
 from .stream import Stream
@@ -38,16 +38,16 @@ _PROMOTE = object()
 
 
 class _RequestServeMixin(RequestState):
-    def _set_request_dispatcher(self, rule: Any) -> None:
+    def _update_dispatcher(self, rule: Any) -> None:
         routing = rule.endpoint.routing
         dispatcher_cls = _dispatchers[routing["type"]]
         if not is_cors_preflight(
             self, rule.endpoint
-        ) and not dispatcher_cls.is_compatible_with(self):
+        ) and not dispatcher_cls.is_compatible_with_request(self):
             compatible_dispatchers = [
                 disp.routing_type
                 for disp in _dispatchers.values()
-                if disp.is_compatible_with(self)
+                if disp.is_compatible_with_request(self)
             ]
             e = (
                 f"Request inferred type is compatible with {compatible_dispatchers} "
@@ -69,7 +69,7 @@ class _RequestServeMixin(RequestState):
                 max_age=0 if debug else STATIC_CACHE,
                 content_security_policy=None,
             )
-            root.set_csp(res)
+            root.update_security_headers(res)
             return res
         except OSError:
             module, _, path = self.httprequest.path[1:].partition("/static/")
@@ -84,12 +84,12 @@ class _RequestServeMixin(RequestState):
                 self.httprequest.path,
                 exc_info=exc,
             )
-            response = self._dispatcher_error_response(exc)
+            response = self._prepare_dispatcher_error_response(exc)
         self.dispatcher.post_dispatch(response)
         return response
 
-    def _dispatcher_error_response(self, exc: HTTPException) -> Response:
-        handled = self.dispatcher.handle_error(exc)
+    def _prepare_dispatcher_error_response(self, exc: HTTPException) -> Response:
+        handled = self.dispatcher.prepare_error_response(exc)
         if isinstance(handled, HTTPException):
             return handled.get_response()
         return handled
@@ -102,10 +102,10 @@ class _RequestServeMixin(RequestState):
             try:
                 rule, args = router.match(return_rule=True)
             except NotFound as exc:
-                self.dispatcher = infer_dispatcher_for_unmatched(self)(self)
-                set_error_response(exc, self._nodb_not_found_response(exc))
+                self.dispatcher = get_dispatcher_for_unmatched_route(self)(self)
+                set_error_response(exc, self._prepare_nodb_not_found_response(exc))
                 raise
-            self._set_request_dispatcher(rule)
+            self._update_dispatcher(rule)
             self.dispatcher.pre_dispatch(rule, args)
             response = self.dispatcher.dispatch(rule.endpoint, args)
             self.dispatcher.post_dispatch(response)
@@ -115,7 +115,7 @@ class _RequestServeMixin(RequestState):
                 raise
             return self._serve_aborted(exc)
 
-    def _nodb_not_found_response(self, exc: NotFound) -> Response:
+    def _prepare_nodb_not_found_response(self, exc: NotFound) -> Response:
         if self.dispatcher.routing_type == "http":
             return Response(
                 NOT_FOUND_NODB,
@@ -123,7 +123,7 @@ class _RequestServeMixin(RequestState):
                 headers=[("Content-Type", "text/html; charset=utf-8")],
             )
         exc.description = NOT_FOUND_NODB_TEXT
-        return self._dispatcher_error_response(exc)
+        return self._prepare_dispatcher_error_response(exc)
 
     def _acquire_registry_cursor(self) -> Any:
         db = self.db
@@ -166,14 +166,14 @@ class _RequestServeMixin(RequestState):
                 cr.close()
             raise
 
-    def _resolve_serve_target(self, registry: Registry) -> tuple[Any, bool]:
+    def _select_serve_target_and_mode(self, registry: Registry) -> tuple[Any, bool]:
         try:
             rule, args = ir_http(registry)._match(self.httprequest.path)
         except NotFound as not_found_exc:
-            self.dispatcher = infer_dispatcher_for_unmatched(self)(self)
+            self.dispatcher = get_dispatcher_for_unmatched_route(self)(self)
             return functools.partial(self._serve_ir_http_fallback, not_found_exc), True
 
-        self._set_request_dispatcher(rule)
+        self._update_dispatcher(rule)
         readonly = rule.endpoint.routing["readonly"]
         if callable(readonly):
             readonly = readonly(rule.endpoint.func.__self__, rule, args)
@@ -241,7 +241,7 @@ class _RequestServeMixin(RequestState):
             self.env = odoo.api.Environment(
                 cr, self.session.uid, self.session.context or {}
             )
-            serve_func, readonly = self._resolve_serve_target(registry)
+            serve_func, readonly = self._select_serve_target_and_mode(registry)
 
             promoted = False
             if readonly and cr.readonly:
@@ -280,24 +280,24 @@ class _RequestServeMixin(RequestState):
         if get_error_response(exc) is None:
             if isinstance(exc, AccessDenied):
                 exc.suppress_traceback()
-            registry = self._bound_registry()
+            registry = self._get_bound_registry()
             set_error_response(exc, ir_http(registry)._handle_error(exc))
 
-    def _bound_registry(self) -> Registry:
+    def _get_bound_registry(self) -> Registry:
         registry = self.registry
         assert registry is not None, "ir.http is only reachable with a registry"
         return registry
 
-    def _reject_oversized_body(self) -> None:
+    def _check_body_size(self) -> None:
         limit = self.httprequest.max_content_length
         length = self.httprequest.content_length
         if limit is not None and length is not None and length > limit:
             raise RequestEntityTooLarge
 
     def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
-        registry = self._bound_registry()
+        registry = self._get_bound_registry()
         ir_http(registry)._apply_max_upload_size()
-        self._reject_oversized_body()
+        self._check_body_size()
         self._params_source = self.get_http_params
         ir_http(registry)._auth_method_public()
         response = ir_http(registry)._serve_fallback()
@@ -311,7 +311,7 @@ class _RequestServeMixin(RequestState):
         raise no_fallback
 
     def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
-        registry = self._bound_registry()
+        registry = self._get_bound_registry()
         ir_http(registry)._authenticate(rule.endpoint)
         ir_http(registry)._pre_dispatch(rule, args)
         response = self.dispatcher.dispatch(rule.endpoint, args)

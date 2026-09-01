@@ -97,7 +97,7 @@ class _FlushingSavepoint(Savepoint):
             super()._close(rollback)
 
 
-def insert_or_existing[T](
+def get_or_create_row[T](
     cr: Any,
     insert: Callable[[], T],
     find: Callable[[], T],

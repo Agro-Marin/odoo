@@ -3,7 +3,7 @@ from functools import partial
 
 from psycopg import sql as psycopg_sql
 
-from odoo.db import FunctionStatus, has_trigram, has_unaccent
+from odoo.db import FunctionStatus, get_unaccent_status, has_trigram
 from odoo.tools import SQL
 
 from ._registry_stubs import _RegistryStubs
@@ -73,7 +73,7 @@ class _RegistryCapabilitiesMixin(_RegistryStubs):
     unaccent_python: typing.Callable[[str], str]
 
     def _probe_capabilities(self, cr: BaseCursor, db_name: str) -> None:
-        self.has_unaccent = has_unaccent(cr)
+        self.has_unaccent = get_unaccent_status(cr)
         self.has_trigram = has_trigram(cr)
         table = _get_unaccent_table(cr, db_name) if self.has_unaccent else None
 

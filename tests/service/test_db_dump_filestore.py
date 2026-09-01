@@ -5,13 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from odoo.service.db.dump import _zip_filestore_into_archive
+from odoo.service.db.dump import _add_filestore_to_zip
 
 
 def _pack(filestore: Path) -> dict[str, bytes]:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zipf:
-        _zip_filestore_into_archive(zipf, str(filestore))
+        _add_filestore_to_zip(zipf, str(filestore))
         return {name: zipf.read(name) for name in zipf.namelist()}
 
 
@@ -28,7 +28,7 @@ def filestore(tmp_path):
 
 
 class TestNothingOutsideTheFilestoreLeavesInABackup:
-    """`_zip_filestore_into_archive` decides what a downloadable backup contains.
+    """`_add_filestore_to_zip` decides what a downloadable backup contains.
 
     A symlink is the case that must be caught, and the asymmetry is the whole
     reason the check exists: creating a symlink does not require permission to

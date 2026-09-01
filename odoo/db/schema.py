@@ -38,7 +38,7 @@ _SQL_TYPE_TOKEN = re.compile(
 _SQL_NAME_TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
-def _not_a_token(kind: str, value: object) -> str:
+def _get_invalid_name_message(kind: str, value: object) -> str:
     return f"{kind} {value!r} is not a PostgreSQL name: refusing to build DDL from it"
 
 
@@ -51,7 +51,7 @@ _CONFDELTYPES = {
 }
 
 
-def existing_tables(cr: BaseCursor, tablenames: Iterable[str]) -> list[str]:
+def get_tables_existing(cr: BaseCursor, tablenames: Iterable[str]) -> list[str]:
     cr.execute(
         SQL(
             """
@@ -74,7 +74,7 @@ class FunctionStatus(enum.IntEnum):
     INDEXABLE = 2
 
 
-def has_unaccent(cr: BaseCursor) -> FunctionStatus:
+def get_unaccent_status(cr: BaseCursor) -> FunctionStatus:
     cr.execute("""
         SELECT p.provolatile
         FROM pg_proc p
@@ -98,7 +98,7 @@ def has_trigram(cr: BaseCursor) -> bool:
 
 
 def table_exists(cr: BaseCursor, tablename: str) -> bool:
-    return len(existing_tables(cr, {tablename})) == 1
+    return len(get_tables_existing(cr, {tablename})) == 1
 
 
 class TableKind(enum.Enum):
@@ -111,7 +111,7 @@ class TableKind(enum.Enum):
     Other = None
 
 
-def table_kind(cr: BaseCursor, tablename: str) -> TableKind | None:
+def get_table_kind(cr: BaseCursor, tablename: str) -> TableKind | None:
     cr.execute(
         SQL(
             """
@@ -158,7 +158,7 @@ def create_model_table(
 ) -> None:
     for _, coltype, _ in columns:
         if not _SQL_TYPE_TOKEN.fullmatch(coltype):
-            raise ValueError(_not_a_token("column type", coltype))
+            raise ValueError(_get_invalid_name_message("column type", coltype))
     colspecs = [
         SQL("id SERIAL NOT NULL"),
         *(
@@ -195,7 +195,7 @@ def create_model_table(
     _schema.debug("Table %r: created", tablename)
 
 
-def table_columns(cr: BaseCursor, tablename: str) -> dict[str, dict]:
+def get_table_columns(cr: BaseCursor, tablename: str) -> dict[str, dict]:
     cr.execute(
         SQL(
             """
@@ -248,7 +248,7 @@ def create_column(
     comment: str | None = None,
 ) -> None:
     if not _SQL_TYPE_TOKEN.fullmatch(columntype):
-        raise ValueError(_not_a_token("column type", columntype))
+        raise ValueError(_get_invalid_name_message("column type", columntype))
     sql = SQL(
         "ALTER TABLE %s ADD COLUMN %s %s %s",
         SQL.identifier(tablename),
@@ -279,7 +279,7 @@ def convert_column(
     cr: BaseCursor, tablename: str, columnname: str, columntype: str
 ) -> None:
     if not _SQL_TYPE_TOKEN.fullmatch(columntype):
-        raise ValueError(_not_a_token("column type", columntype))
+        raise ValueError(_get_invalid_name_message("column type", columntype))
     using = SQL("%s::%s", SQL.identifier(columnname), SQL(columntype))
     _convert_column(cr, tablename, columnname, columntype, using)
 
@@ -303,7 +303,7 @@ def _convert_column(
     cr: BaseCursor, tablename: str, columnname: str, columntype: str, using: SQL
 ) -> None:
     if not _SQL_TYPE_TOKEN.fullmatch(columntype):
-        raise ValueError(_not_a_token("column type", columntype))
+        raise ValueError(_get_invalid_name_message("column type", columntype))
     query = SQL(
         "ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT, ALTER COLUMN %s TYPE %s USING %s",
         SQL.identifier(tablename),
@@ -316,7 +316,7 @@ def _convert_column(
         with cr.savepoint(flush=False):
             cr.execute(query, log_exceptions=False)
     except psycopg.NotSupportedError:
-        drop_depending_views(cr, tablename, columnname)
+        drop_views_depending_on_table(cr, tablename, columnname)
         cr.execute(query)
     _schema.debug(
         "Table %r: column %r changed to type %s",
@@ -326,7 +326,7 @@ def _convert_column(
     )
 
 
-def drop_depending_views(cr: BaseCursor, table: str, column: str) -> None:
+def drop_views_depending_on_table(cr: BaseCursor, table: str, column: str) -> None:
     for v, k in get_views_depending_on_table(cr, table, column):
         cr.execute(
             SQL(
@@ -405,7 +405,7 @@ def set_default(cr: BaseCursor, tablename: str, columnname: str, value: object) 
     )
 
 
-def constraint_definition(
+def get_constraint_definition(
     cr: BaseCursor, tablename: str, constraintname: str
 ) -> str | None:
     cr.execute(
@@ -568,7 +568,9 @@ def index_exists(cr: BaseCursor, indexname: str) -> bool:
     return bool(cr.rowcount)
 
 
-def index_definition(cr: BaseCursor, indexname: str) -> tuple[str | None, str | None]:
+def get_index_definition(
+    cr: BaseCursor, indexname: str
+) -> tuple[str | None, str | None]:
     cr.execute(
         SQL(
             """
@@ -587,7 +589,7 @@ def index_definition(cr: BaseCursor, indexname: str) -> tuple[str | None, str | 
     return (row[0], row[1]) if row else (None, None)
 
 
-def index_constraint(cr: BaseCursor, indexname: str) -> str | None:
+def get_index_constraint(cr: BaseCursor, indexname: str) -> str | None:
     """Name of the table constraint that owns ``indexname``, if any.
 
     A UNIQUE, PRIMARY KEY or EXCLUDE constraint is backed by an index that
@@ -627,7 +629,7 @@ def create_index(
     if not expressions:
         raise ValueError("Missing expressions")
     if not _SQL_NAME_TOKEN.fullmatch(method):
-        raise ValueError(_not_a_token("index method", method))
+        raise ValueError(_get_invalid_name_message("index method", method))
     if check_exists and index_exists(cr, indexname):
         return
     definition = SQL(
@@ -682,14 +684,14 @@ def drop_index(cr: BaseCursor, indexname: str, tablename: str) -> None:
 
 
 def drop_view_if_exists(cr: BaseCursor, viewname: str) -> None:
-    kind = table_kind(cr, viewname)
+    kind = get_table_kind(cr, viewname)
     if kind == TableKind.View:
         cr.execute(SQL("DROP VIEW %s CASCADE", SQL.identifier(viewname)))
     elif kind == TableKind.Materialized:
         cr.execute(SQL("DROP MATERIALIZED VIEW %s CASCADE", SQL.identifier(viewname)))
 
 
-def constraint_columns(
+def get_column_names_in_constraint(
     cr: BaseCursor,
     diagnostics: psycopg.errors.Diagnostic,
     *,

@@ -28,7 +28,7 @@ def _make_watcher(tmp_path, monkeypatch):
     root = tmp_path / "addons"
     (root / "mod" / "static").mkdir(parents=True)
     monkeypatch.setattr(
-        _watcher.FSWatcherBase, "watch_paths", staticmethod(lambda: [str(root)])
+        _watcher.FSWatcherBase, "get_watch_paths", staticmethod(lambda: [str(root)])
     )
     return _watcher.FSWatcherInotify()
 
@@ -60,11 +60,11 @@ class TestInotifyDescriptorLifecycle:
     def test_the_descriptors_carry_cloexec(self, tmp_path, monkeypatch):
         watcher = _make_watcher(tmp_path, monkeypatch)
         try:
-            fds = watcher.internals.descriptors()
+            fds = watcher.internals.get_descriptors()
             assert fds
             for fd in fds:
                 assert os.get_inheritable(fd) is False, (
-                    f"fd {fd} is inheritable, so os.execve() in lifecycle._reexec "
+                    f"fd {fd} is inheritable, so os.execve() in lifecycle._reexec_server "
                     f"hands it to the reloaded process"
                 )
         finally:
@@ -84,7 +84,7 @@ class TestReloadDoesNotAccumulateDescriptors:
                 from odoo.service import _watcher
 
                 root = {str(tmp_path / "addons")!r}
-                _watcher.FSWatcherBase.watch_paths = staticmethod(lambda: [root])
+                _watcher.FSWatcherBase.get_watch_paths = staticmethod(lambda: [root])
 
                 def fds():
                     out = []

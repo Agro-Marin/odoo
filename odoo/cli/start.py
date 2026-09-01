@@ -7,13 +7,13 @@ from odoo.modules.module import MANIFEST_NAMES, Manifest
 from odoo.tools import config
 
 from . import Command
-from .server import main
+from .server import run_server
 
 
 class Start(Command):
     description = "Quickly start the odoo server with default options"
 
-    def get_module_names(self, path: str | Path) -> list[str]:
+    def _get_module_names_in_directory(self, path: str | Path) -> list[str]:
         base = Path(path)
         return [
             match.parent.name
@@ -48,9 +48,11 @@ class Start(Command):
 
         config._parse_config(server_args)
 
-        project_path, db_name = self._resolve_project(args.path, args.db_name)
+        project_path, db_name = self._get_project_path_and_db_name(
+            args.path, args.db_name
+        )
 
-        mods = self.get_module_names(project_path)
+        mods = self._get_module_names_in_directory(project_path)
         if mods and not _has_arg(server_args, "--addons-path"):
             addons_paths = [str(project_path)]
             if bootstrap_value := odoo.cli.BOOTSTRAP_ADDONS_PATH:
@@ -66,9 +68,9 @@ class Start(Command):
         if not _has_arg(server_args, "--db-filter"):
             server_args.append(f"--db-filter=^{re.escape(db_name)}$")
 
-        main(server_args)
+        run_server(server_args)
 
-    def _resolve_project(
+    def _get_project_path_and_db_name(
         self, path: str | None, explicit_db_name: str | None
     ) -> tuple[Path, str]:
         if path is None:

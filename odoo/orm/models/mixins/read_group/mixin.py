@@ -34,7 +34,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
     )
 
     @classmethod
-    def _read_group_aggregates_need_dedup(cls, aggregates: Sequence[str]) -> bool:
+    def _read_group_is_dedup_required(cls, aggregates: Sequence[str]) -> bool:
         return any(
             not aggregate.endswith(cls._ROW_SAFE_AGGREGATE_SUFFIXES)
             for aggregate in aggregates
@@ -203,10 +203,10 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             many2many_groupby_specs.extend(
                 spec
                 for spec in all_groupby_specs
-                if self._groupby_spec_might_duplicate_rows(self, spec)
+                if self._can_groupby_spec_duplicate_rows(self, spec)
             )
 
-        if many2many_groupby_specs and self._read_group_aggregates_need_dedup(
+        if many2many_groupby_specs and self._read_group_is_dedup_required(
             aggregates
         ):
             if self._read_grouping_sets_split_m2m(
@@ -240,7 +240,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             result,
         )
 
-    def _groupby_spec_might_duplicate_rows(self, model, spec) -> bool:
+    def _can_groupby_spec_duplicate_rows(self, model, spec) -> bool:
         fname, property_name, __ = parse_read_group_spec(spec)
         field = model._fields[fname]
         if field.is_properties:
@@ -260,7 +260,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     f"Field {fname!r} on {model._name!r}: dotted groupby spec "
                     f"only supported for many2one, got {field.type!r}"
                 )
-            return model._groupby_spec_might_duplicate_rows(
+            return model._can_groupby_spec_duplicate_rows(
                 model.env[field.comodel_name], property_name
             )
 

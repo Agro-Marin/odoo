@@ -184,7 +184,7 @@ class MailMessage(models.Model):
             ),
             Store.Attr(
                 "module_icon",
-                lambda record: modules.module.get_module_icon(
+                lambda record: modules.module.get_module_icon_path(
                     self.env[record._name]._original_module
                 ),
                 predicate=lambda record: self.env[record._name]._original_module,

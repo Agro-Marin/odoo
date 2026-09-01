@@ -9,7 +9,7 @@ def migrate(cr, version):
 
     external_value_cols = [
         col
-        for col in sql.table_columns(env.cr, "account_report_external_value")
+        for col in sql.get_table_columns(env.cr, "account_report_external_value")
         if col
         not in ["id", "carryover_origin_report_line_id", "target_report_expression_id"]
     ]

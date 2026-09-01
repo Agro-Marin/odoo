@@ -68,7 +68,7 @@ def _is_distinct_partner(
     )
 
 
-def _find_duplicate(
+def _get_duplicate(
     partner_id: int | bool,
     values: list[str],
     candidates_by_value: dict[str, list],
@@ -660,7 +660,7 @@ class ResPartner(models.Model):
             if vats and any(vat in vat_by_value for vat in vats):
                 country_id = partner.country_id.id if partner.country_id else None
                 company_id = partner.company_id.id if partner.company_id else None
-                partner.same_vat_partner_id = _find_duplicate(
+                partner.same_vat_partner_id = _get_duplicate(
                     partner_id,
                     vats,
                     vat_by_value,
@@ -677,7 +677,7 @@ class ResPartner(models.Model):
             ):
                 country_id = partner.country_id.id if partner.country_id else None
                 company_id = partner.company_id.id if partner.company_id else None
-                partner.same_company_registry_partner_id = _find_duplicate(
+                partner.same_company_registry_partner_id = _get_duplicate(
                     partner_id,
                     [partner.company_registry],
                     reg_by_value,
@@ -690,13 +690,13 @@ class ResPartner(models.Model):
 
     @api.depends("complete_name", "country_id", "company_id", "parent_id")
     def _compute_duplicate_ids(self) -> None:
-        matches = self._find_similar_named_partners()
+        matches = self._get_similar_named_partners()
         for partner in self:
             duplicates = matches.get(partner.id, self.browse())
             partner.duplicate_ids = duplicates
             partner.duplicate_count = len(duplicates)
 
-    def _find_similar_named_partners(self) -> dict[int, ResPartner]:
+    def _get_similar_named_partners(self) -> dict[int, ResPartner]:
         """Contacts whose name resembles each of `self`, keyed by partner id.
 
         Two stages, as the merge wizard does it: the trigram index recalls
@@ -759,9 +759,7 @@ class ResPartner(models.Model):
                 continue
 
             candidates = self.browse(recalled)
-            candidates.fetch(
-                ["complete_name", "parent_id", "company_id", "country_id"]
-            )
+            candidates.fetch(["complete_name", "parent_id", "company_id", "country_id"])
             lowered = source_name.lower()
             shortest, longest = name_length_band(len(lowered), threshold)
             country_id = partner.country_id.id if partner.country_id else None
@@ -836,7 +834,7 @@ class ResPartner(models.Model):
                 return commercial._get_identifier(code)
         return False
 
-    def _set_identifier(self, code: str, value) -> None:
+    def _update_identifier(self, code: str, value) -> None:
         """Set, replace or clear this contact's identifier of type `code`."""
         self.check_singleton()
         identifier_type = self.env["res.partner.identifier.type"]._by_code(code)
@@ -878,7 +876,7 @@ class ResPartner(models.Model):
                 lambda i: i.type_id.synced_with_commercial
             ):
                 if partner._get_identifier(source.type_id.code) != source.value:
-                    partner._set_identifier(source.type_id.code, source.value)
+                    partner._update_identifier(source.type_id.code, source.value)
 
     @api.depends_context("company")
     def _compute_vat_label(self) -> None:

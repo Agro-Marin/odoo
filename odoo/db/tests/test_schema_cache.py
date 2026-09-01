@@ -49,8 +49,8 @@ class TestClearSeparatesTwoLifetimes(unittest.TestCase):
         self.cache.set_column_types("t", ["a"], [23])
         self.cache.locked_tables.add("t")
 
-    def test_clear_catalog_facts_keeps_the_lock_ledger(self):
-        self.cache.clear_catalog_facts()
+    def test_invalidate_catalog_facts_keeps_the_lock_ledger(self):
+        self.cache.invalidate_catalog_facts()
         self.assertIsNone(self.cache.get_id_sequence("t"))
         self.assertIsNone(self.cache.get_column_types("t", ["a"]))
         self.assertIn("t", self.cache.locked_tables, "the lock is still held")

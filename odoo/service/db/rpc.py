@@ -6,8 +6,8 @@ import odoo.modules.registry
 import odoo.tools
 
 from .._db_helpers import check_db_management_enabled, check_super
-from .._dispatch import dispatch_table
-from .._env import env_int
+from .._dispatch import dispatch_through_table
+from .._env import get_env_int
 from .dump import exp_dump
 from .lifecycle import exp_create_database, exp_drop, exp_duplicate_database, exp_rename
 from .listing import (
@@ -29,7 +29,7 @@ def exp_change_admin_password(new_password: str) -> Literal[True]:
         raise TypeError(
             f"new_password must be a str, got {type(new_password).__name__!r}"
         )
-    min_length = env_int("ODOO_ADMIN_PASSWORD_MIN_LENGTH", 8, minimum=8)
+    min_length = get_env_int("ODOO_ADMIN_PASSWORD_MIN_LENGTH", 8, minimum=8)
     if len(new_password) < min_length:
         raise ValueError(
             f"Master admin password must be at least {min_length} characters long."
@@ -64,7 +64,7 @@ def exp_migrate_databases(databases: list[str]) -> Literal[True]:
 
 
 def dispatch(method: str, params: list[Any]) -> Any:
-    return dispatch_table(
+    return dispatch_through_table(
         method,
         params,
         _DISPATCH,

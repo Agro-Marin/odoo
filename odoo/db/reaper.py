@@ -14,7 +14,7 @@ def note_activity(pool) -> None:
     setattr(pool, _LAST_BORROW_ATTR, monotonic())
 
 
-def checked_out(pool) -> int:
+def get_checked_out_count(pool) -> int:
     stats = pool.get_stats()
     return stats.get("pool_size", 0) - stats.get("pool_available", 0)
 
@@ -31,7 +31,7 @@ class IdlePoolReaper:
     def enabled(self) -> bool:
         return self.ttl > 0
 
-    def due(self) -> bool:
+    def acquire_check_interval(self) -> bool:
         if self.check_interval <= 0:
             return False
         now = monotonic()
@@ -40,12 +40,14 @@ class IdlePoolReaper:
         self._last_check = now
         return True
 
-    def probably_due(self) -> bool:
+    def is_probably_due(self) -> bool:
         if self.check_interval <= 0:
             return False
         return monotonic() - self._last_check >= self.check_interval
 
-    def collect(self, pools: Mapping[Any, Any], exclude_key: Any = None) -> list:
+    def get_keys_reapable(
+        self, pools: Mapping[Any, Any], exclude_key: Any = None
+    ) -> list:
         if not self.enabled:
             return []
         now = monotonic()
@@ -55,11 +57,11 @@ class IdlePoolReaper:
                 continue
             if now - getattr(pool, _LAST_BORROW_ATTR, now) <= self.ttl:
                 continue
-            if checked_out(pool) > 0:
+            if get_checked_out_count(pool) > 0:
                 continue
             reapable.append(key)
         return reapable
 
     @staticmethod
-    def close_in_background(target, pools: list, name: str) -> None:
+    def close_pools_in_background(target, pools: list, name: str) -> None:
         threading.Thread(target=target, args=(pools,), name=name, daemon=True).start()

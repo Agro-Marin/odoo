@@ -89,7 +89,7 @@ class _RegistryCaches:
             lru.clear()
 
 
-def serves_readonly_cursors() -> bool:
+def is_readonly_cursor_enabled() -> bool:
     return bool(
         config["db_replica_host"]
         or config["test_enable"]
@@ -119,15 +119,8 @@ class Registry(
     registries = LRU[str, "Registry"](42)
 
     idle_timeout: float = 0
-    """Seconds a registry may go unused before :meth:`_drop_idle` collects it.
-
-    Zero (the default) disables collection entirely. Set from
-    ``registry_idle_timeout`` at startup -- see ``odoo.service.lifecycle``.
-    """
 
     last_used: float
-    """``time.monotonic()`` of the most recent lookup, maintained by
-    :meth:`__new__` on *both* of its return paths."""
 
     def __new__(cls, db_name: str):
         if not db_name:
@@ -166,7 +159,7 @@ class Registry(
 
         _logger.info("Registry loaded in %.3fs", time.time() - t0)
         registry.last_used = time.monotonic()
-        cls._drop_idle()
+        cls._evict_idle_registries()
         return registry
 
     @classmethod
@@ -274,7 +267,7 @@ class Registry(
         self._db_readonly: Connection | None = None
         self._replica_breaker = CircuitBreaker(max_cooldown=_REPLICA_RETRY_TIME)
         self._replica_lag = ReplicaLagGate(config["db_replica_max_lag"] or 0.0)
-        if serves_readonly_cursors():
+        if is_readonly_cursor_enabled():
             self._db_readonly = db.db_connect(db_name, readonly=True)
 
         self.registry_sequence: int = -1
@@ -296,7 +289,7 @@ class Registry(
 
     @classmethod
     @locked
-    def _drop_idle(cls) -> None:
+    def _evict_idle_registries(cls) -> None:
         if cls.idle_timeout <= 0:
             return
         now = time.monotonic()
@@ -306,7 +299,7 @@ class Registry(
             idle_for = now - registry.last_used
             if idle_for > cls.idle_timeout:
                 _logger.info(
-                    "Dropping registry for %s, idle for %.0fs", db_name, idle_for
+                    "Evicting idle registry for %s, idle for %.0fs", db_name, idle_for
                 )
                 cls.delete(db_name)
 
@@ -592,7 +585,7 @@ class Registry(
 
     def setup_signaling(self) -> None:
         with self.cursor() as cr:
-            existing_sig_tables = tuple(sql.existing_tables(cr, _SIGNALING_TABLES))
+            existing_sig_tables = tuple(sql.get_tables_existing(cr, _SIGNALING_TABLES))
             for table_name in _SIGNALING_TABLES:
                 if table_name not in existing_sig_tables:
                     cr.execute(
@@ -664,7 +657,7 @@ class Registry(
 
                         drain_db(self.db_name)
                         self = Registry.new(self.db_name)
-                    sig_cr.discard_cached_plans()
+                    sig_cr.invalidate_cached_plans()
                     if _logger.isEnabledFor(logging.DEBUG):
                         changes += (
                             f"[Registry - {old_sequence} -> {self.registry_sequence}]"
@@ -773,16 +766,16 @@ class Registry(
         except Exception:
             _logger.debug("Could not measure replica lag", exc_info=True)
             measured = None
-        was_allowed = self._replica_lag.allows()
+        was_allowed = self._replica_lag.is_replica_usable()
         self._replica_lag.record(measured)
-        if was_allowed and not self._replica_lag.allows():
+        if was_allowed and not self._replica_lag.is_replica_usable():
             _logger.warning(
                 "Replica %.1fs behind (db_replica_max_lag=%.1fs); serving "
                 "readonly requests from the primary until it catches up",
                 self._replica_lag.last_lag,
                 self._replica_lag.max_lag,
             )
-        elif not was_allowed and self._replica_lag.allows():
+        elif not was_allowed and self._replica_lag.is_replica_usable():
             _logger.info(
                 "Replica caught up (%.1fs behind); resuming readonly cursors",
                 self._replica_lag.last_lag,
@@ -793,8 +786,8 @@ class Registry(
             thread = current_worker_thread()
             in_request = hasattr(thread, "cursor_mode")
             lag = self._replica_lag
-            sample_due = lag.due_for_sample()
-            if (lag.allows() or sample_due) and self._replica_breaker.allow():
+            sample_due = lag.acquire_sample_interval()
+            if (lag.is_replica_usable() or sample_due) and self._replica_breaker.acquire_attempt():
                 try:
                     cr = self._db_readonly.cursor()
                 except psycopg.OperationalError, db.PoolError:
@@ -814,7 +807,7 @@ class Registry(
                     self._replica_breaker.record_success()
                     if sample_due:
                         self._sample_replica_lag(cr)
-                    if lag.allows():
+                    if lag.is_replica_usable():
                         if in_request:
                             thread.cursor_mode = "ro"
                         return cr

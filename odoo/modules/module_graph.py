@@ -71,12 +71,12 @@ class ModuleNode:
         if self.module_graph.mode == "load":
             return 1
 
-        def not_in_the_same_phase(module: ModuleNode, dependency: ModuleNode) -> bool:
+        def is_in_a_different_phase(module: ModuleNode, dependency: ModuleNode) -> bool:
             return (module.state == "to install") ^ (dependency.state == "to install")
 
         return max(
             dependency.phase
-            + (1 if not_in_the_same_phase(self, dependency) else 0)
+            + (1 if is_in_a_different_phase(self, dependency) else 0)
             + (1 if dependency.name == "base" else 0)
             for dependency in self.depends
         )
@@ -154,7 +154,7 @@ class ModuleGraph:
                     self._remove(name)
 
     def _update_depth(self, names: Iterable[str]) -> None:
-        for cycle_member in self._get_cycle_members():
+        for cycle_member in self._get_module_names_in_cycles():
             if cycle_member in self._modules:
                 _logger.warning(
                     "module %s: in a dependency loop, skipped",
@@ -165,7 +165,7 @@ class ModuleGraph:
             if module := self._modules.get(name):
                 _ = module.depth
 
-    def _get_cycle_members(self) -> set[str]:
+    def _get_module_names_in_cycles(self) -> set[str]:
         indices: dict[str, int] = {}
         lowlinks: dict[str, int] = {}
         on_scc_stack: set[str] = set()
@@ -173,7 +173,7 @@ class ModuleGraph:
         on_cycle: set[str] = set()
         counter = 0
 
-        def deps_of(name: str) -> list[str]:
+        def get_dependency_names(name: str) -> list[str]:
             return [
                 d.name for d in self._modules[name].depends if d.name in self._modules
             ]
@@ -185,7 +185,7 @@ class ModuleGraph:
             counter += 1
             scc_stack.append(root)
             on_scc_stack.add(root)
-            work: list[list] = [[root, 0, deps_of(root)]]
+            work: list[list] = [[root, 0, get_dependency_names(root)]]
 
             while work:
                 name, idx, deps = work[-1]
@@ -197,7 +197,7 @@ class ModuleGraph:
                         counter += 1
                         scc_stack.append(child)
                         on_scc_stack.add(child)
-                        work.append([child, 0, deps_of(child)])
+                        work.append([child, 0, get_dependency_names(child)])
                     elif child in on_scc_stack:
                         lowlinks[name] = min(lowlinks[name], indices[child])
                 else:
@@ -209,7 +209,7 @@ class ModuleGraph:
                             scc.append(w)
                             if w == name:
                                 break
-                        if len(scc) > 1 or name in deps_of(name):
+                        if len(scc) > 1 or name in get_dependency_names(name):
                             on_cycle.update(scc)
                     work.pop()
                     if work:

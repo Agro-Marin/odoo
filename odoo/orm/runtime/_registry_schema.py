@@ -281,7 +281,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
             if not model._abstract and not model._table_query
         }
         missing_tables = set(table2model).difference(
-            sql.existing_tables(cr, table2model)
+            sql.get_tables_existing(cr, table2model)
         )
 
         if missing_tables:
@@ -292,7 +292,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 env[name].init()
             env.flush_all()
             missing_tables = set(table2model).difference(
-                sql.existing_tables(cr, table2model)
+                sql.get_tables_existing(cr, table2model)
             )
             for table in missing_tables:
                 _logger.error("Model %s has no table.", table2model[table])

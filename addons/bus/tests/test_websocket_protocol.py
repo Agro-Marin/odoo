@@ -487,7 +487,7 @@ class TestSessionValidityCache(BaseCase):
                 side_effect=lambda session: session,
             ),
             patch(
-                "odoo.addons.bus.websocket.check_session",
+                "odoo.addons.bus.websocket.is_session_valid",
                 return_value=check_session_return,
             ) as check_session_mock,
             patch("odoo.addons.bus.websocket.acquire_cursor", fake_acquire_cursor),

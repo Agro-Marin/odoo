@@ -18,10 +18,10 @@ from ...domain import Domain
 from ...parsing import regex_order
 from ...primitives import PREFETCH_MAX
 from ._cache_scan import (
-    caches_lang_dicts,
     can_scan_identity,
     can_scan_sorted,
     can_scan_truthy,
+    has_lang_dict_cache,
     is_cache_detached,
 )
 from ._model_stubs import _ModelStubs
@@ -408,7 +408,7 @@ class TraversalMixin(_ModelStubs):
                 )
             elif field.is_boolean:
                 getter = field.expression_getter(field_expr)
-            elif not property_name and not caches_lang_dicts(field, _env):
+            elif not property_name and not has_lang_dict_cache(field, _env):
                 _get_cache = field._get_cache
                 _field_get = field.__get__
                 _S = SENTINEL

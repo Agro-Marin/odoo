@@ -42,7 +42,7 @@ Browser                          Server (Python)                    Database
   │                                  │  │  └─ No DB? → redirect /web/database/selector
   │                                  │  ├─ Check session.uid            │
   │                                  │  │  └─ No uid? → redirect /web/login
-  │                                  │  ├─ security.check_session()     │
+  │                                  │  ├─ security.is_session_valid()  │
   │                                  │  │  └─ Expired? → SessionExpiredException
   │                                  │  ├─ ir_http.webclient_rendering_context()
   │                                  │  │  ├─ session_info()            │
@@ -255,7 +255,7 @@ OWL Component                    JS Services              Server (Python)       
   │                                │     │                  │   100 = SessionExpired    │
   │                                │     │                  │   404 = NotFound          │
   │                                │     │                  │   400 = unparseable body  │
-  │                                │     │                  │         (_abort_bad_request)
+  │                                │     │                  │         (_prepare_bad_request_error)
   │                                │     │                  │  (no -32xxx JSON-RPC      │
   │                                │     │                  │   spec codes are used)    │
   │                                │     │                  │  `debug` = full traceback │

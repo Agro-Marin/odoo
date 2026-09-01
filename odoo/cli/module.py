@@ -5,19 +5,19 @@ import sys
 import textwrap
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 from odoo.api import Environment
 from odoo.modules.loading import force_demo
 from odoo.modules.module import get_module_path, initialize_sys_path
 from odoo.tools import OrderedSet, parse_version
 
-from . import DatabaseCommand, odoo_env
+from . import DatabaseCommand, open_environment
 
 _logger = logging.getLogger(__name__)
 
 
-def _exit_nothing_done(verb: str, requested: list[str] | set[str]) -> None:
+def _exit_nothing_done(verb: str, requested: list[str] | set[str]) -> NoReturn:
     sys.exit(
         f"Nothing to {verb}: none of the requested modules "
         f"({', '.join(sorted(requested))}) could be resolved."
@@ -39,25 +39,25 @@ class Module(DatabaseCommand):
             help="Install modules",
             description="Install selected modules",
         )
-        install_parser.set_defaults(func=self._install)
+        install_parser.set_defaults(func=self._install_modules)
         upgrade_parser = subparsers.add_parser(
             "upgrade",
             help="Upgrade modules",
             description="Upgrade selected modules",
         )
-        upgrade_parser.set_defaults(func=self._upgrade)
+        upgrade_parser.set_defaults(func=self._upgrade_modules)
         uninstall_parser = subparsers.add_parser(
             "uninstall",
             help="Uninstall modules",
             description="Uninstall selected modules",
         )
-        uninstall_parser.set_defaults(func=self._uninstall)
+        uninstall_parser.set_defaults(func=self._uninstall_modules)
         force_demo_parser = subparsers.add_parser(
             "force-demo",
             help="Install demo data (force)",
             description="Install demonstration data (force)",
         )
-        force_demo_parser.set_defaults(func=self._force_demo)
+        force_demo_parser.set_defaults(func=self._force_demo_data)
 
         for parser in (
             install_parser,
@@ -120,7 +120,7 @@ class Module(DatabaseCommand):
             return fullpath
         return None
 
-    def _get_module_names(self, module_names: list[str]) -> set[str]:
+    def _get_module_names_on_disk(self, module_names: list[str]) -> set[str]:
         initialize_sys_path()
         return {
             module
@@ -128,21 +128,21 @@ class Module(DatabaseCommand):
             if get_module_path(module) or self._get_zip_path(module)
         }
 
-    def _get_module_model(self, env: Environment) -> Any:
+    def _sync_module_list(self, env: Environment) -> Any:
         Module = env["ir.module.module"]
         Module.update_list()
         return Module
 
-    def _get_all_installed_modules(self, env: Environment) -> Any:
-        return self._get_module_model(env).search([["state", "=", "installed"]])
+    def _get_modules_installed(self, env: Environment) -> Any:
+        return self._sync_module_list(env).search([["state", "=", "installed"]])
 
-    def _get_modules(self, env: Environment, module_names: set[str]) -> Any:
-        return self._get_module_model(env).search([("name", "in", module_names)])
+    def _get_modules_named(self, env: Environment, module_names: set[str]) -> Any:
+        return self._sync_module_list(env).search([("name", "in", module_names)])
 
-    def _install(self, parsed_args: argparse.Namespace) -> None:
-        with odoo_env(parsed_args.db_name, new_registry=True) as env:
-            valid_module_names = self._get_module_names(parsed_args.modules)
-            installable_modules = self._get_modules(env, valid_module_names)
+    def _install_modules(self, parsed_args: argparse.Namespace) -> None:
+        with open_environment(parsed_args.db_name, new_registry=True) as env:
+            valid_module_names = self._get_module_names_on_disk(parsed_args.modules)
+            installable_modules = self._get_modules_named(env, valid_module_names)
             if installable_modules:
                 installable_modules.button_immediate_install()
 
@@ -179,18 +179,18 @@ class Module(DatabaseCommand):
                 for importable_zipfile in importable_zipfiles:
                     env["ir.module.module"]._import_zipfile(importable_zipfile)
 
-    def _upgrade(self, parsed_args: argparse.Namespace) -> None:
-        with odoo_env(parsed_args.db_name, new_registry=True) as env:
+    def _upgrade_modules(self, parsed_args: argparse.Namespace) -> None:
+        with open_environment(parsed_args.db_name, new_registry=True) as env:
             if "all" in parsed_args.modules:
-                upgradable_modules = self._get_all_installed_modules(env)
+                upgradable_modules = self._get_modules_installed(env)
             else:
-                valid_module_names = self._get_module_names(parsed_args.modules)
+                valid_module_names = self._get_module_names_on_disk(parsed_args.modules)
                 if unknown := set(parsed_args.modules) - valid_module_names:
                     _logger.warning(
                         "Ignoring modules not found on disk: %s",
                         ", ".join(sorted(unknown)),
                     )
-                upgradable_modules = self._get_modules(env, valid_module_names)
+                upgradable_modules = self._get_modules_named(env, valid_module_names)
                 if unknown_in_db := valid_module_names - set(
                     upgradable_modules.mapped("name")
                 ):
@@ -219,9 +219,9 @@ class Module(DatabaseCommand):
                 _exit_nothing_done("upgrade", parsed_args.modules)
             upgradable_modules.button_immediate_upgrade()
 
-    def _uninstall(self, parsed_args: argparse.Namespace) -> None:
-        with odoo_env(parsed_args.db_name, new_registry=True) as env:
-            modules = self._get_modules(env, parsed_args.modules)
+    def _uninstall_modules(self, parsed_args: argparse.Namespace) -> None:
+        with open_environment(parsed_args.db_name, new_registry=True) as env:
+            modules = self._get_modules_named(env, parsed_args.modules)
             if unknown := set(parsed_args.modules) - set(modules.mapped("name")):
                 _logger.warning(
                     "Ignoring unknown modules: %s", ", ".join(sorted(unknown))
@@ -230,6 +230,6 @@ class Module(DatabaseCommand):
                 _exit_nothing_done("uninstall", parsed_args.modules)
             modules.button_immediate_uninstall()
 
-    def _force_demo(self, parsed_args: argparse.Namespace) -> None:
-        with odoo_env(parsed_args.db_name, new_registry=True) as env:
+    def _force_demo_data(self, parsed_args: argparse.Namespace) -> None:
+        with open_environment(parsed_args.db_name, new_registry=True) as env:
             force_demo(env)

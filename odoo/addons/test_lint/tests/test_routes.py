@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 @no_retry
 class RoutesLinter(TransactionCase):
     def test_routes_definition(self):
-        _check_and_complete_route_definition = http._check_and_complete_route_definition
+        _prepare_route_fragment = http._prepare_route_fragment
         checked = 0
         offenders = []
 
@@ -34,7 +34,7 @@ class RoutesLinter(TransactionCase):
                     )
                     offenders.append(f"{endpoint}: {pformat(useless_overrides)}")
 
-            return _check_and_complete_route_definition(
+            return _prepare_route_fragment(
                 controller_cls, submethod, merged_routing
             )
 
@@ -48,7 +48,7 @@ class RoutesLinter(TransactionCase):
             .mapped("name")
         )
         with patch(
-            "odoo.http.routing._check_and_complete_route_definition", extended_check
+            "odoo.http.routing._prepare_route_fragment", extended_check
         ):
             for _ in http._generate_routing_rules(installed_modules, nodb_only=False):
                 pass
@@ -63,6 +63,6 @@ class RoutesLinter(TransactionCase):
 
     def test_reexported_hook_is_the_routing_one(self):
         self.assertIs(
-            http._check_and_complete_route_definition,
-            http_routing._check_and_complete_route_definition,
+            http._prepare_route_fragment,
+            http_routing._prepare_route_fragment,
         )

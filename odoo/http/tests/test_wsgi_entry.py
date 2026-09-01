@@ -36,7 +36,7 @@ class _FakeRequest:
         self.db = db
         self.dispatcher = mock.Mock()
         self.dispatcher.serializes_errors_in_dev_mode = False
-        self.dispatcher.handle_error.side_effect = lambda exc: exc
+        self.dispatcher.prepare_error_response.side_effect = lambda exc: exc
         self._post_init_done = False
         self.session = mock.Mock()
         self.calls: list[str] = []
@@ -47,7 +47,7 @@ class _FakeRequest:
     def _post_init(self):
         self._post_init_done = True
 
-    def _get_profiler_context_manager(self):
+    def _profile_request(self):
         import contextlib
 
         return contextlib.nullcontext()
@@ -160,7 +160,9 @@ def test_a_failure_still_answers_and_empties_the_stack():
     app = application.Application()
     req: Any = _FakeRequest(None, app, db="db")
     req._serve_db = mock.Mock(side_effect=ValueError("boom"))
-    req.dispatcher.handle_error.side_effect = RuntimeError("and the handler too")
+    req.dispatcher.prepare_error_response.side_effect = RuntimeError(
+        "and the handler too"
+    )
     req.dispatcher.post_dispatch.side_effect = None
 
     with mock.patch.object(app, "get_static_file", return_value=None):

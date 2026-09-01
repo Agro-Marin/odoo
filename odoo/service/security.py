@@ -11,12 +11,12 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-def compute_session_token(session: Session, env: Environment) -> str | bool:
+def get_session_token(session: Session, env: Environment) -> str | bool:
     self = env["res.users"].browse(session.uid)
     return self._get_session_token(session.sid)
 
 
-def check_session(
+def is_session_valid(
     session: Session,
     env: Environment,
     request: Request | None = None,
@@ -24,7 +24,7 @@ def check_session(
     session._remove_old_sessions()
     if "deletion_time" in session and session["deletion_time"] <= time.time():
         return False
-    expected = compute_session_token(session, env)
+    expected = get_session_token(session, env)
     actual = session.session_token
     if not isinstance(expected, str) or not expected:
         return False

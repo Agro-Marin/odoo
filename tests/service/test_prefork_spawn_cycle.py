@@ -13,10 +13,10 @@ from odoo.service import _prefork
 class TestTheWorkerCensusCrossesTheFork:
     """`/web/metrics` is an HTTP route, so under prefork a CHILD always serves it.
 
-    A child cannot count its siblings, so `metrics()` short-circuited there and
+    A child cannot count its siblings, so `get_metrics()` short-circuited there and
     the four metrics that exist to describe prefork -- `odoo_workers`,
     `odoo_worker_population`, `odoo_worker_generation`,
-    `odoo_long_polling_alive` -- were declared by `render_prometheus` and could
+    `odoo_long_polling_alive` -- were declared by `render_prometheus_exposition` and could
     never be emitted by the only flavour that has them.  Measured before the
     census: threaded exposed four flavour metrics, prefork exposed none.
     """
@@ -59,9 +59,9 @@ class TestTheWorkerCensusCrossesTheFork:
         child = self._child_of(master)
 
         with patch("odoo.service._prefork.os.getpid", return_value=master.pid + 1):
-            from_child = child.metrics()
+            from_child = child.get_metrics()
 
-        assert from_child == master.metrics() == master._census(), (
+        assert from_child == master.get_metrics() == master._get_census(), (
             "a worker serving /web/metrics must answer with the master's "
             "counts, not with {}"
         )
@@ -70,19 +70,21 @@ class TestTheWorkerCensusCrossesTheFork:
         self, master
     ):
         master._publish_census()
-        first = json.loads((master._census_path()).read_text())
+        first = json.loads((master._get_census_path()).read_text())
 
         master.population = 99
         master._publish_census()
-        assert json.loads(master._census_path().read_text()) == first
+        assert json.loads(master._get_census_path().read_text()) == first
 
         master._census_written_at = float("-inf")
         master._publish_census()
-        assert json.loads(master._census_path().read_text())["worker_population"] == 99
+        assert (
+            json.loads(master._get_census_path().read_text())["worker_population"] == 99
+        )
 
     def test_a_stale_census_answers_nothing_rather_than_phantom_workers(self, master):
         master._publish_census()
-        path = master._census_path()
+        path = master._get_census_path()
         old = time.time() - _prefork.CENSUS_MAX_AGE_S - 1
         os.utime(path, (old, old))
 
@@ -96,10 +98,10 @@ class TestTheWorkerCensusCrossesTheFork:
         child = self._child_of(master)
         assert child._read_census() == {}
 
-        master._census_path().write_text("{ this is not json")
+        master._get_census_path().write_text("{ this is not json")
         assert child._read_census() == {}
 
-        master._census_path().write_text('"a string, not an object"')
+        master._get_census_path().write_text('"a string, not an object"')
         assert child._read_census() == {}
 
     def test_publishing_never_raises_even_on_a_half_built_server(self):
@@ -133,25 +135,25 @@ class TestTheWorkerCensusCrossesTheFork:
         with patch.object(_prefork, "config", {}):
             master._census_written_at = float("-inf")
             master._publish_census()
-            assert master._census_path() is None
+            assert master._get_census_path() is None
             assert master._read_census() == {}
 
     def test_stopping_removes_the_file(self, master):
         master._publish_census()
-        path = master._census_path()
+        path = master._get_census_path()
         assert path.exists()
         master._discard_census()
         assert not path.exists()
         master._discard_census()
 
     def test_both_sides_derive_the_same_path_from_the_masters_pid(self, master):
-        assert master._census_path() == self._child_of(master)._census_path(), (
+        assert master._get_census_path() == self._child_of(master)._get_census_path(), (
             "the child names the file without being told where it is, because "
             "it inherited the master's pid in self.pid across the fork"
         )
 
     def test_startup_collects_what_a_killed_master_left_behind(self, master):
-        data_dir = master._census_path().parent
+        data_dir = master._get_census_path().parent
         dead = data_dir / "prefork-census-999999.json"
         dead.write_text("{}")
         old = time.time() - _prefork.CENSUS_MAX_AGE_S - 1
@@ -175,7 +177,7 @@ class TestTheWorkerCensusCrossesTheFork:
 
     def test_the_sweep_never_takes_our_own_file(self, master):
         master._publish_census()
-        path = master._census_path()
+        path = master._get_census_path()
         old = time.time() - _prefork.CENSUS_MAX_AGE_S - 1
         os.utime(path, (old, old))
 
@@ -319,8 +321,8 @@ class TestProcessSpawnChecksSignallingOncePerCycle:
             patch.object(_prefork, "config", cfg),
             patch.object(_prefork.Registry, "registries", snapshot),
             patch.object(_prefork, "db") as fake_db,
-            patch.object(prefork, "worker_spawn", side_effect=fake_spawn),
-            patch.object(prefork, "long_polling_spawn"),
+            patch.object(prefork, "spawn_worker", side_effect=fake_spawn),
+            patch.object(prefork, "spawn_long_polling_process"),
         ):
             prefork.spawn_missing_workers()
         return spawned, fake_db
@@ -387,11 +389,11 @@ class TestProcessSpawnChecksSignallingOncePerCycle:
             patch.object(_prefork, "config", cfg),
             patch.object(_prefork.Registry, "registries", MagicMock(snapshot={})),
             patch.object(_prefork, "db"),
-            patch.object(prefork, "worker_spawn", return_value=None) as spawn,
+            patch.object(prefork, "spawn_worker", return_value=None) as spawn,
         ):
             prefork.spawn_missing_workers()
         assert spawn.call_count == 1, (
-            f"worker_spawn returned None (fork failed) and spawn_missing_workers called "
+            f"spawn_worker returned None (fork failed) and spawn_missing_workers called "
             f"it {spawn.call_count} times in the same cycle. A fork that failed "
             f"with EAGAIN fails for every later class too, so the cycle must be "
             f"abandoned (return), not merely the current loop (break)."
@@ -477,7 +479,7 @@ class TestTheWatchdogSelectorIsReused:
 
 
 class TestARecycledFdIsRegisteredForItsNewOwner:
-    """`worker_pop` closes the pipe; `pipe_new` hands the same number straight back.
+    """`remove_worker` closes the pipe; `open_pipe` hands the same number straight back.
 
     This is the whole reason the watchdog set is diffed by owner rather than by
     descriptor number.  A master that diffs numbers sees no change across a
@@ -527,7 +529,7 @@ class TestARecycledFdIsRegisteredForItsNewOwner:
         dying = spawn(101)
         prefork.sleep()
 
-        prefork.worker_pop(101)
+        prefork.remove_worker(101)
         replacement = spawn(102)
 
         assert replacement.watchdog_pipe[0] == dying.watchdog_pipe[0], (
@@ -551,7 +553,7 @@ class TestARecycledFdIsRegisteredForItsNewOwner:
 
         dying = spawn(201)
         prefork.sleep()
-        prefork.worker_pop(201)
+        prefork.remove_worker(201)
 
         replacement = spawn(202)
         assert replacement.watchdog_pipe[0] == dying.watchdog_pipe[0]
@@ -559,9 +561,9 @@ class TestARecycledFdIsRegisteredForItsNewOwner:
         replacement.watchdog_time = time.monotonic()
 
         killed = []
-        with patch.object(prefork, "worker_kill", lambda pid, sig: killed.append(pid)):
+        with patch.object(prefork, "kill_worker", lambda pid, sig: killed.append(pid)):
             for _ in range(8):
-                prefork.pipe_ping(replacement.watchdog_pipe)
+                prefork.ping_pipe(replacement.watchdog_pipe)
                 prefork.sleep()
                 time.sleep(0.02)
                 prefork.kill_timed_out_workers()

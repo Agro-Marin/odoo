@@ -6,22 +6,30 @@ import pytest
 from odoo.modules import loading
 
 
-class TestScanDataFile:
+class TestDataFileDigestAndDynamicFlag:
     def test_a_plain_xml_file_is_static(self):
-        digest, dynamic = loading._scan_data_file("data/x.xml", b"<odoo></odoo>")
+        digest, dynamic = loading._get_data_file_digest_and_dynamic_flag(
+            "data/x.xml", b"<odoo></odoo>"
+        )
         assert digest
         assert dynamic is False
 
     def test_the_digest_follows_the_content(self):
-        first, _ = loading._scan_data_file("data/x.xml", b"<odoo/>")
-        same, _ = loading._scan_data_file("data/other.xml", b"<odoo/>")
-        changed, _ = loading._scan_data_file("data/x.xml", b"<odoo> </odoo>")
+        first, _ = loading._get_data_file_digest_and_dynamic_flag(
+            "data/x.xml", b"<odoo/>"
+        )
+        same, _ = loading._get_data_file_digest_and_dynamic_flag(
+            "data/other.xml", b"<odoo/>"
+        )
+        changed, _ = loading._get_data_file_digest_and_dynamic_flag(
+            "data/x.xml", b"<odoo> </odoo>"
+        )
         assert first == same, "the digest is of the content, not the name"
         assert first != changed
 
     @pytest.mark.parametrize("name", ["migrate.sql", "data/x.SQL", "a/b/c.sql"])
     def test_any_sql_file_is_dynamic(self, name):
-        _, dynamic = loading._scan_data_file(name, b"SELECT 1;")
+        _, dynamic = loading._get_data_file_digest_and_dynamic_flag(name, b"SELECT 1;")
         assert dynamic is True, (
             "a SQL file's effect is whatever the statement does; two runs of "
             "identical bytes are not the same operation"
@@ -29,7 +37,7 @@ class TestScanDataFile:
 
     @pytest.mark.parametrize("marker", [b"<function", b"<delete"])
     def test_xml_carrying_a_marker_is_dynamic(self, marker):
-        _, dynamic = loading._scan_data_file(
+        _, dynamic = loading._get_data_file_digest_and_dynamic_flag(
             "data/x.xml", b"<odoo>" + marker + b' model="x"/></odoo>'
         )
         assert dynamic is True, (
@@ -38,15 +46,21 @@ class TestScanDataFile:
         )
 
     def test_the_markers_are_matched_case_sensitively_as_xml_requires(self):
-        _, dynamic = loading._scan_data_file("d.xml", b"<odoo><FUNCTION/></odoo>")
+        _, dynamic = loading._get_data_file_digest_and_dynamic_flag(
+            "d.xml", b"<odoo><FUNCTION/></odoo>"
+        )
         assert dynamic is False, "XML element names are case sensitive"
 
     def test_a_marker_in_a_non_xml_file_does_not_make_it_dynamic(self):
-        _, dynamic = loading._scan_data_file("data/x.csv", b"id,name\n<function,x\n")
+        _, dynamic = loading._get_data_file_digest_and_dynamic_flag(
+            "data/x.csv", b"id,name\n<function,x\n"
+        )
         assert dynamic is False
 
     def test_a_file_with_no_extension_is_static(self):
-        _, dynamic = loading._scan_data_file("LICENSE", b"<function/>")
+        _, dynamic = loading._get_data_file_digest_and_dynamic_flag(
+            "LICENSE", b"<function/>"
+        )
         assert dynamic is False
 
 
@@ -114,7 +128,7 @@ def _entry(digest, **over):
 
 
 def _digest(content=b"<odoo/>", name="data/x.xml"):
-    return loading._scan_data_file(name, content)[0]
+    return loading._get_data_file_digest_and_dynamic_flag(name, content)[0]
 
 
 class TestSkipDecision:

@@ -660,7 +660,11 @@ class MailTemplate(models.Model):
         self, report: IrActionsReport, res_ids: list[int]
     ) -> dict | None:
         IrActionsReport = self.env["ir.actions.report"]
-        if len(res_ids) < 2 or report.attachment or not IrActionsReport._renders_pdf():
+        if (
+            len(res_ids) < 2
+            or report.attachment
+            or not IrActionsReport._is_pdf_rendering_enabled()
+        ):
             return None
         collected, report_type = IrActionsReport._pre_render_qweb_pdf(
             report, res_ids=list(res_ids)

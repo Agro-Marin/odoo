@@ -72,7 +72,7 @@ os.register_at_fork(after_in_child=_reset_notify_state_in_child)
 def _get_notify_conn_locked():
     global _notify_conn  # noqa: PLW0603
     if _notify_conn is None or _notify_conn.closed:
-        _dbname, params = odoo.db.get_connection_info_for("postgres")
+        _dbname, params = odoo.db.get_connection_info_for_database("postgres")
         _notify_conn = psycopg.connect(autocommit=True, **params)
     return _notify_conn
 
@@ -394,7 +394,7 @@ class ImDispatch(threading.Thread):
 
     def loop(self):
         _logger.info("Bus.loop listen imbus on db postgres")
-        _dbname, params = odoo.db.get_connection_info_for("postgres")
+        _dbname, params = odoo.db.get_connection_info_for_database("postgres")
         with (
             psycopg.connect(autocommit=True, **params) as conn,
             selectors.DefaultSelector() as sel,
@@ -466,5 +466,5 @@ class ImDispatch(threading.Thread):
 
 dispatch = ImDispatch()
 stop_event = threading.Event()
-CommonServer.on_stop(stop_event.set)
-CommonServer.on_stop(_close_notify_conn)
+CommonServer.register_on_stop_hook(stop_event.set)
+CommonServer.register_on_stop_hook(_close_notify_conn)

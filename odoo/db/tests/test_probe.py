@@ -91,7 +91,9 @@ class TestReachabilityProof(unittest.TestCase):
         pool._probe.mark_proven(key)
         failing = _FakePool(getconn_raises=psycopg.errors.InvalidCatalogName("gone"))
         with self.assertRaises(psycopg.Error):
-            pool._getconn_with_retry(failing, key, {"dbname": "d"}, monotonic() + 0.05)
+            pool._get_connection_with_retry(
+                failing, key, {"dbname": "d"}, monotonic() + 0.05
+            )
         self.assertFalse(pool._probe.is_proven(key))
 
     def test_rotated_credentials_revoke_the_old_proof(self):

@@ -307,6 +307,31 @@ PUBLIC_SURFACE_PIN = ROOT / "tooling" / "architecture" / "public_surface_web.txt
 GUIDELINES = ROOT / "doc" / "coding_guidelines.rst"
 
 
+def progress_api_reimplementations() -> tuple[int, ...]:
+    """Who would have to be rewritten to rename `FileManager.print_progress`.
+
+    §2.4.17 cites the size of that binding as the reason the cache-verb table
+    does not reach `clear_progress`, so the argument rests on the figure. Two
+    populations, counted separately because they break differently: an
+    upgrade_code script CALLS the method (an AttributeError at run time), a test
+    stub REDEFINES it (silently diverges instead).
+    """
+    calls = len(
+        [
+            script
+            for script in (ROOT / "odoo" / "upgrade_code").glob("*.py")
+            if "print_progress" in script.read_text(encoding="utf-8")
+        ]
+    )
+    stubs = 0
+    for path in (ROOT / "odoo").rglob("test_*.py"):
+        if re.search(
+            r"^\s+def print_progress\(", path.read_text(encoding="utf-8"), re.MULTILINE
+        ):
+            stubs += 1
+    return (calls, stubs)
+
+
 def architecture_checkers() -> tuple[int, ...]:
     workflow = (ROOT / ".github" / "workflows" / "architecture.yml").read_text(
         encoding="utf-8"
@@ -333,6 +358,16 @@ def py_function_length_budget() -> tuple[int, ...]:
 
 
 _MEASUREMENTS: tuple[Figure, ...] = (
+    Figure(
+        "progress_api_reimplementations",
+        GUIDELINES,
+        re.compile(
+            r"published API \*\*(\d+)\*\* shipped ``upgrade_code``\s+"
+            r"scripts call and \*\*(\d+)\*\* test stubs redefine"
+        ),
+        progress_api_reimplementations,
+        _plain,
+    ),
     Figure(
         "py_function_length_budget",
         GUIDELINES,

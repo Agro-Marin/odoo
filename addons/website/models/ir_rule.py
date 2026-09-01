@@ -15,5 +15,5 @@ class IrRule(models.Model):
         res["website"] = (is_frontend and Website.get_current_website()) or Website
         return res
 
-    def _get_domain_keys(self):
-        return super()._get_domain_keys() + ["website_id"]
+    def _get_context_keys_in_domains(self):
+        return super()._get_context_keys_in_domains() + ["website_id"]

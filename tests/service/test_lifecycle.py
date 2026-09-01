@@ -50,13 +50,13 @@ def limits_cursor(max_connections=100, reserved=3, server_port=5432):
 class TestConnectionBudgetDemand:
     def test_threaded_is_a_single_process(self, mod):
         with patch.object(mod, "config", make_config(workers=0)):
-            assert mod._connection_budget_demand() == (1, 64)
+            assert mod._get_connection_budget_demand() == (1, 64)
 
     def test_prefork_counts_http_cron_job_and_the_evented_child(self, mod):
         with patch.object(
             mod, "config", make_config(workers=4, max_cron_threads=2, job_workers=2)
         ):
-            processes, demand = mod._connection_budget_demand()
+            processes, demand = mod._get_connection_budget_demand()
         assert processes == 9
         assert demand == 9 * 64
 
@@ -68,7 +68,7 @@ class TestConnectionBudgetDemand:
                 workers=1, max_cron_threads=0, job_workers=0, db_maxconn_gevent=8
             ),
         ):
-            processes, demand = mod._connection_budget_demand()
+            processes, demand = mod._get_connection_budget_demand()
         assert processes == 2
         assert demand == 64 + 8
 
@@ -80,7 +80,7 @@ class TestConnectionBudgetDemand:
                 workers=2, max_cron_threads=0, job_workers=0, http_enable=False
             ),
         ):
-            processes, demand = mod._connection_budget_demand()
+            processes, demand = mod._get_connection_budget_demand()
         assert processes == 2
         assert demand == 2 * 64
 
@@ -88,7 +88,7 @@ class TestConnectionBudgetDemand:
         with patch.object(
             mod, "config", make_config(workers=1, max_cron_threads=0, job_workers=0)
         ):
-            processes, _ = mod._connection_budget_demand()
+            processes, _ = mod._get_connection_budget_demand()
         assert processes == 2
 
 
@@ -192,7 +192,7 @@ class TestWarnOnConnectionBudget:
 class TestNarrowingTestSpec:
     @pytest.fixture
     def spec(self, mod):
-        return mod._narrowing_test_spec
+        return mod._get_narrowing_test_spec
 
     def _with_tags(self, tags):
         import odoo.tools
@@ -254,7 +254,7 @@ class TestPreloadRegistriesReturnCode:
                 patch.object(mod, "Registry", registry_cls),
                 patch.object(mod, "config", preload_config(**(config_overrides or {}))),
                 patch.object(mod, "_run_post_install_tests") as post_install,
-                patch.object(mod, "_narrowing_test_spec", return_value=spec),
+                patch.object(mod, "_get_narrowing_test_spec", return_value=spec),
                 patch.object(mod, "_logger", logger),
             ):
                 rc = mod.preload_registries(dbnames)
@@ -351,7 +351,7 @@ class TestReexecNtServiceRestart:
             ) as mock_call,
             patch.object(lifecycle.os, "execve") as mock_execve,
         ):
-            lifecycle._reexec()
+            lifecycle._reexec_server()
         return mock_call, mock_execve
 
     def test_successful_scm_restart_does_not_also_reexec(self):
@@ -459,7 +459,7 @@ class TestRestartGuard:
         with (
             patch("odoo.service._process_state.server", ts),
             patch.object(lifecycle, "_IS_WINDOWS", True),
-            patch.object(lifecycle, "_reexec") as mock_reexec,
+            patch.object(lifecycle, "_reexec_server") as mock_reexec,
             patch.object(lifecycle.threading, "Thread") as mock_thread,
         ):
             ts.reload()
@@ -468,7 +468,7 @@ class TestRestartGuard:
         target = kwargs.get("target", args[0] if args else None)
         assert target is mock_reexec, (
             f"the Windows restart branch spawned a thread on {target!r}, not "
-            f"_reexec; the process would never re-exec"
+            f"_reexec_server; the process would never re-exec"
         )
         mock_thread.return_value.start.assert_called_once()
 

@@ -43,7 +43,7 @@ def rewind_uploaded_files(
             ) from cause
 
 
-def clear_db_list_cache() -> None:
+def invalidate_db_list_cache() -> None:
     odoo.service.db.invalidate_catalog_caches()
 
 
@@ -69,12 +69,12 @@ def _normalize_dbfilter_host(host: str) -> str:
 
 
 @functools.lru_cache(maxsize=8)
-def _dbfilter_reads_the_host(pattern: str) -> bool:
+def _has_host_placeholder(pattern: str) -> bool:
     return "%h" in pattern or "%d" in pattern
 
 
 @functools.lru_cache(maxsize=512)
-def _compiled_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
+def _compile_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
     domain = host.partition(".")[0]
     return re.compile(
         pattern.replace("%h", re.escape(host)).replace("%d", re.escape(domain))
@@ -86,7 +86,7 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
 
     pattern = config["dbfilter"]
     if pattern:
-        if _dbfilter_reads_the_host(pattern):
+        if _has_host_placeholder(pattern):
             if host is None:
                 host = (
                     request.httprequest.environ.get("HTTP_HOST", "") if request else ""
@@ -94,7 +94,7 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
             host = _normalize_dbfilter_host(host)
         else:
             host = ""
-        dbfilter_re = _compiled_dbfilter(pattern, host)
+        dbfilter_re = _compile_dbfilter(pattern, host)
         names = [db for db in names if dbfilter_re.match(db)]
 
     if config["db_name"]:
@@ -175,7 +175,7 @@ def is_cors_preflight(request: Any, endpoint: Any) -> bool:
     )
 
 
-def _origin_parts(url: str) -> tuple[str, str, int | None] | None:
+def _get_origin_parts(url: str) -> tuple[str, str, int | None] | None:
     try:
         parts = urlsplit(url)
     except ValueError:
@@ -189,12 +189,12 @@ def _origin_parts(url: str) -> tuple[str, str, int | None] | None:
     return parts.scheme, parts.hostname, port
 
 
-def cors_same_host(request: Any) -> str | None:
+def resolve_cors_same_host(request: Any) -> str | None:
     origin = request.httprequest.headers.get("Origin")
     if not origin:
         return None
-    theirs = _origin_parts(origin)
-    ours = _origin_parts(request.httprequest.host_url)
+    theirs = _get_origin_parts(origin)
+    ours = _get_origin_parts(request.httprequest.host_url)
     if theirs is None or ours is None:
         return None
     if theirs[1:] != ours[1:]:
@@ -207,12 +207,12 @@ def cors_same_host(request: Any) -> str | None:
 _TRACEBACK_HIDDEN = "Traceback hidden; enable dev_mode or read the server log."
 
 
-def _hide_exception_internals() -> bool:
+def _is_exception_detail_hidden() -> bool:
     return bool(request) and not config["dev_mode"]
 
 
-def _exception_debug(exception: BaseException) -> str:
-    if _hide_exception_internals():
+def _get_exception_debug_text(exception: BaseException) -> str:
+    if _is_exception_detail_hidden():
         return _TRACEBACK_HIDDEN
     return "".join(traceback.format_exception(exception))
 
@@ -230,7 +230,7 @@ def serialize_exception(
     name = type(exception).__name__
     module = type(exception).__module__
     opaque = (
-        isinstance(exception, _OPAQUE_EXCEPTION_TYPES) and _hide_exception_internals()
+        isinstance(exception, _OPAQUE_EXCEPTION_TYPES) and _is_exception_detail_hidden()
     )
 
     if message is None:
@@ -243,5 +243,5 @@ def serialize_exception(
         "message": message,
         "arguments": arguments,
         "context": getattr(exception, "context", {}),
-        "debug": _exception_debug(exception),
+        "debug": _get_exception_debug_text(exception),
     }

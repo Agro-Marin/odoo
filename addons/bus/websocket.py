@@ -31,11 +31,11 @@ from odoo.http import (
     Request,
     Response,
     SessionExpiredException,
-    get_default_session,
+    prepare_default_session,
     root,
 )
 from odoo.modules.registry import Registry
-from odoo.service.security import check_session
+from odoo.service.security import is_session_valid
 from odoo.service.server import CommonServer
 from odoo.service.transaction import retrying
 from odoo.tools import config
@@ -707,7 +707,7 @@ class Websocket:
         with acquire_cursor(session.db) as cr:
             env = self.new_env(cr, session)
             if must_validate:
-                if session.uid is not None and not check_session(session, env):
+                if session.uid is not None and not is_session_valid(session, env):
                     raise SessionExpiredException
                 self._session_validated_until = now + self.SESSION_VALIDITY_TTL
                 self._validated_session_sid = session.sid
@@ -960,7 +960,7 @@ class WebsocketConnectionHandler:
             session = root.session_store.get(sid) if sid else None
             if not session:
                 session = root.session_store.new()
-                session.update(get_default_session(), db=db)
+                session.update(prepare_default_session(), db=db)
                 root.session_store.save(session)
                 _public_session_sid_by_db[db] = session.sid
             return session
@@ -1065,4 +1065,4 @@ def _kick_all(code=CloseCode.GOING_AWAY):
             websocket.close(code)
 
 
-CommonServer.on_stop(_kick_all)
+CommonServer.register_on_stop_hook(_kick_all)

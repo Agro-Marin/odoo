@@ -178,6 +178,11 @@ class IrActionsActions(models.Model):
         self.env.registry.clear_cache()
         return result
 
+    def _compute_xml_id(self) -> None:
+        res = self.get_external_id()
+        for record in self:
+            record.xml_id = res.get(record.id)
+
     def _apply_ondelete_unenforced(self) -> None:
         if not self:
             return
@@ -241,11 +246,6 @@ class IrActionsActions(models.Model):
                 )
             )
             self.env[model_name].invalidate_model([field_name])
-
-    def _compute_xml_id(self) -> None:
-        res = self.get_external_id()
-        for record in self:
-            record.xml_id = res.get(record.id)
 
     @api.model
     @tools.ormcache(cache="stable")

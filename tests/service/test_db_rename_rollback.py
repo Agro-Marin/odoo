@@ -31,7 +31,7 @@ def renaming(tmp_path):
         with (
             patch.object(lifecycle.odoo.tools, "config", cfg),
             patch.object(lifecycle, "check_db_name"),
-            patch.object(lifecycle, "_assert_filestore_dest_free"),
+            patch.object(lifecycle, "_check_filestore_dest_free"),
             patch.object(lifecycle, "_retry_terminate_then_ddl"),
             patch.object(lifecycle, "invalidate_catalog_caches"),
             patch.object(lifecycle, "_rollback_db_rename", side_effect=_rollback),

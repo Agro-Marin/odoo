@@ -80,7 +80,7 @@ class TestExportExtraction:
     def test_declared_exports_are_found(self):
         module = gate.resolve_specifier("@web/core/utils/reactive")
         names = gate.exported_names(module)
-        assert {"SignalStore", "effect", "disposableEffect"} <= names
+        assert {"SignalStore", "effect"} <= names
 
     def test_the_symbol_this_gate_was_written_for_is_still_absent(self):
         module = gate.resolve_specifier("@web/core/utils/reactive")

@@ -7,13 +7,13 @@ from odoo.http.wrappers import Response, _Response
 
 def test_response_load_always_returns_facade():
     raw = werkzeug.wrappers.Response("hi", status=201)
-    loaded = Response.load(raw)
+    loaded = Response.from_endpoint_result(raw)
     assert isinstance(loaded, Response)
     assert loaded.status_code == 201
     for result in ("txt", b"bytes", None):
-        assert isinstance(Response.load(result), Response)
+        assert isinstance(Response.from_endpoint_result(result), Response)
     facade = Response("x", status=202)
-    assert Response.load(facade) is facade
+    assert Response.from_endpoint_result(facade) is facade
 
 
 def test_response_ctor_from_werkzeug_response_is_not_double_wrapped():

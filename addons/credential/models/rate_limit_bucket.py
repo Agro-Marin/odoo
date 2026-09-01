@@ -3,7 +3,7 @@ from datetime import timedelta
 from typing import Any
 
 from odoo import api, fields, models
-from odoo.db import insert_or_existing
+from odoo.db import get_or_create_row
 from odoo.service.model import PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
 
 _logger = logging.getLogger(__name__)
@@ -197,7 +197,7 @@ class RateLimitBucket(models.Model):
     ) -> Any:
         """The one creation path, racing safely against a concurrent caller.
 
-        Through ``odoo.db.insert_or_existing``, which is the framework's own
+        Through ``odoo.db.get_or_create_row``, which is the framework's own
         spelling of this: insert inside a *flushing* savepoint, and on
         ``UniqueViolation`` return the row the winner created. The hand-rolled
         version here opened a bare ``SAVEPOINT`` and let the ORM defer the
@@ -210,7 +210,7 @@ class RateLimitBucket(models.Model):
         if bucket:
             return bucket
 
-        bucket, created = insert_or_existing(
+        bucket, created = get_or_create_row(
             self.env.cr,
             lambda: self.create(
                 {

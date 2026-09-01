@@ -379,7 +379,7 @@ class OdooURLFetcher(URLFetcher):
                 }
             )
             if self._temp_session.uid:
-                self._temp_session.session_token = security.compute_session_token(
+                self._temp_session.session_token = security.get_session_token(
                     self._temp_session,
                     self._env,
                 )
@@ -1012,7 +1012,11 @@ class IrActionsReport(models.Model):
         " browser. PDF means the report will be rendered using WeasyPrint and"
         " downloaded by the user.",
     )
-    report_name = fields.Char(string="Template Name", required=True, index=True)
+    report_name = fields.Char(
+        string="Template Name",
+        required=True,
+        index=True,
+    )
     report_file = fields.Char(
         string="Report File",
         required=False,
@@ -1021,7 +1025,11 @@ class IrActionsReport(models.Model):
         help="The path to the main report file (depending on Report Type) or empty if the content is in another field",
     )
     group_ids = fields.Many2many(
-        "res.groups", "res_groups_report_rel", "uid", "gid", string="Groups"
+        "res.groups",
+        "res_groups_report_rel",
+        "uid",
+        "gid",
+        string="Groups",
     )
     multi = fields.Boolean(
         string="On Multiple Doc.",
@@ -1029,7 +1037,9 @@ class IrActionsReport(models.Model):
     )
 
     paperformat_id = fields.Many2one(
-        "report.paperformat", "Paper Format", index="btree_not_null"
+        "report.paperformat",
+        "Paper Format",
+        index="btree_not_null",
     )
     print_report_name = fields.Char(
         "Printed Report Name",
@@ -1554,7 +1564,7 @@ class IrActionsReport(models.Model):
         height: int,
         image_format: str = "jpg",
     ) -> list[bytes | None]:
-        if not self._renders_pdf():
+        if not self._is_pdf_rendering_enabled():
             return [None] * len(bodies)
 
         page_css = f"@page {{ size: {width}px {height}px; margin: 0; }}"
@@ -2084,7 +2094,7 @@ class IrActionsReport(models.Model):
             )
         return attachment_vals_list
 
-    def _renders_pdf(self) -> bool:
+    def _is_pdf_rendering_enabled(self) -> bool:
         return not (
             (modules.module.current_test or tools.config["test_enable"])
             and not self.env.context.get("force_report_rendering")
@@ -2098,7 +2108,7 @@ class IrActionsReport(models.Model):
     ) -> tuple[bytes | dict[int | bool, dict[str, Any]], str]:
         res_ids, data = self._normalize_render_args(res_ids, data, "pdf")
         report_sudo = self._get_report(report_ref)
-        if not self._renders_pdf():
+        if not self._is_pdf_rendering_enabled():
             return self._render_qweb_html(report_sudo, res_ids, data=data)
 
         self = self.with_context(webp_as_jpg=True)

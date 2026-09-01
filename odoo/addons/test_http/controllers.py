@@ -123,7 +123,7 @@ class TestHttp(http.Controller):
         "/test_http/cors-resolver",
         type="http",
         auth="none",
-        cors=http.cors_same_host,
+        cors=http.resolve_cors_same_host,
         cors_credentials=True,
     )
     def cors_resolver(self):
@@ -316,7 +316,7 @@ class TestHttp(http.Controller):
 
     @http.route("/test_http/save_session", type="http", auth="none")
     def touch(self):
-        request.session.touch()
+        request.session.mark_dirty()
         return ""
 
     @http.route("/test_http/fail", type="http", auth="none")

@@ -39,18 +39,18 @@ from ._cron import (
     JOB_QUEUE_CHANNEL,
     CronSchedule,
     ReconnectBackoff,
+    close_cron_cursor,
     drain_cron_notifies,
+    drain_swept_database,
     open_cron_listener,
-    release_cron_cursor,
-    release_swept_database,
 )
-from ._env import env_int
+from ._env import get_env_int
 from ._limits import (
     empty_pipe,
-    job_max_age,
-    over_memory_soft_limit,
+    get_job_max_age,
+    get_memory_over_soft_limit,
 )
-from .wsgi import BaseWSGIServerNoBind, http_socket_timeout
+from .wsgi import BaseWSGIServerNoBind, get_http_socket_timeout
 
 if TYPE_CHECKING:
     from .server import PreforkServer
@@ -68,9 +68,9 @@ class Worker:
     def __init__(self, multi: PreforkServer) -> None:
         self.multi = multi
         self.watchdog_time = time.monotonic()
-        self.watchdog_pipe = multi.pipe_new()
+        self.watchdog_pipe = multi.open_pipe()
         try:
-            self.eintr_pipe = multi.pipe_new()
+            self.eintr_pipe = multi.open_pipe()
         except BaseException:
             for fd in self.watchdog_pipe:
                 with contextlib.suppress(OSError):
@@ -117,7 +117,7 @@ class Worker:
         if self.request_max > 0 and self.request_count >= self.request_max:
             self.logger.info("Max request (%s) reached.", self.request_count)
             self.alive = False
-        memory = over_memory_soft_limit(
+        memory = get_memory_over_soft_limit(
             self._process_handle, config["limit_memory_soft"]
         )
         if memory is not None:
@@ -170,7 +170,7 @@ class Worker:
         self._runloop_exc: BaseException | None = None
         t = threading.Thread(
             name=f"Worker {self.__class__.__name__} ({self.pid}) workthread",
-            target=self._runloop,
+            target=self._run_work_loop,
             daemon=True,
         )
         t.start()
@@ -199,7 +199,7 @@ class Worker:
         finally:
             self.stop()
 
-    def _runloop(self) -> None:
+    def _run_work_loop(self) -> None:
         signal.pthread_sigmask(
             signal.SIG_BLOCK,
             {
@@ -213,7 +213,7 @@ class Worker:
         try:
             while self.alive:
                 self.check_limits()
-                self.multi.pipe_ping(self.watchdog_pipe)
+                self.multi.ping_pipe(self.watchdog_pipe)
                 self.sleep()
                 if not self.alive:
                     break
@@ -227,7 +227,7 @@ class WorkerHTTP(Worker):
     def __init__(self, multi: PreforkServer) -> None:
         super().__init__(multi)
 
-        self.sock_timeout = http_socket_timeout()
+        self.sock_timeout = get_http_socket_timeout()
 
     def process_request(self, client: socket.socket, addr: tuple[str, int]) -> None:
         client.setblocking(True)
@@ -277,12 +277,12 @@ class WorkerCron(Worker):
         tick = max(self.multi.beat / 2, 0.5)
         remaining = total_seconds
         while remaining > 0 and self.alive:
-            self.multi.pipe_ping(self.watchdog_pipe)
+            self.multi.ping_pipe(self.watchdog_pipe)
             chunk = min(tick, remaining)
             time.sleep(chunk)
             remaining -= chunk
 
-    def _process_db(self, db_name: str) -> None:
+    def _run_jobs_for_database(self, db_name: str) -> None:
         from odoo.addons.base.models.ir_cron import IrCron
 
         IrCron._process_jobs(db_name)
@@ -302,13 +302,13 @@ class WorkerCron(Worker):
             time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
             empty_pipe(self.wakeup_fd_r)
 
-    def max_age(self) -> int:
+    def get_max_age(self) -> int:
         return config["limit_time_worker_cron"]
 
     def check_limits(self) -> None:
         super().check_limits()
 
-        max_age = self.max_age()
+        max_age = self.get_max_age()
         if max_age > 0 and (time.monotonic() - self.alive_time) > max_age:
             self.logger.info("Max age (%ss) reached.", max_age)
             self.alive = False
@@ -320,7 +320,7 @@ class WorkerCron(Worker):
             selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
             selector.register(cursor.connection, selectors.EVENT_READ)
         except Exception:
-            release_cron_cursor(cursor)
+            close_cron_cursor(cursor)
             raise
         if self._pg_selector is not None:
             self._pg_selector.close()
@@ -337,16 +337,16 @@ class WorkerCron(Worker):
                 )
             except psycopg.OperationalError, PoolError:
                 self.logger.warning("Lost postgres connection, reconnecting...")
-                release_cron_cursor(self.dbcursor)
+                close_cron_cursor(self.dbcursor)
                 try:
                     self._connect_postgres()
                     self._backoff.reset()
                 except Exception as exc:
-                    self._backoff.wait_after(
+                    self._backoff.wait_after_failure(
                         "Reconnect to postgres", exc, self._sleep_with_watchdog
                     )
                 return
-            self.db_queue.extend(self.schedule.due(notified))
+            self.db_queue.extend(self.schedule.get_due_databases(notified))
             self.db_count = len(self.db_queue)
             if not self.db_count:
                 return
@@ -355,7 +355,7 @@ class WorkerCron(Worker):
         self.setproctitle(db_name)
 
         try:
-            self._process_db(db_name)
+            self._run_jobs_for_database(db_name)
         except Exception:
             self.logger.warning(
                 "Uncaught error while processing jobs for database %s",
@@ -364,7 +364,7 @@ class WorkerCron(Worker):
             )
 
         if self.db_count > 1:
-            release_swept_database(db_name)
+            drain_swept_database(db_name)
 
         self.request_count += 1
         if (
@@ -385,7 +385,7 @@ class WorkerCron(Worker):
         del self._selector
         if self.multi.socket:
             self.multi.socket.close()
-        registries_size = env_int(
+        registries_size = get_env_int(
             "ODOO_REGISTRY_LRU_SIZE_CRON", 0, minimum=0, logger=self.logger
         )
         if registries_size > 0:
@@ -397,7 +397,7 @@ class WorkerCron(Worker):
                 self._backoff.reset()
                 break
             except Exception as exc:
-                self._backoff.wait_after(
+                self._backoff.wait_after_failure(
                     "WorkerCron initial PG connect", exc, self._sleep_with_watchdog
                 )
 
@@ -406,7 +406,7 @@ class WorkerCron(Worker):
         if self._pg_selector is not None:
             self._pg_selector.close()
         if hasattr(self, "dbcursor"):
-            release_cron_cursor(self.dbcursor)
+            close_cron_cursor(self.dbcursor)
 
 
 class WorkerJob(WorkerCron):
@@ -416,10 +416,10 @@ class WorkerJob(WorkerCron):
         super().__init__(multi)
         self.watchdog_timeout = multi.job_timeout
 
-    def max_age(self) -> int:
-        return job_max_age()
+    def get_max_age(self) -> int:
+        return get_job_max_age()
 
-    def _process_db(self, db_name: str) -> None:
+    def _run_jobs_for_database(self, db_name: str) -> None:
         from odoo.addons.base.models.ir_job import IrJob
 
         IrJob._process_jobs(db_name)

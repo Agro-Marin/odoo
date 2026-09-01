@@ -90,7 +90,7 @@ class TestBudgetAccounting(unittest.TestCase):
             for m in _methods_calling(pool.ConnectionPool, "acquire")
             if not m.startswith("__")
         }
-        self.assertEqual(acquirers, {"borrow", "_borrow_direct"})
+        self.assertEqual(acquirers, {"borrow", "_borrow_directly"})
 
     def test_exactly_one_release_site_per_outcome(self):
         releasers = {
@@ -104,13 +104,13 @@ class TestBudgetAccounting(unittest.TestCase):
             "a borrow ends exactly two ways and each has one release site: "
             "give_back for a connection that reached the caller, "
             "_unwind_failed_borrow for one that did not. They used to be three "
-            "-- borrow and _borrow_direct released inline -- which is how the "
+            "-- borrow and _borrow_directly released inline -- which is how the "
             "post-acquisition bookkeeping ended up outside the guard and "
             "leaked a permit per failure.",
         )
 
     def test_the_getconn_helpers_never_touch_the_budget(self):
-        for helper in ("_getconn_with_retry", "_check_borrowed_conn"):
+        for helper in ("_get_connection_with_retry", "_check_borrowed_connection"):
             with self.subTest(helper=helper):
                 self.assertNotIn(
                     "_budget", _callees(getattr(pool.ConnectionPool, helper))
@@ -236,7 +236,7 @@ class TestAFailedBorrowNeverKeepsItsPermit(unittest.TestCase):
         )
 
     def test_both_paths_unwind_through_one_helper(self):
-        for path in ("borrow", "_borrow_direct"):
+        for path in ("borrow", "_borrow_directly"):
             with self.subTest(path=path):
                 self.assertIn(
                     "_unwind_failed_borrow",
@@ -254,7 +254,7 @@ class TestMaintenanceDatabasesAreNeverPooled(unittest.TestCase):
     def test_borrow_consults_is_maintenance_db_and_diverts(self):
         names = _callees(pool.ConnectionPool.borrow)
         self.assertIn("is_maintenance_db", names)
-        self.assertIn("_borrow_direct", names)
+        self.assertIn("_borrow_directly", names)
 
     def test_give_back_recognises_the_direct_marker(self):
         self.assertIn("_DIRECT_CONNECTION", _callees(pool.ConnectionPool.give_back))
@@ -306,14 +306,14 @@ class TestLibpqTimeoutNeverLeaksZero(unittest.TestCase):
         now = probe.monotonic()
         for offset in (-5, -1, -0.5, 0, 0.2, 0.9, 1.0, 1.5, 3, 10, 900):
             with self.subTest(offset=offset):
-                got = probe.libpq_connect_timeout(now + offset, 5)
+                got = probe.get_libpq_connect_timeout(now + offset, 5)
                 self.assertTrue(
                     got == 0 or got >= 1, f"{got} would be read as 'wait forever'"
                 )
                 self.assertLessEqual(got, 5, "must never exceed the cap")
 
     def test_no_deadline_passes_the_cap_through(self):
-        self.assertEqual(probe.libpq_connect_timeout(None, 5), 5)
+        self.assertEqual(probe.get_libpq_connect_timeout(None, 5), 5)
 
     def test_every_call_site_guards_the_zero(self):
         guarded = 0
@@ -324,7 +324,7 @@ class TestLibpqTimeoutNeverLeaksZero(unittest.TestCase):
             for node in ast.walk(tree):
                 if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
                     fn = node.value.func
-                    if getattr(fn, "id", None) == "libpq_connect_timeout":
+                    if getattr(fn, "id", None) == "get_libpq_connect_timeout":
                         guarded += 1
             skip_tests += source.count("if not probe_timeout")
             skip_tests += source.count("if not connect_timeout")
@@ -334,15 +334,15 @@ class TestLibpqTimeoutNeverLeaksZero(unittest.TestCase):
         self.assertEqual(
             skip_tests,
             guarded,
-            "every libpq_connect_timeout result must be tested for the skip case",
+            "every get_libpq_connect_timeout result must be tested for the skip case",
         )
 
 
 class TestSchemaCacheClearsHaveDistinctCallSites(unittest.TestCase):
     def test_ddl_invalidation_keeps_the_lock_ledger(self):
         self.assertEqual(
-            _calls_on(cursor.Cursor.discard_cached_plans, "_schema_cache"),
-            {"clear_catalog_facts"},
+            _calls_on(cursor.Cursor.invalidate_cached_plans, "_schema_cache"),
+            {"invalidate_catalog_facts"},
             "DDL does not end the transaction, so the ROW EXCLUSIVE lock this "
             "cursor already took is still held",
         )
@@ -358,7 +358,7 @@ class TestSchemaCacheClearsHaveDistinctCallSites(unittest.TestCase):
     def test_both_clears_exist_and_differ(self):
         cache = schema_cache.TransactionSchemaCache()
         self.assertNotEqual(
-            inspect.getsource(cache.clear_catalog_facts),
+            inspect.getsource(cache.invalidate_catalog_facts),
             inspect.getsource(cache.clear),
         )
 
@@ -381,17 +381,17 @@ class TestDdlDetectionCannotMissAHiddenStatement(unittest.TestCase):
     def test_hidden_ddl_is_reported(self):
         for qs in self.HIDDEN:
             with self.subTest(qs=qs):
-                self.assertTrue(ddl._changes_schema(qs, ddl._ddl_keyword(qs)))
+                self.assertTrue(ddl._is_schema_change(qs, ddl._get_ddl_keyword(qs)))
 
     def test_ordinary_statements_are_not(self):
         for qs in self.INNOCENT:
             with self.subTest(qs=qs):
-                self.assertFalse(ddl._changes_schema(qs, ddl._ddl_keyword(qs)))
+                self.assertFalse(ddl._is_schema_change(qs, ddl._get_ddl_keyword(qs)))
 
     def test_over_reporting_is_the_only_allowed_error(self):
         qs = "SELECT 'a;CREATE' FROM t"
         self.assertTrue(
-            ddl._changes_schema(qs, ddl._ddl_keyword(qs)),
+            ddl._is_schema_change(qs, ddl._get_ddl_keyword(qs)),
             "a semicolon in a literal may over-report; that costs a cache drop, "
             "which is safe, and is the documented direction of the trade",
         )
@@ -463,10 +463,10 @@ class TestSchemaChangeDrainsAtCommit(unittest.TestCase):
 
 class TestOneConnectionOptionsAssembler(unittest.TestCase):
     def test_both_borrow_paths_use_it(self):
-        for path in ("_get_or_create_pool", "_borrow_direct"):
+        for path in ("_get_or_create_pool", "_borrow_directly"):
             with self.subTest(path=path):
                 self.assertIn(
-                    "_connection_options",
+                    "_prepare_connection_options",
                     _callees(getattr(pool.ConnectionPool, path)),
                     "the two paths built the same libpq options string twice; "
                     "one assembler, or the exemption goes back to being an "
@@ -474,16 +474,18 @@ class TestOneConnectionOptionsAssembler(unittest.TestCase):
                 )
 
     def test_the_assembler_renders_the_session_gucs_by_default(self):
-        self.assertIn("_session_gucs", _callees(pool._connection_options))
+        self.assertIn(
+            "_prepare_session_gucs", _callees(pool._prepare_connection_options)
+        )
         self.assertIn(
             "-c idle_session_timeout=",
-            inspect.getsource(pool._connection_options),
+            inspect.getsource(pool._prepare_connection_options),
         )
 
     def test_only_the_maintenance_path_opts_out(self):
         self.assertIn(
             "session_gucs=False",
-            inspect.getsource(pool.ConnectionPool._borrow_direct),
+            inspect.getsource(pool.ConnectionPool._borrow_directly),
         )
         self.assertNotIn(
             "session_gucs",
@@ -493,7 +495,7 @@ class TestOneConnectionOptionsAssembler(unittest.TestCase):
 
 class TestEveryCheckoutIsTracked(unittest.TestCase):
     def test_both_borrow_paths_track(self):
-        for path in ("borrow", "_borrow_direct"):
+        for path in ("borrow", "_borrow_directly"):
             with self.subTest(path=path):
                 self.assertIn(
                     "track",
@@ -524,7 +526,7 @@ class TestEveryCheckoutIsTracked(unittest.TestCase):
 
     def test_the_leak_warning_uses_its_own_throttle(self):
         names = _callees(pool.ConnectionPool._warn_about_leaks)
-        self.assertIn("due_for_report", names)
+        self.assertIn("acquire_report_interval", names)
         self.assertNotIn(
             "_reaper",
             names,
@@ -534,15 +536,17 @@ class TestEveryCheckoutIsTracked(unittest.TestCase):
     def test_saturation_errors_name_the_holders(self):
         self.assertIn(
             "describe",
-            _calls_on(pool.ConnectionPool._budget_exhausted, "_checkouts"),
+            _calls_on(
+                pool.ConnectionPool._prepare_budget_exhausted_error, "_checkouts"
+            ),
             "a budget-exhausted error must say who is holding the permits",
         )
 
     def test_both_borrow_paths_raise_the_one_saturation_error(self):
-        for path in ("borrow", "_borrow_direct"):
+        for path in ("borrow", "_borrow_directly"):
             with self.subTest(path=path):
                 self.assertIn(
-                    "_budget_exhausted",
+                    "_prepare_budget_exhausted_error",
                     _callees(getattr(pool.ConnectionPool, path)),
                     "the two copies of this message had already drifted apart; "
                     "a path that builds its own can drop the holders again",
@@ -551,8 +555,8 @@ class TestEveryCheckoutIsTracked(unittest.TestCase):
 
 class TestBudgetBelongsToAServer(unittest.TestCase):
     def test_the_key_is_the_resolved_endpoint(self):
-        names = _callees(endpoints.EndpointRegistry.get_budget_for)
-        self.assertIn("get_endpoint_of", names)
+        names = _callees(endpoints.EndpointRegistry.get_budget_for_readonly)
+        self.assertIn("get_endpoint_for_readonly", names)
         self.assertNotIn(
             "db_replica_host",
             names,
@@ -562,13 +566,14 @@ class TestBudgetBelongsToAServer(unittest.TestCase):
 
     def test_the_endpoint_comes_from_the_resolved_connection_info(self):
         self.assertIn(
-            "get_connection_info_for",
-            _callees(endpoints.EndpointRegistry.get_endpoint_of),
+            "get_connection_info_for_database",
+            _callees(endpoints.EndpointRegistry.get_endpoint_for_readonly),
         )
 
     def test_the_replica_ceiling_is_gated_on_the_endpoint_differing(self):
         self.assertIn(
-            "get_endpoint_of", _callees(endpoints.EndpointRegistry.get_maxconn_for)
+            "get_endpoint_for_readonly",
+            _callees(endpoints.EndpointRegistry.get_maxconn_for_readonly),
         )
 
     def test_budgets_are_kept_per_endpoint_not_as_one_global(self):
@@ -603,7 +608,7 @@ class TestPipelineModeCannotBypassTheFailureSeam(unittest.TestCase):
 
     def test_it_only_takes_errors_that_reached_the_server(self):
         self.assertIn(
-            "reached_the_server",
+            "has_reached_server",
             _callees(cursor.Cursor.pipeline),
             "the same except also sees whatever the caller's block raised; a "
             "plain Python error carries no SQLSTATE and is not the seam's",
@@ -663,7 +668,7 @@ class TestPipelineModeCannotBypassTheFailureSeam(unittest.TestCase):
             "writers reach this path",
         )
         self.assertIn(
-            "reached_the_server",
+            "has_reached_server",
             called,
             "a client-side rejection never reached the wire and is not the "
             "seam's, as in Cursor.pipeline",
@@ -707,14 +712,14 @@ class TestEveryFailedBorrowIsCounted(unittest.TestCase):
         }
 
     def test_both_paths_count_and_unwind_in_the_same_handler(self):
-        for name in ("borrow", "_borrow_direct"):
+        for name in ("borrow", "_borrow_directly"):
             with self.subTest(path=name):
                 handler_calls = self._final_guard(name)
                 self.assertIn("record_borrow_failed", handler_calls)
                 self.assertIn("_unwind_failed_borrow", handler_calls)
 
     def test_the_direct_path_takes_its_permit_before_that_guard(self):
-        fn = _def_ast(inspect.getsource(pool.ConnectionPool._borrow_direct))
+        fn = _def_ast(inspect.getsource(pool.ConnectionPool._borrow_directly))
         guard = typing.cast("ast.Try", fn.body[-1])
         self.assertNotIn(
             "acquire",
@@ -730,10 +735,10 @@ class TestEveryFailedBorrowIsCounted(unittest.TestCase):
 
 class TestOneDecodeOfAStatementsText(unittest.TestCase):
     def test_both_entry_points_read_the_text_through_one_function(self):
-        for name in ("_resolve_ddl", "executemany"):
+        for name in ("_prepare_ddl_statement", "executemany"):
             with self.subTest(entry_point=name):
                 self.assertIn(
-                    "_statement_text",
+                    "_get_statement_text",
                     _callees(getattr(cursor.Cursor, name)),
                     "executemany used to spell it str(query), which turns a "
                     "bytes DDL statement into the repr b'CREATE …' and hides "
@@ -742,10 +747,11 @@ class TestOneDecodeOfAStatementsText(unittest.TestCase):
 
     def test_it_decodes_bytes_rather_than_repring_them(self):
         self.assertEqual(
-            cursor._statement_text(b"CREATE TABLE t (a int)"), "CREATE TABLE t (a int)"
+            cursor._get_statement_text(b"CREATE TABLE t (a int)"),
+            "CREATE TABLE t (a int)",
         )
-        self.assertEqual(cursor._statement_text(b"\xff\xfe"), "")
-        self.assertEqual(cursor._statement_text("SELECT 1"), "SELECT 1")
+        self.assertEqual(cursor._get_statement_text(b"\xff\xfe"), "")
+        self.assertEqual(cursor._get_statement_text("SELECT 1"), "SELECT 1")
 
 
 class TestCursorConstructionNeverLeaksAPermit(unittest.TestCase):
@@ -780,7 +786,7 @@ class TestCursorConstructionNeverLeaksAPermit(unittest.TestCase):
         }
         self.assertIn("give_back", handler_calls)
         self.assertIn(
-            "_connection_is_clean",
+            "_is_connection_clean",
             handler_calls,
             "a connection whose setup raised after a statement sits in a "
             "failed transaction; handing it back as warm passes it on",
@@ -791,7 +797,7 @@ class TestTheBreakerLockIsNotReentrant(unittest.TestCase):
     def test_allow_does_not_go_through_the_property(self):
         self.assertNotIn(
             "closed",
-            _callees(breaker.CircuitBreaker.allow),
+            _callees(breaker.CircuitBreaker.acquire_attempt),
             "the lock-held path must read _open directly",
         )
 
@@ -800,12 +806,12 @@ class TestTheBreakerLockIsNotReentrant(unittest.TestCase):
             "cooldown_remaining": typing.cast(
                 "property", breaker.CircuitBreaker.__dict__["cooldown_remaining"]
             ).fget,
-            "snapshot": breaker.CircuitBreaker.snapshot,
+            "get_snapshot": breaker.CircuitBreaker.get_snapshot,
         }
         for name, fn in members.items():
             with self.subTest(method=name):
                 self.assertIn(
-                    "_cooldown_remaining_locked",
+                    "_get_cooldown_remaining_locked",
                     _callees(fn),
                     "two copies of the same expression drifted apart once "
                     "already in this package",
@@ -814,7 +820,7 @@ class TestTheBreakerLockIsNotReentrant(unittest.TestCase):
     def test_the_locked_helper_does_not_take_the_lock(self):
         self.assertNotIn(
             "_lock",
-            _callees(breaker.CircuitBreaker._cooldown_remaining_locked),
+            _callees(breaker.CircuitBreaker._get_cooldown_remaining_locked),
             "it is called from inside the lock; taking it again deadlocks",
         )
 
@@ -824,18 +830,20 @@ class TestThePairedGaugesArePublishedTogether(unittest.TestCase):
         self.assertIn("_lock", _callees(lag.ReplicaLagGate.record))
 
     def test_rendering_them_takes_it_too(self):
-        self.assertIn("_lock", _callees(lag.ReplicaLagGate.snapshot))
+        self.assertIn("_lock", _callees(lag.ReplicaLagGate.get_snapshot))
 
     def test_the_per_cursor_read_stays_lock_free(self):
         self.assertNotIn(
             "_lock",
-            _callees(lag.ReplicaLagGate.allows),
-            "allows() runs per read-only cursor and reads ONE flag; a single "
+            _callees(lag.ReplicaLagGate.is_replica_usable),
+            "is_replica_usable() runs per read-only cursor and reads ONE flag; a single "
             "bool is never torn and the pair has its own guarded readers",
         )
 
     def test_the_leak_throttle_owns_a_lock(self):
-        self.assertIn("_report_lock", _callees(leaks.CheckoutTracker.due_for_report))
+        self.assertIn(
+            "_report_lock", _callees(leaks.CheckoutTracker.acquire_report_interval)
+        )
 
     def test_tracking_and_release_stay_lock_free(self):
         for name in ("track", "release"):
@@ -849,7 +857,7 @@ class TestThePairedGaugesArePublishedTogether(unittest.TestCase):
 
 class TestTheSaturationErrorReadsOneConsistentPair(unittest.TestCase):
     def test_both_counters_come_from_one_acquisition(self):
-        src = inspect.getsource(pool.ConnectionPool._budget_exhausted)
+        src = inspect.getsource(pool.ConnectionPool._prepare_budget_exhausted_error)
         self.assertIn("with self._lock:", src)
         head, _, tail = src.partition("with self._lock:")
         self.assertNotIn("len(self._pools)", head)

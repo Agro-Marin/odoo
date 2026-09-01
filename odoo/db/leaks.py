@@ -10,12 +10,12 @@ class Checkout(NamedTuple):
     thread: str
     caller: str | None
 
-    def age(self) -> float:
+    def get_age(self) -> float:
         return monotonic() - self.since
 
     def describe(self) -> str:
         where = f" at {self.caller}" if self.caller else ""
-        return f"{self.age():.1f}s by {self.thread}{where}"
+        return f"{self.get_age():.1f}s by {self.thread}{where}"
 
 
 class CheckoutTracker:
@@ -31,22 +31,22 @@ class CheckoutTracker:
 
     def release(self, conn: object) -> float | None:
         entry = self._out.pop(conn, None)
-        return None if entry is None else entry.age()
+        return None if entry is None else entry.get_age()
 
     def __len__(self) -> int:
         return len(self._out)
 
-    def outstanding(self, older_than: float = 0.0) -> list[Checkout]:
+    def get_checkouts_outstanding(self, older_than: float = 0.0) -> list[Checkout]:
         return sorted(
-            (c for c in self._out.copy().values() if c.age() > older_than),
+            (c for c in self._out.copy().values() if c.get_age() > older_than),
             key=lambda c: c.since,
         )
 
-    def oldest_age(self) -> float:
+    def get_oldest_age(self) -> float:
         entries = self._out.copy().values()
-        return max((c.age() for c in entries), default=0.0)
+        return max((c.get_age() for c in entries), default=0.0)
 
-    def due_for_report(self, interval: float) -> bool:
+    def acquire_report_interval(self, interval: float) -> bool:
         now = monotonic()
         with self._report_lock:
             if now - self._last_report < interval:
@@ -55,7 +55,7 @@ class CheckoutTracker:
             return True
 
     def describe(self, limit: int = 3, older_than: float = 0.0) -> str:
-        held = self.outstanding(older_than)
+        held = self.get_checkouts_outstanding(older_than)
         if not held:
             return ""
         shown = "; ".join(c.describe() for c in held[:limit])

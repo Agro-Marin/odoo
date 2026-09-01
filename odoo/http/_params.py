@@ -25,7 +25,9 @@ class ParamSpec(NamedTuple):
     required: bool
 
 
-def _resolve(annotation: Any) -> tuple[type | None, type | None, bool]:
+def _resolve_param_spec_fields(
+    annotation: Any,
+) -> tuple[type | None, type | None, bool]:
     allow_none = False
     if isinstance(annotation, types.UnionType):
         args = typing.get_args(annotation)
@@ -76,7 +78,7 @@ def get_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
                     param.name,
                 )
                 continue
-        target, item, allow_none = _resolve(annotation)
+        target, item, allow_none = _resolve_param_spec_fields(annotation)
         if target is None:
             _logger.debug(
                 "%s: %r is annotated %r, which typed routes do not coerce; "
@@ -95,7 +97,7 @@ def get_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
     return specs
 
 
-def _to_bool(name: str, value: Any) -> bool:
+def _coerce_bool(name: str, value: Any) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -109,7 +111,7 @@ def _to_bool(name: str, value: Any) -> bool:
     raise BadRequest(f"parameter {name!r} must be a boolean")
 
 
-def _reject_non_json_number(name: str, value: Any, kind: str) -> None:
+def _check_json_number_syntax(name: str, value: Any, kind: str) -> None:
     if isinstance(value, str) and ("_" in value or not value.isascii()):
         raise BadRequest(f"parameter {name!r} must be {kind}")
 
@@ -124,13 +126,13 @@ def _coerce_scalar(name: str, value: Any, target: type) -> Any:
             return str(value)
         raise BadRequest(f"parameter {name!r} must be a string")
     if target is bool:
-        return _to_bool(name, value)
+        return _coerce_bool(name, value)
     if target is int:
         if isinstance(value, bool):
             raise BadRequest(f"parameter {name!r} must be an integer")
         if isinstance(value, float) and not value.is_integer():
             raise BadRequest(f"parameter {name!r} must be an integer")
-        _reject_non_json_number(name, value, "an integer")
+        _check_json_number_syntax(name, value, "an integer")
         try:
             return int(value)
         except TypeError, ValueError:
@@ -138,7 +140,7 @@ def _coerce_scalar(name: str, value: Any, target: type) -> Any:
     if target is float:
         if isinstance(value, bool):
             raise BadRequest(f"parameter {name!r} must be a number")
-        _reject_non_json_number(name, value, "a number")
+        _check_json_number_syntax(name, value, "a number")
         try:
             result = float(value)
         except OverflowError:

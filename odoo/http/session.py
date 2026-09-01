@@ -20,7 +20,7 @@ from .constants import (
     SESSION_DELETION_TIMER,
     SESSION_LIFETIME,
     STORED_SESSION_BYTES,
-    get_default_session,
+    prepare_default_session,
 )
 from .core import request
 
@@ -87,7 +87,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
     def remove_old_sessions(self, session: Session) -> None:
         if "gc_previous_sessions" in session:
             if session["create_time"] + SESSION_DELETION_TIMER < time.time():
-                self.remove_from_identifiers(
+                self.remove_sessions_for_identifiers(
                     [session.sid[:STORED_SESSION_BYTES]],
                     exclude_sid=session.sid,
                 )
@@ -188,7 +188,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 )
         return identifiers
 
-    def remove_from_identifiers(
+    def remove_sessions_for_identifiers(
         self,
         identifiers: list[str],
         exclude_sid: str | None = None,
@@ -341,7 +341,7 @@ class Session(collections.abc.MutableMapping):
 
         user = env["res.users"].browse(pre_uid)
         if auth_info.get("mfa") == "skip" or not user._mfa_url():
-            self.finalize(env)
+            self.finalize_login(env)
 
         if request and request.session is self and request.db == env.registry.db_name:
             request.env = env(user=self.uid, context=self.context)
@@ -349,7 +349,7 @@ class Session(collections.abc.MutableMapping):
 
         return auth_info
 
-    def finalize(self, env: Any) -> None:
+    def finalize_login(self, env: Any) -> None:
         login = self.pop("pre_login")
         uid = self.pop("pre_uid")
 
@@ -371,16 +371,16 @@ class Session(collections.abc.MutableMapping):
         db = self.db if keep_db else None
         debug = self.debug
         self.clear()
-        self.update(get_default_session(), db=db, debug=debug)
+        self.update(prepare_default_session(), db=db, debug=debug)
         context = self.context
         assert context is not None
-        context["lang"] = request.default_lang() if request else DEFAULT_LANG
+        context["lang"] = request.get_default_lang() if request else DEFAULT_LANG
         self.should_rotate = True
 
         if request and request.env is not None:
             ir_http(request.env)._post_logout()
 
-    def touch(self) -> None:
+    def mark_dirty(self) -> None:
         self.is_dirty = True
 
     def mark_clean(self) -> None:

@@ -22,9 +22,7 @@ def _set(route_type, *, mimetype="", method="POST", content_length=1, cors=None)
         ),
         dispatcher=None,
     )
-    _serve._RequestServeMixin._set_request_dispatcher(
-        this, _rule(route_type, cors=cors)
-    )
+    _serve._RequestServeMixin._update_dispatcher(this, _rule(route_type, cors=cors))
     return this.dispatcher
 
 

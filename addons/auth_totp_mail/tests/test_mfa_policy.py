@@ -52,6 +52,6 @@ class TestMfaPolicy(TransactionCase):
     def test_rpc_requires_api_keys_under_policy(self):
         """Password RPC is blocked (api-keys only) when mail 2FA applies."""
         self._set_policy("all_required")
-        self.assertTrue(self.internal_user._rpc_api_keys_only())
+        self.assertTrue(self.internal_user._is_rpc_api_key_only())
         self._set_policy(False)
-        self.assertFalse(self.internal_user._rpc_api_keys_only())
+        self.assertFalse(self.internal_user._is_rpc_api_key_only())

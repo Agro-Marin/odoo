@@ -99,7 +99,11 @@ class IrActionsServerHistory(models.Model):
     _order = "create_date desc, id desc"
     _max_entries_per_action = 100
 
-    action_id = fields.Many2one("ir.actions.server", required=True, ondelete="cascade")
+    action_id = fields.Many2one(
+        "ir.actions.server",
+        required=True,
+        ondelete="cascade",
+    )
     code = fields.Text()
 
     @api.depends("create_date", "create_uid")
@@ -170,25 +174,6 @@ class IrActionsServer(models.Model):
     _inherit = ["ir.actions.actions"]
     _order = "sequence,name,id"
     _allow_sudo_commands = False
-
-    @api.model
-    def _default_update_path(self) -> str:
-        if not self.env.context.get("default_model_id"):
-            return ""
-        ir_model = self.env["ir.model"].browse(self.env.context["default_model_id"])
-        model = self.env[ir_model.model]
-        sensible_default_fields = [
-            "partner_id",
-            "user_id",
-            "user_ids",
-            "stage_id",
-            "state",
-            "active",
-        ]
-        for field_name in sensible_default_fields:
-            if field_name in model._fields and not model._fields[field_name].readonly:
-                return field_name
-        return ""
 
     name = fields.Char(
         compute="_compute_names",
@@ -334,7 +319,7 @@ class IrActionsServer(models.Model):
     update_path = fields.Char(
         string="Field to Update Path",
         help="Path to the field to update, e.g. 'partner_id.name'",
-        default=_default_update_path,
+        default=lambda self: self._default_update_path(),
     )
     update_related_model_id = fields.Many2one(
         "ir.model",
@@ -502,6 +487,25 @@ class IrActionsServer(models.Model):
                 )
             )
 
+    @api.model
+    def _default_update_path(self) -> str:
+        if not self.env.context.get("default_model_id"):
+            return ""
+        ir_model = self.env["ir.model"].browse(self.env.context["default_model_id"])
+        model = self.env[ir_model.model]
+        sensible_default_fields = [
+            "partner_id",
+            "user_id",
+            "user_ids",
+            "stage_id",
+            "state",
+            "active",
+        ]
+        for field_name in sensible_default_fields:
+            if field_name in model._fields and not model._fields[field_name].readonly:
+                return field_name
+        return ""
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
 
@@ -569,6 +573,70 @@ class IrActionsServer(models.Model):
 
         for action in code_actions:
             action.show_code_history = action.id in actions_with_diff
+
+    def _compute_allowed_states(self) -> None:
+        self.allowed_states = [value for value, __ in self._fields["state"].selection]
+
+    @api.depends(lambda self: self._get_fields_warning_depends())
+    def _compute_warning(self) -> None:
+        for action in self:
+            if warnings := action._get_warning_messages():
+                action.warning = "\n\n".join(warnings)
+            else:
+                action.warning = False
+
+    @api.depends(lambda self: self._get_fields_name_depends())
+    def _compute_names(self) -> None:
+        self._prefetch_automated_name_sources()
+        for action in self:
+            action.automated_name = action._prepare_automated_name()
+            if not action.name_is_custom:
+                action.name = action.automated_name
+
+    @api.depends_context("uid")
+    def _compute_available_model_ids(self) -> None:
+        if not self:
+            return
+        allowed_models = self.env["ir.model"].search(
+            [
+                (
+                    "model",
+                    "in",
+                    list(self.env["ir.model.access"]._get_models_allowed()),
+                )
+            ]
+        )
+        self.available_model_ids = allowed_models.ids
+
+    @api.depends("model_id", "update_path", "state")
+    def _compute_crud_relations(self) -> None:
+        for action in self:
+            action.update_related_model_id = False
+            if not (action.model_id and action.state in CRUD_STATES):
+                action.crud_model_id = False
+                action.update_field_id = False
+            elif action.state in ("object_create", "object_copy"):
+                if not action.crud_model_id:
+                    action.crud_model_id = action.model_id
+                action.update_field_id = False
+            elif action.update_path:
+                model, field = action._get_update_path_target()
+                action.crud_model_id = model
+                action.update_field_id = field
+                if action.evaluation_type == "value" and field and field.relation:
+                    action.update_related_model_id = action.env["ir.model"]._get_id(
+                        field.relation
+                    )
+            else:
+                action.crud_model_id = action.model_id
+                action.update_field_id = False
+
+    @api.onchange("name")
+    def _onchange_name(self) -> None:
+        self.name_is_custom = bool(self.name)
+        if not self.name:
+            self.automated_name = self._prepare_automated_name()
+            self.name = self.automated_name
 
     @api.model
     def _get_fields_warning_depends(self) -> list[str]:
@@ -681,17 +749,6 @@ class IrActionsServer(models.Model):
 
         return warnings
 
-    def _compute_allowed_states(self) -> None:
-        self.allowed_states = [value for value, __ in self._fields["state"].selection]
-
-    @api.depends(lambda self: self._get_fields_warning_depends())
-    def _compute_warning(self) -> None:
-        for action in self:
-            if warnings := action._get_warning_messages():
-                action.warning = "\n\n".join(warnings)
-            else:
-                action.warning = False
-
     @api.model
     def _get_domain_children(self) -> Domain:
         return Domain(
@@ -732,59 +789,6 @@ class IrActionsServer(models.Model):
                 by_model.setdefault(reference._name, []).append(reference.id)
         for model_name, ids in by_model.items():
             self.env[model_name].browse(ids).mapped("display_name")
-
-    @api.depends(lambda self: self._get_fields_name_depends())
-    def _compute_names(self) -> None:
-        self._prefetch_automated_name_sources()
-        for action in self:
-            action.automated_name = action._prepare_automated_name()
-            if not action.name_is_custom:
-                action.name = action.automated_name
-
-    @api.onchange("name")
-    def _onchange_name(self) -> None:
-        self.name_is_custom = bool(self.name)
-        if not self.name:
-            self.automated_name = self._prepare_automated_name()
-            self.name = self.automated_name
-
-    @api.depends_context("uid")
-    def _compute_available_model_ids(self) -> None:
-        if not self:
-            return
-        allowed_models = self.env["ir.model"].search(
-            [
-                (
-                    "model",
-                    "in",
-                    list(self.env["ir.model.access"]._get_models_allowed()),
-                )
-            ]
-        )
-        self.available_model_ids = allowed_models.ids
-
-    @api.depends("model_id", "update_path", "state")
-    def _compute_crud_relations(self) -> None:
-        for action in self:
-            action.update_related_model_id = False
-            if not (action.model_id and action.state in CRUD_STATES):
-                action.crud_model_id = False
-                action.update_field_id = False
-            elif action.state in ("object_create", "object_copy"):
-                if not action.crud_model_id:
-                    action.crud_model_id = action.model_id
-                action.update_field_id = False
-            elif action.update_path:
-                model, field = action._get_update_path_target()
-                action.crud_model_id = model
-                action.update_field_id = field
-                if action.evaluation_type == "value" and field and field.relation:
-                    action.update_related_model_id = action.env["ir.model"]._get_id(
-                        field.relation
-                    )
-            else:
-                action.crud_model_id = action.model_id
-                action.update_field_id = False
 
     def _get_update_path_target(
         self,

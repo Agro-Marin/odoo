@@ -212,14 +212,14 @@ class XMLAsset(WebAsset):
         try:
             raw = self._raw_source()
         except AssetError as e:
-            return self._error(str(e))
+            return self._prepare_asset_error(str(e))
         parser = etree.XMLParser(
             ns_clean=True, remove_comments=True, resolve_entities=False
         )
         try:
             return etree.fromstring(raw.encode("utf-8"), parser=parser)
         except etree.XMLSyntaxError as e:
-            return self._error(f"Invalid XML template: {e.msg}")
+            return self._prepare_asset_error(f"Invalid XML template: {e.msg}")
 
     @functools.cached_property
     def template_elements(self) -> list[etree._Element]:
@@ -228,7 +228,7 @@ class XMLAsset(WebAsset):
             return [el for el in root if isinstance(el.tag, str)]
         return [root]
 
-    def _error(self, msg: str) -> XMLAssetError:
+    def _prepare_asset_error(self, msg: str) -> XMLAssetError:
         return XMLAssetError(super().generate_error(msg))
 
 

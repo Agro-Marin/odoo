@@ -27,7 +27,6 @@ class ProductMergeLine(models.TransientModel):
 
 
 class ProductMergeWizard(models.TransientModel):
-
     _name = "product.merge.wizard"
     _inherit = ["mixin.merge"]
     _description = "Merge Products Wizard"
@@ -454,7 +453,7 @@ class ProductMergeWizard(models.TransientModel):
             for model, field in models.items()
         )
 
-    def _process_query(self, query: SQL) -> None:
+    def _create_merge_lines_from_query(self, query: SQL) -> None:
         self.check_singleton()
         model_mapping = self._get_exclusion_models()
 
@@ -555,7 +554,7 @@ class ProductMergeWizard(models.TransientModel):
         self.check_singleton()
         groups = self._get_selected_groupby()
         query = self._generate_query(groups, self.maximum_group)
-        self._process_query(query)
+        self._create_merge_lines_from_query(query)
         return self._action_next_screen()
 
     def action_start_automatic_process(self) -> dict[str, Any]:

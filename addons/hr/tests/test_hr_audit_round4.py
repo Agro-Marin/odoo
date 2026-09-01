@@ -843,7 +843,7 @@ class TestSelfWriteDoesNotEscalateThroughRelations(TestHrCommon):
             self.env["hr.employee.category"].search_count([]),
             before,
             "res.users.write elevates a self-write to superuser when every key is"
-            " self-writable. base's _escapes_own_record is what stops that"
+            " self-writable. base's _is_escaping_own_record is what stops that"
             " elevation for a relational command outside"
             " _RELATION_ONLY_COMMANDS (LINK/UNLINK/SET/CLEAR). hr relies on that"
             " guard and tests it nowhere else: without it, every self-writable"

@@ -129,7 +129,7 @@ class FileManager:
             print("\033[K", end="", file=sys.stderr, flush=True)
 
 
-def get_upgrade_code_scripts(
+def load_upgrade_code_scripts(
     from_version: tuple[str, ...], to_version: tuple[str, ...]
 ) -> list[tuple[str, ModuleType]]:
     modules: list[tuple[str, ModuleType]] = []
@@ -141,7 +141,7 @@ def get_upgrade_code_scripts(
     return modules
 
 
-def migrate(
+def migrate_source_files(
     addons_path: list[str],
     glob: str,
     from_version: tuple[str, ...] | None = None,
@@ -171,9 +171,9 @@ def migrate(
     else:
         if from_version is None or to_version is None:
             raise ValueError(
-                "migrate() needs both from_version and to_version when script is unset"
+                "migrate_source_files() needs both from_version and to_version when script is unset"
             )
-        modules = get_upgrade_code_scripts(from_version, to_version)
+        modules = load_upgrade_code_scripts(from_version, to_version)
 
     file_manager = FileManager(addons_path, glob)
     for _name, module in modules:
@@ -254,7 +254,7 @@ class UpgradeCode(Command):
         options.addons_path = requested
         if not options.addons_path:
             self.parser.error("--addons-path is required")
-        is_dirty = migrate(
+        is_dirty = migrate_source_files(
             options.addons_path,
             options.glob,
             from_version=options.from_version,

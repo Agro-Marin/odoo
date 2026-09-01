@@ -5,7 +5,7 @@ import pytest
 
 from odoo.modules.migration import (
     MIGRATION_STAGES,
-    _scripts_by_version,
+    _get_scripts_by_version,
     _warn_unstaged_scripts,
 )
 
@@ -57,14 +57,14 @@ class TestUnstagedScriptsWarn:
 
 
 class TestCollectionWiresTheWarning:
-    def test_scripts_by_version_reports_while_collecting(self, tmp_path, caplog):
+    def test_get_scripts_by_version_reports_while_collecting(self, tmp_path, caplog):
         version_dir = tmp_path / "19.0.1.0"
         version_dir.mkdir()
         (version_dir / "pre-01-good.py").touch()
         (version_dir / "post_02_bad.py").touch()
 
         with caplog.at_level(logging.WARNING):
-            found = _scripts_by_version(str(tmp_path))
+            found = _get_scripts_by_version(str(tmp_path))
 
         assert sorted(p.rsplit("/", 1)[-1] for p in found["19.0.1.0"]) == [
             "post_02_bad.py",
@@ -76,7 +76,7 @@ class TestCollectionWiresTheWarning:
 
     def test_an_empty_path_collects_nothing_and_says_nothing(self, caplog):
         with caplog.at_level(logging.WARNING):
-            assert _scripts_by_version("") == {}
+            assert _get_scripts_by_version("") == {}
         assert _warnings(caplog) == []
 
 

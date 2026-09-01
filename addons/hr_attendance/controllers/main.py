@@ -179,7 +179,7 @@ class HrAttendance(http.Controller):
 
     @http.route("/hr_attendance/kiosk_keepalive", auth="user", type="jsonrpc")
     def kiosk_keepalive(self):
-        request.session.touch()
+        request.session.mark_dirty()
         return {}
 
     @http.route(

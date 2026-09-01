@@ -79,7 +79,7 @@ def _convert_version(version: str) -> str:
     return f"{serie}.{version}"
 
 
-def _migration_applies(
+def _is_migration_applicable(
     version: str, installed_version: str, target_version: str
 ) -> bool:
     parsed_installed = parse_version(installed_version or "")
@@ -116,7 +116,7 @@ def _is_upgrade_version_dir(path: str, version: str) -> bool:
     return True
 
 
-def _scripts_by_version(path: str) -> dict[str, list[str]]:
+def _get_scripts_by_version(path: str) -> dict[str, list[str]]:
     if not path:
         return {}
     p = Path(path)
@@ -130,7 +130,7 @@ def _scripts_by_version(path: str) -> dict[str, list[str]]:
     return by_version
 
 
-def _resolve_addon_path(path: str) -> str:
+def _get_addon_path(path: str) -> str:
     try:
         return file_path(path)
     except FileNotFoundError:
@@ -144,28 +144,28 @@ class MigrationManager:
         self.cr = cr
         self.graph = graph
         self.migrations = {}
-        self._get_files()
+        self._index_migration_scripts()
 
     def _is_migration_required(self, pkg: module_graph.ModuleNode) -> bool:
         return pkg.load_state == "to upgrade"
 
-    def _get_files(self) -> None:
+    def _index_migration_scripts(self) -> None:
         for pkg in self.graph:
             if not self._is_migration_required(pkg):
                 continue
 
             self.migrations[pkg.name] = {
-                "module": _scripts_by_version(
-                    _resolve_addon_path(pkg.name + "/migrations")
+                "module": _get_scripts_by_version(
+                    _get_addon_path(pkg.name + "/migrations")
                 ),
-                "module_upgrades": _scripts_by_version(
-                    _resolve_addon_path(pkg.name + "/upgrades")
+                "module_upgrades": _get_scripts_by_version(
+                    _get_addon_path(pkg.name + "/upgrades")
                 ),
             }
 
             scripts = defaultdict(list)
             for p in _iter_upgrade_paths(pkg.name):
-                for v, s in _scripts_by_version(p).items():
+                for v, s in _get_scripts_by_version(p).items():
                     scripts[v].extend(s)
             self.migrations[pkg.name]["upgrade"] = scripts
 
@@ -223,9 +223,9 @@ class MigrationManager:
 
         versions = _get_migration_versions(pkg, stage)
         for version in versions:
-            if _migration_applies(version, installed_version, target_version):
+            if _is_migration_applicable(version, installed_version, target_version):
                 for pyfile in _get_migration_files(pkg, version, stage):
-                    exec_script(
+                    run_migration_script(
                         self.cr,
                         installed_version,
                         pyfile,
@@ -243,7 +243,7 @@ VALID_MIGRATE_PARAMS = list(
 )
 
 
-def exec_script(
+def run_migration_script(
     cr: Cursor,
     installed_version: str,
     pyfile: str,

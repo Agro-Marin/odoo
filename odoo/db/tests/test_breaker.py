@@ -7,7 +7,7 @@ class TestClosedBreaker(unittest.TestCase):
     def test_a_fresh_breaker_allows_everything(self):
         breaker = CircuitBreaker(max_cooldown=1200)
         self.assertTrue(breaker.closed)
-        self.assertTrue(all(breaker.allow() for _ in range(10)))
+        self.assertTrue(all(breaker.acquire_attempt() for _ in range(10)))
 
     def test_success_on_a_closed_breaker_changes_nothing(self):
         breaker = CircuitBreaker(max_cooldown=1200)
@@ -23,7 +23,7 @@ class TestOpening(unittest.TestCase):
     def test_one_failure_opens_it(self):
         self.breaker.record_failure()
         self.assertFalse(self.breaker.closed)
-        self.assertFalse(self.breaker.allow())
+        self.assertFalse(self.breaker.acquire_attempt())
 
     def test_the_first_window_is_the_initial_cooldown(self):
         self.breaker.record_failure()
@@ -31,7 +31,9 @@ class TestOpening(unittest.TestCase):
 
     def _fail_a_probe(self, breaker):
         breaker._opened_at -= breaker._cooldown + 1
-        assert breaker.allow(), "probe should be admitted once the window elapsed"
+        assert breaker.acquire_attempt(), (
+            "probe should be admitted once the window elapsed"
+        )
         breaker.record_failure()
 
     def test_repeated_probe_cycles_double_the_window(self):
@@ -76,16 +78,16 @@ class TestProbing(unittest.TestCase):
 
     def test_the_window_elapsing_admits_a_probe(self):
         self.breaker.record_failure()
-        self.assertTrue(self.breaker.allow())
+        self.assertTrue(self.breaker.acquire_attempt())
 
     def test_only_one_caller_probes(self):
         self.breaker.record_failure()
-        self.assertEqual(sum(1 for _ in range(50) if self.breaker.allow()), 1)
+        self.assertEqual(sum(1 for _ in range(50) if self.breaker.acquire_attempt()), 1)
 
     def test_a_successful_probe_closes_and_resets_the_backoff(self):
         for _ in range(3):
             self.breaker.record_failure()
-        self.assertTrue(self.breaker.allow())
+        self.assertTrue(self.breaker.acquire_attempt())
         self.breaker.record_success()
         self.assertTrue(self.breaker.closed)
         self.breaker.record_failure()
@@ -96,7 +98,7 @@ class TestProbing(unittest.TestCase):
         breaker.record_failure()
         first = breaker.cooldown_remaining
         breaker._opened_at -= 61
-        self.assertTrue(breaker.allow())
+        self.assertTrue(breaker.acquire_attempt())
         breaker.record_failure()
         self.assertGreater(breaker.cooldown_remaining, first)
 
@@ -104,10 +106,14 @@ class TestProbing(unittest.TestCase):
         breaker = CircuitBreaker(max_cooldown=1200, initial_cooldown=60)
         breaker.record_failure()
         breaker._opened_at -= 61
-        self.assertTrue(breaker.allow(), "first probe claimed")
-        self.assertFalse(breaker.allow(), "second blocked while the probe runs")
+        self.assertTrue(breaker.acquire_attempt(), "first probe claimed")
+        self.assertFalse(
+            breaker.acquire_attempt(), "second blocked while the probe runs"
+        )
         breaker._probing_since -= 61
-        self.assertTrue(breaker.allow(), "an abandoned probe must be reclaimable")
+        self.assertTrue(
+            breaker.acquire_attempt(), "an abandoned probe must be reclaimable"
+        )
 
 
 class TestConcurrentPileOn(unittest.TestCase):
@@ -134,7 +140,7 @@ class TestConcurrentPileOn(unittest.TestCase):
 
 class TestSnapshot(unittest.TestCase):
     def test_a_healthy_breaker_reports_closed(self):
-        snap = CircuitBreaker(max_cooldown=1200).snapshot()
+        snap = CircuitBreaker(max_cooldown=1200).get_snapshot()
         self.assertTrue(snap["closed"])
         self.assertEqual(snap["failures"], 0)
         self.assertEqual(snap["cooldown_seconds"], 0.0)
@@ -142,7 +148,7 @@ class TestSnapshot(unittest.TestCase):
     def test_an_open_breaker_reports_its_window(self):
         breaker = CircuitBreaker(max_cooldown=1200, initial_cooldown=60)
         breaker.record_failure()
-        snap = breaker.snapshot()
+        snap = breaker.get_snapshot()
         self.assertFalse(snap["closed"])
         self.assertEqual(snap["failures"], 1)
         self.assertEqual(snap["trips"], 1)

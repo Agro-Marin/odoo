@@ -34,7 +34,7 @@ class ResUsers(models.Model):
         except AccessDenied:
             if not (credential["type"] == "password" and credential.get("password")):
                 raise
-            passwd_allowed = env["interactive"] or not self._rpc_api_keys_only()
+            passwd_allowed = env["interactive"] or not self._is_rpc_api_key_only()
             if passwd_allowed and self.active:
                 Ldap = self.env["res.company.ldap"]
                 for conf in Ldap._get_ldap_dicts():

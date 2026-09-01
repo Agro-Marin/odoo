@@ -15,7 +15,7 @@ from psycopg.types.json import Jsonb as _Jsonb
 from odoo.tools import SQL
 from odoo.tools.misc import real_time
 
-from .errors import CURSOR_LOGGER_NAME, reached_the_server
+from .errors import CURSOR_LOGGER_NAME, has_reached_server
 from .utils import get_value_marker_positions
 
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
@@ -25,14 +25,14 @@ _NUMERIC_OID = 1700
 _JSON_OIDS: frozenset[int] = frozenset({114, 3802})
 
 
-def _raw_json(value: str) -> str:
+def _dump_json_verbatim(value: str) -> str:
     return value
 
 
 _BINARY_NUMERIC_MAX_FRACTION = 0.25
 
 
-def _table_identifier(table: str) -> _sql.Identifier:
+def _get_table_identifier(table: str) -> _sql.Identifier:
     return _sql.Identifier(*table.split("."))
 
 
@@ -108,8 +108,8 @@ if TYPE_CHECKING:
             self, table: str, columns: list[str]
         ) -> list[int]: ...
         def _can_dump_binary(self, oids: list[int]) -> bool: ...
-        def _binary_pays_off(self, oids: list[int]) -> bool: ...
-        def _resolve_id_sequence(self, table: str) -> str: ...
+        def _is_binary_copy_worthwhile(self, oids: list[int]) -> bool: ...
+        def _get_id_sequence(self, table: str) -> str: ...
         def _lock_table_for_bulk(self, table: str) -> None: ...
         def _preallocate_copy_ids(self, table: str, count: int) -> list[int]: ...
 
@@ -150,7 +150,7 @@ def _check_copy_args(
         )
 
 
-def _copy_statement(
+def _prepare_copy_statement(
     table: str, columns: list[str], binary: bool, on_error: str | None
 ) -> _sql.Composed:
     copy_opts = []
@@ -163,14 +163,14 @@ def _copy_statement(
     else:
         opts_sql = _sql.SQL("")
     return _sql.SQL("COPY {} ({}) FROM STDIN{}").format(
-        _table_identifier(table),
+        _get_table_identifier(table),
         _sql.SQL(", ").join(map(_sql.Identifier, columns)),
         opts_sql,
     )
 
 
 def _note_binary_needs_exact_types(exc: Exception, table: str, columns: list) -> None:
-    if reached_the_server(exc):
+    if has_reached_server(exc):
         return
     exc.add_note(
         f"copy_from({table!r}, binary=True) encodes values client-side from "
@@ -181,7 +181,7 @@ def _note_binary_needs_exact_types(exc: Exception, table: str, columns: list) ->
     )
 
 
-def _coerced_rows(rows: Iterable[Any], col_types: list[int]) -> Iterator[Any]:
+def _coerce_rows(rows: Iterable[Any], col_types: list[int]) -> Iterator[Any]:
     numeric_idxs = tuple(i for i, oid in enumerate(col_types) if oid == _NUMERIC_OID)
     json_idxs = tuple(i for i, oid in enumerate(col_types) if oid in _JSON_OIDS)
     if not (numeric_idxs or json_idxs):
@@ -194,7 +194,7 @@ def _coerced_rows(rows: Iterable[Any], col_types: list[int]) -> Iterator[Any]:
                 row[i] = _Decimal(str(row[i]))
         for i in json_idxs:
             if isinstance(row[i], str):
-                row[i] = _Jsonb(row[i], dumps=_raw_json)
+                row[i] = _Jsonb(row[i], dumps=_dump_json_verbatim)
         yield row
 
 
@@ -257,7 +257,7 @@ class _BulkAccessMixin:
                     if fetch:
                         results.extend(self.fetchall())
         except Exception as e:
-            if reached_the_server(e):
+            if has_reached_server(e):
                 self._statement_failed(e, query, log_exceptions=log_exceptions)
             raise
         return results if fetch else None
@@ -291,14 +291,14 @@ class _BulkAccessMixin:
                 return None
 
         col_types = self._get_column_type_oids(table, columns) if binary else None
-        if col_types is not None and not self._binary_pays_off(col_types):
+        if col_types is not None and not self._is_binary_copy_worthwhile(col_types):
             binary = False
             col_types = None
 
-        copy_stmt = _copy_statement(table, columns, binary, on_error)
-        write_rows = _coerced_rows(rows, col_types) if col_types else rows
+        copy_stmt = _prepare_copy_statement(table, columns, binary, on_error)
+        write_rows = _coerce_rows(rows, col_types) if col_types else rows
 
-        def rendered() -> str:
+        def render_copy_statement() -> str:
             return copy_stmt.as_string(obj)
 
         hooks = getattr(self._thread, "query_hooks", None)
@@ -318,7 +318,11 @@ class _BulkAccessMixin:
             if binary:
                 _note_binary_needs_exact_types(e, table, columns)
             counts = self._statement_failed(
-                e, rendered, label="COPY", log_exceptions=log_exceptions, prepared=False
+                e,
+                render_copy_statement,
+                label="COPY",
+                log_exceptions=log_exceptions,
+                prepared=False,
             )
             raise
         finally:
@@ -326,7 +330,7 @@ class _BulkAccessMixin:
             self._statement_done(
                 delay,
                 counts=counts,
-                query=rendered,
+                query=render_copy_statement,
                 label="COPY",
                 hooks=hooks,
                 start=start,
@@ -344,7 +348,7 @@ class _BulkAccessMixin:
         self.execute(
             SQL(
                 "SELECT nextval(%s::regclass) FROM generate_series(1, %s)",
-                self._resolve_id_sequence(table),
+                self._get_id_sequence(table),
                 count,
             )
         )
@@ -356,17 +360,17 @@ class _BulkAccessMixin:
             return
         self.execute(
             _sql.SQL("LOCK TABLE {} IN ROW EXCLUSIVE MODE").format(
-                _table_identifier(table)
+                _get_table_identifier(table)
             )
         )
         cache.locked_tables.add(table)
 
-    def _resolve_id_sequence(self: _CursorInternals, table: str) -> str:
+    def _get_id_sequence(self: _CursorInternals, table: str) -> str:
         cache = self._schema_cache
         seq_name = cache.get_id_sequence(table)
         if seq_name is not None:
             return seq_name
-        ident = _table_identifier(table).as_string(self._cnx)
+        ident = _get_table_identifier(table).as_string(self._cnx)
         self.execute(SQL("SELECT pg_get_serial_sequence(%s, 'id')", ident))
         row = self.fetchone()
         assert row is not None, "pg_get_serial_sequence returned no row"
@@ -395,7 +399,7 @@ class _BulkAccessMixin:
         cache.set_id_sequence(table, seq_name)
         return seq_name
 
-    def _binary_pays_off(self: _CursorInternals, oids: list[int]) -> bool:
+    def _is_binary_copy_worthwhile(self: _CursorInternals, oids: list[int]) -> bool:
         if not self._can_dump_binary(oids):
             return False
         numeric = sum(1 for oid in oids if oid == _NUMERIC_OID)
@@ -440,7 +444,7 @@ class _BulkAccessMixin:
                            CASE WHEN typtype = 'e' THEN %s::oid ELSE type_oid END
                       FROM resolved
                      ORDER BY name, depth DESC""",
-                    _table_identifier(table).as_string(self._cnx),
+                    _get_table_identifier(table).as_string(self._cnx),
                     list(columns),
                     _TEXT_OID,
                 )

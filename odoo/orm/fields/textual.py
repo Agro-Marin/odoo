@@ -560,7 +560,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         lang: str,
         dirty_ids: typing.Any,
     ) -> None:
-        in_sync = self._languages_in_sync_with(records, lang, dirty_ids)
+        mirrored_ids = self._get_mirrored_ids_by_language(records, lang, dirty_ids)
         clean_records = records.filtered(lambda rec: rec.id not in dirty_ids)
         clean_records.invalidate_recordset([self.name])
         self._update_cache(records, cache_value, dirty=True)
@@ -568,14 +568,14 @@ class BaseString(Field[str | typing.Literal[False]]):
             self._update_cache(
                 records.with_context(lang="en_US"), cache_value, dirty=True
             )
-        for other_lang, ids in in_sync.items():
+        for other_lang, ids in mirrored_ids.items():
             self._update_cache(
                 records.browse(ids).with_context(lang=other_lang),
                 cache_value,
                 dirty=True,
             )
 
-    def _languages_in_sync_with(
+    def _get_mirrored_ids_by_language(
         self,
         records: BaseModel,
         lang: str,

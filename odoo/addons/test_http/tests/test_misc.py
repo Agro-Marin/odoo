@@ -255,9 +255,9 @@ class TestHttpMisc(TestHttpBase):
     def test_misc10_cookie_default_expires_is_utc(self):
         import datetime as dt
 
-        from odoo.http.wrappers import _apply_cookie_defaults
+        from odoo.http.wrappers import _prepare_set_cookie_args
 
-        expires, _max_age, _secure, _samesite = _apply_cookie_defaults(
+        expires, _max_age, _secure, _samesite = _prepare_set_cookie_args(
             -1, None, "required", None, None
         )
         self.assertEqual(expires.utcoffset(), dt.timedelta(0))

@@ -9,10 +9,11 @@ from collections.abc import Iterable, Iterator
 
 from odoo import db
 from odoo.db import is_maintenance_db
+from odoo.libs import backoff
 from odoo.tools import SQL, OrderedSet, config
 from odoo.tools.constants import CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL
 
-from ._limits import BACKOFF_CEILING_S, capped_backoff
+from ._limits import BACKOFF_BASE_S, BACKOFF_CEILING_S
 from .db import list_dbs
 
 if typing.TYPE_CHECKING:
@@ -28,12 +29,12 @@ __all__ = [
     "CronSchedule",
     "ReconnectBackoff",
     "arm_cron_listen",
-    "cron_database_list",
+    "close_cron_cursor",
     "drain_cron_notifies",
+    "drain_swept_database",
+    "get_cron_databases",
     "open_cron_listener",
     "order_notified_first",
-    "release_cron_cursor",
-    "release_swept_database",
 ]
 
 CRON_POLL_INTERVAL_S = 60
@@ -129,7 +130,7 @@ def _static_dbfilter() -> re.Pattern[str] | None:
         return None
 
 
-def cron_database_list() -> list[str]:
+def get_cron_databases() -> list[str]:
     names = config["db_name"]
     if names:
         return list(names)
@@ -140,15 +141,15 @@ def cron_database_list() -> list[str]:
     return [name for name in names if dbfilter.match(name)]
 
 
-def release_swept_database(db_name: str) -> None:
+def drain_swept_database(db_name: str) -> None:
     db.drain_db(db_name)
 
 
-def _databases_to_sweep() -> list[str]:
-    return cron_database_list()
+def _get_databases_to_sweep() -> list[str]:
+    return get_cron_databases()
 
 
-def release_cron_cursor(cursor: BaseCursor) -> None:
+def close_cron_cursor(cursor: BaseCursor) -> None:
     with contextlib.suppress(Exception):
         cursor.close()
 
@@ -159,7 +160,7 @@ def open_cron_listener(channel: str, logger: logging.Logger) -> BaseCursor:
         arm_cron_listen(cursor, logger, channel=channel, disable_idle_timeout=True)
         cursor.commit()
     except BaseException:
-        release_cron_cursor(cursor)
+        close_cron_cursor(cursor)
         raise
     return cursor
 
@@ -168,6 +169,14 @@ class ReconnectBackoff:
     def __init__(
         self, logger: logging.Logger, *, ceiling: int = BACKOFF_CEILING_S
     ) -> None:
+        # Rejected here rather than by backoff.bound on the first failure: a
+        # ceiling under the base is a wiring mistake, and the retry path is the
+        # worst place to discover one.
+        if ceiling < BACKOFF_BASE_S:
+            raise ValueError(
+                f"ceiling ({ceiling}) is below the {BACKOFF_BASE_S}s base, "
+                f"which flattens the reconnect curve"
+            )
         self._logger = logger
         self._ceiling = ceiling
         self.attempts = 0
@@ -175,14 +184,14 @@ class ReconnectBackoff:
     def reset(self) -> None:
         self.attempts = 0
 
-    def wait_after(
+    def wait_after_failure(
         self,
         what: str,
         exc: BaseException,
         sleep: typing.Callable[[float], None] | None = None,
     ) -> None:
         self.attempts += 1
-        delay = capped_backoff(self.attempts, self._ceiling)
+        delay = backoff.bound(self.attempts, base=BACKOFF_BASE_S, cap=self._ceiling)
         self._logger.warning(
             "%s failed (attempt %d): %s; retrying in %ds",
             what,
@@ -201,7 +210,7 @@ class CronSchedule:
         refresh_interval: float = CRON_POLL_INTERVAL_S,
         clock: typing.Callable[[], float] | None = None,
     ) -> None:
-        self._list_databases = list_databases or _databases_to_sweep
+        self._list_databases = list_databases or _get_databases_to_sweep
         self._refresh_interval = refresh_interval
         self._clock = clock or time.monotonic
         self._known: OrderedSet[str] = OrderedSet()
@@ -211,15 +220,15 @@ class CronSchedule:
     def known(self) -> OrderedSet[str]:
         return self._known
 
-    def _stale(self) -> bool:
+    def _is_stale(self) -> bool:
         return self._clock() - self._listed_at >= self._refresh_interval
 
-    def refresh(self) -> OrderedSet[str]:
+    def reset_known_databases(self) -> OrderedSet[str]:
         self._known = OrderedSet(self._list_databases())
         self._listed_at = self._clock()
         return self._known
 
-    def due(self, notified: Iterable[str]) -> list[str]:
-        if self._stale():
-            return order_notified_first(notified, self.refresh())
+    def get_due_databases(self, notified: Iterable[str]) -> list[str]:
+        if self._is_stale():
+            return order_notified_first(notified, self.reset_known_databases())
         return [name for name in notified if name in self._known]

@@ -1,10 +1,10 @@
 from .command import (
     Command,
     DatabaseCommand,
-    get_config_argv,
+    prepare_config_args,
     get_single_database,
     main,
-    odoo_env,
+    open_environment,
 )
 
 COMMAND: str | None = None

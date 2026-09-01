@@ -569,7 +569,7 @@ class IrModuleModule(models.Model):
             dependency=dep.name,
         )
 
-    def _auto_install_dependencies_satisfiable(self) -> bool:
+    def _is_auto_install_satisfiable(self) -> bool:
         self.check_singleton()
         return not any(
             dep.state in UNSATISFIABLE_DEPENDENCY_STATES for dep in self.dependencies_id
@@ -586,8 +586,8 @@ class IrModuleModule(models.Model):
             ("auto_install", "=", True),
         ]
 
-        def must_install(module):
-            if not module._auto_install_dependencies_satisfiable():
+        def is_install_required(module):
+            if not module._is_auto_install_satisfiable():
                 return False
             if module.country_ids and not (module.country_ids & company_countries):
                 return False
@@ -603,7 +603,7 @@ class IrModuleModule(models.Model):
             if config.get("skip_auto_install"):
                 to_install = self.browse()
             else:
-                to_install = self.search(auto_domain).filtered(must_install)
+                to_install = self.search(auto_domain).filtered(is_install_required)
 
         install_mods = self.search([("state", "in", list(AUTO_INSTALL_TRIGGER_STATES))])
 
@@ -1197,7 +1197,7 @@ class IrModuleModule(models.Model):
                 )
             current_category = current_category.parent_id
 
-        cat_id = modules.db.create_categories(
+        cat_id = modules.db.get_or_create_category_id(
             self.env.cr, category.split("/"), category_cache
         )
         if cat_id != self.category_id.id:
@@ -1308,7 +1308,7 @@ class IrModuleModule(models.Model):
         }
         roots = set(root_ids)
 
-        def root_of(category_id: int) -> int | None:
+        def get_root_category_id(category_id: int) -> int | None:
             node, seen = category_id, set()
             while node and node not in roots and node not in seen:
                 seen.add(node)
@@ -1330,7 +1330,7 @@ class IrModuleModule(models.Model):
         for category, count in self._read_group(
             domain, groupby=["category_id"], aggregates=["__count"]
         ):
-            if root := root_of(category.id):
+            if root := get_root_category_id(category.id):
                 counts[root] += count
         for record in records:
             record["__count"] = counts[record["id"]]

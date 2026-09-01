@@ -39,7 +39,7 @@ def check_db_name(name: str) -> None:
         raise ValueError(_DBNAME_ERROR_MSG.format(name=name))
 
 
-def rpc_db_exposed(db_name: object) -> bool:
+def is_db_rpc_exposed(db_name: object) -> bool:
     if not isinstance(db_name, str) or not db_name:
         return False
     if is_maintenance_db(db_name):
@@ -52,7 +52,7 @@ class DatabaseExists(Warning):
     pass
 
 
-def database_identifier(cr: BaseCursor, name: str) -> SQL:
+def get_database_identifier(cr: BaseCursor, name: str) -> SQL:
     name = psycopg_sql.Identifier(name).as_string(cr.connection)
     return SQL(name.replace("%", "%%"))
 
@@ -77,7 +77,7 @@ def check_super(passwd: str) -> Literal[True]:
     raise odoo.exceptions.AccessDenied
 
 
-def _drop_conn(cr: BaseCursor, db_name: str) -> None:
+def _terminate_backends(cr: BaseCursor, db_name: str) -> None:
     try:
         cr.execute(
             """SELECT pg_terminate_backend(pid)

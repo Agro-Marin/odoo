@@ -51,6 +51,6 @@ class ConnectionBudget:
             return self._in_use
 
     @property
-    def exhausted(self) -> int:
+    def exhausted_count(self) -> int:
         with self._cond:
             return self._exhausted

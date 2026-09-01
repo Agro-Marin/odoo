@@ -84,13 +84,13 @@ class Constraint(TableObject):
         cr = model.env.cr
         conname = self.full_name(model)
         definition = self.get_definition(model.pool)
-        current_definition = sql.constraint_definition(cr, model._table, conname)
+        current_definition = sql.get_constraint_definition(cr, model._table, conname)
         if current_definition == definition:
             return
 
         if current_definition:
             sql.drop_constraint(cr, model._table, conname)
-        elif sql.index_definition(cr, conname)[0]:
+        elif sql.get_index_definition(cr, conname)[0]:
             sql.drop_index(cr, conname, model._table)
 
         model.pool.post_constraint(
@@ -126,11 +126,11 @@ class Index(TableObject):
         definition_clause = self._definition_clause(model.pool)
         definition = self._format_definition(definition_clause)
 
-        if owning_constraint := sql.index_constraint(cr, conname):
+        if owning_constraint := sql.get_index_constraint(cr, conname):
             sql.drop_constraint(cr, model._table, owning_constraint)
             db_definition = db_comment = None
         else:
-            db_definition, db_comment = sql.index_definition(cr, conname)
+            db_definition, db_comment = sql.get_index_definition(cr, conname)
 
         if db_comment == definition or (not db_comment and db_definition):
             return

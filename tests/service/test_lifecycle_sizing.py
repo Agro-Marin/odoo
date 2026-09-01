@@ -137,7 +137,7 @@ class TestIdleTimeout:
     def test_a_negative_environment_value_is_refused_not_applied(self, sizing):
         _, idle = sizing(env={"ODOO_REGISTRY_MAX_IDLE_TIMEOUT": "-5"})
         assert not idle, (
-            "env_int has minimum=0, so a negative timeout falls back to the "
+            "get_env_int has minimum=0, so a negative timeout falls back to the "
             "default rather than arming an always-expired registry"
         )
 

@@ -34,10 +34,10 @@ class _FakeSession:
     def __init__(self, sid=SID, is_new=False):
         self.sid = sid
         self.is_new = is_new
-        self.touched = 0
+        self.marked_dirty = 0
 
-    def touch(self):
-        self.touched += 1
+    def mark_dirty(self):
+        self.marked_dirty += 1
 
 
 class _FakeRequest(_RequestCsrfMixin):
@@ -145,13 +145,13 @@ def test_no_secret_still_short_circuits_on_an_empty_token():
     assert _FakeRequest(secret=None).is_valid_csrf("") is False
 
 
-def test_minting_touches_a_new_session_so_the_sid_is_persisted():
+def test_minting_marks_a_new_session_dirty_so_the_sid_is_persisted():
     req = _FakeRequest(is_new=True)
     req.csrf_token()
-    assert req.session.touched == 1
+    assert req.session.marked_dirty == 1
     req2 = _FakeRequest(is_new=False)
     req2.csrf_token()
-    assert req2.session.touched == 0
+    assert req2.session.marked_dirty == 0
 
 
 def test_token_max_age_vastly_exceeds_session_lifetime():

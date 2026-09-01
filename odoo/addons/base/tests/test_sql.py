@@ -236,7 +236,7 @@ class TestSqlTools(TransactionCase):
         with self.assertRaises(CheckViolation), mute_logger("odoo.db"):
             self.env["res.bank"].create({"name": r"10% bank"})
 
-        db_definition = sql.constraint_definition(
+        db_definition = sql.get_constraint_definition(
             self.env.cr, "res_bank", "test_constraint_dummy"
         )
         self.assertEqual(db_definition, definition)
@@ -251,7 +251,7 @@ class TestSqlTools(TransactionCase):
             unique=False,
         )
 
-        db_definition, db_comment = sql.index_definition(
+        db_definition, db_comment = sql.get_index_definition(
             self.env.cr, "res_bank_test_name"
         )
         self.assertIn(definition, db_definition)
@@ -269,7 +269,7 @@ class TestSqlTools(TransactionCase):
             comment=comment,
         )
 
-        db_definition, db_comment = sql.index_definition(
+        db_definition, db_comment = sql.get_index_definition(
             self.env.cr, "res_bank_test_percent_escape"
         )
         self.assertIn("WHERE", db_definition)

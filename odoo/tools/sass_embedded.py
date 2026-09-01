@@ -517,7 +517,7 @@ def get_sass_compiler() -> SassEmbeddedCompiler:
                     try:
                         from odoo.service.server import CommonServer
 
-                        CommonServer.on_stop(close_sass_compiler)
+                        CommonServer.register_on_stop_hook(close_sass_compiler)
                         _on_stop_registered = True
                     except Exception:
                         _logger.debug(

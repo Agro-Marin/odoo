@@ -4,9 +4,9 @@ import unittest
 from odoo.db import ddl as ddl_mod
 from odoo.db.ddl import (
     _SCHEMA_CHANGING_DDL,
-    _changes_schema,
-    _ddl_keyword,
+    _get_ddl_keyword,
     _inline_ddl_params,
+    _is_schema_change,
     classify_statement,
 )
 
@@ -16,7 +16,7 @@ def _is_rollback_to_savepoint(qs):
 
 
 def _classify_ddl(qs):
-    return _ddl_keyword(qs) is not None
+    return _get_ddl_keyword(qs) is not None
 
 
 class TestClassifyDdl(unittest.TestCase):
@@ -53,9 +53,9 @@ class TestSetTakesClientSideParams(unittest.TestCase):
 
     def test_set_changes_no_schema(self):
         self.assertNotIn("SET", _SCHEMA_CHANGING_DDL)
-        self.assertFalse(_changes_schema("SET statement_timeout = '5s'", "SET"))
+        self.assertFalse(_is_schema_change("SET statement_timeout = '5s'", "SET"))
         self.assertFalse(
-            _changes_schema("SELECT 1; SET x = 1", None),
+            _is_schema_change("SELECT 1; SET x = 1", None),
             "a hidden SET must not drain the pool either",
         )
 
@@ -109,7 +109,7 @@ class TestDdlKeyword(unittest.TestCase):
             "WITH a AS (SELECT 1) SELECT * FROM a": None,
         }
         for qs, expected in cases.items():
-            self.assertEqual(_ddl_keyword(qs), expected, qs)
+            self.assertEqual(_get_ddl_keyword(qs), expected, qs)
             self.assertIs(_classify_ddl(qs), expected is not None, qs)
 
     def test_schema_changing_set(self):
@@ -323,7 +323,7 @@ class TestInlineDdlParams(unittest.TestCase):
 
 class TestChangesSchema(unittest.TestCase):
     def _check(self, qs):
-        return _changes_schema(qs, _ddl_keyword(qs))
+        return _is_schema_change(qs, _get_ddl_keyword(qs))
 
     def test_single_statement_schema_ddl(self):
         for qs in (
@@ -369,13 +369,13 @@ class TestChangesSchema(unittest.TestCase):
 
     def test_leading_schema_ddl_short_circuits_before_any_scan(self):
         qs = "CREATE TABLE t (id int); COMMENT ON TABLE t IS 'x'"
-        self.assertTrue(_changes_schema(qs, "CREATE"))
+        self.assertTrue(_is_schema_change(qs, "CREATE"))
 
     def test_over_reports_rather_than_misses(self):
         self.assertTrue(self._check("SELECT 'a; DROP TABLE t'"))
 
     def test_no_semicolon_never_pays_for_a_split(self):
-        self.assertFalse(_changes_schema("SELECT " + "x" * 10_000, None))
+        self.assertFalse(_is_schema_change("SELECT " + "x" * 10_000, None))
 
 
 if __name__ == "__main__":

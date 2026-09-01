@@ -55,7 +55,7 @@ class _EnvironmentSet(WeakSet):
         if self._index.get(key) is env:
             del self._index[key]
 
-    def lookup(self, key: tuple) -> Environment | None:
+    def get_environment(self, key: tuple) -> Environment | None:
         env = self._index.get(key)
         return env if env is not None and env in self else None
 

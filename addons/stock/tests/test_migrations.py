@@ -49,7 +49,7 @@ class TestStock12PreMigrate(MigrationScriptMixin, BaseCase):
     def _patch_horizon_days(self, udt_name):
         return patch.object(
             self.script,
-            "table_columns",
+            "get_table_columns",
             return_value={"horizon_days": {"udt_name": udt_name}},
         )
 

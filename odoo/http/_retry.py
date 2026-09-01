@@ -27,15 +27,15 @@ class RequestRetryParticipant:
         if reset is not None:
             reset()
 
-    def suppresses_uncommitted_warning(self) -> bool:
+    def is_uncommitted_warning_suppressed(self) -> bool:
         return bool(getattr(self._request, "database_detached", False))
 
 
-def current_request_participant() -> RetryParticipant | None:
+def resolve_retry_participant() -> RetryParticipant | None:
     request = _current_request
     if not request:
         return None
     return RequestRetryParticipant(request)
 
 
-_transaction.current_retry_participant = current_request_participant
+_transaction.current_retry_participant = resolve_retry_participant

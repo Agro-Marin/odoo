@@ -9,7 +9,7 @@ from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.libs.json import OPT_SORT_KEYS
 from odoo.libs.json import dumps as json_dumps
-from odoo.service.transaction import _integrity_error_to_validation
+from odoo.service.transaction import _integrity_error_to_validation_error
 from odoo.tests import common, tagged
 from odoo.tools import mute_logger
 
@@ -1339,7 +1339,7 @@ class TestActionsPath(common.TransactionCase):
                 )
                 self.env.flush_all()
         except IntegrityError as exc:
-            message = str(_integrity_error_to_validation(self.env, exc))
+            message = str(_integrity_error_to_validation_error(self.env, exc))
         else:
             self.fail("a duplicate path must be rejected")
         self.assertIn("unique", message.lower())

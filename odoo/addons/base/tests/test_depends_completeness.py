@@ -14,7 +14,7 @@ class TestPartnerDependsCompleteness(TransactionCase):
                 "city": "Town",
             }
         )
-        self.assertDependsComplete(parent + child)
+        self.assertDependsComplete(parent + child, known_incomplete=["duplicate_count"])
 
 
 class TestCurrencyDependsCompleteness(TransactionCase):

@@ -45,7 +45,7 @@ class SchemaMixin(_ModelStubs):
             return
         cr = self.env.cr
         cols = {name for name, field in self._fields.items() if field.is_column}
-        for col_name, col_data in sql.table_columns(cr, self._table).items():
+        for col_name, col_data in sql.get_table_columns(cr, self._table).items():
             if col_name in cols:
                 continue
             _logger.debug(
@@ -130,7 +130,7 @@ class SchemaMixin(_ModelStubs):
                     parent_path_compute = True
                 self._check_parent_path()
 
-            columns = sql.table_columns(cr, self._table)
+            columns = sql.get_table_columns(cr, self._table)
             fields_to_compute = []
 
             for field in sorted(self._fields.values(), key=lambda f: f.column_order):
@@ -211,9 +211,9 @@ class SchemaMixin(_ModelStubs):
             "constraint_name": diag.constraint_name,
         }
         if self._table == diag.table_name:
-            columns = sql.constraint_columns(self.env.cr, diag, check_registry=True)
+            columns = sql.get_column_names_in_constraint(self.env.cr, diag, check_registry=True)
         else:
-            columns = sql.constraint_columns(self.env.cr, diag)
+            columns = sql.get_column_names_in_constraint(self.env.cr, diag)
             info["model_display"] = unknown
         if not columns:
             info["field_display"] = unknown

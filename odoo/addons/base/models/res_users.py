@@ -64,7 +64,7 @@ def _is_private_address(source: str | None) -> bool:
         return False
 
 
-def _jsonable(o: object) -> bool:
+def _is_jsonable(o: object) -> bool:
     try:
         json_dumps(o)
     except TypeError:
@@ -92,7 +92,11 @@ def check_identity(
                 {
                     "request": json_dumps(
                         [
-                            {k: v for k, v in self.env.context.items() if _jsonable(v)},
+                            {
+                                k: v
+                                for k, v in self.env.context.items()
+                                if _is_jsonable(v)
+                            },
                             self._name,
                             self.ids,
                             fn.__name__,
@@ -586,7 +590,7 @@ class ResUsers(models.Model):
     def _invalidate_session_tokens(self) -> None:
         self.env.registry.clear_cache()
 
-    def _rpc_api_keys_only(self) -> bool:
+    def _is_rpc_api_key_only(self) -> bool:
         return False
 
     def _check_credentials(
@@ -598,7 +602,7 @@ class ResUsers(models.Model):
 
         interactive = env.get("interactive", True)
 
-        if interactive or not self._rpc_api_keys_only():
+        if interactive or not self._is_rpc_api_key_only():
             if "interactive" not in env:
                 _logger.warning(
                     "_check_credentials without 'interactive' env key, assuming interactive login. \
@@ -645,7 +649,7 @@ class ResUsers(models.Model):
                     "mfa": "default",
                 }
 
-            if self._rpc_api_keys_only():
+            if self._is_rpc_api_key_only():
                 _logger.info(
                     "Invalid API key or password-based authentication attempted for a non-interactive (API) "
                     "context that requires API key authentication only."
@@ -800,7 +804,7 @@ class ResUsers(models.Model):
             and not field.readonly
         )
 
-    def _settings_value_is_a_choice(self, name: str, value: Any) -> bool:
+    def _is_settings_value_a_choice(self, name: str, value: Any) -> bool:
         if value:
             return True
         if self._fields[name].related.count(".") != 1:
@@ -877,7 +881,7 @@ class ResUsers(models.Model):
             {
                 k: v
                 for k, v in vals.items()
-                if k in backed and self._settings_value_is_a_choice(k, v)
+                if k in backed and self._is_settings_value_a_choice(k, v)
             }
             for vals in vals_list
         ]
@@ -903,7 +907,7 @@ class ResUsers(models.Model):
                 continue
             user.image_1920 = user.partner_id._prepare_avatar_svg()
 
-    def _escapes_own_record(self, vals: dict[str, Any]) -> bool:
+    def _is_escaping_own_record(self, vals: dict[str, Any]) -> bool:
         for fname, value in vals.items():
             field = self._fields.get(fname)
             if field is None or field.type not in ("one2many", "many2many"):
@@ -938,9 +942,9 @@ class ResUsers(models.Model):
 
         if self == self.env.user and vals:
             writeable = self._self_accessible_fields()[1]
-            if all(key in writeable for key in vals) and not self._escapes_own_record(
-                vals
-            ):
+            if all(
+                key in writeable for key in vals
+            ) and not self._is_escaping_own_record(vals):
                 self = self.sudo()
 
         res = super().write(vals)
@@ -1487,7 +1491,7 @@ class ResUsers(models.Model):
 
         source = request.httprequest.remote_addr
         failures, previous = failures_map[source]
-        if self._on_login_cooldown(failures, previous):
+        if self._is_login_on_cooldown(failures, previous):
             _logger.warning(
                 "Login attempt ignored for %s (user %r) on %s: "
                 "%d failures since last success, last failure at %s. "
@@ -1534,7 +1538,7 @@ class ResUsers(models.Model):
         else:
             failures_map.pop(source, None)
 
-    def _on_login_cooldown(self, failures: int, previous: datetime.datetime) -> bool:
+    def _is_login_on_cooldown(self, failures: int, previous: datetime.datetime) -> bool:
         cfg = self.env["ir.config_parameter"].sudo()
         min_failures = int(cfg.get_param("base.login_cooldown_after", 5))
         if min_failures == 0:

@@ -83,8 +83,8 @@ class TestHttpRegistry(BaseCase):
         self.opener = requests.Session()
         Registry.delete(get_db_name())
         close_db(get_db_name())
-        odoo.http.request_class.clear_monodb_cache()
-        self.addCleanup(odoo.http.request_class.clear_monodb_cache)
+        odoo.http.invalidate_db_list_cache()
+        self.addCleanup(odoo.http.invalidate_db_list_cache)
 
     def duplicate_current_db(self, db_suffix):
         db_duplicate = f"{get_db_name()}-test-http-registry-{db_suffix}"
@@ -99,7 +99,7 @@ class TestHttpRegistry(BaseCase):
 
     def authenticate(self, *, db=None):
         session = odoo.http.root.session_store.new()
-        session.update(odoo.http.get_default_session(), db=db or get_db_name())
+        session.update(odoo.http.prepare_default_session(), db=db or get_db_name())
         session.context["lang"] = odoo.http.DEFAULT_LANG
         odoo.http.root.session_store.save(session)
         self.opener.cookies.set("session_id", session.sid, domain=HOST)

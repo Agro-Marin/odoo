@@ -2236,3 +2236,64 @@ class TestIrModelInfoStopsAtTheOrmBoundary(TransactionCase):
         cls = self.env.registry["ir.model"]
         with patch.object(cls, "__doc__", "What this model is for."):
             self.assertEqual(self._info("ir.model"), "What this model is for.")
+
+
+class TestInverseSuppliedInTheSameBatch(TransactionCase):
+    """`_check_inverses_exist` searched the database and not its own vals_list."""
+
+    def _pair(self, tag):
+        main, line = f"x_{tag}", f"x_{tag}_line"
+        return (
+            {
+                "name": f"{tag} main",
+                "model": main,
+                "field_id": [
+                    Command.create(
+                        {
+                            "name": f"{main}_line_ids",
+                            "ttype": "one2many",
+                            "relation": line,
+                            "relation_field": f"{main}_id",
+                            "field_description": "Lines",
+                        }
+                    )
+                ],
+            },
+            {
+                "name": f"{tag} line",
+                "model": line,
+                "field_id": [
+                    Command.create(
+                        {
+                            "name": f"{main}_id",
+                            "ttype": "many2one",
+                            "relation": main,
+                            "field_description": "Parent",
+                        }
+                    )
+                ],
+            },
+        )
+
+    def test_a_one2many_may_name_a_many2one_created_beside_it(self):
+        main, line = self._pair("batchinv")
+        models = self.env["ir.model"].create([main, line])
+        self.assertEqual(len(models), 2)
+
+    def test_the_order_within_the_batch_does_not_matter(self):
+        main, line = self._pair("batchrev")
+        models = self.env["ir.model"].create([line, main])
+        self.assertEqual(len(models), 2)
+
+    def test_a_genuinely_absent_inverse_still_raises(self):
+        main, line = self._pair("batchmissing")
+        line["field_id"] = []
+        with self.assertRaises(UserError):
+            self.env["ir.model"].create([main, line])
+
+    def test_an_inverse_named_on_a_model_outside_the_batch_still_raises(self):
+        main, _line = self._pair("batchforeign")
+        main["field_id"][0][2]["relation"] = "res.partner"
+        main["field_id"][0][2]["relation_field"] = "x_no_such_inverse_field"
+        with self.assertRaises(UserError):
+            self.env["ir.model"].create([main])

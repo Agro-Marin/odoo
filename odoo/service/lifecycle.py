@@ -22,7 +22,7 @@ from odoo.tools import config, profiler
 from odoo.tools.misc import stripped_sys_argv
 
 from . import _process_state
-from ._env import _IS_POSIX, _IS_WINDOWS, env_float, env_int
+from ._env import _IS_POSIX, _IS_WINDOWS, get_env_float, get_env_int
 
 if TYPE_CHECKING:
     from odoo.db import BaseCursor
@@ -44,7 +44,7 @@ def load_server_wide_modules() -> None:
                 _logger.exception("Failed to load server-wide module `%s`.%s", m, msg)
 
 
-def _reexec(updated_modules: list[str] | None = None) -> None:
+def _reexec_server(updated_modules: list[str] | None = None) -> None:
     if osutil.is_running_as_nt_service(nt_service_name):
         rc = subprocess.call(  # noqa: S602  see comment above
             f"net stop {nt_service_name} && net start {nt_service_name}",
@@ -107,13 +107,15 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
     registry._assertion_report.log_stats()
 
 
-def _narrowing_test_spec() -> str:
+def _get_narrowing_test_spec() -> str:
     tags = (config["test_tags"] or "").strip()
     return "" if tags in {"", "+standard"} else tags
 
 
 def _limit_resident_registries(dbnames: list[str]) -> None:
-    registries_size = env_int("ODOO_REGISTRY_LRU_SIZE", 0, minimum=0, logger=_logger)
+    registries_size = get_env_int(
+        "ODOO_REGISTRY_LRU_SIZE", 0, minimum=0, logger=_logger
+    )
     if not registries_size:
         if _IS_POSIX:
             avgsz = 15 * 1024 * 1024
@@ -128,7 +130,7 @@ def _limit_resident_registries(dbnames: list[str]) -> None:
     if registries_size:
         Registry.registries.count = registries_size
 
-    idle_timeout = env_int(
+    idle_timeout = get_env_int(
         "ODOO_REGISTRY_MAX_IDLE_TIMEOUT", 0, minimum=0, logger=_logger
     )
     if not idle_timeout:
@@ -148,7 +150,9 @@ def preload_registries(dbnames: list[str] | None) -> int:
 
     for dbname in dbnames:
         if os.environ.get("ODOO_PROFILE_PRELOAD"):
-            interval = env_float("ODOO_PROFILE_PRELOAD_INTERVAL", 0.1, logger=_logger)
+            interval = get_env_float(
+                "ODOO_PROFILE_PRELOAD_INTERVAL", 0.1, logger=_logger
+            )
             collectors: list[str | profiler.Collector] = [
                 profiler.PeriodicCollector(interval=interval)
             ]
@@ -175,7 +179,9 @@ def preload_registries(dbnames: list[str] | None) -> int:
                 if report and not report.wasSuccessful():
                     rc += 1
                 elif (
-                    report and not report.testsRun and (spec := _narrowing_test_spec())
+                    report
+                    and not report.testsRun
+                    and (spec := _get_narrowing_test_spec())
                 ):
                     _logger.error(
                         "--test-tags %r matched no test at all: nothing ran, "
@@ -211,7 +217,7 @@ def _limit_malloc_arenas() -> None:
         _logger.warning("Could not set ARENA_MAX through mallopt()")
 
 
-def _connection_budget_demand() -> tuple[int, int]:
+def _get_connection_budget_demand() -> tuple[int, int]:
     maxconn = config["db_maxconn"]
     if not config["workers"]:
         return 1, maxconn
@@ -235,7 +241,7 @@ def _warn_on_connection_budget() -> None:
     if odoo.evented:
         return
     try:
-        processes, demand = _connection_budget_demand()
+        processes, demand = _get_connection_budget_demand()
         configured_port = config["db_port"]
         with contextlib.closing(db.db_connect("postgres").cursor()) as cr:
             cr.execute("SHOW max_connections")
@@ -295,7 +301,7 @@ def restart() -> None:
         )
         return
     if _IS_WINDOWS:
-        threading.Thread(target=_reexec).start()
+        threading.Thread(target=_reexec_server).start()
     else:
         import signal
 

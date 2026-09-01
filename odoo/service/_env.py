@@ -9,7 +9,7 @@ _IS_POSIX = os.name == "posix"
 _IS_WINDOWS = os.name == "nt"
 
 
-def env_float(
+def get_env_float(
     name: str,
     default: float,
     *,
@@ -19,7 +19,7 @@ def env_float(
     return _parse(name, default, float, "a number", minimum, logger)
 
 
-def env_int(
+def get_env_int(
     name: str,
     default: int,
     *,
@@ -29,7 +29,7 @@ def env_int(
     return _parse(name, default, int, "an integer", minimum, logger)
 
 
-def env_str(name: str, default: str = "") -> str:
+def get_env_str(name: str, default: str = "") -> str:
     return (os.environ.get(name) or "").strip() or default
 
 
@@ -69,4 +69,4 @@ def _parse[T: (int, float)](
     return value
 
 
-__all__ = ("env_float", "env_int", "env_str")
+__all__ = ("get_env_float", "get_env_int", "get_env_str")

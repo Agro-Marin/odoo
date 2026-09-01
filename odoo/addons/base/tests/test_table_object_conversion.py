@@ -33,10 +33,10 @@ class TestTableObjectConversion(TransactionCase):
         return table_object
 
     def _constraint_exists(self):
-        return bool(sql.constraint_definition(self.env.cr, _TABLE, _NAME))
+        return bool(sql.get_constraint_definition(self.env.cr, _TABLE, _NAME))
 
     def _index_definition(self):
-        return sql.index_definition(self.env.cr, _NAME)[0]
+        return sql.get_index_definition(self.env.cr, _NAME)[0]
 
     def test_a_constraints_backing_index_is_attributed_to_it(self):
         """The premise the whole fix rests on, taken from the server itself."""
@@ -47,13 +47,13 @@ class TestTableObjectConversion(TransactionCase):
             "pg_indexes does not list a UNIQUE constraint's index, so reading "
             "it as a plain index was never ambiguous and this fix is moot",
         )
-        self.assertEqual(sql.index_constraint(self.env.cr, _NAME), _NAME)
+        self.assertEqual(sql.get_index_constraint(self.env.cr, _NAME), _NAME)
 
     def test_a_plain_index_is_attributed_to_nothing(self):
         self._named(UniqueIndex("(lower(name))")).apply_to_database(self.model)
 
         self.assertTrue(self._index_definition())
-        self.assertIsNone(sql.index_constraint(self.env.cr, _NAME))
+        self.assertIsNone(sql.get_index_constraint(self.env.cr, _NAME))
 
     def test_a_constraint_becomes_an_index(self):
         """The conversion silently did nothing: the old rule stayed in force."""
@@ -70,7 +70,7 @@ class TestTableObjectConversion(TransactionCase):
             "the index still enforces the old rule, so a case-insensitive "
             "declaration reads as applied while nothing changed",
         )
-        self.assertIsNone(sql.index_constraint(self.env.cr, _NAME))
+        self.assertIsNone(sql.get_index_constraint(self.env.cr, _NAME))
 
     def test_an_index_becomes_a_constraint(self):
         """The reverse conversion collided on the name it was reusing."""
@@ -78,7 +78,7 @@ class TestTableObjectConversion(TransactionCase):
         self._named(Constraint("UNIQUE(name)")).apply_to_database(self.model)
 
         self.assertTrue(self._constraint_exists())
-        self.assertEqual(sql.index_constraint(self.env.cr, _NAME), _NAME)
+        self.assertEqual(sql.get_index_constraint(self.env.cr, _NAME), _NAME)
 
     def test_reapplying_an_unchanged_index_is_not_a_rebuild(self):
         """The early return still has to hold, or every upgrade rebuilds."""
@@ -140,11 +140,11 @@ class TestIrModelConstraintUnlink(TransactionCase):
         self._record("i").unlink()
 
         self.assertIsNone(
-            sql.constraint_definition(self.env.cr, _TABLE, _NAME),
+            sql.get_constraint_definition(self.env.cr, _TABLE, _NAME),
             "DROP INDEX cannot release a constraint's backing index, and the "
             "upgrade that tried it left the registry unable to load",
         )
-        self.assertIsNone(sql.index_definition(self.env.cr, _NAME)[0])
+        self.assertIsNone(sql.get_index_definition(self.env.cr, _NAME)[0])
 
     def test_an_index_recorded_as_a_constraint_is_still_dropped(self):
         self.env.cr.execute(f"CREATE UNIQUE INDEX {_NAME} ON {_TABLE} (name)")
@@ -152,7 +152,7 @@ class TestIrModelConstraintUnlink(TransactionCase):
         self._record("u").unlink()
 
         self.assertIsNone(
-            sql.index_definition(self.env.cr, _NAME)[0],
+            sql.get_index_definition(self.env.cr, _NAME)[0],
             "the drop matched on constraint type and found nothing, so the "
             "index survived its own declaration with no error raised",
         )

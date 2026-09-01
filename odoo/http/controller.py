@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     import odoo.api
 
 
-def newest_by_identity(classes: Iterable[type]) -> list[type]:
+def _get_classes_newest_by_identity(classes: Iterable[type]) -> list[type]:
     by_key: dict[tuple[str, str], int] = {}
     result: list[type] = []
     for cls in classes:
@@ -34,7 +34,7 @@ class Controller:
             path = cls.__module__.split(".")
             module = path[2] if len(path) > 2 and path[:2] == ["odoo", "addons"] else ""
             bucket = Controller.children_classes[module]
-            bucket[:] = newest_by_identity([*bucket, cls])
+            bucket[:] = _get_classes_newest_by_identity([*bucket, cls])
 
     @property
     def env(self) -> odoo.api.Environment | None:

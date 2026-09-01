@@ -21,7 +21,7 @@ class TestRtlcssResolution(BaseCase):
         self.assertTrue(
             Path(binary).is_absolute() and Path(binary).exists(),
             f"rtlcss resolved to {binary!r}, which does not exist; RTL bundles "
-            f"would be served as LTR and every skipUnless(_check_rtlcss()) "
+            f"would be served as LTR and every skipUnless(_is_rtlcss_available()) "
             f"suite would report success without running",
         )
 

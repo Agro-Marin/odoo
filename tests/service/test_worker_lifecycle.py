@@ -23,13 +23,13 @@ def _open_fds() -> set[int]:
 def multi():
     made = []
 
-    def pipe_new():
+    def open_pipe():
         pipe = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
         made.append(pipe)
         return pipe
 
     m = MagicMock()
-    m.pipe_new.side_effect = pipe_new
+    m.open_pipe.side_effect = open_pipe
     m.timeout = 60
     m.beat = 4
     m.socket = None
@@ -51,7 +51,7 @@ class TestWorkerConstructionIsAllOrNothing:
             opened.append(pipe)
             return pipe
 
-        multi.pipe_new.side_effect = one_then_fail
+        multi.open_pipe.side_effect = one_then_fail
         before = _open_fds()
 
         with pytest.raises(OSError):
@@ -121,7 +121,7 @@ class TestCpuRlimitClamp:
             patch.object(
                 _worker, "config", {"limit_memory_soft": 0, "limit_time_cpu": limit}
             ),
-            patch.object(_worker, "over_memory_soft_limit", return_value=None),
+            patch.object(_worker, "get_memory_over_soft_limit", return_value=None),
         ):
             worker.check_limits()
         worker.close()
@@ -295,13 +295,13 @@ class TestTheCursorIsReleasedAndTheConnectionIsLeftAlone:
 
     def test_the_helper_closes_only_the_cursor(self):
         cursor, order = self._recording_cursor()
-        _cron.release_cron_cursor(cursor)
+        _cron.close_cron_cursor(cursor)
         assert order == ["cursor"]
 
     def test_a_raising_cursor_close_does_not_escape(self):
         cursor, order = self._recording_cursor()
         cursor.close.side_effect = RuntimeError("already closed")
-        _cron.release_cron_cursor(cursor)
+        _cron.close_cron_cursor(cursor)
         assert order == []
 
     def test_worker_stop_releases_through_it(self):

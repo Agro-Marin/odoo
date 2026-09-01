@@ -265,7 +265,7 @@ class HttpCase(TransactionCase):
 
         self.session = session = odoo.http.root.session_store.new()
         session.update(
-            odoo.http.get_default_session(),
+            odoo.http.prepare_default_session(),
             db=get_db_name(),
             _trace_disable=True,
         )
@@ -303,7 +303,7 @@ class HttpCase(TransactionCase):
             env = api.Environment(self.cr, uid, {})
             session.uid = uid
             session.login = user
-            session.session_token = uid and security.compute_session_token(session, env)
+            session.session_token = uid and security.get_session_token(session, env)
             session.context = dict(env["res.users"].context_get())
 
         odoo.http.root.session_store.save(session)
@@ -542,7 +542,7 @@ class HttpCase(TransactionCase):
         return profiler.Nested(
             _profiler,
             patch(
-                "odoo.http.Request._get_profiler_context_manager",
+                "odoo.http.Request._profile_request",
                 route_profiler,
             ),
         )

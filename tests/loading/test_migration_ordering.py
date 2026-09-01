@@ -25,10 +25,10 @@ def manager():
 def _run(mgr, pkg, stage):
     executed = []
 
-    def fake_exec(cr, installed_version, pyfile, addon, stg, version=None):
+    def fake_run(cr, installed_version, pyfile, addon, stg, version=None):
         executed.append((version, pyfile))
 
-    with patch.object(migration, "exec_script", side_effect=fake_exec):
+    with patch.object(migration, "run_migration_script", side_effect=fake_run):
         mgr.migrate_module(pkg, stage)
     return executed
 

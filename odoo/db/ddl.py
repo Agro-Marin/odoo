@@ -54,16 +54,18 @@ def classify_statement(qs: str) -> tuple[str | None, bool]:
     return None, False
 
 
-def _ddl_keyword(qs: str) -> str | None:
+def _get_ddl_keyword(qs: str) -> str | None:
     return classify_statement(qs)[0]
 
 
-def _changes_schema(qs: str, leading: str | None) -> bool:
+def _is_schema_change(qs: str, leading: str | None) -> bool:
     if leading in _SCHEMA_CHANGING_DDL:
         return True
     if ";" not in qs:
         return False
-    return any(_ddl_keyword(part) in _SCHEMA_CHANGING_DDL for part in qs.split(";")[1:])
+    return any(
+        _get_ddl_keyword(part) in _SCHEMA_CHANGING_DDL for part in qs.split(";")[1:]
+    )
 
 
 _DICT_MARKER_RE = _re.compile(r"%(?:%|\(([^)]+)\)s)")
@@ -82,13 +84,13 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
                 + f" have no matching key in params {sorted(params)}"
             )
 
-        def _sub_named(m: _re.Match) -> str:
+        def _replace_named_marker(m: _re.Match) -> str:
             name = m.group(1)
             if name is None:
                 return "%"
             return _sql.quote(params[name], ctx)
 
-        return _DICT_MARKER_RE.sub(_sub_named, qs)
+        return _DICT_MARKER_RE.sub(_replace_named_marker, qs)
     markers = get_value_marker_positions(qs)
     if len(markers) != len(params):
         raise ValueError(

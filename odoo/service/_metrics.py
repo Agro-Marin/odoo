@@ -15,7 +15,7 @@ _BORROW_WAIT = "odoo_pool_borrow_wait_seconds"
 _LABEL_ESCAPES = str.maketrans({"\\": "\\\\", '"': '\\"', "\n": "\\n"})
 
 
-def _labels(pairs: dict[str, str]) -> str:
+def _format_labels(pairs: dict[str, str]) -> str:
     if not pairs:
         return ""
     inner = ",".join(
@@ -43,7 +43,7 @@ def _format_value(value: float | bool) -> str:
     return str(value)
 
 
-def _bucket_sort_key(sample: _Sample) -> tuple[int, float]:
+def _get_bucket_sort_key(sample: _Sample) -> tuple[int, float]:
     edge = sample.labels.get("le")
     if edge is None:
         return (1, 0.0)
@@ -63,11 +63,11 @@ class _Sample:
         self.value = value
         self.labels = labels
 
-    def series_key(self) -> tuple[tuple[str, str], ...]:
+    def get_series_key(self) -> tuple[tuple[str, str], ...]:
         return tuple((k, v) for k, v in self.labels.items() if k != "le")
 
     def render(self) -> str:
-        return f"{self.name}{_labels(self.labels)} {_format_value(self.value)}"
+        return f"{self.name}{_format_labels(self.labels)} {_format_value(self.value)}"
 
 
 class _Family:
@@ -79,23 +79,23 @@ class _Family:
         self.help = help
         self.samples: list[_Sample] = []
 
-    def _ordered(self) -> list[_Sample]:
+    def _get_samples_ordered(self) -> list[_Sample]:
         if self.kind not in _SUFFIXES_BY_KIND:
             return self.samples
         by_series: dict[tuple[tuple[str, str], ...], list[_Sample]] = {}
         for sample in self.samples:
-            by_series.setdefault(sample.series_key(), []).append(sample)
+            by_series.setdefault(sample.get_series_key(), []).append(sample)
         out: list[_Sample] = []
         for group in by_series.values():
             buckets = [s for s in group if s.name.endswith("_bucket")]
             rest = [s for s in group if not s.name.endswith("_bucket")]
-            out.extend(sorted(buckets, key=_bucket_sort_key))
+            out.extend(sorted(buckets, key=_get_bucket_sort_key))
             out.extend(rest)
         return out
 
     def render(self) -> list[str]:
         lines = [f"# HELP {self.name} {self.help}", f"# TYPE {self.name} {self.kind}"]
-        lines.extend(sample.render() for sample in self._ordered())
+        lines.extend(sample.render() for sample in self._get_samples_ordered())
         return lines
 
 
@@ -147,7 +147,7 @@ class _Exposition:
         return "\n".join(lines) + "\n"
 
 
-def service_metrics() -> dict[str, Any]:
+def get_service_metrics() -> dict[str, Any]:
     server = _process_state.server
     out: dict[str, Any] = {
         "flavor": "none",
@@ -156,7 +156,7 @@ def service_metrics() -> dict[str, Any]:
     if server is None:
         return out
     out["flavor"] = server.flavor
-    out.update(server.metrics())
+    out.update(server.get_metrics())
     return out
 
 
@@ -297,14 +297,14 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
             )
 
 
-def render_prometheus() -> str:
+def render_prometheus_exposition() -> str:
     from odoo import db
 
     exp = _Exposition({"pid": str(os.getpid())})
     exp.add("odoo_up", 1, help="1 when the metrics endpoint is serving.")
 
     try:
-        svc = service_metrics()
+        svc = get_service_metrics()
     except Exception:
         svc = {}
     if svc:
@@ -364,7 +364,7 @@ def render_prometheus() -> str:
                 exp.add(name, svc[key], help=help_text)
 
     try:
-        pools = db.pool_health()
+        pools = db.get_pool_health()
     except Exception:
         pools = {}
     for mode, health in (pools or {}).items():
@@ -374,4 +374,4 @@ def render_prometheus() -> str:
     return exp.render()
 
 
-__all__ = ("CONTENT_TYPE", "render_prometheus", "service_metrics")
+__all__ = ("CONTENT_TYPE", "get_service_metrics", "render_prometheus_exposition")

@@ -29,7 +29,7 @@ def is_model_definition(cls: type) -> bool:
     return isinstance(cls, models.MetaModel) and getattr(cls, "pool", None) is None
 
 
-def get_registry_of(model_cls: type[BaseModel]) -> Registry:
+def get_registry_of_model(model_cls: type[BaseModel]) -> Registry:
     pool = model_cls.pool
     assert pool is not None, (
         f"{model_cls.__name__} is a model definition class and has no registry; "
@@ -206,7 +206,7 @@ def _init_model_class_attributes_once(model_cls: type[BaseModel]):
     if depends:
         model_cls._depends = frozendict(depends)
 
-    registry = get_registry_of(model_cls)
+    registry = get_registry_of_model(model_cls)
     for parent_name in model_cls._inherits:
         registry[parent_name]._inherits_children.add(model_cls._name)
 
@@ -275,7 +275,7 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
 
     _collect_and_install_fields(model_cls, env)
 
-    registry = get_registry_of(model_cls)
+    registry = get_registry_of_model(model_cls)
     if registry._init_modules:
         _add_manual_fields(model_cls, env)
 
@@ -321,7 +321,7 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
 
 
 def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list):
-    registry = get_registry_of(model_cls)
+    registry = get_registry_of_model(model_cls)
     key = f"{model_cls._name}.{name}"
     if key not in registry._database_translated_fields:
         return
@@ -347,7 +347,7 @@ def _patch_company_dependent_field(
     model_cls: type[BaseModel], env: Environment, name: str, fields_: list
 ):
     key = f"{model_cls._name}.{name}"
-    if key not in get_registry_of(model_cls)._database_company_dependent_fields:
+    if key not in get_registry_of_model(model_cls)._database_company_dependent_fields:
         return
 
     company_dependent = next(
@@ -359,7 +359,7 @@ def _patch_company_dependent_field(
         False,
     )
     if not company_dependent:
-        col = sql.table_columns(env.cr, model_cls._table).get(name)
+        col = sql.get_table_columns(env.cr, model_cls._table).get(name)
         if col and col["udt_name"] == "jsonb":
             _logger.debug(
                 "Patching %s.%s with company_dependent=True",
@@ -440,7 +440,7 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
 
     to_inherit: dict[str, tuple[str, Field]] = {}
     for parent_model_name, parent_fname in model_cls._inherits.items():
-        for name, field in get_registry_of(model_cls)[
+        for name, field in get_registry_of_model(model_cls)[
             parent_model_name
         ]._fields.items():
             if name in model_cls._fields:
@@ -476,7 +476,7 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
 
 def _setup_fields(model_cls: type[BaseModel], env: Environment):
     bad_fields = []
-    many2one_company_dependents = get_registry_of(model_cls).many2one_company_dependents
+    many2one_company_dependents = get_registry_of_model(model_cls).many2one_company_dependents
     model = model_cls(env, (), ())
     for name, field in model_cls._fields.items():
         try:
@@ -526,7 +526,7 @@ def _add_manual_models(env: Environment):
         attrs = env["ir.model"]._prepare_class_attrs(model_data)
 
         table_name = model_data["model"].replace(".", "_")
-        table_kind = sql.table_kind(env.cr, table_name)
+        table_kind = sql.get_table_kind(env.cr, table_name)
         if table_kind not in (sql.TableKind.Regular, None):
             _logger.info(
                 "Model %r is backed by table %r which is not a regular table (%r), disabling automatic schema management",
@@ -535,7 +535,7 @@ def _add_manual_models(env: Environment):
                 table_kind,
             )
             attrs["_auto"] = False
-            columns = sql.table_columns(env.cr, table_name).keys()
+            columns = sql.get_table_columns(env.cr, table_name).keys()
             attrs["_log_access"] = set(LOG_ACCESS_COLUMNS) <= columns
 
         model_def = type("CustomDefinitionModel", (models.Model,), attrs)
@@ -566,7 +566,7 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
     is_class_field = any(
         isinstance(getattr(model, name, None), fields.Field)
         for model in [model_cls]
-        + [get_registry_of(model_cls)[inherit] for inherit in model_cls._inherits]
+        + [get_registry_of_model(model_cls)[inherit] for inherit in model_cls._inherits]
     )
     if not (is_class_field or is_manual_name(name)):
         raise ValidationError(
@@ -600,7 +600,7 @@ def pop_field(model_cls: type[BaseModel], name: str) -> Field | None:
     discardattr(model_cls, name)
     if model_cls._rec_name == name:
         model_cls._rec_name = None
-        registry = get_registry_of(model_cls)
+        registry = get_registry_of_model(model_cls)
         if model_cls.display_name in registry.field_depends:
             registry.field_depends[model_cls.display_name] = tuple(
                 dep

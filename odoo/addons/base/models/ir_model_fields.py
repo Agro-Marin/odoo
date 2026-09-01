@@ -635,9 +635,9 @@ class IrModelFields(models.Model):
                 pop_field(self.env.registry[model._name], field.name)
 
         for table, names in columns_by_table.items():
-            if sql.table_kind(cr, table) != sql.TableKind.Regular:
+            if sql.get_table_kind(cr, table) != sql.TableKind.Regular:
                 continue
-            existing = sql.table_columns(cr, table)
+            existing = sql.get_table_columns(cr, table)
             dropped = [name for name in names if name in existing]
             if dropped:
                 cr.execute(
@@ -847,10 +847,13 @@ class IrModelFields(models.Model):
         model_by_id = {model.id: model.model for model in IrModel.browse(model_ids)}
 
         inverses_wanted = OrderedSet()
+        inverses_in_batch = set()
         for vals in vals_list:
             _check_translate_value(vals)
             if "model_id" in vals:
                 vals["model"] = model_by_id.get(vals["model_id"], False)
+            if vals.get("ttype") == "many2one" and vals.get("name"):
+                inverses_in_batch.add((vals.get("model"), vals["name"]))
             if vals.get("state", "manual") != "manual":
                 continue
             if (relation := vals.get("relation")) and not IrModel._get_id(relation):
@@ -863,6 +866,9 @@ class IrModelFields(models.Model):
             ):
                 inverses_wanted.add((vals["relation"], vals["relation_field"]))
 
+        inverses_wanted = OrderedSet(
+            pair for pair in inverses_wanted if pair not in inverses_in_batch
+        )
         if inverses_wanted:
             self._check_inverses_exist(inverses_wanted)
 

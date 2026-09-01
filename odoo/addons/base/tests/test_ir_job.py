@@ -14,7 +14,7 @@ from odoo.exceptions import (
 )
 from odoo.libs import backoff
 from odoo.modules.registry import Registry
-from odoo.service._limits import job_real_time_budget
+from odoo.service._limits import get_job_real_time_budget
 from odoo.tests import common
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import SQL, mute_logger
@@ -1597,7 +1597,7 @@ class TestIrJobDrainLoop(BaseCase):
                 limit_time_real_cron=cron,
                 limit_time_real_job=job,
             ):
-                budgets[(real, cron, job)] = job_real_time_budget()
+                budgets[(real, cron, job)] = get_job_real_time_budget()
                 deadline = IrJob._drain_deadline()
             self.assertEqual(budgets[(real, cron, job)], expected)
             if expected:

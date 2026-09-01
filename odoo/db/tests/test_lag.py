@@ -13,14 +13,14 @@ class TestDisabled(unittest.TestCase):
         self.assertFalse(self.gate.enabled)
 
     def test_it_allows_everything(self):
-        self.assertTrue(self.gate.allows())
+        self.assertTrue(self.gate.is_replica_usable())
 
     def test_it_never_asks_for_a_sample(self):
-        self.assertFalse(self.gate.due_for_sample())
+        self.assertFalse(self.gate.acquire_sample_interval())
 
     def test_even_a_huge_recorded_lag_allows(self):
         self.gate.record(9999.0)
-        self.assertTrue(self.gate.allows())
+        self.assertTrue(self.gate.is_replica_usable())
 
     def test_a_negative_ceiling_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -32,35 +32,35 @@ class TestVerdict(unittest.TestCase):
         self.gate = ReplicaLagGate(30.0)
 
     def test_a_fresh_gate_allows(self):
-        self.assertTrue(self.gate.allows())
+        self.assertTrue(self.gate.is_replica_usable())
 
     def test_lag_under_the_ceiling_allows(self):
         self.gate.record(5.0)
-        self.assertTrue(self.gate.allows())
+        self.assertTrue(self.gate.is_replica_usable())
 
     def test_lag_over_the_ceiling_demotes(self):
         self.gate.record(45.0)
-        self.assertFalse(self.gate.allows())
+        self.assertFalse(self.gate.is_replica_usable())
 
     def test_exactly_the_ceiling_still_allows(self):
         self.gate.record(30.0)
-        self.assertTrue(self.gate.allows())
+        self.assertTrue(self.gate.is_replica_usable())
 
     def test_recovery_reopens_the_gate(self):
         self.gate.record(45.0)
         self.gate.record(1.0)
-        self.assertTrue(self.gate.allows())
+        self.assertTrue(self.gate.is_replica_usable())
 
     def test_an_unmeasurable_lag_is_treated_as_healthy(self):
         self.gate.record(45.0)
         self.gate.record(None)
-        self.assertTrue(self.gate.allows())
+        self.assertTrue(self.gate.is_replica_usable())
         self.assertEqual(self.gate.last_lag, 0.0)
 
     def test_a_negative_measurement_is_clamped(self):
         self.gate.record(-3.0)
         self.assertEqual(self.gate.last_lag, 0.0)
-        self.assertTrue(self.gate.allows())
+        self.assertTrue(self.gate.is_replica_usable())
 
 
 class TestSampling(unittest.TestCase):
@@ -71,23 +71,23 @@ class TestSampling(unittest.TestCase):
         self.assertEqual(ReplicaLagGate(0.4).sample_interval, 1.0)
 
     def test_the_first_sample_is_due(self):
-        self.assertTrue(ReplicaLagGate(30.0).due_for_sample())
+        self.assertTrue(ReplicaLagGate(30.0).acquire_sample_interval())
 
     def test_a_second_sample_is_throttled(self):
         gate = ReplicaLagGate(30.0)
-        self.assertTrue(gate.due_for_sample())
-        self.assertFalse(gate.due_for_sample())
+        self.assertTrue(gate.acquire_sample_interval())
+        self.assertFalse(gate.acquire_sample_interval())
 
     def test_repeated_sequential_calls_are_throttled(self):
         gate = ReplicaLagGate(30.0)
-        self.assertEqual(sum(1 for _ in range(50) if gate.due_for_sample()), 1)
+        self.assertEqual(sum(1 for _ in range(50) if gate.acquire_sample_interval()), 1)
 
     def test_a_demoted_gate_still_becomes_due(self):
         gate = ReplicaLagGate(30.0, sample_interval=0.0)
-        gate.due_for_sample()
+        gate.acquire_sample_interval()
         gate.record(90.0)
-        self.assertFalse(gate.allows())
-        self.assertTrue(gate.due_for_sample())
+        self.assertFalse(gate.is_replica_usable())
+        self.assertTrue(gate.acquire_sample_interval())
 
 
 class TestSampleClaimIsExclusive(unittest.TestCase):
@@ -106,7 +106,9 @@ class TestSampleClaimIsExclusive(unittest.TestCase):
 
     def test_only_one_of_many_racing_readers_samples(self):
         gate = ReplicaLagGate(30.0)
-        self.assertTrue(gate.due_for_sample(), "the first call claims the slot")
+        self.assertTrue(
+            gate.acquire_sample_interval(), "the first call claims the slot"
+        )
         gate._last_sample -= 1000.0
 
         barrier = threading.Barrier(self.THREADS)
@@ -116,7 +118,7 @@ class TestSampleClaimIsExclusive(unittest.TestCase):
         append_lock = threading.Lock()
 
         def sample():
-            claimed = gate.due_for_sample()
+            claimed = gate.acquire_sample_interval()
             with append_lock:
                 granted.append(claimed)
 
@@ -125,14 +127,14 @@ class TestSampleClaimIsExclusive(unittest.TestCase):
             thread.start()
         for thread in threads:
             thread.join(timeout=10)
-            self.assertFalse(thread.is_alive(), "due_for_sample deadlocked")
+            self.assertFalse(thread.is_alive(), "acquire_sample_interval deadlocked")
 
         self.assertEqual(
             sum(granted),
             1,
             f"{sum(granted)} of {self.THREADS} readers claimed the sample slot "
             f"once the compare was made to yield; exactly one may. Removing the "
-            f"lock from due_for_sample reproduces this at {self.THREADS}",
+            f"lock from acquire_sample_interval reproduces this at {self.THREADS}",
         )
 
 
@@ -166,7 +168,7 @@ class TestLagSql(unittest.TestCase):
 
         def reader():
             while not stop.is_set():
-                snap = gate.snapshot()
+                snap = gate.get_snapshot()
                 if (snap["last_lag_seconds"] > gate.max_lag) != snap["lagging"]:
                     torn.append(snap)
                     stop.set()
@@ -199,14 +201,14 @@ class TestLagSql(unittest.TestCase):
 
 class TestSnapshot(unittest.TestCase):
     def test_a_disabled_gate_reports_disabled(self):
-        snap = ReplicaLagGate(0.0).snapshot()
+        snap = ReplicaLagGate(0.0).get_snapshot()
         self.assertFalse(snap["enabled"])
         self.assertFalse(snap["lagging"])
 
     def test_a_lagging_gate_reports_its_measurement(self):
         gate = ReplicaLagGate(10.0)
         gate.record(42.5)
-        snap = gate.snapshot()
+        snap = gate.get_snapshot()
         self.assertTrue(snap["enabled"])
         self.assertTrue(snap["lagging"])
         self.assertEqual(snap["last_lag_seconds"], 42.5)

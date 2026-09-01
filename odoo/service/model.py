@@ -28,7 +28,7 @@ from odoo.modules.registry import Registry
 from odoo.tools import lazy
 from odoo.tools.safe_eval import _UNSAFE_ATTRIBUTES
 
-from ._db_helpers import rpc_db_exposed
+from ._db_helpers import is_db_rpc_exposed
 from .transaction import (
     PG_CONCURRENCY_ERRORS_TO_RETRY,
     PG_CONCURRENCY_EXCEPTIONS_TO_RETRY,
@@ -161,7 +161,7 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
         raise TypeError(f"uid must be an integer (got {uid!r})")
     if not passwd:
         raise AccessDenied
-    if not rpc_db_exposed(db):
+    if not is_db_rpc_exposed(db):
         _logger.warning(
             "RPC %s refused: database %r is not exposed by this instance",
             dispatch_method,
@@ -242,7 +242,7 @@ def _is_bare_iterator(val: typing.Any) -> bool:
     return not isinstance(val, lazy) and isinstance(val, Iterator)
 
 
-def _forced_mapping(val: Mapping) -> Mapping:
+def _force_lazy_in_mapping(val: Mapping) -> Mapping:
     if isinstance(val, MutableMapping):
         for key, value in list(val.items()):
             if value.__class__ not in _SCALAR_LEAF_TYPES:
@@ -256,7 +256,7 @@ def _forced_mapping(val: Mapping) -> Mapping:
     return val
 
 
-def _forced_sequence(val: Sequence) -> Sequence:
+def _force_lazy_in_sequence(val: Sequence) -> Sequence:
     if isinstance(val, MutableSequence):
         for index, item in enumerate(val):
             if item.__class__ not in _SCALAR_LEAF_TYPES:
@@ -288,11 +288,11 @@ def _force_lazy_in_value(val: typing.Any) -> typing.Any:
     if isinstance(val, (str, bytes, BaseModel)):
         return val
     if isinstance(val, Mapping):
-        return _forced_mapping(val)
+        return _force_lazy_in_mapping(val)
     if isinstance(val, Iterator):
         return [_force_lazy_in_value(item) for item in val]
     if isinstance(val, Sequence):
-        return _forced_sequence(val)
+        return _force_lazy_in_sequence(val)
     if isinstance(val, (AbstractSet, Iterable)):
         _warm_in_place(val)
     return val

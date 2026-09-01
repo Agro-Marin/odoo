@@ -14,7 +14,7 @@ SNAPSHOT_AFTER = 3
 
 
 @dataclass(slots=True)
-class LoopResult:
+class ConvergenceResult:
     iterations: int = 0
     converged: bool = True
     stalled_fields: list[str] = field(default_factory=list)
@@ -66,11 +66,11 @@ class UnitOfWork[F: FieldKey = FieldKey]:
     def _field_label(field: F) -> str:
         return f"{getattr(field, 'model_name', '?')}.{getattr(field, 'name', field)}"
 
-    def run_recompute_loop(
+    def recompute_until_converged(
         self,
         recompute_fn: Callable[[F], None],
-    ) -> LoopResult:
-        result = LoopResult()
+    ) -> ConvergenceResult:
+        result = ConvergenceResult()
         order = self._recompute_order
         if callable(order):
             order = order()
@@ -114,17 +114,17 @@ class UnitOfWork[F: FieldKey = FieldKey]:
 
         return result
 
-    def run_flush_loop(
+    def flush_until_converged(
         self,
         recompute_fn: Callable[[F], None],
         flush_fn: Callable[[list[str]], None],
-    ) -> LoopResult:
-        result = LoopResult()
+    ) -> ConvergenceResult:
+        result = ConvergenceResult()
 
         previous: tuple[dict[Any, frozenset], dict[Any, frozenset]] | None = None
         repeats = 0
         for iteration in range(self.max_iterations):
-            recompute_result = self.run_recompute_loop(recompute_fn)
+            recompute_result = self.recompute_until_converged(recompute_fn)
             if not recompute_result.converged:
                 result.iterations = iteration + 1
                 result.converged = False

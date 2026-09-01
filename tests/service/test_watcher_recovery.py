@@ -23,15 +23,18 @@ def sysctl(tmp_path):
 class TestInotifyLimitDiagnosis:
     def test_an_unrelated_error_gets_no_diagnosis(self, sysctl):
         with sysctl(max_user_instances=128, max_user_watches=65536):
-            assert _watcher.inotify_limit_diagnosis(OSError(errno.EACCES, "nope")) == ""
+            assert (
+                _watcher.get_inotify_limit_diagnosis(OSError(errno.EACCES, "nope"))
+                == ""
+            )
 
     def test_an_exception_with_no_errno_gets_no_diagnosis(self, sysctl):
         with sysctl(max_user_instances=128, max_user_watches=65536):
-            assert _watcher.inotify_limit_diagnosis(ValueError("unrelated")) == ""
+            assert _watcher.get_inotify_limit_diagnosis(ValueError("unrelated")) == ""
 
     def test_enospc_names_both_limits_and_their_values(self, sysctl):
         with sysctl(max_user_instances=128, max_user_watches=65536):
-            message = _watcher.inotify_limit_diagnosis(OSError(errno.ENOSPC, "no"))
+            message = _watcher.get_inotify_limit_diagnosis(OSError(errno.ENOSPC, "no"))
         assert "fs.inotify.max_user_instances=128" in message
         assert "fs.inotify.max_user_watches=65536" in message
         assert "not disk space" in message, (
@@ -42,7 +45,7 @@ class TestInotifyLimitDiagnosis:
 
     def test_an_unreadable_limit_does_not_lose_the_other_one(self, sysctl):
         with sysctl(max_user_watches=65536):
-            message = _watcher.inotify_limit_diagnosis(OSError(errno.ENOSPC, "no"))
+            message = _watcher.get_inotify_limit_diagnosis(OSError(errno.ENOSPC, "no"))
         assert "fs.inotify.max_user_instances=unreadable" in message
         assert "fs.inotify.max_user_watches=65536" in message, (
             "a diagnosis that raises while explaining a failure is worse than "
@@ -51,7 +54,7 @@ class TestInotifyLimitDiagnosis:
 
     def test_it_explains_that_instances_are_shared_across_processes(self, sysctl):
         with sysctl(max_user_instances=128, max_user_watches=65536):
-            message = _watcher.inotify_limit_diagnosis(OSError(errno.ENOSPC, "no"))
+            message = _watcher.get_inotify_limit_diagnosis(OSError(errno.ENOSPC, "no"))
         assert "editor" in message, (
             "the usual cause is another process holding the instances, and the "
             "message is where that gets said"
@@ -151,20 +154,20 @@ class TestWatchDirectory:
 
 @requires_inotify
 class TestResyncAfterOverflow:
-    def _resync(self, tmp_path, roots):
+    def _sync_watches_after_overflow(self, tmp_path, roots):
         obj = object.__new__(_watcher.FSWatcherInotify)
         obj.roots = [str(r) for r in roots]
         watched, invalidated = [], []
         obj._watch_directory = lambda d: watched.append(Path(d))
         obj.handle_asset_file = invalidated.append
-        obj._resync()
+        obj._sync_watches_after_overflow()
         return watched, invalidated
 
     def test_every_directory_under_every_root_is_re_armed(self, tmp_path):
         root = tmp_path / "src"
         (root / "a" / "b").mkdir(parents=True)
         (root / "c").mkdir()
-        watched, _ = self._resync(tmp_path, [root])
+        watched, _ = self._sync_watches_after_overflow(tmp_path, [root])
         assert set(watched) == {root, root / "a", root / "a" / "b", root / "c"}, (
             "overflow means events were LOST, including the ones that would "
             "have armed watches on new directories; re-arming only the roots "
@@ -174,19 +177,21 @@ class TestResyncAfterOverflow:
     def test_a_root_that_no_longer_exists_is_skipped_not_fatal(self, tmp_path):
         alive = tmp_path / "alive"
         alive.mkdir()
-        watched, _ = self._resync(tmp_path, [tmp_path / "deleted", alive])
+        watched, _ = self._sync_watches_after_overflow(
+            tmp_path, [tmp_path / "deleted", alive]
+        )
         assert set(watched) == {alive}, "the deleted root must not raise"
 
     def test_the_root_itself_is_armed_outside_the_walk_as_well(self, tmp_path):
         root = tmp_path / "src"
         root.mkdir()
-        watched, _ = self._resync(tmp_path, [root])
+        watched, _ = self._sync_watches_after_overflow(tmp_path, [root])
         assert watched.count(root) == 2, watched
 
     def test_the_asset_caches_are_dropped(self, tmp_path):
         root = tmp_path / "src"
         root.mkdir()
-        _, invalidated = self._resync(tmp_path, [root])
+        _, invalidated = self._sync_watches_after_overflow(tmp_path, [root])
         assert invalidated == [_watcher.OVERFLOW_PATH], (
             "a bundle rebuilt from a file whose change event was dropped is "
             "stale until something else touches it"

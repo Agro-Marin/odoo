@@ -138,7 +138,7 @@ class Environment(Mapping[str, "BaseModel"]):
             context if isinstance(context, frozendict) else frozendict(context)
         )
         envs = transaction.envs
-        env = envs.lookup(envs.key(uid, su, frozen_context))
+        env = envs.get_environment(envs.key(uid, su, frozen_context))
         if env is not None and env.cr is cr:
             transaction._last_env = weakref_ref(env)
             return env
@@ -449,7 +449,9 @@ class Environment(Mapping[str, "BaseModel"]):
                 for model_name in model_names:
                     self[model_name].flush_model()
 
-        result = self.transaction.unit_of_work.run_flush_loop(recompute_fn, flush_fn)
+        result = self.transaction.unit_of_work.flush_until_converged(
+            recompute_fn, flush_fn
+        )
 
         if not result.converged:
             remaining = result.stalled_fields

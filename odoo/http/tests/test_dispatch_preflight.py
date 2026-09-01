@@ -9,7 +9,7 @@ from odoo.http.dispatcher import (
     HttpDispatcher,
     Json2Dispatcher,
     JsonRPCDispatcher,
-    infer_dispatcher_for_unmatched,
+    get_dispatcher_for_unmatched_route,
 )
 from odoo.http.wrappers import FutureResponse
 
@@ -175,7 +175,7 @@ def test_a_refused_preflight_still_says_which_methods_the_url_takes():
     ],
 )
 def test_unmatched_dispatcher_is_inferred_from_content_type(mimetype, expected):
-    assert infer_dispatcher_for_unmatched(_request(mimetype=mimetype)) is expected
+    assert get_dispatcher_for_unmatched_route(_request(mimetype=mimetype)) is expected
 
 
 def test_json_dispatchers_both_claim_application_json():
@@ -194,7 +194,7 @@ def test_unmatched_json_error_keeps_the_status_code():
             return data
 
     dispatcher = Json2Dispatcher(_Req())
-    dispatcher.handle_error(NotFound())
+    dispatcher.prepare_error_response(NotFound())
     assert captured["status"] == 404
 
 
@@ -232,13 +232,13 @@ def test_an_unrelated_class_claiming_a_routing_type_still_warns(caplog):
                 routing_type = "jsonrpc"
 
                 @classmethod
-                def is_compatible_with(cls, request):
+                def is_compatible_with_request(cls, request):
                     return True
 
                 def dispatch(self, endpoint, args):
                     return None
 
-                def handle_error(self, exc):
+                def prepare_error_response(self, exc):
                     return None
 
         warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]

@@ -764,7 +764,7 @@ class ResUsers(models.Model):
                 "name": _("Other activities") if is_orphan_bucket else model.name,
                 "model": model_name,
                 "type": "activity",
-                "icon": module and modules.module.get_module_icon(module),
+                "icon": module and modules.module.get_module_icon_path(module),
                 "domain": []
                 if is_orphan_bucket or "active" not in Model
                 else [("active", "in", [True, False])],

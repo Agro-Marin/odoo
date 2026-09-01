@@ -565,7 +565,7 @@ class TestTransportAndSizeLimits(TransactionCase):
                 "from_filter": "example.com",
             }
         )
-        transport = server._resolve_smtp_transport()
+        transport = server._prepare_smtp_transport()
         self.assertTrue(transport.debug)
         self.assertEqual(transport.from_filter, "example.com")
 
@@ -675,10 +675,10 @@ class TestSmtpTimeout(TransactionCase):
             {"name": "timeout", "smtp_host": "smtp_host", "smtp_encryption": "none"}
         )
         with config.patch(smtp_timeout=7):
-            self.assertEqual(server._resolve_smtp_transport().timeout, 7)
+            self.assertEqual(server._prepare_smtp_transport().timeout, 7)
             self.assertEqual(
                 self.IrMailServer.browse()
-                ._resolve_smtp_transport(host="smtp_host")
+                ._prepare_smtp_transport(host="smtp_host")
                 .timeout,
                 7,
             )
@@ -1038,7 +1038,7 @@ class TestSmtpDebugGoesThroughTheLogger(TransactionCase):
             patch.object(type(IrMailServer), "_disable_send", lambda _: False),
             patch("smtplib.SMTP", _FakeConn),
         ):
-            transport = IrMailServer._resolve_smtp_transport(
+            transport = IrMailServer._prepare_smtp_transport(
                 host="smtp.example.com", smtp_debug=True
             )
             IrMailServer._open_smtp_connection(transport, None)
@@ -1498,7 +1498,7 @@ class TestSmtpHeloName(TransactionCase):
 
         transport = self.IrMailServer.create(
             {"name": "helo", "smtp_host": "smtp.example.com"}
-        )._resolve_smtp_transport()
+        )._prepare_smtp_transport()
         with (
             config.patch(smtp_helo_name="mail.example.com"),
             patch.object(smtplib, "SMTP", FakeSMTP),
@@ -1687,7 +1687,7 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
 
     def _fake_cli_session_context_reference(self):
         with self._capture():
-            transport = self.IrMailServer._resolve_smtp_transport(
+            transport = self.IrMailServer._prepare_smtp_transport(
                 host="cli.example.com"
             )
             return self.IrMailServer._open_smtp_connection(

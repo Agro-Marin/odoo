@@ -28,10 +28,10 @@ from odoo.tools.misc import dumpstacks, stripped_sys_argv
 
 from . import _process_state
 from ._base_server import CommonServer
-from ._env import _IS_POSIX, env_float
-from ._limits import cron_real_time_budget, empty_pipe, job_real_time_budget
+from ._env import _IS_POSIX, get_env_float
+from ._limits import empty_pipe, get_cron_real_time_budget, get_job_real_time_budget
 from ._worker import Worker, WorkerCron, WorkerHTTP, WorkerJob
-from .lifecycle import _reexec, preload_registries
+from .lifecycle import _reexec_server, preload_registries
 
 _logger = logging.getLogger("odoo.service.server")
 
@@ -39,7 +39,7 @@ GRACEFUL_STOP_TIMEOUT_S = 60.0
 
 
 def _graceful_stop_timeout(logger: logging.Logger) -> float:
-    return env_float(
+    return get_env_float(
         "ODOO_GRACEFUL_STOP_TIMEOUT",
         GRACEFUL_STOP_TIMEOUT_S,
         minimum=1.0,
@@ -64,12 +64,12 @@ class PreforkServer(CommonServer):
 
     _census_written_at: float
 
-    def metrics(self) -> dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         if os.getpid() != self.pid:
             return self._read_census()
-        return self._census()
+        return self._get_census()
 
-    def _census(self) -> dict[str, Any]:
+    def _get_census(self) -> dict[str, Any]:
         return {
             "workers": {
                 "http": len(self.workers_http),
@@ -81,7 +81,7 @@ class PreforkServer(CommonServer):
             "long_polling_alive": self.long_polling_pid is not None,
         }
 
-    def _census_path(self) -> Path | None:
+    def _get_census_path(self) -> Path | None:
         try:
             return Path(config["data_dir"]) / f"prefork-census-{self.pid}.json"
         except Exception:
@@ -93,12 +93,12 @@ class PreforkServer(CommonServer):
             if now - self._census_written_at < CENSUS_WRITE_INTERVAL_S:
                 return
             self._census_written_at = now
-            path = self._census_path()
+            path = self._get_census_path()
             if path is None:
                 return
             tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
             try:
-                tmp.write_text(json.dumps(self._census()))
+                tmp.write_text(json.dumps(self._get_census()))
                 tmp.replace(path)
             except Exception:
                 with contextlib.suppress(OSError):
@@ -108,7 +108,7 @@ class PreforkServer(CommonServer):
             self.logger.debug("Could not publish the worker census", exc_info=True)
 
     def _read_census(self) -> dict[str, Any]:
-        path = self._census_path()
+        path = self._get_census_path()
         if path is None:
             return {}
         try:
@@ -120,13 +120,13 @@ class PreforkServer(CommonServer):
         return payload if isinstance(payload, dict) else {}
 
     def _discard_census(self) -> None:
-        path = self._census_path()
+        path = self._get_census_path()
         if path is not None:
             with contextlib.suppress(OSError):
                 path.unlink()
 
     def _sweep_stale_censuses(self) -> None:
-        path = self._census_path()
+        path = self._get_census_path()
         if path is None:
             return
         cutoff = time.time() - CENSUS_MAX_AGE_S
@@ -145,8 +145,8 @@ class PreforkServer(CommonServer):
             config["limit_time_real"] if config["limit_time_real"] > 0 else None
         )
         self.limit_request = config["limit_request"]
-        self.cron_timeout = cron_real_time_budget() or None
-        self.job_timeout = job_real_time_budget() or None
+        self.cron_timeout = get_cron_real_time_budget() or None
+        self.job_timeout = get_job_real_time_budget() or None
         self.beat: float = 4
         self.socket: socket.socket | None = None
         self.workers_http: dict[int, WorkerHTTP] = {}
@@ -166,7 +166,7 @@ class PreforkServer(CommonServer):
         self._watched: dict[int, Worker] = {}
         self._census_written_at = float("-inf")
 
-    def pipe_new(self) -> tuple[int, int]:
+    def open_pipe(self) -> tuple[int, int]:
         return os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
 
     def _set_socket_cloexec(self) -> None:
@@ -176,7 +176,7 @@ class PreforkServer(CommonServer):
         flags = fcntl.fcntl(fd, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
         fcntl.fcntl(fd, fcntl.F_SETFD, flags)
 
-    def pipe_ping(self, pipe: tuple[int, int]) -> None:
+    def ping_pipe(self, pipe: tuple[int, int]) -> None:
         try:
             os.write(pipe[1], b".")
         except OSError as e:
@@ -187,10 +187,10 @@ class PreforkServer(CommonServer):
         if sig == signal.SIGCHLD:
             if signal.SIGCHLD not in self.queue:
                 self.queue.append(sig)
-                self.pipe_ping(self.pipe)
+                self.ping_pipe(self.pipe)
             return
         self.queue.append(sig)
-        self.pipe_ping(self.pipe)
+        self.ping_pipe(self.pipe)
 
     def _close_inherited_pipe_fds_in_child(self, new_worker: Worker) -> None:
         keep = {
@@ -225,7 +225,7 @@ class PreforkServer(CommonServer):
             backoff,
         )
 
-    def worker_spawn(self, klass: type, workers_registry: dict) -> Worker | None:
+    def spawn_worker(self, klass: type, workers_registry: dict) -> Worker | None:
         self.generation += 1
         worker = None
         try:
@@ -272,7 +272,7 @@ class PreforkServer(CommonServer):
                 exit_code = 1
             os._exit(exit_code)
 
-    def long_polling_spawn(self) -> None:
+    def spawn_long_polling_process(self) -> None:
         nargs = stripped_sys_argv()
         cmd = [sys.executable, sys.argv[0], "evented"] + nargs[1:]
         try:
@@ -294,7 +294,7 @@ class PreforkServer(CommonServer):
         if popen is not None and popen.returncode is None:
             popen.returncode = returncode if returncode is not None else -signal.SIGKILL
 
-    def worker_pop(self, pid: int) -> None:
+    def remove_worker(self, pid: int) -> None:
         if pid == self.long_polling_pid:
             self.long_polling_pid = None
         if pid in self.workers:
@@ -304,21 +304,21 @@ class PreforkServer(CommonServer):
             self.workers_job.pop(pid, None)
             self.workers.pop(pid).close()
 
-    def _remember_killed(self, pid: int) -> None:
+    def _remember_killed_worker(self, pid: int) -> None:
         worker = self.workers.get(pid)
         if worker is not None:
             self._killed_workers[pid] = worker
 
-    def worker_kill(self, pid: int, sig: int) -> None:
+    def kill_worker(self, pid: int, sig: int) -> None:
         try:
             os.kill(pid, sig)
             if sig == signal.SIGKILL:
-                self._remember_killed(pid)
-                self.worker_pop(pid)
+                self._remember_killed_worker(pid)
+                self.remove_worker(pid)
         except OSError as e:
             if e.errno == errno.ESRCH:
-                self._remember_killed(pid)
-                self.worker_pop(pid)
+                self._remember_killed_worker(pid)
+                self.remove_worker(pid)
 
     def apply_pending_signals(self) -> None:
         while self.queue:
@@ -340,7 +340,7 @@ class PreforkServer(CommonServer):
                 if not wpid:
                     break
                 self._note_worker_exit(wpid, status)
-                self.worker_pop(wpid)
+                self.remove_worker(wpid)
             except OSError as e:
                 if e.errno == errno.ECHILD:
                     break
@@ -400,7 +400,7 @@ class PreforkServer(CommonServer):
                     pid,
                     worker.watchdog_timeout,
                 )
-                self.worker_kill(pid, signal.SIGKILL)
+                self.kill_worker(pid, signal.SIGKILL)
 
     def spawn_missing_workers(self) -> None:
         if time.monotonic() < self._respawn_not_before:
@@ -429,18 +429,18 @@ class PreforkServer(CommonServer):
         if config["http_enable"]:
             while len(self.workers_http) < self.population:
                 check_registries()
-                if self.worker_spawn(WorkerHTTP, self.workers_http) is None:
+                if self.spawn_worker(WorkerHTTP, self.workers_http) is None:
                     return
             if not self.long_polling_pid:
                 check_registries()
-                self.long_polling_spawn()
+                self.spawn_long_polling_process()
         while len(self.workers_cron) < config["max_cron_threads"]:
             check_registries()
-            if self.worker_spawn(WorkerCron, self.workers_cron) is None:
+            if self.spawn_worker(WorkerCron, self.workers_cron) is None:
                 return
         while len(self.workers_job) < config["job_workers"]:
             check_registries()
-            if self.worker_spawn(WorkerJob, self.workers_job) is None:
+            if self.spawn_worker(WorkerJob, self.workers_job) is None:
                 return
 
     def _close_watchdog_selector(self) -> None:
@@ -450,7 +450,9 @@ class PreforkServer(CommonServer):
             with contextlib.suppress(Exception):
                 sel.close()
 
-    def _watchdog_selector(self) -> tuple[selectors.BaseSelector, dict[int, Worker]]:
+    def _get_watchdog_selector(
+        self,
+    ) -> tuple[selectors.BaseSelector, dict[int, Worker]]:
         fds = {w.watchdog_pipe[0]: w for w in self.workers.values()}
         sel = getattr(self, "_selector", None)
         if sel is None:
@@ -475,7 +477,7 @@ class PreforkServer(CommonServer):
         return sel, fds
 
     def sleep(self) -> None:
-        sel, fds = self._watchdog_selector()
+        sel, fds = self._get_watchdog_selector()
         ready = sel.select(self.beat)
         for key, _ in ready:
             fd = key.fd
@@ -484,7 +486,7 @@ class PreforkServer(CommonServer):
             empty_pipe(fd)
 
     def start(self) -> None:
-        self.pipe = self.pipe_new()
+        self.pipe = self.open_pipe()
         self._sweep_stale_censuses()
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -548,7 +550,7 @@ class PreforkServer(CommonServer):
                 self.logger.warning(
                     "Exception while running stop hooks before reload", exc_info=True
                 )
-            _reexec()
+            _reexec_server()
 
         self.logger.info("Waiting for new server to start ...")
         phoenix_hatched = False
@@ -559,7 +561,7 @@ class PreforkServer(CommonServer):
 
         signal.signal(signal.SIGHUP, sighup_handler)
 
-        timeout_s = env_float(
+        timeout_s = get_env_float(
             "ODOO_RELOAD_TIMEOUT", 60.0, minimum=1.0, logger=self.logger
         )
         self.logger.info("Reload timeout: %.0fs", timeout_s)
@@ -588,7 +590,7 @@ class PreforkServer(CommonServer):
         except psutil.NoSuchProcess:
             self._reconcile_long_polling_popen(None)
             return
-        timeout_s = env_float(
+        timeout_s = get_env_float(
             "ODOO_EVENTED_STOP_TIMEOUT",
             EVENTED_STOP_TIMEOUT_S,
             minimum=0.0,
@@ -619,7 +621,7 @@ class PreforkServer(CommonServer):
         self._stop_long_polling()
 
         for pid in list(self.workers):
-            self.worker_kill(pid, signal.SIGINT)
+            self.kill_worker(pid, signal.SIGINT)
 
         is_main_server = self.pid == os.getpid()
         processes = {}
@@ -646,7 +648,7 @@ class PreforkServer(CommonServer):
             else:
                 for pid, proc in list(processes.items()):
                     if not proc.is_running():
-                        self.worker_pop(pid)
+                        self.remove_worker(pid)
                         processes.pop(pid)
 
             if not escalated and time.monotonic() >= deadline:
@@ -669,9 +671,9 @@ class PreforkServer(CommonServer):
         for pid in list(self.workers):
             proc = self._drain_procs.get(pid)
             if proc is None or not proc.is_running():
-                self.worker_pop(pid)
+                self.remove_worker(pid)
                 continue
-            self.worker_kill(pid, signal.SIGTERM)
+            self.kill_worker(pid, signal.SIGTERM)
 
     def stop(self, graceful: bool = True) -> None:
         if _process_state.server_phoenix:
@@ -705,7 +707,7 @@ class PreforkServer(CommonServer):
             self.logger.info("Stopping forcefully")
             self._stop_long_polling()
         for pid in list(self.workers):
-            self.worker_kill(pid, signal.SIGTERM)
+            self.kill_worker(pid, signal.SIGTERM)
         self._close_watchdog_selector()
         self._discard_census()
 

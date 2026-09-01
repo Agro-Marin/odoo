@@ -774,7 +774,7 @@ class DomainCondition(Domain):
 
     def checked(self) -> DomainCondition:
         if not isinstance(self.field_expr, str) or not self.field_expr:
-            self._raise("Empty field name", error=TypeError)
+            raise self._prepare_condition_error("Empty field name", error=TypeError)
         op = self.operator.lower()
         if op != self.operator:
             warnings.warn(
@@ -784,7 +784,7 @@ class DomainCondition(Domain):
             )
             return DomainCondition(self.field_expr, op, self.value).checked()
         if op not in ACCEPTED_CONDITION_OPERATORS:
-            self._raise("Invalid operator")
+            raise self._prepare_condition_error("Invalid operator")
         if op in SUBDOMAIN_OPERATORS and isinstance(self.value, (list, tuple)):
             _check_subdomain_nesting(self.value, MAX_DOMAIN_NESTING)
         value = self.value
@@ -872,9 +872,11 @@ class DomainCondition(Domain):
         assert isinstance(result, Domain), "result of map_conditions is not a Domain"
         return result
 
-    def _raise(self, message: str, *args, error=ValueError) -> typing.NoReturn:
+    def _prepare_condition_error(
+        self, message: str, *args, error=ValueError
+    ) -> Exception:
         message += " in condition (%r, %r, %r)"
-        raise error(message % (*args, self.field_expr, self.operator, self.value))
+        return error(message % (*args, self.field_expr, self.operator, self.value))
 
     def _field(self, model: BaseModel) -> Field:
         field = self._field_instance
@@ -887,7 +889,9 @@ class DomainCondition(Domain):
         try:
             field = model._fields[field_name]
         except KeyError:
-            self._raise("Invalid field %s.%s", model._name, field_name)
+            raise self._prepare_condition_error(
+                "Invalid field %s.%s", model._name, field_name
+            ) from None
         object.__setattr__(self, "_field_instance", field)
         return field, property_name or ""
 
@@ -943,7 +947,7 @@ class DomainCondition(Domain):
             self.operator not in STANDARD_CONDITION_OPERATORS
             and level == OptimizationLevel.FULL
         ):
-            self._raise("Not standard operator left")
+            raise self._prepare_condition_error("Not standard operator left")
 
         return self
 
@@ -1073,7 +1077,7 @@ class DomainCondition(Domain):
 
         if isinstance(value, Query):
             if positive_operator not in ("in", "any", "any!"):
-                self._raise(
+                raise self._prepare_condition_error(
                     "Cannot filter using Query without the 'any' or 'in' operator"
                 )
             if positive_operator != "in":

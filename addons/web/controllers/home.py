@@ -13,9 +13,9 @@ from odoo.exceptions import AccessError
 from odoo.http import Response, request
 from odoo.libs.json import dumps as json_dumps
 from odoo.service import security
-from odoo.service._env import env_str
+from odoo.service._env import get_env_str
 from odoo.service._metrics import CONTENT_TYPE as METRICS_CONTENT_TYPE
-from odoo.service._metrics import render_prometheus
+from odoo.service._metrics import render_prometheus_exposition
 from odoo.tools import config, str2bool
 from odoo.tools.json import orjson_default
 from odoo.tools.misc import consteq, hmac
@@ -89,13 +89,13 @@ class Home(http.Controller):
             )
         if kw.get("redirect") and _is_local_url(kw["redirect"]):
             return request.redirect(kw["redirect"], 303)
-        if not security.check_session(request.session, request.env, request):
+        if not security.is_session_valid(request.session, request.env, request):
             msg = "Session expired"
             raise http.SessionExpiredException(msg)
         if not is_user_internal(request.session.uid):
             return request.redirect("/web/login_successful", 303)
 
-        request.session.touch()
+        request.session.mark_dirty()
 
         request.update_env(user=request.session.uid)
         try:
@@ -231,7 +231,7 @@ class Home(http.Controller):
         if request.env.user._is_system():
             uid = request.session.uid = odoo.SUPERUSER_ID
             request.env.registry.clear_cache()
-            request.session.session_token = security.compute_session_token(
+            request.session.session_token = security.get_session_token(
                 request.session, request.env
             )
 
@@ -279,7 +279,7 @@ class Home(http.Controller):
 
     @http.route("/web/metrics", type="http", auth="none", save_session=False)
     def metrics(self) -> Response:
-        token = env_str("ODOO_METRICS_TOKEN")
+        token = get_env_str("ODOO_METRICS_TOKEN")
         if not token:
             raise request.not_found()
         presented = request.httprequest.headers.get("Authorization", "")
@@ -293,7 +293,7 @@ class Home(http.Controller):
                 "", [("Cache-Control", "no-store")], status=401
             )
         return request.prepare_response(
-            render_prometheus(),
+            render_prometheus_exposition(),
             [("Content-Type", METRICS_CONTENT_TYPE), ("Cache-Control", "no-store")],
             status=200,
         )

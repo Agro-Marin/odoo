@@ -46,7 +46,7 @@ def _rtlcss_bin() -> str:
 
 
 @functools.cache
-def _check_rtlcss() -> bool:
+def _is_rtlcss_available() -> bool:
     try:
         check = Popen([_rtlcss_bin(), "--version"], stdout=PIPE, stderr=PIPE)
         check.communicate(timeout=10)
@@ -279,7 +279,7 @@ class CssPipeline:
         return _rewrite_css_outside_strings(cls._RX_APPEARANCE, _prefix, source.strip())
 
     def convert_css_to_rtl(self, source: str) -> str:
-        if not _check_rtlcss():
+        if not _is_rtlcss_available():
             return source
 
         cmd = [_rtlcss_bin(), "-c", _rtlcss_config_path(), "-"]

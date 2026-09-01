@@ -40,7 +40,7 @@ class TestPartnerIdentifier(TransactionCase):
 
     def test_punctuation_and_case_do_not_change_the_identifier(self):
         """The typed form is kept; comparison uses the normalized one."""
-        self.company._set_identifier("TEST_RFC", "van-850101-qw1")
+        self.company._update_identifier("TEST_RFC", "van-850101-qw1")
 
         identifier = self.company.identifier_ids
         self.assertEqual(identifier.value, "van-850101-qw1")
@@ -48,16 +48,16 @@ class TestPartnerIdentifier(TransactionCase):
 
     def test_a_value_another_contact_holds_is_refused(self):
         """Spelling it differently must not get past the uniqueness rule."""
-        self.company._set_identifier("TEST_RFC", "VAN-850101-QW1")
+        self.company._update_identifier("TEST_RFC", "VAN-850101-QW1")
         impostor = self.Partner.create({"name": "Impostor SA", "is_company": True})
 
         with self.assertRaises(ValidationError):
             with self.cr.savepoint():
-                impostor._set_identifier("TEST_RFC", "van850101qw1")
+                impostor._update_identifier("TEST_RFC", "van850101qw1")
 
     def test_a_contacts_own_address_may_share_its_identifier(self):
         """One commercial entity is one holder, however many addresses it has."""
-        self.company._set_identifier("TEST_RFC", "VAN850101QW1")
+        self.company._update_identifier("TEST_RFC", "VAN850101QW1")
         address = self.Partner.create(
             {
                 "name": "Vantage Warehouse",
@@ -66,17 +66,17 @@ class TestPartnerIdentifier(TransactionCase):
             }
         )
 
-        address._set_identifier("TEST_RFC", "VAN850101QW1")
+        address._update_identifier("TEST_RFC", "VAN850101QW1")
 
         self.assertEqual(address._get_identifier("TEST_RFC"), "VAN850101QW1")
 
     def test_a_malformed_value_is_refused_by_the_types_own_format(self):
         with self.assertRaises(ValidationError):
             with self.cr.savepoint():
-                self.company._set_identifier("TEST_CURP", "not-a-curp")
+                self.company._update_identifier("TEST_CURP", "not-a-curp")
 
     def test_one_value_per_type_unless_the_type_allows_several(self):
-        self.company._set_identifier("TEST_RFC", "VAN850101QW1")
+        self.company._update_identifier("TEST_RFC", "VAN850101QW1")
 
         with self.assertRaises(ValidationError):
             with self.cr.savepoint():
@@ -99,16 +99,16 @@ class TestPartnerIdentifier(TransactionCase):
         self.assertIn(second, self.company.identifier_ids)
 
     def test_setting_a_value_twice_replaces_it(self):
-        self.company._set_identifier("TEST_RFC", "VAN850101QW1")
-        self.company._set_identifier("TEST_RFC", "ABC850101XY9")
+        self.company._update_identifier("TEST_RFC", "VAN850101QW1")
+        self.company._update_identifier("TEST_RFC", "ABC850101XY9")
 
         self.assertEqual(len(self.company.identifier_ids), 1)
         self.assertEqual(self.company._get_identifier("TEST_RFC"), "ABC850101XY9")
 
     def test_setting_an_empty_value_clears_it(self):
-        self.company._set_identifier("TEST_RFC", "VAN850101QW1")
+        self.company._update_identifier("TEST_RFC", "VAN850101QW1")
 
-        self.company._set_identifier("TEST_RFC", False)
+        self.company._update_identifier("TEST_RFC", False)
 
         self.assertFalse(self.company.identifier_ids)
         self.assertFalse(self.company._get_identifier("TEST_RFC"))
@@ -120,11 +120,11 @@ class TestPartnerIdentifier(TransactionCase):
         contact, so it cannot say "a tax ID belongs to the company, a national
         number belongs to the person". This can.
         """
-        self.company._set_identifier("TEST_RFC", "VAN850101QW1")
+        self.company._update_identifier("TEST_RFC", "VAN850101QW1")
         person = self.Partner.create(
             {"name": "Nadia Okonkwo", "parent_id": self.company.id}
         )
-        person._set_identifier("TEST_CURP", "OKON850101HDFXYZ01")
+        person._update_identifier("TEST_CURP", "OKON850101HDFXYZ01")
 
         person._commercial_sync_identifiers()
 
@@ -137,7 +137,7 @@ class TestPartnerIdentifier(TransactionCase):
 
     def test_a_synced_type_is_readable_from_a_child_without_being_copied(self):
         """Reading falls back to the commercial entity, so no copy is needed."""
-        self.company._set_identifier("TEST_RFC", "VAN850101QW1")
+        self.company._update_identifier("TEST_RFC", "VAN850101QW1")
         address = self.Partner.create(
             {"name": "Vantage Depot", "parent_id": self.company.id, "type": "delivery"}
         )
@@ -146,7 +146,7 @@ class TestPartnerIdentifier(TransactionCase):
         self.assertFalse(address.identifier_ids)
 
     def test_an_unsynced_type_does_not_fall_back(self):
-        self.company._set_identifier("TEST_CURP", "OKON850101HDFXYZ01")
+        self.company._update_identifier("TEST_CURP", "OKON850101HDFXYZ01")
         child = self.Partner.create({"name": "Child", "parent_id": self.company.id})
 
         self.assertFalse(child._get_identifier("TEST_CURP"))
@@ -226,9 +226,9 @@ class TestPartnerIdentifier(TransactionCase):
         with patch.object(
             type(self.rfc), "_check_test_rfc", _check_test_rfc, create=True
         ):
-            self.company._set_identifier("TEST_RFC", "VAN850101QW1")
+            self.company._update_identifier("TEST_RFC", "VAN850101QW1")
             self.assertEqual(checked, ["VAN850101QW1"])
 
             with self.assertRaises(ValidationError):
                 with self.cr.savepoint():
-                    self.company._set_identifier("TEST_RFC", "ZZZ850101QW1")
+                    self.company._update_identifier("TEST_RFC", "ZZZ850101QW1")

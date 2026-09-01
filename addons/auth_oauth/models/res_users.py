@@ -191,7 +191,7 @@ class ResUsers(models.Model):
         except AccessDenied:
             if not (credential["type"] == "oauth_token" and credential["token"]):
                 raise
-            passwd_allowed = env["interactive"] or not self._rpc_api_keys_only()
+            passwd_allowed = env["interactive"] or not self._is_rpc_api_key_only()
             if passwd_allowed and self.active:
                 res = self.sudo().search(
                     [

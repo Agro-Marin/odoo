@@ -108,7 +108,7 @@ class Stream:
             public=record.env.user._is_public(),
         )
 
-    def _payload(self, attr: str) -> Any:
+    def _get_required_attribute(self, attr: str) -> Any:
         value = getattr(self, attr)
         if value is None:
             e = f"There is nothing to stream, missing {attr!r} attribute."
@@ -128,20 +128,20 @@ class Stream:
         self._check_type()
 
         if self.type == "data":
-            return self._payload("data")
+            return self._get_required_attribute("data")
 
-        return Path(self._payload("path")).read_bytes()
+        return Path(self._get_required_attribute("path")).read_bytes()
 
-    def _get_url_redirect(self) -> Any:
-        url = self._payload("url")
+    def _prepare_url_redirect(self) -> Any:
+        url = self._get_required_attribute("url")
         if self.max_age is not None:
             res = request.redirect(url, code=302, local=False)
             res.headers["Cache-Control"] = f"max-age={self.max_age}"
             return res
         return request.redirect(url, code=301, local=False)
 
-    def _send_path(self, send_file_kwargs: dict[str, Any]) -> Any:
-        path = self._payload("path")
+    def _prepare_path_response(self, send_file_kwargs: dict[str, Any]) -> Any:
+        path = self._get_required_attribute("path")
         send_file_kwargs["use_x_sendfile"] = False
         x_accel_redirect: str | None = None
         if config["x_sendfile"]:
@@ -168,7 +168,7 @@ class Stream:
         self._check_type()
 
         if self.type == "url":
-            return self._get_url_redirect()
+            return self._prepare_url_redirect()
 
         if as_attachment is None:
             as_attachment = self.as_attachment
@@ -189,9 +189,11 @@ class Stream:
         }
 
         if self.type == "data":
-            res = _send_file(BytesIO(self._payload("data")), **send_file_kwargs)
+            res = _send_file(
+                BytesIO(self._get_required_attribute("data")), **send_file_kwargs
+            )
         else:
-            res = self._send_path(send_file_kwargs)
+            res = self._prepare_path_response(send_file_kwargs)
 
         headers = res.headers
         headers["X-Content-Type-Options"] = "nosniff"

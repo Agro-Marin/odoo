@@ -17,7 +17,7 @@ class TestPosPerformance(TestPointOfSaleHttpCommon):
         if not before_count:
             return False
         populate_count = round(total_count / before_count) - 1
-        Populate.populate(self.env, {model_name: populate_count}, 1)
+        Populate._populate_models_named(self.env, {model_name: populate_count}, 1)
 
         after_count = self.env[model_name].search_count([])
         _logger.info(

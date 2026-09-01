@@ -18,7 +18,7 @@ import odoo.tools
 from odoo.tools.misc import exec_pg_environ, get_pg_tool_path
 
 from .._db_helpers import check_db_management_enabled, check_db_name
-from .._env import env_float
+from .._env import get_env_float
 from .listing import check_db_exposed
 
 if TYPE_CHECKING:
@@ -32,8 +32,8 @@ _logger = logging.getLogger("odoo.service.db")
 BACKUP_FORMATS = frozenset({"zip", "dump"})
 
 
-def _pg_dump_total_timeout() -> float:
-    return env_float("ODOO_PG_DUMP_TOTAL_TIMEOUT", 3600.0, logger=_logger)
+def _get_pg_dump_total_timeout() -> float:
+    return get_env_float("ODOO_PG_DUMP_TOTAL_TIMEOUT", 3600.0, logger=_logger)
 
 
 @check_db_management_enabled
@@ -67,21 +67,21 @@ def dump_db_manifest(cr: BaseCursor) -> dict[str, Any]:
     }
 
 
-def _timed_out(timeout: float) -> RuntimeError:
+def _prepare_timeout_error(timeout: float) -> RuntimeError:
     return RuntimeError(
         f"pg_dump exceeded {timeout:.0f}s wall-clock timeout and was "
         f"terminated.  Set ODOO_PG_DUMP_TOTAL_TIMEOUT for slower DBs."
     )
 
 
-def _failed(returncode: int, stderr: bytes) -> RuntimeError:
+def _prepare_pg_dump_failed_error(returncode: int, stderr: bytes) -> RuntimeError:
     return RuntimeError(
         f"pg_dump failed (exit {returncode}): {stderr.decode(errors='replace').strip()}"
     )
 
 
 def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
-    timeout = _pg_dump_total_timeout()
+    timeout = _get_pg_dump_total_timeout()
     try:
         result = subprocess.run(
             cmd,
@@ -93,9 +93,9 @@ def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as e:
-        raise _timed_out(timeout) from e
+        raise _prepare_timeout_error(timeout) from e
     if result.returncode != 0:
-        raise _failed(result.returncode, result.stderr)
+        raise _prepare_pg_dump_failed_error(result.returncode, result.stderr)
 
 
 _STALL_SIGKILL_GRACE_S = 10.0
@@ -134,7 +134,7 @@ def _kill_pg_dump_on_stall(
 
 
 def _reap_pg_dump(proc: subprocess.Popen) -> None:
-    wait_timeout = env_float("ODOO_PG_DUMP_WAIT_TIMEOUT", 30.0, logger=_logger)
+    wait_timeout = get_env_float("ODOO_PG_DUMP_WAIT_TIMEOUT", 30.0, logger=_logger)
     try:
         proc.wait(timeout=wait_timeout)
     except subprocess.TimeoutExpired:
@@ -171,7 +171,7 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
     )
     stderr_thread.start()
 
-    total_timeout = _pg_dump_total_timeout()
+    total_timeout = _get_pg_dump_total_timeout()
     stall_killed = [False]
     stall_timer = threading.Timer(
         total_timeout,
@@ -195,12 +195,12 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
             stderr.close()
         _reap_pg_dump(proc)
     if stall_killed[0] and proc.returncode != 0:
-        raise _timed_out(total_timeout)
+        raise _prepare_timeout_error(total_timeout)
     if proc.returncode != 0:
-        raise _failed(proc.returncode, b"".join(stderr_chunks))
+        raise _prepare_pg_dump_failed_error(proc.returncode, b"".join(stderr_chunks))
 
 
-def _zip_filestore_into_archive(zipf: zipfile.ZipFile, filestore: str) -> None:
+def _add_filestore_to_zip(zipf: zipfile.ZipFile, filestore: str) -> None:
     root = Path(filestore)
     if not root.is_dir():
         return
@@ -239,7 +239,7 @@ def _write_zip_dump(
         with zipf.open("dump.sql", "w", force_zip64=True) as sql_member:
             _run_pg_dump_streaming(cmd, env, sql_member)
         if with_filestore:
-            _zip_filestore_into_archive(zipf, odoo.tools.config.filestore(db_name))
+            _add_filestore_to_zip(zipf, odoo.tools.config.filestore(db_name))
 
 
 @check_db_management_enabled

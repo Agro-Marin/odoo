@@ -286,7 +286,7 @@ class AccountTestInvoicingCommon(ProductCommon):
         for model in ("account.tax", "account.tax.group"):
             cls.env.add_to_compute(
                 cls.env[model]._fields["country_id"],
-                cls.env[model].search([("company_id", "=", company.id)]),
+                cls.env[model].search(cls.env[model]._check_company_domain(company)),
             )
 
     @classmethod

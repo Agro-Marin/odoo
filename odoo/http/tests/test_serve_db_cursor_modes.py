@@ -77,13 +77,13 @@ def _make(readonly_route=True, replica=True):
         ),
         dispatcher=None,
         _acquire_registry_cursor=lambda: first,
-        _set_request_dispatcher=lambda r: None,
+        _update_dispatcher=lambda r: None,
         _serve_ir_http=lambda r, a: "served",
         _update_served_exception=lambda exc: None,
         _reset_for_replay=lambda cr=None: calls["reset_for_replay"].append(cr),
     )
     for helper in (
-        "_resolve_serve_target",
+        "_select_serve_target_and_mode",
         "_serve_readwrite",
         "_serve_readonly",
         "_open_read_write_cursor",

@@ -257,7 +257,7 @@ class IrModel(models.Model):
                     continue
 
                 table = current_model._table
-                kind = sql.table_kind(self.env.cr, table)
+                kind = sql.get_table_kind(self.env.cr, table)
                 if kind == sql.TableKind.View:
                     self.env.cr.execute(SQL("DROP VIEW %s", SQL.identifier(table)))
                 elif kind == sql.TableKind.Regular:

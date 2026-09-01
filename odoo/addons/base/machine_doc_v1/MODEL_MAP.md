@@ -460,7 +460,7 @@ User-specific view customizations (Copy-on-Write).
 Validates view XML structure: fields, actions, groups, names.
 
 **Key Methods:**
-- `has_field(node, name, node_info, info)` — Register available field
+- `add_available_field(node, name, node_info, info)` — Register available field
 - `add_used_fields(node, names, node_info, use)` — Declare field dependency
 - `check(view)` — Validate all dependencies exist + group consistency
 
@@ -888,7 +888,7 @@ SMTP server configuration and email sending.
 
 **Key Methods:**
 - `_connect__(host, port, user, password, encryption, ...)` — Open an SMTP connection (thin socket I/O)
-- `_resolve_smtp_transport(mail_server, *, host, port, ...)` — Pure resolution of transport params (host/port/auth/encryption/SSL context) from record vs CLI/config/params; socket-free and unit-testable
+- `_prepare_smtp_transport(mail_server, *, host, port, ...)` — Assembles the transport value object (host/port/auth/encryption/SSL context) from the record, or from CLI/config/params; socket-free and unit-testable
 - `_open_smtp_connection(transport, smtp_from)` — Open/secure/authenticate a socket for a resolved `_SmtpTransport`
 - `_build_email__(email_from, email_to, subject, body, ...)` — Build RFC2822 EmailMessage (`headers` override singleton headers via del-then-set)
 - `send_email(message, mail_server_id, ...)` — Send email via SMTP
@@ -1134,6 +1134,78 @@ Partner tags — hierarchical.
 - `parent_path` (Char, indexed) — Materialized path for `_parent_store`
 - `partner_ids` (Many2many → res.partner)
 
+### models/res_partner_identifier_type.py
+
+#### ResPartnerIdentifierType — `res.partner.identifier.type` (`_name`, `_inherit = ["mixin.catalog"]`, `_order = "sequence, name"`)
+
+A *kind* of identifier a contact can carry — RFC, CURP, SIREN, GLN. The
+dimension only; what a given contact's identifier is lives in
+`res.partner.identifier`. This is where the family departs from
+`mixin.attribute`, whose value model is a catalog several subjects select from:
+an identifier's value is free text unique to its holder.
+
+**Fields:**
+- `code` (Char, required) — the stable key localizations and integrations
+  resolve by; the label is translated and editable, so it is never the key
+- `sequence` (Integer, default=10)
+- `country_ids` (Many2many → res.country) — offer the type only in these
+  countries; empty means everywhere
+- `pattern` (Char, "Format") — optional regex the normalized value must match,
+  anchored both ends, checked before any code-specific rule
+- `unique_across_contacts` (Boolean, default=True)
+- `multiple_per_contact` (Boolean, default=False)
+- `synced_with_commercial` (Boolean, default=False) — copy down from the
+  commercial entity; on for what identifies a *company*, off for a person
+
+**Constraints:** `_code_uniq` UNIQUE(code); `_name_src_uniq` via
+`mixin_catalog.name_uniq_index`; `_check_pattern_compiles`.
+
+**Methods:**
+- `_normalize(value)` — strip punctuation and case, so `RIFE001128IT2` and
+  `RIFE-001128-IT2` compare equal. The stored `value` keeps what was typed
+- `validate(value)` — three stages cheapest first: `pattern`, then a rule
+  looked up as `_check_<code>` on this model, then `_check_hook`. Returns the
+  normalized value; raises `ValidationError`. **`_check_<code>` is a dispatch
+  key, not an `@api.constrains` hook** (coding_guidelines §2.4.14): the
+  variable half is the `code` column, so the prefix is frozen and a
+  localization adds a method rather than editing `validate`
+- `_check_hook(normalized)` — extension point for a rule needing more than a
+  boolean
+- `_by_code(code)` — resolve a type by its stable code, or an empty recordset
+
+### models/res_partner_identifier.py
+
+#### ResPartnerIdentifier — `res.partner.identifier` (`_name`, `_order = "type_id, id"`, `_rec_name = "value"`)
+
+One identifier a contact carries: this type, this value. Deliberately not a
+`mixin.attribute.value` — that model is a vocabulary several subjects point at,
+and two contacts sharing one identifier row is exactly what duplicate detection
+exists to find, so it must not be expressible.
+
+**Fields:**
+- `partner_id` (Many2one → res.partner, required, cascade, indexed)
+- `type_id` (Many2one → res.partner.identifier.type, required, **restrict**,
+  indexed)
+- `value` (Char, required) — as written on the document
+- `normalized_value` (Char, compute stored, indexed) — punctuation and case
+  removed, so two spellings deduplicate as one
+- `company_id` (Many2one, related `partner_id.company_id`, stored,
+  `index="btree_not_null"`)
+
+**Index:** `_type_value_index` on `(type_id, normalized_value)`.
+
+**Constraints:**
+- `_check_value_is_valid` — delegates to `type_id.validate(value)`
+- `_check_one_per_contact` — one value per type per contact unless
+  `multiple_per_contact`
+- `_check_not_taken_by_another_contact` — scoped to the **commercial entity**,
+  because a company and its own addresses share one tax ID by design and that
+  is not a collision
+
+Both multi-record constraints issue **one query for the whole recordset**, not
+one per row: they fire on every create, and an import of ten thousand contacts
+would otherwise issue ten thousand searches apiece.
+
 ### models/res_partner_industry.py
 
 #### ResPartnerIndustry — `res.partner.industry` (`_name`)
@@ -1280,7 +1352,7 @@ Company hierarchy with branch support.
 - `paperformat_id` (Many2one → report.paperformat)
 
 **Key Methods:**
-- `_get_root_delegated_field_names()` — Fields synced from root (currency_id)
+- `_get_field_names_delegated_to_root()` — Fields synced from root (currency_id)
 - `_accessible_branches()` — Browse accessible branches for current user
 - `_get_public_user()` — Get/create public user for company
 - `create(vals_list)` — Auto-create partner, sync delegated fields, install l10n
@@ -1620,7 +1692,7 @@ source records onto the destination, then absorb the source values.
 - `_repoint_table`, `_repoint_join_rows`, `_repoint_rows`, `_repoint_rows_one_by_one` — The per-table strategies
 - `_update_reference_fields_generic(...)` — Sidecar rows, `reference` fields, company-dependent many2ones and `ir_default`
 - `_update_values_generic(...)` — Merge field values onto the destination
-- `_merge_absorbs_source_values()` — Hook: whether the destination takes the sources' values
+- `_is_source_absorbed_on_merge()` — Hook: whether the destination takes the sources' values
 
 ### models/kpi_provider.py
 
@@ -1816,6 +1888,8 @@ Quick lookup — file → model → primary role:
 | `res_lang.py` | res.lang | Languages |
 | `res_partner.py` | res.partner | Contacts/companies |
 | `res_partner_category.py` | res.partner.category | Partner tags |
+| `res_partner_identifier_type.py` | res.partner.identifier.type | Identifier kinds (RFC, CURP, SIREN…) |
+| `res_partner_identifier.py` | res.partner.identifier | One contact's identifier value |
 | `mixin_format_address.py` | mixin.format.address | Address formatting |
 | `mixin_format_vat_label.py` | mixin.format.vat.label | VAT label formatting |
 | `res_partner_industry.py` | res.partner.industry | Industries |

@@ -64,7 +64,7 @@ class TestEachListenerIsWiredToItsOwnQueue:
         """`_listen_thread` branches on `label == "job"` and nothing else.
 
         So the label is not cosmetic: it decides whether the thread recycles on
-        `job_max_age()` or on `limit_time_worker_cron`.
+        `get_job_max_age()` or on `limit_time_worker_cron`.
         """
         import inspect
 
@@ -75,8 +75,8 @@ class TestEachListenerIsWiredToItsOwnQueue:
 class TestSpawnersTypeTheirThreadsForTheRightTimeBudget:
     """`check_limits` reads `thread.type` to choose the real-time budget.
 
-    A thread typed "cron" is measured against `cron_real_time_budget()`, "job"
-    against `job_real_time_budget()`, anything else against `limit_time_real`.
+    A thread typed "cron" is measured against `get_cron_real_time_budget()`, "job"
+    against `get_job_real_time_budget()`, anything else against `limit_time_real`.
     Mistype a thread and it is recycled on the wrong deadline -- and the deadline
     is the thing that restarts the whole server.
     """
@@ -101,10 +101,10 @@ class TestSpawnersTypeTheirThreadsForTheRightTimeBudget:
 
     def test_cron_threads_are_counted_by_max_cron_threads_and_typed_cron(self, server):
         made = self._spawn(
-            server, "cron_spawn", {"max_cron_threads": 2, "job_workers": 7}
+            server, "spawn_cron_threads", {"max_cron_threads": 2, "job_workers": 7}
         )
 
-        assert len(made) == 2, "cron_spawn must count from max_cron_threads"
+        assert len(made) == 2, "spawn_cron_threads must count from max_cron_threads"
         assert [t.type for t in made] == ["cron", "cron"]
         assert [t.name for t in made] == [
             "odoo.service.cron.cron0",
@@ -115,10 +115,10 @@ class TestSpawnersTypeTheirThreadsForTheRightTimeBudget:
 
     def test_job_threads_are_counted_by_job_workers_and_typed_job(self, server):
         made = self._spawn(
-            server, "job_spawn", {"max_cron_threads": 7, "job_workers": 2}
+            server, "spawn_job_threads", {"max_cron_threads": 7, "job_workers": 2}
         )
 
-        assert len(made) == 2, "job_spawn must count from job_workers"
+        assert len(made) == 2, "spawn_job_threads must count from job_workers"
         assert [t.type for t in made] == ["job", "job"]
         assert [t.name for t in made] == [
             "odoo.service.job.job0",
@@ -128,8 +128,8 @@ class TestSpawnersTypeTheirThreadsForTheRightTimeBudget:
 
     def test_both_spawn_nothing_when_their_own_knob_is_zero(self, server):
         cfg = {"max_cron_threads": 0, "job_workers": 0}
-        assert self._spawn(server, "cron_spawn", cfg) == []
-        assert self._spawn(server, "job_spawn", cfg) == []
+        assert self._spawn(server, "spawn_cron_threads", cfg) == []
+        assert self._spawn(server, "spawn_job_threads", cfg) == []
 
     def test_the_types_are_the_ones_check_limits_actually_branches_on(self):
         """A typo in either string is silent: the thread falls to the default.

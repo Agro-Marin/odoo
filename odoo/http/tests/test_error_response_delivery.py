@@ -57,7 +57,7 @@ def _serve(app, environ):
 
     with (
         mock.patch("odoo.http.helpers.db_list", return_value=[]),
-        mock.patch("odoo.http.request_class._monodb_dblist", return_value=[]),
+        mock.patch("odoo.http.request_class._get_db_list_uncached", return_value=[]),
     ):
         body = b"".join(app(environ, start_response))
     return captured["status"], captured["headers"], body
@@ -86,20 +86,20 @@ def test_json2_error_responses_are_the_package_response_type():
     dispatcher: Any = Json2Dispatcher.__new__(Json2Dispatcher)
     dispatcher.request = None
 
-    assert isinstance(dispatcher.handle_error(exc), Response)
+    assert isinstance(dispatcher.prepare_error_response(exc), Response)
 
 
 def test_the_negotiated_nodb_404_is_the_one_that_reaches_the_client(nodb_app):
     from odoo.http.dispatcher import JsonRPCDispatcher
 
     calls = []
-    original = JsonRPCDispatcher.handle_error
+    original = JsonRPCDispatcher.prepare_error_response
 
     def counted(self, exc):
         calls.append(exc)
         return original(self, exc)
 
-    with mock.patch.object(JsonRPCDispatcher, "handle_error", counted):
+    with mock.patch.object(JsonRPCDispatcher, "prepare_error_response", counted):
         status, headers, body = _serve(
             nodb_app, _environ(content_type="application/json-rpc")
         )

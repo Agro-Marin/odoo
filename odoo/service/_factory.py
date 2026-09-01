@@ -20,7 +20,7 @@ from ._watcher import (
 )
 from .lifecycle import (
     _limit_malloc_arenas,
-    _reexec,
+    _reexec_server,
     _warn_on_connection_budget,
     load_server_wide_modules,
     preload_registries,
@@ -37,7 +37,7 @@ __all__ = (
 )
 
 
-def _with_werkzeug_debugger(app: Any) -> Any:
+def _wrap_app_in_debugger(app: Any) -> Any:
     if "werkzeug" not in config["dev_mode"]:
         return app
 
@@ -77,7 +77,7 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
     import odoo
     import odoo.http
 
-    app = _with_werkzeug_debugger(odoo.http.root)
+    app = _wrap_app_in_debugger(odoo.http.root)
     server = _prepare_server(app)
     set_server(server)
 
@@ -102,7 +102,7 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
             if _IS_POSIX and platform.system() != "Darwin":
                 module = "inotify"
             else:
-                module = "watchdog"
+                module = "run_watchdog"
             _logger.warning(
                 "'%s' module not installed. Code autoreload is disabled%s",
                 module,
@@ -120,6 +120,6 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
         if watcher:
             watcher.stop()
     if _process_state.server_phoenix:
-        _reexec()
+        _reexec_server()
 
     return rc or 0

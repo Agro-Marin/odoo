@@ -1,6 +1,7 @@
 import contextlib
 import socket
 import time
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import psycopg
@@ -34,13 +35,15 @@ def listen(server):
             patch.object(_cron.db, "db_connect", connect),
             patch.object(
                 _cron,
-                "capped_backoff",
-                side_effect=lambda n, *a, **k: backoffs.append(n) or 0,
+                "backoff",
+                SimpleNamespace(
+                    bound=lambda attempt, **kw: backoffs.append(attempt) or 0
+                ),
             ),
             patch.object(_threaded, "config", {"limit_time_worker_cron": max_age}),
             patch.object(_cron, "arm_cron_listen"),
             patch.object(_threaded, "drain_cron_notifies", return_value=set()),
-            patch.object(_cron, "cron_database_list", return_value=[]),
+            patch.object(_cron, "get_cron_databases", return_value=[]),
             patch.object(_cron, "CRON_NOTIFY_JITTER_MAX_S", 0),
             patch.object(_threaded, "CRON_POLL_INTERVAL_S", 0),
             pytest.raises(SystemExit),
@@ -74,7 +77,7 @@ class TestCronReconnectBackoff:
         backoffs, _, log = listen([psycopg.OperationalError("down")] * 4)
         assert backoffs == [1, 2, 3, 4], (
             "each failed reconnect must raise the attempt count handed to "
-            "capped_backoff; a flat count is a hot loop against a database "
+            "backoff.bound; a flat count is a hot loop against a database "
             "that is down"
         )
         assert log.warning.call_count == 4
@@ -132,8 +135,12 @@ def run_server(server):
             side_effect=start or (lambda **kw: calls.append(("start", kw)))
         )
         server.stop = MagicMock(side_effect=lambda: calls.append(("stop", {})))
-        server.cron_spawn = MagicMock(side_effect=lambda: calls.append(("cron", {})))
-        server.job_spawn = MagicMock(side_effect=lambda: calls.append(("job", {})))
+        server.spawn_cron_threads = MagicMock(
+            side_effect=lambda: calls.append(("cron", {}))
+        )
+        server.spawn_job_threads = MagicMock(
+            side_effect=lambda: calls.append(("job", {}))
+        )
         server.check_limits = MagicMock(
             side_effect=loop or (lambda: setattr(server, "quit_signals_received", 1))
         )
@@ -204,8 +211,8 @@ class TestRunLimitReached:
         calls = []
         server.start = MagicMock()
         server.stop = MagicMock()
-        server.cron_spawn = MagicMock()
-        server.job_spawn = MagicMock()
+        server.spawn_cron_threads = MagicMock()
+        server.spawn_job_threads = MagicMock()
         passes = iter(range(1))
         server.check_limits = MagicMock(
             side_effect=lambda: (

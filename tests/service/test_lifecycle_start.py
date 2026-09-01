@@ -59,7 +59,7 @@ def start(monkeypatch):
             patch.object(_factory, "watchdog", watchdog or None),
             patch.object(_factory, "FSWatcherInotify", _watcher_factory("inotify")),
             patch.object(_factory, "FSWatcherWatchdog", _watcher_factory("watchdog")),
-            patch.object(_factory, "_reexec") as reexec,
+            patch.object(_factory, "_reexec_server") as reexec,
         ):
             import odoo
 

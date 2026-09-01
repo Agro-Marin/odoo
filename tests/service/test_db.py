@@ -575,7 +575,7 @@ class TestDumpDbWallClockTimeout:
 
     def test_malformed_timeout_env_falls_back_to_default(self, db_mod):
         with patch.dict(os.environ, {"ODOO_PG_DUMP_TOTAL_TIMEOUT": "not-a-number"}):
-            assert db_mod.dump._pg_dump_total_timeout() == 3600.0
+            assert db_mod.dump._get_pg_dump_total_timeout() == 3600.0
 
 
 class TestDumpWaitTimeoutGuard:
@@ -715,7 +715,7 @@ class TestDumpStallSigkillEscalation:
             "time.sleep(3600)\n"
         )
         cmd = [sys.executable, "-c", child]
-        monkeypatch.setattr(db_mod.dump, "_pg_dump_total_timeout", lambda: 0.5)
+        monkeypatch.setattr(db_mod.dump, "_get_pg_dump_total_timeout", lambda: 0.5)
         monkeypatch.setattr(db_mod.dump, "_STALL_SIGKILL_GRACE_S", 0.5)
         out = io.BytesIO()
 
@@ -901,7 +901,7 @@ class TestCreateEmptyDatabaseTOCTOU:
         with (
             patch.object(odoo.tools, "config", {"db_template": "template0"}),
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", return_value=fake_db),
-            patch("odoo.service.db.lifecycle.database_identifier", return_value=""),
+            patch("odoo.service.db.lifecycle.get_database_identifier", return_value=""),
             patch("odoo.service.db.lifecycle._check_faketime_mode"),
         ):
             with pytest.raises(db_mod.DatabaseExists, match="already exists"):
@@ -922,7 +922,9 @@ class TestCreateEmptyDatabaseTOCTOU:
                 {"db_template": "template0", "unaccent": False},
             ),
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", return_value=fake_db),
-            patch("odoo.service.db.lifecycle.database_identifier", return_value="x"),
+            patch(
+                "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
+            ),
             patch("odoo.service.db.lifecycle._check_faketime_mode"),
         ):
             db_mod._create_empty_database("x")
@@ -1378,7 +1380,9 @@ class TestDropDatabaseRetry:
                 )
             )
             stack.enter_context(
-                patch("odoo.service.db.lifecycle.database_identifier", return_value="")
+                patch(
+                    "odoo.service.db.lifecycle.get_database_identifier", return_value=""
+                )
             )
             stack.enter_context(patch("odoo.service.db.lifecycle.time.sleep"))
             stack.enter_context(
@@ -1492,9 +1496,9 @@ class TestValidateDbNameLengthBoundary:
 class TestRpcDbExposedGate:
     @pytest.fixture
     def gate(self):
-        from odoo.service._db_helpers import rpc_db_exposed
+        from odoo.service._db_helpers import is_db_rpc_exposed
 
-        return rpc_db_exposed
+        return is_db_rpc_exposed
 
     @pytest.mark.parametrize(
         "db_name", [None, 42, 4.0, True, b"bytes", ["db"], {"db": 1}, object()]
@@ -1874,9 +1878,9 @@ class TestExpDuplicateRollback:
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", return_value=fake_db)
         )
         stack.enter_context(
-            patch("odoo.service.db.lifecycle.database_identifier", return_value="")
+            patch("odoo.service.db.lifecycle.get_database_identifier", return_value="")
         )
-        stack.enter_context(patch("odoo.service.db.lifecycle._drop_conn"))
+        stack.enter_context(patch("odoo.service.db.lifecycle._terminate_backends"))
         stack.enter_context(
             patch.object(
                 db_mod.lifecycle.odoo.tools.config,
@@ -1968,9 +1972,9 @@ class TestExpRenameRollback:
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", return_value=fake_db)
         )
         stack.enter_context(
-            patch("odoo.service.db.lifecycle.database_identifier", return_value="")
+            patch("odoo.service.db.lifecycle.get_database_identifier", return_value="")
         )
-        stack.enter_context(patch("odoo.service.db.lifecycle._drop_conn"))
+        stack.enter_context(patch("odoo.service.db.lifecycle._terminate_backends"))
         stack.enter_context(
             patch.object(
                 db_mod.lifecycle.odoo.tools.config,
@@ -2078,7 +2082,7 @@ class TestDropConnLogging:
         target_logger.setLevel(logging.DEBUG)
         try:
             with caplog.at_level(logging.DEBUG, logger="odoo.service.db"):
-                db_mod.lifecycle._drop_conn(fake_cr, "any_db")
+                db_mod.lifecycle._terminate_backends(fake_cr, "any_db")
         finally:
             target_logger.setLevel(prior_level)
 
@@ -2093,7 +2097,7 @@ class TestDropConnLogging:
     def test_failure_does_not_propagate(self, db_mod):
         fake_cr = MagicMock()
         fake_cr.execute.side_effect = RuntimeError("anything")
-        db_mod.lifecycle._drop_conn(fake_cr, "any_db")
+        db_mod.lifecycle._terminate_backends(fake_cr, "any_db")
 
 
 class TestRestoreDbOnErrorStop:
@@ -2156,7 +2160,7 @@ class TestRetryTerminateThenDdl:
         cr = MagicMock()
         run = MagicMock()
         with (
-            patch.object(db_mod.lifecycle, "_drop_conn") as drop_conn,
+            patch.object(db_mod.lifecycle, "_terminate_backends") as drop_conn,
             patch("odoo.service.db.lifecycle.time.sleep"),
         ):
             db_mod.lifecycle._retry_terminate_then_ddl(cr, "db", "OP: db", run)
@@ -2169,7 +2173,7 @@ class TestRetryTerminateThenDdl:
         cr = MagicMock()
         run = MagicMock(side_effect=[psycopg.errors.ObjectInUse("busy"), None])
         with (
-            patch.object(db_mod.lifecycle, "_drop_conn") as drop_conn,
+            patch.object(db_mod.lifecycle, "_terminate_backends") as drop_conn,
             patch("odoo.service.db.lifecycle.time.sleep") as sleep,
         ):
             db_mod.lifecycle._retry_terminate_then_ddl(cr, "db", "OP: db", run)
@@ -2183,7 +2187,7 @@ class TestRetryTerminateThenDdl:
         cr = MagicMock()
         run = MagicMock(side_effect=psycopg.errors.ObjectInUse("forever"))
         with (
-            patch.object(db_mod.lifecycle, "_drop_conn"),
+            patch.object(db_mod.lifecycle, "_terminate_backends"),
             patch("odoo.service.db.lifecycle.time.sleep"),
         ):
             with pytest.raises(RuntimeError, match="forever"):
@@ -2194,7 +2198,7 @@ class TestRetryTerminateThenDdl:
         cr = MagicMock()
         run = MagicMock(side_effect=ValueError("hard fail"))
         with (
-            patch.object(db_mod.lifecycle, "_drop_conn"),
+            patch.object(db_mod.lifecycle, "_terminate_backends"),
             patch("odoo.service.db.lifecycle.time.sleep") as sleep,
         ):
             with pytest.raises(ValueError, match="hard fail"):
@@ -2208,7 +2212,7 @@ class TestRetryTerminateThenDdl:
         cr = MagicMock()
         run = MagicMock(side_effect=psycopg.errors.ObjectInUse("forever"))
         with (
-            patch.object(db_mod.lifecycle, "_drop_conn"),
+            patch.object(db_mod.lifecycle, "_terminate_backends"),
             patch("odoo.service.db.lifecycle.time.sleep") as sleep,
         ):
             with pytest.raises(RuntimeError):
@@ -2286,7 +2290,7 @@ class TestDatabaseIdentifierPercent:
     def test_percent_in_identifier_does_not_raise(self, db_mod):
         cr = MagicMock()
         cr.connection = None
-        sql = db_mod.database_identifier(cr, "weird%name")
+        sql = db_mod.get_database_identifier(cr, "weird%name")
         assert (sql.code % sql.params) == '"weird%name"'
 
 
@@ -2363,7 +2367,9 @@ class TestDatabaseDdlSetsAutocommitFirst:
                 ),
             ),
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", db_connect),
-            patch("odoo.service.db.lifecycle.database_identifier", return_value="x"),
+            patch(
+                "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
+            ),
             patch("odoo.service.db.lifecycle._check_faketime_mode"),
         ):
             db_mod._create_empty_database("newdb")
@@ -2384,11 +2390,13 @@ class TestDatabaseDdlSetsAutocommitFirst:
                 ),
             ),
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", db_connect),
-            patch("odoo.service.db.lifecycle.database_identifier", return_value="x"),
+            patch(
+                "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
+            ),
             patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "forget"),
             patch.object(db_mod.lifecycle.odoo.db, "close_db"),
-            patch.object(db_mod.lifecycle, "_drop_conn"),
-            patch.object(db_mod.lifecycle, "_assert_filestore_dest_free"),
+            patch.object(db_mod.lifecycle, "_terminate_backends"),
+            patch.object(db_mod.lifecycle, "_check_filestore_dest_free"),
             patch.object(db_mod.lifecycle.shutil, "copytree"),
         ):
             with contextlib.suppress(Exception):
@@ -2401,10 +2409,12 @@ class TestDatabaseDdlSetsAutocommitFirst:
         db_connect, connections = self._recorder()
         with (
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", db_connect),
-            patch("odoo.service.db.lifecycle.database_identifier", return_value="x"),
+            patch(
+                "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
+            ),
             patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "forget"),
             patch.object(db_mod.lifecycle.odoo.db, "close_db"),
-            patch.object(db_mod.lifecycle, "_drop_conn"),
+            patch.object(db_mod.lifecycle, "_terminate_backends"),
         ):
             db_mod._drop_database("victim")
         assert (
@@ -2419,10 +2429,12 @@ class TestDatabaseDdlSetsAutocommitFirst:
         db_connect, connections = self._recorder()
         with (
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", db_connect),
-            patch("odoo.service.db.lifecycle.database_identifier", return_value="x"),
+            patch(
+                "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
+            ),
             patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "forget"),
             patch.object(db_mod.lifecycle.odoo.db, "close_db"),
-            patch.object(db_mod.lifecycle, "_drop_conn"),
+            patch.object(db_mod.lifecycle, "_terminate_backends"),
             patch.object(db_mod.lifecycle.shutil, "move"),
         ):
             db_mod._rename_database("old_name", "new_name")
@@ -2463,7 +2475,7 @@ class TestCreateEmptyDatabaseHardening:
                 ),
             ),
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", return_value=fake_db),
-            patch("odoo.service.db.lifecycle.database_identifier", identifier),
+            patch("odoo.service.db.lifecycle.get_database_identifier", identifier),
             patch("odoo.service.db.lifecycle._check_faketime_mode"),
         ):
             db_mod._create_empty_database("newdb")
@@ -2493,7 +2505,7 @@ class TestCreateEmptyDatabaseHardening:
         with (
             cm as db_connect_mock,
             patch.object(
-                db_mod.lifecycle, "database_identifier", return_value=SQL("x")
+                db_mod.lifecycle, "get_database_identifier", return_value=SQL("x")
             ),
         ):
             with pytest.raises(db_mod.DatabaseExists):
@@ -2740,7 +2752,7 @@ class TestRetryOnObjectInUse:
 
         cr = MagicMock()
         with (
-            patch.object(db_mod.lifecycle, "_drop_conn") as drop_conn,
+            patch.object(db_mod.lifecycle, "_terminate_backends") as drop_conn,
             patch.object(db_mod.lifecycle.time, "sleep"),
         ):
             db_mod.lifecycle._retry_terminate_then_ddl(
@@ -2771,7 +2783,7 @@ class TestCreateEmptyDatabaseTemplateContention:
         with (
             patch.object(odoo.db, "db_connect", return_value=conn),
             patch.object(
-                db_mod.lifecycle, "database_identifier", side_effect=lambda c, n: n
+                db_mod.lifecycle, "get_database_identifier", side_effect=lambda c, n: n
             ),
             patch.object(db_mod.lifecycle, "_check_faketime_mode"),
             patch.object(db_mod.lifecycle.time, "sleep"),
@@ -2792,10 +2804,10 @@ class TestCreateEmptyDatabaseTemplateContention:
         with (
             patch.object(odoo.db, "db_connect", return_value=conn),
             patch.object(
-                db_mod.lifecycle, "database_identifier", side_effect=lambda c, n: n
+                db_mod.lifecycle, "get_database_identifier", side_effect=lambda c, n: n
             ),
             patch.object(db_mod.lifecycle, "_check_faketime_mode"),
-            patch.object(db_mod.lifecycle, "_drop_conn") as drop_conn,
+            patch.object(db_mod.lifecycle, "_terminate_backends") as drop_conn,
             patch.object(
                 odoo.tools,
                 "config",
@@ -2919,7 +2931,7 @@ class TestZipDumpDoesNotStageFilestore:
 
 class TestPublicReadVerbsAreMemoized:
     def test_countries_xml_parsed_once(self, db_mod):
-        db_mod.listing._scan_countries.cache_clear()
+        db_mod.listing._read_countries.cache_clear()
         try:
             with patch.object(
                 db_mod.listing.ET, "parse", wraps=db_mod.listing.ET.parse
@@ -2929,10 +2941,10 @@ class TestPublicReadVerbsAreMemoized:
             assert parse.call_count == 1, "the country XML was re-parsed per call"
             assert first == second
         finally:
-            db_mod.listing._scan_countries.cache_clear()
+            db_mod.listing._read_countries.cache_clear()
 
     def test_countries_result_is_not_shared_across_calls(self, db_mod):
-        db_mod.listing._scan_countries.cache_clear()
+        db_mod.listing._read_countries.cache_clear()
         try:
             first = db_mod.exp_list_countries()
             first.append(["zz", "Mutated"])
@@ -2941,7 +2953,7 @@ class TestPublicReadVerbsAreMemoized:
             assert ["zz", "Mutated"] not in second
             assert second[0][0] != "hacked"
         finally:
-            db_mod.listing._scan_countries.cache_clear()
+            db_mod.listing._read_countries.cache_clear()
 
     def test_countries_shape_is_list_of_lists(self, db_mod):
         result = db_mod.exp_list_countries()
@@ -3052,20 +3064,20 @@ class TestExpDropGate:
 class TestUnpackBudgetAcceptsFileObjects:
     def test_path_sizing_unchanged(self, db_mod, zip_dump):
         expected = pathlib.Path(zip_dump).stat().st_size
-        assert db_mod.restore._source_size(zip_dump) == expected
+        assert db_mod.restore._get_source_size(zip_dump) == expected
 
     def test_spooled_temporary_file_is_sized_without_a_path(self, db_mod):
         import io as _io
 
         buf = _io.BytesIO(b"0123456789")
-        assert db_mod.restore._source_size(buf) == 10
+        assert db_mod.restore._get_source_size(buf) == 10
         assert buf.tell() == 0
 
     def test_spooled_temporary_file_position_is_preserved(self, db_mod):
         sp = tempfile.SpooledTemporaryFile(max_size=1024)  # noqa: SIM115  closed by GC; a `with` would hide the seek assertions below
         sp.write(b"abc" * 100)
         sp.seek(7)
-        assert db_mod.restore._source_size(sp) == 300
+        assert db_mod.restore._get_source_size(sp) == 300
         assert sp.tell() == 7
 
     def test_unpack_budget_does_not_raise_on_a_file_object(self, db_mod):
@@ -3082,20 +3094,20 @@ class TestPgDumpFailurePolicyIsShared:
     def test_both_runners_report_a_timeout_identically(self):
         from odoo.service.db import dump
 
-        assert "ODOO_PG_DUMP_TOTAL_TIMEOUT" in str(dump._timed_out(3600.0))
-        assert "3600s" in str(dump._timed_out(3600.0))
+        assert "ODOO_PG_DUMP_TOTAL_TIMEOUT" in str(dump._prepare_timeout_error(3600.0))
+        assert "3600s" in str(dump._prepare_timeout_error(3600.0))
 
     def test_both_runners_report_a_failure_identically(self):
         from odoo.service.db import dump
 
-        message = str(dump._failed(2, b"  connection refused\n"))
+        message = str(dump._prepare_pg_dump_failed_error(2, b"  connection refused\n"))
         assert "exit 2" in message
         assert "connection refused" in message
 
     def test_undecodable_stderr_does_not_mask_the_failure(self):
         from odoo.service.db import dump
 
-        assert "exit 1" in str(dump._failed(1, b"\xff\xfe bad"))
+        assert "exit 1" in str(dump._prepare_pg_dump_failed_error(1, b"\xff\xfe bad"))
 
     def test_neither_runner_spells_the_message_itself(self):
         import inspect

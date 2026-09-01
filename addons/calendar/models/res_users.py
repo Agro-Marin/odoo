@@ -221,7 +221,9 @@ class ResUsers(models.Model):
                 "type": "meeting",
                 "name": meeting_label,
                 "model": "calendar.event",
-                "icon": modules.module.get_module_icon(EventModel._original_module),
+                "icon": modules.module.get_module_icon_path(
+                    EventModel._original_module
+                ),
                 "domain": [("active", "in", [True, False])],
                 "meetings": meetings_lines,
                 "view_type": EventModel._systray_view,

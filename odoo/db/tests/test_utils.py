@@ -5,7 +5,7 @@ from odoo.db import utils as db_utils
 from odoo.db.utils import (
     _HEALTH_PARAMS,
     categorize_query,
-    get_connection_info_for,
+    get_connection_info_for_database,
     get_value_marker_positions,
     is_maintenance_db,
 )
@@ -72,7 +72,7 @@ class TestConnectionInfoForKeywords(unittest.TestCase):
     def _info(self, name="mydb", readonly=False, **overrides):
         with patch.object(db_utils, "tools") as tools:
             tools.config = _config(**overrides)
-            return get_connection_info_for(name, readonly)
+            return get_connection_info_for_database(name, readonly)
 
     def test_returns_the_database_name_unchanged(self):
         db, info = self._info("mydb")
@@ -110,7 +110,7 @@ class TestConnectionInfoForReplica(unittest.TestCase):
     def _info(self, readonly, **overrides):
         with patch.object(db_utils, "tools") as tools:
             tools.config = _config(**overrides)
-            return get_connection_info_for("mydb", readonly)[1]
+            return get_connection_info_for_database("mydb", readonly)[1]
 
     def test_replica_overrides_host_and_port_only(self):
         info = self._info(True, db_replica_host="replica.example", db_replica_port=5433)
@@ -132,7 +132,7 @@ class TestConnectionInfoForUri(unittest.TestCase):
     def _info(self, uri):
         with patch.object(db_utils, "tools") as tools:
             tools.config = _config()
-            return get_connection_info_for(uri)
+            return get_connection_info_for_database(uri)
 
     def test_database_is_taken_from_the_uri_path(self):
         db, info = self._info("postgresql://user@host:5432/thedb")

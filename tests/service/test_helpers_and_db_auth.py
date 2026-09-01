@@ -3,29 +3,29 @@ from types import SimpleNamespace
 from unittest import mock
 
 from odoo.service import db as db_service
-from odoo.service._limits import over_memory_soft_limit
+from odoo.service._limits import get_memory_over_soft_limit
 
 
 def _proc(rss):
-    return SimpleNamespace(memory_info=lambda: SimpleNamespace(rss=rss))
+    return SimpleNamespace(get_memory_rss=lambda: SimpleNamespace(rss=rss))
 
 
 class TestMemorySoftLimit(unittest.TestCase):
     def test_disabled_limit_skips_the_proc_read(self):
         class Boom:
-            def memory_info(self):
+            def get_memory_rss(self):
                 raise AssertionError("RSS must not be read when the limit is 0")
 
-        self.assertIsNone(over_memory_soft_limit(Boom(), 0))
+        self.assertIsNone(get_memory_over_soft_limit(Boom(), 0))
 
     def test_under_limit_returns_none(self):
-        self.assertIsNone(over_memory_soft_limit(_proc(100), 200))
+        self.assertIsNone(get_memory_over_soft_limit(_proc(100), 200))
 
     def test_at_limit_is_not_over(self):
-        self.assertIsNone(over_memory_soft_limit(_proc(200), 200))
+        self.assertIsNone(get_memory_over_soft_limit(_proc(200), 200))
 
     def test_over_limit_returns_current_rss(self):
-        self.assertEqual(over_memory_soft_limit(_proc(300), 200), 300)
+        self.assertEqual(get_memory_over_soft_limit(_proc(300), 200), 300)
 
 
 class TestInternalDropIsUngated(unittest.TestCase):

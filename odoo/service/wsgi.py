@@ -19,13 +19,13 @@ from werkzeug.urls import uri_to_iri
 from odoo.libs.worker_thread import as_worker_thread, current_worker_thread
 from odoo.tools.config import config
 
-from ._env import env_float, env_int
+from ._env import get_env_float, get_env_int
 
 _logger = logging.getLogger("odoo.service.server")
 
 
-def http_socket_timeout() -> float:
-    return env_float("ODOO_HTTP_SOCKET_TIMEOUT", 2.0, minimum=0.1, logger=_logger)
+def get_http_socket_timeout() -> float:
+    return get_env_float("ODOO_HTTP_SOCKET_TIMEOUT", 2.0, minimum=0.1, logger=_logger)
 
 
 def _plain_style(msg: str, *styles: str) -> str:
@@ -39,7 +39,7 @@ def _is_ansi_enabled() -> bool:
     return sys.stderr.isatty()
 
 
-def _maybe_style(msg: str, *styles: str) -> str:
+def _style_if_ansi_enabled(msg: str, *styles: str) -> str:
     if not _is_ansi_enabled():
         return msg
     return _ansi_style(msg, *styles)
@@ -153,26 +153,26 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
             return
 
         if code[0] == "1":
-            msg = _maybe_style(msg, "bold")
+            msg = _style_if_ansi_enabled(msg, "bold")
         elif code == "200":
             pass
         elif code == "304":
-            msg = _maybe_style(msg, "cyan")
+            msg = _style_if_ansi_enabled(msg, "cyan")
         elif code[0] == "3":
-            msg = _maybe_style(msg, "green")
+            msg = _style_if_ansi_enabled(msg, "green")
         elif code == "404":
-            msg = _maybe_style(msg, "yellow")
+            msg = _style_if_ansi_enabled(msg, "yellow")
         elif code[0] == "4":
-            msg = _maybe_style(msg, "bold", "red")
+            msg = _style_if_ansi_enabled(msg, "bold", "red")
         else:
-            msg = _maybe_style(msg, "bold", "magenta")
+            msg = _style_if_ansi_enabled(msg, "bold", "magenta")
 
         self.log("info", '"%s" %s %s', msg, code, size)
 
 
 class RequestHandler(CommonRequestHandler):
     def setup(self) -> None:
-        self.timeout = http_socket_timeout()
+        self.timeout = get_http_socket_timeout()
         if config["test_enable"]:
             self.timeout = max(self.timeout, 5)
         super().setup()
@@ -227,7 +227,7 @@ class ThreadedWSGIServerReloadable(
             // 2,
             1,
         )
-        self.max_http_threads = env_int(
+        self.max_http_threads = get_env_int(
             "ODOO_MAX_HTTP_THREADS", auto_limit, minimum=0, logger=_logger
         )
         self._announce_thread_budget(auto_limit)

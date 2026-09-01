@@ -213,7 +213,7 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
                                 ],
                             )
 
-        result = self.uow.run_flush_loop(recompute_fn, flush_fn)
+        result = self.uow.flush_until_converged(recompute_fn, flush_fn)
         self.assertTrue(result.converged)
         self.assertIn("m", flushed_models)
         row = _present(self.storage.get_row("m", 1))
@@ -248,7 +248,7 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
                     if field.model_name == model_name:
                         self.cache.pop_dirty(field)
 
-        result = self.uow.run_flush_loop(recompute_fn, flush_fn)
+        result = self.uow.flush_until_converged(recompute_fn, flush_fn)
         self.assertTrue(result.converged)
         self.assertEqual(self.cache.get_value(f_c, 1), 106)
 

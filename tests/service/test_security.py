@@ -51,29 +51,29 @@ class TestCheckSession:
             uid=1, sid="abc", token="tok", deletion_time=time.time() - 1
         )
         env, _ = _make_env("tok")
-        assert sec.check_session(session, env) is False
+        assert sec.is_session_valid(session, env) is False
 
     def test_token_mismatch_returns_false(self, sec) -> None:
         session = _FakeSession(uid=1, sid="abc", token="wrong")
         env, _ = _make_env("correct")
-        assert sec.check_session(session, env) is False
+        assert sec.is_session_valid(session, env) is False
 
     def test_non_string_token_is_refused_before_the_comparison(self, sec) -> None:
         for bad in (None, 42, b"tok", ["tok"]):
             session = _FakeSession(uid=1, sid="abc", token=bad)
             env, _ = _make_env("correct")
-            assert sec.check_session(session, env) is False, bad
+            assert sec.is_session_valid(session, env) is False, bad
 
     def test_no_expected_token_returns_false(self, sec) -> None:
         session = _FakeSession(uid=1, sid="abc", token="anything")
         env, _ = _make_env("")
-        result = sec.check_session(session, env)
+        result = sec.is_session_valid(session, env)
         assert result is False
 
     def test_valid_session_no_request_returns_true(self, sec) -> None:
         session = _FakeSession(uid=1, sid="abc", token="good_token")
         env, _ = _make_env("good_token")
-        result = sec.check_session(session, env)
+        result = sec.is_session_valid(session, env)
         assert result is True
         accessed_keys = [c.args[0] for c in env.__getitem__.call_args_list]
         assert "res.device.log" not in accessed_keys
@@ -85,7 +85,7 @@ class TestCheckSession:
         env, _ = _make_env("good_token", device_log=device_log)
 
         mock_request = MagicMock()
-        result = sec.check_session(session, env, request=mock_request)
+        result = sec.is_session_valid(session, env, request=mock_request)
 
         assert result is True
         device_log._update_device.assert_called_once_with(mock_request)
@@ -98,7 +98,7 @@ class TestCheckSession:
         env, _ = _make_env("good_token", device_log=device_log)
 
         mock_request = MagicMock()
-        result = sec.check_session(session, env, request=mock_request)
+        result = sec.is_session_valid(session, env, request=mock_request)
 
         assert result is True, (
             "a device-log write failure logged the user out; the session was "
@@ -117,7 +117,7 @@ class TestCheckSession:
         env, _ = _make_env("good_token", device_log=device_log)
 
         with caplog.at_level(logging.WARNING, logger="odoo.service.security"):
-            assert sec.check_session(session, env, request=MagicMock()) is True
+            assert sec.is_session_valid(session, env, request=MagicMock()) is True
 
         assert any(r.levelno >= logging.WARNING for r in caplog.records), (
             "the swallowed device-log failure produced no operator-visible record"
@@ -126,5 +126,5 @@ class TestCheckSession:
     def test_delete_old_sessions_always_called(self, sec) -> None:
         session = _FakeSession(uid=1, sid="abc", token="tok")
         env, _ = _make_env("tok")
-        sec.check_session(session, env)
+        sec.is_session_valid(session, env)
         session._remove_old_sessions.assert_called_once()

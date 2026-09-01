@@ -14,7 +14,7 @@ from odoo.tools.translate import (
     trans_export,
 )
 
-from . import DatabaseCommand, odoo_env
+from . import DatabaseCommand, open_environment
 
 _logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ class I18n(DatabaseCommand):
             "Import i18n files",
             "Imports provided translation files",
         )
-        parser.set_defaults(func=self._import)
+        parser.set_defaults(func=self._import_translations)
         parser.add_argument(
             "files",
             nargs="+",
@@ -118,7 +118,7 @@ class I18n(DatabaseCommand):
             "Export i18n files",
             "Exports language files into the i18n folder of each module",
         )
-        parser.set_defaults(func=self._export)
+        parser.set_defaults(func=self._export_translations)
         parser.add_argument(
             "-l",
             "--languages",
@@ -153,7 +153,7 @@ class I18n(DatabaseCommand):
         parser = self._add_subparser(
             subparsers, "loadlang", "Load languages", "Loads languages"
         )
-        parser.set_defaults(func=self._loadlang)
+        parser.set_defaults(func=self._load_languages)
         parser.add_argument(
             "-l",
             "--languages",
@@ -171,7 +171,7 @@ class I18n(DatabaseCommand):
         parsed_args.func(parsed_args)
 
     def _get_languages(
-        self, env: Any, language_codes: list[str], active_test: bool = True
+        self, env: Any, language_codes: list[str], installed_only: bool = True
     ) -> Any:
         Lang = env["res.lang"].with_context(active_test=False)
         languages = Lang.search(
@@ -190,7 +190,7 @@ class I18n(DatabaseCommand):
                 "Ignoring not found languages: %s",
                 ", ".join(not_found_language_codes),
             )
-        if active_test:
+        if installed_only:
             if not_installed_languages := languages.filtered(lambda x: not x.active):
                 languages -= not_installed_languages
                 iso_codes = not_installed_languages.mapped("iso_code")
@@ -207,7 +207,7 @@ class I18n(DatabaseCommand):
                 )
         return languages
 
-    def _import(self, parsed_args: argparse.Namespace) -> None:
+    def _import_translations(self, parsed_args: argparse.Namespace) -> None:
         paths = OrderedSet(parsed_args.files)
         if invalid_paths := [
             path
@@ -222,7 +222,7 @@ class I18n(DatabaseCommand):
         if not paths:
             self.import_parser.error("No valid path was provided")
 
-        with odoo_env(parsed_args.db_name) as env:
+        with open_environment(parsed_args.db_name) as env:
             translation_importer = TranslationImporter(env.cr)
             language = self._get_languages(env, [parsed_args.language])
             if not language:
@@ -242,7 +242,7 @@ class I18n(DatabaseCommand):
                 force_overwrite=parsed_args.force_overwrite,
             )
 
-    def _export(self, parsed_args: argparse.Namespace) -> None:
+    def _export_translations(self, parsed_args: argparse.Namespace) -> None:
         requested_languages = list(parsed_args.languages or ["pot"])
         export_pot = "pot" in requested_languages
 
@@ -265,7 +265,7 @@ class I18n(DatabaseCommand):
         if export_pot:
             requested_languages.remove("pot")
 
-        with odoo_env(parsed_args.db_name, readonly=True) as env:
+        with open_environment(parsed_args.db_name, readonly=True) as env:
             modules = env["ir.module.module"].search_fetch(
                 [("name", "in", parsed_args.modules)], ["name", "state"]
             )
@@ -300,7 +300,9 @@ class I18n(DatabaseCommand):
                         f"{len(languages)} matches: {languages.mapped('code')}"
                     )
                 lang_code = languages.code if languages else None
-                self._export_file(env, module_names, lang_code, parsed_args.output)
+                self._export_translations_to_path(
+                    env, module_names, lang_code, parsed_args.output
+                )
             else:
                 module_paths = {}
                 for module_name in module_names:
@@ -316,12 +318,16 @@ class I18n(DatabaseCommand):
                     i18n_path = Path(module_paths[module_name], "i18n")
                     if export_pot:
                         path = i18n_path / f"{module_name}.pot"
-                        self._export_file(env, [module_name], None, path)
+                        self._export_translations_to_path(
+                            env, [module_name], None, path
+                        )
                     for language in languages:
                         path = i18n_path / f"{language.iso_code}.po"
-                        self._export_file(env, [module_name], language.code, path)
+                        self._export_translations_to_path(
+                            env, [module_name], language.code, path
+                        )
 
-    def _export_file(
+    def _export_translations_to_path(
         self,
         env: Any,
         module_names: list[str],
@@ -346,9 +352,9 @@ class I18n(DatabaseCommand):
             if not trans_export(lang_code, module_names, outfile, export_format, env):
                 _logger.warning("No translatable terms were found in %s.", module_names)
 
-    def _loadlang(self, parsed_args: argparse.Namespace) -> None:
-        with odoo_env(parsed_args.db_name) as env:
+    def _load_languages(self, parsed_args: argparse.Namespace) -> None:
+        with open_environment(parsed_args.db_name) as env:
             for language in self._get_languages(
-                env, parsed_args.languages, active_test=False
+                env, parsed_args.languages, installed_only=False
             ):
                 load_language(env.cr, language.code)

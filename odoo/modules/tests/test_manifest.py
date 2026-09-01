@@ -10,9 +10,9 @@ from unittest.mock import patch
 from odoo.modules.module import (
     Manifest,
     MissingDependencyError,
-    _load_manifest,
+    _normalise_manifest,
     check_python_external_dependency,
-    get_module_icon,
+    get_module_icon_path,
 )
 from odoo.release import major_version
 from odoo.tools import mute_logger
@@ -147,37 +147,39 @@ class TestManifestAutoInstall(BaseCase):
 
     def test_auto_install_string_is_rejected(self):
         with self.assertRaisesRegex(TypeError, "forget.*brackets"):
-            _load_manifest(
+            _normalise_manifest(
                 "m", {**self.BASE, "auto_install": "sale", "depends": ["sale"]}
             )
 
     def test_auto_install_non_bool_non_collection_rejected(self):
         with self.assertRaisesRegex(TypeError, "must be a bool"):
-            _load_manifest("m", {**self.BASE, "auto_install": 5, "depends": ["base"]})
+            _normalise_manifest(
+                "m", {**self.BASE, "auto_install": 5, "depends": ["base"]}
+            )
 
     def test_auto_install_trigger_must_be_a_dependency(self):
         with self.assertRaisesRegex(AssertionError, "must be dependencies"):
-            _load_manifest(
+            _normalise_manifest(
                 "m", {**self.BASE, "auto_install": ["sale"], "depends": ["base"]}
             )
 
     def test_auto_install_true_expands_to_all_depends(self):
-        manifest = _load_manifest(
+        manifest = _normalise_manifest(
             "m", {**self.BASE, "auto_install": True, "depends": ["base", "sale"]}
         )
         self.assertEqual(manifest["auto_install"], {"base", "sale"})
 
     def test_auto_install_list_subset_of_depends_is_kept(self):
-        manifest = _load_manifest(
+        manifest = _normalise_manifest(
             "m", {**self.BASE, "auto_install": ["base"], "depends": ["base", "sale"]}
         )
         self.assertEqual(manifest["auto_install"], {"base"})
 
     def test_base_depends_forced_empty(self):
-        self.assertEqual(_load_manifest("base", dict(self.BASE))["depends"], [])
+        self.assertEqual(_normalise_manifest("base", dict(self.BASE))["depends"], [])
 
     def test_non_base_empty_depends_forced_to_base(self):
-        self.assertEqual(_load_manifest("m", dict(self.BASE))["depends"], ["base"])
+        self.assertEqual(_normalise_manifest("m", dict(self.BASE))["depends"], ["base"])
 
 
 class TestManifestCache(_ManifestCase):
@@ -297,19 +299,19 @@ class TestManifestVersionResilience(_ManifestCase):
 
     def test_malformed_version_demotes_to_uninstallable(self):
         with self.assertLogs("odoo.modules.module", "WARNING") as capture:
-            manifest = _load_manifest("m", {**self.BASE, "version": "1.0-beta"})
+            manifest = _normalise_manifest("m", {**self.BASE, "version": "1.0-beta"})
         self.assertFalse(manifest["installable"])
         self.assertIn("invalid version", capture.output[0])
 
     def test_malformed_version_on_uninstallable_module_is_tolerated(self):
-        manifest = _load_manifest(
+        manifest = _normalise_manifest(
             "m", {**self.BASE, "version": "1.0-beta", "installable": False}
         )
         self.assertFalse(manifest["installable"])
 
     def test_string_depends_rejected(self):
         with self.assertRaisesRegex(TypeError, "forget.*brackets"):
-            _load_manifest("m", {**self.BASE, "depends": "base"})
+            _normalise_manifest("m", {**self.BASE, "depends": "base"})
 
 
 class TestModuleIcon(_ManifestCase):
@@ -341,11 +343,14 @@ class TestModuleIcon(_ManifestCase):
 
     def test_missing_icon_falls_back_to_base_default(self):
         name = self._make("probe_icon")
-        self.assertEqual(get_module_icon(name), "/base/static/description/icon.png")
+        self.assertEqual(
+            get_module_icon_path(name), "/base/static/description/icon.png"
+        )
 
     def test_icon_for_unknown_module_is_base_default(self):
         self.assertEqual(
-            get_module_icon("no_such_module_xyz"), "/base/static/description/icon.png"
+            get_module_icon_path("no_such_module_xyz"),
+            "/base/static/description/icon.png",
         )
 
     def test_the_manifest_resolves_its_own_icon_without_looking_itself_up(self):
@@ -363,7 +368,7 @@ class TestModuleIcon(_ManifestCase):
         self.assertEqual(
             self._found_manifest(name)["icon"], "/base/static/description/icon.png"
         )
-        self.assertEqual(get_module_icon(name), self._found_manifest(name)["icon"])
+        self.assertEqual(get_module_icon_path(name), self._found_manifest(name)["icon"])
 
 
 class TestManifestMapping(BaseCase):

@@ -153,7 +153,7 @@ class MemorySessionStore(FilesystemSessionStore):
     def _remove_sid(self, sid):
         self.store.pop(sid, None)
 
-    def remove_from_identifiers(self, identifiers, exclude_sid=None):
+    def remove_sessions_for_identifiers(self, identifiers, exclude_sid=None):
         sid_to_remove = [
             sid
             for sid in self.store
