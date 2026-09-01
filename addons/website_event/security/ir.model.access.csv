@@ -8,7 +8,6 @@ access_event_event_ticket_employee,event.event.ticket,event.model_event_event_ti
 access_event_event_slot_public,event.slot,event.model_event_slot,base.group_public,1,0,0,0
 access_event_event_slot_portal,event.slot,event.model_event_slot,base.group_portal,1,0,0,0
 access_event_event_slot_employee,event.slot,event.model_event_slot,base.group_user,1,0,0,0
-access_event_type,event.type,event.model_event_type,,0,0,0,0
 access_event_tag_category_public,event.tag.category,event.model_event_tag_category,base.group_public,1,0,0,0
 access_event_tag_category_portal,event.tag.category,event.model_event_tag_category,base.group_portal,1,0,0,0
 access_event_tag_category_employee,event.tag.category,event.model_event_tag_category,base.group_user,1,0,0,0
