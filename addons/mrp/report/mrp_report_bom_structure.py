@@ -1355,7 +1355,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         workcenters = (
             operation.workcenter_id | operation.workcenter_id.alternative_workcenter_ids
         )
-        best, reasons = workcenters._pick_earliest_slot(
+        best, reasons = workcenters._get_earliest_slot_and_reasons(
             date_start,
             {
                 workcenter: operation.with_context(

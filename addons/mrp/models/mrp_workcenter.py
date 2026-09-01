@@ -69,19 +69,19 @@ class MrpWorkcenter(models.Model):
     )
     order_ids = fields.One2many("mrp.workorder", "workcenter_id", "Orders")
     workorder_count = fields.Integer(
-        "# Work Orders", compute="_compute_workorder_count"
+        "# Work Orders", compute="_compute_workorder_counts_and_load"
     )
     workorder_ready_count = fields.Integer(
-        "# To Do Work Orders", compute="_compute_workorder_count"
+        "# To Do Work Orders", compute="_compute_workorder_counts_and_load"
     )
     workorder_progress_count = fields.Integer(
-        "Total Running Orders", compute="_compute_workorder_count"
+        "Total Running Orders", compute="_compute_workorder_counts_and_load"
     )
     workorder_blocked_count = fields.Integer(
-        "Total Pending Orders", compute="_compute_workorder_count"
+        "Total Pending Orders", compute="_compute_workorder_counts_and_load"
     )
     workorder_late_count = fields.Integer(
-        "Total Late Orders", compute="_compute_workorder_count"
+        "Total Late Orders", compute="_compute_workorder_counts_and_load"
     )
 
     time_ids = fields.One2many(
@@ -122,7 +122,7 @@ class MrpWorkcenter(models.Model):
         help="Performance over the last month",
     )
     workcenter_load = fields.Float(
-        "Work Center Load", compute="_compute_workorder_count"
+        "Work Center Load", compute="_compute_workorder_counts_and_load"
     )
     alternative_workcenter_ids = fields.Many2many(
         "mrp.workcenter",
@@ -288,7 +288,7 @@ class MrpWorkcenter(models.Model):
         "order_ids.state",
         "order_ids.date_start",
     )
-    def _compute_workorder_count(self):
+    def _compute_workorder_counts_and_load(self):
         MrpWorkorder = self.env["mrp.workorder"]
         counts = {wid: {} for wid in self._ids}
         load = dict.fromkeys(self._ids, 0)
@@ -404,7 +404,7 @@ class MrpWorkcenter(models.Model):
         for workcenter in self:
             workcenter.has_routing_lines = bool(workcenter.routing_line_ids)
 
-    def unblock(self):
+    def action_unblock(self):
         self.check_singleton()
         if self.working_state != "blocked":
             raise UserError(_("It has already been unblocked."))
@@ -545,7 +545,7 @@ class MrpWorkcenter(models.Model):
             )
         return revert(slot[0]), revert(slot[1])
 
-    def _pick_earliest_slot(
+    def _get_earliest_slot_and_reasons(
         self,
         date_start,
         duration_by_workcenter,
@@ -843,14 +843,8 @@ class MrpWorkcenterProductivityLoss(models.Model):
             )
         return loss
 
-    def _convert_to_duration(self, date_start, date_stop, workcenter=False):
-        self.check_singleton()
-        return self._convert_to_duration_batch(
-            [(self, workcenter, date_start, date_stop)]
-        )[0]
-
     @api.model
-    def _convert_to_duration_batch(self, spans):
+    def _get_durations_batch(self, spans):
         durations = [0.0] * len(spans)
         spans_per_workcenter = defaultdict(list)
         for index, (loss, workcenter, date_start, date_stop) in enumerate(spans):
@@ -969,9 +963,9 @@ class MrpWorkcenterProductivity(models.Model):
                 )
             else:
                 blocktime.duration = 0.0
-        durations = self.env[
-            "mrp.workcenter.productivity.loss"
-        ]._convert_to_duration_batch(spans)
+        durations = self.env["mrp.workcenter.productivity.loss"]._get_durations_batch(
+            spans
+        )
         for blocktime, duration in zip(measured, durations, strict=True):
             blocktime.duration = duration
 

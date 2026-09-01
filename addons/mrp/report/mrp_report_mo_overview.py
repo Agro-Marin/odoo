@@ -31,14 +31,14 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         docs = []
         for prod_id in docids:
             doc = self._get_report_data(prod_id)
-            docs.append(self._include_pdf_specifics(doc, data))
+            docs.append(self._update_pdf_specifics(doc, data))
         return {
             "doc_ids": docids,
             "doc_model": "mrp.production",
             "docs": docs,
         }
 
-    def _include_pdf_specifics(self, doc, data=None):
+    def _update_pdf_specifics(self, doc, data=None):
         def get_color(decorator):
             return f"text-{decorator}" if decorator else ""
 
@@ -559,7 +559,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 wo_duration if is_workorder_started else workorder.duration_expected
             )
             total_expected_cost += production.company_id.currency_id.round(mo_cost)
-            total_bom_cost = self._sum_bom_cost(total_bom_cost, bom_cost)
+            total_bom_cost = self._sum_costs(total_bom_cost, bom_cost)
             total_real_cost += real_cost
 
         mo_cost_decorator = False
@@ -636,7 +636,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             total_duration_expected += workorder.duration_expected
             total_cost += operation_cost
             total_mo_cost += mo_cost
-            total_bom_cost = self._sum_bom_cost(total_bom_cost, bom_cost)
+            total_bom_cost = self._sum_costs(total_bom_cost, bom_cost)
             operations.append(
                 {
                     "level": level,
@@ -699,7 +699,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             bom_cost = current_bom_cost * cost_share
             real_cost = current_real_cost * cost_share
             total_mo_cost += mo_cost
-            total_bom_cost = self._sum_bom_cost(total_bom_cost, bom_cost)
+            total_bom_cost = self._sum_costs(total_bom_cost, bom_cost)
             total_real_cost += real_cost
             if self._is_production_started(production):
                 mo_cost_decorator = self._get_comparison_decorator(
@@ -942,13 +942,16 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
     def _get_component_receipt(
         self, product, move, warehouse, replenishments, replenish_data
     ):
-        def get(replenishment, key, check_in_receipt=False):
-            fetch = replenishment.get("summary", {})
+        def get_summary_value(replenishment, key, check_in_receipt=False):
+            summary = replenishment.get("summary", {})
             if check_in_receipt:
-                fetch = fetch.get("receipt", {})
-            return fetch.get(key, False)
+                summary = summary.get("receipt", {})
+            return summary.get(key, False)
 
-        if any(get(rep, "type", True) == "unavailable" for rep in replenishments):
+        if any(
+            get_summary_value(rep, "type", True) == "unavailable"
+            for rep in replenishments
+        ):
             return self._format_receipt_date("unavailable")
         if not product.is_storable or move.state == "done":
             return self._format_receipt_date("available")
@@ -974,11 +977,12 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             )
         )
         max_date = max(
-            [get(rep, "date", True) for rep in replenishments_with_date],
+            [get_summary_value(rep, "date", True) for rep in replenishments_with_date],
             default=fields.Datetime.today(),
         )
         if has_to_order_line or any(
-            get(rep, "type", True) == "estimated" for rep in replenishments
+            get_summary_value(rep, "type", True) == "estimated"
+            for rep in replenishments
         ):
             return self._format_receipt_date("estimated", max_date)
         else:
@@ -1490,7 +1494,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             product = component_move.product_id
             required_qty = component_move.product_uom_qty
             for move_origin in self.env["stock.move"].browse(
-                component_move._rollup_move_origs()
+                component_move._rollup_move_orig_ids()
             ):
                 doc_origin = self._get_origin(move_origin)
                 if doc_origin:
@@ -1550,7 +1554,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 line["move_out"].product_uom_qty, line["uom_id"]
             )
             for move_origin in self.env["stock.move"].browse(
-                line["move_out"]._rollup_move_origs()
+                line["move_out"]._rollup_move_orig_ids()
             ):
                 doc_origin = self._get_origin(move_origin)
                 if doc_origin:
@@ -1705,7 +1709,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             wh_location_ids = self._get_warehouse_locations(warehouse, replenish_data)
             linked_moves = (
                 self.env["stock.move"]
-                .browse(move_raw._rollup_move_origs())
+                .browse(move_raw._rollup_move_orig_ids())
                 .filtered(lambda m: m.location_id.id in wh_location_ids)
             )
             for move in linked_moves:
@@ -1737,7 +1741,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
 
         return replenish_data["qty_reserved"][move_raw]
 
-    def _sum_bom_cost(self, current_total, increment):
+    def _sum_costs(self, current_total, increment):
         if current_total is False and increment is False:
             return False
         return current_total + increment

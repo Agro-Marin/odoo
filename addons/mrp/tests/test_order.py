@@ -139,7 +139,7 @@ class TestMrpOrder(TestMrpCommon):
         )
 
         quantity_issues = man_order._get_consumption_issues()
-        action = man_order._action_generate_consumption_wizard(quantity_issues)
+        action = man_order._prepare_action_consumption_wizard(quantity_issues)
         backorder = Form(
             self.env["mrp.production.backorder"].with_context(**action["context"])
         )
@@ -1048,7 +1048,7 @@ class TestMrpOrder(TestMrpCommon):
         mo.button_mark_done()
         self.assertEqual(mo.state, "to_close")
         consumption_issues = mo._get_consumption_issues()
-        action = mo._action_generate_consumption_wizard(consumption_issues)
+        action = mo._prepare_action_consumption_wizard(consumption_issues)
         warning = Form(
             self.env["mrp.consumption.warning"].with_context(**action["context"])
         )
@@ -1094,7 +1094,7 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(mo.state, "to_close")
 
         consumption_issues = mo._get_consumption_issues()
-        action = mo._action_generate_consumption_wizard(consumption_issues)
+        action = mo._prepare_action_consumption_wizard(consumption_issues)
         warning = Form(
             self.env["mrp.consumption.warning"].with_context(**action["context"])
         )
@@ -1843,7 +1843,7 @@ class TestMrpOrder(TestMrpCommon):
                 "lot_id": sn.id,
             }
         )
-        scrap.do_scrap()
+        scrap._action_done()
 
         unscrap_picking = self.env["stock.picking"].create(
             {
@@ -2995,7 +2995,7 @@ class TestMrpOrder(TestMrpCommon):
         mo.action_assign()
         self.assertEqual(mo.move_raw_ids.state, "assigned")
         self.assertEqual(list(mo.workorder_ids.mapped("state")), ["ready", "blocked"])
-        mo.do_unreserve()
+        mo.action_unreserve()
         self.assertEqual(list(mo.workorder_ids.mapped("state")), ["ready", "blocked"])
 
         mo.workorder_ids[0].unlink()
@@ -5823,7 +5823,7 @@ class TestMrpOrder(TestMrpCommon):
                     }
                 )
             )
-            replenish_wizard.launch_replenishment()
+            replenish_wizard.action_replenish()
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product_to_build
         mo_form.bom_id = bom_1

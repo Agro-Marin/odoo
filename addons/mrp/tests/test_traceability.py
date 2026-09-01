@@ -726,7 +726,7 @@ class TestTraceability(TestMrpCommon):
             }
         )
         scrap_location = scrap.scrap_location_id
-        scrap.do_scrap()
+        scrap._action_done()
 
         internal_move = self.env["stock.move"].create(
             {

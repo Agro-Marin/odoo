@@ -197,13 +197,13 @@ class MrpBomLine(models.Model):
 
     def unlink(self):
         boms = self.bom_id
-        result = self._unlink_notify(boms)
+        result = self._unlink_and_notify_boms()
         boms.with_context(
             skip_bom_outdated_unmark=True
         )._update_outdated_bom_in_productions()
         return result
 
-    def _unlink_notify(self, boms):
+    def _unlink_and_notify_boms(self):
         if self._is_chatter_muted():
             return super().unlink()
 
@@ -323,7 +323,7 @@ class MrpBomLine(models.Model):
             ).ids,
         }
 
-    def _get_still_used_notification(self):
+    def _prepare_action_still_used_warning(self):
         products = self.product_id
         if not products:
             return None

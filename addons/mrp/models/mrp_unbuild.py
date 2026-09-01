@@ -96,7 +96,7 @@ class MrpUnbuild(models.Model):
         "Source Location",
         domain="[('usage','=','internal')]",
         check_company=True,
-        compute="_compute_location_id",
+        compute="_compute_locations",
         store=True,
         readonly=False,
         precompute=True,
@@ -108,7 +108,7 @@ class MrpUnbuild(models.Model):
         "Destination Location",
         domain="[('usage','=','internal')]",
         check_company=True,
-        compute="_compute_location_id",
+        compute="_compute_locations",
         store=True,
         readonly=False,
         precompute=True,
@@ -142,7 +142,7 @@ class MrpUnbuild(models.Model):
                 record.product_uom_id = record.product_id.uom_id.id
 
     @api.depends("company_id")
-    def _compute_location_id(self):
+    def _compute_locations(self):
         warehouse_by_company = {}
         for company in self.company_id:
             warehouse_by_company[company.id] = self.env["stock.warehouse"].search(

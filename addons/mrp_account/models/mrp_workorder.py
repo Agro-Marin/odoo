@@ -17,8 +17,8 @@ class MrpWorkorder(models.Model):
             lines |= self[field_name]
         return lines
 
-    def _compute_duration(self):
-        res = super()._compute_duration()
+    def _compute_durations(self):
+        res = super()._compute_durations()
         self._create_or_update_analytic_entry()
         return res
 

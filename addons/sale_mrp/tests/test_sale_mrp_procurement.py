@@ -294,7 +294,7 @@ class TestSaleMrpProcurement(TransactionCase):
         )
         so.action_confirm()
 
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
         orderpoint_product = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", kit_1.id)]
         )

@@ -678,7 +678,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             }
         )
         picking.action_assign()
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
         orderpoint_product = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", product.id)]
         )
@@ -689,7 +689,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         )
         orderpoint_product.unlink()
         product.write({"route_ids": [(3, buy_route.id), (4, manu_route.id)]})
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
         orderpoint_product = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", product.id)]
         )

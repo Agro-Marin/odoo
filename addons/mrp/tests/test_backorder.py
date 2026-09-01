@@ -478,7 +478,7 @@ class TestMrpProductionBackorder(TestMrpCommon):
             1.9,
         )
 
-        backorder.do_unreserve()
+        backorder.action_unreserve()
 
     def test_tracking_backorder_series_serial_1(self):
         nb_product_todo = 4

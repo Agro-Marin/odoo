@@ -33,19 +33,19 @@ class StockWarehouseOrderpoint(models.Model):
                 orderpoint.bom_id = False
         super()._inverse_route_id()
 
-    def _get_replenishment_order_notification(self):
+    def _prepare_action_replenishment_order_notification(self):
         self.check_singleton()
         production = self.env["mrp.production"].search(
             self._get_replenishment_source_domain(),
             limit=1,
         )
         if production:
-            return self._get_replenishment_notification(
+            return self._prepare_action_replenishment_notification(
                 _("The following replenishment order has been generated"),
                 production.name,
                 f"/odoo/action-mrp.action_mrp_production_form/{production.id}",
             )
-        return super()._get_replenishment_order_notification()
+        return super()._prepare_action_replenishment_order_notification()
 
     @api.depends("bom_id", "product_id.bom_ids.produce_delay")
     def _compute_deadline_date(self):

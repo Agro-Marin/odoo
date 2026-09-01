@@ -27,12 +27,12 @@ class ProductProduct(models.Model):
 
     product_catalog_product_is_in_bom = fields.Boolean(
         compute="_compute_product_is_in_bom_and_mo",
-        search="_search_product_is_in_bom",
+        search="_search_product_catalog_product_is_in_bom",
     )
 
     product_catalog_product_is_in_mo = fields.Boolean(
         compute="_compute_product_is_in_bom_and_mo",
-        search="_search_product_is_in_mo",
+        search="_search_product_catalog_product_is_in_mo",
     )
 
     def _get_mrp_variants(self):
@@ -106,7 +106,7 @@ class ProductProduct(models.Model):
     def action_archive(self):
         still_used = self._get_still_used_bom_lines()
         res = super().action_archive()
-        return still_used._get_still_used_notification() or res
+        return still_used._prepare_action_still_used_warning() or res
 
     def _compute_show_qty_status_button(self):
         super()._compute_show_qty_status_button()
@@ -120,13 +120,13 @@ class ProductProduct(models.Model):
         self.product_catalog_product_is_in_bom = False
         self.product_catalog_product_is_in_mo = False
 
-    def _search_product_is_in_bom(self, operator, value):
+    def _search_product_catalog_product_is_in_bom(self, operator, value):
         if operator != "in" or set(value) != {True}:
             return NotImplemented
         bom = self.env["mrp.bom"].browse(self.env.context.get("order_id"))
         return [("id", "in", bom.bom_line_ids.product_id.ids)]
 
-    def _search_product_is_in_mo(self, operator, value):
+    def _search_product_catalog_product_is_in_mo(self, operator, value):
         if operator != "in" or set(value) != {True}:
             return NotImplemented
         production = (
@@ -312,7 +312,7 @@ class ProductProduct(models.Model):
             res["context"].pop("default_product_tmpl_id", None)
         return res
 
-    def _match_all_variant_values(self, product_template_attribute_value_ids):
+    def _has_all_variant_values(self, product_template_attribute_value_ids):
         self.check_singleton()
         return len(
             self.product_template_attribute_value_ids

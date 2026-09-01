@@ -259,7 +259,9 @@ class StockPicking(models.Model):
         picking_type_code = self.env["stock.picking.type"].browse(picking_type_id).code
 
         if picking_type_code == "mrp_operation":
-            action = self._get_action("mrp.action_picking_tree_mrp_operation_graph")
+            action = self._prepare_action_by_xml_id(
+                "mrp.action_picking_tree_mrp_operation_graph"
+            )
             action["domain"] = Domain.AND(
                 [
                     literal_eval(action["domain"] or "[]"),

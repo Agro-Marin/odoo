@@ -342,7 +342,7 @@ class TestConsumeComponent(TestConsumeComponentCommon):
                 self.executeConsumptionTriggers(mo)
             elif serialTrigger == 1:
                 mo.qty_producing = 1
-                mo._inverse_qty_producing(False)
+                mo._update_moves_from_qty_producing(False)
             elif serialTrigger == 2:
                 mo.action_generate_serial()
 

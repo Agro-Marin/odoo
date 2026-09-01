@@ -387,12 +387,12 @@ class MrpProduction(models.Model):
 
     unreserve_visible = fields.Boolean(
         "Allowed to Unreserve Production",
-        compute="_compute_unreserve_visible",
+        compute="_compute_reservation_visibility",
         help="Technical field to check when we can unreserve",
     )
     reserve_visible = fields.Boolean(
         "Allowed to Reserve Production",
-        compute="_compute_unreserve_visible",
+        compute="_compute_reservation_visibility",
         help="Technical field to check when we can reserve quantities",
     )
     user_id = fields.Many2one(
@@ -501,7 +501,7 @@ class MrpProduction(models.Model):
     )
     components_availability = fields.Char(
         string="Component Status",
-        compute="_compute_components_availability",
+        compute="_compute_component_availability",
         help="Latest component availability status for this MO. If green, then the MO's readiness status is ready, as per BOM configuration.",
     )
     components_availability_state = fields.Selection(
@@ -511,7 +511,7 @@ class MrpProduction(models.Model):
             ("late", "Late"),
             ("unavailable", "Not Available"),
         ],
-        compute="_compute_components_availability",
+        compute="_compute_component_availability",
         search="_search_components_availability_state",
     )
     production_capacity = fields.Float(
@@ -531,7 +531,7 @@ class MrpProduction(models.Model):
     )
     allow_workorder_dependencies = fields.Boolean("Allow Work Order Dependencies")
     show_produce = fields.Boolean(
-        compute="_compute_show_produce",
+        compute="_compute_produce_visibility",
         help="Technical field to check if produce button can be shown",
     )
     show_generate_bom = fields.Boolean(
@@ -539,7 +539,7 @@ class MrpProduction(models.Model):
         compute="_compute_show_generate_bom",
     )
     show_produce_all = fields.Boolean(
-        compute="_compute_show_produce",
+        compute="_compute_produce_visibility",
         help="Technical field to check if produce all button can be shown",
     )
     is_outdated_bom = fields.Boolean(
@@ -727,7 +727,8 @@ class MrpProduction(models.Model):
         "move_raw_ids.forecast_availability",
         "move_raw_ids.date_planned_forecast",
     )
-    def _compute_components_availability(self):
+    @api.depends_context("lang")
+    def _compute_component_availability(self):
         productions = self.filtered(
             lambda mo: mo.state not in ("cancel", "done", "draft")
         )
@@ -944,6 +945,7 @@ class MrpProduction(models.Model):
                 )
 
     @api.depends("state", "date_delay_alert", "move_raw_ids.date_delay_alert")
+    @api.depends_context("lang")
     def _compute_json_popover(self):
         production_no_alert = self.filtered(
             lambda m: m.state in ("done", "cancel") or not m.date_delay_alert
@@ -1265,7 +1267,7 @@ class MrpProduction(models.Model):
         "move_raw_ids.picked",
         "move_raw_ids.move_line_ids",
     )
-    def _compute_unreserve_visible(self):
+    def _compute_reservation_visibility(self):
         for order in self:
             already_reserved = order.state not in ("done", "cancel") and order.mapped(
                 "move_raw_ids.move_line_ids"
@@ -1606,7 +1608,7 @@ class MrpProduction(models.Model):
             )
 
     @api.depends("state", "product_qty", "qty_producing")
-    def _compute_show_produce(self):
+    def _compute_produce_visibility(self):
         for production in self:
             state_ok = production.state in ("confirmed", "progress", "to_close")
             qty_none_or_all = production.qty_producing in (0, production.product_qty)
@@ -1663,7 +1665,7 @@ class MrpProduction(models.Model):
                 continue
             production.serial_numbers_count = len(production.lot_producing_ids)
 
-    def _change_producing(self):
+    def _update_qty_producing(self):
         if self.state in ["draft", "cancel"] or (
             self.state == "done" and self.is_locked
         ):
@@ -1678,16 +1680,18 @@ class MrpProduction(models.Model):
                 and p._origin.qty_producing == p.qty_producing
             )
         )
-        (self - productions_bypass_qty_producting).sudo()._inverse_qty_producing(False)
+        (
+            self - productions_bypass_qty_producting
+        ).sudo()._update_moves_from_qty_producing(False)
         return True
 
     @api.onchange("qty_producing")
     def _onchange_qty_producing(self):
-        self._change_producing()
+        self._update_qty_producing()
 
     @api.onchange("lot_producing_ids")
     def _onchange_lot_producing(self):
-        if self._change_producing():
+        if self._update_qty_producing():
             res = self._can_produce_serial_numbers()
             if res is not True:
                 return res
@@ -1776,7 +1780,7 @@ class MrpProduction(models.Model):
         self._check_write_preconditions(vals)
         production_to_replan = self.filtered(lambda p: p.is_planned)
         self._update_move_warehouse_vals(vals, move_keys)
-        moves_to_reassign = self._update_write_picking_type(vals)
+        moves_to_reassign = self._pre_write_picking_type(vals)
 
         res = super().write(vals)
 
@@ -1855,7 +1859,7 @@ class MrpProduction(models.Model):
                 stamped_commands.append((command, command_id, field_values))
             vals[move_str] = stamped_commands
 
-    def _update_write_picking_type(self, vals):
+    def _pre_write_picking_type(self, vals):
         if not vals.get("picking_type_id"):
             return self.env["stock.move"]
         picking_type = self.env["stock.picking.type"].browse(vals["picking_type_id"])
@@ -1912,8 +1916,8 @@ class MrpProduction(models.Model):
     def _post_write_reassign(self, moves_to_reassign):
         if not moves_to_reassign:
             return
-        moves_to_reassign._do_unreserve()
-        moves_to_reassign._filter_to_assign_at_confirm()._action_assign()
+        moves_to_reassign._unreserve()
+        moves_to_reassign._filtered_to_assign_at_confirm()._action_assign()
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -2347,7 +2351,7 @@ class MrpProduction(models.Model):
             "propagate_cancel": self.propagate_cancel,
             "manual_consumption": self.env[
                 "stock.move"
-            ]._determine_is_manual_consumption(bom_line),
+            ]._is_manual_consumption_from_bom_line(bom_line),
         }
 
     def _get_origin(self):
@@ -2360,7 +2364,7 @@ class MrpProduction(models.Model):
     def _mark_byproducts_as_produced(self):
         self.move_byproduct_ids.picked = True
 
-    def _inverse_qty_producing(self, pick_manual_consumption_moves=True):
+    def _update_moves_from_qty_producing(self, pick_manual_consumption_moves=True):
         if self.product_id.tracking == "serial":
             qty_producing_uom = self.product_uom_id._compute_quantity(
                 self.qty_producing, self.product_id.uom_id, rounding_method="HALF-UP"
@@ -2498,7 +2502,7 @@ class MrpProduction(models.Model):
 
     def set_qty_producing(self):
         self.check_singleton()
-        self._inverse_qty_producing(False)
+        self._update_moves_from_qty_producing(False)
 
     def action_view_mrp_production_childs(self):
         self.check_singleton()
@@ -2820,7 +2824,7 @@ class MrpProduction(models.Model):
 
         return issues
 
-    def _action_generate_consumption_wizard(self, consumption_issues):
+    def _prepare_action_consumption_wizard(self, consumption_issues):
         ctx = self.env.context.copy()
         lines = []
         for order, product_id, consumed_qty, expected_qty in consumption_issues:
@@ -2862,7 +2866,7 @@ class MrpProduction(models.Model):
         )
         return quantity_issues
 
-    def _action_generate_backorder_wizard(self, quantity_issues):
+    def _prepare_action_backorder_wizard(self, quantity_issues):
         ctx = self.env.context.copy()
         lines = [
             (0, 0, {"mrp_production_id": order.id, "to_backorder": True})
@@ -3257,7 +3261,7 @@ class MrpProduction(models.Model):
             {"state": "partially_available"}
         )
         self.env["stock.move.line"].create(move_lines_vals)
-        backorder_moves._filter_to_assign_at_confirm()._action_assign()
+        backorder_moves._filtered_to_assign_at_confirm()._action_assign()
 
         emptied_lines = self.env["stock.move.line"].browse(move_lines_to_unlink)
         emptied_lines.write({"move_id": False})
@@ -3458,9 +3462,9 @@ class MrpProduction(models.Model):
         for backorder in backorders_to_assign:
             backorder.action_assign()
 
-        return self._get_mark_done_action(backorders)
+        return self._prepare_action_mark_done(backorders)
 
-    def _get_mark_done_action(self, backorders):
+    def _prepare_action_mark_done(self, backorders):
         report_actions = self._get_autoprint_done_report_actions()
         if self.env.context.get("skip_redirection"):
             if report_actions:
@@ -3473,9 +3477,9 @@ class MrpProduction(models.Model):
             return True
 
         another_action = (
-            self._get_backorder_redirect_action(backorders)
+            self._prepare_action_backorder_redirect(backorders)
             if backorders
-            else self._get_closed_redirect_action()
+            else self._prepare_action_closed_redirect()
         )
         if report_actions:
             return {
@@ -3488,7 +3492,7 @@ class MrpProduction(models.Model):
             }
         return another_action or True
 
-    def _get_closed_redirect_action(self):
+    def _prepare_action_closed_redirect(self):
         if self.env.context.get("from_workorder"):
             return {
                 "type": "ir.actions.act_window",
@@ -3514,7 +3518,7 @@ class MrpProduction(models.Model):
             return mos_to_show.action_view_reception_report()
         return False
 
-    def _get_backorder_redirect_action(self, backorders):
+    def _prepare_action_backorder_redirect(self, backorders):
         context = {
             k: False if k.startswith("skip_") else v
             for k, v in self.env.context.items()
@@ -3545,11 +3549,11 @@ class MrpProduction(models.Model):
         return action
 
     def pre_button_mark_done(self):
-        self._button_mark_done_sanity_checks()
+        self._check_ready_to_mark_done()
         production_auto_ids = set()
         production_missing_lot_ids = set()
         for production in self:
-            if production._auto_production_checks():
+            if production._is_auto_completable():
                 production_auto_ids.add(production.id)
             elif not production.lot_producing_ids:
                 production_missing_lot_ids.add(production.id)
@@ -3579,7 +3583,7 @@ class MrpProduction(models.Model):
 
         consumption_issues = self._get_consumption_issues()
         if consumption_issues:
-            return self._action_generate_consumption_wizard(consumption_issues)
+            return self._prepare_action_consumption_wizard(consumption_issues)
 
         quantity_issues = self._get_quantity_produced_issues()
         if quantity_issues:
@@ -3593,7 +3597,7 @@ class MrpProduction(models.Model):
             if mos_ask:
                 return self.with_context(
                     always_backorder_mo_ids=mo_ids_always
-                )._action_generate_backorder_wizard(mos_ask)
+                )._prepare_action_backorder_wizard(mos_ask)
             elif mo_ids_always:
                 res = self.with_context(
                     skip_backorder=True, mo_ids_to_backorder=mo_ids_always
@@ -3606,12 +3610,12 @@ class MrpProduction(models.Model):
                 return res if self._should_return_records() else True
         return True
 
-    def _button_mark_done_sanity_checks(self):
+    def _check_ready_to_mark_done(self):
         self._check_company()
         for order in self:
             order._check_sn_uniqueness()
 
-    def _auto_production_checks(self):
+    def _is_auto_completable(self):
         self.check_singleton()
         return (
             all(
@@ -3629,10 +3633,10 @@ class MrpProduction(models.Model):
     def _should_return_records(self):
         return True
 
-    def do_unreserve(self):
+    def action_unreserve(self):
         (self.move_finished_ids | self.move_raw_ids).filtered(
             lambda x: x.state not in ("done", "cancel")
-        )._do_unreserve()
+        )._unreserve()
 
     def button_scrap(self):
         self.check_singleton()
@@ -3769,7 +3773,7 @@ class MrpProduction(models.Model):
         }
 
     def action_split(self):
-        self._pre_action_split_merge_hook(split=True)
+        self._check_split_merge_allowed(split=True)
         if len(self) > 1:
             productions = [
                 Command.create({"production_id": production.id}) for production in self
@@ -3792,7 +3796,7 @@ class MrpProduction(models.Model):
             return action
 
     def action_merge(self):
-        self._pre_action_split_merge_hook(merge=True)
+        self._check_split_merge_allowed(merge=True)
         products = {(production.product_id, production.bom_id) for production in self}
         product_id, bom_id = products.pop()
         users = {production.user_id for production in self}
@@ -4046,7 +4050,7 @@ class MrpProduction(models.Model):
                         wo.operation_id == move_raw.operation_id
                     )
                 )
-            move_raw.manual_consumption = move_raw._determine_is_manual_consumption(
+            move_raw.manual_consumption = move_raw._is_manual_consumption_from_bom_line(
                 bom_line
             )
         self.env["stock.move"].create(
@@ -4304,7 +4308,7 @@ class MrpProduction(models.Model):
         )
         return bool(duplicates)
 
-    def _pre_action_split_merge_hook(self, merge=False, split=False):
+    def _check_split_merge_allowed(self, merge=False, split=False):
         if not merge and not split:
             return True
         ope_str = (merge and _("merged")) or _("split")
@@ -4375,7 +4379,7 @@ class MrpProduction(models.Model):
 
         if not self.qty_producing:
             self.qty_producing = self.product_qty - self.qty_produced
-            self._inverse_qty_producing()
+            self._update_moves_from_qty_producing()
 
         self._mark_byproducts_as_produced()
 
@@ -4565,7 +4569,7 @@ class MrpProduction(models.Model):
     def action_clear_lot_producing_ids(self):
         self.lot_producing_ids = [Command.clear()]
         self.qty_producing = 0
-        self._inverse_qty_producing(False)
+        self._update_moves_from_qty_producing(False)
 
     def _track_subtype(self, init_values):
         self.check_singleton()

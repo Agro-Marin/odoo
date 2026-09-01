@@ -805,14 +805,16 @@ class TestMrpAuditFixes(TestMrpCommon):
     def test_manual_consumption_flag_is_a_boolean(self):
         Move = self.env["stock.move"]
         self.assertIs(
-            Move._determine_is_manual_consumption(self.env["mrp.bom.line"]), False
+            Move._is_manual_consumption_from_bom_line(self.env["mrp.bom.line"]), False
         )
         bom = self.bom_1
         bom.operation_ids = [
             Command.create({"name": "Flag op", "workcenter_id": self.workcenter_1.id})
         ]
         bom.bom_line_ids[0].operation_id = bom.operation_ids[0]
-        self.assertIs(Move._determine_is_manual_consumption(bom.bom_line_ids[0]), True)
+        self.assertIs(
+            Move._is_manual_consumption_from_bom_line(bom.bom_line_ids[0]), True
+        )
 
     def test_variant_bom_counts_match_their_template_counterparts(self):
         finished, other, component = self.env["product.product"].create(
@@ -1293,7 +1295,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         production.action_confirm()
         production.action_assign()
         production.qty_producing = 1
-        production._inverse_qty_producing()
+        production._update_moves_from_qty_producing()
         return production
 
     def test_cancelling_a_part_consumed_order_lands_on_cancel(self):
@@ -1902,7 +1904,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         production.action_confirm()
         production.qty_producing = line_count
-        production._inverse_qty_producing()
+        production._update_moves_from_qty_producing()
         byproduct_move = production.move_byproduct_ids
         byproduct_move.move_line_ids.unlink()
         lots = self.env["stock.lot"].create(
@@ -1951,7 +1953,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         productions, _unit = self._audit_confirmed_orders(6, "markdone")
         for production in productions:
             production.qty_producing = production.product_qty
-            production._inverse_qty_producing()
+            production._update_moves_from_qty_producing()
         self.env.flush_all()
 
         productions.with_context(
@@ -2606,7 +2608,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         demand(closed_product, warehouse, assign=True)
         closed.qty_producing = closed.product_qty
-        closed._inverse_qty_producing()
+        closed._update_moves_from_qty_producing()
         closed.button_mark_done()
         expected[closed] = True
 
@@ -2924,12 +2926,16 @@ class TestMrpAuditFixes(TestMrpCommon):
         workcenter = self.env["mrp.workcenter"].create({"name": "Calendar Free"})
         workcenter.resource_calendar_id = False
         with self.assertRaises(UserError) as caught:
-            workcenter._pick_earliest_slot(datetime(2026, 1, 1, 8, 0), {workcenter: 60})
+            workcenter._get_earliest_slot_and_reasons(
+                datetime(2026, 1, 1, 8, 0), {workcenter: 60}
+            )
         self.assertIn(workcenter.name, str(caught.exception))
 
     def test_the_slot_sweep_reports_having_no_workcenter_at_all(self):
         empty = self.env["mrp.workcenter"]
-        best, reasons = empty._pick_earliest_slot(datetime(2026, 1, 1, 8, 0), {})
+        best, reasons = empty._get_earliest_slot_and_reasons(
+            datetime(2026, 1, 1, 8, 0), {}
+        )
         self.assertIsNone(best)
         self.assertFalse(reasons)
         self.assertIn(
@@ -3007,7 +3013,7 @@ class TestMrpAuditFixes(TestMrpCommon):
             component, warehouse.lot_stock_id, 100.0
         )
         production.qty_producing = 7.0
-        production._inverse_qty_producing()
+        production._update_moves_from_qty_producing()
         production.button_mark_done()
         self.env.flush_all()
         self.assertEqual(production.qty_produced, 7.0)
@@ -3133,7 +3139,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         self.assertEqual(wizard._get_names_from_serial_numbers(), ["DUP-1", "DUP-2"])
         self.assertEqual(
-            wizard._parse_serial_numbers().mapped("name"),
+            wizard._get_or_create_lots().mapped("name"),
             ["DUP-1", "DUP-2"],
             "a repeat must not try to create the same serial twice",
         )
@@ -3189,12 +3195,12 @@ class TestMrpAuditFixes(TestMrpCommon):
             }
         )._action_confirm()
         production.qty_producing = 1.0
-        production._inverse_qty_producing()
+        production._update_moves_from_qty_producing()
         self.env.flush_all()
 
         issues = production._get_consumption_issues()
         self.assertTrue(issues, "the fixture must under-consume against its BoM")
-        action = production._action_generate_consumption_wizard(issues)
+        action = production._prepare_action_consumption_wizard(issues)
         wizard = (
             self.env[action["res_model"]].with_context(**action["context"]).create({})
         )

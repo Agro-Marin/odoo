@@ -420,7 +420,7 @@ class StockMove(models.Model):
                 return self.raw_material_production_id.subcontractor_id.id
         return super()._get_partner_id()
 
-    def _get_production_assignation_domain(self):
+    def _get_domain_production_assignation(self):
         if self.move_dest_ids.raw_material_production_id.subcontractor_id:
             return []
-        return super()._get_production_assignation_domain()
+        return super()._get_domain_production_assignation()

@@ -57,7 +57,7 @@ class ProductTemplate(models.Model):
     def action_archive(self):
         still_used = self._get_still_used_bom_lines()
         res = super().action_archive()
-        return still_used._get_still_used_notification() or res
+        return still_used._prepare_action_still_used_warning() or res
 
     def _compute_show_qty_status_button(self):
         super()._compute_show_qty_status_button()

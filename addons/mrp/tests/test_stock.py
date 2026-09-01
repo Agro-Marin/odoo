@@ -330,7 +330,7 @@ class TestWarehouseMrp(common.TestMrpCommon):
             )
         )
         with self.assertRaises(UserError):
-            scrap_id.do_scrap()
+            scrap_id._action_done()
 
         scrap_id = (
             self.env["stock.scrap"]
@@ -346,7 +346,7 @@ class TestWarehouseMrp(common.TestMrpCommon):
                 }
             )
         )
-        scrap_id.do_scrap()
+        scrap_id._action_done()
         scrap_move = scrap_id.move_ids[0]
 
         self.assertTrue(scrap_move.raw_material_production_id)
@@ -738,7 +738,7 @@ class TestKitPicking(common.TestMrpCommon):
         ).quantity = 2
         backorder_wizard_dict = delivery.button_validate()
         backorder_wizard_form = Form.from_action(self.env, backorder_wizard_dict)
-        backorder_wizard_form.save().process_cancel_backorder()
+        backorder_wizard_form.save().action_cancel_backorder()
 
         aggregate_not_kit_values = (
             delivery.move_line_ids._get_aggregated_product_quantities()

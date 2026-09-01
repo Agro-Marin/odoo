@@ -237,7 +237,7 @@ class MrpBom(models.Model):
         for bom in self:
             bom.possible_product_template_attribute_value_ids = bom.product_tmpl_id.valid_product_template_attribute_line_ids.product_template_value_ids._only_active()
 
-    def _reset_variant_data(self):
+    def _remove_variant_values(self):
         self.check_singleton()
         had_variant_data = (
             self.bom_line_ids.bom_product_template_attribute_value_ids
@@ -247,8 +247,9 @@ class MrpBom(models.Model):
         self.bom_line_ids.bom_product_template_attribute_value_ids = False
         self.operation_ids.bom_product_template_attribute_value_ids = False
         self.byproduct_ids.bom_product_template_attribute_value_ids = False
-        if not had_variant_data:
-            return None
+        return bool(had_variant_data)
+
+    def _prepare_variant_reset_warning(self):
         return {
             "warning": {
                 "title": _("Warning"),
@@ -260,8 +261,8 @@ class MrpBom(models.Model):
 
     @api.onchange("product_id")
     def _onchange_product_id(self):
-        if self.product_id:
-            return self._reset_variant_data()
+        if self.product_id and self._remove_variant_values():
+            return self._prepare_variant_reset_warning()
         return None
 
     def _check_no_cycle_from(self, components, finished_products, subcomponents):
@@ -412,7 +413,11 @@ class MrpBom(models.Model):
                 self.product_uom_id = self.product_tmpl_id.uom_id.id
             if self.product_id.product_tmpl_id != self.product_tmpl_id:
                 self.product_id = False
-            warning = self._reset_variant_data()
+            warning = (
+                self._prepare_variant_reset_warning()
+                if self._remove_variant_values()
+                else None
+            )
 
             domain = [("product_tmpl_id", "=", self.product_tmpl_id.id)]
             if self.id.origin:
@@ -963,7 +968,7 @@ class MrpBom(models.Model):
         no_variant_bom_attributes = bom_attribute_values.filtered(
             lambda av: av.attribute_id.create_variant == "no_variant"
         )
-        other_attribute_valid = product._match_all_variant_values(
+        other_attribute_valid = product._has_all_variant_values(
             bom_attribute_values - no_variant_bom_attributes
         )
         if not no_variant_bom_attributes:
@@ -1030,5 +1035,5 @@ class MrpBom(models.Model):
         return (
             self.env["mrp.routing.workcenter"]
             .with_context(bom_id=self.id)
-            .copy_existing_operations()
+            .action_copy_existing_operations()
         )

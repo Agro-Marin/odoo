@@ -108,7 +108,7 @@ class StockScrap(models.Model):
             move = move.with_context(is_scrap=True).action_explode()
         return move
 
-    def do_replenish(self, values=False):
+    def _replenish_scrapped_quantity(self, values=False):
         self.check_singleton()
         values = values or {}
         if self.production_id and self.production_id.production_group_id:
@@ -117,4 +117,4 @@ class StockScrap(models.Model):
                     "production_group_id": self.production_id.production_group_id.id,
                 }
             )
-        super().do_replenish(values)
+        super()._replenish_scrapped_quantity(values)

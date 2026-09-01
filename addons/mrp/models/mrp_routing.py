@@ -67,7 +67,7 @@ class MrpRoutingWorkcenter(models.Model):
         "- In fixed mode, time used"
         "- In computed mode, supposed first time when there aren't any work orders yet",
     )
-    time_cycle = fields.Float("Cycles", compute="_compute_time_cycle")
+    time_cycle = fields.Float("Cycles", compute="_compute_operation_times")
     workorder_count = fields.Integer(
         "# Work Orders", compute="_compute_workorder_count"
     )
@@ -97,10 +97,10 @@ class MrpRoutingWorkcenter(models.Model):
         domain="[('allow_operation_dependencies', '=', True), ('id', '!=', id), ('bom_id', '=', bom_id)]",
         copy=False,
     )
-    cycle_number = fields.Integer("Repetitions", compute="_compute_time_cycle")
-    time_total = fields.Float("Total Duration", compute="_compute_time_cycle")
+    cycle_number = fields.Integer("Repetitions", compute="_compute_operation_times")
+    time_total = fields.Float("Total Duration", compute="_compute_operation_times")
     show_time_total = fields.Boolean(
-        "Show Total Duration?", compute="_compute_time_cycle"
+        "Show Total Duration?", compute="_compute_operation_times"
     )
     cost_mode = fields.Selection(
         [("actual", "Actual time"), ("estimated", "Theorical time")],
@@ -177,7 +177,7 @@ class MrpRoutingWorkcenter(models.Model):
         "workcenter_id.capacity_ids",
     )
     @api.depends_context("product", "quantity", "unit", "workcenter")
-    def _compute_time_cycle(self):
+    def _compute_operation_times(self):
         manual_ops = self.filtered(lambda operation: operation.time_mode == "manual")
         for operation in manual_ops:
             operation.time_cycle = operation.time_cycle_manual
@@ -343,7 +343,7 @@ class MrpRoutingWorkcenter(models.Model):
         )._update_outdated_bom_in_productions()
         return res
 
-    def copy_to_bom(self):
+    def action_copy_to_bom(self):
         if "bom_id" in self.env.context:
             bom_id = self.env.context.get("bom_id")
             for operation in self:
@@ -357,7 +357,7 @@ class MrpRoutingWorkcenter(models.Model):
             }
         return None
 
-    def copy_existing_operations(self):
+    def action_copy_existing_operations(self):
         return {
             "type": "ir.actions.act_window",
             "name": _("Select Operations to Copy"),

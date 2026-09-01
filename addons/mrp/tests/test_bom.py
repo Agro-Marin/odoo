@@ -1903,7 +1903,7 @@ class TestBoM(TestMrpCommon):
         customer_picking.action_confirm()
 
         self.env.flush_all()
-        self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
+        self.env["stock.warehouse.orderpoint"]._prepare_action_orderpoint_replenish()
         orderpoint = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", product_gram.id)]
         )

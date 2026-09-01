@@ -112,7 +112,7 @@ class TestAccountSubcontractingFlows(
                 "location_id": self.stock_location.id,
             }
         )
-        scrap.do_scrap()
+        scrap._action_done()
 
         self.assertEqual(self.finished.total_value, 0)
 
@@ -140,7 +140,7 @@ class TestAccountSubcontractingFlows(
             }
         )
         picking_receipt.action_confirm()
-        picking_receipt.do_unreserve()
+        picking_receipt.action_unreserve()
 
         lot_comp2 = self.env["stock.lot"].create(
             {

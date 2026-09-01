@@ -1248,7 +1248,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
 
         po.action_confirm()
         picking_receipt = po.picking_ids
-        picking_receipt.do_unreserve()
+        picking_receipt.action_unreserve()
 
         serials_finished = [
             self.env["stock.lot"].create(

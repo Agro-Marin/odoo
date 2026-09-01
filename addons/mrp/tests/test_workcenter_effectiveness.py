@@ -205,7 +205,7 @@ class TestWorkcenterState(common.TestMrpCommon):
         running = self._open("mrp.block_reason7")
         blocking = self._open("mrp.block_reason0")
         self.assertEqual(self.workcenter.working_state, "blocked")
-        self.workcenter.unblock()
+        self.workcenter.action_unblock()
         self.assertTrue(blocking.date_end, "the blocking log is closed")
         self.assertFalse(
             running.date_end,

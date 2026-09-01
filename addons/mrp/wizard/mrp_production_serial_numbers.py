@@ -12,7 +12,7 @@ class MrpProductionSerials(models.TransientModel):
     workorder_id = fields.Many2one("mrp.workorder", "Workorder")
 
     lot_name = fields.Char(
-        "First SN", compute="_compute_lot_name", store=True, readonly=False
+        "First SN", compute="_compute_serial_defaults", store=True, readonly=False
     )
     lot_quantity = fields.Integer(
         "Number of SN", compute="_compute_lot_quantity", store=True, readonly=False
@@ -20,13 +20,13 @@ class MrpProductionSerials(models.TransientModel):
 
     serial_numbers = fields.Text(
         "Produced Serial Numbers",
-        compute="_compute_lot_name",
+        compute="_compute_serial_defaults",
         store=True,
         readonly=False,
     )
 
     @api.depends("production_id")
-    def _compute_lot_name(self):
+    def _compute_serial_defaults(self):
         for wizard in self:
             wizard.serial_numbers = "\n".join(
                 wizard.production_id.lot_producing_ids.mapped("name")
@@ -70,26 +70,26 @@ class MrpProductionSerials(models.TransientModel):
 
     def action_split_and_assign_serials(self):
         self.check_singleton()
-        lots = self._parse_serial_numbers()
+        lots = self._get_or_create_lots()
 
         split_amounts = {self.production_id: [1] * len(lots)}
         mos = self.production_id._split_productions(amounts=split_amounts)
         for mo, serial in zip(mos[: len(lots)], lots, strict=True):
             mo.lot_producing_ids = [Command.link(serial.id)]
-        return self._get_closing_action(mos)
+        return self._prepare_action_closing(mos)
 
     def action_apply(self):
         self.check_singleton()
-        lots = self._parse_serial_numbers()
+        lots = self._get_or_create_lots()
         self.production_id.lot_producing_ids = lots
         if self.production_id.qty_producing != len(
             self.production_id.lot_producing_ids
         ):
             self.production_id.qty_producing = len(self.production_id.lot_producing_ids)
         (self.workorder_id or self.production_id).set_qty_producing()
-        return self._get_closing_action()
+        return self._prepare_action_closing()
 
-    def _get_closing_action(self, mos=False):
+    def _prepare_action_closing(self, mos=False):
         mos = mos or self.production_id
         print_actions = mos._autoprint_mass_generated_lots()
         if print_actions:
@@ -103,7 +103,7 @@ class MrpProductionSerials(models.TransientModel):
             }
         return {"type": "ir.actions.act_window_close"}
 
-    def _parse_serial_numbers(self):
+    def _get_or_create_lots(self):
         self.check_singleton()
         if not self.serial_numbers:
             raise UserError(self.env._("There is no serial numbers to apply."))

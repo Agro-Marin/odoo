@@ -1381,7 +1381,7 @@ class TestUnbuild(TestMrpCommon):
         mo = mo_form.save()
 
         mo.action_confirm()
-        mo.move_finished_ids._do_unreserve()
+        mo.move_finished_ids._unreserve()
         mo_form = Form(mo)
         mo_form.qty_producing = 4
         mo = mo_form.save()
@@ -1651,7 +1651,7 @@ class TestUnbuild(TestMrpCommon):
         )
         mo.action_confirm()
         mo.lot_producing_ids = fp_sn1 + fp_sn2
-        mo._inverse_qty_producing()
+        mo._update_moves_from_qty_producing()
         mo.button_mark_done()
         self.assertEqual(mo.state, "done")
         self.assertEqual(mo.move_raw_ids.move_line_ids.lot_id, sn1 + sn2)

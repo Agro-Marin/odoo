@@ -17,7 +17,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         for po_line in po_lines:
             line_qty = po_line.product_qty
             dest_moves = self.env["stock.move"].browse(
-                po_line.move_dest_ids._rollup_move_dests()
+                po_line.move_dest_ids._rollup_move_dest_ids()
             )
             for move in dest_moves:
                 if not move.raw_material_production_id:

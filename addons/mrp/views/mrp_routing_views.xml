@@ -32,7 +32,7 @@
                 <xpath expr="//list" position="inside">
                     <control>
                         <button name="action_view_operation_form" class="btn-link" type="object" string="Add a line" context="{'default_bom_id': parent.id}"/>
-                        <button name="copy_existing_operations" class="btn-link" type="object" string="Copy Existing Operations" context="{'bom_id': parent.id}"/>
+                        <button name="action_copy_existing_operations" class="btn-link" type="object" string="Copy Existing Operations" context="{'bom_id': parent.id}"/>
                     </control>
                 </xpath>
                 <xpath expr="//field[@name='name']" position="before">
@@ -68,7 +68,7 @@
                 </xpath>
                 <xpath expr="//field[@name='name']" position="before">
                     <header>
-                        <button name="copy_to_bom" type="object" string="Copy selected operations"/>
+                        <button name="action_copy_to_bom" type="object" string="Copy selected operations"/>
                     </header>
                 </xpath>
             </field>

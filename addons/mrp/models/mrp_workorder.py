@@ -164,7 +164,7 @@ class MrpWorkorder(models.Model):
     )
     duration = fields.Float(
         "Real Duration",
-        compute="_compute_duration",
+        compute="_compute_durations",
         inverse="_inverse_duration",
         readonly=False,
         store=True,
@@ -178,14 +178,14 @@ class MrpWorkorder(models.Model):
     )
     duration_unit = fields.Float(
         "Duration Per Unit",
-        compute="_compute_duration",
+        compute="_compute_durations",
         aggregator="avg",
         readonly=True,
         store=True,
     )
     duration_percent = fields.Integer(
         "Duration Deviation (%)",
-        compute="_compute_duration",
+        compute="_compute_durations",
         aggregator="avg",
         readonly=True,
         store=True,
@@ -258,8 +258,8 @@ class MrpWorkorder(models.Model):
     production_date = fields.Datetime(
         "Production Date", compute="_compute_production_date", store=True
     )
-    json_popover = fields.Char("Popover Data JSON", compute="_compute_json_popover")
-    show_json_popover = fields.Boolean("Show Popover?", compute="_compute_json_popover")
+    json_popover = fields.Char("Popover Data JSON", compute="_compute_popover")
+    show_json_popover = fields.Boolean("Show Popover?", compute="_compute_popover")
     consumption = fields.Selection(related="production_id.consumption")
     qty_reported_from_previous_wo = fields.Float(
         "Carried Quantity",
@@ -374,7 +374,8 @@ class MrpWorkorder(models.Model):
         "blocked_by_workorder_ids.date_start",
         "blocked_by_workorder_ids.date_end",
     )
-    def _compute_json_popover(self):
+    @api.depends_context("lang")
+    def _compute_popover(self):
         conflicted_dict = {}
         occupied_by_id = {}
         if self.ids:
@@ -477,13 +478,16 @@ class MrpWorkorder(models.Model):
             workorder.qty_producing = workorder.production_id.qty_producing
 
     def _inverse_qty_producing(self):
+        self._update_production_qty_producing()
+
+    def _update_production_qty_producing(self):
         for workorder in self:
             if workorder.qty_producing not in (
                 0,
                 workorder.production_id.qty_producing,
             ):
                 workorder.production_id.qty_producing = workorder.qty_producing
-                workorder.production_id._inverse_qty_producing(False)
+                workorder.production_id._update_moves_from_qty_producing(False)
 
     @api.depends(
         "state",
@@ -605,7 +609,7 @@ class MrpWorkorder(models.Model):
     @api.depends(
         "time_ids.duration", "time_ids.loss_type", "qty_produced", "duration_expected"
     )
-    def _compute_duration(self):
+    def _compute_durations(self):
         for order in self:
             order.duration = order.get_duration()
             order.duration_unit = (
@@ -816,9 +820,7 @@ class MrpWorkorder(models.Model):
         values = dict(vals)
         self._check_write_qty_produced(values)
         self._check_write_production_id(values)
-        new_workcenter, previous_workcenter_by_id = self._update_write_workcenter(
-            values
-        )
+        new_workcenter, previous_workcenter_by_id = self._pre_write_workcenter(values)
         derived_vals = self._prepare_derived_date_vals_by_workorder(
             values, new_workcenter
         )
@@ -848,7 +850,7 @@ class MrpWorkorder(models.Model):
                 _("You cannot link this work order to another manufacturing order.")
             )
 
-    def _update_write_workcenter(self, values):
+    def _pre_write_workcenter(self, values):
         if "workcenter_id" not in values:
             return False, {}
         new_workcenter = self.env["mrp.workcenter"].browse(values["workcenter_id"])
@@ -963,7 +965,7 @@ class MrpWorkorder(models.Model):
                 production.workorder_ids.filtered(
                     lambda w: w.state != "done"
                 ).qty_producing = min_workorder_qty
-        self._inverse_qty_producing()
+        self._update_production_qty_producing()
 
     def _post_write_workcenter(self, previous_workcenter_by_id, new_workcenter):
         for workorder in self.browse(previous_workcenter_by_id):
@@ -1042,7 +1044,7 @@ class MrpWorkorder(models.Model):
         if self.date_start and not replan:
             return
         workcenters = self.workcenter_id | self.workcenter_id.alternative_workcenter_ids
-        best, reasons = workcenters._pick_earliest_slot(
+        best, reasons = workcenters._get_earliest_slot_and_reasons(
             date_start,
             {
                 workcenter: (
@@ -1196,7 +1198,7 @@ class MrpWorkorder(models.Model):
 
     def button_unblock(self):
         for order in self:
-            order.workcenter_id.unblock()
+            order.workcenter_id.action_unblock()
         return True
 
     def action_cancel(self):
@@ -1427,9 +1429,7 @@ class MrpWorkorder(models.Model):
             for date_start, date_stop, timer in Intervals(intervals)
         ]
         return sum(
-            self.env["mrp.workcenter.productivity.loss"]._convert_to_duration_batch(
-                spans
-            )
+            self.env["mrp.workcenter.productivity.loss"]._get_durations_batch(spans)
         )
 
     def get_duration(self):

@@ -326,18 +326,6 @@ class StockMove(models.Model):
         byproduct_moves.show_quant = False
         byproduct_moves.show_lots_m2o = True
 
-    @api.depends("picking_type_id.use_create_components_lots")
-    def _compute_display_assign_serial(self):
-        super()._compute_display_assign_serial()
-        for move in self:
-            if (
-                move.display_import_lot
-                and move.raw_material_production_id
-                and not move.raw_material_production_id.picking_type_id.use_create_components_lots
-            ):
-                move.display_import_lot = False
-                move.display_assign_serial = False
-
     @api.onchange("product_uom_qty", "product_uom_id")
     def _onchange_product_uom_qty(self):
         if (
@@ -446,7 +434,7 @@ class StockMove(models.Model):
                     and m.state not in ("draft", "cancel", "done")
                 )
             )
-            moves_to_rereserve._do_unreserve()
+            moves_to_rereserve._unreserve()
         moves_to_update = False
         if self.env.context.get("force_manual_consumption") and "quantity" in vals:
             moves_to_update = self.filtered(
@@ -930,10 +918,10 @@ class StockMove(models.Model):
 
     def _get_domain_picking_for_assignation(self):
         domain = super()._get_domain_picking_for_assignation()
-        domain += self._get_production_assignation_domain()
+        domain += self._get_domain_production_assignation()
         return domain
 
-    def _get_production_assignation_domain(self):
+    def _get_domain_production_assignation(self):
         return [("move_ids.production_group_id", "=", self.production_group_id.id)]
 
     def action_view_reference(self):
@@ -950,10 +938,10 @@ class StockMove(models.Model):
 
     def _is_manual_consumption(self):
         self.check_singleton()
-        return self._determine_is_manual_consumption(self.bom_line_id)
+        return self._is_manual_consumption_from_bom_line(self.bom_line_id)
 
     @api.model
-    def _determine_is_manual_consumption(self, bom_line):
+    def _is_manual_consumption_from_bom_line(self, bom_line):
         return bool(bom_line and bom_line.operation_id)
 
     def _is_consumption_covered(self):

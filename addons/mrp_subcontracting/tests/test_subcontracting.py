@@ -1104,7 +1104,7 @@ class TestSubcontractingFlows(TestMrpSubcontractingCommon):
                 backorder_wizard_dict["context"]
             )
         )
-        backorder_wizard_form.save().process_cancel_backorder()
+        backorder_wizard_form.save().action_cancel_backorder()
         self.assertEqual(receipt.state, "done")
         productions = (
             self.env["mrp.production"]
@@ -1303,7 +1303,7 @@ class TestSubcontractingFlows(TestMrpSubcontractingCommon):
             move.product_uom_qty = nb_finished_product
         picking_receipt = picking_form.save()
         picking_receipt.action_confirm()
-        picking_receipt.do_unreserve()
+        picking_receipt.action_unreserve()
 
         lots = self.env["stock.lot"].create(
             [
@@ -1777,7 +1777,7 @@ class TestSubcontractingSerialMassReceipt(TransactionCase):
         picking_deliver.action_assign()
         picking_deliver.button_validate()
         for quantity in quantities:
-            picking_receipt.do_unreserve()
+            picking_receipt.action_unreserve()
             lot_name = (
                 self.env["stock.lot"]._get_next_serial(
                     picking_receipt.company_id, picking_receipt.move_ids[0].product_id
@@ -1816,7 +1816,7 @@ class TestSubcontractingSerialMassReceipt(TransactionCase):
             move.product_uom_qty = quantity
         picking_receipt = picking_form.save()
         picking_receipt.action_confirm()
-        picking_receipt.do_unreserve()
+        picking_receipt.action_unreserve()
         lot_name = (
             self.env["stock.lot"]._get_next_serial(
                 picking_receipt.company_id, picking_receipt.move_ids[0].product_id

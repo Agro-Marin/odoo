@@ -21,11 +21,11 @@ class StockLocation(models.Model):
                     )
                 )
 
-    def _filter_putaway_access(self):
+    def _filtered_putaway_access(self):
         if self.env.user.partner_id.is_subcontractor:
             return self.sudo()
         else:
-            return super()._filter_putaway_access()
+            return super()._filtered_putaway_access()
 
     def is_subcontract(self):
         subcontracting_location = self.company_id.subcontracting_location_id

@@ -91,7 +91,7 @@ class ChangeProductionQty(models.TransientModel):
                 and not production.workorder_ids
             ):
                 production.qty_producing = new_production_qty
-                production._inverse_qty_producing()
+                production._update_moves_from_qty_producing()
 
             for wo in production.workorder_ids:
                 operation = wo.operation_id
