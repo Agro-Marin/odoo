@@ -421,8 +421,9 @@ class IrUiView(models.Model):
                 other_views += record
         res = super(IrUiView, other_views).write(vals)
         if no_arch_updated_views:
-            vals["arch_updated"] = False
-            res &= super(IrUiView, no_arch_updated_views).write(vals)
+            res &= super(IrUiView, no_arch_updated_views).write(
+                dict(vals, arch_updated=False)
+            )
         return res
 
 
