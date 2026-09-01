@@ -94,9 +94,9 @@ class PosMakePayment(models.TransientModel):
                 )
             return {"type": "ir.actions.act_window_close"}
 
-        return self._prepare_payment_action()
+        return self._prepare_action_make_payment()
 
-    def _prepare_payment_action(self):
+    def _prepare_action_make_payment(self):
         return {
             "name": _("Payment"),
             "view_mode": "form",

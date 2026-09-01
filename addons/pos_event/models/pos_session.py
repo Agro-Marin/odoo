@@ -5,14 +5,14 @@ class PosSession(models.Model):
     _inherit = 'pos.session'
 
     @api.model
-    def _load_pos_data_models(self, config):
-        models = super()._load_pos_data_models(config)
+    def _get_model_names_to_load(self, config):
+        models = super()._get_model_names_to_load(config)
         models += ['event.event.ticket', 'event.event', 'event.slot', 'event.registration', 'event.question', 'event.question.answer', 'event.registration.answer']
         return models
 
     @api.model
-    def _load_pos_data_relations(self, model, fields):
-        relations = super()._load_pos_data_relations(model, fields)
+    def _get_field_relations(self, model, fields):
+        relations = super()._get_field_relations(model, fields)
         if model == 'event.registration':
             # Force compute to False otherwise the frontend will not send the data
             relations['email']['compute'] = False

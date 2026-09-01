@@ -216,7 +216,7 @@ export class ClosePosPopup extends Component {
         if (this.pos.config.cash_control) {
             const response = await this.pos.data.call(
                 "pos.session",
-                "post_closing_cash_details",
+                "update_closing_cash_details",
                 [this.pos.session.id],
                 {
                     counted_cash: parseFloat(

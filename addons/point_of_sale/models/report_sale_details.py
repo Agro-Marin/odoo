@@ -84,11 +84,11 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
 
             for line in order.lines:
                 if line.order_id.is_refund:
-                    refund_done, refund_taxes = self._get_products_and_taxes_dict(
+                    refund_done, refund_taxes = self._update_products_and_taxes(
                         line, refund_done, refund_taxes, currency
                     )
                 else:
-                    products_sold, taxes = self._get_products_and_taxes_dict(
+                    products_sold, taxes = self._update_products_and_taxes(
                         line, products_sold, taxes, currency
                     )
         return total, products_sold, taxes, refund_done, refund_taxes
@@ -510,7 +510,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             line.price_unit * line.qty * (100 - line.discount) / 100.0
         )
 
-    def _get_products_and_taxes_dict(self, line, products, taxes, currency):
+    def _update_products_and_taxes(self, line, products, taxes, currency):
         key2 = (line.product_id, line.price_unit, line.discount)
         key1 = (
             line.product_id.product_tmpl_id.pos_categ_ids[0].name

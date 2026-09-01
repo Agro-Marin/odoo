@@ -58,7 +58,7 @@ class PosSession(models.Model):
             'partner_id': accounting_partner.id,
             'name': '%s - %s (%s)' % (self.name, payment.payment_method_id.name, payment.online_account_payment_id.payment_channel_id.payment_provider_id.name),
         }
-        return self._debit_amounts(partial_vals, amount, amount_converted)
+        return self._prepare_debit_line_vals(partial_vals, amount, amount_converted)
 
     def _reconcile_account_move_lines(self, data):
         data = super()._reconcile_account_move_lines(data)

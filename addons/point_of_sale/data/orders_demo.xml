@@ -88,7 +88,7 @@
             <field name="amount">6.78</field>
         </record>
 
-        <function model="pos.session" name="post_closing_cash_details" eval="[[ref('pos_closed_session_1')], 2225.31]" />
+        <function model="pos.session" name="update_closing_cash_details" eval="[[ref('pos_closed_session_1')], 2225.31]" />
 
         <function model="pos.session" name="update_closing_control_state_session"
             eval="[[ref('pos_closed_session_1')], '']" />
@@ -182,7 +182,7 @@
             <field name="amount">8.36</field>
         </record>
 
-        <function model="pos.session" name="post_closing_cash_details"
+        <function model="pos.session" name="update_closing_cash_details"
                 eval="[[ref('pos_closed_session_2')], 2243.57]" />
 
         <function model="pos.session" name="update_closing_control_state_session"

@@ -235,8 +235,8 @@ class PosOrder(models.Model):
             }
         return order_line
 
-    def _get_invoice_lines_values(self, line_values, pos_line, move_type):
-        inv_line_vals = super()._get_invoice_lines_values(
+    def _prepare_invoice_line_vals(self, line_values, pos_line, move_type):
+        inv_line_vals = super()._prepare_invoice_line_vals(
             line_values, pos_line, move_type
         )
 
@@ -343,7 +343,7 @@ class PosOrderLine(models.Model):
             orders = self.mapped("order_id")
             for order in orders:
                 self.env["stock.move"].browse(
-                    order.lines.sale_order_line_id.move_ids._rollup_move_origs()
+                    order.lines.sale_order_line_id.move_ids._rollup_move_orig_ids()
                 ).filtered(
                     lambda ml: ml.state not in ["cancel", "done"]
                 )._action_cancel()

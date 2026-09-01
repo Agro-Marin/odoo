@@ -1,5 +1,5 @@
 // Side-effect prototype patches: base models the loyalty fields extend, and
-// pos.session._load_pos_data_models (adds the loyalty models to the loaded
+// pos.session._get_model_names_to_load (adds the loyalty models to the loaded
 // set, which the loyalty production JS reads at boot).
 import "./pos_order.data.js";
 import "./pos_order_line.data.js";

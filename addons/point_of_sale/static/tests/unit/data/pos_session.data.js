@@ -4,7 +4,7 @@ export class PosSession extends models.ServerModel {
     _name = "pos.session";
     _orderRef = 1;
 
-    _load_pos_data_models(config_id) {
+    _get_model_names_to_load(config_id) {
         return [
             "pos.session",
             "pos.config",
@@ -68,7 +68,7 @@ export class PosSession extends models.ServerModel {
     }
 
     getModelsToLoad(opts) {
-        return this._load_pos_data_models();
+        return this._get_model_names_to_load();
     }
 
     getModelFieldsToLoad(model, opts) {

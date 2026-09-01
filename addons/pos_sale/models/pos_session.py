@@ -7,7 +7,7 @@ class PosSession(models.Model):
     crm_team_id = fields.Many2one('crm.team', related='config_id.crm_team_id', string="Sales Team", readonly=True)
 
     @api.model
-    def _load_pos_data_models(self, config):
-        data = super()._load_pos_data_models(config)
+    def _get_model_names_to_load(self, config):
+        data = super()._get_model_names_to_load(config)
         data += ['sale.order', 'sale.order.line']
         return data

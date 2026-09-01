@@ -72,7 +72,7 @@ class TestPointOfSaleFlow(CommonPosTest):
             .filtered(lambda payment: payment.payment_method_id.type == "cash")
             .mapped("amount")
         )
-        current_session.post_closing_cash_details(total_cash_payment)
+        current_session.update_closing_cash_details(total_cash_payment)
         current_session.close_session_from_ui()
         self.assertEqual(current_session.state, "closed")
 
@@ -581,9 +581,9 @@ class TestPointOfSaleFlow(CommonPosTest):
             .filtered(lambda payment: payment.payment_method_id.type == "cash")
             .mapped("amount")
         )
-        current_session.post_closing_cash_details(total_cash_payment)
+        current_session.update_closing_cash_details(total_cash_payment)
 
-        action = current_session._close_session_action(1.0)
+        action = current_session._prepare_action_force_close(1.0)
         wizard = self.env["pos.close.session.wizard"].browse(action["res_id"])
         wizard.with_context(action["context"]).action_close_session()
 
@@ -1930,7 +1930,7 @@ class TestPointOfSaleFlow(CommonPosTest):
             .filtered(lambda p: p.payment_method_id.type == "cash")
             .mapped("amount")
         )
-        current_session.post_closing_cash_details(total_cash_payment)
+        current_session.update_closing_cash_details(total_cash_payment)
         current_session.close_session_from_ui()
 
         self.assertEqual(current_session.state, "closed")
@@ -2185,7 +2185,7 @@ class TestPointOfSaleFlow(CommonPosTest):
             .filtered(lambda payment: payment.payment_method_id.type == "cash")
             .mapped("amount")
         )
-        current_session.post_closing_cash_details(total_cash_payment)
+        current_session.update_closing_cash_details(total_cash_payment)
         current_session.close_session_from_ui()
 
         pos_order = self.env["pos.order"].search([])

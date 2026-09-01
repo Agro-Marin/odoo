@@ -12,8 +12,8 @@ class PosSession(models.Model):
     )
 
     @api.model
-    def _load_pos_data_models(self, config):
-        data = super()._load_pos_data_models(config)
+    def _get_model_names_to_load(self, config):
+        data = super()._get_model_names_to_load(config)
         if config.module_pos_hr:
             data += ['hr.employee']
         return data

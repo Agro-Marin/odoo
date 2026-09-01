@@ -237,15 +237,15 @@ class TestPosSessionAmountBuilders(TestPoSCommon):
             "account_id": self.env.company.account_default_pos_receivable_account_id.id
         }
 
-        credit = session._credit_amounts(dict(partial), 50.0, 50.0)
+        credit = session._prepare_credit_line_vals(dict(partial), 50.0, 50.0)
         self.assertAlmostEqual(credit["credit"], 50.0)
         self.assertAlmostEqual(credit["debit"], 0.0)
 
-        credit_neg = session._credit_amounts(dict(partial), -30.0, -30.0)
+        credit_neg = session._prepare_credit_line_vals(dict(partial), -30.0, -30.0)
         self.assertAlmostEqual(credit_neg["debit"], 30.0)
         self.assertAlmostEqual(credit_neg["credit"], 0.0)
 
-        debit = session._debit_amounts(dict(partial), 40.0, 40.0)
+        debit = session._prepare_debit_line_vals(dict(partial), 40.0, 40.0)
         self.assertAlmostEqual(debit["debit"], 40.0)
         self.assertAlmostEqual(debit["credit"], 0.0)
 

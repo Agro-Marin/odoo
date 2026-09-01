@@ -1,4 +1,4 @@
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
 
@@ -8,6 +8,7 @@ class DigestDigest(models.Model):
     kpi_pos_total = fields.Boolean("POS Sales")
     kpi_pos_total_value = fields.Monetary(compute="_compute_kpi_pos_total_value")
 
+    @api.depends_context("uid")
     def _compute_kpi_pos_total_value(self):
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
             raise AccessError(

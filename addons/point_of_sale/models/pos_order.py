@@ -233,7 +233,7 @@ class PosOrder(models.Model):
         return result
 
     @api.model
-    def _get_invoice_lines_values(self, line_values, pos_line, move_type):
+    def _prepare_invoice_line_vals(self, line_values, pos_line, move_type):
         is_refund_order = pos_line.order_id._is_refund_order()
         qty_sign = (
             -1
@@ -283,7 +283,7 @@ class PosOrder(models.Model):
             )
             for line_values in line_values_list:
                 line = line_values["record"]
-                invoice_lines_values = order._get_invoice_lines_values(
+                invoice_lines_values = order._prepare_invoice_line_vals(
                     line_values, line, move_type
                 )
                 invoice_lines.append((0, None, invoice_lines_values))
@@ -443,7 +443,7 @@ class PosOrder(models.Model):
     )
     picking_ids = fields.One2many("stock.picking", "pos_order_id")
     picking_count = fields.Count("picking_ids")
-    failed_pickings = fields.Boolean(compute="_compute_pickings")
+    failed_pickings = fields.Boolean(compute="_compute_failed_pickings")
     picking_type_id = fields.Many2one(
         "stock.picking.type",
         related="session_id.config_id.picking_type_id",
@@ -629,7 +629,7 @@ class PosOrder(models.Model):
             order.is_invoiced = bool(order.account_move)
 
     @api.depends("picking_ids", "picking_ids.state")
-    def _compute_pickings(self):
+    def _compute_failed_pickings(self):
         for order in self:
             order.failed_pickings = bool(
                 order.picking_ids.filtered(lambda p: p.state != "done")

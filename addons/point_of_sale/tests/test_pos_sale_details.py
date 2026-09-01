@@ -91,7 +91,7 @@ class TestPosSaleDetails(TestPoSCommon):
         session1 = self.config.current_session_id
         session1.set_opening_control(0, None)
         session1.try_cash_in_out("in", 200, "Float", False, {"translatedType": "in"})
-        session1.post_closing_cash_details(200)
+        session1.update_closing_cash_details(200)
         session1.close_session_from_ui()
 
         self.config.open_ui()
@@ -102,7 +102,7 @@ class TestPosSaleDetails(TestPoSCommon):
         session2.try_cash_in_out(
             "out", 50, "Cash out", False, {"translatedType": "out"}
         )
-        session2.post_closing_cash_details(142)
+        session2.update_closing_cash_details(142)
         session2.close_session_from_ui()
 
         report = self.report.get_sale_details(session_ids=[session2.id])

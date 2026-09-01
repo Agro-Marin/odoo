@@ -331,14 +331,14 @@ class PosConfig(models.Model):
         fields = self._load_pos_self_data_fields(self)
         response['pos.config'] = {
             'fields': fields,
-            'relations': self.env['pos.session']._load_pos_data_relations('pos.config', fields)
+            'relations': self.env['pos.session']._get_field_relations('pos.config', fields)
         }
 
         for model in self._load_self_data_models():
             fields = self.env[model]._load_pos_self_data_fields(self)
             response[model] = {
                 'fields': fields,
-                'relations': self.env['pos.session']._load_pos_data_relations(model, fields)
+                'relations': self.env['pos.session']._get_field_relations(model, fields)
             }
 
         return response

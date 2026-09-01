@@ -177,7 +177,7 @@ class PosPayment(models.Model):
                 {"amount": payment_amount},
                 payment.payment_date,
             )
-            credit_line_vals = pos_session._credit_amounts(
+            credit_line_vals = pos_session._prepare_credit_line_vals(
                 {
                     "account_id": accounting_partner.with_company(
                         order.company_id
@@ -203,7 +203,7 @@ class PosPayment(models.Model):
                 reversed_move_receivable_account_id = (
                     order.company_id.account_default_pos_receivable_account_id.id
                 )
-            debit_line_vals = pos_session._debit_amounts(
+            debit_line_vals = pos_session._prepare_debit_line_vals(
                 {
                     "account_id": reversed_move_receivable_account_id,
                     "move_id": payment_move.id,

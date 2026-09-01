@@ -155,7 +155,7 @@ class PosSession(models.Model):
         return super().write(vals)
 
     @api.model
-    def _load_pos_data_relations(self, model, fields):
+    def _get_field_relations(self, model, fields):
         model_fields = self.env[model]._fields
         relations = {}
 
@@ -193,7 +193,7 @@ class PosSession(models.Model):
         return relations
 
     @api.model
-    def _load_pos_data_models(self, config):
+    def _get_model_names_to_load(self, config):
         return [
             "pos.config",
             "pos.preset",
@@ -266,7 +266,7 @@ class PosSession(models.Model):
             response, self.config_id
         )
 
-        for model in self._load_pos_data_models(self.config_id):
+        for model in self._get_model_names_to_load(self.config_id):
             if models_to_load and model not in models_to_load:
                 continue
 
@@ -285,14 +285,14 @@ class PosSession(models.Model):
         fields = self._load_pos_data_fields(self.config_id)
         response["pos.session"] = {
             "fields": fields,
-            "relations": self._load_pos_data_relations("pos.session", fields),
+            "relations": self._get_field_relations("pos.session", fields),
         }
 
-        for model in self._load_pos_data_models(self.config_id):
+        for model in self._get_model_names_to_load(self.config_id):
             fields = self.env[model]._load_pos_data_fields(self.config_id)
             response[model] = {
                 "fields": fields,
-                "relations": self._load_pos_data_relations(model, fields),
+                "relations": self._get_field_relations(model, fields),
             }
 
         return response
@@ -376,7 +376,7 @@ class PosSession(models.Model):
     def _compute_cash_balance(self):
         captured_cash_payments_domain = Domain.AND(
             [
-                self._get_captured_payments_domain(),
+                self._get_domain_captured_payments(),
                 [("payment_method_id.is_cash_count", "=", True)],
             ]
         )
@@ -419,7 +419,7 @@ class PosSession(models.Model):
     @api.depends("order_ids.payment_ids.amount")
     def _compute_total_payments_amount(self):
         result = self.env["pos.payment"]._read_group(
-            self._get_captured_payments_domain(), ["session_id"], ["amount:sum"]
+            self._get_domain_captured_payments(), ["session_id"], ["amount:sum"]
         )
         session_amount_map = {session.id: amount for session, amount in result}
         for session in self:
@@ -747,7 +747,7 @@ class PosSession(models.Model):
                     pass
             except UserError:
                 self.env.cr.rollback()
-                return self._close_session_action(balance)
+                return self._prepare_action_force_close(balance)
 
             self.sudo()._post_statement_difference(cash_difference_before_statements)
             if record.move_id.line_ids:
@@ -836,7 +836,7 @@ class PosSession(models.Model):
                     body=_("Related Session: %(link)s", link=self._get_html_link())
                 )
 
-    def _close_session_action(self, amount_to_balance):
+    def _prepare_action_force_close(self, amount_to_balance):
         default_account = self._get_balancing_account()
         wizard = self.env["pos.close.session.wizard"].create(
             {
@@ -920,7 +920,7 @@ class PosSession(models.Model):
             notes,
         )
 
-    def post_closing_cash_details(self, counted_cash):
+    def update_closing_cash_details(self, counted_cash):
         self.check_singleton()
         check_closing_session = self._resolve_close_refusal()
         if check_closing_session:
@@ -942,11 +942,11 @@ class PosSession(models.Model):
     ):
         self.check_singleton()
 
-        get_diff_vals_result = self._get_diff_vals(payment_method.id, diff_amount)
-        if not get_diff_vals_result:
+        diff_line_vals = self._prepare_diff_line_vals(payment_method.id, diff_amount)
+        if not diff_line_vals:
             return
 
-        source_vals, dest_vals = get_diff_vals_result
+        source_vals, dest_vals = diff_line_vals
         diff_move = self.env["account.move"].create(
             {
                 "journal_id": payment_method.journal_id.id,
@@ -964,7 +964,7 @@ class PosSession(models.Model):
             session=self.name,
         )
 
-    def _get_diff_vals(self, payment_method_id, diff_amount, outstanding_account=False):
+    def _prepare_diff_line_vals(self, payment_method_id, diff_amount, outstanding_account=False):
         payment_method = self.env["pos.payment.method"].browse(payment_method_id)
         diff_compare_to_zero = self.currency_id.compare_amounts(diff_amount, 0)
         source_account = payment_method.outstanding_account_id or outstanding_account
@@ -981,12 +981,12 @@ class PosSession(models.Model):
         amounts = self._update_amounts(
             {"amount": 0, "amount_converted": 0}, {"amount": diff_amount}, self.stop_at
         )
-        source_vals = self._debit_amounts(
+        source_vals = self._prepare_debit_line_vals(
             {"account_id": source_account.id},
             amounts["amount"],
             amounts["amount_converted"],
         )
-        dest_vals = self._credit_amounts(
+        dest_vals = self._prepare_credit_line_vals(
             {"account_id": destination_account.id},
             amounts["amount"],
             amounts["amount_converted"],
@@ -1202,7 +1202,7 @@ class PosSession(models.Model):
                 self.company_id,
                 self.stop_at,
             )
-        return self._credit_amounts(
+        return self._prepare_credit_line_vals(
             partial_vals, imbalance_amount_session, imbalance_amount
         )
 
@@ -1549,7 +1549,7 @@ class PosSession(models.Model):
         MoveLine = data.get("MoveLine")
 
         tax_vals = [
-            self._get_tax_vals(
+            self._prepare_tax_vals(
                 key,
                 amounts["amount"],
                 amounts["amount_converted"],
@@ -1577,7 +1577,7 @@ class PosSession(models.Model):
             precision_rounding=self.currency_id.rounding,
         ):
             rounding_vals = [
-                self._get_rounding_difference_vals(
+                self._prepare_rounding_difference_vals(
                     rounding_difference["amount"],
                     rounding_difference["amount_converted"],
                 )
@@ -1585,13 +1585,13 @@ class PosSession(models.Model):
 
         MoveLine.create(tax_vals)
         move_line_ids = MoveLine.create(
-            list(starmap(self._get_sale_vals, sales.items()))
+            list(starmap(self._prepare_sale_vals, sales.items()))
         )
         for key, ml_id in zip(sales.keys(), move_line_ids.ids, strict=False):
             sales[key]["move_line_id"] = ml_id
         MoveLine.create(
             [
-                self._get_stock_expense_vals(
+                self._prepare_stock_expense_vals(
                     key, amounts["amount"], amounts["amount_converted"]
                 )
                 for key, amounts in stock_expense.items()
@@ -1610,7 +1610,7 @@ class PosSession(models.Model):
         payment_to_receivable_lines = {}
         for payment_method, amounts in combine_receivables_bank.items():
             combine_receivable_line = MoveLine.create(
-                self._get_combine_receivable_vals(
+                self._prepare_combine_receivable_vals(
                     payment_method, amounts["amount"], amounts["amount_converted"]
                 )
             )
@@ -1625,7 +1625,7 @@ class PosSession(models.Model):
 
         for payment, amounts in split_receivables_bank.items():
             split_receivable_line = MoveLine.create(
-                self._get_split_receivable_vals(
+                self._prepare_split_receivable_vals(
                     payment, amounts["amount"], amounts["amount_converted"]
                 )
             )
@@ -1655,13 +1655,13 @@ class PosSession(models.Model):
         vals = []
         for payment_method, amounts in combine_receivables_pay_later.items():
             vals.append(
-                self._get_combine_receivable_vals(
+                self._prepare_combine_receivable_vals(
                     payment_method, amounts["amount"], amounts["amount_converted"]
                 )
             )
         for payment, amounts in split_receivables_pay_later.items():
             vals.append(
-                self._get_split_receivable_vals(
+                self._prepare_split_receivable_vals(
                     payment, amounts["amount"], amounts["amount_converted"]
                 )
             )
@@ -1734,7 +1734,7 @@ class PosSession(models.Model):
     def _apply_diff_on_account_payment_move(
         self, account_payment, payment_method, diff_amount
     ):
-        diff_vals = self._get_diff_vals(
+        diff_vals = self._prepare_diff_line_vals(
             payment_method.id, diff_amount, account_payment.outstanding_account_id
         )
         if not diff_vals:
@@ -1816,12 +1816,12 @@ class PosSession(models.Model):
         for payment, amounts in split_receivables_cash.items():
             journal_id = payment.payment_method_id.journal_id
             split_cash_statement_line_vals.append(
-                self._get_split_statement_line_vals(
+                self._prepare_split_statement_line_vals(
                     journal_id, amounts["amount"], payment
                 )
             )
             split_cash_receivable_vals.append(
-                self._get_split_receivable_vals(
+                self._prepare_split_receivable_vals(
                     payment, amounts["amount"], amounts["amount_converted"]
                 )
             )
@@ -1832,12 +1832,12 @@ class PosSession(models.Model):
                 amounts["amount"], precision_rounding=self.currency_id.rounding
             ):
                 combine_cash_statement_line_vals.append(
-                    self._get_combine_statement_line_vals(
+                    self._prepare_combine_statement_line_vals(
                         payment_method.journal_id, amounts["amount"], payment_method
                     )
                 )
                 combine_cash_receivable_vals.append(
-                    self._get_combine_receivable_vals(
+                    self._prepare_combine_receivable_vals(
                         payment_method, amounts["amount"], amounts["amount_converted"]
                     )
                 )
@@ -1883,13 +1883,13 @@ class PosSession(models.Model):
         split_invoice_receivable_lines = {}
         for payment_method, amounts in combine_invoice_receivables.items():
             combine_invoice_receivable_vals[payment_method].append(
-                self._get_invoice_receivable_vals(
+                self._prepare_invoice_receivable_vals(
                     amounts["amount"], amounts["amount_converted"]
                 )
             )
         for payment, amounts in split_invoice_receivables.items():
             split_invoice_receivable_vals[payment].append(
-                self._get_invoice_receivable_vals(
+                self._prepare_invoice_receivable_vals(
                     amounts["amount"], amounts["amount_converted"]
                 )
             )
@@ -1916,7 +1916,7 @@ class PosSession(models.Model):
         for stock_moves in [stock_valuation, stock_return]:
             for account, amounts in stock_moves.items():
                 stock_valuation_vals[account].append(
-                    self._get_stock_valuation_vals(
+                    self._prepare_stock_valuation_vals(
                         account, amounts["amount"], amounts["amount_converted"]
                     )
                 )
@@ -2002,7 +2002,7 @@ class PosSession(models.Model):
 
         return data
 
-    def _get_rounding_difference_vals(self, amount, amount_converted):
+    def _prepare_rounding_difference_vals(self, amount, amount_converted):
         if self.config_id.cash_rounding:
             partial_args = {
                 "name": "Rounding line",
@@ -2015,7 +2015,7 @@ class PosSession(models.Model):
                 partial_args["account_id"] = (
                     self.config_id.rounding_method.loss_account_id.id
                 )
-                return self._debit_amounts(partial_args, -amount, -amount_converted)
+                return self._prepare_debit_line_vals(partial_args, -amount, -amount_converted)
 
             if (
                 float_compare(0.0, amount, precision_rounding=self.currency_id.rounding)
@@ -2024,10 +2024,10 @@ class PosSession(models.Model):
                 partial_args["account_id"] = (
                     self.config_id.rounding_method.profit_account_id.id
                 )
-                return self._credit_amounts(partial_args, amount, amount_converted)
+                return self._prepare_credit_line_vals(partial_args, amount, amount_converted)
         return None
 
-    def _get_split_receivable_vals(self, payment, amount, amount_converted):
+    def _prepare_split_receivable_vals(self, payment, amount, amount_converted):
         accounting_partner = payment.partner_id.commercial_partner_id
         if not accounting_partner:
             raise UserError(
@@ -2044,25 +2044,25 @@ class PosSession(models.Model):
             "partner_id": accounting_partner.id,
             "name": "%s - %s" % (self.name, payment.payment_method_id.name),
         }
-        return self._debit_amounts(partial_vals, amount, amount_converted)
+        return self._prepare_debit_line_vals(partial_vals, amount, amount_converted)
 
-    def _get_combine_receivable_vals(self, payment_method, amount, amount_converted):
+    def _prepare_combine_receivable_vals(self, payment_method, amount, amount_converted):
         partial_vals = {
             "account_id": self._get_receivable_account(payment_method).id,
             "move_id": self.move_id.id,
             "name": "%s - %s" % (self.name, payment_method.name),
             "display_type": "payment_term",
         }
-        return self._debit_amounts(partial_vals, amount, amount_converted)
+        return self._prepare_debit_line_vals(partial_vals, amount, amount_converted)
 
-    def _get_invoice_receivable_vals(self, amount, amount_converted):
+    def _prepare_invoice_receivable_vals(self, amount, amount_converted):
         partial_vals = {
             "account_id": self.company_id.account_default_pos_receivable_account_id.id,
             "move_id": self.move_id.id,
             "name": _("From invoice payments"),
             "display_type": "payment_term",
         }
-        return self._credit_amounts(partial_vals, amount, amount_converted)
+        return self._prepare_credit_line_vals(partial_vals, amount, amount_converted)
 
     def _get_sale_key(self, base_line):
         return {
@@ -2079,7 +2079,7 @@ class PosSession(models.Model):
             else False,
         }
 
-    def _get_sale_vals(self, key, sale_vals):
+    def _prepare_sale_vals(self, key, sale_vals):
         tax_ids = key["tax_ids"]
         product_id = key["product_id"]
         sign = key["sign"]
@@ -2115,7 +2115,7 @@ class PosSession(models.Model):
             "quantity": sale_vals.get("quantity", 1.00) * key["sign"],
         }
 
-    def _get_tax_vals(self, key, amount, amount_converted, base_amount_converted):
+    def _prepare_tax_vals(self, key, amount, amount_converted, base_amount_converted):
         account_id, repartition_line_id, tag_ids = key
         tax_rep = self.env["account.tax.repartition.line"].browse(repartition_line_id)
         tax = tax_rep.tax_id
@@ -2132,19 +2132,19 @@ class PosSession(models.Model):
             "balance": amount_converted,
         }
 
-    def _get_stock_expense_vals(self, exp_account, amount, amount_converted):
+    def _prepare_stock_expense_vals(self, exp_account, amount, amount_converted):
         partial_args = {"account_id": exp_account.id, "move_id": self.move_id.id}
-        return self._debit_amounts(
+        return self._prepare_debit_line_vals(
             partial_args, amount, amount_converted, force_company_currency=True
         )
 
-    def _get_stock_valuation_vals(self, stock_val_account, amount, amount_converted):
+    def _prepare_stock_valuation_vals(self, stock_val_account, amount, amount_converted):
         partial_args = {"account_id": stock_val_account.id, "move_id": self.move_id.id}
-        return self._credit_amounts(
+        return self._prepare_credit_line_vals(
             partial_args, amount, amount_converted, force_company_currency=True
         )
 
-    def _get_combine_statement_line_vals(self, journal, amount, payment_method):
+    def _prepare_combine_statement_line_vals(self, journal, amount, payment_method):
         amount_values = self._prepare_statement_line_amount_values(journal, amount)
         return {
             "date": fields.Date.context_today(self),
@@ -2155,7 +2155,7 @@ class PosSession(models.Model):
             **amount_values,
         }
 
-    def _get_split_statement_line_vals(self, journal, amount, payment):
+    def _prepare_split_statement_line_vals(self, journal, amount, payment):
         accounting_partner = payment.partner_id.commercial_partner_id
         amount_values = self._prepare_statement_line_amount_values(journal, amount)
         return {
@@ -2221,7 +2221,7 @@ class PosSession(models.Model):
                 new_amounts[key] = self.currency_id.round(amount)
         return new_amounts
 
-    def _credit_amounts(
+    def _prepare_credit_line_vals(
         self,
         partial_move_line_vals,
         amount,
@@ -2242,7 +2242,7 @@ class PosSession(models.Model):
             **additional_field,
         }
 
-    def _debit_amounts(
+    def _prepare_debit_line_vals(
         self,
         partial_move_line_vals,
         amount,
@@ -2268,7 +2268,7 @@ class PosSession(models.Model):
             amount, self.company_id.currency_id, self.company_id, date, round=round
         )
 
-    def show_cash_register(self):
+    def action_view_cash_register(self):
         return {
             "name": _("Cash register"),
             "type": "ir.actions.act_window",
@@ -2277,7 +2277,7 @@ class PosSession(models.Model):
             "domain": [("id", "in", self.statement_line_ids.ids)],
         }
 
-    def show_journal_items(self):
+    def action_view_journal_items(self):
         self.check_singleton()
         all_related_moves = self._get_related_account_moves()
         return {
@@ -2341,11 +2341,11 @@ class PosSession(models.Model):
             "type": "ir.actions.act_window",
             "res_model": "pos.payment",
             "view_mode": "list,form",
-            "domain": self._get_captured_payments_domain(),
+            "domain": self._get_domain_captured_payments(),
             "context": {"search_default_group_by_payment_method": 1},
         }
 
-    def _get_captured_payments_domain(self):
+    def _get_domain_captured_payments(self):
         return [
             ("session_id", "in", self.ids),
             ("pos_order_id.state", "in", ["paid", "invoiced", "done"]),

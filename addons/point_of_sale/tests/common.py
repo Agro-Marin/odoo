@@ -1106,7 +1106,7 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             )
             .mapped("amount")
         )
-        pos_session.post_closing_cash_details(total_cash_payment)
+        pos_session.update_closing_cash_details(total_cash_payment)
         pos_session.close_session_from_ui()
         after_closing_cb = args.get("after_closing_cb")
         if after_closing_cb:

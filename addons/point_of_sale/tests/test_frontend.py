@@ -65,7 +65,7 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
         config.with_user(user).open_ui()
         session = config.current_session_id
         yield session
-        session.post_closing_cash_details(0)
+        session.update_closing_cash_details(0)
         session.close_session_from_ui()
 
     @classmethod
@@ -1289,7 +1289,7 @@ class TestUi(TestPointOfSaleHttpCommon):
     def test_pos_closing_cash_details(self):
         self.main_pos_config.open_ui()
         current_session = self.main_pos_config.current_session_id
-        current_session.post_closing_cash_details(0)
+        current_session.update_closing_cash_details(0)
         current_session.close_session_from_ui()
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
@@ -2467,7 +2467,7 @@ class TestUi(TestPointOfSaleHttpCommon):
             .filtered(lambda payment: payment.payment_method_id.type == "cash")
             .mapped("amount")
         )
-        current_session.post_closing_cash_details(total_cash_payment)
+        current_session.update_closing_cash_details(total_cash_payment)
         current_session.close_session_from_ui()
         self.assertEqual(current_session.state, "closed")
         reports = (
@@ -5385,7 +5385,7 @@ class TestTaxCommonPOS(TestPointOfSaleHttpCommon, TestTaxCommon):
 
     def assert_pos_orders_and_invoices(self, tour, tests_with_orders):
         if self.main_pos_config.current_session_id:
-            self.main_pos_config.current_session_id.post_closing_cash_details(0)
+            self.main_pos_config.current_session_id.update_closing_cash_details(0)
             self.main_pos_config.current_session_id.close_session_from_ui()
 
         self.start_pos_tour(tour)

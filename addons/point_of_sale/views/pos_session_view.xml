@@ -36,7 +36,7 @@
                             <field name="total_payments_amount" widget="statinfo" string="Payments"/>
                         </button>
                         <button
-                            name="show_journal_items"
+                            name="action_view_journal_items"
                             type="object"
                             class="oe_stat_button"
                             icon="fa-bars"
@@ -47,7 +47,7 @@
                             </div>
                         </button>
                         <button
-                            name="show_cash_register"
+                            name="action_view_cash_register"
                             type="object"
                             class="oe_stat_button"
                             icon="fa-bars"

@@ -238,7 +238,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
 
         # Simulate the cashier closing the session (to detect eventual accounting issues)
         total_cash_payment = sum(current_session.order_ids.filtered(lambda o: o.state != 'cancel').payment_ids.filtered(lambda payment: payment.payment_method_id.type == 'cash').mapped('amount'))
-        current_session.post_closing_cash_details(total_cash_payment)
+        current_session.update_closing_cash_details(total_cash_payment)
         close_result = current_session.close_session_from_ui()
 
         self.assertTrue(close_result['successful'])

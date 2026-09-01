@@ -21,15 +21,14 @@ class PosConfig(models.Model):
     _description = "Point of Sale Configuration"
     _check_company_auto = True
 
-    def _default_warehouse_id(self):
-        return (
-            self.env["stock.warehouse"]
-            .search(
-                self.env["stock.warehouse"]._check_company_domain(self.env.company),
-                limit=1,
-            )
-            .id
+    def _get_default_warehouse(self):
+        return self.env["stock.warehouse"].search(
+            self.env["stock.warehouse"]._check_company_domain(self.env.company),
+            limit=1,
         )
+
+    def _default_warehouse_id(self):
+        return self._get_default_warehouse().id
 
     def _default_picking_type_id(self):
         return (
@@ -941,7 +940,7 @@ class PosConfig(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        if not self._default_warehouse_id():
+        if not self._get_default_warehouse():
             self.env["stock.warehouse"].create(
                 {
                     "code": (vals_list[0].get("name") or "POS")[
@@ -1238,7 +1237,7 @@ class PosConfig(models.Model):
             "tag": "reload",
         }
 
-    def _prepare_ui_action(self):
+    def _prepare_action_open_ui(self):
         if not self.current_session_id:
             self.env["pos.session"].create(
                 {"user_id": self.env.uid, "config_id": self.id}
@@ -1289,16 +1288,16 @@ class PosConfig(models.Model):
         self._check_fields(self._fields)
 
         self._check_company_has_fiscal_country()
-        return self._prepare_ui_action()
+        return self._prepare_action_open_ui()
 
     def close_ui(self):
         return self.open_ui()
 
     def action_view_current_session(self):
         self.check_singleton()
-        return self._open_session(self.current_session_id.id)
+        return self._prepare_action_view_session(self.current_session_id.id)
 
-    def _open_session(self, session_id):
+    def _prepare_action_view_session(self, session_id):
         self._check_pricelists()
         return {
             "name": _("Session"),
@@ -1674,7 +1673,7 @@ class PosConfig(models.Model):
     def _load_onboarding_clothes_demo_data(self, with_demo_data=True):
         self.check_singleton()
         convert.convert_file(
-            self._env_with_clean_context(),
+            self._get_env_with_clean_context(),
             "point_of_sale",
             "data/scenarios/clothes_category_data.xml",
             idref=None,
@@ -1687,7 +1686,7 @@ class PosConfig(models.Model):
             )
             if not product_module.demo:
                 convert.convert_file(
-                    self._env_with_clean_context(),
+                    self._get_env_with_clean_context(),
                     "product",
                     "data/product_attribute_demo.xml",
                     idref=None,
@@ -1695,7 +1694,7 @@ class PosConfig(models.Model):
                     noupdate=True,
                 )
             convert.convert_file(
-                self._env_with_clean_context(),
+                self._get_env_with_clean_context(),
                 "point_of_sale",
                 "data/scenarios/clothes_data.xml",
                 idref=None,
@@ -1743,7 +1742,7 @@ class PosConfig(models.Model):
     def _load_onboarding_bakery_demo_data(self, with_demo_data=True):
         self.check_singleton()
         convert.convert_file(
-            self._env_with_clean_context(),
+            self._get_env_with_clean_context(),
             "point_of_sale",
             "data/scenarios/bakery_category_data.xml",
             idref=None,
@@ -1752,7 +1751,7 @@ class PosConfig(models.Model):
         )
         if with_demo_data:
             convert.convert_file(
-                self._env_with_clean_context(),
+                self._get_env_with_clean_context(),
                 "point_of_sale",
                 "data/scenarios/bakery_data.xml",
                 idref=None,
@@ -1810,7 +1809,7 @@ class PosConfig(models.Model):
             and not existing_session
         ):
             convert.convert_file(
-                self._env_with_clean_context(),
+                self._get_env_with_clean_context(),
                 "point_of_sale",
                 "data/orders_demo.xml",
                 idref=None,
@@ -1822,7 +1821,7 @@ class PosConfig(models.Model):
     def _load_onboarding_furniture_demo_data(self, with_demo_data=False):
         self.check_singleton()
         convert.convert_file(
-            self._env_with_clean_context(),
+            self._get_env_with_clean_context(),
             "point_of_sale",
             "data/scenarios/furniture_category_data.xml",
             idref=None,
@@ -1835,7 +1834,7 @@ class PosConfig(models.Model):
             )
             if not product_module.demo:
                 convert.convert_file(
-                    self._env_with_clean_context(),
+                    self._get_env_with_clean_context(),
                     "product",
                     "data/product_category_demo.xml",
                     idref=None,
@@ -1843,7 +1842,7 @@ class PosConfig(models.Model):
                     noupdate=True,
                 )
                 convert.convert_file(
-                    self._env_with_clean_context(),
+                    self._get_env_with_clean_context(),
                     "product",
                     "data/product_attribute_demo.xml",
                     idref=None,
@@ -1851,7 +1850,7 @@ class PosConfig(models.Model):
                     noupdate=True,
                 )
                 convert.convert_file(
-                    self._env_with_clean_context(),
+                    self._get_env_with_clean_context(),
                     "product",
                     "data/product_demo.xml",
                     idref=None,
@@ -1859,7 +1858,7 @@ class PosConfig(models.Model):
                     noupdate=True,
                 )
             convert.convert_file(
-                self._env_with_clean_context(),
+                self._get_env_with_clean_context(),
                 "point_of_sale",
                 "data/scenarios/furniture_data.xml",
                 idref=None,
@@ -1955,7 +1954,7 @@ class PosConfig(models.Model):
             else self.pricelist_id
         )
 
-    def _env_with_clean_context(self):
+    def _get_env_with_clean_context(self):
         safe_context = {}
         if "allowed_company_ids" in self.env.context:
             safe_context["allowed_company_ids"] = self.env.context[

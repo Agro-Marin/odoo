@@ -82,7 +82,7 @@ class PosConfig(models.Model):
             'noupdate': True,
         }])
         if not self.env.ref('pos_restaurant.floor_main', raise_if_not_found=False):
-            convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_floor.xml', idref=None, mode='init', noupdate=True)
+            convert.convert_file(self._get_env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_floor.xml', idref=None, mode='init', noupdate=True)
         config_floors = [(5, 0)]
         if (floor_main := self.env.ref('pos_restaurant.floor_main', raise_if_not_found=False)):
             config_floors += [(4, floor_main.id)]
@@ -94,9 +94,9 @@ class PosConfig(models.Model):
 
     def _load_bar_demo_data(self, with_demo_data=True):
         self.check_singleton()
-        convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/bar_category_data.xml', idref=None, mode='init', noupdate=True)
+        convert.convert_file(self._get_env_with_clean_context(), 'pos_restaurant', 'data/scenarios/bar_category_data.xml', idref=None, mode='init', noupdate=True)
         if with_demo_data:
-            convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/bar_demo_data.xml', idref=None, mode='init', noupdate=True)
+            convert.convert_file(self._get_env_with_clean_context(), 'pos_restaurant', 'data/scenarios/bar_demo_data.xml', idref=None, mode='init', noupdate=True)
         bar_categories = self.get_record_by_ref([
             'pos_restaurant.pos_category_cocktails',
             'pos_restaurant.pos_category_soft_drinks',
@@ -133,7 +133,7 @@ class PosConfig(models.Model):
             # Ensure the "Presets" menu is visible when installing the restaurant scenario
             self.env.ref("point_of_sale.group_pos_preset").implied_by_ids |= self.env.ref("base.group_user")
         if not self.env.ref('pos_restaurant.floor_main', raise_if_not_found=False):
-            convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_floor.xml', idref=None, mode='init', noupdate=True)
+            convert.convert_file(self._get_env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_floor.xml', idref=None, mode='init', noupdate=True)
         config_floors = [(5, 0)]
         if (floor_main := self.env.ref('pos_restaurant.floor_main', raise_if_not_found=False)):
             config_floors += [(4, floor_main.id)]
@@ -143,7 +143,7 @@ class PosConfig(models.Model):
         config._load_restaurant_demo_data(with_demo_data)
         existing_session = self.env.ref('pos_restaurant.pos_closed_session_3', raise_if_not_found=False)
         if with_demo_data and self.env.company.id == self.env.ref('base.main_company').id and not existing_session:
-            convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_demo_session.xml', idref=None, mode='init', noupdate=True)
+            convert.convert_file(self._get_env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_demo_session.xml', idref=None, mode='init', noupdate=True)
         return {'config_id': config.id}
 
     @api.depends('set_tip_after_payment')
@@ -152,9 +152,9 @@ class PosConfig(models.Model):
 
     def _load_restaurant_demo_data(self, with_demo_data=True):
         self.check_singleton()
-        convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_category_data.xml', idref=None, mode='init', noupdate=True)
+        convert.convert_file(self._get_env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_category_data.xml', idref=None, mode='init', noupdate=True)
         if with_demo_data:
-            convert.convert_file(self._env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_demo_data.xml', idref=None, mode='init', noupdate=True)
+            convert.convert_file(self._get_env_with_clean_context(), 'pos_restaurant', 'data/scenarios/restaurant_demo_data.xml', idref=None, mode='init', noupdate=True)
         restaurant_categories = self.get_record_by_ref([
             'pos_restaurant.food',
             'pos_restaurant.drinks',

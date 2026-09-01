@@ -179,7 +179,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
 
         current_session_id = self.pos_config.current_session_id
-        current_session_id.post_closing_cash_details(450.0)
+        current_session_id.update_closing_cash_details(450.0)
         current_session_id.close_session_from_ui()
         self.assertEqual(
             current_session_id.state, "closed", "Check that session is closed"
@@ -280,7 +280,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         self.pos_make_payment_0.with_context(context_payment).action_make_payment()
 
         current_session_id = self.pos_config.current_session_id
-        current_session_id.post_closing_cash_details(7 * 450.0)
+        current_session_id.update_closing_cash_details(7 * 450.0)
         current_session_id.close_session_from_ui()
 
         session_move = pos_order_pos0.session_id.move_id
@@ -389,7 +389,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         self.pos_make_payment_0.with_context(context_payment).action_make_payment()
 
         current_session_id = self.pos_config.current_session_id
-        current_session_id.post_closing_cash_details(450.0)
+        current_session_id.update_closing_cash_details(450.0)
         current_session_id.close_session_from_ui()
         self.assertEqual(
             current_session_id.state, "closed", "Check that session is closed"
@@ -675,7 +675,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         self.pos_make_payment_0.with_context(context_payment).action_make_payment()
 
         current_session_id = self.pos_config.current_session_id
-        current_session_id.post_closing_cash_details(300.0)
+        current_session_id.update_closing_cash_details(300.0)
         current_session_id.close_session_from_ui()
         self.assertEqual(
             current_session_id.state, "closed", "Check that session is closed"

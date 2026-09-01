@@ -70,7 +70,7 @@ class TestContinentalPerpetualFlow(TestContinentalCommon):
         pos_payment.with_context(context_payment).action_make_payment()
 
         current_session_id = self.pos_config.current_session_id
-        current_session_id.post_closing_cash_details(100.0)
+        current_session_id.update_closing_cash_details(100.0)
         current_session_id.close_session_from_ui()
 
         valuation_account = self.category.property_stock_valuation_account_id

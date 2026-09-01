@@ -1611,7 +1611,7 @@ class TestPoSBasicConfig(TestPoSCommon):
                 "INFO:odoo.addons.point_of_sale.models.pos_order:PoS synchronisation #1996 finished",
             )
 
-        session.post_closing_cash_details(amount_paid)
+        session.update_closing_cash_details(amount_paid)
         session.close_session_from_ui()
 
         self.assertEqual(session.cash_register_balance_start, 0)
@@ -1619,7 +1619,7 @@ class TestPoSBasicConfig(TestPoSCommon):
 
         self.open_new_session(amount_paid)
         session = self.pos_session
-        session.post_closing_cash_details(amount_paid)
+        session.update_closing_cash_details(amount_paid)
         session.close_session_from_ui()
         self.assertEqual(session.cash_register_balance_start, amount_paid)
         self.assertEqual(session.cash_register_balance_end_real, amount_paid)
@@ -1662,7 +1662,7 @@ class TestPoSBasicConfig(TestPoSCommon):
             pos_data["amount_paid"] += order_data["amount_paid"]
             self.env["pos.order"].sync_from_ui([order_data])
 
-            session.post_closing_cash_details(pos_data["amount_paid"])
+            session.update_closing_cash_details(pos_data["amount_paid"])
             session.close_session_from_ui()
 
         open_and_check(pos01_data)

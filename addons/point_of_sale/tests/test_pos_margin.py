@@ -351,7 +351,7 @@ class TestPosMargin(TestPoSCommon):
             .filtered(lambda payment: payment.payment_method_id.type == "cash")
             .mapped("amount")
         )
-        self.pos_session.post_closing_cash_details(total_cash_payment)
+        self.pos_session.update_closing_cash_details(total_cash_payment)
         self.pos_session.close_session_from_ui()
 
         self.assertEqual(self.pos_session.order_ids[0].margin, 26)

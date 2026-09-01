@@ -14,9 +14,10 @@ patch(PosOrderline.prototype, {
         }
     },
     get saleDetails() {
-        const down_payment_details = this.down_payment_details
-            ? JSON.parse(this.down_payment_details)
-            : [];
+        const down_payment_details =
+            typeof this.down_payment_details === "string"
+                ? JSON.parse(this.down_payment_details)
+                : this.down_payment_details || [];
         return down_payment_details?.map?.((detail) => ({
             product_uom_qty: detail.product_uom_qty,
             product_name: detail.product_name,

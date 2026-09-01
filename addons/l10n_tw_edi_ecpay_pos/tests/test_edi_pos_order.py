@@ -28,7 +28,7 @@ class L10nTWITestEdiPosOrder(L10nTWITestEdi, TestPoSCommon):
     def with_pos_session(self):
         session = self.open_new_session(0.0)
         yield session  # noqa: RUF075
-        session.post_closing_cash_details(0.0)
+        session.update_closing_cash_details(0.0)
         session.close_session_from_ui()
 
     def _create_order(self, ui_data):

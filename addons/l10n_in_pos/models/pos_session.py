@@ -13,8 +13,8 @@ class PosSession(models.Model):
             })
         return res
 
-    def _get_sale_vals(self, key, sale_vals):
-        res = super()._get_sale_vals(key, sale_vals)
+    def _prepare_sale_vals(self, key, sale_vals):
+        res = super()._prepare_sale_vals(key, sale_vals)
         if self.config_id.company_id.l10n_in_is_gst_registered:
             res.update({
                 'l10n_in_hsn_code': key['l10n_in_hsn_code'],
