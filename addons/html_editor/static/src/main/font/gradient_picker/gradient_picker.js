@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
+import { CheckBox } from "@web/components/checkbox";
 import { CustomColorPicker as ColorPicker } from "@web/components/color_picker";
 import {
     convertCSSColorToRgba,
@@ -9,7 +10,7 @@ import {
 } from "@web/core/utils/format/colors";
 
 export class GradientPicker extends Component {
-    static components = { ColorPicker };
+    static components = { CheckBox, ColorPicker };
     static template = "html_editor.GradientPicker";
     static props = {
         onGradientChange: { type: Function, optional: true },
@@ -23,6 +24,7 @@ export class GradientPicker extends Component {
     setup() {
         this.state = useState({
             type: "linear",
+            repeating: false,
             angle: 135,
             currentColorIndex: 0,
             size: "closest-side",
@@ -36,9 +38,11 @@ export class GradientPicker extends Component {
             preview: "",
             linear: "",
             radial: "",
+            conic: "",
             sliderThumbStyle: "",
         });
         this.knobRef = useRef("gradientAngleKnob");
+        this.onToggleRepeatingBound = this.onToggleRepeating.bind(this);
 
         if (
             this.props.selectedGradient &&
@@ -48,12 +52,6 @@ export class GradientPicker extends Component {
         } else {
             this.onColorGradientChange();
         }
-
-        onWillUpdateProps((newProps) => {
-            if (newProps.selectedGradient) {
-                this.setGradientFromString(newProps.selectedGradient);
-            }
-        });
     }
 
     setGradientFromString(gradient) {
@@ -75,19 +73,23 @@ export class GradientPicker extends Component {
             });
         }
 
-        const isLinear = gradient.startsWith("linear-gradient(");
-        if (isLinear) {
-            const angle = gradient.match(/(-?[0-9]+)deg/);
-            if (angle) {
-                this.state.angle = parseInt(angle[1]);
-            }
-        } else {
-            this.state.type = "radial";
-            const sizeMatch = gradient.match(/(closest|farthest)-(side|corner)/);
-            const size = sizeMatch ? sizeMatch[0] : "farthest-corner";
-            this.state.size = size;
+        const isLinear = gradient.includes("linear-gradient(");
+        const isRadial = gradient.includes("radial-gradient(");
+        const isConic = gradient.includes("conic-gradient(");
 
-            const position = gradient.match(/ at ([0-9]+)% ([0-9]+)%/) || [
+        this.state.type = isLinear ? "linear" : isRadial ? "radial" : "conic";
+        this.state.repeating = gradient.startsWith("repeating-");
+
+        if (isRadial) {
+            const size = gradient.match(/(closest|farthest)-(side|corner)/);
+            this.state.size = size ? size[0] : "farthest-corner";
+        }
+        if (isLinear || isConic) {
+            const angle = gradient.match(/(-?[0-9]+)deg/);
+            this.state.angle = angle ? parseInt(angle[1]) : 0;
+        }
+        if (isRadial || isConic) {
+            const position = gradient.match(/ at (-?[0-9]+)% (-?[0-9]+)%/) || [
                 "",
                 "50",
                 "50",
@@ -104,10 +106,15 @@ export class GradientPicker extends Component {
         this.onColorGradientChange();
     }
 
+    onToggleRepeating() {
+        this.state.repeating = !this.state.repeating;
+        this.onColorGradientChange();
+    }
+
     onAngleChange(ev) {
         const angle = parseInt(ev.target.value);
         if (!isNaN(angle)) {
-            const clampedAngle = Math.min(Math.max(angle, 0), 360);
+            const clampedAngle = Math.min(Math.max(angle, -360), 360);
             ev.target.value = clampedAngle;
             this.state.angle = clampedAngle;
             this.onColorGradientChange();
@@ -117,7 +124,7 @@ export class GradientPicker extends Component {
     onPositionChange(position, ev) {
         const inputValue = parseFloat(ev.target.value);
         if (!isNaN(inputValue)) {
-            const clampedValue = Math.min(Math.max(inputValue, 0), 100);
+            const clampedValue = Math.min(Math.max(inputValue, -100), 200);
             ev.target.value = clampedValue;
             this.positions[position] = clampedValue;
             this.onColorGradientChange();
@@ -142,9 +149,8 @@ export class GradientPicker extends Component {
     }
 
     onColorPercentageChange(colorIndex, ev) {
-        this.state.currentColorIndex = colorIndex;
         this.colors[colorIndex].percentage = ev.target.value;
-        this.sortColors();
+        this.state.currentColorIndex = this.sortColors(colorIndex);
         this.onColorGradientChange();
     }
 
@@ -206,8 +212,17 @@ export class GradientPicker extends Component {
         this.onColorGradientChange();
     }
 
-    sortColors() {
-        this.colors = this.colors.sort((a, b) => a.percentage - b.percentage);
+    /**
+     * @param {number} [index] a stop to follow through the sort
+     * @returns {number} where that stop ended up
+     */
+    sortColors(index) {
+        const target = this.colors[index];
+        const sortedColors = [...this.colors].sort(
+            (a, b) => a.percentage - b.percentage,
+        );
+        this.colors = sortedColors;
+        return sortedColors.indexOf(target);
     }
 
     updateCssGradients() {
@@ -222,9 +237,11 @@ export class GradientPicker extends Component {
             sliderThumbStyle += `${selector}::-moz-range-thumb { ${style} }\n`;
         }
 
+        const prefix = this.state.repeating ? "repeating-" : "";
         this.cssGradients.preview = `linear-gradient(90deg, ${gradientColors})`;
-        this.cssGradients.linear = `linear-gradient(${this.state.angle}deg, ${gradientColors})`;
-        this.cssGradients.radial = `radial-gradient(circle ${this.state.size} at ${this.positions.x}% ${this.positions.y}%, ${gradientColors})`;
+        this.cssGradients.linear = `${prefix}linear-gradient(${this.state.angle}deg, ${gradientColors})`;
+        this.cssGradients.radial = `${prefix}radial-gradient(circle ${this.state.size} at ${this.positions.x}% ${this.positions.y}%, ${gradientColors})`;
+        this.cssGradients.conic = `${prefix}conic-gradient(from ${this.state.angle}deg at ${this.positions.x}% ${this.positions.y}%, ${gradientColors})`;
         this.cssGradients.sliderThumbStyle = sliderThumbStyle;
     }
 
@@ -259,7 +276,8 @@ export class GradientPicker extends Component {
             const distanceY = ev.clientY - centerY;
 
             const angle = Math.atan2(distanceY, distanceX) * (180 / Math.PI);
-            this.state.angle = Math.round((angle + 360) % 360);
+            // +90 so the knob lines up with where a conic gradient starts.
+            this.state.angle = Math.round((angle + 360 + 90) % 360);
         };
 
         updateAngle(ev);

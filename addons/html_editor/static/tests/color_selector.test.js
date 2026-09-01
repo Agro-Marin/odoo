@@ -643,6 +643,74 @@ test("should be able to select farthest-corner option in radial gradient", async
     expect("button[title='Extend to the farthest corner']").toHaveClass("active");
 });
 
+async function openCustomGradient() {
+    await expandToolbar();
+    await click(".o-we-toolbar .o-select-color-foreground");
+    await animationFrame();
+    await click(".btn:contains('Gradient')");
+    await animationFrame();
+    await click("button[title='Define a custom gradient']");
+    await animationFrame();
+}
+
+function gradientStyle() {
+    return queryOne("font.text-gradient").getAttribute("style");
+}
+
+// A number input drops the lone "-" while it is being typed, so a negative
+// value has to be set outright rather than keyed in.
+async function setNumberInput(selector, value) {
+    const input = queryOne(selector);
+    input.value = value;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await animationFrame();
+}
+
+test("gradient picker can apply a conic gradient", async () => {
+    await setupEditor(`<p>a[bcd]e</p>`);
+    await openCustomGradient();
+
+    expect("button:contains('Conic')").toHaveCount(1);
+    await click(".btn:contains('Conic')");
+    await animationFrame();
+    expect(gradientStyle()).toMatch(/conic-gradient\(from 135deg at 25% 25%/);
+});
+
+test("gradient picker can repeat a gradient", async () => {
+    await setupEditor(`<p>a[bcd]e</p>`);
+    await openCustomGradient();
+
+    await click(".custom-gradient-configurator .form-switch input");
+    await animationFrame();
+    expect(gradientStyle()).toMatch(/repeating-linear-gradient\(135deg/);
+});
+
+test("gradient picker accepts a negative angle", async () => {
+    await setupEditor(
+        `<p><font style="background-image: linear-gradient(2deg, rgb(255, 204, 51) 10%, rgb(226, 51, 255) 90%);" class="text-gradient">[test]</font></p>`,
+    );
+    await expandToolbar();
+    await click(".o-we-toolbar .o-select-color-foreground");
+    await animationFrame();
+    await click("button[title='Define a custom gradient']");
+    await animationFrame();
+
+    await setNumberInput("input[name='angle']", "-90");
+    expect("input[name='angle']").toHaveValue(-90);
+    expect(gradientStyle()).toMatch(/linear-gradient\(-90deg/);
+});
+
+test("the radial gradient centre can be pushed off the box", async () => {
+    await setupEditor(`<p>a[bcd]e</p>`);
+    await openCustomGradient();
+
+    await click(".btn:contains('Radial')");
+    await animationFrame();
+    await setNumberInput("input[name='positionX']", "-50");
+    expect("input[name='positionX']").toHaveValue(-50);
+    expect(gradientStyle()).toMatch(/radial-gradient\(circle closest-side at -50% 25%/);
+});
+
 test("solid tab color navigation using keys", async () => {
     const { el } = await setupEditor("<p>[test]</p>");
     await expandToolbar();
