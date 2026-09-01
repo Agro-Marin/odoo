@@ -56,6 +56,16 @@ export function getVideoUrl(platform, videoId, params) {
         case "instagram":
             url = new URL(`https://www.instagram.com/p/${videoId}/embed`);
             break;
+        case "facebook":
+            url = new URL("https://www.facebook.com/plugins/video.php");
+            // The plugin resolves the video from the id, so the segment before
+            // `/videos/` is a placeholder. Keep it the same one
+            // `tools.get_video_url_data` writes server-side.
+            params = {
+                ...params,
+                href: `https://www.facebook.com/username/videos/${videoId}/`,
+            };
+            break;
         default:
             throw new Error(`Unsupported platform: ${platform}`);
     }

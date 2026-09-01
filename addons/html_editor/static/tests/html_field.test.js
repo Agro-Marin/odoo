@@ -1410,6 +1410,49 @@ test("a video inserted as Vertical keeps its 9:16 frame in the document", async 
     expect(`div[data-embedded='video'] iframe[data-src="${embedUrl}"]`).toHaveCount(1);
 });
 
+test.tags("desktop");
+test("a Facebook video can be embedded", async () => {
+    const videoId = "2206239373151307";
+    const facebookUrl = `https://www.facebook.com/watch?v=${videoId}`;
+    await mountView({
+        type: "form",
+        resId: 1,
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="txt" widget="html"/>
+            </form>`,
+    });
+    setSelectionInHtmlField();
+
+    await onRpc("/html_editor/video_url/data", async () => ({
+        video_id: videoId,
+        platform: "facebook",
+        embed_url: `//facebook.com/plugins/video.php?href=https://www.facebook.com/username/videos/${videoId}/`,
+        params: {},
+    }));
+
+    await insertText(htmlEditor, "/video");
+    await waitFor(".o-we-powerbox");
+    await press("Enter");
+    await contains(".modal-body .nav-link:contains('Videos')").click();
+    await waitFor("textarea[id='o_video_text']");
+
+    const input = queryOne("textarea[id='o_video_text']");
+    input.value = facebookUrl;
+    manuallyDispatchProgrammaticEvent(input, "input", {
+        inputType: "insertText",
+    });
+    await waitFor(".o_video_dialog_options", { timeout: 1500 });
+    expect(input).toHaveClass("is-valid");
+    await click(queryOne(".modal-footer").firstChild);
+
+    const iframeEl = await waitFor("div[data-embedded='video'] iframe");
+    expect(new URL(iframeEl.dataset.src).searchParams.get("href")).toBe(
+        `https://www.facebook.com/username/videos/${videoId}/`,
+    );
+});
+
 test("MediaDialog contains 'Videos' tab by default in html field", async () => {
     await mountView({
         type: "form",
