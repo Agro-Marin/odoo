@@ -33,7 +33,11 @@ class DashboardShareRoute(http.Controller):
         readonly=True,
     )
     def download(self, token=None, share_id=None):
-        share = request.env["spreadsheet.dashboard.share"].sudo().browse(share_id)
+        share = (
+            request.env["spreadsheet.dashboard.share"].sudo().browse(share_id).exists()
+        )
+        if not share:
+            raise request.not_found()
         share._check_dashboard_access(token)
         stream = request.env["ir.binary"]._get_stream_from_record(
             share, "excel_export", filename=share.name
