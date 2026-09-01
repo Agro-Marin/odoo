@@ -1611,6 +1611,8 @@ class Website(Home):
         for i in range(len(files_data_by_bundle)):
             bundle_1 = files_data_by_bundle[i]
             for j in range(len(files_data_by_bundle)):
+                if i == j:
+                    continue
                 bundle_2 = files_data_by_bundle[j]
                 if (
                     bundle_1[0] not in bundles_restriction
