@@ -566,7 +566,12 @@ class HTML_Editor(http.Controller):
                 continue
             req = requests.get(url, timeout=15)
             name = "_".join([media[media_id]["query"], url.split("/")[-1]])
-            IrAttachment = request.env["ir.attachment"]
+            # Superuser for the lookup as well as for the create: these
+            # attachments hang off ir.ui.view, which portal cannot read, so a
+            # portal user searching for one raises instead of finding it. The
+            # SVG mimetype is the reason the create needs it. Both are safe
+            # because the bytes come from the whitelisted media library.
+            IrAttachment = request.env["ir.attachment"].with_user(SUPERUSER_ID)
             attachment_data = {
                 "name": name,
                 "mimetype": req.headers.get("content-type"),
@@ -575,11 +580,9 @@ class HTML_Editor(http.Controller):
                 "res_model": "ir.ui.view",
                 "res_id": 0,
             }
-            attachment = get_existing_attachment(IrAttachment, attachment_data)
-            if not attachment:
-                attachment = IrAttachment.with_user(SUPERUSER_ID).create(
-                    attachment_data
-                )
+            attachment = get_existing_attachment(
+                IrAttachment, attachment_data
+            ) or IrAttachment.create(attachment_data)
             if media[media_id]["is_dynamic_svg"]:
                 colorParams = urlencode(media[media_id]["dynamic_colors"])
                 attachment["url"] = (

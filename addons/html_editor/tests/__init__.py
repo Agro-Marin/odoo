@@ -15,3 +15,4 @@ from . import test_view_save_helpers
 from . import test_field_converters_typed
 from . import test_install_directive
 from . import test_portal_attachment_limits
+from . import test_library_media_portal
