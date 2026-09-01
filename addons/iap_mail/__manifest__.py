@@ -19,6 +19,9 @@
             "iap_mail/static/src/js/**/*",
             "iap_mail/static/src/scss/iap_mail.scss",
         ],
+        "web.assets_unit_tests": [
+            "iap_mail/static/tests/**/*",
+        ],
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
