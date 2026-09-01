@@ -16,7 +16,7 @@
                             <t t-set="qty" t-value="int(move_line.quantity)" />
                         </t>
                         <t t-else="">
-                            <t t-set="qty" t-value="int(move_line.reserved_uom_qty)" />
+                            <t t-set="qty" t-value="int(move_line.quantity_product_uom)" />
                         </t>
                     </t>
                     <t t-else="">
@@ -66,7 +66,7 @@
                                 <t t-else="">
                                     <t
                                         t-set="qty"
-                                        t-value="int(move_line.reserved_uom_qty)" />
+                                        t-value="int(move_line.quantity_product_uom)" />
                                 </t>
                             </t>
                             <t t-else="">
