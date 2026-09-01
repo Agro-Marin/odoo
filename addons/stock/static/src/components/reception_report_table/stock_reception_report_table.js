@@ -25,12 +25,13 @@ export class ReceptionReportTable extends Component {
         labelReport: Object,
         showUom: Boolean,
         precision: Number,
+        busyState: { type: Object, optional: true },
     };
 
     setup() {
         this.actionService = useService("action");
         this.ormService = useService("orm");
-        this.opGuard = useOperationGuard();
+        this.opGuard = useOperationGuard(this.props.busyState);
         this.onClickAssignAll = this.opGuard.guard(this.onClickAssignAll.bind(this));
     }
 

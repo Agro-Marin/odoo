@@ -35,7 +35,11 @@ export class ReceptionReportMain extends Component {
         useBus(this.env.bus, "update-assign-state", (ev) =>
             this._changeAssignedState(ev.detail),
         );
-        this.opGuard = useOperationGuard();
+        // Shared across every level (page/table/line) so an in-flight assign
+        // RPC at any level disables assign buttons everywhere, preventing
+        // overlapping action_assign calls on the same move.
+        this.busyState = useState({ busy: false });
+        this.opGuard = useOperationGuard(this.busyState);
         this.onClickAssignAll = this.opGuard.guard(this.onClickAssignAll.bind(this));
 
         onWillStart(async () => {

@@ -37,7 +37,8 @@
                     labelReport="props.labelReport"
                     parentIndex="props.index"
                     showUom="props.showUom"
-                    precision="props.precision"/>
+                    precision="props.precision"
+                    busyState="props.busyState"/>
             </t>
         </tbody>
     </t>
