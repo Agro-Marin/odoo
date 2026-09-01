@@ -1102,7 +1102,7 @@ neither operation they name, and ``ir.cron``'s ``method_direct_trigger``.
 **The verb leads** ``[review]``. ``naming_vocabulary.classify`` partitions on the
 first token and stops, so a noun in front of the verb hides the verb from the rule
 *and* from its enforcement: ``_import_retrieve_partner_vals`` scores as the verb
-``import``, which carries no rule. Backlog: **138** model methods put an abolished
+``import``, which carries no rule. Backlog: **140** model methods put an abolished
 verb somewhere the ratchet cannot read it -- a candidate population, since some of
 those tokens belong to a noun or a field name.
 
@@ -1161,7 +1161,7 @@ and **read the result**:
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
 **207** definitions under **98** names in this repository spell it head-first and
 **18** spell it the other way. **The rule is general; the conversion reached one
-family** -- across **19** of them this repository spells **105** definitions
+family** -- across **19** of them this repository spells **93** definitions
 head-first against **159** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:
 ``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent from it
@@ -1280,12 +1280,12 @@ precisely because ``_to_`` is what a search for a converter spells.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,797 definitions it is 22.9 % of every method
+**``_get_`` is not a default.** At 5,729 definitions it is 22.6 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
-computing. The split that matters is against ``_prepare_``: 684 definitions are
+computing. The split that matters is against ``_prepare_``: 688 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
-spelled ``get_*``, against 781 already spelled ``_prepare_*``.
+spelled ``get_*``, against 766 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -1330,7 +1330,7 @@ new ones this way; do not rename the bound ones.
 
 **``_generate_`` is the largest member of the payload family and is not in the
 table** ``[review]``. The four verbs the Payload row abolishes come to **17**
-definitions between them; ``_generate_`` alone is **130**. It carries two meanings
+definitions between them; ``_generate_`` alone is **132**. It carries two meanings
 -- ``_generate_access_token`` builds a value and takes the payload canonical,
 while ``_generate_consume_moves`` **creates records** and takes the domain
 operation's name -- so wiring it into ``ABOLISHED`` would widen a blocking gate by
@@ -1347,7 +1347,7 @@ anything else.
 ``[gate doc_restated_counts]``. It names the arithmetic where ``_generate_`` names
 the manufacture, and unlike ``_generate_`` it is owed no record, because the
 Provenance bullet above has already settled it: a scalar that answers a question
-is ``_get_`` whatever produced it. **10** model methods still wear it. Two
+is ``_get_`` whatever produced it. **13** model methods still wear it. Two
 cautions from draining it out of ``mrp``:
 
 * **The rename collides, and the collision is the finding.** Three of them
@@ -1372,7 +1372,7 @@ ORM is written. ``_set_replenish_data(new_lines, product, replenish_data)`` is
 it a builder** -- a caller writing ``data = obj._update_data(..., data)`` is
 rebinding a name, not receiving a new object.
 
-Backlog: **38** of this repository's **781** ``_prepare_*`` definitions call
+Backlog: **35** of this repository's **766** ``_prepare_*`` definitions call
 ``create()``, ``write()`` or ``unlink()`` in their own body. A candidate
 population -- only a builder whose **return value** is not the mapping it
 assembles is in the wrong family.
@@ -1380,8 +1380,8 @@ assembles is in the wrong family.
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **377** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **217**
+**A ``bool`` return does not make a predicate** ``[review]``. **379** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **215**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -1389,7 +1389,7 @@ keeps its conversion verb, a **conventional acknowledgement** is nothing at all.
 The call site is the tell: a predicate reads naturally inside an ``if``, a
 converter where a type would.
 
-**Validation raises; predicates return.** ``_check_*`` (1,151 definitions) is
+**Validation raises; predicates return.** ``_check_*`` (1,152 definitions) is
 canonical and matches ``@api.constrains``. On model classes ``_validate_`` (0)
 plus ``_verify_``, ``_ensure_`` and ``_control_`` (0 together) are gone -- they
 were one operation under four names, all four verbs are abolished (§2.4.3), the
@@ -1554,7 +1554,7 @@ among them have been renamed to ``_get_``. Split by what the body does, the **27
   (``_find_available_name`` appends ``(2)``, ``(3)`` until unused: a derivation).
 
 The third kind is gone. **The canonical is ``_get_or_create_*``**: **1** methods
-here still spell it ``_find_``, against **27** spelling it ``_get_``. ``_find_``
+here still spell it ``_find_``, against **25** spelling it ``_get_``. ``_find_``
 is not in the abolished table, because classification needs the body: a pass keyed
 on the name scored both survivors as pure reads, and a check for ``create`` /
 ``write`` / ``unlink`` / ``copy`` moved them out.
@@ -1565,7 +1565,7 @@ row -- ``return self.type == "binary"`` -- while its caller discards the return
 inside ``except (ValidationError, RequestException)``: the contract is *fetch the
 remote bytes and store them locally*.
 
-**``_resolve_`` is the verb to keep** ``[review]``, at **42** definitions here
+**``_resolve_`` is the verb to keep** ``[review]``, at **41** definitions here
 against the size of ``_find_`` -- **27**. It is a **partial** producer, returning
 the object or ``None`` meaning *not applicable*; a read that always answers is
 ``_get_``. Where a dispatch chain mixes the spellings, read it as the chain saying
@@ -1606,12 +1606,12 @@ a hook prefix here at all, because nothing points at the method.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_update_``, not ``_set_``** ``[review]``, for a method that writes to records
-and is wired to nothing. ``_set_*`` (126 definitions) and ``_update_*`` (325) are
+and is wired to nothing. ``_set_*`` (139 definitions) and ``_update_*`` (305) are
 near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
 * an ``inverse=`` target is ``_inverse_<field>`` and was never a ``_set_``
-  question -- 253 against 1 now that the count is drained;
+  question -- 251 against 3 now that the count is drained;
 * ``set_values`` / ``get_values`` on ``res.config.settings`` are *bound by name,
   not by inheritance* (§2.4.14);
 * ``set_param`` on ``ir.config_parameter`` is public and reached from JS and XML
@@ -1625,7 +1625,7 @@ the duplicate report this section exists to produce.
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
 for it this section had never named: **62** definitions spell it ``_sync_*`` and
-**14** spell it ``_synchronize_*``, against ``_update_*``'s **325**. It is not
+**14** spell it ``_synchronize_*``, against ``_update_*``'s **305**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
 every ``_synchronize_`` is this operation.
