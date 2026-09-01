@@ -5,7 +5,7 @@ from odoo import Command, api, fields, models
 
 
 class Web_TourTour(models.Model):
-    _name = 'web_tour.tour'
+    _name = "web_tour.tour"
     _description = "Tours"
     _order = "sequence, name, id"
 
@@ -13,13 +13,16 @@ class Web_TourTour(models.Model):
     step_ids = fields.One2many("web_tour.tour.step", "tour_id")
     url = fields.Char(string="Starting URL", default="/odoo")
     sharing_url = fields.Char(compute="_compute_sharing_url", string="Sharing URL")
-    rainbow_man_message = fields.Html(default="<b>Good job!</b> You went through all steps of this tour.", translate=True)
+    rainbow_man_message = fields.Html(
+        default="<b>Good job!</b> You went through all steps of this tour.",
+        translate=True,
+    )
     sequence = fields.Integer(default=1000)
     custom = fields.Boolean(string="Custom")
     user_consumed_ids = fields.Many2many("res.users")
 
     _uniq_name = models.Constraint(
-        'unique(name)',
+        "unique(name)",
         "A tour already exists with this name . Tour's name must be unique!",
     )
 
@@ -38,8 +41,17 @@ class Web_TourTour(models.Model):
 
     @api.model
     def get_current_tour(self):
-        if self.env.user and self.env.user.tour_enabled and self.env.user._is_internal():
-            tours_to_run = self.search([("custom", "=", False), ("user_consumed_ids", "not in", self.env.user.id)])
+        if (
+            self.env.user
+            and self.env.user.tour_enabled
+            and self.env.user._is_internal()
+        ):
+            tours_to_run = self.search(
+                [
+                    ("custom", "=", False),
+                    ("user_consumed_ids", "not in", self.env.user.id),
+                ]
+            )
             return bool(tours_to_run[:1]) and tours_to_run[:1]._get_tour_json()
         return None
 
@@ -49,11 +61,7 @@ class Web_TourTour(models.Model):
         return tour_id._get_tour_json()
 
     def _get_tour_json(self):
-        tour_json = self.read(fields={
-            "name",
-            "url",
-            "custom"
-        })[0]
+        tour_json = self.read(fields={"name", "url", "custom"})[0]
 
         del tour_json["id"]
         tour_json["steps"] = self.step_ids.get_steps_json()
@@ -68,13 +76,15 @@ registry.category("web_tour.tours").add("{self.name}", {{
     steps: () => {json.dumps(self.step_ids.get_steps_json(), indent=4)}
 }})"""
 
-        attachment_id = self.env["ir.attachment"].create({
-            "datas": base64.b64encode(bytes(js_content, 'utf-8')),
-            "name": f"{self.name}.js",
-            "mimetype": "application/javascript",
-            "res_model": "web_tour.tour",
-            "res_id": self.id,
-        })
+        attachment_id = self.env["ir.attachment"].create(
+            {
+                "datas": base64.b64encode(bytes(js_content, "utf-8")),
+                "name": f"{self.name}.js",
+                "mimetype": "application/javascript",
+                "res_model": "web_tour.tour",
+                "res_id": self.id,
+            }
+        )
 
         return {
             "type": "ir.actions.act_url",
@@ -83,19 +93,24 @@ registry.category("web_tour.tours").add("{self.name}", {{
 
 
 class Web_TourTourStep(models.Model):
-    _name = 'web_tour.tour.step'
+    _name = "web_tour.tour.step"
     _description = "Tour's step"
     _order = "sequence, id"
 
     trigger = fields.Char(required=True)
     content = fields.Char()
-    tooltip_position = fields.Selection(selection=[
-        ["bottom", "Bottom"],
-        ["top", "Top"],
-        ["right", "Right"],
-        ["left", "left"],
-    ], default="bottom")
-    tour_id = fields.Many2one("web_tour.tour", required=True, index=True, ondelete="cascade")
+    tooltip_position = fields.Selection(
+        selection=[
+            ["bottom", "Bottom"],
+            ["top", "Top"],
+            ["right", "Right"],
+            ["left", "left"],
+        ],
+        default="bottom",
+    )
+    tour_id = fields.Many2one(
+        "web_tour.tour", required=True, index=True, ondelete="cascade"
+    )
     run = fields.Char()
     sequence = fields.Integer()
 
