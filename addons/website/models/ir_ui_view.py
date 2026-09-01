@@ -218,15 +218,26 @@ class IrUiView(models.Model):
     def unlink(self):
         current_website_id = self.env.context.get("website_id")
 
+        # ids of the per-other-website copies the COU loop below creates to
+        # preserve this generic view for websites other than the current
+        # one -- excluded from the install-time sweep further down so it
+        # cannot delete the very copies just created in this same call.
+        preserved_view_ids = set()
         if current_website_id and not self.env.context.get("no_cow"):
             for view in self.filtered(lambda view: not view.website_id):
                 for w in self.env["website"].search([("id", "!=", current_website_id)]):
                     view.with_context(website_id=w.id).write({"name": view.name})
+                    preserved = self.search(
+                        [("key", "=", view.key), ("website_id", "=", w.id)], limit=1
+                    )
+                    if preserved:
+                        preserved_view_ids.add(preserved.id)
 
         specific_views = self.env["ir.ui.view"]
         if self and self.pool._init:
             for view in self.filtered(lambda view: not view.website_id):
                 specific_views += view._get_views_specific()
+            specific_views -= self.browse(preserved_view_ids)
 
         result = super(IrUiView, self + specific_views).unlink()
         self.env.registry.clear_cache("templates")
