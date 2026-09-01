@@ -23,7 +23,7 @@ from odoo import _, fields, http, models, tools
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import SessionExpiredException, request
-from odoo.tools import OrderedSet, escape_psql, py_to_js_locale
+from odoo.tools import OrderedSet, consteq, escape_psql, py_to_js_locale
 from odoo.tools import html_escape as escape
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.translate import TRANSLATED_ELEMENTS, LazyTranslate
@@ -1221,14 +1221,9 @@ class Website(Home):
             logger.warning("Google Search Console not enable")
             raise werkzeug.exceptions.NotFound
         gsc = request.website.google_search_console
-        trusted = gsc[
-            gsc.startswith("google") and len("google") : (
-                gsc.endswith(".html") and -len(".html")
-            )
-            or None
-        ]
+        trusted = gsc.removeprefix("google").removesuffix(".html")
 
-        if key != trusted:
+        if not consteq(key, trusted):
             logger.warning("Google Search Console %s not recognize", key)
             raise werkzeug.exceptions.NotFound
 
