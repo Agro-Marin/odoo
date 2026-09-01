@@ -148,9 +148,8 @@ class IrUiView(models.Model):
                 copy_vals["inherit_id"] = vals["inherit_id"]
             website_specific_view = view.copy(copy_vals)
 
-            view._create_website_specific_pages_for_view(
-                website_specific_view, view.env["website"].browse(current_website_id)
-            )
+            website = view.env["website"].browse(current_website_id)
+            view._create_website_specific_pages_for_view(website_specific_view, website)
 
             for (
                 inherit_child
@@ -163,6 +162,9 @@ class IrUiView(models.Model):
                             "inherit_id": website_specific_view.id,
                             "key": inherit_child.key,
                         }
+                    )
+                    inherit_child._create_website_specific_pages_for_view(
+                        child, website
                     )
                     inherit_child.inherit_children_ids.write({"inherit_id": child.id})
                     inherit_child.unlink()
