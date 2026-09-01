@@ -123,7 +123,10 @@ class Website(models.Model):
     )
     language_count = fields.Count("language_ids", "Number of languages")
     default_lang_id = fields.Many2one(
-        "res.lang", string="Default Language", default=_default_default_lang_id, required=True
+        "res.lang",
+        string="Default Language",
+        default=_default_default_lang_id,
+        required=True,
     )
     auto_redirect_lang = fields.Boolean(
         "Autoredirect Language",
@@ -349,9 +352,10 @@ class Website(models.Model):
             self._update_vals(vals)
 
             if "user_id" not in vals:
-                company = self.env["res.company"].browse(
-                    vals.get("company_id")
-                ) or self.env.company
+                company = (
+                    self.env["res.company"].browse(vals.get("company_id"))
+                    or self.env.company
+                )
                 vals["user_id"] = company._get_public_user().id
 
         websites = super().create(vals_list)
@@ -1766,9 +1770,7 @@ class Website(models.Model):
                 for val in values:
                     query = i == len(convitems) - 1 and query_string
                     if query:
-                        r = "".join(
-                            [x[1] for x in rule._trace[1:] if not x[0]]
-                        )
+                        r = "".join([x[1] for x in rule._trace[1:] if not x[0]])
                         query = sitemap_qs2dom(
                             query, r, self.env[converter.model]._rec_name
                         )
@@ -1937,7 +1939,9 @@ class Website(models.Model):
         return "/odoo/action-website.website_preview?" + urlencode(action_params)
 
     def get_client_action(self, url, mode_edit=False, website_id=False):
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("website.website_preview")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "website.website_preview"
+        )
         action["params"] = {
             "path": url,
             "enable_editor": mode_edit,
@@ -2311,9 +2315,7 @@ class Website(models.Model):
             domain = Domain.AND(search_detail["base_domain"])
             direct_fields = set(fields).intersection(model._fields)
             indirect_fields = self._search_get_indirect_fields(fields, model)
-            indirect_fields_info = defaultdict(
-                dict
-            )
+            indirect_fields_info = defaultdict(dict)
             for name, indirect_field in indirect_fields.items():
                 indirect_fields_info[indirect_field["comodel"]][name] = indirect_field
             subqueries = [get_similarity_subquery(model, direct_fields, "id")]
