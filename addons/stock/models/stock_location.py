@@ -922,6 +922,7 @@ class StockLocation(models.Model):
                 package_type.id,
                 product.id,
                 tuple(locations.ids),
+                tuple(sorted(exclude_sml_ids)),
             ),
             lambda: (
                 self._get_putaway_package_count_by_location(
@@ -1002,7 +1003,13 @@ class StockLocation(models.Model):
         if not self:
             return PutawayCapacity({}, frozenset(), 0.0)
         stored = self._putaway_memo(
-            ("capacity", product.id, package.id if package else 0, tuple(self.ids)),
+            (
+                "capacity",
+                product.id,
+                package.id if package else 0,
+                tuple(self.ids),
+                tuple(sorted(self.env.context.get("exclude_sml_ids", set()))),
+            ),
             lambda: self._get_stored_putaway_capacity(product, package),
         )
         scan = self.env.context.get(CONTEXT_PUTAWAY_SCAN)
