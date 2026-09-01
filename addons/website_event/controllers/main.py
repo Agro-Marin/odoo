@@ -241,10 +241,10 @@ class WebsiteEventController(http.Controller):
                 [
                     ("event_id", "=", event.id),
                     "|",
-                    ("view_id.key", "ilike", page),
+                    ("view_id.key", "=", page),
                     (
                         "view_id.key",
-                        "ilike",
+                        "=",
                         f"website_event.{event.name}-{base_page_name.split('/')[-1]}",
                     ),
                 ],
