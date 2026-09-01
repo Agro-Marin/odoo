@@ -15,9 +15,10 @@ import { _t } from "@web/core/translation";
 
 import { isEmptyBlock, isParagraphRelatedElement } from "../utils/dom_info.js";
 
-function checkCommandAvailablePredicates(selection) {
+// `bannerType` comes first so a command can bind it: `.bind(this, "info")`.
+function checkCommandAvailablePredicates(bannerType, selection) {
     return this.getResource("banner_command_available_predicates").every(
-        (predicateFn) => predicateFn(selection),
+        (predicateFn) => predicateFn(selection, bannerType),
     );
 }
 
@@ -45,7 +46,7 @@ export class BannerPlugin extends Plugin {
                 title: _t("Banner Info"),
                 description: _t("Insert an info banner"),
                 icon: "fa-info-circle",
-                isAvailable: checkCommandAvailablePredicates.bind(this),
+                isAvailable: checkCommandAvailablePredicates.bind(this, "info"),
                 run: () => {
                     this.insertBanner(_t("Banner Info"), "💡", "info");
                 },
@@ -55,7 +56,7 @@ export class BannerPlugin extends Plugin {
                 title: _t("Banner Success"),
                 description: _t("Insert a success banner"),
                 icon: "fa-check-circle",
-                isAvailable: checkCommandAvailablePredicates.bind(this),
+                isAvailable: checkCommandAvailablePredicates.bind(this, "success"),
                 run: () => {
                     this.insertBanner(_t("Banner Success"), "✅", "success");
                 },
@@ -65,7 +66,7 @@ export class BannerPlugin extends Plugin {
                 title: _t("Banner Warning"),
                 description: _t("Insert a warning banner"),
                 icon: "fa-exclamation-triangle",
-                isAvailable: checkCommandAvailablePredicates.bind(this),
+                isAvailable: checkCommandAvailablePredicates.bind(this, "warning"),
                 run: () => {
                     this.insertBanner(_t("Banner Warning"), "⚠️", "warning");
                 },
@@ -75,7 +76,7 @@ export class BannerPlugin extends Plugin {
                 title: _t("Banner Danger"),
                 description: _t("Insert a danger banner"),
                 icon: "fa-exclamation-circle",
-                isAvailable: checkCommandAvailablePredicates.bind(this),
+                isAvailable: checkCommandAvailablePredicates.bind(this, "danger"),
                 run: () => {
                     this.insertBanner(_t("Banner Danger"), "❌", "danger");
                 },
@@ -85,7 +86,7 @@ export class BannerPlugin extends Plugin {
                 title: _t("Monospace"),
                 description: _t("Insert a monospace banner"),
                 icon: "fa-laptop",
-                isAvailable: checkCommandAvailablePredicates.bind(this),
+                isAvailable: checkCommandAvailablePredicates.bind(this, "secondary"),
                 run: () => {
                     this.insertBanner(
                         _t("Monospace Banner"),
@@ -96,9 +97,14 @@ export class BannerPlugin extends Plugin {
                 },
             },
         ],
-        banner_command_available_predicates: (selection) =>
+        banner_command_available_predicates: (selection, bannerType) =>
             isHtmlContentSupported(selection) &&
-            !closestElement(selection.anchorNode, ".o_editor_banner"),
+            // Only the banner's OWN type is hidden: from inside a banner the
+            // other four switch it in place.
+            !closestElement(
+                selection.anchorNode,
+                `.o_editor_banner.alert-${bannerType}`,
+            ),
         powerbox_categories: withSequence(20, { id: "banner", name: _t("Banner") }),
         powerbox_items: [
             {
@@ -148,7 +154,34 @@ export class BannerPlugin extends Plugin {
         containerClass = containerClass ? `${containerClass} ` : "";
         contentClass = contentClass ? `${contentClass} ` : "";
 
+        const bannerClasses = `${containerClass}o_editor_banner user-select-none o-contenteditable-false ${
+            emoji ? "lh-1 " : ""
+        }d-flex align-items-center alert alert-${alertClass} pb-0 pt-3 ps-3 pe-3`;
+        const bannerContentClasses = `${contentClass}o_editor_banner_content o-contenteditable-true w-100 px-3`;
+        const emojiHtml = emoji
+            ? `<i class="o_editor_banner_icon mb-3 fst-normal" data-oe-aria-label="${htmlEscape(
+                  title,
+              )}">${htmlEscape(emoji)}</i>`
+            : "";
+
         const selection = this.dependencies.selection.getEditableSelection();
+        // Inside a banner already: restyle it in place rather than nest one.
+        const currentBanner = closestElement(selection.anchorNode, ".o_editor_banner");
+        if (currentBanner) {
+            currentBanner.className = bannerClasses;
+            currentBanner.querySelector(".o_editor_banner_content").className =
+                bannerContentClasses;
+            const icon = currentBanner.querySelector(".o_editor_banner_icon");
+            if (emojiHtml) {
+                const newIcon = parseHTML(this.document, emojiHtml).firstChild;
+                icon ? icon.replaceWith(newIcon) : currentBanner.prepend(newIcon);
+            } else {
+                icon?.remove();
+            }
+            this.dependencies.history.addStep();
+            return;
+        }
+
         const blockEl = closestBlock(selection.anchorNode);
         let baseContainer;
         if (isParagraphRelatedElement(blockEl)) {
@@ -163,18 +196,11 @@ export class BannerPlugin extends Plugin {
             fillShrunkPhrasingParent(baseContainer);
         }
         const baseContainerHtml = baseContainer.outerHTML;
-        const emojiHtml = emoji
-            ? `<i class="o_editor_banner_icon mb-3 fst-normal" data-oe-aria-label="${htmlEscape(
-                  title,
-              )}">${emoji}</i>`
-            : "";
         const bannerElement = parseHTML(
             this.document,
-            `<div class="${containerClass}o_editor_banner user-select-none o-contenteditable-false ${
-                emoji ? "lh-1 " : ""
-            }d-flex align-items-center alert alert-${alertClass} pb-0 pt-3 ps-3 pe-3" data-oe-role="status">
+            `<div class="${bannerClasses}" data-oe-role="status">
                 ${emojiHtml}
-                <div class="${contentClass}o_editor_banner_content o-contenteditable-true w-100 px-3">
+                <div class="${bannerContentClasses}">
                     ${baseContainerHtml}
                 </div>
             </div>`,
