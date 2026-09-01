@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from ._constants import DROPSHIP_DEST_LOCATION_XMLID, DROPSHIP_SOURCE_LOCATION_XMLID
+
 
 class StockRule(models.Model):
     _inherit = "stock.rule"
@@ -73,7 +75,7 @@ class StockPickingType(models.Model):
     def _compute_default_location_src_id(self):
         dropship_types = self.filtered(lambda pt: pt.code == "dropship")
         dropship_types.default_location_src_id = self.env.ref(
-            "stock.stock_location_suppliers"
+            DROPSHIP_SOURCE_LOCATION_XMLID
         ).id
 
         super(
@@ -83,7 +85,7 @@ class StockPickingType(models.Model):
     def _compute_default_location_dest_id(self):
         dropship_types = self.filtered(lambda pt: pt.code == "dropship")
         dropship_types.default_location_dest_id = self.env.ref(
-            "stock.stock_location_customers"
+            DROPSHIP_DEST_LOCATION_XMLID
         ).id
 
         super(
