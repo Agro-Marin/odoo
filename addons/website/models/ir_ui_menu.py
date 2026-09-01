@@ -9,7 +9,10 @@ class IrUiMenu(models.Model):
 
     @api.model
     @tools.ormcache(
-        "self.env.uid", "self.env.lang", 'self.env.context.get("force_action")'
+        "self.env.uid",
+        "self.env.lang",
+        'self.env.context.get("force_action")',
+        "self._get_session_debug()",
     )
     def load_menus_root(self):
         root_menus = super().load_menus_root()
