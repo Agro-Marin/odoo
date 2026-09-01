@@ -109,6 +109,7 @@ class WebsiteRewrite(models.Model):
                     raise ValidationError(
                         _("base URL of 'URL to' should not be same as 'URL from'.")
                     )
+                rewrite._check_no_redirect_cycle()
 
             if rewrite.redirect_type == "308":
                 if not rewrite.url_to.startswith("/"):
@@ -157,6 +158,36 @@ class WebsiteRewrite(models.Model):
                     routing_map.add(rule)
                 except ValueError as e:
                     raise ValidationError(_('"URL to" is invalid: %s', e)) from e
+
+    def _check_no_redirect_cycle(self):
+        """Walk the redirect chain starting from this record's "URL to" and
+        raise if it loops back to a URL already visited (a same-record loop
+        is already rejected by _check_url_to's own check above; this covers
+        cycles across 2+ records, e.g. A: /x->/y, B: /y->/x).
+        """
+        self.check_singleton()
+        seen = {self.url_from.split("#")[0]}
+        current_url = self.url_to.split("#")[0]
+        max_depth = self.search_count([]) + 1
+        for _i in range(max_depth):
+            if current_url in seen:
+                raise ValidationError(
+                    _("This redirect creates a cycle with another active redirect.")
+                )
+            seen.add(current_url)
+            next_rewrite = self.search(
+                [
+                    ("id", "!=", self.id),
+                    ("active", "=", True),
+                    ("redirect_type", "in", ("301", "302", "308")),
+                    ("website_id", "in", (False, self.website_id.id)),
+                    ("url_from", "=", current_url),
+                ],
+                limit=1,
+            )
+            if not next_rewrite:
+                return
+            current_url = next_rewrite.url_to.split("#")[0]
 
     @api.depends("redirect_type")
     def _compute_display_name(self):
