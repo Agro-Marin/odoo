@@ -213,10 +213,21 @@ class SaleReport(models.Model):
         # every real POS column already built above would be overwritten
         # with the literal SQL "NULL" for any key _available_additional_
         # pos_fields() doesn't recognize.
+        #
+        # Iterate `additional_fields` itself rather than differencing the two
+        # key views: UNION ALL matches the two branches by *position*, and a
+        # set difference orders its result by hash, which Python randomises per
+        # process. Every worker would emit these trailing columns in a
+        # different order from the sale branch -- silently swapping values when
+        # the types happen to be compatible, and raising `UNION types boolean
+        # and integer cannot be matched` when they are not.
         additional_fields = self._get_fields_select()
-        new_field_names = additional_fields.keys() - fields.keys()
         additional_fields_info = self._get_pos_field_expressions(
-            {fname: additional_fields[fname] for fname in new_field_names}
+            {
+                fname: expression
+                for fname, expression in additional_fields.items()
+                if fname not in fields
+            }
         )
         fields.update(additional_fields_info)
 
