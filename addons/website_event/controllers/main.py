@@ -612,6 +612,12 @@ class WebsiteEventController(http.Controller):
                 "/event/%s/register?registration_error_code=recaptcha_failed" % event.id
             )
         registrations_data = self._process_attendees_form(event, post)
+        if any(
+            "event_ticket_id" not in registration for registration in registrations_data
+        ):
+            return request.redirect(
+                "/event/%s/register?registration_error_code=missing_ticket" % event.id
+            )
         counter_per_combination = Counter(
             (registration.get("event_slot_id", False), registration["event_ticket_id"])
             for registration in registrations_data
