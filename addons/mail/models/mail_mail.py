@@ -459,7 +459,9 @@ class MailMail(models.Model):
             _logger.exception("Failed processing mail queue")
 
     @api.model
-    def _get_domain_pending_email_notifications(self, mail_ids: list[int]) -> list[tuple]:
+    def _get_domain_pending_email_notifications(
+        self, mail_ids: list[int]
+    ) -> list[tuple]:
         return [
             ("notification_type", "=", "email"),
             ("mail_mail_id", "in", mail_ids),
