@@ -61,7 +61,7 @@ export class StockValuationReportLine extends Component {
     }
 
     get label() {
-        return this.props.label || this.props.line.account?.display_name;
+        return this.props.label || this.props.line?.account?.display_name;
     }
 
     get totalProps() {
