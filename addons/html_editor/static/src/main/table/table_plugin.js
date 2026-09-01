@@ -387,19 +387,21 @@ export class TablePlugin extends Plugin {
      * @param {HTMLTableCellElement} reference
      */
     addColumn(position, reference) {
-        const columnIndex = getColumnIndex(reference);
         const table = closestElement(reference, "table");
+        const rows = table.rows;
         const tableWidth = table.style.width && parseFloat(table.style.width);
-        const referenceColumn = table.querySelectorAll(
-            `tr :is(td, th):nth-of-type(${columnIndex + 1})`,
-        );
+        const tableGrid = this.buildTableGrid(table);
+        const referenceRowGrid = tableGrid[getRowIndex(reference)];
+        const insertAfter = position === "after";
+        // A merged cell occupies several grid columns: insert after the last
+        // one it reaches, and before the first one.
+        const gridColumnIndex = insertAfter
+            ? referenceRowGrid.findLastIndex((cell) => cell === reference)
+            : referenceRowGrid.indexOf(reference);
         const referenceCellWidth = reference.style.width
             ? parseFloat(reference.style.width)
             : reference.clientWidth;
-        const firstRow = table.querySelector("tr");
-        const firstRowCells = [...firstRow.children].filter(
-            (child) => child.nodeName === "TD" || child.nodeName === "TH",
-        );
+        const firstRowCells = [...rows[0].cells];
         let totalWidth = 0;
         if (tableWidth) {
             for (const cell of firstRowCells) {
@@ -415,20 +417,53 @@ export class TablePlugin extends Plugin {
                 totalWidth += newWidth;
             }
         }
-        referenceColumn.forEach((cell, rowIndex) => {
+        for (let rowIndex = 0; rowIndex < tableGrid.length; rowIndex++) {
+            const rowGrid = tableGrid[rowIndex];
+            const cell = rowGrid[gridColumnIndex];
+            if (!cell) {
+                continue;
+            }
+            if (cell === rowGrid[gridColumnIndex + (insertAfter ? 1 : -1)]) {
+                // The cell already straddles the insertion point: widen it
+                // instead of giving this row one more cell.
+                cell.colSpan += 1;
+                continue;
+            }
             const newCell = this.document.createElement(cell.tagName);
             const baseContainer = this.dependencies.baseContainer.createBaseContainer();
             baseContainer.append(this.document.createElement("br"));
             newCell.append(baseContainer);
-            cell[position](newCell);
-            if (rowIndex === 0 && cell.classList.contains("o_table_header")) {
-                newCell.classList.add("o_table_header");
+            if (rows[rowIndex].contains(cell)) {
+                cell[position](newCell);
+                if (rowIndex === 0 && cell.classList.contains("o_table_header")) {
+                    newCell.classList.add("o_table_header");
+                }
+                if (rowIndex === 0 && tableWidth) {
+                    newCell.style.width = cell.style.width;
+                    totalWidth += parseFloat(cell.style.width);
+                }
+            } else {
+                // The cell is inherited from a rowSpan above, so this row has
+                // no sibling to insert next to at that grid column: fall back
+                // on the closest cell the row does own.
+                const anchor = insertAfter
+                    ? rowGrid.findLast(
+                          (candidate, index) =>
+                              index < gridColumnIndex && candidate.rowSpan === 1,
+                      )
+                    : rowGrid.find(
+                          (candidate, index) =>
+                              index > gridColumnIndex && candidate.rowSpan === 1,
+                      );
+                if (anchor) {
+                    anchor[position](newCell);
+                } else if (insertAfter) {
+                    rows[rowIndex].prepend(newCell);
+                } else {
+                    rows[rowIndex].append(newCell);
+                }
             }
-            if (rowIndex === 0 && tableWidth) {
-                newCell.style.width = cell.style.width;
-                totalWidth += parseFloat(cell.style.width);
-            }
-        });
+        }
         if (tableWidth) {
             if (totalWidth !== tableWidth - 1) {
                 firstRowCells[firstRowCells.length - 1].style.width =
@@ -438,12 +473,19 @@ export class TablePlugin extends Plugin {
             }
             table.style.width = tableWidth + "px";
         }
+        this.tableGridMap.delete(table);
     }
     /**
      * @param {'before'|'after'} position
      * @param {HTMLTableRowElement} reference
      */
     addRow(position, reference) {
+        const table = closestElement(reference, "table");
+        const tableGrid = this.buildTableGrid(table);
+        const referenceRowIndex = getRowIndex(reference);
+        const referenceRowGrid = tableGrid[referenceRowIndex];
+        const neighbourRowGrid =
+            tableGrid[referenceRowIndex + (position === "after" ? 1 : -1)];
         const referenceRowHeight =
             reference.style.height && parseFloat(reference.style.height);
         const newRow = this.document.createElement("tr");
@@ -452,16 +494,23 @@ export class TablePlugin extends Plugin {
         }
         const cells = reference.querySelectorAll("td, th");
         const referenceRowWidths = [...cells].map((cell) => cell.style.width);
-        newRow.append(
-            ...Array.from(cells).map(() => {
-                const td = this.document.createElement("td");
-                const baseContainer =
-                    this.dependencies.baseContainer.createBaseContainer();
-                baseContainer.append(this.document.createElement("br"));
-                td.append(baseContainer);
-                return td;
-            }),
-        );
+        // One new cell per grid column, except where a cell already straddles
+        // the insertion point: that one is heightened instead, once, however
+        // many grid columns it spans.
+        for (let columnIndex = 0; columnIndex < referenceRowGrid.length; columnIndex++) {
+            const cell = referenceRowGrid[columnIndex];
+            if (cell && cell === neighbourRowGrid?.[columnIndex]) {
+                if (cell !== referenceRowGrid[columnIndex - 1]) {
+                    cell.rowSpan += 1;
+                }
+                continue;
+            }
+            const td = this.document.createElement("td");
+            const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+            baseContainer.append(this.document.createElement("br"));
+            td.append(baseContainer);
+            newRow.append(td);
+        }
         reference[position](newRow);
         if (referenceRowHeight) {
             newRow.style.height = referenceRowHeight + "px";
@@ -469,11 +518,15 @@ export class TablePlugin extends Plugin {
         if (getRowIndex(newRow) === 0) {
             let columnIndex = 0;
             for (const column of newRow.children) {
+                if (!cells[columnIndex]) {
+                    break;
+                }
                 column.style.width = referenceRowWidths[columnIndex];
                 cells[columnIndex].style.width = "";
                 columnIndex++;
             }
         }
+        this.tableGridMap.delete(table);
     }
     /**
      * @param {HTMLTableRowElement} reference

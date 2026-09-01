@@ -919,6 +919,125 @@ test("insert column right operation", async () => {
     );
 });
 
+test("insert column left of a cell whose row is spanned below", async () => {
+    const { el } = await setupEditor(
+        unformat(`
+        <table>
+            <tbody>
+                <tr><td class="a">1[]</td><td>2</td><td>3</td></tr>
+                <tr><td colspan="3">4</td></tr>
+            </tbody>
+        </table>`),
+    );
+    await expectElementCount(".o-we-table-menu", 0);
+
+    await hover(el.querySelector("td.a"));
+    await waitFor("[data-type='column'].o-we-table-menu");
+
+    await click("[data-type='column'].o-we-table-menu");
+    await waitFor("div[name='insert_left']");
+
+    await click("div[name='insert_left']");
+    expect(getContent(el)).toBe(
+        unformat(`
+        <p data-selection-placeholder=""><br></p>
+        <table>
+            <tbody>
+                <tr>
+                    <td><p><br></p></td>
+                    <td class="a">1[]</td>
+                    <td>2</td>
+                    <td>3</td>
+                </tr>
+                <tr>
+                    <td><p><br></p></td>
+                    <td colspan="3">4</td>
+                </tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder=""><br></p>`),
+    );
+});
+
+test("insert column inside a colspan widens it instead of adding a cell", async () => {
+    const { el } = await setupEditor(
+        unformat(`
+        <table class="table table-bordered o_table">
+            <tbody>
+                <tr><td class="a">1[]</td><td>2</td><td>3</td></tr>
+                <tr><td colspan="3">4</td></tr>
+            </tbody>
+        </table>`),
+    );
+    await expectElementCount(".o-we-table-menu", 0);
+
+    await hover(el.querySelector("td.a"));
+    await waitFor("[data-type='column'].o-we-table-menu");
+
+    await click("[data-type='column'].o-we-table-menu");
+    await waitFor("div[name='insert_right']");
+
+    await click("div[name='insert_right']");
+    expect(getContent(el)).toBe(
+        unformat(`
+        <p data-selection-placeholder=""><br></p>
+        <table class="table table-bordered o_table">
+            <tbody>
+                <tr>
+                    <td class="a">1[]</td>
+                    <td><p><br></p></td>
+                    <td>2</td>
+                    <td>3</td>
+                </tr>
+                <tr>
+                    <td colspan="4">4</td>
+                </tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`),
+    );
+});
+
+test("insert column right of the last column a colspan reaches", async () => {
+    const { el } = await setupEditor(
+        unformat(`
+        <table class="table table-bordered o_table">
+            <tbody>
+                <tr><td>1</td><td>2</td><td class="a">3[]</td></tr>
+                <tr><td colspan="3">4</td></tr>
+            </tbody>
+        </table>`),
+    );
+    await expectElementCount(".o-we-table-menu", 0);
+
+    await hover(el.querySelector("td.a"));
+    await waitFor("[data-type='column'].o-we-table-menu");
+
+    await click("[data-type='column'].o-we-table-menu");
+    await waitFor("div[name='insert_right']");
+
+    await click("div[name='insert_right']");
+    expect(getContent(el)).toBe(
+        unformat(`
+        <p data-selection-placeholder=""><br></p>
+        <table class="table table-bordered o_table">
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td>2</td>
+                    <td class="a">3[]</td>
+                    <td><p><br></p></td>
+                </tr>
+                <tr>
+                    <td colspan="3">4</td>
+                    <td><p><br></p></td>
+                </tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`),
+    );
+});
+
 test("insert column right operation when table header exists", async () => {
     const { el } = await setupEditor(
         unformat(`
@@ -1105,6 +1224,180 @@ test("insert row below operation", async () => {
             <tbody>
                 <tr><td class="a">1[]</td><td class="b">2</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder=""><br></p>`),
+    );
+});
+
+test("insert row above a rowspan cell leaves its span alone", async () => {
+    const { el } = await setupEditor(
+        unformat(`
+        <table>
+            <tbody>
+                <tr><td class="a" rowspan="3">1[]</td><td class="b">2</td></tr>
+                <tr><td class="c">3</td></tr>
+                <tr><td class="d">4</td></tr>
+            </tbody>
+        </table>`),
+    );
+    await expectElementCount(".o-we-table-menu", 0);
+
+    await hover(el.querySelector("td.a"));
+    await waitFor("[data-type='row'].o-we-table-menu");
+
+    await click("[data-type='row'].o-we-table-menu");
+    await waitFor("div[name='insert_above']");
+
+    await click("div[name='insert_above']");
+    expect(getContent(el)).toBe(
+        unformat(`
+        <p data-selection-placeholder=""><br></p>
+        <table>
+            <tbody>
+                <tr>
+                    <td><p><br></p></td>
+                    <td><p><br></p></td>
+                </tr>
+                <tr>
+                    <td class="a" rowspan="3">1[]</td>
+                    <td class="b">2</td>
+                </tr>
+                <tr>
+                    <td class="c">3</td>
+                </tr>
+                <tr>
+                    <td class="d">4</td>
+                </tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder=""><br></p>`),
+    );
+});
+
+test("insert row inside a rowspan heightens it instead of adding a cell", async () => {
+    const { el } = await setupEditor(
+        unformat(`
+        <table>
+            <tbody>
+                <tr><td class="a">1[]</td><td class="b" rowspan="3">2</td></tr>
+                <tr><td class="c">3</td></tr>
+                <tr><td class="d">4</td></tr>
+            </tbody>
+        </table>`),
+    );
+    await expectElementCount(".o-we-table-menu", 0);
+
+    await hover(el.querySelector("td.a"));
+    await waitFor("[data-type='row'].o-we-table-menu");
+
+    await click("[data-type='row'].o-we-table-menu");
+    await waitFor("div[name='insert_below']");
+
+    await click("div[name='insert_below']");
+    expect(getContent(el)).toBe(
+        unformat(`
+        <p data-selection-placeholder=""><br></p>
+        <table>
+            <tbody>
+                <tr>
+                    <td class="a">1[]</td>
+                    <td class="b" rowspan="4">2</td>
+                </tr>
+                <tr>
+                    <td><p><br></p></td>
+                </tr>
+                <tr>
+                    <td class="c">3</td>
+                </tr>
+                <tr>
+                    <td class="d">4</td>
+                </tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder=""><br></p>`),
+    );
+});
+
+test("insert row inside a rowspan held by the first column", async () => {
+    const { el } = await setupEditor(
+        unformat(`
+        <table>
+            <tbody>
+                <tr><td class="a" rowspan="2">1[]</td><td class="b">2</td></tr>
+                <tr><td class="c">3</td></tr>
+            </tbody>
+        </table>`),
+    );
+    await expectElementCount(".o-we-table-menu", 0);
+
+    await hover(el.querySelector("td.a"));
+    await waitFor("[data-type='row'].o-we-table-menu");
+
+    await click("[data-type='row'].o-we-table-menu");
+    await waitFor("div[name='insert_below']");
+
+    await click("div[name='insert_below']");
+    expect(getContent(el)).toBe(
+        unformat(`
+        <p data-selection-placeholder=""><br></p>
+        <table>
+            <tbody>
+                <tr>
+                    <td class="a" rowspan="3">1[]</td>
+                    <td class="b">2</td>
+                </tr>
+                <tr>
+                    <td><p><br></p></td>
+                </tr>
+                <tr>
+                    <td class="c">3</td>
+                </tr>
+            </tbody>
+        </table>
+        <p data-selection-placeholder=""><br></p>`),
+    );
+});
+
+test("insert row below the last row a rowspan reaches", async () => {
+    const { el } = await setupEditor(
+        unformat(`
+        <table>
+            <tbody>
+                <tr><td class="a">1[]</td><td class="b" rowspan="3">2</td></tr>
+                <tr><td class="c">3</td></tr>
+                <tr><td class="d">4</td></tr>
+            </tbody>
+        </table>`),
+    );
+    await expectElementCount(".o-we-table-menu", 0);
+
+    await hover(el.querySelector("td.d"));
+    await waitFor("[data-type='row'].o-we-table-menu");
+
+    await click("[data-type='row'].o-we-table-menu");
+    await waitFor("div[name='insert_below']");
+
+    await click("div[name='insert_below']");
+    expect(getContent(el)).toBe(
+        unformat(`
+        <p data-selection-placeholder=""><br></p>
+        <table>
+            <tbody>
+                <tr>
+                    <td class="a">1[]</td>
+                    <td class="b" rowspan="3">2</td>
+                </tr>
+                <tr>
+                    <td class="c">3</td>
+                </tr>
+                <tr>
+                    <td class="d">4</td>
+                </tr>
+                <tr>
+                    <td><p><br></p></td>
+                    <td><p><br></p></td>
+                </tr>
             </tbody>
         </table>
         <p data-selection-placeholder=""><br></p>`),
