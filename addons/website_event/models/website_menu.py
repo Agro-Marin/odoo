@@ -79,7 +79,7 @@ class WebsiteMenu(models.Model):
             menus_by_parent_id[menu["parent_id"]].append(menu)
 
         for parent_id, menus in menus_by_parent_id.items():
-            new_menus = filter(lambda menu: menu["id"] not in old_menu_ids, menus)
+            new_menus = [menu for menu in menus if menu["id"] not in old_menu_ids]
             if not new_menus:
                 continue
 
