@@ -7,8 +7,14 @@
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <title>Memory Usage Visualization</title>
-                <script src="https://cdn.jsdelivr.net/npm/chart.js" />
-                <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels" />
+                <script
+                    src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"
+                    crossorigin="anonymous"
+                    integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" />
+                <script
+                    src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"
+                    crossorigin="anonymous"
+                    integrity="sha384-y49Zu59jZHJL/PLKgZPv3k2WI9c0Yp3pWB76V8OBVCb0QBKS8l4Ff3YslzHVX76Y" />
                 <style>
                 /* General body and layout styles */
                 body {
@@ -284,7 +290,7 @@
                             const diff = size2 - size1;
                             if (diff !== 0) {
                                 const item = data2[fullTracebackKey] || data1[fullTracebackKey];
-                                diffData.push({ 
+                                diffData.push({
                                     label: item.lastFile,
                                     diff: diff,
                                     traceback: item.traceback,
@@ -310,7 +316,7 @@
                         breakdownChart.data.labels = [];
                         breakdownChart.data.datasets = [];
                         breakdownChart.options.plugins.title.text = 'Memory Breakdown';
-                        document.getElementById('tracebackPanel').innerHTML = 
+                        document.getElementById('tracebackPanel').innerHTML =
                             '<div class="no-selection">Click a point on the top chart, then a bar below to see details.</div>';
                     }
 
