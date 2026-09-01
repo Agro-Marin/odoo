@@ -35,8 +35,6 @@ class WebsiteMail(http.Controller):
                 ._partner_find_from_emails_single([email], no_create=no_create)
                 .ids
             )
-            if not partner_ids:
-                return False
         # add or remove follower
         if is_follower:
             record.sudo().message_unsubscribe(partner_ids)
