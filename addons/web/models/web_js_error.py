@@ -91,6 +91,10 @@ class WebJsError(models.Model):
         "CHECK(stack IS NULL OR char_length(stack) <= 4096)",
         "A JS error stack cannot exceed 4096 characters.",
     )
+    _check_reloaded_only_on_asset_load_error = models.Constraint(
+        "CHECK(reloaded IS NULL OR kind = 'asset_load_error')",
+        "The reloaded field can only be set for asset_load_error records.",
+    )
 
     @api.model
     def _record_beacon(self, values):
