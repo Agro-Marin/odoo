@@ -136,6 +136,43 @@ class TestSurveySession(TestSurveyCommon):
             "action_end_session must not modify non-session inputs",
         )
 
+    def test_is_first_page_or_question_skips_hidden_first_question(self):
+        survey = (
+            self.env["survey.survey"]
+            .with_user(self.survey_manager)
+            .create(
+                {
+                    "title": "Hidden first question",
+                    "questions_layout": "page_per_question",
+                    "question_and_page_ids": [
+                        (
+                            0,
+                            0,
+                            {
+                                "title": "Q1 hidden",
+                                "sequence": 1,
+                                "question_type": "calculated",
+                            },
+                        ),
+                        (
+                            0,
+                            0,
+                            {
+                                "title": "Q2 visible",
+                                "sequence": 2,
+                                "question_type": "text_box",
+                            },
+                        ),
+                    ],
+                }
+            )
+        )
+        q1_hidden, q2_visible = survey.question_ids.sorted("sequence")
+        user_input = self.env["survey.user_input"].create({"survey_id": survey.id})
+
+        self.assertFalse(survey._is_first_page_or_question(user_input, q1_hidden))
+        self.assertTrue(survey._is_first_page_or_question(user_input, q2_visible))
+
 
 @tagged("post_install", "-at_install")
 class TestSurveyAttemptLimits(TestSurveyCommon):

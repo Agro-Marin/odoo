@@ -1291,16 +1291,15 @@ class SurveySurvey(models.Model):
                     return section
         return Question
 
-    def _is_first_page_or_question(self, page_or_question: Self) -> bool:
-        first_section_has_description = self.page_ids and not is_html_empty(
-            self.page_ids[0].description
-        )
-        return (
-            first_section_has_description and page_or_question == self.page_ids[0]
-        ) or (
-            not first_section_has_description
-            and page_or_question == self.question_ids[0]
-        )
+    def _is_first_page_or_question(
+        self, user_input: Self, page_or_question: Self
+    ) -> bool:
+        if self.questions_layout_effective == "one_page":
+            return True
+        pages_or_questions = self._get_pages_or_questions(user_input)
+        if not pages_or_questions:
+            return True
+        return page_or_question.id == pages_or_questions[0].id
 
     def _is_last_page_or_question(
         self, user_input: Self, page_or_question: Self
