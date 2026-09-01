@@ -7,6 +7,7 @@ import {
     fillEmpty,
     fillShrunkPhrasingParent,
     removeClass,
+    removeStyle,
 } from "@html_editor/utils/dom";
 import {
     getDeepestPosition,
@@ -32,6 +33,7 @@ import { findInSelection } from "@html_editor/utils/selection";
 import { getColumnIndex, getRowIndex, getTableCells } from "@html_editor/utils/table";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { BG_CLASSES_REGEX } from "@html_editor/utils/color";
 import { rgbaToHex } from "@web/core/utils/format/colors";
 
 export const BORDER_SENSITIVITY = 5;
@@ -127,6 +129,7 @@ export class TablePlugin extends Plugin {
         shift_tab_overrides: withSequence(20, this.handleShiftTab.bind(this)),
         delete_range_overrides: this.handleDeleteRange.bind(this),
         color_apply_overrides: this.applyTableColor.bind(this),
+        paste_table_overrides: this.pasteTableIntoTable.bind(this),
 
         unremovable_node_predicates: isUnremovableTableComponent,
         unsplittable_node_predicates: (node) =>
@@ -254,6 +257,113 @@ export class TablePlugin extends Plugin {
         );
         this.dependencies.history.addStep();
     }
+    /**
+     * Fill the cells of the table the caret is in with the cells of a table
+     * that is the entire clipboard content, growing the target table when the
+     * pasted one runs past its edges. Anything else -- a clipboard that is not
+     * exactly one table, or a caret that is not inside one -- is left to the
+     * normal paste, which nests the table in a cell.
+     *
+     * @param {EditorSelection} selection
+     * @param {Node} clipboardRoot
+     * @returns {boolean} whether the paste was handled here
+     */
+    pasteTableIntoTable(selection, clipboardRoot) {
+        const sourceTable = clipboardRoot.firstChild;
+        if (clipboardRoot.childNodes.length !== 1 || sourceTable?.nodeName !== "TABLE") {
+            return false;
+        }
+        const sourceRows = sourceTable.rows;
+        const sourceRowCount = sourceRows.length;
+        const sourceColumnCount = sourceRows[0]?.cells.length || 0;
+        if (!sourceRowCount || !sourceColumnCount) {
+            return false;
+        }
+
+        // The whole selection has to sit in one and the same table.
+        const targetTable = closestElement(selection.anchorNode, "table");
+        if (!targetTable || closestElement(selection.focusNode, "table") !== targetTable) {
+            return false;
+        }
+        const anchorCell =
+            targetTable.querySelector(".o_selected_td") ||
+            closestElement(selection.anchorNode, isTableCell);
+        if (!anchorCell) {
+            return false;
+        }
+        const anchorRowIndex = getRowIndex(anchorCell);
+        const anchorColumnIndex = getColumnIndex(anchorCell);
+
+        // Grow the target to fit. addRow/addColumn take no count here, so add
+        // one at a time against the last row/cell; the new ones are empty, so
+        // the order they land in does not show.
+        const rowsToAdd = anchorRowIndex + sourceRowCount - targetTable.rows.length;
+        for (let i = 0; i < rowsToAdd; i++) {
+            this.addRow("after", targetTable.rows[targetTable.rows.length - 1]);
+        }
+        const columnsToAdd =
+            anchorColumnIndex + sourceColumnCount - targetTable.rows[0].cells.length;
+        for (let i = 0; i < columnsToAdd; i++) {
+            const firstRowCells = targetTable.rows[0].cells;
+            this.addColumn("after", firstRowCells[firstRowCells.length - 1]);
+        }
+
+        for (let rowOffset = 0; rowOffset < sourceRowCount; rowOffset++) {
+            const sourceCells = sourceRows[rowOffset].cells;
+            const targetCells = targetTable.rows[anchorRowIndex + rowOffset].cells;
+            for (let colOffset = 0; colOffset < sourceColumnCount; colOffset++) {
+                const sourceCell = sourceCells[colOffset];
+                const targetCell = targetCells[anchorColumnIndex + colOffset];
+                targetCell.replaceChildren(...sourceCell.cloneNode(true).childNodes);
+                this.copyCellBackground(sourceCell, targetCell);
+            }
+        }
+
+        // Show what the paste covered.
+        const firstCell = targetTable.rows[anchorRowIndex].cells[anchorColumnIndex];
+        const lastCell =
+            targetTable.rows[anchorRowIndex + sourceRowCount - 1].cells[
+                anchorColumnIndex + sourceColumnCount - 1
+            ];
+        this.dependencies.selection.setSelection({
+            anchorNode: firstLeaf(firstCell),
+            anchorOffset: 0,
+            focusNode: lastLeaf(lastCell),
+            focusOffset: nodeSize(lastLeaf(lastCell)),
+        });
+        return true;
+    }
+
+    /**
+     * @param {HTMLTableCellElement} sourceCell
+     * @param {HTMLTableCellElement} targetCell
+     */
+    copyCellBackground(sourceCell, targetCell) {
+        const targetBgClasses = [...targetCell.classList].filter((cls) =>
+            BG_CLASSES_REGEX.test(cls),
+        );
+        if (targetBgClasses.length) {
+            removeClass(targetCell, ...targetBgClasses);
+        }
+        const sourceBgClasses = [...sourceCell.classList].filter((cls) =>
+            BG_CLASSES_REGEX.test(cls),
+        );
+        if (sourceBgClasses.length) {
+            targetCell.classList.add(...sourceBgClasses);
+        }
+        const { backgroundColor, backgroundImage } = sourceCell.style;
+        if (backgroundColor) {
+            targetCell.style.backgroundColor = backgroundColor;
+        } else {
+            removeStyle(targetCell, "background-color");
+        }
+        if (backgroundImage) {
+            targetCell.style.backgroundImage = backgroundImage;
+        } else {
+            removeStyle(targetCell, "background-image");
+        }
+    }
+
     /**
      * @param {'before'|'after'} position
      * @param {HTMLTableCellElement} reference

@@ -4905,3 +4905,130 @@ describe("onDrop", () => {
         );
     });
 });
+
+describe("paste a table into a table", () => {
+    const target = (rows) =>
+        unformat(`
+            <table class="table table-bordered o_table">
+                <tbody>${rows}</tbody>
+            </table>
+        `);
+
+    test("fills the target cells instead of nesting a table in one of them", async () => {
+        const { editor, el } = await setupEditor(
+            target(
+                "<tr><td><p>a1[]</p></td><td><p>a2</p></td></tr>" +
+                    "<tr><td><p>b1</p></td><td><p>b2</p></td></tr>",
+            ),
+        );
+        pasteHtml(
+            editor,
+            unformat(`
+                <table>
+                    <tbody>
+                        <tr><td><p>x1</p></td><td><p><strong>x2</strong></p></td></tr>
+                    </tbody>
+                </table>
+            `),
+        );
+        await animationFrame();
+        expect(el.querySelectorAll("table")).toHaveLength(1);
+        expect(el.querySelector("td p").textContent).toBe("x1");
+        expect(el.querySelector("td strong").textContent).toBe("x2");
+        // The row that was not covered by the paste is untouched.
+        expect(el.querySelectorAll("tr")[1].textContent).toBe("b1b2");
+    });
+
+    test("grows the target table when the pasted one does not fit", async () => {
+        const { editor, el } = await setupEditor(
+            target("<tr><td><p>a1[]</p></td></tr>"),
+        );
+        pasteHtml(
+            editor,
+            unformat(`
+                <table>
+                    <tbody>
+                        <tr><td><p>x1</p></td><td><p>x2</p></td></tr>
+                        <tr><td><p>y1</p></td><td><p>y2</p></td></tr>
+                    </tbody>
+                </table>
+            `),
+        );
+        await animationFrame();
+        expect(el.querySelectorAll("table")).toHaveLength(1);
+        expect(el.querySelectorAll("tr")).toHaveLength(2);
+        expect(el.querySelectorAll("tr")[0].querySelectorAll("td")).toHaveLength(2);
+        expect(el.querySelector("table").textContent).toBe("x1x2y1y2");
+    });
+
+    test("carries the copied cell's background over the target cell's", async () => {
+        // The odoo-editor flavour, not text/html: `cleanForPaste` keeps only
+        // `bg-o-*` off the clipboard, so a Bootstrap `bg-success` can only
+        // reach here from a copy made inside the editor.
+        const { editor, el } = await setupEditor(
+            target('<tr><td class="bg-primary"><p>a1[]</p></td></tr>'),
+        );
+        pasteOdooEditorHtml(
+            editor,
+            unformat(`
+                <table class="table table-bordered o_table">
+                    <tbody><tr><td class="bg-success"><p>x1</p></td></tr></tbody>
+                </table>
+            `),
+        );
+        await animationFrame();
+        const td = el.querySelector("td");
+        expect(td.classList.contains("bg-success")).toBe(true);
+        expect(td.classList.contains("bg-primary")).toBe(false);
+    });
+
+    test("clears the target cell's background when the copied cell has none", async () => {
+        const { editor, el } = await setupEditor(
+            target('<tr><td class="bg-primary"><p>a1[]</p></td></tr>'),
+        );
+        pasteOdooEditorHtml(
+            editor,
+            unformat(`
+                <table class="table table-bordered o_table">
+                    <tbody><tr><td><p>x1</p></td></tr></tbody>
+                </table>
+            `),
+        );
+        await animationFrame();
+        expect(el.querySelector("td").classList.contains("bg-primary")).toBe(false);
+    });
+
+    test("outside a table, a pasted table is still inserted as a table", async () => {
+        const { editor, el } = await setupEditor("<p>a[]</p>");
+        pasteHtml(
+            editor,
+            unformat(`
+                <table>
+                    <tbody><tr><td><p>x1</p></td></tr></tbody>
+                </table>
+            `),
+        );
+        await animationFrame();
+        expect(el.querySelectorAll("table")).toHaveLength(1);
+        expect(el.querySelector("td").textContent).toBe("x1");
+    });
+
+    test("clipboard content that is more than one table is inserted normally", async () => {
+        const { editor, el } = await setupEditor(
+            target("<tr><td><p>a1[]</p></td></tr>"),
+        );
+        pasteHtml(
+            editor,
+            unformat(`
+                <p>lead</p>
+                <table>
+                    <tbody><tr><td><p>x1</p></td></tr></tbody>
+                </table>
+            `),
+        );
+        await animationFrame();
+        // Nested: the old behaviour, still correct when the clipboard is not a
+        // lone table.
+        expect(el.querySelectorAll("table")).toHaveLength(2);
+    });
+});

@@ -193,7 +193,7 @@ export class ClipboardPlugin extends Plugin {
 
         if (!this.delegateTo("paste_overrides", selection, ev.clipboardData)) {
             this.handlePasteUnsupportedHtml(selection, ev.clipboardData) ||
-                this.handlePasteOdooEditorHtml(ev.clipboardData) ||
+                this.handlePasteOdooEditorHtml(selection, ev.clipboardData) ||
                 this.handlePasteHtml(selection, ev.clipboardData) ||
                 this.handlePasteText(selection, ev.clipboardData);
         }
@@ -213,9 +213,10 @@ export class ClipboardPlugin extends Plugin {
         }
     }
     /**
+     * @param {EditorSelection} selection
      * @param {DataTransfer} clipboardData
      */
-    handlePasteOdooEditorHtml(clipboardData) {
+    handlePasteOdooEditorHtml(selection, clipboardData) {
         const odooEditorHtml = clipboardData.getData(
             "application/vnd.odoo.odoo-editor",
         );
@@ -227,6 +228,9 @@ export class ClipboardPlugin extends Plugin {
             const fragment = parseHTML(this.document, odooEditorHtml);
             this.dependencies.sanitize.sanitize(fragment);
             if (this.delegateTo("handle_paste_html_override", fragment)) {
+                return true;
+            }
+            if (this.delegateTo("paste_table_overrides", selection, fragment)) {
                 return true;
             }
             if (fragment.hasChildNodes()) {
@@ -255,6 +259,9 @@ export class ClipboardPlugin extends Plugin {
         }
         if (files.length || clipboardHtml) {
             const clipboardElem = this.prepareClipboardData(clipboardHtml);
+            if (this.delegateTo("paste_table_overrides", selection, clipboardElem)) {
+                return true;
+            }
             if (files.length && !clipboardElem.querySelector("table")) {
                 return this.addImagesFiles(files).then((html) => {
                     this.dependencies.dom.insert(html);
