@@ -326,6 +326,59 @@ class TestPage(common.TransactionCase):
         self.assertEqual(new_view.arch, "<div>website 1 content</div>")
         self.assertEqual(new_view.website_id.id, 1)
 
+    def test_cow_generic_parent_preserves_specific_child_page(self):
+        """A page whose view_id is an already-website-specific inheriting
+        child must survive a COW write on the generic parent view.
+
+        Regression test for a bug where reparenting an inherit_children_ids
+        entry that was already specific to the current website (copy +
+        unlink of the original) dropped its website.page: page.view_id is
+        ondelete="cascade" and the original was unlinked with no
+        replacement page created for the copy.
+        """
+        Page = self.env["website.page"]
+        View = self.env["ir.ui.view"]
+
+        # Make the extension view specific to website 1 first, and attach a
+        # page to it, so it is exactly the "already-specific inherit_child"
+        # scenario the bug required.
+        self.extension_view.with_context(website_id=1).write(
+            {"arch": "<div>website 1 extension content</div>"}
+        )
+        specific_extension_view = View.search(
+            [("name", "=", "Extension"), ("website_id", "=", 1)]
+        )
+        self.assertTrue(specific_extension_view)
+
+        Page.create(
+            {
+                "name": "Child page on specific extension view",
+                "view_id": specific_extension_view.id,
+                "website_id": 1,
+                "url": "/child_page_on_extension",
+            }
+        )
+
+        # COW-write the generic base view under website 1 -- this reparents
+        # specific_extension_view (copy + unlink of the original).
+        self.base_view.with_context(website_id=1).write(
+            {"arch": "<div>website 1 base content</div>"}
+        )
+
+        self.assertFalse(
+            specific_extension_view.exists(),
+            "the original specific extension view is expected to be replaced",
+        )
+        surviving_page = Page.search(
+            [("name", "=", "Child page on specific extension view")]
+        )
+        self.assertTrue(surviving_page, "the page must not be lost")
+        self.assertTrue(
+            surviving_page.view_id.exists(),
+            "the surviving page's view_id must be a real, valid view",
+        )
+        self.assertEqual(surviving_page.view_id.website_id.id, 1)
+
     def test_cou_page_backend(self):
         Page = self.env["website.page"]
         View = self.env["ir.ui.view"]
