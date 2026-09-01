@@ -470,7 +470,9 @@ class UomUom(models.Model):
             return to_unit.is_zero(qty)
         return float_is_zero(qty, precision_rounding=self._conversion_rounding(to_unit))
 
-    def _round_to_packaging_multiple(self, product_qty, uom, rounding_method="HALF-UP"):
+    def _round_to_packaging_multiple(
+        self, product_qty: float, uom: Self, rounding_method: RoundingMethod = "HALF-UP"
+    ) -> float:
         """Round `product_qty` (expressed in `uom`) to a whole multiple of the
         packaging `self`, according to `rounding_method` ("UP", "HALF-UP" or "DOWN").
 
