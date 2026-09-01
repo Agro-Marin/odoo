@@ -32,7 +32,7 @@ export class ProjectProjectFormController extends FormControllerWithHTMLExpander
             );
             this.featuresToObserve = await this.orm.call(
                 this.props.resModel,
-                "check_features_enabled",
+                "get_features_enabled",
                 [],
             );
         });
@@ -67,7 +67,7 @@ export class ProjectProjectFormController extends FormControllerWithHTMLExpander
         if (updatedFields.length) {
             const updatedFeatures = await record.model.orm.call(
                 record.resModel,
-                "check_features_enabled",
+                "get_features_enabled",
                 [updatedFields],
             );
             if (

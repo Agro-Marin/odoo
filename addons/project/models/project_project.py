@@ -835,7 +835,7 @@ class ProjectProject(models.Model):
         for key, group in tasks_by_vals.items():
             group.write(vals_by_key[key])
 
-    def _levelling_day_capacity(
+    def _get_levelling_day_capacity(
         self, calendar: Any, date_start: Any, date_end: Any
     ) -> dict:
         per_day: dict = defaultdict(float)
@@ -853,7 +853,7 @@ class ProjectProject(models.Model):
         return per_day
 
     @staticmethod
-    def _levelling_spread(slot: tuple, day_capacity: dict) -> dict:
+    def _get_levelling_spread(slot: tuple, day_capacity: dict) -> dict:
         start, stop, hours, _task_id = slot
         days = {
             day: capacity
@@ -912,7 +912,7 @@ class ProjectProject(models.Model):
             user_calendar = user.resource_calendar_id or calendar
             if user_calendar.id not in day_capacity_per_calendar:
                 day_capacity_per_calendar[user_calendar.id] = (
-                    self._levelling_day_capacity(
+                    self._get_levelling_day_capacity(
                         user_calendar, window_start, window_end
                     )
                 )
@@ -939,7 +939,7 @@ class ProjectProject(models.Model):
                     *overlapping,
                     (task.cpm_date_start, task.cpm_date_end, task_share, task.id),
                 ]:
-                    for day, hours in self._levelling_spread(
+                    for day, hours in self._get_levelling_spread(
                         slot, capacity_by_day
                     ).items():
                         load_by_day[day] += hours
@@ -1266,17 +1266,17 @@ class ProjectProject(models.Model):
         "deadline_compliance_pct",
     )
 
-    def _refresh_metrics(self) -> None:
+    def _reset_metrics(self) -> None:
         for fname in self._SNAPSHOT_METRIC_FIELDS:
             self.env.add_to_compute(self._fields[fname], self)
         self.env.flush_all()
 
     @api.model
-    def _cron_refresh_metrics(self) -> None:
-        self.search([])._refresh_metrics()
+    def _cron_reset_metrics(self) -> None:
+        self.search([])._reset_metrics()
 
-    def action_refresh_metrics(self) -> bool:
-        self._refresh_metrics()
+    def action_reset_metrics(self) -> bool:
+        self._reset_metrics()
         return True
 
     def _compute_access_url(self) -> None:
@@ -1744,7 +1744,7 @@ class ProjectProject(models.Model):
                 )
             )
 
-    def _seed_default_workflow_step(self) -> None:
+    def _create_default_workflow_steps(self) -> None:
         stepless = self.filtered(lambda project: not project.workflow_step_ids)
         if not stepless:
             return
@@ -1799,8 +1799,8 @@ class ProjectProject(models.Model):
                 vals.get("date_end", vals.get("date")),
             )
         projects = super().create(vals_list)
-        projects._seed_default_workflow_step()
-        projects._refresh_metrics()
+        projects._create_default_workflow_steps()
+        projects._reset_metrics()
         return projects
 
     def write(self, vals: dict[str, Any]) -> bool:
@@ -2030,7 +2030,7 @@ class ProjectProject(models.Model):
         }
 
     @api.model
-    def check_features_enabled(
+    def get_features_enabled(
         self, updated_features: list[str] | None = None
     ) -> dict[str, bool]:
         if not self.env.user.has_group("project.group_project_user"):
@@ -2151,7 +2151,7 @@ class ProjectProject(models.Model):
         action["domain"] = domain
         return action
 
-    def project_update_all_action(self) -> dict:
+    def action_view_project_updates(self) -> dict:
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.project_update_all_action"
         )
@@ -2304,14 +2304,14 @@ class ProjectProject(models.Model):
         self.check_singleton()
         if not self.env.user.has_group("project.group_project_user"):
             return {}
-        self._refresh_metrics()
-        show_profitability = self._show_profitability()
+        self._reset_metrics()
+        show_profitability = self._is_profitability_shown()
         panel_data = {
             "user": self._get_user_values(),
             "buttons": sorted(self._get_stat_buttons(), key=lambda k: k["sequence"]),
             "currency_id": self.currency_id.id,
             "show_project_profitability_helper": show_profitability
-            and self._show_profitability_helper(),
+            and self._is_profitability_helper_shown(),
             "show_milestones": self.allow_milestones,
         }
         if self.allow_milestones:
@@ -2357,11 +2357,11 @@ class ProjectProject(models.Model):
             "is_project_user": self.env.user.has_group("project.group_project_user"),
         }
 
-    def _show_profitability(self) -> bool:
+    def _is_profitability_shown(self) -> bool:
         self.check_singleton()
         return True
 
-    def _show_profitability_helper(self) -> bool:
+    def _is_profitability_helper_shown(self) -> bool:
         return self.env.user.has_group("analytic.group_analytic_accounting")
 
     def _get_profitability_aal_domain(self) -> list:
@@ -2545,7 +2545,7 @@ class ProjectProject(models.Model):
         return False
 
     @api.model
-    def _get_values_analytic_account_batch(
+    def _prepare_analytic_account_vals_list(
         self, project_vals_list: list[dict]
     ) -> list[dict]:
         project_plan, _other_plans = self.env["account.analytic.plan"]._get_all_plans()
@@ -2562,7 +2562,7 @@ class ProjectProject(models.Model):
         ]
 
     def _create_analytic_account(self) -> None:
-        analytic_accounts_values = self._get_values_analytic_account_batch(
+        analytic_accounts_values = self._prepare_analytic_account_vals_list(
             self._read_format(["name", "company_id", "partner_id"], None)
         )
         analytic_accounts = self.env["account.analytic.account"].create(
@@ -2764,7 +2764,7 @@ class ProjectProject(models.Model):
     def action_create_template_from_project(self) -> dict:
         self.check_singleton()
         template = self.copy(default={"is_template": True, "partner_id": False})
-        template._toggle_template_mode(True)
+        template._update_template_mode(True)
         template.message_post(body=self.env._("Template created from %s.", self.name))
         config = {
             "tag": "project_template_show_notification",
@@ -2795,7 +2795,7 @@ class ProjectProject(models.Model):
 
     def action_undo_convert_to_template(self) -> dict | bool:
         self.check_singleton()
-        self._toggle_template_mode(False)
+        self._update_template_mode(False)
         self.message_post(
             body=self.env._("Template converted back to regular project.")
         )
@@ -2812,7 +2812,7 @@ class ProjectProject(models.Model):
             },
         }
 
-    def _toggle_template_mode(self, is_template: bool) -> None:
+    def _update_template_mode(self, is_template: bool) -> None:
         self.check_singleton()
         self.is_template = is_template
         if not is_template:

@@ -166,7 +166,7 @@ class ProjectMilestone(models.Model):
         )
         return [("project_id", "in", query)]
 
-    def toggle_is_reached(self, is_reached: bool) -> dict:
+    def update_is_reached(self, is_reached: bool) -> dict:
         self.check_singleton()
         self.update({"is_reached": is_reached})
         return self._get_data()

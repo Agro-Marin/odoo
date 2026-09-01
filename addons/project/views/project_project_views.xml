@@ -110,7 +110,7 @@
                                 <span class="o_stat_text">Find Similar</span>
                             </div>
                         </button>
-                        <button class="oe_stat_button" name="project_update_all_action" type="object" groups="project.group_project_user" context="{'active_id': id}" invisible="is_template">
+                        <button class="oe_stat_button" name="action_view_project_updates" type="object" groups="project.group_project_user" context="{'active_id': id}" invisible="is_template">
                             <field name="last_update_color" invisible="1"/>
                             <div class="o_stat_info">
                                 <field name="update_count" invisible="1"/>
@@ -770,7 +770,7 @@
                 </xpath>
                 <xpath expr="//div[@name='task_analysis']" position="before">
                     <div role="menuitem" groups="project.group_project_user">
-                        <a name="project_update_all_action" type="object" t-attf-context="{'active_id': #{record.id.raw_value} }">Dashboard</a>
+                        <a name="action_view_project_updates" type="object" t-attf-context="{'active_id': #{record.id.raw_value} }">Dashboard</a>
                     </div>
                 </xpath>
             </field>

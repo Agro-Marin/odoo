@@ -14,7 +14,7 @@ def migrate(cr, version):
         return
     for index in range(0, len(projects), BATCH_SIZE):
         batch = projects[index : index + BATCH_SIZE]
-        batch._refresh_metrics()
+        batch._reset_metrics()
         cr.commit()
     _logger.info(
         "project: dated the analytics snapshot of %s project(s)", len(projects)

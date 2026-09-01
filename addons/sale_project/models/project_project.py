@@ -629,7 +629,7 @@ class ProjectProject(models.Model):
         panel_data = super().get_panel_data()
         foldable_sections = self._get_foldable_section()
         if (
-            self._show_profitability()
+            self._is_profitability_shown()
             and "revenues" in panel_data["profitability_items"]
         ):
             for section in panel_data["profitability_items"]["revenues"]["data"]:
@@ -730,11 +730,11 @@ class ProjectProject(models.Model):
             [("product_type", "!=" if section_id == "materials" else "=", "service")]
         )
 
-    def _show_profitability(self):
+    def _is_profitability_shown(self):
         self.check_singleton()
-        return self.allow_billable and super()._show_profitability()
+        return self.allow_billable and super()._is_profitability_shown()
 
-    def _show_profitability_helper(self):
+    def _is_profitability_helper_shown(self):
         return True
 
     def _get_profitability_labels(self):

@@ -10,7 +10,7 @@ from odoo.db.schema import create_index
 def _check_exists_collaborators_for_project_sharing(env) -> None:
     collaborator = env["project.collaborator"].search([], limit=1)
     if collaborator:
-        env["project.collaborator"]._toggle_project_sharing_portal_rules(True)
+        env["project.collaborator"]._update_project_sharing_portal_rules(True)
 
 
 def _project_post_init(env) -> None:

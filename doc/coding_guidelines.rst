@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.13
+:Version: 6.14
 :Date: 2026-08-31
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -988,6 +988,31 @@ for exactly one of their triggers and every one is right. Ask what **raises**.
 **A hook may hold two bindings, and then one prefix has to lose** ``[review]``.
 Do not read a prefix as a claim that no other binding exists.
 
+**``selection=`` is a sixth field-declaration keyword, and ``ATTRS`` stops at
+five** ``[review]``. It is not a decorator family -- the declaration names the
+method, exactly as ``compute=`` does -- so it belongs to §2.4.1's mechanism and
+is missing from it, and the §2.4 table's Selection row is enforced by nothing.
+*Frozen reading* (§1.4) at ``45275737cf4``, an ad-hoc scanner, not
+re-derivable: **31** field declarations point ``selection=`` at a method, and
+**9** of the targets are spelled ``_selection_*``. The other **22** wear the read
+verb (``_get_year_selection``, ``_get_check_printing_layouts``) or no verb at all
+(``_l10n_bg_document_type_selection_values``). That is the cost of closing it,
+and it is nearly all localisation: adding ``"selection"`` to ``ATTRS`` needs its
+own branch, because the Selection row names the hook for its **values** and the
+rest of ``field_hook_naming.py`` asserts the opposite -- that a hook is named for
+its field.
+
+**A lambda that only forwards hides the binding from whatever reads the
+declaration** ``[review]``. ``selection=lambda self: self._x()`` and
+``selection="_x"`` bind the same method; the second is a string a grep finds and
+a checker can resolve, the first is an AST shape each reader has to know about.
+``field_hook_naming.py`` does resolve the forwarding lambda, but only for
+``default=`` and ``domain=`` -- its ``_CALLABLE_ATTRS`` -- so for every other
+keyword the lambda is where the binding stops being visible. **Where the keyword
+accepts a method name, write the name.** The lambda earns its place only when it
+computes something the string form cannot express: arguments, a conditional, a
+value assembled from the environment.
+
 2.4.3 The verb vocabulary
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1095,6 +1120,30 @@ so the reservation is ``[review]`` and widens no gate.
 renaming them is owed ADR-0053's weighing and one change across every repository:
 ``ir.actions.server``'s ``create_action`` and ``unlink_action``, which perform
 neither operation they name, and ``ir.cron``'s ``method_direct_trigger``.
+
+**``_apply_`` is the Mutation row's largest unlisted spelling** ``[review]``.
+The three verbs that row abolishes are rare; ``_apply_`` is **126** definitions
+under **84** names, and most of them write to records and are wired to nothing,
+which is the row's own description of ``_update_``. It survives because it reads
+as a verb and because a minority of its uses are honest -- applying a *named
+policy* to something (``_apply_putaway_strategy``, ``_apply_cash_rounding``),
+where the object is the policy and not the record. **The test is the object**:
+apply a strategy, a rule, a rounding, a discount -- update a record, a field, a
+quantity. ``_apply_qty_available`` failed it and is ``_update_qty_available``. It
+is not in ``ABOLISHED`` because that split needs the body, and a stem test would
+take the honest half with the rest.
+
+**Look for the same operation on the other half of a paired model** ``[review]``,
+and only then is the verb question decidable. §2.4.12 says a ``_set_x`` beside an
+``_update_x`` is the duplicate report this section exists to produce; the shape
+that hides from that search is one operation split across two **models** that
+mirror each other -- template and variant, order and line, move and move line,
+picking and move. ``product.template._set_qty_available`` and
+``product.product._apply_qty_available`` were one operation under two verbs, each
+reached from a method the two models spell **identically** (``_inverse_qty_available``),
+so the pair was invisible to a search on either name and visible immediately from
+the caller they share. **Where two paired models implement the same operation,
+read both spellings before choosing either**; the shared caller is where to look.
 
 2.4.4 Ordering
 ~~~~~~~~~~~~~~
@@ -2034,6 +2083,30 @@ would honestly need two of them is doing two things.
   ``[review]``. Every method implements itself; where the suffix appears there is
   a real discriminator left unsaid. The family is at 0 here.
 
+**The three verbs above are the *drop* side, and the fill side is spelled four
+ways** ``[review]``. "Do not add a fourth" governs dropping; warming a cache is a
+different operation and the table never named it, so the tree grew
+``_prefetch_``, ``_warm_``, ``_preload_`` and the cache sense of ``_populate_``
+for it. *Frozen reading* (§1.4) at ``45275737cf4``: **12**, **3**, **3** and
+**2**. **The canonical is ``_prefetch_``** -- it is the ORM's own word for this
+exact operation (``with_prefetch``, ``prefetch_ids``, and ``fetch`` itself),
+so the family is already searchable from the framework side. ``populate`` is
+**reserved** for the ``odoo populate`` CLI's data generation
+(``populate_model``, ``populate_field``), which fills a database and not a cache;
+the two senses are why a grep for one finds the other.
+
+* **Warming is invisible to the caller, which is what makes the name the only
+  evidence it happened.** A prefetch method returns nothing a caller uses and
+  removing it breaks no test -- it costs queries, not correctness. Name it for
+  what it warms, so the reason it exists survives the next reader:
+  ``_prefetch_rollup_moves``, not a ``_rollup_moves_fetch`` that reads as a
+  variant of the walk beside it.
+* **The tail is the wrong end for this verb** ``[review]``. Three of stock's
+  spelled it there (``_rollup_move_dests_fetch``), which put the *reserved* ORM
+  ``fetch`` (§2.4.3) in the one position where §2.4.4's rule cannot see it and
+  made the trio sort beside the ``_rollup_*`` walkers they warm rather than
+  beside each other.
+
 2.4.18 The ingestion vocabulary
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2434,6 +2507,81 @@ serves, or it is dead and the repair is deletion. **Both are left as found on
 purpose**, together with ``open_ui``, and this paragraph is the record that they
 were read and not missed. A naming pass that guesses here writes a name that is
 merely differently wrong.
+
+2.4.22 Reshaping the receiver is not producing a value
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**A method whose whole body is one ORM shaping call hands back the receiver
+reshaped, and the vocabulary above has no row for it** ``[review]``. Every verb
+in §2.4.3 names a method that *produces* something -- reads it, builds it, writes
+it, answers about it. ``self.filtered(...)``, ``self.sorted(...)``,
+``self.grouped(...)`` and the ``with_*`` family produce nothing: the rows are
+already in ``self``, or they are the same rows under a different environment. A
+caller told ``_get_`` has to open the body to learn that, and what it learns
+there is the thing most worth knowing -- that the return is a **subset of what it
+passed in**, or **the same records with different privileges**.
+
+*Frozen reading* (§1.4) at ``45275737cf4``, an ad-hoc scanner, not re-derivable.
+**181** model methods return nothing but one such call; **11** are spelled for
+the operation they perform.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 12 12 62
+
+   * - Shape
+     - Canonical
+     - Here
+     - What the name has to carry
+   * - Re-envelope
+     - ``_with_*``
+     - 2 of 25
+     - the same rows, a different environment -- context, company, user,
+       ``sudo``. The **rows are not the subject**; the envelope is
+   * - Narrow
+     - ``_filtered_*``
+     - 6 of 140
+     - a subset of the receiver, never a row the caller did not hand in
+   * - Order
+     - ``_sorted_*``
+     - 3 of 15
+     - the same rows in a stated order; the order **is** the return value
+   * - Group
+     - ``_grouped_*``
+     - 0 of 1
+     - a mapping whose values partition the receiver
+
+**The past participle is the ORM's own spelling, not a missing verb**
+``[review]``. §2.4.4 objects to a name with no verb, and ``_filtered_expired``
+can be misread as one. It is not: ``filtered``, ``sorted`` and ``grouped`` are
+the names the framework gives these operations, and a method wrapping one is a
+§2.4.10 stand-in -- it takes the callee's spelling and gains only the
+qualifier. ``_filter_effective_pickings`` is the version that got this wrong in
+the other direction, inventing ``_filter_`` for an operation the ORM already
+spells.
+
+**The re-envelope shape is the one that misleads hardest** ``[review]``, because
+its natural wrong name states the wrong *return type* rather than a merely vague
+one. ``stock.quant._set_view_context`` and ``_blocked_gather_context`` both
+returned ``self.with_context(...)`` while promising a context; a caller
+reasonably wrote ``context = record._set_view_context()`` and got a recordset.
+Both are ``_with_*``. The tell is the assignment at the call site: a
+re-enveloper is nearly always assigned back over the receiver
+(``self = self._with_view_context()``), which is a shape no getter ever has.
+
+* **A ``_check_`` that returns a subset is in this section, not §2.4.8.**
+  ``_check_line_unlink`` returns ``self.filtered(...)``; it neither raises nor
+  answers, so the Validation row and the Predicate row both miss it and the
+  reserved prefix is spent on a narrowing.
+* **``_without_*`` is the complement spelled as a preposition**, at **7**
+  definitions under **3** names, and it spans two of the four shapes at once --
+  ``_without_no_variant_attributes`` narrows, ``_without_putaway_scan``
+  re-envelopes. It reads as a filter and sometimes is one, but it names what is
+  **absent** from the return, which is the one thing a recordset cannot show
+  you. Say what comes back.
+* **Do not extend this to a method that also does something else.** The rule is
+  for a body that is one shaping call. A method that searches, then filters,
+  returns rows the caller never held, and is a read.
 
 2.5 Docstrings and comments
 ---------------------------
@@ -5100,6 +5248,21 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.14
+     - 2026-08-31
+     - §2.4 tightened against a rename pass over ``addons/stock``. New §2.4.22:
+       reshaping the receiver is not producing a value -- a body that is one
+       ``filtered`` / ``sorted`` / ``grouped`` / ``with_*`` call hands back the
+       receiver reshaped, so it takes that operation's spelling and not a read
+       verb, at 11 of 181 today. Also: ``selection=`` is a sixth
+       field-declaration keyword ``field_hook_naming.py``'s ``ATTRS`` does not
+       read, and a lambda that only forwards hides the binding from whatever
+       does; ``_apply_`` is the Mutation row's largest unlisted spelling and the
+       test is whether the object is a policy or a record; one operation split
+       across two paired models is invisible to a search on either name and
+       visible from the caller they share; and the cache table's three verbs are
+       the drop side, with the fill side spelled four ways and canonically
+       ``_prefetch_``.
    * - 6.13
      - 2026-08-31
      - §2.4 tightened against a rename pass over ``addons/point_of_sale``. New

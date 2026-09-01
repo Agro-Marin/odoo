@@ -217,22 +217,22 @@ class ProjectTask(models.Model):
                 for child_task in task.child_ids
             )
 
-    def _get_group_pattern(self):
+    def _get_pattern_per_group(self):
         return {
-            **super()._get_group_pattern(),
+            **super()._get_pattern_per_group(),
             "planned_hours": r"\s(\d+(?:\.\d+)?)[hH]",
         }
 
-    def _prepare_pattern_groups(self):
+    def _get_patterns_in_group_order(self):
         return [
-            self._get_group_pattern()["planned_hours"]
-        ] + super()._prepare_pattern_groups()
+            self._get_pattern_per_group()["planned_hours"]
+        ] + super()._get_patterns_in_group_order()
 
     def _get_cannot_start_with_patterns(self):
         return super()._get_cannot_start_with_patterns() + [r"(?!\d+(?:\.\d+)?(?:h|H))"]
 
     def _extract_planned_hours(self, title):
-        planned_hours_group = self._get_group_pattern()["planned_hours"]
+        planned_hours_group = self._get_pattern_per_group()["planned_hours"]
         if not self.allow_timesheets:
             return title
         self.planned_hours = sum(

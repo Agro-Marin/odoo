@@ -44,7 +44,7 @@ class ProjectPhase(models.Model):
                     )
                 )
 
-    def unlink_wizard(self, stage_view: bool = False) -> dict[str, Any]:
+    def action_open_delete_wizard(self, stage_view: bool = False) -> dict[str, Any]:
         wizard = self.env["project.phase.delete.wizard"].create({"phase_ids": self.ids})
         context = dict(self.env.context, stage_view=stage_view)
         return {

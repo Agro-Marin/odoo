@@ -55,7 +55,7 @@ export class ProjectProject extends models.Model {
         );
     }
 
-    check_features_enabled() {
+    get_features_enabled() {
         let allow_dependencies = false;
         let allow_milestones = false;
         let allow_recurring_tasks = false;

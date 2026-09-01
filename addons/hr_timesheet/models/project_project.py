@@ -196,7 +196,7 @@ class ProjectProject(models.Model):
 
         if analytic_accounts_vals:
             analytic_accounts = self.env["account.analytic.account"].create(
-                self._get_values_analytic_account_batch(analytic_accounts_vals)
+                self._prepare_analytic_account_vals_list(analytic_accounts_vals)
             )
             for vals, analytic_account in zip(
                 analytic_accounts_vals, analytic_accounts, strict=True
@@ -353,7 +353,7 @@ class ProjectProject(models.Model):
         action["context"]["allow_timesheets"] = self.allow_timesheets
         return action
 
-    def _toggle_template_mode(self, is_template):
+    def _update_template_mode(self, is_template):
         if not is_template and self.allow_timesheets and not self.account_id:
             self._create_analytic_account()
-        super()._toggle_template_mode(is_template)
+        super()._update_template_mode(is_template)

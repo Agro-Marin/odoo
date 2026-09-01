@@ -124,7 +124,7 @@ class ProjectWorkflowStep(models.Model):
             self._seed_rating_deadlines()
         return res
 
-    def unlink_wizard(self, stage_view: bool = False) -> dict[str, Any]:
+    def action_open_delete_wizard(self, stage_view: bool = False) -> dict[str, Any]:
         wizard = self.env["project.workflow.step.delete.wizard"].create(
             {
                 "project_ids": self.project_ids.ids,

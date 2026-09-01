@@ -54,10 +54,10 @@ function mockWizardAction() {
 
 test("task kanban: deleting a step column routes through the unlink wizard", async () => {
     onRpc("has_group", ({ args }) => args[1] === "project.group_project_manager");
-    onRpc("unlink_wizard", ({ model, args }) => {
+    onRpc("action_open_delete_wizard", ({ model, args }) => {
         expect(model).toBe("project.workflow.step");
         expect(args).toEqual([[1]]);
-        expect.step("unlink_wizard");
+        expect.step("action_open_delete_wizard");
         return { type: "ir.actions.act_window", target: "new" };
     });
     onRpc("unlink", () => expect.step("unlink"));
@@ -72,7 +72,7 @@ test("task kanban: deleting a step column routes through the unlink wizard", asy
     // The wizard IS the confirmation: no generic "delete this column?" dialog,
     // and no raw unlink.
     expect(".modal").toHaveCount(0);
-    expect.verifySteps(["unlink_wizard", "doAction"]);
+    expect.verifySteps(["action_open_delete_wizard", "doAction"]);
 
     // Dismissing the wizard (Escape / Discard) closes with no payload: nothing
     // must happen, in particular no crash and no reload.
@@ -106,7 +106,7 @@ test("task kanban: managers can edit and delete step columns", async () => {
 
 test("task kanban: non-stage columns keep the generic confirm + raw unlink", async () => {
     onRpc("has_group", ({ args }) => args[1] === "project.group_project_manager");
-    onRpc("unlink_wizard", () => expect.step("unlink_wizard"));
+    onRpc("action_open_delete_wizard", () => expect.step("action_open_delete_wizard"));
     onRpc("unlink", ({ model }) => {
         expect.step(`unlink ${model}`);
         return true;
@@ -125,10 +125,10 @@ test("task kanban: non-stage columns keep the generic confirm + raw unlink", asy
 
 test("task grouped list: step column delete routes through the unlink wizard", async () => {
     onRpc("has_group", ({ args }) => args[1] === "project.group_project_manager");
-    onRpc("unlink_wizard", ({ model, args }) => {
+    onRpc("action_open_delete_wizard", ({ model, args }) => {
         expect(model).toBe("project.workflow.step");
         expect(args).toEqual([[1]]);
-        expect.step("unlink_wizard");
+        expect.step("action_open_delete_wizard");
         return { type: "ir.actions.act_window", target: "new" };
     });
     onRpc("unlink", () => expect.step("unlink"));
@@ -140,7 +140,7 @@ test("task grouped list: step column delete routes through the unlink wizard", a
     }).click();
     await contains(".o-dropdown--group-config-menu .o_group_delete").click();
     expect(".modal").toHaveCount(0);
-    expect.verifySteps(["unlink_wizard", "doAction"]);
+    expect.verifySteps(["action_open_delete_wizard", "doAction"]);
 });
 
 test("task grouped list: non-managers can neither edit nor delete step columns", async () => {
@@ -156,10 +156,10 @@ test("task grouped list: non-managers can neither edit nor delete step columns",
 
 test("project grouped list: phase column delete routes through the phase unlink wizard", async () => {
     onRpc("has_group", ({ args }) => args[1] === "project.group_project_manager");
-    onRpc("unlink_wizard", ({ model, args }) => {
+    onRpc("action_open_delete_wizard", ({ model, args }) => {
         expect(model).toBe("project.phase");
         expect(args).toEqual([[1]]);
-        expect.step("unlink_wizard");
+        expect.step("action_open_delete_wizard");
         return { type: "ir.actions.act_window", target: "new" };
     });
     onRpc("unlink", () => expect.step("unlink"));
@@ -180,5 +180,5 @@ test("project grouped list: phase column delete routes through the phase unlink 
     }).click();
     await contains(".o-dropdown--group-config-menu .o_group_delete").click();
     expect(".modal").toHaveCount(0);
-    expect.verifySteps(["unlink_wizard", "doAction"]);
+    expect.verifySteps(["action_open_delete_wizard", "doAction"]);
 });

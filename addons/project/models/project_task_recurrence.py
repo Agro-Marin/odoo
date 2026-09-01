@@ -80,14 +80,16 @@ class ProjectTaskRecurrence(models.Model):
             tasks_copy = (
                 self.env["project.task"]
                 .sudo()
-                .create(self._create_next_occurrences_values(recurrence_by_task))
+                .create(self._prepare_next_occurrence_vals_list(recurrence_by_task))
                 .sudo(False)
             )
             occurrences_from._resolve_copied_dependencies(tasks_copy)
         return tasks_copy
 
     @api.model
-    def _create_next_occurrences_values(self, recurrence_by_task: dict) -> list[dict]:
+    def _prepare_next_occurrence_vals_list(
+        self, recurrence_by_task: dict
+    ) -> list[dict]:
         tasks = self.env["project.task"].concat(*recurrence_by_task.keys())
         list_create_values = []
         list_copy_data = (
@@ -119,7 +121,7 @@ class ProjectTaskRecurrence(models.Model):
                 ),
                 "child_ids": [
                     Command.create(vals)
-                    for vals in self._create_next_occurrences_values(
+                    for vals in self._prepare_next_occurrence_vals_list(
                         dict.fromkeys(task.child_ids, recurrence)
                     )
                 ],

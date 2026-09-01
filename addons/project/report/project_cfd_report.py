@@ -76,7 +76,9 @@ class ProjectCFDReport(models.AbstractModel):
         order: str | None = None,
         **kwargs: Any,
     ) -> Any:
-        cfd_specific_domain, task_specific_domain = self._determine_domains(domain)
+        cfd_specific_domain, task_specific_domain = self._get_domains_report_and_task(
+            domain
+        )
         main_query = super()._search(
             cfd_specific_domain,
             offset=offset,
@@ -233,7 +235,7 @@ class ProjectCFDReport(models.AbstractModel):
             )
 
     @api.model
-    def _determine_domains(self, domain: list) -> tuple[list, list]:
+    def _get_domains_report_and_task(self, domain: list) -> tuple[list, list]:
         cfd_specific_fields = list(set(self._fields) - set(self.task_specific_fields))
         task_specific_domain = filter_domain_leaf(
             domain, lambda field: field not in cfd_specific_fields

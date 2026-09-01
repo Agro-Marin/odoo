@@ -64,7 +64,7 @@ export class ProjectMilestone extends Component {
             try {
                 Object.assign(
                     this.milestone,
-                    await this.orm.call(this.resModel, "toggle_is_reached", [
+                    await this.orm.call(this.resModel, "update_is_reached", [
                         [this.milestone.id],
                         !this.milestone.is_reached,
                     ]),

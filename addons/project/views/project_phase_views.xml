@@ -130,6 +130,6 @@
         <field name="binding_model_id" ref="project.model_project_phase"/>
         <field name="binding_view_types">form,list,kanban</field>
         <field name="state">code</field>
-        <field name="code">action = records.unlink_wizard(stage_view=True)</field>
+        <field name="code">action = records.action_open_delete_wizard(stage_view=True)</field>
     </record>
 </odoo>

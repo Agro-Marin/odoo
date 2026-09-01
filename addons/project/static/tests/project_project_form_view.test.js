@@ -73,7 +73,7 @@ const formViewParams = {
     `,
 };
 
-onRpc("project.project", "check_features_enabled", ({ method }) => expect.step(method));
+onRpc("project.project", "get_features_enabled", ({ method }) => expect.step(method));
 
 onRpc("web_save", ({ method }) => expect.step(method));
 
@@ -84,7 +84,7 @@ test("project.project (form) hide archive action for project user", async () => 
     expect(`.o-dropdown--menu span:contains(Archive)`).toHaveCount(0, {
         message: "Archive action should not be visible",
     });
-    expect.verifySteps(["check_features_enabled"]);
+    expect.verifySteps(["get_features_enabled"]);
 });
 
 test("project.project (form) show archive action for project manager", async () => {
@@ -101,7 +101,7 @@ test("project.project (form) show archive action for project manager", async () 
         message: "Unarchive action should be visible",
     });
     await toggleMenuItem("UnArchive");
-    expect.verifySteps(["check_features_enabled"]);
+    expect.verifySteps(["get_features_enabled"]);
 });
 
 test("reload the page when allow_milestones is enabled on at least one project", async () => {
@@ -112,9 +112,9 @@ test("reload the page when allow_milestones is enabled on at least one project",
     await clickSave();
 
     expect.verifySteps([
-        "check_features_enabled",
+        "get_features_enabled",
         "web_save",
-        "check_features_enabled",
+        "get_features_enabled",
         "reload_context",
     ]);
 });
@@ -128,11 +128,7 @@ test("do not reload the page when allow_milestones is enabled and there already 
     await clickSave();
 
     // No reload should be triggered
-    expect.verifySteps([
-        "check_features_enabled",
-        "web_save",
-        "check_features_enabled",
-    ]);
+    expect.verifySteps(["get_features_enabled", "web_save", "get_features_enabled"]);
 });
 
 test("reload the page when allow_milestones is disabled on all projects", async () => {
@@ -144,9 +140,9 @@ test("reload the page when allow_milestones is disabled on all projects", async 
     await clickSave();
 
     expect.verifySteps([
-        "check_features_enabled",
+        "get_features_enabled",
         "web_save",
-        "check_features_enabled",
+        "get_features_enabled",
         "reload_context",
     ]);
 });
@@ -159,9 +155,9 @@ test("reload the page when allow_dependencies is enabled on at least one project
     await clickSave();
 
     expect.verifySteps([
-        "check_features_enabled",
+        "get_features_enabled",
         "web_save",
-        "check_features_enabled",
+        "get_features_enabled",
         "reload_context",
     ]);
 });
@@ -175,11 +171,7 @@ test("do not reload the page when allow_dependencies is enabled and there alread
     await clickSave();
 
     // No reload should be triggered
-    expect.verifySteps([
-        "check_features_enabled",
-        "web_save",
-        "check_features_enabled",
-    ]);
+    expect.verifySteps(["get_features_enabled", "web_save", "get_features_enabled"]);
 });
 
 test("reload the page when allow_dependencies is disabled on all projects", async () => {
@@ -191,9 +183,9 @@ test("reload the page when allow_dependencies is disabled on all projects", asyn
     await clickSave();
 
     expect.verifySteps([
-        "check_features_enabled",
+        "get_features_enabled",
         "web_save",
-        "check_features_enabled",
+        "get_features_enabled",
         "reload_context",
     ]);
 });
@@ -206,9 +198,9 @@ test("reload the page when allow_recurring_tasks is enabled on at least one proj
     await clickSave();
 
     expect.verifySteps([
-        "check_features_enabled",
+        "get_features_enabled",
         "web_save",
-        "check_features_enabled",
+        "get_features_enabled",
         "reload_context",
     ]);
 });
@@ -222,11 +214,7 @@ test("do not reload the page when allow_recurring_tasks is enabled and there alr
     await clickSave();
 
     // No reload should be triggered
-    expect.verifySteps([
-        "check_features_enabled",
-        "web_save",
-        "check_features_enabled",
-    ]);
+    expect.verifySteps(["get_features_enabled", "web_save", "get_features_enabled"]);
 });
 
 test("reload the page when allow_recurring_tasks is disabled on all projects", async () => {
@@ -238,9 +226,9 @@ test("reload the page when allow_recurring_tasks is disabled on all projects", a
     await clickSave();
 
     expect.verifySteps([
-        "check_features_enabled",
+        "get_features_enabled",
         "web_save",
-        "check_features_enabled",
+        "get_features_enabled",
         "reload_context",
     ]);
 });

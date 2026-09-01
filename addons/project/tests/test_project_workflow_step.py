@@ -41,6 +41,6 @@ class TestProjectWorkflowStep(TestProjectCommon):
 
     def test_step_find_ignores_unattached_steps(self) -> None:
         orphan = self.env["project.workflow.step"].create({"name": "Orphan"})
-        found = self.env["project.task"].step_find(self.project_goats.id)
+        found = self.env["project.task"].get_step_id(self.project_goats.id)
         self.assertNotEqual(found, orphan.id)
         self.assertIn(found, self.project_goats.workflow_step_ids.ids)

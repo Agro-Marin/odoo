@@ -81,7 +81,9 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         order: str | None = None,
         **kwargs: Any,
     ) -> Any:
-        burndown_specific_domain, task_specific_domain = self._determine_domains(domain)
+        burndown_specific_domain, task_specific_domain = (
+            self._get_domains_report_and_task(domain)
+        )
         main_query = super()._search(
             burndown_specific_domain,
             offset=offset,
@@ -250,7 +252,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
             )
 
     @api.model
-    def _determine_domains(self, domain: list) -> tuple[list, list]:
+    def _get_domains_report_and_task(self, domain: list) -> tuple[list, list]:
         burndown_chart_specific_fields = list(
             set(self._fields) - set(self.task_specific_fields)
         )

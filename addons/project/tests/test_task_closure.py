@@ -170,7 +170,7 @@ class TestDeliveredVersusClosed(TestProjectCommon):
         )
         on_time.state = "done"
         self.env.invalidate_all()
-        project.action_refresh_metrics()
+        project.action_reset_metrics()
 
         self.assertFalse(cancelled_late.deadline_met)
         self.assertEqual(on_time.deadline_met, "met")
@@ -216,7 +216,7 @@ class TestReportStateSelection(TestProjectCommon):
         )
         task.state = "canceled"
         task.date_closed = fields.Datetime.now()
-        self.project_pigs.action_refresh_metrics()
+        self.project_pigs.action_reset_metrics()
         self.assertEqual(
             self.project_pigs.throughput_week,
             0.0,

@@ -48,18 +48,18 @@ class ProjectCollaborator(models.Model):
         collaborator = self.env["project.collaborator"].search([], limit=1)
         project_collaborators = super().create(vals_list)
         if not collaborator:
-            self._toggle_project_sharing_portal_rules(True)
+            self._update_project_sharing_portal_rules(True)
         return project_collaborators
 
     def unlink(self) -> bool:
         res = super().unlink()
         collaborator = self.env["project.collaborator"].search([], limit=1)
         if not collaborator:
-            self._toggle_project_sharing_portal_rules(False)
+            self._update_project_sharing_portal_rules(False)
         return res
 
     @api.model
-    def _toggle_project_sharing_portal_rules(self, active: bool) -> None:
+    def _update_project_sharing_portal_rules(self, active: bool) -> None:
         access_project_sharing_portal = self.env.ref(
             "project.access_project_sharing_task_portal"
         ).sudo()

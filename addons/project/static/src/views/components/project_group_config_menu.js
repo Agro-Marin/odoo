@@ -8,7 +8,7 @@ import { GroupConfigMenu } from "@web/views/view_components";
  * Column-header config menu for views groupable by a stage-like many2one
  * (`step_id` on tasks, `phase_id` on projects) whose records must not be
  * edited or deleted by non-managers, and whose deletion goes through a
- * server-side `unlink_wizard` (archive vs delete choice for non-empty
+ * server-side `action_open_delete_wizard` (archive vs delete choice for non-empty
  * stages) instead of a raw unlink.
  *
  * This lives at the component level, not in the model's DynamicGroupList:
@@ -52,7 +52,7 @@ export class ProjectGroupConfigMenu extends GroupConfigMenu {
         const { context, groupByField, value } = this.group;
         const action = await this.orm.call(
             groupByField.relation,
-            "unlink_wizard",
+            "action_open_delete_wizard",
             [[value]],
             {
                 context,

@@ -59,7 +59,7 @@ class ProjectTags(models.Model):
         if "project_id" in self.env.context:
             tag_ids = [id_ for id_, _label in self.name_search(limit=None)]
             domain = Domain.AND([domain, [("id", "in", tag_ids)]])
-            return self.arrange_tag_list_by_id(
+            return self.sort_tags_by_ids(
                 super().search_read(
                     domain=domain, fields=fields, offset=offset, limit=limit
                 ),
@@ -74,9 +74,7 @@ class ProjectTags(models.Model):
         )
 
     @api.model
-    def arrange_tag_list_by_id(
-        self, tag_list: list[dict], id_order: list[int]
-    ) -> list[dict]:
+    def sort_tags_by_ids(self, tag_list: list[dict], id_order: list[int]) -> list[dict]:
         tags_by_id = {tag["id"]: tag for tag in tag_list}
         return [tags_by_id[id] for id in id_order if id in tags_by_id]
 

@@ -51,7 +51,7 @@ class TestProjectMetricsAreQueryable(TestProjectCommon):
         self.env.flush_all()
         stale = project.wip_count
 
-        project.action_refresh_metrics()
+        project.action_reset_metrics()
         self.assertEqual(project.wip_count, 3)
         self.assertNotEqual(
             stale, None, "the snapshot exists before the refresh, it is just older"
@@ -61,7 +61,7 @@ class TestProjectMetricsAreQueryable(TestProjectCommon):
         project = self.env["project.project"].create({"name": "Cron"})
         self.env["project.task"].create({"name": "one", "project_id": project.id})
         self.env.flush_all()
-        self.env["project.project"]._cron_refresh_metrics()
+        self.env["project.project"]._cron_reset_metrics()
         self.assertEqual(project.wip_count, 1)
 
     def test_wip_excludes_closed_and_blocked(self) -> None:
@@ -80,7 +80,7 @@ class TestProjectMetricsAreQueryable(TestProjectCommon):
             }
         )
         self.env.flush_all()
-        project.action_refresh_metrics()
+        project.action_reset_metrics()
         self.assertEqual(project.wip_count, 2)
 
 
@@ -190,7 +190,7 @@ class TestResourceReport(TestProjectCommon):
                 "date_end": now - timedelta(days=1),
             }
         )
-        project.action_refresh_metrics()
+        project.action_reset_metrics()
         self.assertEqual(
             project.deadline_compliance_pct,
             50.0,
@@ -218,7 +218,7 @@ class TestResourceReport(TestProjectCommon):
                 "date_end": now - timedelta(days=1),
             }
         )
-        project.action_refresh_metrics()
+        project.action_reset_metrics()
         self.assertEqual(project.throughput_week, 1.0)
 
     def test_health_schedule_respects_utc(self) -> None:
@@ -248,11 +248,11 @@ class TestResourceReport(TestProjectCommon):
         archived = self.env["project.task"].create(
             {"name": "arch", "project_id": project.id, "state": "in_progress"}
         )
-        project.action_refresh_metrics()
+        project.action_reset_metrics()
         project._compute_flow_metrics()
         self.assertEqual(project.wip_count, 2)
         archived.active = False
-        project.action_refresh_metrics()
+        project.action_reset_metrics()
         project._compute_flow_metrics()
         self.assertEqual(
             project.wip_count, 1, "archived tasks must be excluded from WIP"

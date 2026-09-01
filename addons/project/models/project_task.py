@@ -146,7 +146,7 @@ class ProjectTask(models.Model):
         project_id = self.env.context.get("default_project_id")
         if not project_id:
             return False
-        return self.step_find(project_id, order="fold, sequence, id")
+        return self.get_step_id(project_id, order="fold, sequence, id")
 
     @api.model
     def _default_user_ids(self) -> tuple | list[int]:
@@ -1113,7 +1113,7 @@ class ProjectTask(models.Model):
             },
         ]
 
-    def _populate_missing_triages(self) -> None:
+    def _create_missing_triages(self) -> None:
         if not self:
             return
 
@@ -1162,7 +1162,7 @@ class ProjectTask(models.Model):
         for bucket, user_triages in triages_by_bucket.items():
             user_triages.write({"triage_id": bucket.id})
 
-    def _prune_orphan_triages(self) -> None:
+    def _remove_orphan_triages(self) -> None:
         if not self:
             return
         rows = (
@@ -1368,7 +1368,7 @@ class ProjectTask(models.Model):
         by_calendar = defaultdict(lambda: self.env["project.task"])
         for task in self:
             if not task.create_date:
-                task._set_elapsed()
+                task._update_elapsed_times()
                 continue
             key = (
                 task.project_id.resource_calendar_id.id,
@@ -1380,7 +1380,7 @@ class ProjectTask(models.Model):
             calendar = self.env["resource.calendar"].browse(calendar_id)
             if not calendar:
                 for task in tasks:
-                    task._set_elapsed(**task._elapsed_spans_wall_clock())
+                    task._update_elapsed_times(**task._get_elapsed_spans_wall_clock())
                 continue
             leave_domain = [
                 ("company_id", "in", list(company_ids)),
@@ -1400,9 +1400,11 @@ class ProjectTask(models.Model):
             items = list(intervals)
             index = (items, [item[0] for item in items], [item[1] for item in items])
             for task in tasks:
-                task._set_elapsed(**task._elapsed_spans_calendar(calendar, index))
+                task._update_elapsed_times(
+                    **task._get_elapsed_spans_calendar(calendar, index)
+                )
 
-    def _elapsed_spans_wall_clock(self) -> dict[str, tuple[float, float]]:
+    def _get_elapsed_spans_wall_clock(self) -> dict[str, tuple[float, float]]:
         self.check_singleton()
 
         def span(start, stop):
@@ -1417,7 +1419,7 @@ class ProjectTask(models.Model):
             "cycle": span(self.date_assign, self.date_closed),
         }
 
-    def _elapsed_spans_calendar(
+    def _get_elapsed_spans_calendar(
         self, calendar: Any, index: tuple[list, list, list]
     ) -> dict[str, tuple[float, float]]:
         self.check_singleton()
@@ -1443,7 +1445,9 @@ class ProjectTask(models.Model):
             "cycle": span(self.date_assign, self.date_closed),
         }
 
-    def _set_elapsed(self, queue=(0.0, 0.0), lead=(0.0, 0.0), cycle=(0.0, 0.0)) -> None:
+    def _update_elapsed_times(
+        self, queue=(0.0, 0.0), lead=(0.0, 0.0), cycle=(0.0, 0.0)
+    ) -> None:
         self.queue_time_hours, self.queue_time_days = queue
         self.lead_time_hours, self.lead_time_days = lead
         self.cycle_time_hours, self.cycle_time_days = cycle
@@ -1499,7 +1503,7 @@ class ProjectTask(models.Model):
                 2,
             )
 
-    def _planned_hours_formula(self) -> float:
+    def _get_planned_hours(self) -> float:
         self.check_singleton()
         return round(
             self.scheduled_hours
@@ -1514,13 +1518,13 @@ class ProjectTask(models.Model):
             if task.planned_hours_manual or not task.scheduled_hours:
                 task.planned_hours = task.planned_hours or 0.0
                 continue
-            task.planned_hours = task._planned_hours_formula()
+            task.planned_hours = task._get_planned_hours()
 
     def _inverse_planned_hours(self) -> None:
         diverging = self.filtered(
             lambda task: float_compare(
                 task.planned_hours,
-                task._planned_hours_formula(),
+                task._get_planned_hours(),
                 precision_digits=2,
             )
         )
@@ -1625,7 +1629,7 @@ class ProjectTask(models.Model):
                 continue
             if project not in task.step_id.project_ids:
                 if project.id not in default_step_by_project:
-                    default_step_by_project[project.id] = task.step_find(
+                    default_step_by_project[project.id] = task.get_step_id(
                         project.id, [("fold", "=", False)]
                     )
                 task.step_id = default_step_by_project[project.id]
@@ -1687,22 +1691,22 @@ class ProjectTask(models.Model):
                 task.project_id, True
             )
 
-    def _get_group_pattern(self) -> dict[str, str]:
+    def _get_pattern_per_group(self) -> dict[str, str]:
         return {
             "tags_and_users": r"\s([#@]%s[^\s]+)",
             "priority": r"(?:^|\s)(!{1,3})(?=\s|$)",
         }
 
-    def _prepare_pattern_groups(self) -> list[str]:
-        group = self._get_group_pattern()
+    def _get_patterns_in_group_order(self) -> list[str]:
+        group = self._get_pattern_per_group()
         return [
             group["tags_and_users"] % "",
             group["priority"],
         ]
 
-    def _get_groups_patterns(self) -> list[str]:
+    def _get_pattern_alternation(self) -> list[str]:
         return [
-            r"(?:%s)*" % ("|").join(self._prepare_pattern_groups()),
+            r"(?:%s)*" % ("|").join(self._get_patterns_in_group_order()),
         ]
 
     def _get_cannot_start_with_patterns(self) -> list[str]:
@@ -1711,7 +1715,7 @@ class ProjectTask(models.Model):
     def _extract_tags_and_users(self, title: str) -> str:
         tags = []
         users = []
-        tags_and_users_group = self._get_group_pattern()["tags_and_users"]
+        tags_and_users_group = self._get_pattern_per_group()["tags_and_users"]
         for word in re.findall(tags_and_users_group % "", title):
             (tags if word.startswith("#") else users).append(word[1:])
         users_to_keep = []
@@ -1739,7 +1743,7 @@ class ProjectTask(models.Model):
         return re.subn(pattern, "", title)[0]
 
     def _extract_priority(self, title: str) -> str:
-        priority_group = self._get_group_pattern()["priority"]
+        priority_group = self._get_pattern_per_group()["priority"]
         match = re.search(priority_group, title)
         if not match:
             return title
@@ -1760,7 +1764,7 @@ class ProjectTask(models.Model):
                 r"^%s.+?%s$"
                 % (
                     ("").join(task._get_cannot_start_with_patterns()),
-                    ("").join(task._get_groups_patterns()),
+                    ("").join(task._get_pattern_alternation()),
                 )
             )
             match = pattern.match(task.display_name)
@@ -1988,7 +1992,7 @@ class ProjectTask(models.Model):
         )
         return super().get_empty_list_help(help_message)
 
-    def step_find(
+    def get_step_id(
         self,
         section_id: int | bool,
         domain: list | None = None,
@@ -2100,7 +2104,7 @@ class ProjectTask(models.Model):
             if field and field.type == "many2one":
                 self.env[field.comodel_name].browse(value).check_access("read")
 
-    def _set_step_on_project_from_task(self) -> None:
+    def _update_project_workflow_steps(self) -> None:
         step_ids_per_project = defaultdict(list)
         for task in self:
             if (
@@ -2152,7 +2156,7 @@ class ProjectTask(models.Model):
         self_ctx.browse().check_access("create")
         default_stage = {}
         for vals, additional_vals in zip(vals_list, additional_vals_list, strict=True):
-            self_ctx._create_prepare_vals(
+            self_ctx._prepare_create_vals(
                 vals,
                 additional_vals,
                 default_project_id=default_project_id,
@@ -2181,7 +2185,7 @@ class ProjectTask(models.Model):
             vals_by_key[key] = computed_vals
         for key, group_tasks in grouped_tasks.items():
             group_tasks.write(vals_by_key[key])
-        tasks.sudo()._populate_missing_triages()
+        tasks.sudo()._create_missing_triages()
         if not self_ctx.env.context.get("skip_dependency_sync"):
             (
                 tasks.filtered("predecessor_ids") | tasks.successor_ids
@@ -2194,7 +2198,7 @@ class ProjectTask(models.Model):
         current_partner = self_ctx.env.user.partner_id
 
         if tasks.project_id:
-            tasks.sudo()._set_step_on_project_from_task()
+            tasks.sudo()._update_project_workflow_steps()
         self_ctx._create_subscribe_followers(tasks, current_partner)
         return tasks
 
@@ -2309,7 +2313,7 @@ class ProjectTask(models.Model):
         self._write_notify_transfer(partner_ids, project_link_per_task_id)
         return result
 
-    def _create_prepare_vals(
+    def _prepare_create_vals(
         self,
         vals: dict[str, Any],
         additional_vals: dict[str, Any],
@@ -2451,7 +2455,7 @@ class ProjectTask(models.Model):
                     lambda t: t.state in STATES_RESET_ON_STEP_CHANGE
                 ).state = "in_progress"
 
-    def _recurrence_sort_key(self) -> tuple:
+    def _get_recurrence_sort_key(self) -> tuple:
         self.check_singleton()
         dated = bool(self.date_end)
         return (not dated, self.date_end if dated else None, self.id)
@@ -2480,8 +2484,8 @@ class ProjectTask(models.Model):
 
         siblings = self.recurrence_id.task_ids - self
         if scope == "subsequent":
-            mine = self._recurrence_sort_key()
-            siblings = siblings.filtered(lambda t: t._recurrence_sort_key() > mine)
+            mine = self._get_recurrence_sort_key()
+            siblings = siblings.filtered(lambda t: t._get_recurrence_sort_key() > mine)
         if not siblings:
             return None
         postponed = set(self.recurrence_id._get_recurring_fields_to_postpone())
@@ -2570,8 +2574,8 @@ class ProjectTask(models.Model):
         self, vals: dict[str, Any], now: Any, task_ids_without_user_set: set[int]
     ) -> None:
         if "user_ids" in vals:
-            self._populate_missing_triages()
-            self._prune_orphan_triages()
+            self._create_missing_triages()
+            self._remove_orphan_triages()
             tasks = self.sudo()
             unassigned = tasks.filtered(lambda t: not t.user_ids and t.date_assign)
             if unassigned:
