@@ -66,7 +66,6 @@ class ReportStockLabel_Lot_Template_View(models.AbstractModel):
         lot_list = [
             {
                 "display_name": lot.product_id.display_name,
-                "display_name_markup": lot.product_id.display_name,
                 "name": lot.name,
                 "lot_record": lot,
             }
