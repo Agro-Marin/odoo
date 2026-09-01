@@ -71,6 +71,7 @@ export class StockValuationReportController {
                 account_id: accountId,
             });
         }
+        return this.data;
     }
 
     async setDate(date) {
