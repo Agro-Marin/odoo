@@ -104,7 +104,7 @@ class Web_TourTourStep(models.Model):
             ["bottom", "Bottom"],
             ["top", "Top"],
             ["right", "Right"],
-            ["left", "left"],
+            ["left", "Left"],
         ],
         default="bottom",
     )
