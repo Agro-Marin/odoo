@@ -1,5 +1,5 @@
 {
   "count": 659,
-  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
-  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
+  "measured_at": "3cfc16542e70bf004fc1f1973b8aa878594de3cd",
+  "note": "A floor re-derived without saying which units were real is the same defect in fresher paint, so: the FIGURE was already right and only its provenance was wrong. Exact-mode pass at d700c33e3d7 measures exactly 659. Re-stamped, not moved. Previous stamp b7b596cd004b is unresolvable.\n\n--- RE-MEASURED 2026-09-01 ---\nThis branch was squashed from 42 commits and replayed onto origin/19.0-marin (99 upstream commits), so every SHA the note above cites was rewritten and resolves to nothing. The figure below is re-derived in a clean detached worktree at 3cfc16542e7, with a second worktree at origin/19.0-marin as the control, so the branch's own contribution is attributed rather than assumed.\nCount unchanged at 659 and NOT re-measured here, for the same reason as lint_xml_attrib_order. Only the stamp and this provenance line changed."
 }

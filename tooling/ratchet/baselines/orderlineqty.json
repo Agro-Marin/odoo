@@ -1,5 +1,5 @@
 {
-  "count": 40,
-  "measured_at": "b7b596cd004b13ff0031a8f8a1ee850bfa02589a",
-  "note": "Re-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
+  "count": 34,
+  "measured_at": "3cfc16542e70bf004fc1f1973b8aa878594de3cd",
+  "note": "A floor re-derived without saying which units were real is the same defect in fresher paint, so: floor said 40, the branch holds 36. Measured at d700c33e3d7 in a detached worktree via order_line_qty.py --count. No order-line code is touched by this change; the 4-unit gap is a correction to the measurement, not a repair. Same unresolvable stamp b7b596cd004b and same self-documented workspace-checkout note as the other seven in that cohort.\n\n--- RE-MEASURED 2026-09-01 ---\nThis branch was squashed from 42 commits and replayed onto origin/19.0-marin (99 upstream commits), so every SHA the note above cites was rewritten and resolves to nothing. The figure below is re-derived in a clean detached worktree at 3cfc16542e7, with a second worktree at origin/19.0-marin as the control, so the branch's own contribution is attributed rather than assumed.\norigin/19.0-marin 36 -> this tip 34. THE PREVIOUS DRAFT OF THIS FLOOR SAID 36 AND WOULD HAVE FAILED THE BUILD: 36 was measured at a pre-rebase commit, and in exact mode a count BELOW the floor fails exactly as a regression does. The tree holds 34."
 }
