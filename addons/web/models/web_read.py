@@ -416,6 +416,7 @@ class Base(models.AbstractModel):
         fields_to_read = list(specification) or ["id"]
 
         if set(fields_to_read) == {"id"}:
+            self.check_access("read")
             values_list = [
                 {"id": (id_.origin or False) if isinstance(id_, NewId) else id_}
                 for id_ in self._ids
