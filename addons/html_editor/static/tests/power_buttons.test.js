@@ -236,7 +236,7 @@ describe("buttons", () => {
         const { editor } = await setupEditor("<p>[]<br></p>");
         click(".o_we_power_buttons .power_button.oi-ellipsis-v");
         await expectElementCount(".o-we-powerbox", 1);
-        expect(queryAllTexts(".o-we-command-name").length).toBe(27);
+        expect(queryAllTexts(".o-we-command-name").length).toBe(28);
         await insertText(editor, "head");
         await animationFrame();
         expect(queryAllTexts(".o-we-command-name")).toEqual([
@@ -248,7 +248,7 @@ describe("buttons", () => {
             press("backspace");
         }
         await animationFrame();
-        expect(queryAllTexts(".o-we-command-name").length).toBe(27);
+        expect(queryAllTexts(".o-we-command-name").length).toBe(28);
     });
 
     test("should close the powerbox on pointerdown outside and not reopen it on subsequent keydown", async () => {
@@ -294,7 +294,7 @@ describe("buttons", () => {
         const { editor } = await setupEditor("<p>[]<br></p>");
         click(".o_we_power_buttons .power_button.oi-ellipsis-v");
         await expectElementCount(".o-we-powerbox", 1);
-        expect(queryAllTexts(".o-we-command-name").length).toBe(27);
+        expect(queryAllTexts(".o-we-command-name").length).toBe(28);
         await insertText(editor, "head");
         await animationFrame();
         expect(queryAllTexts(".o-we-command-name")).toEqual([
@@ -310,7 +310,7 @@ describe("buttons", () => {
         const { editor } = await setupEditor("<p>[]<br></p>");
         click(".o_we_power_buttons .power_button.oi-ellipsis-v");
         await expectElementCount(".o-we-powerbox", 1);
-        expect(queryAllTexts(".o-we-command-name").length).toBe(27);
+        expect(queryAllTexts(".o-we-command-name").length).toBe(28);
         await insertText(editor, "head");
         await animationFrame();
         expect(queryAllTexts(".o-we-command-name")).toEqual([
@@ -326,7 +326,7 @@ describe("buttons", () => {
         const { el, editor } = await setupEditor("<p>[]<br></p>");
         click(".o_we_power_buttons .power_button.oi-ellipsis-v");
         await expectElementCount(".o-we-powerbox", 1);
-        expect(queryAllTexts(".o-we-command-name").length).toBe(27);
+        expect(queryAllTexts(".o-we-command-name").length).toBe(28);
         await insertText(editor, "head");
         await animationFrame();
         expect(queryAllTexts(".o-we-command-name")).toEqual([

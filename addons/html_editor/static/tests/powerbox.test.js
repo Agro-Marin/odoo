@@ -101,7 +101,7 @@ describe("search", () => {
         const { el, editor } = await setupEditor("<p>ab[]</p>");
         await insertText(editor, "/");
         await animationFrame();
-        expect(commandNames(el).length).toBe(27);
+        expect(commandNames(el).length).toBe(28);
         await insertText(editor, "head");
         await animationFrame();
         expect(commandNames(el)).toEqual(["Heading 1", "Heading 2", "Heading 3"]);
@@ -111,7 +111,7 @@ describe("search", () => {
         const { el, editor } = await setupEditor("<p>ab[]</p>");
         await insertText(editor, "/");
         await animationFrame();
-        expect(commandNames(el).length).toBe(27);
+        expect(commandNames(el).length).toBe(28);
         await insertText(editor, "title");
         await animationFrame();
         const commands = commandNames(el);
@@ -124,7 +124,7 @@ describe("search", () => {
         const { el, editor } = await setupEditor("<p>ab[]</p>");
         await insertText(editor, "/");
         await animationFrame();
-        expect(commandNames(el).length).toBe(27);
+        expect(commandNames(el).length).toBe(28);
         await insertText(editor, "line");
         await animationFrame();
         expect(commandNames(el).includes("Separator")).toBe(true);
@@ -140,8 +140,8 @@ describe("search", () => {
         const { el, editor } = await setupEditor("<p>ab[]</p>");
         await insertText(editor, "/");
         await animationFrame();
-        expect(commandNames(el).length).toBe(27);
-        expect(".o-we-category").toHaveCount(6);
+        expect(commandNames(el).length).toBe(28);
+        expect(".o-we-category").toHaveCount(7);
         expect(queryAllTexts(".o-we-category")).toEqual([
             "FORMAT",
             "STRUCTURE",
@@ -149,6 +149,7 @@ describe("search", () => {
             "MEDIA",
             "NAVIGATION",
             "WIDGET",
+            "BASIC BLOCK",
         ]);
 
         await insertText(editor, "h");
@@ -164,7 +165,7 @@ describe("search", () => {
         });
         await insertText(editor, "/");
         await animationFrame();
-        expect(commandNames(el).length).toBe(27);
+        expect(commandNames(el).length).toBe(28);
         await insertText(editor, "head");
         await animationFrame();
         expect(commandNames(el)).toEqual(["Heading 1", "Heading 2", "Heading 3"]);
@@ -216,7 +217,7 @@ describe("search", () => {
         await insertText(editor, "/");
         await animationFrame();
         await expectElementCount(".o-we-powerbox", 1);
-        expect(commandNames(el).length).toBe(27);
+        expect(commandNames(el).length).toBe(28);
 
         await insertText(editor, "headx");
         await animationFrame();
