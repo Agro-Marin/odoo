@@ -395,6 +395,8 @@ class StockWarehouseOrderpoint(models.Model):
                         "You can only snooze manual orderpoints. You should rather archive 'auto-trigger' orderpoints if you do not want them to be triggered.",
                     ),
                 )
+        if vals.get("trigger") == "auto" and "snoozed_until" not in vals:
+            vals = dict(vals, snoozed_until=False)
         return super().write(vals)
 
     @api.depends("warehouse_id", "company_id")
