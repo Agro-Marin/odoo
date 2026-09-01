@@ -266,6 +266,7 @@ class HrLeaveAllocation(models.Model):
                 allocation.name = allocation._get_title()
 
     @api.depends("name", "date_from", "date_to")
+    @api.depends_context("lang")
     def _compute_name_validity(self):
         for allocation in self:
             allocation_date_from = fields.Datetime.to_datetime(

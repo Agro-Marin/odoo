@@ -13,9 +13,7 @@ class BankAccountAllocationLineWizard(models.TransientModel):
 
     acc_number = fields.Char(related="bank_account_id.acc_number", readonly=True)
     amount = fields.Float(string="Amount", readonly=False, digits=(16, 2))
-    amount_type = fields.Selection(
-        selection="_get_amount_type_selection_vals", readonly=False
-    )
+    amount_type = fields.Selection(selection="_selection_amount_type", readonly=False)
     symbol = fields.Char(compute="_compute_symbol", readonly=True)
     trusted = fields.Boolean(string="Trusted")
     sequence = fields.Integer(default=10)
@@ -31,5 +29,5 @@ class BankAccountAllocationLineWizard(models.TransientModel):
             else:
                 line.symbol = "%"
 
-    def _get_amount_type_selection_vals(self):
+    def _selection_amount_type(self):
         return [("percentage", "Percentage"), ("fixed", "Fixed")]

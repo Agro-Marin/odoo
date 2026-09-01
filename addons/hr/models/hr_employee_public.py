@@ -49,8 +49,8 @@ class HrEmployeePublic(models.Model):
         selection="_selection_hr_icon_display", compute="_compute_presence_icon"
     )
     show_hr_icon_display = fields.Boolean(compute="_compute_presence_icon")
-    last_activity = fields.Date(compute="_compute_last_activity")
-    last_activity_time = fields.Char(compute="_compute_last_activity")
+    last_activity = fields.Date(compute="_compute_last_activity_and_time")
+    last_activity_time = fields.Char(compute="_compute_last_activity_and_time")
     resource_calendar_id = fields.Many2one("resource.calendar", readonly=True)
     country_code = fields.Char(compute="_compute_country_code")
 
@@ -122,7 +122,7 @@ class HrEmployeePublic(models.Model):
                 public_employee[field_name] = employee[field_name]
 
     @api.depends("user_id")
-    def _compute_last_activity(self):
+    def _compute_last_activity_and_time(self):
         self._update_fields_from_employee(["last_activity", "last_activity_time"])
 
     @api.depends("company_id.country_id")
@@ -163,7 +163,7 @@ class HrEmployeePublic(models.Model):
     def _compute_member_of_department(self):
         self._update_fields_from_employee("member_of_department")
 
-    def _get_fields_manager_only(self):
+    def _get_field_names_manager_only(self):
         return []
 
     def _search_member_of_department(self, operator, value):
@@ -171,7 +171,7 @@ class HrEmployeePublic(models.Model):
 
     @api.depends_context("uid")
     def _compute_manager_only_fields(self):
-        manager_fields = self._get_fields_manager_only()
+        manager_fields = self._get_field_names_manager_only()
         for employee in self:
             if employee.is_manager:
                 employee_sudo = employee.employee_id.sudo()

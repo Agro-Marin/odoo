@@ -217,7 +217,7 @@ Thank you for your prompt attention to this matter.""")
     def _compute_hr_presence_state(self):
         super()._compute_hr_presence_state()
         company = self.env.company
-        working_now_list = self._get_employee_working_now()
+        working_now_list = self._get_employee_ids_working_now()
         for employee in self:
             if employee.manually_set_presence:
                 employee.hr_presence_state = employee.hr_presence_state_display

@@ -55,12 +55,12 @@ class HrEmployee(models.Model):
     leave_date_to = fields.Date("To Date", compute="_compute_leave_status")
     allocation_count = fields.Float(
         "Total number of days allocated.",
-        compute="_compute_allocation_count",
+        compute="_compute_allocation_counts",
         groups="hr.group_hr_user",
     )
     allocations_count = fields.Integer(
         "Total number of allocations",
-        compute="_compute_allocation_count",
+        compute="_compute_allocation_counts",
         groups="hr.group_hr_user",
     )
     show_leaves = fields.Boolean(
@@ -69,10 +69,8 @@ class HrEmployee(models.Model):
     is_absent = fields.Boolean(
         "Absent Today", compute="_compute_leave_status", search="_search_is_absent"
     )
-    allocation_display = fields.Char(compute="_compute_allocation_remaining_display")
-    allocation_remaining_display = fields.Char(
-        compute="_compute_allocation_remaining_display"
-    )
+    allocation_display = fields.Char(compute="_compute_allocation_displays")
+    allocation_remaining_display = fields.Char(compute="_compute_allocation_displays")
     hr_icon_display = fields.Selection(
         selection_add=[
             ("presence_holiday_absent", "On leave"),
@@ -116,7 +114,7 @@ class HrEmployee(models.Model):
         )
         employees.update({"hr_presence_state": "absent"})
 
-    def _compute_allocation_count(self):
+    def _compute_allocation_counts(self):
         current_date = date.today()
         data = self.env["hr.leave.allocation"]._read_group(
             [
@@ -138,7 +136,7 @@ class HrEmployee(models.Model):
             employee.allocation_count = float_round(days, precision_digits=2)
             employee.allocations_count = count
 
-    def _compute_allocation_remaining_display(self):
+    def _compute_allocation_displays(self):
         current_date = date.today()
         allocations = self.env["hr.leave.allocation"].search(
             [("employee_id", "in", self.ids)]
@@ -288,6 +286,7 @@ class HrEmployee(models.Model):
             ) or not employee.leave_manager_id:
                 employee.leave_manager_id = manager
 
+    @api.depends_context("uid")
     def _compute_show_leaves(self):
         show_leaves = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
         for employee in self:
@@ -435,8 +434,8 @@ class HrEmployee(models.Model):
             allocations.write(hr_vals)
         return res
 
-    def _get_user_m2o_to_empty_on_archived_employees(self):
-        return super()._get_user_m2o_to_empty_on_archived_employees() + [
+    def _get_user_field_names_to_empty_on_archive(self):
+        return super()._get_user_field_names_to_empty_on_archive() + [
             "leave_manager_id"
         ]
 

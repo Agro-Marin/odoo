@@ -614,7 +614,7 @@
             <field name="priority" eval="1000"/>
             <field name="arch" type="xml">
                 <button name="action_view_versions" position="before">
-                    <button name="action_related_contacts"
+                    <button name="action_view_related_contacts"
                         class="oe_stat_button"
                         icon="fa-regular fa-address-card"
                         type="object"

@@ -90,6 +90,7 @@ class ResPartnerBank(models.Model):
             return acc_number[:2] + "*" * (n - 6) + tail
         return "*" * (n - 4) + tail
 
+    @api.depends_context("uid")
     def _compute_display_name(self):
         account_employee = self.browse()
         if not self.env.user.has_group("hr.group_hr_user"):

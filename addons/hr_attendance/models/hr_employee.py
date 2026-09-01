@@ -406,7 +406,7 @@ class HrEmployee(models.Model):
                 and e.hr_presence_state == "out_of_working_hour"
             )
         )
-        working_now_list = employee_to_check_working._get_employee_working_now()
+        working_now_list = employee_to_check_working._get_employee_ids_working_now()
         for employee in employees:
             if (
                 employee.sudo().attendance_state == "checked_out"

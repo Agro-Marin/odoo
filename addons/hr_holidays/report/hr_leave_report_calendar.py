@@ -113,6 +113,7 @@ class HrLeaveReportCalendar(models.Model):
         return self.env.user.employee_id._get_unusual_days(date_from, date_to)
 
     @api.depends("employee_id.name", "leave_id")
+    @api.depends_context("uid")
     def _compute_name(self):
         for leave in self:
             leave.name = leave.employee_id.name
@@ -121,6 +122,7 @@ class HrLeaveReportCalendar(models.Model):
             leave.name += f": {leave.sudo().leave_id.duration_display}"
 
     @api.depends("leave_manager_id")
+    @api.depends_context("uid")
     def _compute_is_manager(self):
         for leave in self:
             leave.is_manager = (

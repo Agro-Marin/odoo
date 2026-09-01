@@ -241,10 +241,10 @@ class ProjectTask(models.Model):
         self.env.remove_to_compute(self._fields["planned_hours"], self)
         return re.subn(planned_hours_group, "", title)[0]
 
-    def _get_groups(self):
+    def _get_extractors_in_group_order(self):
         return [
             lambda task, title: task._extract_planned_hours(title)
-        ] + super()._get_groups()
+        ] + super()._get_extractors_in_group_order()
 
     def action_view_subtask_timesheet(self):
         self.check_singleton()

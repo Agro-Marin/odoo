@@ -274,11 +274,11 @@ class HrLeave(models.Model):
     supported_attachment_ids = fields.Many2many(
         "ir.attachment",
         string="Attach File",
-        compute="_compute_supported_attachment_ids",
+        compute="_compute_supported_attachments",
         inverse="_inverse_supported_attachment_ids",
     )
     supported_attachment_ids_count = fields.Integer(
-        compute="_compute_supported_attachment_ids"
+        compute="_compute_supported_attachments"
     )
     leave_type_request_unit = fields.Selection(
         related="holiday_status_id.request_unit", readonly=True
@@ -314,8 +314,8 @@ class HrLeave(models.Model):
     request_unit_hours = fields.Boolean(
         "Specific Time", compute="_compute_request_unit_hours", store=True
     )
-    is_hatched = fields.Boolean("Hatched", compute="_compute_is_hatched")
-    is_striked = fields.Boolean("Striked", compute="_compute_is_hatched")
+    is_hatched = fields.Boolean("Hatched", compute="_compute_is_hatched_and_striked")
+    is_striked = fields.Boolean("Striked", compute="_compute_is_hatched_and_striked")
     has_mandatory_day = fields.Boolean(compute="_compute_has_mandatory_day")
     leave_type_increases_duration = fields.Char(
         compute="_compute_leave_type_increases_duration"
@@ -373,6 +373,7 @@ class HrLeave(models.Model):
         "request_date_from_period",
         "request_date_to_period",
     )
+    @api.depends_context("uid", "lang")
     def _compute_dashboard_warning_message(self):
         dated = self.filtered(lambda leave: leave.date_from and leave.date_to)
         (self - dated).dashboard_warning_message = False
@@ -554,7 +555,7 @@ class HrLeave(models.Model):
             ]
         )
         return versions.filtered(
-            lambda v: v._is_overlapping_period(
+            lambda v: v._has_contract_overlap(
                 self.date_from.date(), self.date_to.date()
             )
         )
@@ -676,6 +677,7 @@ Versions:
         return domain
 
     @api.depends("employee_id")
+    @api.depends_context("uid")
     def _compute_holiday_status_id(self):
         for holiday in self:
             if not holiday.holiday_status_id.requires_allocation:
@@ -934,6 +936,7 @@ Versions:
             leave.tz_mismatch = leave.tz != self.env.user.tz
 
     @api.depends("resource_calendar_id.tz")
+    @api.depends_context("uid")
     def _compute_tz(self):
         for leave in self:
             leave.tz = (
@@ -1000,13 +1003,13 @@ Versions:
             )
 
     @api.depends("state")
-    def _compute_is_hatched(self):
+    def _compute_is_hatched_and_striked(self):
         for holiday in self:
             holiday.is_striked = holiday.state == "refuse"
             holiday.is_hatched = holiday.state not in ["refuse", "validate"]
 
     @api.depends("attachment_ids")
-    def _compute_supported_attachment_ids(self):
+    def _compute_supported_attachments(self):
         for holiday in self:
             holiday.supported_attachment_ids = holiday.attachment_ids
             holiday.supported_attachment_ids_count = len(holiday.attachment_ids.ids)
@@ -1138,7 +1141,7 @@ Versions:
         "number_of_days",
         "department_id",
     )
-    @api.depends_context("short_name", "hide_employee_name", "groupby")
+    @api.depends_context("short_name", "hide_employee_name", "groupby", "lang")
     def _compute_display_name(self):
         for leave in self:
             user_tz = timezone(leave.tz)

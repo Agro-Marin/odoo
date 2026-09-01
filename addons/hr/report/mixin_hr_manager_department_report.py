@@ -13,8 +13,10 @@ class MixinHrManagerDepartmentReport(models.AbstractModel):
     )
 
     def _get_managed_department_ids(self):
-        return self.env["hr.department"]._search(
-            [("manager_id", "in", self.env.user.employee_ids.ids)]
+        return tuple(
+            self.env["hr.department"]._search(
+                [("manager_id", "in", self.env.user.employee_ids.ids)]
+            )
         )
 
     def _search_has_department_manager_access(self, operator, value):
@@ -26,7 +28,7 @@ class MixinHrManagerDepartmentReport(models.AbstractModel):
             (
                 "employee_id.department_id",
                 "child_of",
-                tuple(self._get_managed_department_ids()),
+                self._get_managed_department_ids(),
             ),
         ]
 
@@ -40,7 +42,7 @@ class MixinHrManagerDepartmentReport(models.AbstractModel):
                 (
                     "department_id",
                     "child_of",
-                    tuple(self._get_managed_department_ids()),
+                    self._get_managed_department_ids(),
                 ),
             ]
         )

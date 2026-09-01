@@ -35,6 +35,7 @@ class ResourceResource(models.Model):
         for resource in self:
             resource.department_id = resource.employee_id.department_id
 
+    @api.depends_context("uid")
     @api.depends("employee_id")
     def _compute_avatar_128(self):
         is_hr_user = self.env.user.has_group("hr.group_hr_user")

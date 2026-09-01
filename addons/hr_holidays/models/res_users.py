@@ -71,7 +71,7 @@ class ResUsers(models.Model):
         return users
 
     @api.depends("leave_date_to")
-    @api.depends_context("formatted_display_name")
+    @api.depends_context("formatted_display_name", "uid", "lang")
     def _compute_display_name(self):
         super()._compute_display_name()
         for user in self:

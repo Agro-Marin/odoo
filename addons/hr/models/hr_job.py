@@ -16,13 +16,13 @@ class HrJob(models.Model):
     )
     sequence = fields.Integer(default=10)
     expected_employees = fields.Integer(
-        compute="_compute_employees",
+        compute="_compute_employee_counts",
         string="Total Forecasted Employees",
         help="Expected number of employees for this job position after new recruitment.",
         groups="hr.group_hr_user",
     )
     no_of_employee = fields.Integer(
-        compute="_compute_employees",
+        compute="_compute_employee_counts",
         string="Current Number of Employees",
         help="Number of employees currently occupying this job position.",
         groups="hr.group_hr_user",
@@ -83,7 +83,7 @@ class HrJob(models.Model):
     )
 
     @api.depends("no_of_recruitment", "employee_ids.job_id", "employee_ids.active")
-    def _compute_employees(self):
+    def _compute_employee_counts(self):
         employee_data = self.env["hr.employee"]._read_group(
             [("job_id", "in", self.ids)], ["job_id"], ["__count"]
         )

@@ -70,8 +70,8 @@ class HrEmployee(models.Model):
             elif not employee.expense_manager_id:
                 employee.expense_manager_id = False
 
-    def _get_user_m2o_to_empty_on_archived_employees(self):
-        return super()._get_user_m2o_to_empty_on_archived_employees() + [
+    def _get_user_field_names_to_empty_on_archive(self):
+        return super()._get_user_field_names_to_empty_on_archive() + [
             "expense_manager_id"
         ]
 

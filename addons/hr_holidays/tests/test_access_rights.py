@@ -537,3 +537,23 @@ class TestMultiCompany(TestHrHolidaysCommon):
         _ = employee_leave_hrmanager.name
         employee_leave_hrmanager.action_approve()
         self.assertEqual(employee_leave_hrmanager.state, "validate")
+
+
+@tests.tagged("access_rights", "post_install", "-at_install")
+class TestShowLeavesCacheKey(TestHrHolidaysCommon):
+    def test_show_leaves_is_not_served_from_another_users_cache(self):
+        public = self.env["hr.employee.public"].browse(self.employee_emp_id)
+        self.assertTrue(
+            public.with_user(self.user_hruser).show_leaves,
+            "an HR officer may see this employee's remaining time off",
+        )
+        self.assertFalse(
+            public.with_user(self.external_user_employee).show_leaves,
+            "a colleague who is neither HR nor the employee may not, and the "
+            "officer's answer must not reach them from the cache",
+        )
+
+    def test_show_leaves_is_true_for_the_employee_themselves(self):
+        public = self.env["hr.employee.public"].browse(self.employee_emp_id)
+        self.assertFalse(public.with_user(self.external_user_employee).show_leaves)
+        self.assertTrue(public.with_user(self.user_employee).show_leaves)

@@ -66,7 +66,9 @@ class HrDepartureWizard(models.TransientModel):
         for wizard in self:
             wizard.is_user_employee = bool(wizard.employee_ids.user_id)
 
-    def _get_user_archive_notification(self, message, message_type, next_action):
+    def _prepare_action_user_archive_notification(
+        self, message, message_type, next_action
+    ):
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
@@ -78,7 +80,7 @@ class HrDepartureWizard(models.TransientModel):
             },
         }
 
-    def _split_users_by_archivability(self):
+    def _split_users_archivable_and_kept(self):
         archivable = kept = self.env["res.users"]
         if not self.remove_related_user:
             return archivable, kept
@@ -119,7 +121,7 @@ class HrDepartureWizard(models.TransientModel):
         active_versions = employee_ids.version_id
         self._check_departure_date_against_contracts(active_versions)
 
-        allow_archived_users, unarchived_users = self._split_users_by_archivability()
+        allow_archived_users, unarchived_users = self._split_users_archivable_and_kept()
 
         archived_employees = self.env["hr.employee"]
         archived_users = self.env["res.users"]
@@ -167,7 +169,7 @@ class HrDepartureWizard(models.TransientModel):
             ),
         ):
             if users:
-                next_action = self._get_user_archive_notification(
+                next_action = self._prepare_action_user_archive_notification(
                     message, message_type, next_action
                 )
         return next_action

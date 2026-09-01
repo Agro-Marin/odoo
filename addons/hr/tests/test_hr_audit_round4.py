@@ -288,12 +288,12 @@ class TestRelatedContactsAction(TestHrCommon):
         self.env.flush_all()
         self.assertFalse(employee._get_related_partners())
         with self.assertRaises(UserError):
-            employee.action_related_contacts()
+            employee.action_view_related_contacts()
 
     def test_a_single_contact_opens_that_contact(self):
         employee = self.env["hr.employee"].create({"name": "One Contact"})
         self.env.flush_all()
-        action = employee.action_related_contacts()
+        action = employee.action_view_related_contacts()
         self.assertEqual(action["res_id"], employee.work_contact_id.id)
         self.assertEqual(action["view_mode"], "form")
 

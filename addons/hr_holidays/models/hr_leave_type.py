@@ -345,6 +345,13 @@ class HrLeaveType(models.Model):
             )
 
     @api.depends("requires_allocation", "max_leaves", "virtual_remaining_leaves")
+    @api.depends_context(
+        "uid",
+        "default_date_from",
+        "default_date_to",
+        "default_employee_id",
+        "employee_id",
+    )
     def _compute_has_valid_allocation(self):
         date_from = self.env.context.get("default_date_from", fields.Datetime.today())
         date_to = self.env.context.get("default_date_to", fields.Datetime.today())

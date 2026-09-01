@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class HrEmployeePublic(models.Model):
@@ -26,6 +26,7 @@ class HrEmployeePublic(models.Model):
         related="employee_id.allocation_remaining_display"
     )
 
+    @api.depends_context("uid")
     def _compute_show_leaves(self):
         self._update_fields_from_employee("show_leaves")
 

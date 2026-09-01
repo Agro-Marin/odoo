@@ -24,7 +24,9 @@ class MailActivityPlanTemplate(models.Model):
                     self.env._("Those responsible types are limited to Employee plans.")
                 )
 
-    def _get_closest_parent_user(self, employee, responsible, error_message):
+    def _get_responsible_result_from_parents(
+        self, employee, responsible, error_message
+    ):
         responsible_parent = responsible
         viewed_responsible = [employee]
         while True:
@@ -69,7 +71,7 @@ class MailActivityPlanTemplate(models.Model):
                 )
             result["responsible"] = employee.coach_id.user_id
             if employee.coach_id and not result["responsible"]:
-                result = self._get_closest_parent_user(
+                result = self._get_responsible_result_from_parents(
                     employee=employee,
                     responsible=employee.coach_id.parent_id,
                     error_message=self.env._(
@@ -84,7 +86,7 @@ class MailActivityPlanTemplate(models.Model):
                 )
             result["responsible"] = employee.parent_id.user_id
             if employee.parent_id and not result["responsible"]:
-                result = self._get_closest_parent_user(
+                result = self._get_responsible_result_from_parents(
                     employee=employee,
                     responsible=employee.parent_id.parent_id,
                     error_message=self.env._(
@@ -95,7 +97,7 @@ class MailActivityPlanTemplate(models.Model):
         elif self.responsible_type == "employee":
             result["responsible"] = employee.user_id
             if not result["responsible"]:
-                result = self._get_closest_parent_user(
+                result = self._get_responsible_result_from_parents(
                     employee=employee,
                     responsible=employee.parent_id,
                     error_message=self.env._(

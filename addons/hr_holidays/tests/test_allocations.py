@@ -810,7 +810,7 @@ class TestAllocations(TestHrHolidaysCommon):
         self.assertEqual(employee.allocation_display, "10")
 
         holidays_type_1.active = False
-        employee._compute_allocation_remaining_display()
+        employee._compute_allocation_displays()
 
         self.assertEqual(employee.allocation_display, "0")
 

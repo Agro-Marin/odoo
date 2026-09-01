@@ -261,7 +261,7 @@ class HrDepartment(models.Model):
             },
         }
 
-    def get_child_departments(self):
+    def _get_child_departments(self):
         return self.env["hr.department"].search([("id", "child_of", self.ids)])
 
     def action_view_child_departments(self):
@@ -270,7 +270,7 @@ class HrDepartment(models.Model):
             "type": "ir.actions.act_window",
             "res_model": "hr.department",
             "views": [[False, "kanban"], [False, "list"], [False, "form"]],
-            "domain": [["id", "in", self.get_child_departments().ids]],
+            "domain": [["id", "in", self._get_child_departments().ids]],
             "name": "Child departments",
         }
 

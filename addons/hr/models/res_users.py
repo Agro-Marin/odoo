@@ -255,10 +255,10 @@ class ResUsers(models.Model):
             ).create(employee_create_vals)
         return res
 
-    def _get_employee_fields_to_sync(self):
+    def _get_employee_field_names_to_sync(self):
         return ["name", "email", "image_1920", "tz"]
 
-    def _get_personal_info_partner_ids_to_notify(self, employee):
+    def _get_notify_reason_and_partner_ids(self, employee):
         if employee.version_id.hr_responsible_id:
             return (
                 self.env._(
@@ -281,7 +281,7 @@ class ResUsers(models.Model):
         )
         modified_by = self.env.user.name
         for employee in employees:
-            reason_message, partner_ids = self._get_personal_info_partner_ids_to_notify(
+            reason_message, partner_ids = self._get_notify_reason_and_partner_ids(
                 employee
             )
             if not partner_ids:
@@ -300,7 +300,7 @@ class ResUsers(models.Model):
     def _update_employees_from_user_vals(self, vals, employee_domain):
         employee_values = {
             fname: vals[fname]
-            for fname in self._get_employee_fields_to_sync()
+            for fname in self._get_employee_field_names_to_sync()
             if fname in vals
         }
         if not employee_values:
@@ -440,7 +440,7 @@ class ResUsers(models.Model):
             "view_mode": "form",
         }
 
-    def action_related_contact(self):
+    def action_view_related_contact(self):
         return {
             "name": self.env._("Related Contact"),
             "res_id": self.partner_id.id,

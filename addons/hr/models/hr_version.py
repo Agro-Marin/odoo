@@ -161,10 +161,10 @@ class HrVersion(models.Model):
         tracking=True,
     )
     is_flexible = fields.Boolean(
-        compute="_compute_is_flexible", store=True, groups="hr.group_hr_user"
+        compute="_compute_flexibility", store=True, groups="hr.group_hr_user"
     )
     is_fully_flexible = fields.Boolean(
-        compute="_compute_is_flexible", store=True, groups="hr.group_hr_user"
+        compute="_compute_flexibility", store=True, groups="hr.group_hr_user"
     )
     tz = fields.Selection(related="employee_id.tz")
 
@@ -315,14 +315,14 @@ class HrVersion(models.Model):
                 version.is_custom_job_title = False
 
     @staticmethod
-    def _periods_overlap(start_a, end_a, start_b, end_b):
+    def _has_period_overlap(start_a, end_a, start_b, end_b):
         end_a = end_a or date.max
         end_b = end_b or date.max
         return start_a <= end_b and start_b <= end_a
 
     @staticmethod
-    def _period_contains(start, end, day):
-        return HrVersion._periods_overlap(start, end, day, day)
+    def _is_day_in_period(start, end, day):
+        return HrVersion._has_period_overlap(start, end, day, day)
 
     @api.constrains("employee_id", "contract_date_start", "contract_date_end")
     def _check_dates(self):
@@ -370,7 +370,7 @@ class HrVersion(models.Model):
                 ):
                     contract_period_exists = True
                     continue
-                if self._periods_overlap(
+                if self._has_period_overlap(
                     date_start,
                     date_end,
                     version.contract_date_start,
@@ -403,7 +403,7 @@ class HrVersion(models.Model):
         Version = self.env["hr.version"]
         for vals in vals_list:
             if "contract_template_id" in vals:
-                contract_vals = Version.get_values_from_contract_template(
+                contract_vals = Version._prepare_vals_from_contract_template(
                     Version.browse(vals["contract_template_id"])
                 )
                 vals.update({**contract_vals, **vals})
@@ -564,10 +564,10 @@ class HrVersion(models.Model):
             return False
         return self.date_start <= date and (not self.date_end or self.date_end >= date)
 
-    def _is_overlapping_period(self, date_from, date_to):
+    def _has_contract_overlap(self, date_from, date_to):
         if not self.contract_date_start:
             return False
-        return self._periods_overlap(
+        return self._has_period_overlap(
             self.date_start, self.date_end, date_from or date.min, date_to
         )
 
@@ -576,7 +576,7 @@ class HrVersion(models.Model):
         return not self.resource_calendar_id
 
     @api.depends("resource_calendar_id.flexible_hours")
-    def _compute_is_flexible(self):
+    def _compute_flexibility(self):
         for version in self:
             version.is_fully_flexible = version._is_fully_flexible()
             version.is_flexible = (
@@ -595,12 +595,12 @@ class HrVersion(models.Model):
             "hr_responsible_id",
         ]
 
-    def get_values_from_contract_template(self, contract_template_id):
-        if not contract_template_id:
+    def _prepare_vals_from_contract_template(self, contract_template):
+        if not contract_template:
             return {}
-        company = contract_template_id.company_id or self.env.company
+        company = contract_template.company_id or self.env.company
         whitelist = self.with_company(company)._get_whitelist_fields_from_template()
-        contract_template_vals = contract_template_id.sudo().copy_data()[0]
+        contract_template_vals = contract_template.sudo().copy_data()[0]
         HrVersion = self.env["hr.version"]
         return {
             field: value

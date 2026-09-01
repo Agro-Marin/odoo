@@ -15,7 +15,7 @@ class BankAccountAllocationWizard(models.TransientModel):
         readonly=False,
     )
 
-    def _prepare_allocations_from_employee(self):
+    def _update_allocations_from_employee(self):
         self.check_singleton()
         wizard_lines = []
         distribution = self.employee_id.salary_distribution or {}
@@ -50,7 +50,7 @@ class BankAccountAllocationWizard(models.TransientModel):
     def create(self, vals_list):
         records = super().create(vals_list)
         for wizard in records:
-            wizard._prepare_allocations_from_employee()
+            wizard._update_allocations_from_employee()
         return records
 
     def action_save(self):

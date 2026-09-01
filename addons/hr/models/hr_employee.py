@@ -124,8 +124,8 @@ class HrEmployee(models.Model):
         compute="_compute_hr_presence_state",
         default="out_of_working_hour",
     )
-    last_activity = fields.Date(compute="_compute_last_activity")
-    last_activity_time = fields.Char(compute="_compute_last_activity")
+    last_activity = fields.Date(compute="_compute_last_activity_and_time")
+    last_activity_time = fields.Char(compute="_compute_last_activity_and_time")
     hr_icon_display = fields.Selection(
         [
             ("presence_present", "Present"),
@@ -554,7 +554,7 @@ class HrEmployee(models.Model):
         )
 
     @api.model
-    def _split_version_vals(self, vals):
+    def _split_employee_and_version_vals(self, vals):
         employee_vals, version_vals = {}, {}
         for fname, value in vals.items():
             target = (
@@ -575,7 +575,7 @@ class HrEmployee(models.Model):
             if Version._has_field_access(field, "write")
         }
         for vals in result:
-            employee_vals, version_vals = self._split_version_vals(vals)
+            employee_vals, version_vals = self._split_employee_and_version_vals(vals)
             new_vals_list.append(
                 {
                     **employee_vals,
@@ -875,7 +875,7 @@ class HrEmployee(models.Model):
                 )
             )
 
-        def remove_gap(versions):
+        def get_versions_continuous(versions):
             if not versions:
                 return self.env["hr.version"]
             if len(versions) == 1:
@@ -892,7 +892,7 @@ class HrEmployee(models.Model):
 
         versions = self._get_first_versions().sorted("date_start", reverse=True)
         if no_gap:
-            versions = remove_gap(versions)
+            versions = get_versions_continuous(versions)
         return min(versions.mapped("date_start")) if versions else False
 
     @api.depends("name")
@@ -991,7 +991,7 @@ class HrEmployee(models.Model):
         )
 
     @staticmethod
-    def _to_version_date(value):
+    def _coerce_date(value):
         if isinstance(value, str):
             return fields.Date.to_date(value)
         if isinstance(value, datetime):
@@ -999,17 +999,15 @@ class HrEmployee(models.Model):
         return value
 
     def _get_new_version_dates(self, values):
-        date = self._to_version_date(values.get("date_version", False))
+        date = self._coerce_date(values.get("date_version", False))
         if not date:
             raise ValueError("date_version is required")
 
         date_from, date_to = self.sudo()._get_contract_dates(date)
-        contract_date_start = self._to_version_date(
+        contract_date_start = self._coerce_date(
             values.get("contract_date_start", date_from)
         )
-        contract_date_end = self._to_version_date(
-            values.get("contract_date_end", date_to)
-        )
+        contract_date_end = self._coerce_date(values.get("contract_date_end", date_to))
 
         if contract_date_end and not contract_date_start:
             raise UserError(
@@ -1197,9 +1195,9 @@ class HrEmployee(models.Model):
 
     def _get_contract_dates(self, date):
         self.check_singleton()
-        contains = self.env["hr.version"]._period_contains
+        is_day_in_period = self.env["hr.version"]._is_day_in_period
         for date_from, date_to in self._get_all_contract_dates():
-            if contains(date_from, date_to, date):
+            if is_day_in_period(date_from, date_to, date):
                 return date_from, date_to
         return False, False
 
@@ -1301,7 +1299,7 @@ class HrEmployee(models.Model):
             employees_without_work_contact.sudo()._create_work_contacts()
 
     @api.model
-    def _get_employee_working_now(self):
+    def _get_employee_ids_working_now(self):
         start_dt = fields.Datetime.now().replace(tzinfo=UTC)
         stop_dt = start_dt + timedelta(hours=1)
         employees_by_schedule = defaultdict(lambda: self.env["hr.employee"])
@@ -1329,7 +1327,7 @@ class HrEmployee(models.Model):
                 and (e.user_id.sudo().presence_ids.status or "offline") == "offline"
             )
         )
-        working_now_list = employee_to_check_working._get_employee_working_now()
+        working_now_list = employee_to_check_working._get_employee_ids_working_now()
         for employee in self:
             state = "out_of_working_hour"
             if employee.company_id.sudo().hr_presence_control_login:
@@ -1345,7 +1343,7 @@ class HrEmployee(models.Model):
             employee.hr_presence_state = state
 
     @api.depends("user_id")
-    def _compute_last_activity(self):
+    def _compute_last_activity_and_time(self):
         for employee in self:
             tz = employee.tz
             if last_presence := employee.user_id.sudo().presence_ids.last_presence:
@@ -1427,7 +1425,7 @@ class HrEmployee(models.Model):
     def _get_related_partners(self):
         return self.work_contact_id | self.user_id.partner_id
 
-    def action_related_contacts(self):
+    def action_view_related_contacts(self):
         related_partners = self._get_related_partners()
         action = {
             "name": self.env._("Related Contacts"),
@@ -1480,7 +1478,9 @@ class HrEmployee(models.Model):
             },
         )
 
-    def _get_user_creation_notification(self, message, message_type, next_action):
+    def _prepare_action_user_creation_notification(
+        self, message, message_type, next_action
+    ):
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
@@ -1492,7 +1492,7 @@ class HrEmployee(models.Model):
             },
         }
 
-    def _classify_for_user_creation(self):
+    def _prepare_user_vals_and_blocked_names(self):
         employee_emails = [
             normalized_email
             for employee in self
@@ -1538,12 +1538,12 @@ class HrEmployee(models.Model):
         return create_vals, blocked
 
     def action_create_users(self):
-        create_vals, blocked = self._classify_for_user_creation()
+        create_vals, blocked = self._prepare_user_vals_and_blocked_names()
 
         next_action = {"type": "ir.actions.act_window_close"}
         if create_vals:
             self.env["res.users"].create(create_vals)
-            next_action = self._get_user_creation_notification(
+            next_action = self._prepare_action_user_creation_notification(
                 self.env._(
                     "Users %s creation successful",
                     ", ".join(vals["name"] for vals in create_vals),
@@ -1591,7 +1591,7 @@ class HrEmployee(models.Model):
             ),
         ):
             if names:
-                next_action = self._get_user_creation_notification(
+                next_action = self._prepare_action_user_creation_notification(
                     message, message_type, next_action
                 )
         return next_action
@@ -1624,7 +1624,7 @@ class HrEmployee(models.Model):
         field_names = [
             f_name for f_name in field_names if f_name != "current_version_id"
         ]
-        self._check_private_fields(field_names)
+        self._check_no_private_fields(field_names)
         self.flush_model(field_names)
         with self._mask_domain_errors_as_access_errors():
             public = self.env["hr.employee.public"].search_fetch(
@@ -1643,7 +1643,7 @@ class HrEmployee(models.Model):
         field_names = [
             f_name for f_name in field_names if f_name != "current_version_id"
         ]
-        self._check_private_fields(field_names)
+        self._check_no_private_fields(field_names)
         self.flush_recordset(field_names)
         public = self.env["hr.employee.public"].browse(self._ids)
         public.fetch(field_names)
@@ -1671,7 +1671,7 @@ class HrEmployee(models.Model):
 
         return super()._check_access(operation)
 
-    def _check_private_fields(self, field_names):
+    def _check_no_private_fields(self, field_names):
         public_fields = self.env["hr.employee.public"]._fields
         private_fields = [fname for fname in field_names if fname not in public_fields]
         if private_fields:
@@ -1918,7 +1918,7 @@ We can redirect you to the public employee list."""
     def new(self, values=None, origin=None, ref=None):
         if not values:
             values = {}
-        new_vals, version_vals = self._split_version_vals(values)
+        new_vals, version_vals = self._split_employee_and_version_vals(values)
 
         employee = super().new(new_vals, origin, ref)
         version_vals["employee_id"] = employee
@@ -2024,10 +2024,10 @@ We can redirect you to the public employee list."""
                         description=vals.get("departure_description"),
                     )
                 )
-        new_vals, version_vals = self._split_version_vals(vals)
+        new_vals, version_vals = self._split_employee_and_version_vals(vals)
         res = super().write(new_vals)
         if "work_contact_id" in vals:
-            self._repoint_bank_accounts(vals["work_contact_id"])
+            self._update_bank_account_contact(vals["work_contact_id"])
         if user_to_sync and user_to_sync.image_1920:
             employees_without_image = self.filtered(lambda e: not e.image_1920)
             if employees_without_image:
@@ -2043,10 +2043,10 @@ We can redirect you to the public employee list."""
                     % employee.version_id.display_name
                 )
         if res and "resource_calendar_id" in vals:
-            self._propagate_calendar_to_resources()
+            self._update_resource_calendars()
         return res
 
-    def _repoint_bank_accounts(self, work_contact_id):
+    def _update_bank_account_contact(self, work_contact_id):
         accounts_sudo = (
             self.env["res.partner.bank"].sudo().browse(self.bank_account_ids.ids)
         )
@@ -2061,7 +2061,7 @@ We can redirect you to the public employee list."""
         if work_contact_id:
             to_move.partner_id = work_contact_id
 
-    def _propagate_calendar_to_resources(self):
+    def _update_resource_calendars(self):
         resources_per_calendar_id = defaultdict(lambda: self.env["resource.resource"])
         for employee in self:
             if employee.version_id == employee.current_version_id:
@@ -2077,10 +2077,10 @@ We can redirect you to the public employee list."""
         resources.unlink()
         return result
 
-    def _get_employee_m2o_to_empty_on_archived_employees(self):
+    def _get_employee_field_names_to_empty_on_archive(self):
         return ["parent_id", "coach_id"]
 
-    def _get_user_m2o_to_empty_on_archived_employees(self):
+    def _get_user_field_names_to_empty_on_archive(self):
         return []
 
     def action_unarchive(self):
@@ -2099,9 +2099,9 @@ We can redirect you to the public employee list."""
         res = super().action_archive()
         if archived_employees:
             employee_fields_to_empty = (
-                self._get_employee_m2o_to_empty_on_archived_employees()
+                self._get_employee_field_names_to_empty_on_archive()
             )
-            user_fields_to_empty = self._get_user_m2o_to_empty_on_archived_employees()
+            user_fields_to_empty = self._get_user_field_names_to_empty_on_archive()
             employee_domain = Domain.OR(
                 Domain(field, "in", archived_employees.ids)
                 for field in employee_fields_to_empty
@@ -2191,20 +2191,20 @@ We can redirect you to the public employee list."""
     def _get_calendar_tz_batch(self, dt=None):
         employees_by_id = self.grouped("id")
 
-        def timezones_at(employees, date_at=None):
+        def get_timezones_by_employee_id(employees, date_at=None):
             return {
                 emp_id: calendar.sudo().tz or employees_by_id[emp_id].tz
                 for emp_id, calendar in employees._get_calendars(date_at).items()
             }
 
         if not dt:
-            return timezones_at(self)
+            return get_timezones_by_employee_id(self)
 
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=UTC)
         employee_timezones = {}
         for tz, employees in self.grouped(lambda emp: emp._get_tz()).items():
-            employee_timezones |= timezones_at(
+            employee_timezones |= get_timezones_by_employee_id(
                 employees, dt.astimezone(timezone(tz)).date()
             )
         return employee_timezones
@@ -2304,7 +2304,7 @@ We can redirect you to the public employee list."""
             self.env["hr.version"]
             .sudo()
             .search([("employee_id", "=", self.id)])
-            .filtered(lambda v: v._is_overlapping_period(date_from_date, date_to_date))
+            .filtered(lambda v: v._has_contract_overlap(date_from_date, date_to_date))
         )
         if not employee_versions:
             return (
@@ -2343,7 +2343,7 @@ We can redirect you to the public employee list."""
         self.check_singleton()
         return self.resource_calendar_id or self.company_id.resource_calendar_id
 
-    def _iter_version_windows(self, start, stop, tz=None):
+    def _get_version_windows(self, start, stop, tz=None):
         self.check_singleton()
         versions = self.sudo()._get_versions_with_contract_overlap_with_period(
             start.date(), stop.date()
@@ -2365,7 +2365,7 @@ We can redirect you to the public employee list."""
         if not lunch:
             return self._get_expected_attendances(start, stop)
         employee_tz = self._get_employee_tz()
-        windows = list(self._iter_version_windows(start, stop, employee_tz))
+        windows = list(self._get_version_windows(start, stop, employee_tz))
         if not windows:
             return self._get_fallback_calendar()._attendance_intervals_batch(
                 start, stop, self.resource_id, lunch=True
@@ -2383,7 +2383,7 @@ We can redirect you to the public employee list."""
     def _get_expected_attendances(self, date_from, date_to):
         self.check_singleton()
         employee_tz = self._get_employee_tz()
-        windows = list(self._iter_version_windows(date_from, date_to, employee_tz))
+        windows = list(self._get_version_windows(date_from, date_to, employee_tz))
         if not windows:
             return self._get_fallback_calendar()._work_intervals_batch(
                 date_from,
@@ -2418,7 +2418,7 @@ We can redirect you to the public employee list."""
     def _get_calendar_attendances(self, date_from, date_to):
         self.check_singleton()
         employee_tz = self._get_employee_tz()
-        windows = list(self._iter_version_windows(date_from, date_to, employee_tz))
+        windows = list(self._get_version_windows(date_from, date_to, employee_tz))
         if not windows:
             return (
                 self._get_fallback_calendar()
@@ -2532,7 +2532,7 @@ We can redirect you to the public employee list."""
             else:
                 employee.primary_bank_account_id = False
 
-    def get_accounts_with_fixed_allocations(self):
+    def _get_accounts_with_fixed_allocations(self):
         self.check_singleton()
         distribution = self.salary_distribution or {}
         return self.bank_account_ids.filtered(
