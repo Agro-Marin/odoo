@@ -41,7 +41,6 @@ class Base(models.AbstractModel):
                     ],
                     (parent_field,),
                     ("id:array_agg",),
-                    order=order,
                 )
             }
         result = records.web_read(specification)
