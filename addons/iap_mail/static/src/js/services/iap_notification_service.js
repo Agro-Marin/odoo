@@ -1,8 +1,7 @@
 /** @odoo-module native */
+import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
-
-import { markup } from "@odoo/owl";
 
 export const iapNotificationService = {
     dependencies: ["bus_service", "notification"],
@@ -25,14 +24,19 @@ export const iapNotificationService = {
         }
 
         function displayCreditErrorNotification(params) {
-            const message = markup`
-                <a class='btn btn-link' href='${params.get_credits_url}' target='_blank'>
-                    <i class='oi oi-arrow-right'></i>
-                    ${_t("Buy more credits")}
-                </a>`;
-            notification.add(message, {
-                title: params.title,
+            // The payload carries a title and no message, so the title IS the
+            // notification's text; the credits link belongs in the button area
+            // rather than inline in that text.
+            notification.add(params.title, {
                 type: "danger",
+                buttons: [
+                    {
+                        name: _t("Buy more credits"),
+                        onClick: () => {
+                            browser.open(params.get_credits_url, "_blank");
+                        },
+                    },
+                ],
             });
         }
     },
