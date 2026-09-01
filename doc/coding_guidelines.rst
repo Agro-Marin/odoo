@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.9
-:Date: 2026-08-30
+:Version: 6.13
+:Date: 2026-08-31
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -901,6 +901,21 @@ is worst when the field exists: ``ir_cron``'s ``_compute_next_call`` was a
 **A ``_selection_*`` method with a parameter is not a hook**: ``selection=`` calls
 it with nothing to pass. There are **0** left.
 
+**What the misused prefix costs is a collision, not a misreading** ``[review]``.
+A reserved prefix is a claim that a field declaration somewhere names this
+method; while the claim is false the spelling is unowned, and another model is
+free to spell a *real* hook the same way. ``hr.employee.public`` carried
+``_compute_from_employee``, a shared body eight modules call and no ``compute=``
+names, while ``hr.expense.stripe.card`` declares two fields
+``compute="_compute_from_employee"`` -- one spelling, two contracts, in two
+repositories. ``hr``'s is now ``_update_fields_from_employee``. The same shape
+one row down: ``hr``'s ``_get_public_field_names`` read column names for a SQL
+view while ``hr_contract_salary``'s method of that name is a ``selection=``
+hook. **The rename that repairs the prefix also dissolves the collision**, which
+is the argument for doing it before §2.4.4's substitution caution bites: a
+workspace-wide ``sed`` cannot tell the two owners apart, and the one that must
+run first is whichever is *not* being renamed.
+
 **A protocol namespace may open with a hook prefix, and the prefix does not lose**
 ``[review]``. **The test is whether the continuation names a field** --
 ``_search_panel_get_domain_image`` would promise a field
@@ -919,8 +934,8 @@ Two readings of the gate itself:
   into eighteen classes would exempt itself. **0** hook is exempt today,
   ``crm.team._get_default_team_id``.
 * **The reserved prefixes are worn by more than the hooks**
-  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **151**
-  names, at **216** definitions, wear one while no field declaration and no
+  ``[gate doc_restated_counts]``. ``field_hook_naming.py --unbound``: **149**
+  names, at **214** definitions, wear one while no field declaration and no
   binding decorator names them. A candidate population, not a violation count.
 
 2.4.2 Decorator-bound families the gate cannot reach
@@ -956,10 +971,10 @@ free-standing form.
   An ORM-invoked hook is private.
 
 **``@api.constrains``** ``[review]`` is the fourth and largest, at **645** hooks.
-The Validation row governs the spelling and **593** already carry ``_check_``. The
+The Validation row governs the spelling and **594** already carry ``_check_``. The
 rest are names the ratchet counts (``_validate_``, ``_ensure_``, ``_verify_``) and
 the localisation namespace with the verb behind it
-(``_l10n_se_check_payment_reference``). That leaves **47** spelled with a first
+(``_l10n_se_check_payment_reference``). That leaves **46** spelled with a first
 token carrying no rule anywhere: ``_constrains_``, ``_constraint_``,
 ``_limit_available_currency_ids``, and twice the misspelling ``_contrains_``.
 
@@ -1087,7 +1102,7 @@ neither operation they name, and ``ir.cron``'s ``method_direct_trigger``.
 **The verb leads** ``[review]``. ``naming_vocabulary.classify`` partitions on the
 first token and stops, so a noun in front of the verb hides the verb from the rule
 *and* from its enforcement: ``_import_retrieve_partner_vals`` scores as the verb
-``import``, which carries no rule. Backlog: **140** model methods put an abolished
+``import``, which carries no rule. Backlog: **138** model methods put an abolished
 verb somewhere the ratchet cannot read it -- a candidate population, since some of
 those tokens belong to a noun or a field name.
 
@@ -1146,8 +1161,8 @@ and **read the result**:
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
 **207** definitions under **98** names in this repository spell it head-first and
 **18** spell it the other way. **The rule is general; the conversion reached one
-family** -- across **19** of them this repository spells **92** definitions
-head-first against **160** the other way. A name in the second count is a backlog
+family** -- across **19** of them this repository spells **105** definitions
+head-first against **159** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:
 ``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent from it
 is measured by nothing; and ``ids`` is deliberately absent, because
@@ -1164,6 +1179,25 @@ Three checks when renaming ``[review]``:
   short generic name cannot distinguish the owner. Prefer the name that is already
   qualified; where the substitution is unavoidable, run the *other* owner's
   callers first.
+
+**The variable a method returns is the strongest evidence for its name**
+``[review]``, stronger than the log line the first check points at: it was
+written in the same body by the same author and it answers *what is this*, which
+is the question the name has to answer. ``mrp.bom._bom_find`` assembled and
+returned a local called ``bom_by_product``; the name it was owed was
+``_get_bom_by_product``, spelled out in its own last line. A mapping's variable
+is usually already head-first (``x_by_y``), so reading it settles the ordering at
+the same time as the verb -- and where the variable and the name disagree about
+the *shape*, the variable is the one the callers unpack.
+
+**A first token repeating the model is what hides the verb** ``[review]``.
+``_bom_find`` on ``mrp.bom``: the model qualifies every method it declares, so a
+leading noun naming that same model buys nothing and costs the rule its foothold
+-- ``classify`` partitions on the first token, so it scores ``bom``, which
+carries no rule. Grepping a model's file for methods whose first token is the
+model's own noun is the cheapest search for this defect, and it needs none of the
+namespace weighing the general case needs: **a namespace that names one model is
+not a namespace**, because it could not survive being moved to another.
 
 2.4.5 Converters
 ~~~~~~~~~~~~~~~~
@@ -1193,6 +1227,17 @@ Four limits:
   where the receiver is the source representation:
   ``attachment._to_http_stream()``.
 
+**``2`` is the ORM's cardinality notation and nothing else** ``[review]``. It is
+reserved the way the table in §2.4.3 means it: ``many2one``, ``one2many``,
+``x2many`` and the abbreviations built on them (``_m2o``, ``_o2m``, ``_x2many``)
+are field-relation terms of art, and a name wearing one is right. Everywhere
+else ``2`` is a converter spelled short, and the idiom is ``X_to_Y`` --
+``date2datetime`` is ``_date_to_datetime``. *Frozen reading* (§1.4) at
+``75ef0eec641``, an ad-hoc scanner: **45** definitions under ``addons/`` carry a
+digit ``2`` between two letters, **33** of them the cardinality notation. The
+remaining twelve are the family this rule names, and they are hard to find
+precisely because ``_to_`` is what a search for a converter spells.
+
 2.4.6 Tails and operands
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1218,16 +1263,29 @@ Four limits:
 * **A predicate is named for the question, in the tense the caller asks it**
   ``[review]``. ``_is_tls_verified`` reads as settled state where the caller is
   asking a prospective question.
+* **A predicate named for the branch its caller takes is named for the wrong
+  subject** ``[review]``. ``_skip_bom_line(product)`` returns a ``bool`` and skips
+  nothing -- skipping is what the caller does with the answer. Ask the question
+  about the subject and leave the caller its verb: ``_is_bom_line_skipped``. This
+  is worse than the ``_should_`` family §2.4.8 parks, which at least announces
+  that a question is being asked; an imperative reads as an instruction, so ``if
+  line._skip_bom_line(product):`` parses as a statement with a stray ``if`` and
+  the reader has to reach the body to learn it returns anything at all.
+* **The receiver can supply the noun the verb owes.** The rule two bullets up
+  asks for a thing acted on, and on a recordset method ``self`` *is* it:
+  ``_post_inventory`` and ``_action_cancel`` owe nothing further. The tail is
+  owed where the object is not the receiver (``_warn_stranded_sources``), or
+  where the verb reaches one named part of it (``_update_cost_mode``).
 
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** At 5,732 definitions it is 22.6 % of every method
+**``_get_`` is not a default.** At 5,797 definitions it is 22.9 % of every method
 in this repository's model layer, having absorbed reading, building, deriving and
-computing. The split that matters is against ``_prepare_``: 688 definitions are
+computing. The split that matters is against ``_prepare_``: 684 definitions are
 payload builders -- they end in ``_vals``, ``_values``, ``_data``, ``_dict``,
 ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet are
-spelled ``get_*``, against 765 already spelled ``_prepare_*``.
+spelled ``get_*``, against 781 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -1272,7 +1330,7 @@ new ones this way; do not rename the bound ones.
 
 **``_generate_`` is the largest member of the payload family and is not in the
 table** ``[review]``. The four verbs the Payload row abolishes come to **17**
-definitions between them; ``_generate_`` alone is **133**. It carries two meanings
+definitions between them; ``_generate_`` alone is **130**. It carries two meanings
 -- ``_generate_access_token`` builds a value and takes the payload canonical,
 while ``_generate_consume_moves`` **creates records** and takes the domain
 operation's name -- so wiring it into ``ABOLISHED`` would widen a blocking gate by
@@ -1285,7 +1343,36 @@ ratchet flags **1**. The gap hides two things -- the suffix list is short, and
 *object construction takes ``_prepare_`` too*, a factory having a consumer like
 anything else.
 
-Backlog: **35** of this repository's **765** ``_prepare_*`` definitions call
+**``_calculate_`` is the read family's ``_generate_``**
+``[gate doc_restated_counts]``. It names the arithmetic where ``_generate_`` names
+the manufacture, and unlike ``_generate_`` it is owed no record, because the
+Provenance bullet above has already settled it: a scalar that answers a question
+is ``_get_`` whatever produced it. **10** model methods still wear it. Two
+cautions from draining it out of ``mrp``:
+
+* **The rename collides, and the collision is the finding.** Three of them
+  derived one field, ``duration_expected``, alongside a ``_get_duration_expected``
+  that was already there -- which is *Naming standardization is instrumental*'s
+  argument, running inside a single file. Give each the tail that says which
+  derivation it is (``_get_duration_expected`` from the operation,
+  ``_get_duration_expected_from_dates`` from a span) rather than dropping the one
+  that renamed second.
+* **A stale name is stale in its noun as well as its verb.**
+  ``_calculate_date_finished`` returned the value of the field this fork calls
+  ``date_end``; renaming only the verb leaves the name pointing at a field that
+  no longer exists.
+
+**Between ``_prepare_`` and ``_update_``, ask who owns the mapping** ``[review]``.
+Both hand back a ``dict`` and the consumer test cannot separate them, because the
+consumer is the same one. The **parameter list** separates them: a method that
+assembles the mapping is ``_prepare_``; a method handed a mapping its caller
+already owns, which adds to it, is the Mutation row (§2.4.12) even though nothing
+ORM is written. ``_set_replenish_data(new_lines, product, replenish_data)`` is
+``_update_replenish_data``. **Returning the mapping it was handed does not make
+it a builder** -- a caller writing ``data = obj._update_data(..., data)`` is
+rebinding a name, not receiving a new object.
+
+Backlog: **38** of this repository's **781** ``_prepare_*`` definitions call
 ``create()``, ``write()`` or ``unlink()`` in their own body. A candidate
 population -- only a builder whose **return value** is not the mapping it
 assembles is in the wrong family.
@@ -1293,8 +1380,8 @@ assembles is in the wrong family.
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **379** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **215**
+**A ``bool`` return does not make a predicate** ``[review]``. **377** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **217**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -1339,6 +1426,16 @@ this one is not gated, so any figure written here would drift unchecked.
   ``super()``; it is ``_prepare_contents``. The wrong prefix costs placement too,
   since §2.2's table is keyed on it. A ``_check_*`` that is not an
   ``@api.constrains`` hook belongs beside the operation it guards.
+* **A third kind is neither, and the rule above must not be read onto it**
+  ``[review]``: an ``@api.constrains`` hook whose body is ``pass``, declared so
+  that a downstream module has a constraint to override. ``hr.employee``'s
+  ``_check_ssnid`` is empty and ``l10n_us_hr_payroll`` supplies the ``raise``.
+  It owes no ``ValidationError`` here and it is not advisory -- it is an
+  extension point, and the ``@api.constrains`` is what registers the trigger
+  fields on behalf of every overrider, which is why the declaration cannot move
+  downstream with the body. **The test is whether an override exists**, not what
+  the body does: an empty constraint nobody overrides is dead, and the repair
+  there is deletion rather than either branch above.
 
 **``_should_`` is a fourth predicate prefix, and the row does not list it**
 ``[review]``. *Frozen reading* (§1.4) at ``216b5a03021``: ``_is_`` **363**,
@@ -1384,6 +1481,21 @@ rewrite exists.
   both or splits, and the **call sites** say which: same consumer → name both
   (``_prepare_body_and_stylesheets``); different consumers → split. **"Unused
   here" is not "unused"** -- grep the workspace, not the file.
+* **Where both products share a head, write the head once** ``[review]``.
+  ``_available_intervals`` returned the available intervals *and* the occupied
+  ones and named the first, which is §2.4.12's "one branch of three" in another
+  shape. It is ``_get_intervals_available_and_occupied``: one head, two
+  qualifiers, and the count of qualifiers is the count of values -- which makes
+  the audit something a reader can do from the name alone.
+* **The entry point already names the operation; the descent must wear its noun**
+  ``[review]``. §2.4.7's *ask whether the name already belongs to a method one
+  frame up* is written there for payload builders, and it is the same test here.
+  ``_get_first_available_slot`` dispatched to ``_walk_forward`` and
+  ``_walk_backward``, which return a slot and are assigned to a local called
+  ``slot``; walking is how, not what. They are ``_get_slot_forward`` and
+  ``_get_slot_backward``, which is also what buys ``_get_slot_`` as the grep for
+  the descent the ``ir.cron`` bullet above asks for. **The mechanics belong in
+  the tail, where they still distinguish the pair.**
 
 2.4.10 Errors and stand-in names
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1442,7 +1554,7 @@ among them have been renamed to ``_get_``. Split by what the body does, the **27
   (``_find_available_name`` appends ``(2)``, ``(3)`` until unused: a derivation).
 
 The third kind is gone. **The canonical is ``_get_or_create_*``**: **1** methods
-here still spell it ``_find_``, against **25** spelling it ``_get_``. ``_find_``
+here still spell it ``_find_``, against **27** spelling it ``_get_``. ``_find_``
 is not in the abolished table, because classification needs the body: a pass keyed
 on the name scored both survivors as pure reads, and a check for ``create`` /
 ``write`` / ``unlink`` / ``copy`` moved them out.
@@ -1453,7 +1565,7 @@ row -- ``return self.type == "binary"`` -- while its caller discards the return
 inside ``except (ValidationError, RequestException)``: the contract is *fetch the
 remote bytes and store them locally*.
 
-**``_resolve_`` is the verb to keep** ``[review]``, at **41** definitions here
+**``_resolve_`` is the verb to keep** ``[review]``, at **42** definitions here
 against the size of ``_find_`` -- **27**. It is a **partial** producer, returning
 the object or ``None`` meaning *not applicable*; a read that always answers is
 ``_get_``. Where a dispatch chain mixes the spellings, read it as the chain saying
@@ -1482,16 +1594,24 @@ half that is least true. Name the scope in the imperative --
 ``_staged_filestore_temp`` → ``_stage_temp_file``, on the model of
 ``borrow_request``, ``savepoint``, ``ignore_indexes``.
 
+**And it can never be a field hook**, so §2.4.1's reserved-prefix test applies to
+a ``@contextmanager`` unconditionally -- there is no declaration that could make
+the prefix honest. ``hr.employee``'s ``_domain_errors_as_access_errors`` wore
+``_domain_`` while opening a scope in which a domain's ``ValueError`` surfaces as
+an ``AccessError``; it is ``_mask_domain_errors_as_access_errors``. **Read the
+decorator before the name**: the two gates keyed on field declarations cannot see
+a hook prefix here at all, because nothing points at the method.
+
 2.4.12 Mutation, sync and overloaded verbs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **``_update_``, not ``_set_``** ``[review]``, for a method that writes to records
-and is wired to nothing. ``_set_*`` (139 definitions) and ``_update_*`` (304) are
+and is wired to nothing. ``_set_*`` (126 definitions) and ``_update_*`` (325) are
 near-evenly split, so this is a backlog rather than a tidy-up. Three carve-outs,
 all bindings:
 
 * an ``inverse=`` target is ``_inverse_<field>`` and was never a ``_set_``
-  question -- 251 against 3 now that the count is drained;
+  question -- 253 against 1 now that the count is drained;
 * ``set_values`` / ``get_values`` on ``res.config.settings`` are *bound by name,
   not by inheritance* (§2.4.14);
 * ``set_param`` on ``ir.config_parameter`` is public and reached from JS and XML
@@ -1505,7 +1625,7 @@ the duplicate report this section exists to produce.
 create where the target is missing, a write where it differs and an unlink where
 the source is gone. **The canonical is ``_sync_*``**, and the tree had a family
 for it this section had never named: **62** definitions spell it ``_sync_*`` and
-**14** spell it ``_synchronize_*``, against ``_update_*``'s **304**. It is not
+**14** spell it ``_synchronize_*``, against ``_update_*``'s **325**. It is not
 merged into ``_update_`` -- the verb carries a fact the other does not, that there
 is a source of truth elsewhere. ``[review]`` rather than ``ABOLISHED``, since not
 every ``_synchronize_`` is this operation.
@@ -1520,6 +1640,43 @@ covers disagree about what the operation is, prefer the test's word.**
 meanings -- ``account.move._post`` (accounting), ``message_post`` (mail) and HTTP
 handlers. Do not add a fourth: new code names the domain operation. The existing
 three are load-bearing.
+
+**And a fourth reading is not a fourth meaning: it is a different word**
+``[review]``. In ``_post_write``, ``_post_load_data``, ``_post_process_picking``,
+``post`` is the prefix *after* -- an adverb bound to the operation behind it, not
+the verb any of the three above uses. *Frozen reading* (§1.4) at ``75ef0eec641``,
+hand-classified: of **139** ``post_*`` model methods, **52** read this way, which
+makes it the largest reading after the three the rule names. Two consequences.
+The census counts spellings and cannot separate them, so **do not read 137 as
+three families**. And "new code names the domain operation" does not reach these:
+an after-``write`` hook has no domain operation to name, because it is named for
+*when* it runs. Keep the prefix, and keep an ORM operation immediately behind it
+so the adverb reading is forced -- ``_post_write_workcenter`` survives, while a
+``_post_workcenter`` would collapse into the verb.
+
+**A ``_toggle_`` handed the new value is an ``_update_``** ``[review]``, and the
+signature is the whole test -- it does not need the body opened. The verb claims
+the method read the current value to pick the new one; a parameter carrying the
+new value says it did not. *Frozen reading* (§1.4) at ``75ef0eec641`` over
+§2.4.3's population: **24** ``toggle`` model methods, of which **13** take the
+value they claim to toggle (``toggle_is_reached(is_reached)``,
+``_toggle_template_mode(is_template)``, ``_toggle_view(xml_id, active)``), **9**
+decide for themselves and are correct (``toggle_lock``,
+``toggle_message_starred``, ``toggle_debug``), and **2** take *which record*
+rather than *which value* (``ir.cron.toggle``, ``toggle_noupdate``) and are
+correct too.
+
+* **The signature is a lower bound on the family, not the whole of it.** The new
+  value can arrive through the **name** instead:
+  ``account.account._toggle_reconcile_to_true`` and ``._toggle_reconcile_to_false``
+  take no argument, pass the signature test, and neither toggles anything. The
+  rule is *the new value arriving by any route*; the signature is the half that
+  can be checked without reading.
+
+**The Mutation row's discriminator is the write, not the ORM** ``[review]``. A
+method handed a ``dict`` its caller owns, which adds to it, is this row and not a
+payload builder, even though no record is written; §2.4.7's parameter-list test
+is what separates the two.
 
 2.4.13 Scope, adoption and the ratchet
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1565,6 +1722,39 @@ populations in the same files are counted by nothing: a function declared at
 method on a **plain class** declared in the same file, of which there are **390**
 across **153** classes. Counted over the addon trees only, since a directory test
 alone would sweep in ORM internals the vocabulary does not reach.
+
+**A function nested inside a method is the third such population, and the
+largest** ``[gate doc_restated_counts]``. The scan reads ``tree.body`` for module
+level and a class body for its methods, so a ``def`` written inside a method body
+is reached by neither test: **574** of them sit on model methods in this
+repository, against the 322 and the 390 above. They are also the cheapest names
+in the tree to repair, because a nested function is reachable from nothing
+outside the body that declares it -- no binding (§2.4.14), no override, no call
+site a grep can miss, and no other owner to collide with. **A sweep that leaves
+them out is leaving out the half of its own work that costs nothing.** ``mrp``
+alone held six with no verb at all: ``fallback_loc``, ``next_move``,
+``workorder_order``, ``operation_key_values``, and ``_keys_in_groupby`` twice.
+
+* **The leading underscore means nothing here, and is better dropped.** It marks
+  a member private to a class; a nested function is private to a *body*, which no
+  caller can reach at all, so the underscore says only that its author was
+  matching the methods around it.
+* **A nested function passed as an argument is a slot** (§2.4.10), and the slot
+  is a parameter of the callee, not a ``def`` a definition-driven sweep will
+  read: ``_keys_in_groupby`` was handed to ``stock``'s ``groupby_method=`` and is
+  ``get_groupby_key``.
+* **It is invisible to the reviewer as well as to the gate**, which the other two
+  populations are not: a nested ``def`` appears in no outline and in no search
+  for ``^    def``. **Grep ``\bdef `` when sweeping a file**, and expect a higher
+  count than the class body suggests.
+* **A closure is where a vocabulary drifts**, for the same reason it is cheap to
+  fix: nothing outside the method can collide with the name, so nothing pushes
+  back on a private spelling. The freedom and the drift are one fact.
+* **The backlog inside it is small, and that is the point**
+  ``[gate doc_restated_counts]``: of the 574, **8** open with a verb the abolished
+  table reports and **7** with a reserved one. So this population is named as a
+  discipline rather than as debt -- the cost of leaving it ungoverned is not a
+  pile of bad names today, it is that nothing stops one forming.
 
 **A file can be sixteen names wrong and green** -- three sweeps left the ratchet
 reporting the same count before and after, which is the argument for the
@@ -1702,6 +1892,25 @@ package that states it, and ``lifecycle.py``'s
 ``_get_placeholder_filename(self, field: str)`` is *bound by name*, so its
 parameter name is copied into every addon implementing it.
 
+**It is a rule about a name, not about a parameter position** ``[review]``. A
+method whose tail is ``_field`` promises a ``Field`` in exactly the way a
+parameter does, and the ones that break it are harder to see because the return
+is never annotated. ``hr.employee._get_new_hire_field`` returned the string
+``"create_date"``; ``hr.version._get_contract_wage_field`` returned a column name
+its callers spend as ``self[...]`` and as a ``dict`` key in four modules. Both
+now end ``_field_name``. The same reading governs a **collection**: a tail of
+``_ids`` promises ids, and ``hr.department.get_children_department_ids`` returned
+a recordset -- the tell was that its only call site wrote ``.ids`` immediately
+after it, which is the caller repairing the name in place.
+
+**A body that spells the concept the other way is the evidence** ``[review]``,
+and it is cheaper than reading the annotation. ``_get_version_periods(field=...)``
+raised ``"This field %(field_name)s doesn't exist on this model"``: the message
+had the right word and the signature did not. This is §2.4.4's vocabulary-mismatch
+check applied to a parameter -- **grep the body for the other spelling before
+deciding which one is correct**, because whichever one the author wrote where it
+would be *read by a user* is usually the one they meant.
+
 2.4.16 Placement
 ~~~~~~~~~~~~~~~~
 
@@ -1749,6 +1958,19 @@ else → ``_prepare_*`` or its public form. *Frozen reading* (§1.4) at
 distinct ``action_*`` model methods in the bundled tree appear as a literal
 ``name=`` or ``action=`` in XML or JS. That sizes the convention, not the
 violation.
+
+**The discriminator reads in both directions, and the reading nobody does is the
+second one** ``[review]``. *Invoked by the client -> ``action_*``* is the whole
+rule, so a method a ``<button type="object">`` names wears the prefix **even
+when it returns nothing and does not look like an action**:
+``hr.employee.generate_random_barcode`` writes a field and returns ``None``, and
+was named by a button in ``hr`` and by an ``xpath`` onto that button in
+``hr_attendance``; it is ``action_generate_random_barcode``. The frozen reading
+above counts ``action_*`` methods that XML names -- it says nothing about how
+many client-named methods are missing the prefix, which is the direction with
+the backlog in it. **Search from the XML, not from the ``def``**: every
+``name="…" type="object"`` and every ``orm.call`` is a client invocation, and
+that list is short enough to read.
 
 **Field wiring beats the name.** A method referenced by ``inverse="..."`` is an
 inverse even if it is called ``set_*``; ``compute=`` and ``search=`` likewise pin
@@ -1940,6 +2162,278 @@ what makes a format unaddable from outside the module. A reader declares the
 mimetypes it accepts and the representation it yields, and registers itself;
 ``get_readers`` is the only dispatch. The same holds for extractors, which
 additionally declare what they cost, so the cheap one is tried first.
+
+2.4.19 What a Python-only reading misses
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+§2.4.13 says the vocabulary reaches further than the gate, and §2.4.14 says a
+rename carries its bindings. Two bindings sit in the gap between them -- a
+caller and a data column -- and a sweep that reads ``def`` statements finds
+neither. Each has cost a rename that looked finished. The third thing in that
+gap is a *definition* rather than a binding, and it is §2.4.13's fourth
+ungoverned population.
+
+**A raising validator is a legitimate public contract** ``[review]``, and
+§2.4.4's signature evidence does not reach it. That rule reads a return of
+recordsets, callables or exceptions -- anything that will not serialise -- as
+proof the missing underscore was an oversight. **A method that returns nothing
+at all serialises perfectly**, and where the whole contract is the ``raise``,
+the client calls it precisely to receive the error. ``hr.version``'s
+``check_contract_finished`` takes no argument, returns nothing and only raises;
+``button_new_contract.js`` awaits ``orm.call("hr.version",
+"check_contract_finished", …)`` and lets the ``ValidationError`` surface as the
+dialog. Both it and ``hr.employee.check_no_existing_contract`` are correctly
+public, and the reading that would have privatised them is the signature.
+**Settle it with the caller, and look for it in ``static/src`` before the
+signature**: ``git grep -n '"<name>"' -- '*/static/src'`` costs one command and
+answers the question the signature only guesses at. The evidence in §2.4.4 is
+sound in one direction -- a non-serialisable *parameter* still proves the RPC
+call cannot happen -- and unsound in the other.
+
+**A method name can live in a database column that no upgrade rewrites**
+``[review]``. §2.4.14 has the case -- ``ir.actions.server`` stores Python source
+-- and this is the test it does not give: **``noupdate``**. A server action or
+cron declared in an updatable data file is rewritten on every module upgrade, so
+renaming its target is an ordinary greppable rename. One inside ``<data
+noupdate="1">`` is written at install and never again, so the old name survives
+in every database that already has it and the rename needs a migration script.
+``hr``'s ``notify_expiring_contract_work_permit`` is named by
+``model.notify_expiring_contract_work_permit()`` in an ``ir.cron`` under
+``noupdate="1"``: a green tree there means nothing, and it is left as found for
+that reason and not because the name is right. **Check the flag on the enclosing
+``<data>``, not the file.**
+
+**A nested function is the population §2.4.13 counts as ``nested_helpers``**,
+and the reason to read it there rather than here is that the three ungoverned
+populations only mean anything together. Two things about it belong to this
+section, because they are about the *reading* rather than the count: it is
+invisible to a reviewer as well as to the gate, since it appears in no outline
+and in no search for ``^    def``; so when sweeping a file, **grep ``\bdef ``
+and not ``^    def``**. ``hr``'s was ``date2datetime`` (§2.4.5).
+
+2.4.20 Synonyms, and the verbs the table does not print
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**A zero on the abolished table is evidence the sweep ran, not evidence the
+operation is gone** ``[review]``. *Frozen reading* (§1.4) at ``75ef0eec641``, an
+ad-hoc census over §2.4.3's population: ``_fill_``, ``_purge_`` and ``_derive_``
+stand at **0** model methods each -- three of the table's own entries, drained to
+nothing. The operations they name are not gone. ``_determine_`` stands at **6**
+definitions, ``_populate_`` at **4**, ``_prune_`` at **2** and ``_seed_`` at
+**2**, and every one is a row of the table under a word nobody listed: populating
+is filling, pruning is purging, determining is deriving, seeding is creating.
+``naming_vocabulary.py`` matches the literal token by construction, so a synonym
+is invisible to it -- and the entry it *can* see reaches zero looking like a
+finished family.
+
+**So read the table as families, not as a word list** ``[review]``. Where a verb
+is not printed there, do not conclude it is ungoverned: ask which row's
+*discriminator* the body satisfies, and take that row's canonical. The four above
+are ``_update_``, ``_remove_``, ``_read_`` and ``create``. §2.4.12's ``_toggle_``
+is the same reading arriving from the other side, and §2.4.8 is this one in
+reverse -- a name wearing a listed verb that turns out not to belong to its
+family.
+
+**``_show_`` is a fourth predicate prefix, on §2.4.8's terms** ``[review]``, at
+**16** definitions under **12** names. It answers a question about the subject
+and returns a ``bool``, so it belongs to ``_is_`` / ``_has_`` / ``_can_`` with the
+modality moved into the tail exactly as ``_should_``'s is: ``_show_profitability``
+is ``_is_profitability_shown``. It is out of ``ABOLISHED`` for the reason that row
+gives for ``_should_`` -- an entry prints one canonical target and this family has
+three.
+
+**A ``_show_X`` beside a ``_show_X_helper`` is two questions under one name**
+``[review]``. The pair asked *is there profitability to show* and *may this user
+see the analytic breakdown*: the second is not a helper of the first, it is a
+different subject, and ``_helper`` is §2.4.17's ``_impl`` under another word -- a
+suffix standing where the discriminator was left unsaid.
+
+**A public ``check_*`` that returns instead of raising is the Validation row's
+blind spot** ``[review]``. §2.4.8 makes the point for the unbound *private*
+spelling; the public one is where it survives, because no ``@api.constrains``
+binds it, no gate reads it, and the missing underscore keeps it out of every sweep
+aimed at internals. ``project.project.check_features_enabled`` returned
+``dict[str, bool]``, never raised, and was called over RPC by two form
+controllers: it is a read, and it is ``get_features_enabled``. **Ask what the
+method does on failure before believing its prefix** -- where the answer is
+*returns something*, the prefix is wrong whatever the underscore. ADR-0053 already
+licenses the public spelling, so the rename owes the workspace-wide rewrite, not a
+new record. **§2.4.19 is the converse and must be read with this one**: a public
+``check_*`` that returns nothing and *only* raises is correct, and privatising it
+would break the client that calls it to receive the error.
+
+**``_refresh_`` is the fourth cache verb §2.4.17 declines to add** ``[review]``,
+at **15** definitions under **13** names. It names neither the drop nor the
+rebuild, so it cannot tell a reader whether values survive the call -- the single
+thing the other three exist to say. Read the body and pick one:
+``project.project._refresh_metrics`` marked its stored snapshot fields to
+recompute and flushed, so the state exists again afterwards, and it is
+``_reset_metrics``.
+
+**A reserved ORM verb on a method that opens a dialog costs a reader the whole
+body** ``[review]``. ``project.phase.unlink_wizard`` created a wizard and returned
+an action; nothing was deleted, and the name asserts two false things at once --
+that the ORM operation runs, and that the wizard is its object. §2.4's opening
+table already answers it: a view opener is ``action_view_*``, and ``action_open_*``
+is the spelling for a wizard.
+
+**Where the method name is also an XML id, one substitution is two** ``[review]``.
+§2.4.14 says the key is not the method; the sharper case is the one where the two
+are spelled the same. ``project.project.project_update_all_action`` returned the
+``ir.actions.act_window`` whose id is ``project.project_update_all_action``, so a
+whole-word substitution renames the record and every ``ref=`` pointing at it along
+with the method. **Match the syntax rather than the name**: the whole attribute
+value ``name="..."`` in view arch, and the call parenthesis in stored Python. The
+method became ``action_view_project_updates`` and the record kept its id. The same
+boundary is what protects a *longer* name that contains yours -- ``\yunlink_wizard\y``
+leaves ``action_unlink_wizard`` alone, and a migration that gets this wrong is
+found by reading the column, not by any test.
+
+**Do not run a formatter over a directory to tidy up after a rename**
+``[review]``. ``ruff format`` blocks on ``tooling/`` and ``tests/`` only, so
+``addons/`` and the sibling repositories are **not** format-clean at ``HEAD``, and
+a directory-wide run rewrites files the rename never touched -- 35 of them in the
+pass behind this entry, most of ``enterprise/helpdesk`` among them, in a workspace
+several sessions are holding. ``ruff format $(git diff --name-only -- '*.py')``
+reflows the lines the longer name actually broke and nothing else. Where such a
+run has already happened, a file is safe to restore only once you have **shown**
+its content is exactly ``ruff format`` applied to its ``HEAD`` content -- any edit
+of somebody else's would have survived the formatting, and restoring would destroy
+it.
+
+**Neither is a whole-file write, for the same reason** ``[review]``. This section
+was written, lost and written again inside one hour, because
+``git checkout -- doc/coding_guidelines.rst`` and *"run the figure updater in a
+worktree and copy the file back"* are both whole-file writes wearing the look of
+housekeeping. In a shared checkout they silently discard every hunk that landed in
+between, and this file has no index to protect it. Read a clean copy with
+``git show HEAD:<path> >`` somewhere outside the checkout, edit by anchored hunk,
+and re-read the anchor immediately before each write.
+
+2.4.21 A prefix is a claim, and the claim is checkable
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+§2.4.1 argues this for field hooks -- a reserved prefix asserts that a field
+declaration somewhere names this method, and while the assertion is false the
+spelling is unowned. §2.4.16 argues it for ``action_``, where the assertion is
+that the client invokes the method by name. **Both are instances of one rule,
+and it reaches every namespace a module invents**: a prefix that names a
+protocol claims the protocol's dispatcher reaches this name, and the test is to
+go and find the call. Where the prefix instead claims something about the
+*return*, the test is the body. Neither test is expensive; what makes the claim
+worth checking is that nothing else in the tree records it.
+
+**A protocol namespace is a claim about the caller** ``[review]``.
+``point_of_sale`` declares its data-loading protocol on an ``AbstractModel``,
+which is what §2.4.14 asks for -- and the declaration site did not stop the
+namespace spreading past the protocol. *Frozen reading* (§1.4) at
+``75ef0eec641``, an ad-hoc scanner over ``addons/``, ``enterprise/`` and
+``agromarin/``: **8** names wear ``_load_pos_data_``, at **271** definitions.
+The loader dispatches exactly **4** of them per model -- ``_search_read`` and
+``_fields`` on ``self.env[model]``, ``_domain`` and ``_read`` through the first
+of those -- at **246** definitions. The remaining **4**, at **25**, are one model's private helpers
+wearing the protocol's spelling: ``_load_pos_data_country_ids`` was called only
+by ``res.country``'s own ``_load_pos_data_domain``, and
+``_load_pos_data_relations`` takes a model *name* and is reached as
+``self.env["pos.session"]._load_pos_data_relations("pos.config", fields)`` --
+a ``pos.session`` utility, not a member of the per-model protocol at all.
+
+* **The cost is §2.4.1's collision, one level up.** A model implementing the
+  protocol cannot tell from the names which of its ``_load_pos_data_*`` methods
+  the loader will call and which are its own, and the dispatcher that settles it
+  is in another file. Two are repaired here (``_get_referenced_country_ids``,
+  ``_get_referenced_ids``); the other two are backlog, because their overrides
+  are spread over three repositories -- which is the second cost, since a
+  namespace that is not the protocol still recruits overriders as if it were.
+* **A declaration site does not enforce the namespace, and no gate does either.**
+  ``model_member_surface_check.py`` pins declared members, not the spelling of
+  their neighbours. Read the dispatcher.
+
+**``action_`` is the same claim, and §2.4.16 sizes only one of its directions**
+``[review]``. That section counts ``action_*`` methods the XML names and says so;
+the direction with the backlog in it is the other one. *Frozen reading* (§1.4) at
+``75ef0eec641``, an ad-hoc scanner: **20** distinct methods are named by a
+``<button ... type="object">`` in ``point_of_sale``'s views and wizards, and
+**9** wore the prefix. Of the eleven that did not, eight are repaired here; the
+three left are one decision, below.
+
+**A JS call is not that claim, and reading §2.4.16's "a JS call" literally
+inverts the rule** ``[review]``. Point of sale is a JS application talking to its
+own models, so it is where that reading fails at scale: same frozen reading,
+**14** distinct model methods are named from ``point_of_sale/static/src`` by
+``orm.call`` / ``data.call``, and only **2** wear ``action_`` -- both of which
+return an action the client executes. The other twelve are data RPCs
+(``get_closing_control_data``, ``load_data_params``, ``get_existing_lots``) and
+are right without the prefix. **The discriminator is not that the client names
+the method, but that the client hands the return to its action service.** A
+value the client fetches and reads is ``get_*`` however it is invoked.
+
+* **The claim can also be false in the third direction -- ``action_`` on a
+  method nobody invokes** ``[review]``, and it is the hardest of the three to
+  settle. ``project.project.action_reset_metrics`` returns a bare ``True`` and
+  is named by no XML, no JS and nothing but its own tests, which on the
+  discriminator above is not an action. It is **not** repaired on that evidence,
+  and its own module says why: ``project/migrations/1.19/post-migrate.py``
+  rewrites four method names inside stored Python, so this model is known to be
+  reached from a database column §2.4.19 warns no grep can see. **Where the
+  claim is about a caller and the caller may be in a database, "nothing greps
+  it" is not the answer** -- the reading needed is the ``noupdate`` test in
+  §2.4.19, not a wider grep.
+* **A ``_cb`` tail is that claim written backwards** ``[review]``. It records
+  that something calls back -- which §2.4.9 already objects to as a role rather
+  than an operation -- while saying nothing about *who*, which is the half that
+  would have been worth writing. Both of this module's were client-named
+  buttons: ``open_existing_session_cb`` is ``action_view_current_session`` and
+  ``open_frontend_cb`` is ``action_open_frontend``.
+
+**A predicate prefix is a claim about the return, and the same test applies to
+it** ``[review]``. ``pos.config._is_journal_exist(journal_code, name,
+company_id)`` searched for a journal, **created one when it found none**, and
+returned an ``id``; ``_is_pos_pm_exist`` was the same method for payment
+methods. Three prefixes' worth of claim, all false: ``_is_`` promises a ``bool``
+answering a question about the subject (§2.4.8), ``exists`` is reserved for
+``recordset.exists()`` and schema introspection (§2.4.3), and a predicate does
+not write. **Where a name breaks three rules at once, do not repair them one at
+a time**: ask which row's discriminator the *body* satisfies and rename once.
+§2.4.11's canonical answers all three in one move -- ``_get_or_create_journal_id``
+and ``_get_or_create_payment_method_id``, with §2.4.15's tail rule supplying the
+``_id`` that says what comes back.
+
+* **The worst case is the one where the prefix is the whole name.**
+  ``pos.make.payment.check()`` takes the payment, writes it to the order and
+  returns an action, behind a button reading *Make Payment*. It is not a
+  ``check_*`` whose object is wrong (§2.4.20's ``check_features_enabled`` is
+  that); it has no object at all, so §2.4.4's verb-object rule, the Validation
+  row and §2.4.16's binding all fail on the same four letters, and it was 45
+  call sites deep across three repositories. **A one-word public method name is
+  worth reading on sight**: there is nowhere in it for a discriminator to be,
+  so it is either a domain operation on the receiver (§2.4.6) or a name nobody
+  ever finished. It is ``action_make_payment``.
+
+**The caller's variable is evidence, in the one place the body cannot be**
+``[review]``. §2.4.4 reads the variable a method returns, in its own body. On an
+**extension point** that evidence is missing by construction -- §2.4.11 already
+warns that such a body is the least informative in the tree -- and the variable
+worth reading is at the call site, written by the consumer.
+``mixin.pos.load._unrelevant_records(config)`` returned ``.ids`` under a name
+promising records, and its one caller in ``pos.session`` had written
+``inactive_ids = set(existing_records._unrelevant_records(...))``: the name it
+was owed was ``_get_inactive_ids``, spelled out three files away by the only
+code that had to know what it got. **Read the call sites of an override point
+before its body**, and prefer what the consumer called the value.
+
+**Where the name and the body disagree completely, the rename is a product
+question and the pass stops** ``[review]``. ``pos.config.close_ui`` is
+``return self.open_ui()``, and ``res.config.settings.pos_close_ui`` is
+``return self.pos_open_ui()``; each is named by a button reading *Click here to
+close the session*, and each opens the point-of-sale UI, which is where a
+session is then closed. No spelling repairs that. Either the alias exists so a
+downstream module can override one button without the other -- ``pos_self_order``
+does override ``close_ui`` -- and it is owed a name saying which button it
+serves, or it is dead and the repair is deletion. **Both are left as found on
+purpose**, together with ``open_ui``, and this paragraph is the record that they
+were read and not missed. A naming pass that guesses here writes a name that is
+merely differently wrong.
 
 2.5 Docstrings and comments
 ---------------------------
@@ -4606,6 +5100,63 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.13
+     - 2026-08-31
+     - §2.4 tightened against a rename pass over ``addons/point_of_sale``. New
+       §2.4.21: a prefix is a claim, and the claim is checkable -- a protocol
+       namespace claims the dispatcher reaches the name, ``action_`` claims the
+       client hands the return to its action service (so an ``orm.call`` target
+       is not an action, which is how §2.4.16's "a JS call" had been read), a
+       ``_cb`` tail is that claim written backwards, and a predicate prefix
+       claims a ``bool``. Also: where a name breaks three rules at once, rename
+       once from the body's row rather than repairing them in turn; the caller's
+       variable is the evidence an extension point's own body cannot give; and
+       where the name and the body disagree completely the rename is a product
+       question and the pass stops.
+   * - 6.12
+     - 2026-08-31
+     - New §2.4.20, written against a rename pass over ``addons/project``: a zero
+       on the abolished table means the sweep ran, not that the operation is gone
+       -- ``_fill_`` / ``_purge_`` / ``_derive_`` are drained while
+       ``_determine_`` / ``_populate_`` / ``_prune_`` / ``_seed_`` say the same
+       four things, so the table is read as families and not as a word list.
+       Also: ``_show_`` is a fourth predicate prefix and ``_helper`` is
+       ``_impl``; a **public** ``check_*`` that returns instead of raising is the
+       Validation row's blind spot, with §2.4.19 as its converse; ``_refresh_``
+       is the fourth cache verb §2.4.17 declines to add; a reserved ORM verb on a
+       dialog opener is ``action_open_*``; where a method name is also an XML id,
+       match the syntax and not the name; and a formatter is run over the files a
+       rename changed, never over the directory -- as neither is a whole-file
+       write of a file five sessions share.
+   * - 6.11
+     - 2026-08-31
+     - §2.4 tightened against a rename pass over ``addons/mrp``. §2.4.4: the
+       variable a method returns is the strongest evidence for its name, and a
+       first token repeating the model is what hides the verb. §2.4.6: a
+       predicate named for the branch its caller takes is named for the wrong
+       subject, and the receiver supplies the noun a verb owes. §2.4.7:
+       ``_calculate_`` is the read family's ``_generate_``, and ``_prepare_``
+       against ``_update_`` is settled on the parameter list, not the consumer.
+       §2.4.9: where a tuple's products share a head, write the head once, and
+       the descent wears the entry point's noun. §2.4.12: ``_post_`` before an
+       ORM operation is the adverb *after*, not the verb; a ``_toggle_`` handed
+       the new value is an ``_update_``; the Mutation row's discriminator is the
+       write, not the ORM. §2.4.13: a function nested inside a method is the
+       third ungoverned population and the largest, now gated at
+       ``nested_helpers`` rather than left to a scanner.
+   * - 6.10
+     - 2026-08-31
+     - §2.4 tightened against a rename pass over ``addons/hr``. §2.4.1: a hook
+       prefix on a non-hook is a collision, because the spelling stays free for a
+       real hook on another model. §2.4.5: ``2`` is the ORM's cardinality
+       notation, not a spelling of ``to``. §2.4.8: an empty ``@api.constrains``
+       is an extension point and neither of the two branches. §2.4.11: the
+       reserved-prefix test applies to a ``@contextmanager`` unconditionally.
+       §2.4.15: ``field`` / ``field_name`` governs a method name and an ``_ids``
+       tail, not only a parameter. §2.4.16: the ``action_*`` discriminator reads
+       from the XML as well as from the ``def``. New §2.4.19: a raising validator
+       is a legitimate public RPC contract, and ``noupdate`` is the test for
+       whether a server-action rename needs a migration.
    * - 6.9
      - 2026-08-30
      - §2.4.7: the core package is clean of the assemble verbs, and it is gated

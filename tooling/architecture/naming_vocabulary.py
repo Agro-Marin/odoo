@@ -383,6 +383,10 @@ class Census:
     module_level_helpers: int
     helper_class_methods: int
     helper_classes: int
+    nested_helpers: int
+    nested_abolished: int
+    nested_reserved: int
+    calculate: int
     bool_returning_predicates: int
     bool_returning_others: int
     render_dispatch_prefixed: int
@@ -452,6 +456,9 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
     )
     module_level_helpers = 0
     helper_class_methods = helper_classes = 0
+    nested_helpers = 0
+    nested_abolished = nested_reserved = 0
+    calculate = 0
     bool_pred = bool_other = 0
     find_read = find_oc = get_oc = find_misc = 0
     prepare_writing = 0
@@ -489,7 +496,19 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
                 if not isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
                     continue
                 names.append(item.name)
+                for inner in ast.walk(item):
+                    if inner is item or not isinstance(
+                        inner, ast.FunctionDef | ast.AsyncFunctionDef
+                    ):
+                        continue
+                    nested_helpers += 1
+                    if classify(inner.name) is not None:
+                        nested_abolished += 1
+                    elif inner.name.lstrip("_").partition("_")[0] in RESERVED:
+                        nested_reserved += 1
                 _stem = item.name.lstrip("_")
+                if _stem.partition("_")[0] == "calculate" and _stem.partition("_")[2]:
+                    calculate += 1
                 if item.name.startswith(_RENDER_DISPATCH_PREFIX):
                     render_prefixed += 1
                 if (
@@ -605,6 +624,10 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
         module_level_helpers=module_level_helpers,
         helper_class_methods=helper_class_methods,
         helper_classes=helper_classes,
+        nested_helpers=nested_helpers,
+        nested_abolished=nested_abolished,
+        nested_reserved=nested_reserved,
+        calculate=calculate,
         bool_returning_predicates=bool_pred,
         bool_returning_others=bool_other,
         render_dispatch_prefixed=render_prefixed,

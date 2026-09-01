@@ -499,6 +499,33 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         _grouped,
     ),
     Figure(
+        "nested_helpers",
+        GUIDELINES,
+        re.compile(r"\*\*(\d[\d,]*)\*\*\s+of\s+them\s+sit\s+on\s+model\s+methods"),
+        lambda: (naming_vocabulary.census().nested_helpers,),
+        _grouped,
+    ),
+    Figure(
+        "nested_backlog",
+        GUIDELINES,
+        re.compile(
+            r"\*\*(\d[\d,]*)\*\*\s+open\s+with\s+a\s+verb\s+the\s+abolished\s+"
+            r"table\s+reports\s+and\s+\*\*(\d[\d,]*)\*\*\s+with\s+a\s+reserved\s+one"
+        ),
+        lambda: (
+            naming_vocabulary.census().nested_abolished,
+            naming_vocabulary.census().nested_reserved,
+        ),
+        _grouped,
+    ),
+    Figure(
+        "calculate_family",
+        GUIDELINES,
+        re.compile(r"\*\*(\d[\d,]*)\*\*\s+model\s+methods\s+still\s+wear\s+it"),
+        lambda: (naming_vocabulary.census().calculate,),
+        _grouped,
+    ),
+    Figure(
         "render_dispatch_prefix",
         GUIDELINES,
         re.compile(
