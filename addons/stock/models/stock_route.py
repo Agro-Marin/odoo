@@ -105,15 +105,13 @@ class StockRoute(models.Model):
 
     def write(self, vals):
         if "active" in vals:
-            rules = (
-                self.with_context(active_test=False)
-                .rule_ids.sudo()
-                .filtered(lambda rule: rule.location_dest_id.active)
-            )
+            all_rules = self.with_context(active_test=False).rule_ids.sudo()
             if vals["active"]:
-                rules.action_unarchive()
+                all_rules.filtered(
+                    lambda rule: rule.location_dest_id.active
+                ).action_unarchive()
             else:
-                rules.action_archive()
+                all_rules.action_archive()
         res = super().write(vals)
         if vals.get("active"):
             for warehouse in self.sudo().supplier_wh_id:
