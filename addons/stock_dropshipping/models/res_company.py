@@ -1,5 +1,7 @@
 from odoo import api, models
 
+from ._constants import DROPSHIP_DEST_LOCATION_XMLID, DROPSHIP_SOURCE_LOCATION_XMLID
+
 
 class ResCompany(models.Model):
     _inherit = "res.company"
@@ -48,10 +50,10 @@ class ResCompany(models.Model):
                     "sequence_id": sequence.id,
                     "code": "dropship",
                     "default_location_src_id": self.env.ref(
-                        "stock.stock_location_suppliers"
+                        DROPSHIP_SOURCE_LOCATION_XMLID
                     ).id,
                     "default_location_dest_id": self.env.ref(
-                        "stock.stock_location_customers"
+                        DROPSHIP_DEST_LOCATION_XMLID
                     ).id,
                     "sequence_code": "DS",
                     "use_existing_lots": False,
