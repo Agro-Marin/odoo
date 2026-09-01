@@ -221,6 +221,18 @@
             <field
                 name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
         </record>
+        <record id="stock_package_type_comp_rule" model="ir.rule">
+            <field name="name">stock_package_type multi-company</field>
+            <field name="model_id" ref="model_stock_package_type" />
+            <field
+                name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+        </record>
+        <record id="stock_storage_category_capacity_comp_rule" model="ir.rule">
+            <field name="name">stock_storage_category_capacity multi-company</field>
+            <field name="model_id" ref="model_stock_storage_category_capacity" />
+            <field
+                name="domain_force">[('storage_category_id.company_id', 'in', company_ids + [False])]</field>
+        </record>
     </data>
 
 </odoo>
