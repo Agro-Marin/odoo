@@ -802,6 +802,85 @@ class TestWorkflowGraphPayload(TransactionCase):
             {self.first.id: "done", self.second.id: "done"},
         )
 
+    def _make_runtime(self):
+        return self.env["automation.runtime"].create(
+            {
+                "automation_id": self.automation.id,
+                "res_model": "res.partner",
+                "res_id": self.partner.id,
+            }
+        )
+
+    def test_a_run_still_in_flight_is_overlaid_without_being_asked(self):
+        runtime = self._make_runtime()
+        runtime.action_start()
+
+        graph = self.automation.get_workflow_graph()
+
+        self.assertEqual(graph["runtime_id"], runtime.id)
+        self.assertEqual(graph["runtime_state"], "in_progress")
+
+    def test_a_finished_run_is_not_overlaid_on_the_editor(self):
+        runtime = self._make_runtime()
+        runtime.action_start()
+        runtime.action_run_all()
+
+        graph = self.automation.get_workflow_graph()
+
+        # the canvas is also the DAG editor; a settled run must not colour it
+        self.assertIsNone(graph["runtime_id"])
+        self.assertTrue(all(node["runtime_state"] is None for node in graph["nodes"]))
+
+    def test_the_definition_can_be_pinned_while_a_run_is_in_flight(self):
+        runtime = self._make_runtime()
+        runtime.action_start()
+
+        graph = self.automation.get_workflow_graph(runtime_id=False)
+
+        self.assertIsNone(graph["runtime_id"])
+        self.assertTrue(all(node["runtime_state"] is None for node in graph["nodes"]))
+
+    def test_a_settled_run_is_still_reachable_by_id(self):
+        runtime = self._make_runtime()
+        runtime.action_start()
+        runtime.action_run_all()
+
+        graph = self.automation.get_workflow_graph(runtime_id=runtime.id)
+
+        self.assertEqual(graph["runtime_id"], runtime.id)
+
+    def test_the_history_lists_the_ten_most_recent_runs_newest_first(self):
+        created = [self._make_runtime() for _ in range(12)]
+
+        runs = self.automation.get_workflow_graph()["runs"]
+
+        self.assertEqual(len(runs), 10)
+        self.assertEqual(
+            [run["id"] for run in runs],
+            [runtime.id for runtime in reversed(created)][:10],
+        )
+
+    def test_the_history_only_holds_this_automation_runs(self):
+        mine = self._make_runtime()
+        other = self.env["automation.rule"].create(
+            {
+                "name": "Other",
+                "model_id": self.model_partner.id,
+                "trigger": "on_hand",
+            }
+        )
+        self.env["automation.runtime"].create(
+            {
+                "automation_id": other.id,
+                "res_model": "res.partner",
+                "res_id": self.partner.id,
+            }
+        )
+
+        runs = self.automation.get_workflow_graph()["runs"]
+
+        self.assertEqual([run["id"] for run in runs], [mine.id])
+
     def test_a_runtime_from_another_automation_is_ignored(self):
         other = self.env["automation.rule"].create(
             {
@@ -1336,7 +1415,7 @@ class TestWorkflowBusChannel(TransactionCase):
         websocket = self.env["ir.websocket"]
         if user:
             websocket = websocket.with_user(user)
-        return websocket._build_bus_channel_list(list(requested))
+        return websocket._get_bus_channels(list(requested))
 
     def test_the_string_channel_becomes_a_record_channel(self):
         channels = self._channels([f"automation.workflow/{self.automation.id}"])

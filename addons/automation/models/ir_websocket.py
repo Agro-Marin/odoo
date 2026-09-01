@@ -7,7 +7,7 @@ SUBCHANNEL = "WORKFLOW"
 class IrWebsocket(models.AbstractModel):
     _inherit = "ir.websocket"
 
-    def _build_bus_channel_list(self, channels):
+    def _get_bus_channels(self, channels):
         channels = list(channels)
         requested = [
             channel
@@ -28,4 +28,4 @@ class IrWebsocket(models.AbstractModel):
                 ._filtered_access("read")
             )
             channels.extend((rule, SUBCHANNEL) for rule in readable)
-        return super()._build_bus_channel_list(channels)
+        return super()._get_bus_channels(channels)

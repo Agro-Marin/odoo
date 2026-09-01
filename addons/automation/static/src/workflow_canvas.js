@@ -32,6 +32,15 @@ function log(...parts) {
     browser.console.debug("[workflow-canvas]", ...parts);
 }
 
+function gridColor(element) {
+    const view = element.ownerDocument.defaultView;
+    const themed = view
+        .getComputedStyle(element)
+        .getPropertyValue("--border-color")
+        .trim();
+    return themed || "#d8d8d8";
+}
+
 let jointPromise = null;
 
 function loadJoint() {
@@ -61,16 +70,34 @@ export class WorkflowCanvas extends Component {
             countNode: 0,
             countEdge: 0,
             selectedEdgeId: null,
+            runs: [],
+            runtimeId: null,
+            runtimeState: null,
         });
+        // null asks the server to choose (a live run, else the definition);
+        // false pins the definition; an id pins that run.
+        this.requestedRuntimeId = null;
         this.paper = null;
         this.graph = null;
         this.drawToken = 0;
         this.listening = null;
-        this.onWorkflowUpdate = ({ automation_id }) => {
-            log("bus", automation_id, "mine:", automation_id === this.resId);
-            if (automation_id === this.resId) {
-                this.load();
+        this.onWorkflowUpdate = ({ automation_id, runtime_id }) => {
+            log(
+                "bus",
+                automation_id,
+                runtime_id,
+                "mine:",
+                automation_id === this.resId,
+            );
+            if (automation_id !== this.resId) {
+                return;
             }
+            // Follow the run that just moved, unless the reader has pinned a
+            // different one -- their choice outranks the notification.
+            if (this.requestedRuntimeId === null && runtime_id) {
+                this.requestedRuntimeId = runtime_id;
+            }
+            this.load();
         };
         useEffect(
             () => {
@@ -114,13 +141,18 @@ export class WorkflowCanvas extends Component {
         this.state.status = "loading";
         try {
             const [payload, joint] = await Promise.all([
-                this.orm.call("automation.rule", "get_workflow_graph", [[this.resId]]),
+                this.orm.call("automation.rule", "get_workflow_graph", [[this.resId]], {
+                    runtime_id: this.requestedRuntimeId,
+                }),
                 loadJoint(),
             ]);
             this.payload = payload;
             this.joint = joint;
             this.state.countNode = payload.nodes.length;
             this.state.countEdge = payload.edges.length;
+            this.state.runs = payload.runs || [];
+            this.state.runtimeId = payload.runtime_id;
+            this.state.runtimeState = payload.runtime_state;
             this.state.status = payload.nodes.length ? "ready" : "empty";
         } catch (error) {
             this.state.status = "error";
@@ -204,7 +236,7 @@ export class WorkflowCanvas extends Component {
             width: "100%",
             height: 520,
             gridSize: 10,
-            drawGrid: { name: "dot", args: { color: "#d8d8d8" } },
+            drawGrid: { name: "dot", args: { color: gridColor(element) } },
             background: { color: "transparent" },
             cellViewNamespace: shapes,
             linkPinning: false,
@@ -371,6 +403,19 @@ export class WorkflowCanvas extends Component {
             verticalAlign: "middle",
             horizontalAlign: "middle",
         });
+    }
+
+    async selectRun(value) {
+        this.requestedRuntimeId = value === "definition" ? false : Number(value);
+        await this.load();
+    }
+
+    get runLabel() {
+        const run = this.state.runs.find((r) => r.id === this.state.runtimeId);
+        if (!run) {
+            return "";
+        }
+        return `${run.name} — ${run.progress}`;
     }
 
     openAction(nodeId) {

@@ -15,6 +15,23 @@
                         t-on-click="() => this.removeSelectedEdge()">
                     <i class="fa fa-unlink me-1"/>Remove connection
                 </button>
+                <select t-if="state.runs.length"
+                        class="form-select form-select-sm w-auto"
+                        aria-label="Workflow run"
+                        t-on-change="(ev) => this.selectRun(ev.target.value)">
+                    <option value="definition"
+                            t-att-selected="!state.runtimeId">Definition</option>
+                    <t t-foreach="state.runs" t-as="run" t-key="run.id">
+                        <option t-att-value="run.id"
+                                t-att-selected="run.id === state.runtimeId">
+                            <t t-esc="run.name"/> — <t t-esc="run.state_label"/>
+                            <t t-if="run.live"> (live)</t>
+                        </option>
+                    </t>
+                </select>
+                <span t-if="state.runtimeId" class="badge text-bg-info">
+                    <i class="fa fa-eye me-1"/>Showing <t t-esc="runLabel"/>
+                </span>
                 <span class="text-muted small ms-auto">
                     <t t-esc="state.countNode"/> steps,
                     <t t-esc="state.countEdge"/> connections

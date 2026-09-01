@@ -132,6 +132,10 @@ def get_webhook_request_payload():
     return payload
 
 
+LIVE_RUNTIME_STATES = ("in_progress", "waiting_resume")
+RUNTIME_HISTORY_LIMIT = 10
+
+
 class AutomationRule(models.Model):
     _name = "automation.rule"
     _inherit = [
@@ -570,27 +574,54 @@ class AutomationRule(models.Model):
                     ),
                 )
 
+    def _pick_runtime(self, runtime_id):
+        self.check_singleton()
+        Runtime = self.env["automation.runtime"]
+        if runtime_id is False:
+            return Runtime
+        if runtime_id is not None:
+            return (
+                Runtime.browse(runtime_id)
+                .exists()
+                .filtered(lambda run: run.automation_id == self)
+            )
+        return Runtime.search(
+            [("automation_id", "=", self.id), ("state", "in", LIVE_RUNTIME_STATES)],
+            limit=1,
+        )
+
+    def _recent_runtime_vals(self):
+        self.check_singleton()
+        Runtime = self.env["automation.runtime"]
+        runs = Runtime.search(
+            [("automation_id", "=", self.id)],
+            limit=RUNTIME_HISTORY_LIMIT,
+        )
+        labels = dict(Runtime._fields["state"]._description_selection(self.env))
+        return [
+            {
+                "id": run.id,
+                "name": run.name,
+                "state": run.state,
+                "state_label": labels.get(run.state, run.state),
+                "progress": run.progress_display,
+                "create_date": fields.Datetime.to_string(run.create_date),
+                "live": run.state in LIVE_RUNTIME_STATES,
+            }
+            for run in runs
+        ]
+
     @api.readonly
     def get_workflow_graph(self, runtime_id=None):
         self.check_singleton()
         nodes = self.action_server_ids.sorted("sequence")
-        state_per_action = {}
-        runtime = self.env["automation.runtime"]
-        if runtime_id:
-            runtime = (
-                runtime.browse(runtime_id)
-                .exists()
-                .filtered(
-                    lambda run: run.automation_id == self,
-                )
-            )
-            state_per_action = {
-                line.action_id.id: line.state for line in runtime.line_ids
-            }
+        runtime = self._pick_runtime(runtime_id)
+        state_per_action = {line.action_id.id: line.state for line in runtime.line_ids}
         return {
             "automation_id": self.id,
             "runtime_id": runtime.id or None,
             "runtime_state": runtime.state or None,
+            "runs": self._recent_runtime_vals(),
             "is_positioned": any(node.pos_x or node.pos_y for node in nodes),
             "nodes": [
                 {
