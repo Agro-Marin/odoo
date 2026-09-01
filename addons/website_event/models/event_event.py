@@ -762,6 +762,8 @@ class EventEvent(models.Model):
                 ) or literal_eval(tags)
             except SyntaxError:
                 pass
+            except ValueError:
+                pass
             else:
                 # perform a search to filter on existing / valid tags implicitely + apply rules on color
                 search_tags = self.env["event.tag"].search([("id", "in", tag_ids)])
