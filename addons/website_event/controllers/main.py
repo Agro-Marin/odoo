@@ -641,11 +641,11 @@ class WebsiteEventController(http.Controller):
             ticket_id for _, ticket_id in counter_per_combination if ticket_id
         }
         slots_per_id = {
-            slot.id: slot for slot in self.env["event.slot"].browse(slot_ids)
+            slot.id: slot for slot in request.env["event.slot"].browse(slot_ids)
         }
         tickets_per_id = {
             ticket.id: ticket
-            for ticket in self.env["event.event.ticket"].browse(ticket_ids)
+            for ticket in request.env["event.event.ticket"].browse(ticket_ids)
         }
         try:
             event._check_seats_availability(
