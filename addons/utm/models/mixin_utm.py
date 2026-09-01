@@ -106,6 +106,7 @@ class MixinUtm(models.AbstractModel):
         Model = self.env[model_name]
 
         cleaned_name = name.strip()
+        record = Model
         if cleaned_name:
             record = Model.with_context(active_test=False).search(
                 [("name", "=ilike", cleaned_name)], limit=1
