@@ -303,11 +303,14 @@ class StockTraceabilityReport(models.TransientModel):
         }
 
         context = dict(self.env.context)
-        if context.get("active_id") and context.get("active_model"):
+        active_model = context.get("active_model")
+        if (
+            context.get("active_id")
+            and active_model
+            and active_model in self._get_models_allowed_line()
+        ):
             rcontext["reference"] = (
-                self.env[context["active_model"]]
-                .browse(int(context["active_id"]))
-                .display_name
+                self.env[active_model].browse(int(context["active_id"])).display_name
             )
 
         body = (
