@@ -69,6 +69,50 @@ class LoyaltyCard(models.Model):
                 _("A trigger with the same code as one of your coupon already exists.")
             )
 
+    @api.constrains("active", "partner_id", "program_id")
+    def _check_one_loyalty_card_per_partner(self):
+        """A customer's points on a loyalty program belong on a single card.
+
+        `sale_loyalty` resolves a nominative program to its card with a
+        `search(..., limit=1)`, so a second active card for the same customer and
+        program holds points that nothing can ever spend. `base.partner.merge`
+        already drains and archives the extra cards a merge produces; this is what
+        stops the state being created in the first place.
+        """
+        concerned = self.filtered(
+            lambda card: (
+                card.active and card.partner_id and card.program_type == "loyalty"
+            )
+        )
+        if not concerned:
+            return
+        # One `_read_group` and not a `search_count` per card: cards are created in
+        # batches by `sale_loyalty` and by the Point of Sale, and a per-record query
+        # there is the cost `_send_creation_communication` exists to avoid.
+        pairs = {(card.partner_id.id, card.program_id.id) for card in concerned}
+        for partner, program, _count in self.env["loyalty.card"]._read_group(
+            domain=[
+                ("active", "=", True),
+                ("partner_id", "in", concerned.partner_id.ids),
+                ("program_id", "in", concerned.program_id.ids),
+            ],
+            groupby=["partner_id", "program_id"],
+            aggregates=["__count"],
+            having=[("__count", ">", 1)],
+        ):
+            # The domain is a cross product of the two id lists, so it can also
+            # group a pair nobody here touched.
+            if (partner.id, program.id) in pairs:
+                raise ValidationError(
+                    _(
+                        "%(partner)s already holds a card for %(program)s. A customer"
+                        " keeps one loyalty card per program, so that the points are"
+                        " all in one place -- archive the old card first.",
+                        partner=partner.display_name,
+                        program=program.display_name,
+                    )
+                )
+
     @api.constrains("expiration_date", "program_id")
     def _check_expiration_date(self):
         # A constraint and not an onchange: the onchange this replaces guarded the

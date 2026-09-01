@@ -19,3 +19,4 @@ from . import test_loyalty_merge
 from . import test_loyalty_program_type_children
 from . import test_loyalty_description
 from . import test_loyalty_local_date
+from . import test_loyalty_card_uniqueness
