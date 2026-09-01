@@ -135,13 +135,21 @@ class Base(models.AbstractModel):
                 )
                 if query.is_empty():
                     continue
+                # MATERIALIZED forces Postgres to compute the ordered/limited
+                # inner query fully before ROW_NUMBER() reads it: without it,
+                # ROW_NUMBER() OVER () has no ORDER BY of its own, so nothing
+                # guarantees the wrapping SELECT preserves the inner query's
+                # row order under every plan (parallel workers, planner
+                # rewrites). Materializing pins __g to a concrete, ordered
+                # tuple set before the window function runs over it.
                 parts.append(
                     SQL(
-                        "(SELECT %s AS __gidx,"
+                        "(WITH __g AS MATERIALIZED (%s)"
+                        " SELECT %s AS __gidx,"
                         " ROW_NUMBER() OVER () AS __rn,"
-                        " __g.id AS __id FROM (%s) AS __g)",
-                        index,
+                        " __g.id AS __id FROM __g)",
                         query.select(),
+                        index,
                     )
                 )
             if not parts:
