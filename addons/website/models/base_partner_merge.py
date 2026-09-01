@@ -13,6 +13,10 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         super()._update_foreign_keys(src_partners, dst_partner)
 
+        # Keeps the access_token == partner_id-as-text convention for
+        # identified visitors in sync (see WebsiteVisitor._get_access_token
+        # and website_visitor.py's partner_id compute) -- any change to that
+        # convention must also touch this raw-SQL fixup.
         self.env.cr.execute(
             """
             UPDATE website_visitor
