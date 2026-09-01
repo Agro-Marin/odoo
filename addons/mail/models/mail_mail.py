@@ -25,6 +25,11 @@ from odoo.addons.base.models.ir_mail_server import (
     OutgoingEmailError,
 )
 from odoo.addons.mail.tools.failure_type import OUTGOING_FAILURE_TYPES
+from odoo.addons.mail.tools.html_body import (
+    iter_fragment_elements,
+    parse_body_fragments,
+    render_body_fragments,
+)
 
 if typing.TYPE_CHECKING:
     from email.message import EmailMessage
@@ -53,6 +58,11 @@ _UNFOLLOW_ANCHOR_REGEX = re.compile(
 
 
 _ADDRESS_FAILURE_TYPES = frozenset({"mail_email_invalid", "mail_email_missing"})
+# The composer writes an @mention as an anchor into the backend. Outside the
+# backend that link is a dead end, so it is dropped and the mention is kept
+# readable by an inline style -- a mail client ignores our stylesheets.
+_MENTION_CLASSES = frozenset({"o_mail_redirect", "o-discuss-mention"})
+_MENTION_EMAIL_STYLE = "color:#0d6efd; font-weight:bold;"
 
 
 @dataclasses.dataclass(slots=True)
@@ -655,7 +665,39 @@ class MailMail(models.Model):
         self.check_singleton()
         if tools.is_html_empty(self.body_html):
             return ""
-        return self.env["mixin.mail.render"]._replace_local_links(self.body_html)
+        body = self._transform_mention_links_for_email(self.body_html)
+        return self.env["mixin.mail.render"]._replace_local_links(body)
+
+    @api.model
+    def _transform_mention_links_for_email(self, html_body: str) -> str:
+        """Unlink the @mentions of a body that is about to leave for a mailbox.
+
+        `_replace_local_links` only makes the mention's URL absolute, so a
+        recipient who is not logged into this database -- a customer following
+        a document -- used to get a live link into the backend and land on a
+        login page. The mention keeps its text and its classes; it stops being
+        a link.
+        """
+        if not html_body or not any(
+            css_class in html_body for css_class in _MENTION_CLASSES
+        ):
+            return html_body
+        fragments = parse_body_fragments(html_body)
+        mentions = [
+            anchor
+            for anchor in iter_fragment_elements(fragments, "a")
+            if not _MENTION_CLASSES.isdisjoint(anchor.classes)
+        ]
+        if not mentions:
+            return html_body
+        for mention in mentions:
+            mention.attrib.pop("href", None)
+            mention.attrib.pop("target", None)
+            # Appended, not assigned: the mass-mailing inliner may already
+            # have put a style here, and the last declaration wins anyway.
+            style = mention.get("style", "")
+            mention.set("style", f"{style} {_MENTION_EMAIL_STYLE}".strip())
+        return render_body_fragments(fragments)
 
     @api.model
     def _has_unfollow_block(self, body: str | Literal[False]) -> bool:
