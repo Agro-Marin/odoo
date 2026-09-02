@@ -48,6 +48,13 @@ def find_workspace(odoo_root: Path) -> Path | None:
     )
 
 
+def in_full_workspace(odoo_root: Path) -> bool:
+    workspace = find_workspace(odoo_root)
+    return workspace is not None and all(
+        (workspace / name).is_dir() for name in SIBLING_REPOS
+    )
+
+
 def sibling_repos_root(odoo_root: Path) -> Path:
 
     return odoo_root.parent

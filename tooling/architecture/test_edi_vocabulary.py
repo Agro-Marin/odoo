@@ -68,7 +68,7 @@ class TestRefusals:
     def test_prune_refuses_outside_the_full_workspace(
         self, monkeypatch, tmp_path, capsys
     ):
-        monkeypatch.setattr(gate, "in_workspace", lambda root: False)
+        monkeypatch.setattr(gate, "in_full_workspace", lambda root: False)
         monkeypatch.setattr(sys, "argv", ["edi_vocabulary.py", "--prune"])
         assert gate.main() == 1
         assert "refusing to prune" in capsys.readouterr().err
@@ -82,7 +82,7 @@ class TestTheAllowlistFile:
             assert why.strip(), f"{name} is listed with no reason"
 
     def test_no_entry_names_a_module_that_is_gone(self):
-        if not gate.in_workspace(gate.ROOT):
+        if not gate.in_full_workspace(gate.ROOT):
             pytest.skip("repo-alone checkout: the sibling roots are not present")
         stale = sorted(set(gate.load_allowlist()) - set(gate.module_names()))
         assert not stale, (

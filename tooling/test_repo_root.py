@@ -7,6 +7,7 @@ from _repo_root import (
     SIBLING_REPOS,
     find_odoo_root,
     find_workspace,
+    in_full_workspace,
     in_workspace,
     sibling_repo_paths,
     sibling_repos_root,
@@ -109,6 +110,20 @@ class TestCheckoutShape:
             assert siblings != workspace
             assert siblings.parent == workspace
 
+    def test_a_conf_beside_the_checkout_is_not_a_full_workspace(self, tmp_path):
+        ws = tmp_path / "ws"
+        (ws / "odoo").mkdir(parents=True)
+        (ws / "odoo" / "odoo-bin").touch()
+        (ws / "stray.conf").touch()
+        assert in_workspace(ws / "odoo")
+        assert not in_full_workspace(ws / "odoo"), (
+            "a conf alone proves nothing about the sibling checkouts; pruning or "
+            "counting dead entries here would read every sibling module as gone"
+        )
+        for name in SIBLING_REPOS:
+            (ws / name).mkdir()
+        assert in_full_workspace(ws / "odoo")
+
     def test_workspace_detection_survives_both_layouts(self, tmp_path):
         flat_ws = tmp_path / "flat"
         (flat_ws / "odoo").mkdir(parents=True)
@@ -137,7 +152,7 @@ class TestEveryToolAgrees:
         ("architecture", "doc_restated_counts"): "ROOT",
         ("architecture", "layer_check"): "ROOT",
         ("architecture", "js_layer_check"): "ROOT",
-        ("architecture", "js_cycle_check"): "ROOT",
+        ("architecture", "js_context_narrowing"): "ROOT",
         ("architecture", "py_cycle_check"): "REPO_ROOT",
         ("architecture", "py_docstring_at_runtime"): "ROOT",
         ("architecture", "named_export_coherence"): "ROOT",
@@ -159,6 +174,7 @@ class TestEveryToolAgrees:
         ("architecture", "pool_surface_check"): "REPO_ROOT",
         ("architecture", "worker_thread_surface_check"): "REPO_ROOT",
         ("architecture", "mixin_coupling_check"): "ROOT",
+        ("architecture", "orphan_depends"): "ROOT",
         ("architecture", "module_depends_installable"): "ROOT",
         ("architecture", "libs_facade_check"): "REPO_ROOT",
         ("architecture", "facade_surface_check"): "REPO_ROOT",
@@ -245,6 +261,11 @@ class TestEveryToolAgrees:
         assert not missing, (
             f"module(s) resolve a checkout root but are absent from ROOT_ATTRS, "
             f"so nothing asserts they agree: {missing}"
+        )
+        ghosts = sorted(listed - resolving)
+        assert not ghosts, (
+            f"module(s) in ROOT_ATTRS resolve no root of their own (they re-export "
+            f"another tool's), so their entry asserts nothing: {ghosts}"
         )
 
     def test_no_tool_keeps_a_private_marker_walk(self):

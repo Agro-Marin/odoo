@@ -50,9 +50,34 @@ class TestRootResolution:
 
         assert (H.WORKSPACE is None) == (not in_workspace(H.ODOO_ROOT))
 
-    @needs_workspace
+    @pytest.mark.skipif(
+        H.CONF is None, reason="no workspace config names this checkout"
+    )
     def test_config_resolves_to_a_real_file(self):
         assert H.CONF.is_file()
+        assert H._governs_this_checkout(H.CONF)
+
+    def test_a_config_naming_another_checkout_is_not_adopted(
+        self, tmp_path, monkeypatch
+    ):
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        monkeypatch.setattr(H, "WORKSPACE", ws)
+        monkeypatch.delenv("ODOO_CONF", raising=False)
+        peer = ws / "peer.conf"
+        peer.write_text(f"[options]\naddons_path = {tmp_path / 'other' / 'addons'}\n")
+        assert H._find_conf() is None, "a peer's conf would scan and boot its tree"
+        own = ws / "own.conf"
+        own.write_text(f"[options]\naddons_path = {H.ODOO_ROOT / 'addons'}\n")
+        assert H._find_conf() == own
+
+    def test_a_config_without_addons_path_still_counts(self, tmp_path, monkeypatch):
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        monkeypatch.setattr(H, "WORKSPACE", ws)
+        monkeypatch.delenv("ODOO_CONF", raising=False)
+        (ws / "bare.conf").write_text("[options]\nhttp_port = 8069\n")
+        assert H._find_conf() == ws / "bare.conf"
 
     def test_config_is_required_only_where_it_is_used(self):
         if H.CONF is None:

@@ -33,6 +33,22 @@ VENV_PY = Path(os.environ.get("ODOO_VENV_PYTHON", sys.executable))
 ODOO_BIN = ODOO_ROOT / "odoo-bin"
 
 
+def _read_addons_path(conf: Path) -> list[Path]:
+    with contextlib.suppress(OSError):
+        for line in conf.read_text(encoding="utf-8").splitlines():
+            key, sep, value = line.partition("=")
+            if sep and key.strip() == "addons_path":
+                return [Path(p.strip()) for p in value.split(",") if p.strip()]
+    return []
+
+
+def _governs_this_checkout(conf: Path) -> bool:
+    # A workspace can hold a peer's conf whose addons_path names a different
+    # worktree; adopting it would scan and boot that tree, not this one.
+    roots = _read_addons_path(conf)
+    return not roots or any(r.resolve().is_relative_to(ODOO_ROOT) for r in roots)
+
+
 def _find_conf() -> Path | None:
 
     override = os.environ.get("ODOO_CONF")
@@ -44,10 +60,12 @@ def _find_conf() -> Path | None:
     search_dirs = [WORKSPACE / "config", WORKSPACE]
     for directory in search_dirs:
         candidate = directory / f"{venv_name}.conf"
-        if candidate.exists():
+        if candidate.exists() and _governs_this_checkout(candidate):
             return candidate
     for directory in search_dirs:
-        confs = sorted(directory.glob("*.conf"))
+        confs = [
+            c for c in sorted(directory.glob("*.conf")) if _governs_this_checkout(c)
+        ]
         if len(confs) == 1:
             return confs[0]
     return None
@@ -59,7 +77,8 @@ CONF = _find_conf()
 def require_conf() -> Path:
     if CONF is None:
         where = (
-            f"under {WORKSPACE} or {WORKSPACE / 'config'}"
+            f"under {WORKSPACE} or {WORKSPACE / 'config'} naming this checkout "
+            f"in its addons_path"
             if WORKSPACE
             else "(repo-alone checkout: no workspace supplying a config)"
         )
@@ -979,15 +998,7 @@ def summarise(lines: list[str], result: RunResult) -> RunResult:
 
 def _addons_roots() -> list[Path]:
 
-    roots: list[Path] = []
-    if CONF is not None:
-        with contextlib.suppress(OSError):
-            for line in CONF.read_text(encoding="utf-8").splitlines():
-                key, sep, value = line.partition("=")
-                if sep and key.strip() == "addons_path":
-                    roots = [Path(p.strip()) for p in value.split(",") if p.strip()]
-                    break
-    roots = [r for r in roots if r.is_dir()]
+    roots = [r for r in _read_addons_path(CONF) if r.is_dir()] if CONF else []
     return roots or [ODOO_ROOT / "addons"]
 
 

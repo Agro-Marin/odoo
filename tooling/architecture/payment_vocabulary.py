@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import (
     find_odoo_root,
     find_workspace,
-    in_workspace,
+    in_full_workspace,
     sibling_repo_paths,
 )
 
@@ -170,7 +170,7 @@ def _run_list() -> int:
 
 
 def _run_prune() -> int:
-    if not in_workspace(ROOT):
+    if not in_full_workspace(ROOT):
         print(
             "refusing to prune: the sibling repos are not checked out beside "
             "this one. Run --prune from the full workspace, where every "

@@ -166,7 +166,7 @@ class TestRefusals:
         assert gate.main() == 1
 
     def test_prune_outside_a_workspace_refuses(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(gate, "in_workspace", lambda root: False)
+        monkeypatch.setattr(gate, "in_full_workspace", lambda root: False)
         monkeypatch.setattr(sys, "argv", ["exchange_vocabulary.py", "--prune"])
         assert gate.main() == 1
 
@@ -191,6 +191,8 @@ class TestRealTree:
         assert not blank, f"allowlist entries with no reason: {blank}"
 
     def test_no_entry_is_dead(self):
+        if not gate.in_full_workspace(gate.ROOT):
+            pytest.skip("repo-alone checkout: the sibling roots are not present")
         present = {finding.key for finding in gate.findings()}
         dead = sorted(set(gate.load_allowlist()) - present)
         assert not dead, (
