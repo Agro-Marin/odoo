@@ -1,12 +1,14 @@
+$o-mail-attachment-height: 10em;
+
 .o-mail-AttachmentContainer {
     &.o-inMessage.o-isImage:not(.o-inChatter) {
         min-width: 13em;
-        min-height: 10em;
+        min-height: $o-mail-attachment-height;
     }
     &:not(.o-inMessage.o-isImage),
     &.o-inChatter.o-inMessage.o-isImage {
         width: 13em;
-        height: 10em;
+        height: $o-mail-attachment-height;
     }
     background-color: o-palette-token(--o-gray-200, $gray-200);
 
@@ -40,8 +42,14 @@
     line-height: 1.25;
 }
 
-.o-mail-AttachmentImage.o-inMessage {
+// editing a message nests a composer inside it, so both flags are set: the
+// image then belongs to the composer's card, not to the posted message
+.o-mail-AttachmentImage.o-inMessage:not(.o-inComposer) {
     max-height: 300px;
+}
+
+.o-mail-AttachmentImage.o-inComposer {
+    max-height: $o-mail-attachment-height;
 }
 
 .o-viewable {

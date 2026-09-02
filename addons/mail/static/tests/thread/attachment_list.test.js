@@ -2,8 +2,10 @@ import {
     click,
     contains,
     defineMailModels,
+    inputFiles,
     onRpcBefore,
     openDiscuss,
+    openFormView,
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
@@ -12,6 +14,7 @@ import { mockUserAgent } from "@odoo/hoot-mock";
 import {
     asyncStep,
     patchWithCleanup,
+    serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
 import { isMobileOS } from "@web/core/browser/feature_detection";
@@ -461,4 +464,27 @@ test("check actions in mobile view", async () => {
     await click(".o-mail-AttachmentContainer [title='Actions']");
     await contains(".dropdown-item", { text: "Remove" });
     await contains(".dropdown-item", { text: "Download" });
+});
+
+test("image attached while editing a chatter message is capped to the card height", async () => {
+    // in the edit composer both `inMessage` and `inComposer` are set, so the
+    // 300px message cap used to apply inside a card that is a fixed 10em tall
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: "editable message",
+        message_type: "comment",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    const image = new File(["fake"], "image.png", { type: "image/png" });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click(".o-mail-Message [title='Edit']");
+    await contains(".o-mail-Message .o-mail-Composer");
+    await inputFiles(".o-mail-Message .o-mail-Composer .o_input_file", [image]);
+    await contains(".o-mail-AttachmentContainer:not(.o-isUploading)");
+    await contains(".o-mail-AttachmentImage.o-inComposer");
+    expect(".o-mail-AttachmentImage:first").not.toHaveStyle({ maxHeight: "300px" });
 });
