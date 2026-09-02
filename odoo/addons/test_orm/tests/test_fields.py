@@ -4508,6 +4508,41 @@ class TestParentStore(TransactionCaseWithUserDemo):
         with self.assertRaises(UserError):
             self.cats(1, 3).write({"parent": self.cats(9).id})
 
+    def test_every_parent_path_ends_in_a_separator(self):
+        # Six descendant checks across the workspace are spelled
+        # `a.parent_path.startswith(b.parent_path)`.  That is only correct
+        # because every path ends in "/": without it "1/123/" starts with
+        # "1/12" and a sibling reads as a descendant.
+        for category in self._cats:
+            self.assertTrue(category.parent_path.endswith("/"))
+
+        created = self.cats().create({"name": "fresh", "parent": self.cats(6).id})
+        self.assertTrue(created.parent_path.endswith("/"))
+
+        created.parent = self.cats(0)
+        self.assertTrue(created.parent_path.endswith("/"))
+
+        created.parent = False
+        self.assertTrue(created.parent_path.endswith("/"))
+
+        self.env["test_orm.category"]._parent_store_compute()
+        self.env.invalidate_all()
+        for category in self._cats | created:
+            self.assertTrue(category.parent_path.endswith("/"))
+
+    def test_startswith_is_a_descendant_test_only_because_of_the_separator(self):
+        # Why the invariant above is load-bearing rather than cosmetic.  Ids
+        # are decimal, so one id can be a string prefix of another (1 and 19).
+        # Comparing the paths WITH their trailing "/" separates them; dropping
+        # it makes an unrelated record read as a descendant.
+        root = self.cats(0)
+        self.assertTrue(self.cats(3).parent_path.startswith(root.parent_path))
+
+        without_separator = root.parent_path.rstrip("/")
+        impostor = f"{without_separator}9/"
+        self.assertTrue(impostor.startswith(without_separator))
+        self.assertFalse(impostor.startswith(root.parent_path))
+
     def test_compute_depend_parent_path(self):
         self.assertEqual(self.cats(7).depth, 3)
         self.assertEqual(self.cats(8).depth, 3)
