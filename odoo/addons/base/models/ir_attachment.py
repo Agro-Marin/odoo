@@ -1136,7 +1136,7 @@ class IrAttachment(models.Model):
 
     @api.model
     def _get_seek_order_and_keyset(
-        self, order: str | None, bound: int | None
+        self, order: str | None
     ) -> tuple[str, Callable[[Self], Domain] | None]:
         if order:
             column, _, direction = order.split(",")[0].strip().partition(" ")
@@ -1145,25 +1145,12 @@ class IrAttachment(models.Model):
             operator = ">" if not direction.strip().lower().startswith("desc") else "<"
             return order, lambda last: Domain("id", operator, last.id)
 
-        if bound is None:
-            return "id desc", lambda last: Domain("id", "<", last.id)
-
-        def by_res_model(last: Self) -> Domain:
-            if last.res_model:
-                return (
-                    Domain("res_model", "=", last.res_model)
-                    & Domain("id", ">", last.id)
-                ) | Domain("res_model", ">", last.res_model)
-            return (
-                Domain("res_model", "=", False) & Domain("id", ">", last.id)
-            ) | Domain("res_model", "!=", False)
-
-        return "res_model nulls first, id", by_res_model
+        return "id desc", lambda last: Domain("id", "<", last.id)
 
     def _get_accessible_ids(
         self, domain: Domain, order: str | None, bound: int | None
     ) -> list[int]:
-        order, keyset = self._get_seek_order_and_keyset(order, bound)
+        order, keyset = self._get_seek_order_and_keyset(order)
 
         result: list[int] = []
         sub_offset = 0
