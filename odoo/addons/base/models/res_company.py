@@ -2,7 +2,7 @@ import base64
 import functools
 from typing import Any, Self
 
-from odoo import api, fields, models, modules, tools
+from odoo import _lt, api, fields, models, modules, tools
 from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
@@ -19,10 +19,13 @@ def _get_default_logo():
 class ResCompany(models.Model):
     _name = "res.company"
     _description = "Companies"
-    _inherit = ["mixin.format.address", "mixin.format.vat.label"]
+    _inherit = [
+        "mixin.format.address",
+        "mixin.format.vat.label",
+        "mixin.hierarchy",
+    ]
     _order = "sequence, name"
     _rec_names_search = ["code", "name"]
-    _parent_store = True
 
     partner_id = fields.Many2one(
         "res.partner",
@@ -111,7 +114,6 @@ class ResCompany(models.Model):
         "parent_id",
         context={"active_test": False},
     )
-    parent_path = fields.Char(index=True)
     parent_ids = fields.Many2many(
         "res.company",
         compute="_compute_hierarchy",
@@ -260,10 +262,7 @@ class ResCompany(models.Model):
         "The company short code must be unique!",
     )
 
-    @api.constrains("parent_id")
-    def _check_parent_id(self) -> None:
-        if self._has_cycle():
-            raise ValidationError(self.env._("You cannot create recursive companies."))
+    _hierarchy_cycle_message = _lt("You cannot create recursive companies.")
 
     @api.constrains("active")
     def _check_active(self) -> None:

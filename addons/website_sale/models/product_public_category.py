@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import _lt, api, fields, models
 from odoo.fields import Domain
 from odoo.tools.translate import html_translate
 
@@ -10,9 +10,9 @@ class ProductPublicCategory(models.Model):
         "mixin.website.multi",
         "mixin.website.searchable",
         "mixin.image",
+        "mixin.hierarchy",
     ]
     _description = "Website Product Category"
-    _parent_store = True
     _order = "sequence, name, id"
 
     def _default_sequence(self):
@@ -39,7 +39,6 @@ class ProductPublicCategory(models.Model):
         comodel_name="product.public.category",
         inverse_name="parent_id",
     )
-    parent_path = fields.Char(index=True)
     parents_and_self = fields.Many2many(
         comodel_name="product.public.category",
         compute="_compute_parents_and_self",
@@ -126,12 +125,7 @@ class ProductPublicCategory(models.Model):
 
     # === CONSTRAINT METHODS === #
 
-    @api.constrains("parent_id")
-    def check_parent_id(self):
-        if self._has_cycle():
-            raise ValueError(
-                self.env._("Error! You cannot create recursive categories.")
-            )
+    _hierarchy_cycle_message = _lt("Error! You cannot create recursive categories.")
 
     # === SEARCH METHODS === #
 

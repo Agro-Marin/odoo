@@ -1,15 +1,13 @@
-from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo import _lt, api, fields, models
 from odoo.fields import Domain
 
 
 class HrDepartment(models.Model):
     _name = "hr.department"
     _description = "Department"
-    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.hierarchy"]
     _order = "complete_name"
     _rec_name = "complete_name"
-    _parent_store = True
 
     name = fields.Char("Department Name", required=True, translate=True)
     complete_name = fields.Char(
@@ -58,7 +56,6 @@ class HrDepartment(models.Model):
     plans_count = fields.Integer(compute="_compute_plans_count")
     note = fields.Text("Note")
     color = fields.Integer("Color Index")
-    parent_path = fields.Char(index=True)
     master_department_id = fields.Many2one(
         "hr.department",
         "Master Department",
@@ -146,12 +143,7 @@ class HrDepartment(models.Model):
                 department.id, 0
             ) + plans_count.get(False, 0)
 
-    @api.constrains("parent_id")
-    def _check_parent_id(self):
-        if self._has_cycle():
-            raise ValidationError(
-                self.env._("You cannot create recursive departments.")
-            )
+    _hierarchy_cycle_message = _lt("You cannot create recursive departments.")
 
     @api.model_create_multi
     def create(self, vals_list):

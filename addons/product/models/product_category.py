@@ -1,13 +1,11 @@
-from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo import _, _lt, api, fields, models
 
 
 class ProductCategory(models.Model):
     _name = "product.category"
-    _inherit = ["mixin.mail.thread"]
+    _inherit = ["mixin.mail.thread", "mixin.hierarchy"]
     _description = "Product Category"
     _parent_name = "parent_id"
-    _parent_store = True
     _rec_name = "complete_name"
     _order = "complete_name"
 
@@ -33,7 +31,6 @@ class ProductCategory(models.Model):
         store=True,
         recursive=True,
     )
-    parent_path = fields.Char(index=True)
     child_id = fields.One2many(
         comodel_name="product.category",
         inverse_name="parent_id",
@@ -52,10 +49,7 @@ class ProductCategory(models.Model):
     )
     product_properties_definition = fields.PropertiesDefinition("Product Properties")
 
-    @api.constrains("parent_id")
-    def _check_category_recursion(self):
-        if self._has_cycle():
-            raise ValidationError(_("You cannot create recursive categories."))
+    _hierarchy_cycle_message = _lt("You cannot create recursive categories.")
 
     def copy_data(self, default=None):
         default = dict(default or {})

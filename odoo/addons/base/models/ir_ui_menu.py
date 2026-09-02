@@ -4,9 +4,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Self
 
-from odoo import api, fields, models, tools
+from odoo import _lt, api, fields, models, tools
 from odoo.api import ValuesType
-from odoo.exceptions import ValidationError
 from odoo.http import request
 
 MENU_ITEM_SEPARATOR = "/"
@@ -16,9 +15,9 @@ NUMBER_PARENS = re.compile(r"\((\d+)\)\s*$")
 
 class IrUiMenu(models.Model):
     _name = "ir.ui.menu"
+    _inherit = ["mixin.hierarchy"]
     _description = "Menu"
     _order = "sequence,id"
-    _parent_store = True
     _allow_sudo_commands = False
 
     name = fields.Char(string="Menu", required=True, translate=True)
@@ -27,7 +26,6 @@ class IrUiMenu(models.Model):
     parent_id = fields.Many2one(
         "ir.ui.menu", string="Parent Menu", index=True, ondelete="restrict"
     )
-    parent_path = fields.Char(index=True)
     child_id = fields.One2many("ir.ui.menu", "parent_id", string="Child IDs")
     group_ids = fields.Many2many(
         "res.groups",
@@ -96,12 +94,7 @@ class IrUiMenu(models.Model):
         except FileNotFoundError, ValueError:
             return False
 
-    @api.constrains("parent_id")
-    def _check_parent_id(self) -> None:
-        if self._has_cycle():
-            raise ValidationError(
-                self.env._("Error! You cannot create recursive menus.")
-            )
+    _hierarchy_cycle_message = _lt("Error! You cannot create recursive menus.")
 
     @api.model
     @tools.ormcache("frozenset(self.env.user._get_group_ids())", "debug")
