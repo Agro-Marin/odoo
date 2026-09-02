@@ -895,20 +895,27 @@ export class DiscussChannel extends models.ServerModel {
      * @param {number[]} ids
      * @param {number[]} known_member_ids
      */
-    _load_more_members(ids, known_member_ids) {
-        const kwargs = getKwArgs(arguments, "ids", "known_member_ids");
+    _load_more_members(ids, known_member_ids, search_term) {
+        const kwargs = getKwArgs(arguments, "ids", "known_member_ids", "search_term");
         ids = kwargs.ids;
         delete kwargs.ids;
         known_member_ids = kwargs.known_member_ids || [];
+        search_term = kwargs.search_term || "";
 
         /** @type {import("mock_models").DiscussChannelMember} */
         const DiscussChannelMember = this.env["discuss.channel.member"];
 
+        const domain = [
+            ["id", "not in", known_member_ids],
+            ["channel_id", "in", ids],
+        ];
+        if (search_term) {
+            domain.push("|");
+            domain.push(["partner_id.name", "ilike", search_term]);
+            domain.push(["guest_id.name", "ilike", search_term]);
+        }
         const members = DiscussChannelMember.search(
-            [
-                ["id", "not in", known_member_ids],
-                ["channel_id", "in", ids],
-            ],
+            domain,
             makeKwArgs({ limit: 100 }),
         );
         const member_count = DiscussChannelMember.search_count([

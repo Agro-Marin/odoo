@@ -5,6 +5,7 @@ from werkzeug.exceptions import NotFound
 
 from odoo import http
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 from odoo.http import request
 
 from odoo.addons.mail.controllers.utils import (
@@ -86,14 +87,23 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_members(
-        self, channel_id: int, known_member_ids: list[int], limit: int = 100
+        self,
+        channel_id: int,
+        known_member_ids: list[int],
+        limit: int = 100,
+        search_term: str = "",
     ) -> dict:
         channel = get_channel_or_404(channel_id)
+        domain = Domain("channel_id", "=", channel.id) & Domain(
+            "id", "not in", to_record_ids(known_member_ids)
+        )
+        if search_term:
+            # a member is a partner or a guest, and either one carries the name
+            domain &= Domain("partner_id.name", "ilike", search_term) | Domain(
+                "guest_id.name", "ilike", search_term
+            )
         unknown_members = request.env["discuss.channel.member"].search(
-            domain=[
-                ("id", "not in", to_record_ids(known_member_ids)),
-                ("channel_id", "=", channel.id),
-            ],
+            domain=domain,
             limit=clamp_limit(limit, default=100),
         )
         store = Store().add(channel, "member_count").add(unknown_members)

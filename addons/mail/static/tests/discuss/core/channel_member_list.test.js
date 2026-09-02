@@ -3,6 +3,7 @@ import {
     click,
     contains,
     defineMailModels,
+    insertText,
     openDiscuss,
     start,
     startServer,
@@ -216,4 +217,26 @@ test("Members are partitioned by online/offline", async () => {
         text: "Dobby",
         after: ["h6", { text: "Offline - 1" }],
     });
+});
+
+test("the member list can be searched by name", async () => {
+    const pyEnv = await startServer();
+    const [aliceId, bobId] = pyEnv["res.partner"].create([
+        { name: "Alice Wonder" },
+        { name: "Bob Builder" },
+    ]);
+    const channelId = createChannel(pyEnv, {
+        name: "TestChannel",
+        members: ["self", aliceId, bobId],
+        channel_type: "channel",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-discuss-ChannelMember", { text: "Alice Wonder" });
+    await contains(".o-discuss-ChannelMember", { text: "Bob Builder" });
+    await insertText(".o-discuss-ChannelMemberList-search", "Alice");
+    // the match is asserted first: it is the synchronisation point that makes
+    // the absence of the other member below a real absence
+    await contains(".o-discuss-ChannelMember", { text: "Alice Wonder" });
+    await contains(".o-discuss-ChannelMember", { text: "Bob Builder", count: 0 });
 });

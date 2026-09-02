@@ -1325,3 +1325,39 @@ class TestChannelInternals(MailCommon, HttpCase):
             self.env.user.partner_id.id,
         ]
         self.assertCountEqual(actual_member_ids, expected_member_ids)
+
+    def test_channel_members_route_filters_by_search_term(self):
+        """The member list search must reach members this browser never loaded."""
+        alice = mail_new_test_user(
+            self.env, login="mlist_alice", name="Alice Wonder", groups="base.group_user"
+        )
+        bob = mail_new_test_user(
+            self.env, login="mlist_bob", name="Bob Builder", groups="base.group_user"
+        )
+        channel = self.env["discuss.channel"].create(
+            {
+                "name": "Member Search Channel",
+                "channel_type": "channel",
+                "channel_member_ids": [
+                    Command.create({"partner_id": alice.partner_id.id}),
+                    Command.create({"partner_id": bob.partner_id.id}),
+                ],
+            }
+        )
+        self.authenticate("admin", "admin")
+
+        def member_names(**kwargs):
+            res = self.call_jsonrpc(
+                "/discuss/channel/members",
+                {"channel_id": channel.id, "known_member_ids": [], **kwargs},
+            )
+            return {p["name"] for p in res.get("res.partner", [])}
+
+        self.assertLessEqual(
+            {"Alice Wonder", "Bob Builder"},
+            member_names(),
+            "without a term the route still returns every member",
+        )
+        found = member_names(search_term="Alice")
+        self.assertIn("Alice Wonder", found)
+        self.assertNotIn("Bob Builder", found)

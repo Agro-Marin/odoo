@@ -310,8 +310,8 @@ async function discuss_channel_members(request) {
     /** @type {import("mock_models").DiscussChannel} */
     const DiscussChannel = this.env["discuss.channel"];
 
-    const { channel_id, known_member_ids } = await parseRequestParams(request);
-    return DiscussChannel._load_more_members([channel_id], known_member_ids);
+    const { channel_id, known_member_ids, search_term } = await parseRequestParams(request);
+    return DiscussChannel._load_more_members([channel_id], known_member_ids, search_term);
 }
 
 registerRoute("/discuss/channel/messages", discuss_channel_messages);
