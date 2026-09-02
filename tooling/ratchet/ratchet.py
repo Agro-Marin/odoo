@@ -11,13 +11,14 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))
+from _repo_root import SIBLING_REPOS, find_odoo_root, sibling_repos_root  # noqa: E402
+
 BASELINES_DIR = HERE / "baselines"
-ODOO_ROOT = HERE.parents[1]
-WORKSPACE = ODOO_ROOT.parent
+ODOO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="ratchet")
 # A gate named <name>_<sibling> measures that sibling checkout, so the tree
 # that has to be clean when it is banked, and the history its stamp lives in,
 # are the sibling's -- not this repository's.
-SIBLING_ROOTS = ("enterprise", "agromarin", "design-themes")
 
 EXIT_OK = 0
 EXIT_DRIFT = 1
@@ -26,11 +27,11 @@ EXIT_USAGE = 2
 
 def gate_sibling(gate: str) -> str:
     """The sibling a gate's name says it measures, or "" for this repository."""
-    return next((s for s in SIBLING_ROOTS if gate.endswith(f"_{s}")), "")
+    return next((s for s in SIBLING_REPOS if gate.endswith(f"_{s}")), "")
 
 
 def repo_dir(root: str) -> Path:
-    return WORKSPACE / root if root else ODOO_ROOT
+    return sibling_repos_root(ODOO_ROOT) / root if root else ODOO_ROOT
 
 
 def _head_commit(root: str = "") -> str:
@@ -262,7 +263,7 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument("--note", default=None, help="note to store with --update")
     parser.add_argument(
         "--root",
-        choices=("odoo", *SIBLING_ROOTS),
+        choices=("odoo", *SIBLING_REPOS),
         default=None,
         help="with --update, the checkout the count was measured over; required "
         "for a gate named <name>_<sibling>, whose clean tree and history are the "

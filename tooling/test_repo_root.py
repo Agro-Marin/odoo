@@ -147,6 +147,7 @@ class TestCheckoutShape:
 
 class TestEveryToolAgrees:
     ROOT_ATTRS = {
+        ("ratchet", "ratchet"): "ODOO_ROOT",
         ("architecture", "_consumer_scopes"): "ROOT",
         ("architecture", "_doc_measures"): "ROOT",
         ("architecture", "doc_restated_counts"): "ROOT",
