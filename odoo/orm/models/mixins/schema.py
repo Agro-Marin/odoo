@@ -161,16 +161,23 @@ class SchemaMixin(_ModelStubs):
         pass
 
     def _check_parent_path(self) -> None:
+        # A tree missing its path column is not degraded, it is wrong, and it
+        # says nothing: `child_of` silently takes the recursive fallback in
+        # orm/domain/optimizations.py -- one query per level instead of one
+        # indexed `=like` -- and no test anywhere asserts which branch ran. An
+        # unindexed column is the same failure with the index left off. Both
+        # used to be logger.error at registry build, which is a line nobody
+        # reads in a passing run.
         field = self._fields.get("parent_path")
         if field is None:
-            _logger.error(
-                "add a field parent_path on model %r: `parent_path = fields.Char(index=True)`.",
-                self._name,
+            raise ValueError(
+                f"{self._name} sets _parent_store but declares no parent_path; "
+                f"add `parent_path = fields.Char(index=True)` to the model."
             )
-        elif not field.index:
-            _logger.error(
-                "parent_path field on model %r should be indexed! Add index=True to the field definition.",
-                self._name,
+        if not field.index:
+            raise ValueError(
+                f"{self._name}.parent_path must be indexed, because child_of "
+                f"resolves through it; add index=True to the field."
             )
 
     def _add_sql_constraints(self) -> None:
