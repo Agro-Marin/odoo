@@ -211,34 +211,24 @@ class IrModelData(models.Model):
             noupdate = bool(data.get("noupdate"))
             rows.add((prefix, suffix, record._name, record.id, noupdate))
 
+        repointed = False
         for sub_rows in batched(rows, self.env.cr.BATCH_SIZE, strict=False):
             query = self._prepare_update_xmlids_query(sub_rows, update)
             try:
                 self.env.cr.execute(query)
-                result = self.env.cr.fetchall()
-                if result:
-                    for (
-                        module,
-                        name,
-                        model,
-                        res_id,
-                        create_date,
-                        write_date,
-                    ) in result:
-                        self._xmlid_lookup.__cache__.add_value(
-                            self,
-                            f"{module}.{name}",
-                            cache_value=(model, res_id),
-                        )
-                        if create_date != write_date:
-                            self.env.registry.cache_invalidated.add("default")
-
+                # never seed _xmlid_lookup's cache here: it is shared across
+                # transactions and no rollback path could remove the entry
+                repointed = repointed or any(
+                    not inserted for (inserted,) in self.env.cr.fetchall()
+                )
             except Exception:
                 _logger.error(
                     "Failed to insert ir_model_data\n%s",
                     "\n".join(str(row) for row in sub_rows),
                 )
                 raise
+        if repointed:
+            self.env.registry.clear_cache()
 
         xml_ids = {f"{row[0]}.{row[1]}" for row in rows}
         self.pool.loaded_xmlids.update(xml_ids)
@@ -270,7 +260,7 @@ class IrModelData(models.Model):
             DO UPDATE SET (model, res_id, write_date) =
                 (EXCLUDED.model, EXCLUDED.res_id, now() at time zone 'UTC')
                 WHERE (ir_model_data.res_id != EXCLUDED.res_id OR ir_model_data.model != EXCLUDED.model) %(and_where)s
-            RETURNING module, name, model, res_id, create_date, write_date
+            RETURNING (xmax = 0)
             """,
             columns=SQL(", ").join(SQL.identifier(column) for column in columns),
             values=values,

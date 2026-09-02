@@ -202,6 +202,11 @@ class TestXMLID(TransactionCase):
     def test_update_xmlid(self):
         def assert_xmlid(xmlid, value, message):
             expected_values = (value._name, value.id)
+            self.assertEqual(
+                self.env["ir.model.data"]._xmlid_lookup(xmlid),
+                expected_values,
+                message,
+            )
             with self.assertQueryCount(0):
                 self.assertEqual(
                     self.env["ir.model.data"]._xmlid_lookup(xmlid),
@@ -1859,7 +1864,7 @@ class TestIrModelDataCacheInvalidation(TransactionCase):
             data.unlink()
         self.assertTrue(self._groups_cleared(mock_clear))
 
-    def test_update_xmlids_populates_lookup_cache_and_clears_groups(self):
+    def test_update_xmlids_clears_groups_and_does_not_seed_the_lookup_cache(self):
         group = self.env["res.groups"].create({"name": "IMD cache group update"})
         xmlid = "base.imd_cache_group_update"
         with patch.object(
@@ -1869,6 +1874,11 @@ class TestIrModelDataCacheInvalidation(TransactionCase):
                 [{"xml_id": xmlid, "record": group}]
             )
         self.assertTrue(self._groups_cleared(mock_clear))
+        with self.assertQueryCount(1):
+            self.assertEqual(
+                self.env["ir.model.data"]._xmlid_lookup(xmlid),
+                ("res.groups", group.id),
+            )
         with self.assertQueryCount(0):
             self.assertEqual(
                 self.env["ir.model.data"]._xmlid_lookup(xmlid),
