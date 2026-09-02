@@ -117,6 +117,21 @@ def _get_handler_summary(handler: typing.Callable) -> str | None:
     return doc.strip().splitlines()[0] if doc and doc.strip() else None
 
 
+def _prepare_jsonrpc_envelope_schema(params_schema: dict[str, Any]) -> dict[str, Any]:
+    envelope: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "jsonrpc": {"type": "string", "const": "2.0"},
+            "method": {"type": "string"},
+            "id": {"type": ["integer", "string", "null"]},
+            "params": params_schema,
+        },
+    }
+    if params_schema.get("required"):
+        envelope["required"] = ["params"]
+    return envelope
+
+
 def prepare_openapi_operation(
     route: RouteInfo,
     method: str,
@@ -159,10 +174,15 @@ def prepare_openapi_operation(
             }
             if required:
                 body["required"] = required
+            if route_type == "jsonrpc":
+                body = _prepare_jsonrpc_envelope_schema(body)
             operation["requestBody"] = {
                 "content": {"application/json": {"schema": body}}
             }
-        operation["responses"]["400"] = {"description": "Invalid request parameters"}
+        if route_type != "jsonrpc":
+            operation["responses"]["400"] = {
+                "description": "Invalid request parameters"
+            }
 
     if parameters:
         operation["parameters"] = parameters

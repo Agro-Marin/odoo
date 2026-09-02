@@ -87,7 +87,7 @@ def test_typed_route_documents_query_params_and_400():
     assert "400" in op["responses"]
 
 
-def test_typed_jsonrpc_documents_request_body():
+def test_typed_jsonrpc_documents_the_enveloped_request_body():
     def handler(self, n: int): ...
 
     route = _route(
@@ -97,9 +97,45 @@ def test_typed_jsonrpc_documents_request_body():
         handler=handler,
     )
     op = prepare_openapi_document([route])["paths"]["/rpc"]["post"]
-    body = op["requestBody"]["content"]["application/json"]["schema"]
-    assert body["properties"]["n"] == {"type": "integer"}
-    assert body["required"] == ["n"]
+    envelope = op["requestBody"]["content"]["application/json"]["schema"]
+    assert envelope["properties"]["jsonrpc"] == {"type": "string", "const": "2.0"}
+    assert envelope["required"] == ["params"]
+    params = envelope["properties"]["params"]
+    assert params["properties"]["n"] == {"type": "integer"}
+    assert params["required"] == ["n"]
+
+
+def test_typed_jsonrpc_does_not_document_a_400_it_never_answers():
+    def handler(self, n: int): ...
+
+    route = _route(
+        "/rpc",
+        methods=frozenset({"POST"}),
+        routing={"type": "jsonrpc", "auth": "user", "typed": True},
+        handler=handler,
+    )
+    op = prepare_openapi_document([route])["paths"]["/rpc"]["post"]
+    assert "400" not in op["responses"], (
+        "a JSON-RPC parameter-coercion failure is answered as HTTP 200 with "
+        "an error member (only a body that is not a JSON object gets a 400), "
+        "so documenting 400 as 'Invalid request parameters' describes a "
+        "response the dispatcher never sends"
+    )
+
+
+def test_typed_jsonrpc_envelope_without_required_params_does_not_require_params():
+    def handler(self, n: int = 0): ...
+
+    route = _route(
+        "/rpc",
+        methods=frozenset({"POST"}),
+        routing={"type": "jsonrpc", "auth": "user", "typed": True},
+        handler=handler,
+    )
+    op = prepare_openapi_document([route])["paths"]["/rpc"]["post"]
+    envelope = op["requestBody"]["content"]["application/json"]["schema"]
+    assert "required" not in envelope
+    assert "required" not in envelope["properties"]["params"]
 
 
 def test_path_param_not_duplicated_as_query_param():

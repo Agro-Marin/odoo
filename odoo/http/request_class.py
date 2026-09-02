@@ -49,12 +49,6 @@ def _union_header_tokens(values: Iterable[str]) -> str:
     return ", ".join(seen.values())
 
 
-def _get_db_list_uncached(host: str) -> list[str]:
-    from odoo import http
-
-    return http.db_list(force=True, host=host)
-
-
 class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     def __init__(self, httprequest: HTTPRequest, app: Any) -> None:
         self.app = app
@@ -123,7 +117,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             if http.db_filter([header_dbname], host=host):
                 dbname = header_dbname
         else:
-            all_dbs = _get_db_list_uncached(host)
+            all_dbs = http.db_list(force=True, host=host)
             if len(all_dbs) == 1:
                 dbname = all_dbs[0]
 

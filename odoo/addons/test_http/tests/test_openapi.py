@@ -65,10 +65,16 @@ class TestOpenApi(BaseCase):
         )
         doc = prepare_openapi_document([route])
         op = doc["paths"]["/api/order"]["post"]
-        schema = op["requestBody"]["content"]["application/json"]["schema"]
+        envelope = op["requestBody"]["content"]["application/json"]["schema"]
+        self.assertEqual(
+            envelope["properties"]["jsonrpc"], {"type": "string", "const": "2.0"}
+        )
+        self.assertEqual(envelope["required"], ["params"])
+        schema = envelope["properties"]["params"]
         self.assertEqual(schema["properties"]["qty"], {"type": "integer"})
         self.assertEqual(schema["properties"]["note"], {"type": ["string", "null"]})
         self.assertEqual(schema["required"], ["qty"])
+        self.assertNotIn("400", op["responses"])
         self.assertEqual(op["security"], [{"sessionCookie": []}])
         self.assertEqual(
             doc["components"]["securitySchemes"]["sessionCookie"]["in"], "cookie"

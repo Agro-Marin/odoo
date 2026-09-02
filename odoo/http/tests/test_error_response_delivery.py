@@ -57,7 +57,7 @@ def _serve(app, environ):
 
     with (
         mock.patch("odoo.http.helpers.db_list", return_value=[]),
-        mock.patch("odoo.http.request_class._get_db_list_uncached", return_value=[]),
+        mock.patch("odoo.http.db_list", return_value=[]),
     ):
         body = b"".join(app(environ, start_response))
     return captured["status"], captured["headers"], body

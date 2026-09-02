@@ -281,8 +281,17 @@ def prepare_no_content_response(status: int = 204, headers: Any = None) -> Respo
     return response
 
 
+def _unwrap_proxy(value: Any) -> Any:
+    return value._wrapped__ if isinstance(value, Proxy) else value
+
+
 class Headers(Proxy):
     _wrapped__ = werkzeug.datastructures.Headers
+
+    # werkzeug's Headers.__eq__ trusts the proxy's forged __class__ and reads
+    # other._list directly, so the reflected `real == proxy` comparison needs
+    # the private attribute forwarded to reach the wrapped list.
+    _list = ProxyAttr()
 
     __getitem__ = ProxyFunc()
     __repr__ = ProxyFunc(str)
@@ -290,6 +299,8 @@ class Headers(Proxy):
     __delitem__ = ProxyFunc(None)
     __str__ = ProxyFunc(str)
     __contains__ = ProxyFunc(bool)
+    __iter__ = ProxyFunc()
+    __len__ = ProxyFunc(int)
     add = ProxyFunc(None)
     add_header = ProxyFunc(None)
     clear = ProxyFunc(None)
@@ -311,12 +322,21 @@ class Headers(Proxy):
     update = ProxyFunc(None)
     values = ProxyFunc()
 
+    def __eq__(self, other: object) -> bool:
+        return self._wrapped__ == _unwrap_proxy(other)
+
+    __hash__ = None  # type: ignore[assignment]
+
 
 class ResponseCacheControl(Proxy):
     _wrapped__ = werkzeug.datastructures.ResponseCacheControl
 
     __getitem__ = ProxyFunc()
     __setitem__ = ProxyFunc(None)
+    __contains__ = ProxyFunc(bool)
+    __iter__ = ProxyFunc()
+    __len__ = ProxyFunc(int)
+    get = ProxyFunc()
     immutable = ProxyAttr(bool)
     max_age = ProxyAttr(int)
     must_revalidate = ProxyAttr(bool)
@@ -331,6 +351,11 @@ class ResponseCacheControl(Proxy):
     stale_if_error = ProxyAttr(int)
     stale_while_revalidate = ProxyAttr(int)
     pop = ProxyFunc()
+
+    def __eq__(self, other: object) -> bool:
+        return self._wrapped__ == _unwrap_proxy(other)
+
+    __hash__ = None  # type: ignore[assignment]
 
 
 class ResponseStream(Proxy):
