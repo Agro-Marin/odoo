@@ -43,6 +43,10 @@ class Contract:
     # with `_` that resolves to a module or package on disk) are private to the
     # package: `odoo.http._params` is forbidden, `odoo.http.request` is not.
     forbidden_private_under: tuple[str, ...] = ()
+    # (source module, forbidden prefix) pairs: the one file of a source
+    # package that is allowed to hold a forbidden edge, so the rest stays at
+    # zero without a KNOWN_VIOLATIONS pin that reads as debt.
+    allow_from: tuple[tuple[str, str], ...] = ()
     # True when the contract bounds *import-time* cost rather than use: an
     # import inside a function body creates no load-time edge and is the
     # sanctioned way to satisfy such a contract.
@@ -176,12 +180,21 @@ CONTRACTS: tuple[Contract, ...] = (
     Contract(
         name="orm-layer1-below-models-and-runtime",
         source=("odoo.orm.fields", "odoo.orm.domain"),
-        forbidden=("odoo.orm.models", "odoo.orm.runtime", "odoo.models", "odoo.api"),
+        forbidden=(
+            "odoo.orm.models",
+            "odoo.orm.runtime",
+            "odoo.models",
+            "odoo.api",
+            "odoo.db",
+        ),
         allow=(),
+        allow_from=(("odoo.orm.fields._field_ddl", "odoo.db"),),
         rationale=(
             "Fields and domains (Layer 1) sit below models (Layer 2) and runtime "
             "(Layer 3); crossing that at runtime reintroduces the import cycles the "
-            "layering prevents."
+            "layering prevents. odoo.db is the schema layer beneath the whole ORM: "
+            "the one Layer-1 file that issues DDL is fields/_field_ddl.py, so a "
+            "field type reaches the database through it and nowhere else."
         ),
     ),
     Contract(
@@ -592,6 +605,11 @@ def violations_for(
             if target in contract.allow_exact:
                 continue
             if _matches(target, contract.source):
+                continue
+            if any(
+                module == src and _matches(target, (prefix,))
+                for src, prefix in contract.allow_from
+            ):
                 continue
             if any(
                 line == lineno and target.startswith(seen + ".")

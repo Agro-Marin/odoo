@@ -16,26 +16,38 @@ from collections.abc import (
 )
 from operator import attrgetter
 
-from odoo.db import schema as sql
-from odoo.exceptions import AccessError, MissingError
 from odoo.libs._field_access import to_prefetch_ids as _to_prefetch_ids
-from odoo.libs.profiling import _OrmProfile
-from odoo.tools import SQL, reset_cached_properties
+from odoo.tools import reset_cached_properties
 from odoo.tools.misc import (
     PENDING,
     SENTINEL,
     ReadonlyDict,
     Sentinel,
     frozendict,
-    unique,
 )
 
-from .._recordset import base_model, is_model_class, is_recordset
-from ..domain import Domain
-from ..primitives import COLLECTION_TYPES, PREFETCH_MAX, STATE_FIELD
+from .._recordset import base_model, is_model_class
+from ..primitives import PREFETCH_MAX
+from . import (
+    _field_cache_miss as _cache_miss,
+)
+from . import (
+    _field_compute as _compute,
+)
+from . import (
+    _field_ddl as _ddl,
+)
+from . import (
+    _field_related as _related,
+)
+from . import (
+    _field_setup as _setup,
+)
+from ._field_compute import determine
 from ._field_convert import _FieldConvertMixin
 from ._field_description import _FieldDescriptionMixin
 from ._field_metadata import _FieldMetadataMixin
+from ._field_setup import COMPANY_DEPENDENT_FIELDS, resolve_mro
 from ._field_sql import _FieldSqlMixin
 
 if typing.TYPE_CHECKING:
@@ -54,35 +66,9 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 
+__all__ = ["COMPANY_DEPENDENT_FIELDS", "Field", "determine", "resolve_mro"]
+
 _NO_ARGS: Mapping[str, typing.Any] = ReadonlyDict({})
-
-
-def _expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
-    yield id0
-    seen = {id0}
-    kind = bool(id0)
-    for id_ in ids:
-        if id_ not in seen and bool(id_) == kind:
-            yield id_
-            seen.add(id_)
-
-
-def _batch_then_single(
-    batch: Callable[[], None],
-    single: Callable[[], None],
-    recs: BaseModel,
-    *,
-    catching: tuple[type[BaseException], ...],
-    reraise_when_single: bool = True,
-) -> bool:
-    try:
-        batch()
-        return False
-    except catching:
-        if reraise_when_single and len(recs) == 1:
-            raise
-    single()
-    return True
 
 
 def _recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
@@ -93,62 +79,7 @@ def _recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
     return rs
 
 
-COMPANY_DEPENDENT_FIELDS: tuple[str, ...] = (
-    "char",
-    "float",
-    "boolean",
-    "integer",
-    "text",
-    "many2one",
-    "date",
-    "datetime",
-    "selection",
-    "html",
-)
 _logger = logging.getLogger("odoo.fields")
-_orm_compute = logging.getLogger("odoo.orm.compute")
-
-
-def resolve_mro(
-    model: BaseModel, name: str, predicate: Callable[[typing.Any], bool]
-) -> list[typing.Any]:
-    result = []
-    for cls in model._model_classes__:
-        value = cls.__dict__.get(name, SENTINEL)
-        if value is SENTINEL:
-            continue
-        if not predicate(value):
-            break
-        result.append(value)
-    return result
-
-
-def determine(
-    needle: str | Callable[..., typing.Any] | None,
-    records: ModelLike,
-    *args: object,
-) -> typing.Any:
-    if not is_recordset(records):
-        msg = "Determination requires a subject recordset"
-        raise TypeError(msg)
-    if isinstance(needle, str):
-        method = getattr(records, needle)
-        call_args: tuple = args
-    elif callable(needle):
-        method = needle
-        call_args = (records, *args)
-    else:
-        msg = "Determination requires a callable or method name"
-        raise TypeError(msg)
-
-    name = getattr(method, "__name__", "")
-    if name.startswith("__"):
-        msg = (
-            f"Determination refuses {name!r}: a dunder cannot be a compute, "
-            f"inverse, search or group_expand target"
-        )
-        raise TypeError(msg)
-    return method(*call_args)
 
 
 _global_seq = itertools.count()
@@ -256,6 +187,7 @@ class Field[T](
     change_default = False
 
     related_field: typing.Any = None
+    _related_names: tuple[str, ...] = ()
     _related_field_seq: tuple[Field, ...] = ()
     aggregator: str | None = None
     group_expand: (
@@ -336,108 +268,8 @@ class Field[T](
                 if not self.related:
                     self.__dict__.pop("_base_fields__", None)
 
-    @staticmethod
-    def _normalize_computed_attrs(attrs: dict) -> None:
-        if attrs.get("compute"):
-            attrs["store"] = store = attrs.get("store", False)
-            attrs["compute_sudo"] = attrs.get("compute_sudo", store)
-            if not (attrs["store"] and not attrs.get("readonly", True)):
-                attrs["copy"] = attrs.get("copy", False)
-            attrs["readonly"] = attrs.get("readonly", not attrs.get("inverse"))
-        if attrs.get("related"):
-            attrs["store"] = store = attrs.get("store", False)
-            attrs["compute_sudo"] = attrs.get(
-                "compute_sudo", attrs.get("related_sudo", True)
-            )
-            attrs["copy"] = attrs.get("copy", False)
-            attrs["readonly"] = attrs.get("readonly", True)
-
-    def _warn_precompute_attrs(self, attrs: dict) -> None:
-        if attrs.get("precompute"):
-            if not attrs.get("compute") and not attrs.get("related"):
-                warnings.warn(
-                    f"precompute attribute doesn't make any sense on non computed field {self}",
-                    stacklevel=1,
-                )
-                attrs["precompute"] = False
-            elif not attrs.get("store"):
-                warnings.warn(
-                    f"precompute attribute has no impact on non stored field {self}",
-                    stacklevel=1,
-                )
-                attrs["precompute"] = False
-
-    def _normalize_company_dependent_attrs(self, attrs: dict) -> None:
-        if attrs.get("company_dependent"):
-            if attrs.get("required"):
-                warnings.warn(
-                    f"company_dependent field {self} cannot be required",
-                    stacklevel=1,
-                )
-            if attrs.get("translate"):
-                warnings.warn(
-                    f"company_dependent field {self} cannot be translated",
-                    stacklevel=1,
-                )
-            if self.type not in COMPANY_DEPENDENT_FIELDS:
-                warnings.warn(
-                    f"company_dependent field {self} is not one of the allowed types {COMPANY_DEPENDENT_FIELDS}",
-                    stacklevel=1,
-                )
-            attrs["copy"] = attrs.get("copy", False)
-            attrs["index"] = attrs.get("index", "btree_not_null")
-            attrs["prefetch"] = attrs.get("prefetch", "company_dependent")
-            attrs["_depends_context"] = ("company",)
-
-    def _normalize_depends_attrs(self, attrs: dict) -> None:
-        if "depends" in attrs:
-            depends = tuple(attrs.pop("depends"))
-            for dep in depends:
-                if "id" in dep.split("."):
-                    raise ValueError(f"Field {self} cannot depend on field 'id'.")
-            attrs["_depends"] = depends
-        if "depends_context" in attrs:
-            depends_context = tuple(attrs.pop("depends_context"))
-            if attrs.get("company_dependent") and "company" not in depends_context:
-                depends_context = ("company", *depends_context)
-            attrs["_depends_context"] = depends_context
-
     def _get_attrs(self, model_class: ModelClass, name: str) -> dict[str, typing.Any]:
-        attrs: dict[str, typing.Any] = {}
-        modules: list[str] = []
-        for field in self._args__.get("_base_fields__", ()):
-            if not isinstance(self, type(field)):
-                attrs.clear()
-                modules.clear()
-                continue
-            attrs.update(field._args__)
-            if field._module:
-                modules.append(field._module)
-        attrs.update(self._args__)
-        if self._module:
-            modules.append(self._module)
-
-        attrs["model_name"] = model_class._name
-        attrs["name"] = name
-        attrs["_module"] = modules[-1] if modules else None
-        attrs["_modules"] = tuple(unique(modules) if len(modules) > 1 else modules)
-
-        if name == STATE_FIELD:
-            attrs["copy"] = attrs.get("copy", False)
-        self._normalize_computed_attrs(attrs)
-        self._warn_precompute_attrs(attrs)
-        self._normalize_company_dependent_attrs(attrs)
-        self._normalize_depends_attrs(attrs)
-
-        if "group_operator" in attrs:
-            warnings.warn(
-                "Since Odoo 18, 'group_operator' is deprecated, use 'aggregator' instead",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            attrs["aggregator"] = attrs.pop("group_operator")
-
-        return attrs
+        return _setup.get_attrs(self, model_class, name)
 
     def _setup_attrs__(self, model_class: ModelClass, name: str) -> None:
         attrs = self._get_attrs(model_class, name)
@@ -501,197 +333,25 @@ class Field[T](
         pass
 
     def get_depends(self, model: BaseModel) -> tuple[Iterable[str], Iterable[str]]:
-        if self._depends is not None:
-            return self._depends, self._depends_context or ()
-
-        if self.related:
-            if self._depends_context is not None:
-                depends_context = self._depends_context
-            else:
-                depends_context = []
-                field_model_name = model._name
-                for field_name in self.related.split("."):
-                    field_model = model.env[field_model_name]
-                    field = field_model._fields[field_name]
-                    depends_context.extend(field.get_depends(field_model)[1])
-                    field_model_name = field.comodel_name
-                depends_context = tuple(unique(depends_context))
-            return [self.related], depends_context
-
-        if not self.compute:
-            return (), self._depends_context or ()
-
-        if isinstance(self.compute, str):
-            funcs = resolve_mro(model, self.compute, callable)
-        else:
-            funcs = [self.compute]
-
-        depends: list[str] = []
-        depends_context = list(self._depends_context or ())
-        for func in funcs:
-            deps = getattr(func, "_depends", ())
-            depends.extend(deps(model) if callable(deps) else deps)
-            depends_context.extend(getattr(func, "_depends_context", ()))
-
-        return list(unique(depends)), list(unique(depends_context))
+        return _setup.get_depends(self, model)
 
     def setup_related(self, model: BaseModel) -> None:
-        assert isinstance(self.related, str), self.related
-
-        self._related_names = related_names = tuple(self.related.split("."))
-
-        field_seq: list[Field] = []
-        model_name = self.model_name
-        for depth, name in enumerate(related_names, start=1):
-            field = model.pool[model_name]._fields.get(name)
-            if field is None:
-                raise KeyError(
-                    f"Field {name} referenced in related field definition {self} does not exist."
-                )
-            if not field._setup_done:
-                field.setup(model.env[model_name])
-            field_seq.append(field)
-            if depth < len(related_names):
-                if field.comodel_name is None:
-                    raise TypeError(
-                        f"Field {field} in related field definition {self} is not "
-                        f"relational, so {related_names[depth]} cannot be reached "
-                        f"through it."
-                    )
-                model_name = field.comodel_name
-
-        self._related_field_seq = tuple(field_seq)
-        related_field = field_seq[-1]
-
-        if self.type != related_field.type:
-            raise TypeError(
-                f"Type of related field {self} is inconsistent with {related_field}"
-            )
-
-        self.related_field = related_field
-
-        model.pool.field_setup_dependents.add(related_field, self)
-
-        self.compute = self._compute_related
-        if self.inherited or not (self.readonly or related_field.readonly):
-            self.inverse = self._inverse_related
-        if not self.store and all(f._description_searchable for f in field_seq):
-            self.search = self._search_related
-
-        if self.default and self.readonly and not self.inverse:
-            _logger.warning("Redundant default on %s", self)
-
-        for attr, prop in self.related_attrs:
-            if attr not in self.__dict__:
-                setattr(self, attr, getattr(related_field, prop))
-
-        for attr in related_field._extra_keys__:
-            if not hasattr(self, attr) and model._valid_field_parameter(self, attr):
-                setattr(self, attr, getattr(related_field, attr))
-
-        if self.inherited:
-            self.inherited_field = related_field
-            if related_field.required:
-                self.required = True
-            delegate_field = model._fields[related_names[0]]
-            self._modules = tuple(
-                {*self._modules, *delegate_field._modules, *related_field._modules}
-            )
+        _related.setup_related(self, model)
 
     def traverse_related(self, record: BaseModel) -> tuple[BaseModel, Field]:
-        for name in self._related_names[:-1]:
-            corecord = record[name]
-            record = next(iter(corecord), corecord)
-        return record, self.related_field
+        return _related.traverse_related(self, record)
 
     def _compute_related(self, records: BaseModel) -> None:
-        values = list(records)
-        for name in self._related_names[:-1]:
-            try:
-                values = [next(iter(val := value[name]), val) for value in values]
-            except AccessError as e:
-                description = records.env["ir.model"]._get(records._name).name
-                env = records.env
-                raise AccessError(
-                    env._(
-                        "%(previous_message)s\n\nImplicitly accessed through '%(document_kind)s' (%(document_model)s).",
-                        previous_message=e.args[0],
-                        document_kind=description,
-                        document_model=records._name,
-                    )
-                ) from e
-        falsy_groups: dict[tuple, tuple] = {}
-        for record, value in zip(records, values, strict=True):
-            processed = self._process_related(
-                value[self.related_field.name], record.env
-            )
-            if processed:
-                record[self.name] = processed
-            else:
-                key = (type(processed), processed)
-                falsy_groups.setdefault(key, (processed, []))[1].append(record.id)
-        for processed, ids in falsy_groups.values():
-            records.browse(ids)[self.name] = processed
+        _related.compute_related(self, records)
 
     def _process_related(self, value, env: Environment) -> typing.Any:
         return value
 
     def _inverse_related(self, records: BaseModel) -> None:
-        record_value = {record: record[self.name] for record in records}
-        latest: dict[tuple, tuple] = {}
-        for record in records:
-            target, field = self.traverse_related(record)
-            if target and bool(target.id) == bool(record.id):
-                latest[target._name, target.id, field.name] = (
-                    target,
-                    field,
-                    record_value[record],
-                )
-
-        groups: dict[tuple, tuple] = {}
-        ungrouped: list[tuple] = []
-        for target, field, value in latest.values():
-            key = (
-                target._name,
-                field.name,
-                type(value).__name__,
-                value._ids if is_recordset(value) else value,
-            )
-            try:
-                hash(key)
-            except TypeError:
-                ungrouped.append((target, field, value))
-                continue
-            if key in groups:
-                groups[key][3].append(target.id)
-            else:
-                groups[key] = (target, field, value, [target.id])
-
-        for target, field, value, ids in groups.values():
-            target.browse(ids)[field.name] = value
-        for target, field, value in ungrouped:
-            target[field.name] = value
+        _related.inverse_related(self, records)
 
     def _search_related(self, records: BaseModel, operator: str, value) -> DomainType:
-
-        falsy_value = self.falsy_value
-        if isinstance(value, COLLECTION_TYPES):
-            value_is_null = any(
-                val is False or val is None or val == falsy_value for val in value
-            )
-        else:
-            value_is_null = value is False or value is None or value == falsy_value
-        can_be_null = (operator not in Domain.NEGATIVE_OPERATORS) == value_is_null
-        if operator in Domain.NEGATIVE_OPERATORS and not value_is_null:
-            return NotImplemented
-
-        field_seq = self._related_field_seq
-        domain = Domain(field_seq[-1].name, operator, value)
-        for field in reversed(field_seq[:-1]):
-            domain = Domain(field.name, "any!" if self.compute_sudo else "any", domain)
-            if can_be_null and field.is_many2one and not field.required:
-                domain |= Domain(field.name, "=", False)
-        return domain
+        return _related.search_related(self, records, operator, value)
 
     _related_comodel_name = property(attrgetter("comodel_name"))
     _related_string = property(attrgetter("string"))
@@ -715,71 +375,7 @@ class Field[T](
         return self.convert_to_record(fallback, records)
 
     def resolve_depends(self, registry: Registry) -> Iterator[tuple[Field, ...]]:
-        Model0 = registry[self.model_name]
-
-        for dotnames in registry.field_depends[self]:
-            field_seq: list[Field] = []
-            model_name: str | None = self.model_name
-            check_precompute = self.precompute
-
-            for index, fname in enumerate(dotnames.split(".")):
-                if not model_name:
-                    raise ValueError(
-                        f"Wrong dependency '{dotnames}' of field {self}: "
-                        f"'{field_seq[-1].name}' is not relational, so the path "
-                        f"cannot continue with '{fname}'."
-                    )
-                Model = registry[model_name]
-                if Model0._transient and not Model._transient:
-                    break
-
-                try:
-                    field = Model._fields[fname]
-                except KeyError:
-                    raise ValueError(
-                        f"Wrong @depends on '{self.compute}' (compute method of field {self}). "
-                        f"Dependency field '{fname}' not found in model {model_name}."
-                    ) from None
-                if field is self and index and not self.recursive:
-                    self.recursive = True
-                    warnings.warn(
-                        f"Field {self} should be declared with recursive=True",
-                        stacklevel=1,
-                    )
-
-                if (
-                    check_precompute
-                    and field.store
-                    and field.compute
-                    and not field.precompute
-                ):
-                    warnings.warn(
-                        f"Field {self} cannot be precomputed as it depends on non-precomputed field {field}",
-                        stacklevel=1,
-                    )
-                    self.precompute = False
-
-                if field_seq and not field_seq[-1]._description_searchable:
-                    warnings.warn(
-                        f"Field {field_seq[-1]!r} in dependency of {self} should be searchable. "
-                        f"This is necessary to determine which records to recompute when {field} is modified. "
-                        f"You should either make the field searchable, or simplify the field dependency.",
-                        stacklevel=1,
-                    )
-
-                field_seq.append(field)
-
-                if not (field is self and not index):
-                    yield tuple(field_seq)
-
-                if field.is_one2many:
-                    for inv_field in registry.field_inverses[field]:
-                        yield tuple(field_seq) + (inv_field,)
-
-                if check_precompute and field.is_many2one:
-                    check_precompute = False
-
-                model_name = field.comodel_name
+        return _setup.resolve_depends(self, registry)
 
     _description_name = property(attrgetter("name"))
     _description_type = property(attrgetter("type"))
@@ -799,142 +395,21 @@ class Field[T](
     def update_db(
         self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
     ) -> bool:
-        if not self.column_type:
-            return False
-
-        column = columns.get(self.name) or {}
-
-        self.update_db_column(model, column)
-        self.update_db_notnull(model, column)
-
-        if (
-            not column
-            and self.related
-            and self.related.count(".") == 1
-            and self.related_field.store
-            and not self.related_field.compute
-            and not self.related_field.is_attachment_backed
-            and not self.related_field.is_x2many
-        ):
-            join_field = model._fields[self._related_names[0]]
-            if join_field.is_many2one and join_field.store and not join_field.compute:
-                model.pool.post_init(self.update_db_related, model)
-                return False
-
-        return not column
+        return _ddl.update_db(self, model, columns)
 
     def update_db_column(self, model: ModelLike, column: dict[str, typing.Any]) -> None:
-        column_type = self.column_type
-        if column_type is None:
-            raise TypeError(f"{self} has no column: update_db_column does not apply")
-        if not column:
-            sql.create_column(
-                model.env.cr,
-                model._table,
-                self.name,
-                column_type[1],
-                self.string,
-            )
-            return
-        if column["udt_name"] == column_type[0]:
-            return
-        self._convert_db_column(model, column)
+        _ddl.update_db_column(self, model, column)
 
     def _convert_db_column(self, model: ModelLike, column: dict[str, typing.Any]):
-        column_type = self.column_type
-        if column_type is None:
-            raise TypeError(f"{self} has no column: _convert_db_column does not apply")
-        sql.convert_column(model.env.cr, model._table, self.name, column_type[1])
+        _ddl.convert_db_column(self, model, column)
 
     def update_db_notnull(
         self, model: ModelLike, column: dict[str, typing.Any]
     ) -> None:
-        has_notnull = column and column["is_nullable"] == "NO"
-
-        if not column or (self.required and not has_notnull):
-            if model._table_has_rows():
-                model._init_column(self.name)
-
-        if self.required and not has_notnull:
-
-            @model.pool.post_init
-            def add_not_null():
-                field = model._fields[self.name]
-                if not field.required or not field.store:
-                    return
-                if field.compute:
-                    records = model.browse(
-                        id_
-                        for (id_,) in model.env.execute_query(
-                            SQL(
-                                "SELECT id FROM %s AS t WHERE %s IS NULL",
-                                SQL.identifier(model._table),
-                                model._field_to_sql("t", field.name),
-                            )
-                        )
-                    )
-                    model.env.add_to_compute(field, records)
-                model.flush_model([field.name])
-
-                sql_default = None
-                if (
-                    field.default
-                    and not field.translate
-                    and not field.company_dependent
-                ):
-                    try:
-                        value = field.default(model.browse())
-                        if isinstance(value, (str, int, float, bool)):
-                            sql_default = field.convert_to_column(
-                                value, model, validate=False
-                            )
-                    except Exception:
-                        _logger.debug(
-                            "Could not derive a SQL DEFAULT for %s; "
-                            "applying NOT NULL without one",
-                            field,
-                            exc_info=True,
-                        )
-
-                def apply_not_null(cr):
-                    sql.set_not_null(cr, model._table, field.name)
-
-                model.pool.post_constraint(
-                    model.env.cr,
-                    apply_not_null,
-                    key=f"add_not_null:{model._table}:{field.name}",
-                )
-
-                if sql_default is not None:
-
-                    def apply_default(cr, sql_default=sql_default):
-                        sql.set_default(cr, model._table, field.name, sql_default)
-
-                    model.pool.post_constraint(
-                        model.env.cr,
-                        apply_default,
-                        key=f"set_default:{model._table}:{field.name}",
-                    )
-
-        elif not self.required and has_notnull:
-            sql.drop_not_null(model.env.cr, model._table, self.name)
+        _ddl.update_db_notnull(self, model, column)
 
     def update_db_related(self, model: ModelLike) -> None:
-        comodel = model.env[self.related_field.model_name]
-        join_field, comodel_field = self._related_names
-        model.env.cr.execute(
-            SQL(
-                """ UPDATE %(model_table)s AS x
-                SET %(model_field)s = y.%(comodel_field)s
-                FROM %(comodel_table)s AS y
-                WHERE x.%(join_field)s = y.id """,
-                model_table=SQL.identifier(model._table),
-                model_field=SQL.identifier(self.name),
-                comodel_table=SQL.identifier(comodel._table),
-                comodel_field=SQL.identifier(comodel_field),
-                join_field=SQL.identifier(join_field),
-            )
-        )
+        _ddl.update_db_related(self, model)
 
     def read(self, records: BaseModel) -> None:
         if not self.column_type:
@@ -1157,141 +632,13 @@ class Field[T](
                 return self.convert_to_record(value, record)
         return self._get_cache_miss(record, env, record_id)
 
-    def _cache_miss_stored(self, record: BaseModel, env: Environment, record_id):
-        recs = self._to_prefetch(record)
-        _batch_then_single(
-            lambda: recs._fetch_field(self),
-            lambda: record._fetch_field(self),
-            recs,
-            catching=(AccessError,),
-        )
-        field_cache = self._get_cache(env)
-        value = field_cache.get(record_id, SENTINEL)
-        if value is SENTINEL:
-            raise MissingError(
-                "\n".join(
-                    [
-                        env._("Record does not exist or has been deleted."),
-                        env._(
-                            "(Record: %(record)s, User: %(user)s)",
-                            record=record,
-                            user=env.uid,
-                        ),
-                    ]
-                )
-            ) from None
-        return value
-
-    def _cache_miss_origin(self, record: BaseModel, env: Environment, record_id):
-        recs = self._to_prefetch(record)
-        origin_prefetch = recs._origin._prefetch_ids
-        spawn = type(recs)._spawn
-        recs_env = recs.env
-
-        def _batch() -> None:
-            for rec in recs:
-                rec_id = rec._ids[0]
-                if origin_id := (rec_id or getattr(rec_id, "origin", None)):
-                    rec_origin = spawn(recs_env, (origin_id,), origin_prefetch)
-                    self._update_cache(
-                        rec,
-                        self.convert_to_cache(
-                            rec_origin[self.name], rec, validate=False
-                        ),
-                    )
-
-        def _single() -> None:
-            self._update_cache(
-                record,
-                self.convert_to_cache(
-                    record._origin[self.name], record, validate=False
-                ),
-            )
-
-        _batch_then_single(
-            _batch, _single, recs, catching=(AccessError, KeyError, MissingError)
-        )
-        return self._get_cache(env)[record_id]
-
-    def _cache_miss_compute(self, record: BaseModel, env: Environment, record_id):
-        if env.is_protected(self, record):
-            value = self.convert_to_cache(False, record, validate=False)
-            self._update_cache(record, value)
-        else:
-            recs = record if self.recursive else self._to_prefetch(record)
-            if _batch_then_single(
-                lambda: self.compute_value(recs),
-                lambda: self.compute_value(record),
-                recs,
-                catching=(AccessError, MissingError),
-                reraise_when_single=False,
-            ):
-                recs = record
-
-            missing_recs_ids = tuple(self._cache_missing_ids(recs))
-            if missing_recs_ids:
-                missing_recs = record.browse(missing_recs_ids)
-                if self.readonly and not self.store:
-                    raise ValueError(
-                        f"Compute method failed to assign {missing_recs}.{self.name}"
-                    )
-                false_value = self.convert_to_cache(False, record, validate=False)
-                self._update_cache(missing_recs, false_value)
-
-            field_cache = self._get_cache(env)
-            value = field_cache[record_id]
-        return value
-
-    def _cache_miss_delegating(self, record: BaseModel, env: Environment):
-
-        def is_inherited_field(name):
-            field = record._fields[name]
-            related = field.related
-            return bool(
-                field.inherited and related and related.split(".")[0] == self.name
-            )
-
-        parent = record.env[self.comodel_name].new(
-            {
-                name: value
-                for name, value in record._cache.items()
-                if is_inherited_field(name)
-            }
-        )
-        value = self.convert_to_cache(parent, record, validate=False)
-        self._update_cache(record, value)
-        if inv_recs := parent._new_records:
-            for invf in env.registry.field_inverses[self]:
-                invf._update_inverse(inv_recs, record)
-        return value
-
-    def _cache_miss_default(self, record: BaseModel, env: Environment, record_id):
-        value = self.convert_to_cache(False, record, validate=False)
-        self._update_cache(record, value)
-        defaults = record.default_get([self.name])
-        if self.name in defaults:
-            value = self.convert_to_cache(defaults[self.name], record)
-            self._update_cache(record, value)
-        return self._get_cache(env)[record_id]
-
     def _get_cache_miss(
         self,
         record: BaseModel,
         env: Environment,
         record_id: IdType,
     ) -> T:
-        if self.store and record_id:
-            value = self._cache_miss_stored(record, env, record_id)
-        elif self.store and record._has_origin and not (self.compute and self.readonly):
-            value = self._cache_miss_origin(record, env, record_id)
-        elif self.compute:
-            value = self._cache_miss_compute(record, env, record_id)
-        elif self.is_delegating and not record_id:
-            value = self._cache_miss_delegating(record, env)
-        else:
-            value = self._cache_miss_default(record, env, record_id)
-
-        return self.convert_to_record(value, record)
+        return _cache_miss.get_cache_miss(self, record, env, record_id)
 
     def __set__(self, records: BaseModel, value: typing.Any) -> None:
         record_ids = records._ids
@@ -1371,146 +718,13 @@ class Field[T](
             self.recompute(records)
 
     def recompute(self, records: ModelLike) -> None:
-        to_compute_ids = records.env._core.pending_ids(self)
-        if not to_compute_ids:
-            return
-
-        prof = _OrmProfile(_orm_compute)
-        if prof.debug:
-            _pending_before = len(to_compute_ids)
-
-            def _count():
-                remaining = records.env._core.pending_ids(self)
-                return _pending_before - len(remaining or ())
-
-        def apply_except_missing(func, records):
-            try:
-                func(records)
-                return
-            except MissingError:
-                pass
-
-            existing = records.exists()
-            if existing:
-                func(existing)
-            missing = records - existing
-            for f in records.pool.field_computed[self]:
-                records.env.remove_to_compute(f, missing)
-
-        if self.recursive:
-            self._recompute_singly(records, to_compute_ids, apply_except_missing)
-        else:
-            self._recompute_batched(records, to_compute_ids, apply_except_missing)
-
-        prof.stop()
-        prof.report(
-            _orm_compute,
-            "recompute %s.%s: %d records (recursive=%s)",
-            self.model_name,
-            self.name,
-            _count() if prof.debug else 0,
-            self.recursive,
-        )
-
-    def _recompute_singly(
-        self,
-        records: ModelLike,
-        to_compute_ids: Collection[IdType],
-        apply_except_missing: Callable,
-    ) -> None:
-        computed_ids: list = []
-
-        def recursive_compute(records):
-            for record in records:
-                if record.id in to_compute_ids:
-                    self.compute_value(record, validate=False)
-                    computed_ids.append(record.id)
-
-        record_ids = records._ids
-        # Never widen the batch from inside another record's compute: a
-        # descendant computed while its ancestor is protected reads the
-        # ancestor's stored, pre-write value and stores it for good.
-        expanded = (
-            len(record_ids) == 1
-            and record_ids[0] in to_compute_ids
-            and not records.env._core.protected_ids(self)
-        )
-        if expanded:
-            records = records.browse(
-                itertools.islice(
-                    _expand_ids(record_ids[0], to_compute_ids), PREFETCH_MAX
-                )
-            )
-
-        try:
-            apply_except_missing(recursive_compute, records)
-        except AccessError:
-            if not (expanded and record_ids[0] in computed_ids):
-                raise
-        if computed_ids:
-            records.browse(computed_ids)._check_computed(self)
-
-    def _recompute_batched(
-        self,
-        records: ModelLike,
-        to_compute_ids: Collection[IdType],
-        apply_except_missing: Callable,
-    ) -> None:
-        for record in records:
-            if record.id in to_compute_ids:
-                ids = _expand_ids(record.id, to_compute_ids)
-                recs = record.browse(itertools.islice(ids, PREFETCH_MAX))
-                try:
-                    apply_except_missing(self.compute_value, recs)
-                    continue
-                except AccessError:
-                    pass
-                self.compute_value(record)
+        _compute.recompute(self, records)
 
     def compute_value(self, records: ModelLike, validate: bool = True) -> None:
-        prof = _OrmProfile(_orm_compute)
-
-        env = records.env
-        if self.compute_sudo:
-            records = records.sudo()
-        fields = records.pool.field_computed[self]
-
-        for field in fields:
-            if field.store:
-                env.remove_to_compute(field, records)
-
-        try:
-            with records.env.protecting(fields, records):
-                records._compute_field_value(self, validate=validate)
-        except Exception:
-            for field in fields:
-                if field.store:
-                    env.add_to_compute(field, records)
-            raise
-
-        prof.stop()
-        prof.report(
-            _orm_compute,
-            "compute_value %s.%s: %d records (sudo=%s)",
-            self.model_name,
-            self.name,
-            len(records),
-            self.compute_sudo,
-        )
+        _compute.compute_value(self, records, validate)
 
     def determine_inverse(self, records: ModelLike) -> None:
-        prof = _OrmProfile(_orm_compute)
-
-        determine(self.inverse, records)
-
-        prof.stop()
-        prof.report(
-            _orm_compute,
-            "determine_inverse %s.%s: %d records",
-            self.model_name,
-            self.name,
-            len(records),
-        )
+        _compute.determine_inverse(self, records)
 
     def determine_domain(
         self, records: BaseModel, operator: str, value: typing.Any

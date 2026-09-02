@@ -66,7 +66,7 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
         "here from fields/base.py with _is_context_dependent, same extraction.",
     ),
     Known(
-        "odoo/orm/fields/textual.py",
+        "odoo/orm/fields/_field_translation.py",
         "_lang",
         "Translated-field language resolution needs the raw (possibly '_'-"
         "prefixed) lang, which env.lang deliberately normalises away.",

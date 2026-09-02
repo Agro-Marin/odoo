@@ -12,6 +12,7 @@ from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 from ..._recordset import is_recordset
 from ...domain import Domain
 from ...primitives import Command, NewId
+from .. import _field_ddl as _ddl
 from ..base import Field
 from ._base import _Relational
 
@@ -132,22 +133,7 @@ class Many2one(_Relational):
     def update_db_foreign_key(
         self, model: BaseModel, column: dict[str, typing.Any]
     ) -> None:
-        if self.company_dependent:
-            return
-        comodel = model.env[self.comodel_name]
-        if not model._is_an_ordinary_table() or not comodel._is_an_ordinary_table():
-            return
-        if not comodel._auto or comodel._is_table_inheritance_root():
-            return
-        model.pool.add_foreign_key(
-            model._table,
-            self.name,
-            comodel._table,
-            "id",
-            self.ondelete or "set null",
-            model,
-            self._module,
-        )
+        _ddl.update_db_foreign_key(self, model, column)
 
     @override
     def _update_inverse(self, records: BaseModel, value: BaseModel) -> None:

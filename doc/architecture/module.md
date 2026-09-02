@@ -318,7 +318,7 @@ definition that runs.
 | `orm-helpers-and-registration-stay-below-runtime` | `orm/helpers.py` & `orm/registration.py` must not import `orm/runtime` | ✅ clean |
 | `orm-components-are-pure-python` | `odoo/orm/components/**` must not import `odoo.*` (except `odoo.libs`) | ✅ clean |
 | `orm-layer0-is-foundational` | Layer-0 (`primitives`, `parsing`, `validation`, `constants`, `_typing`, `_protocols`) imports no higher ORM layer | ✅ clean |
-| `orm-layer1-below-models-and-runtime` | `orm/fields` & `orm/domain` must not import `orm/models` or `orm/runtime` | ✅ clean |
+| `orm-layer1-below-models-and-runtime` | `orm/fields` & `orm/domain` must not import `orm/models`, `orm/runtime` or `odoo.db`; `fields/_field_ddl.py` is the one `allow_from` exception for `odoo.db`, the only Layer-1 file that issues DDL | ✅ clean |
 | `orm-models-below-runtime` | `orm/models` (Layer 2) must not import `orm/runtime` (Layer 3) | ✅ clean |
 | `orm-seams-stay-below-models-and-runtime` | `orm/_recordset` & `orm/decorators` must not import `orm/models` or `orm/runtime` | ✅ clean |
 | `facade-boundary` | addon code (`odoo/addons/**` **and** the repo-root `addons/**`) must not import `odoo.orm.*` (use `odoo.api`/`odoo.fields`/`odoo.models`), nor a private module of `odoo.service` or `odoo.http` (`odoo.http._params`, `odoo.service._limits` — use what the package exports) | ✅ clean |
@@ -470,7 +470,7 @@ the real mixins (`_FakeRequest`, `_FractionOnly`, `_MetricsCursor`).
 
 For `Field` the units are the mixin composition only. Concrete field types are
 *subclasses* and override base methods freely — `BaseString` overrides 4 of
-`Field`'s 15 cache methods — but that is the override surface, a different graph.
+`Field`'s 10 cache methods — but that is the override surface, a different graph.
 
 ### The layering is true of imports and false of the runtime graph
 
@@ -561,13 +561,21 @@ Every edge of a cycle can sit inside one layer and cross no boundary. Python
 hides this better than ESM does — a partially-initialised module is a live
 object, so a cycle usually *works* until an entry point changes.
 `py_cycle_check.py` reconstructs the import graph to find them. **The ORM has
-none.** Three are pinned, all the benign package↔submodule shape:
+none.** Two are pinned, all the benign package↔submodule shape:
 
 ```
 odoo.modules <-> odoo.modules.db
 odoo.cli     <-> odoo.cli.command
-odoo.service <-> odoo.service._factory <-> odoo.service._prefork <-> odoo.service._threaded <-> odoo.service._watcher <-> odoo.service.lifecycle <-> odoo.service.server
 ```
+
+`from . import x` is an edge to `x`, not to the package: the ancestor package is
+already on `sys.modules` when the importing module runs, so its `__init__`
+finishing is never what the line waits on. The checker counted it as a package
+edge until the `Field` split put six `from . import _field_*` lines in
+`fields/base.py` and closed a false 18-module cycle through
+`fields/__init__.py`; `odoo.service`, whose six submodules read live process
+state through `from . import _process_state`, was pinned as a seven-module cycle
+for the same reason and is not one.
 
 Function-local imports are deliberately not counted as edges: a deferred import
 is the sanctioned way to break a cycle. `odoo.tests` was a fourth pin until

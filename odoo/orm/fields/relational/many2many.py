@@ -1,5 +1,4 @@
 import itertools
-import logging
 import typing
 from collections import defaultdict
 from collections.abc import (
@@ -7,7 +6,6 @@ from collections.abc import (
 )
 from typing import override
 
-from odoo.db import schema as sql
 from odoo.exceptions import AccessError
 from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import SENTINEL, Sentinel
@@ -15,6 +13,7 @@ from odoo.tools.misc import SENTINEL, Sentinel
 from ..._recordset import is_search_overridden
 from ...primitives import Command, NewId
 from ...validation import check_pg_name
+from .. import _field_ddl as _ddl
 from ..base import Field
 from ._base import _RelationalMulti
 
@@ -29,8 +28,6 @@ if typing.TYPE_CHECKING:
     from ...models import BaseModel
 
     OnDelete = typing.Literal["cascade", "set null", "restrict"]
-
-_schema = logging.getLogger("odoo.schema")
 
 
 def _relation_add(new_relation: dict, xs, y) -> None:
@@ -167,61 +164,10 @@ class Many2many(_RelationalMulti):
     def update_db(
         self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
     ) -> bool:
-        cr = model.env.cr
-        relation, column1, column2 = self._get_relation_triple()
-        if not self.manual:
-            model.pool.add_relation_reflection(model._name, relation, self._module)
-        comodel = model.env[self.comodel_name]
-        if not sql.table_exists(cr, relation):
-            cr.execute(
-                SQL(
-                    """ CREATE TABLE %(rel)s (%(id1)s INTEGER NOT NULL,
-                                          %(id2)s INTEGER NOT NULL,
-                                          PRIMARY KEY(%(id1)s, %(id2)s));
-                    COMMENT ON TABLE %(rel)s IS %(comment)s;
-                    CREATE INDEX ON %(rel)s (%(id2)s, %(id1)s); """,
-                    rel=SQL.identifier(relation),
-                    id1=SQL.identifier(column1),
-                    id2=SQL.identifier(column2),
-                    comment=f"RELATION BETWEEN {model._table} AND {comodel._table}",
-                )
-            )
-            _schema.debug(
-                "Create table %r: m2m relation between %r and %r",
-                relation,
-                model._table,
-                comodel._table,
-            )
-            model.pool.post_init(self.update_db_foreign_keys, model)
-            return True
-
-        model.pool.post_init(self.update_db_foreign_keys, model)
-        return False
+        return _ddl.update_db_relation_table(self, model)
 
     def update_db_foreign_keys(self, model: BaseModel) -> None:
-        comodel = model.env[self.comodel_name]
-        relation, column1, column2 = self._get_relation_triple()
-        if model._is_an_ordinary_table() and not model._is_table_inheritance_root():
-            model.pool.add_foreign_key(
-                relation,
-                column1,
-                model._table,
-                "id",
-                "cascade",
-                model,
-                self._module,
-                force=False,
-            )
-        if comodel._is_an_ordinary_table() and not comodel._is_table_inheritance_root():
-            model.pool.add_foreign_key(
-                relation,
-                column2,
-                comodel._table,
-                "id",
-                self.ondelete or "cascade",
-                model,
-                self._module,
-            )
+        _ddl.update_db_foreign_keys(self, model)
 
     @override
     def read(self, records: BaseModel) -> None:

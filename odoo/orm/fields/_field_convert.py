@@ -3,7 +3,6 @@ from datetime import date, datetime
 
 from psycopg.types.json import Json as PsycopgJson
 
-from odoo.db import schema as sql
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT, DEFAULT_SERVER_DATETIME_FORMAT
 from odoo.tools.misc import PENDING, SENTINEL
 
@@ -13,6 +12,7 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 
+from . import _field_ddl as _ddl
 from ._field_stubs import _FieldStubs
 
 
@@ -177,8 +177,5 @@ class _FieldConvertMixin[T](_FieldStubs):
 
     @property
     def column_order(self) -> int:
-        return (
-            0
-            if self.column_type is None
-            else sql.SQL_ORDER_BY_TYPE[self.column_type[0]]
-        )
+        column_type = self.column_type
+        return 0 if column_type is None else _ddl.column_order_of(column_type[0])

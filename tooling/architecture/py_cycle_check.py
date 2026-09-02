@@ -38,24 +38,6 @@ _PACKAGE_REEXPORT = (
 )
 
 KNOWN_CYCLES: tuple[Known, ...] = (
-    Known(
-        (
-            "odoo.service",
-            "odoo.service._factory",
-            "odoo.service._prefork",
-            "odoo.service._threaded",
-            "odoo.service._watcher",
-            "odoo.service.lifecycle",
-            "odoo.service.server",
-        ),
-        _PACKAGE_REEXPORT
-        + " Six submodules read live process state through `from . import "
-        "_process_state`, which is an edge to the PACKAGE: `_process_state` "
-        "holds `server` and `server_phoenix` as module-level variables that "
-        "`set_server`/`set_phoenix` rebind, so importing the names instead "
-        "would snapshot them and readers would never see a change. The "
-        "package's own `__init__` re-exports the six, which closes it.",
-    ),
     Known(("odoo.modules", "odoo.modules.db"), _PACKAGE_REEXPORT),
     Known(("odoo.cli", "odoo.cli.command"), _PACKAGE_REEXPORT),
 )
@@ -120,7 +102,13 @@ class _ModuleLevelImports(ast.NodeVisitor):
         )
         if not base:
             return
-        self.found.append((base, node.lineno))
+        # `from . import x` names an ancestor package, which is already on
+        # sys.modules when this module executes: the load-time dependency is on
+        # `x`, never on the package's own __init__ finishing. `x` still
+        # collapses onto the package below when it is a name rather than a
+        # submodule.
+        if not (node.level and node.module is None):
+            self.found.append((base, node.lineno))
         for alias in node.names:
             if alias.name != "*":
                 self.found.append((f"{base}.{alias.name}", node.lineno))

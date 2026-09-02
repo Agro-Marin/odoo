@@ -61,6 +61,15 @@ class TestEdgeCollection(unittest.TestCase):
             _imports("from ..models import X\n", module="odoo.orm.fields.base"),
         )
 
+    def test_importing_a_sibling_from_the_package_is_an_edge_to_the_sibling(self):
+        found = _imports("from . import ddl as _ddl\n", module="odoo.orm.fields.base")
+        self.assertIn("odoo.orm.fields.ddl", found)
+        self.assertNotIn("odoo.orm.fields", found)
+
+    def test_importing_from_a_named_sibling_package_keeps_the_package_edge(self):
+        found = _imports("from .relational import X\n", module="odoo.orm.fields.base")
+        self.assertIn("odoo.orm.fields.relational", found)
+
     def test_relative_import_in_init_stays_inside_the_package(self):
         self.assertIn(
             "odoo.libs.collections",

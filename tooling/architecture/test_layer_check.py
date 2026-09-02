@@ -95,9 +95,35 @@ def _violates(module: str, src: str) -> bool:
                 and not lc._matches(target, c.allow)
                 and target not in c.allow_exact
                 and not lc._matches(target, c.source)
+                and not any(
+                    module == src and lc._matches(target, (prefix,))
+                    for src, prefix in c.allow_from
+                )
             ):
                 return True
     return False
+
+
+def test_layer1_reaching_the_database_is_a_violation():
+    assert _violates("odoo.orm.fields.base", "from odoo.db import schema\n")
+    assert _violates("odoo.orm.fields.textual", "from odoo.db import schema\n")
+    assert _violates("odoo.orm.domain.ast", "import odoo.db\n")
+
+
+def test_only_the_ddl_module_of_layer1_may_reach_the_database():
+    assert not _violates("odoo.orm.fields._field_ddl", "from odoo.db import schema\n")
+    assert _violates("odoo.orm.fields._field_ddl", "from odoo.orm.models import X\n")
+    assert (
+        lc.violations_for(
+            "odoo.orm.fields._field_ddl",
+            [("odoo.db.schema", 4)],
+            "odoo/orm/fields/_field_ddl.py",
+        )
+        == []
+    )
+    assert lc.violations_for(
+        "odoo.orm.fields.base", [("odoo.db.schema", 4)], "odoo/orm/fields/base.py"
+    )
 
 
 def test_layer1_from_pkg_import_models_is_a_violation():

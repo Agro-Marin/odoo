@@ -56,7 +56,7 @@ DISPATCH_SITES: dict[tuple[str, str], str] = {
     ),
     ("fields/relational/many2many.py", "read"): "equivalent",
     ("fields/relational/many2many.py", "_apply_relation_delta"): "equivalent",
-    ("fields/textual.py", "_get_mirrored_ids_by_language"): (
+    ("fields/_field_translation.py", "get_mirrored_ids_by_language"): (
         "LOSSY: the SQL branch reads the stored jsonb translations and returns "
         "every other language whose term is an *echo* of `lang`'s, so a write "
         "in `lang` propagates to them.  The in-memory branch has no jsonb "
