@@ -1023,7 +1023,7 @@ class TestPipelineModeRoutesFailuresThroughTheSeam(BaseCase):
 class TestCursorConstructionNeverLeaksAPermit(BaseCase):
     def test_a_baseexception_during_construction_returns_the_connection(self):
         registry_ = registry()
-        pool = registry_._db._Connection__pool
+        pool = registry_._replica.primary._Connection__pool
         before = pool.stats.get_snapshot(budget=pool._budget, checkouts=pool._checkouts)
 
         real = psycopg.Connection.cursor
@@ -3057,12 +3057,28 @@ class TestBorrowHonoursItsTimeout(BaseCase):
 
 
 class TestCheckSignalingDrains(BaseCase):
-    def test_check_signaling_calls_drain_db(self):
-        src = inspect.getsource(Registry.check_signaling)
+    def test_the_reload_branch_still_drains_the_database(self):
+        # The drain used to sit in check_signaling itself and now lives in the
+        # branch it delegates to, so the pin follows the delegation rather than
+        # the method it started in.
+        self.assertIn(
+            "_reload_after_signaling",
+            inspect.getsource(Registry.check_signaling),
+            "check_signaling must reach the reload branch to reach the drain",
+        )
         self.assertIn(
             "drain_db",
-            src,
-            "check_signaling's reload branch must drain_db(self.db_name)",
+            inspect.getsource(Registry._reload_after_signaling),
+            "the reload branch must drain_db(self.db_name)",
+        )
+
+    def test_the_drain_is_skipped_when_another_registry_is_already_current(self):
+        src = inspect.getsource(Registry._reload_after_signaling)
+        self.assertLess(
+            src.index("published.registry_sequence"),
+            src.index("drain_db"),
+            "an already-published registry returns before the drain, which is "
+            "the whole reason the branch was extracted",
         )
 
 
