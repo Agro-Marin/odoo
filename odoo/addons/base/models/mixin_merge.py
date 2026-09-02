@@ -197,25 +197,56 @@ class MixinMerge(models.AbstractModel):
     ) -> None:
         tbl = SQL.identifier(table)
         col = SQL.identifier(column)
-        for record in src_records:
+        if "id" not in sql_tools.get_table_columns(self.env.cr, table):
+            for record in src_records:
+                try:
+                    with mute_logger("odoo.db"), self.env.cr.savepoint():
+                        self._repoint_rows(tbl, col, [record.id], dst_record.id)
+                except psycopg.Error as error:
+                    _logger.warning(
+                        "Merging %s into %s: re-pointing %s.%s failed (%s); the "
+                        "table has no id column, dropping the %s rows of %s",
+                        src_records.ids,
+                        dst_record.id,
+                        table,
+                        column,
+                        error.__class__.__name__,
+                        table,
+                        record.id,
+                    )
+                    self.env.cr.execute(
+                        SQL("DELETE FROM %s WHERE %s = ANY(%s)", tbl, col, [record.id])
+                    )
+            return
+
+        self.env.cr.execute(
+            SQL("SELECT id FROM %s WHERE %s = ANY(%s)", tbl, col, list(src_records.ids))
+        )
+        row_ids = [row_id for (row_id,) in self.env.cr.fetchall()]
+        for row_id in row_ids:
             try:
                 with mute_logger("odoo.db"), self.env.cr.savepoint():
-                    self._repoint_rows(tbl, col, [record.id], dst_record.id)
+                    self.env.cr.execute(
+                        SQL(
+                            "UPDATE %s SET %s = %s WHERE id = %s",
+                            tbl,
+                            col,
+                            dst_record.id,
+                            row_id,
+                        )
+                    )
             except psycopg.Error as error:
                 _logger.warning(
-                    "Merging %s into %s: re-pointing %s.%s failed (%s), "
-                    "deleting the %s rows of %s to keep the merge going",
+                    "Merging %s into %s: re-pointing %s.%s row %s failed (%s); "
+                    "dropping only that clashing row",
                     src_records.ids,
                     dst_record.id,
                     table,
                     column,
+                    row_id,
                     error.__class__.__name__,
-                    table,
-                    record.id,
                 )
-                self.env.cr.execute(
-                    SQL("DELETE FROM %s WHERE %s = ANY(%s)", tbl, col, [record.id])
-                )
+                self.env.cr.execute(SQL("DELETE FROM %s WHERE id = %s", tbl, row_id))
 
     @api.model
     def _update_reference_fields_generic(
@@ -493,7 +524,12 @@ class MixinMerge(models.AbstractModel):
         companies = self.env["res.company"].sudo().search([])
         for column in model_fields:
             field = dst_record._fields[column]
-            if field.type not in ("many2many", "one2many") and field.compute is None:
+            if (
+                field.type not in ("many2many", "one2many")
+                and field.store
+                and not field.related
+                and not (field.compute and field.readonly)
+            ):
                 for item in itertools.chain(src_records, [dst_record]):
                     if item[column]:
                         if field.type == "reference":

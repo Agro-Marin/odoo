@@ -640,3 +640,136 @@ class TestMergePartnerSimilarNames(TransactionCase):
     def test_neither_exact_nor_similar_is_still_refused(self):
         with self.assertRaises(UserError):
             self.Wizard.create({}).action_start_manual_process()
+
+
+@tagged("post_install", "-at_install")
+class TestMergePartnerAbsorbsEditableComputes(TransactionCase):
+    def test_stored_editable_computes_are_absorbed_from_the_source(self):
+        Partner = self.env["res.partner"]
+        salesperson = self.env["res.users"].search([("share", "=", False)], limit=1)
+        src = Partner.create(
+            {
+                "name": "Absorb Src",
+                "is_company": True,
+                "email": "absorb@example.com",
+                "company_registry": "REG-ABSORB",
+                "user_id": salesperson.id,
+            }
+        )
+        dst = Partner.create(
+            {"name": "Absorb Dst", "is_company": True, "email": "absorb@example.com"}
+        )
+        self.env["base.partner.merge.automatic.wizard"].create({})._merge(
+            [src.id, dst.id], dst
+        )
+        self.assertEqual(
+            dst.company_registry,
+            "REG-ABSORB",
+            "a stored editable compute must fill an empty destination",
+        )
+        self.assertEqual(dst.user_id, salesperson)
+
+
+@tagged("post_install", "-at_install")
+class TestMergePartnerIdentifiers(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Type = cls.env["res.partner.identifier.type"]
+        cls.single = Type.create(
+            {
+                "name": "Merge Single",
+                "code": "MERGE_SINGLE",
+                "pattern": r"[A-Z]{3,4}[0-9]{6}[A-Z0-9]{3}",
+            }
+        )
+        cls.multi = Type.create(
+            {
+                "name": "Merge Multi",
+                "code": "MERGE_MULTI",
+                "multiple_per_contact": True,
+                "unique_across_contacts": False,
+            }
+        )
+
+    def _merge(self, src, dst):
+        self.env["base.partner.merge.automatic.wizard"].create({})._merge(
+            [src.id, dst.id], dst
+        )
+
+    def test_a_single_per_contact_type_is_not_duplicated_on_the_destination(self):
+        Partner = self.env["res.partner"]
+        Identifier = self.env["res.partner.identifier"]
+        src = Partner.create({"name": "Id Src", "is_company": True})
+        dst = Partner.create({"name": "Id Dst", "is_company": True})
+        Identifier.create(
+            {"partner_id": src.id, "type_id": self.single.id, "value": "SRC010101AB1"}
+        )
+        Identifier.create(
+            {"partner_id": dst.id, "type_id": self.single.id, "value": "DST010101AB1"}
+        )
+        self._merge(src, dst)
+        rows = dst.identifier_ids.filtered(lambda i: i.type_id == self.single)
+        self.assertEqual(
+            len(rows),
+            1,
+            "the destination must not end with two values of a single-per-contact type",
+        )
+        self.assertEqual(rows.value, "DST010101AB1")
+
+    def test_a_multiple_per_contact_type_keeps_distinct_values_and_drops_duplicates(
+        self,
+    ):
+        Partner = self.env["res.partner"]
+        Identifier = self.env["res.partner.identifier"]
+        src = Partner.create({"name": "Id Src M", "is_company": True})
+        dst = Partner.create({"name": "Id Dst M", "is_company": True})
+        Identifier.create(
+            {"partner_id": src.id, "type_id": self.multi.id, "value": "only-on-src"}
+        )
+        Identifier.create(
+            {"partner_id": src.id, "type_id": self.multi.id, "value": "shared"}
+        )
+        Identifier.create(
+            {"partner_id": dst.id, "type_id": self.multi.id, "value": "shared"}
+        )
+        self._merge(src, dst)
+        values = sorted(
+            dst.identifier_ids.filtered(lambda i: i.type_id == self.multi).mapped(
+                "normalized_value"
+            )
+        )
+        self.assertEqual(
+            values,
+            ["ONLYONSRC", "SHARED"],
+            "a distinct source value moves; a duplicate of a value the "
+            "destination already holds is dropped",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestMergePartnerSingleSourceClash(TransactionCase):
+    def test_one_clashing_row_does_not_delete_the_sources_other_rows(self):
+        Partner = self.env["res.partner"]
+        Bank = self.env["res.partner.bank"]
+        dst = Partner.create({"name": "clash dst", "email": "sc@example.com"})
+        src = Partner.create({"name": "clash src", "email": "sc@example.com"})
+
+        Bank.create({"acc_number": "SHARED-ACC", "partner_id": dst.id})
+        bank_clash = Bank.create({"acc_number": "SHARED-ACC", "partner_id": src.id})
+        bank_keep = Bank.create({"acc_number": "SRC-ONLY-ACC", "partner_id": src.id})
+
+        self.env["base.partner.merge.automatic.wizard"].create(
+            {}
+        )._update_foreign_keys_generic("res.partner", src, dst)
+        self.env.invalidate_all()
+
+        self.assertFalse(
+            bank_clash.exists(),
+            "the row clashing with the destination is dropped",
+        )
+        self.assertTrue(
+            bank_keep.exists(),
+            "the source's other, non-clashing row must not be deleted with it",
+        )
+        self.assertEqual(bank_keep.partner_id, dst)

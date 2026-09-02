@@ -99,8 +99,10 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
     def _get_merge_tables_excluded(self, model: str) -> set[str]:
         tables = super()._get_merge_tables_excluded(model)
-        if model == "res.partner" and not self._is_source_absorbed_on_merge():
-            tables.add("res_partner_bank")
+        if model == "res.partner":
+            tables.add("res_partner_identifier")
+            if not self._is_source_absorbed_on_merge():
+                tables.add("res_partner_bank")
         return tables
 
     @api.model
@@ -175,6 +177,30 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             else:
                 src_account.sudo().write({"partner_id": dst_partner.id})
 
+    @api.model
+    def _merge_identifiers(
+        self, src_partners: models.BaseModel, dst_partner: models.BaseModel
+    ) -> None:
+        held_types = set(dst_partner.identifier_ids.type_id.ids)
+        held_values = {
+            (i.type_id.id, i.normalized_value) for i in dst_partner.identifier_ids
+        }
+        for src_identifier in src_partners.identifier_ids:
+            identifier_type = src_identifier.type_id
+            if identifier_type.multiple_per_contact:
+                clash = (
+                    identifier_type.id,
+                    src_identifier.normalized_value,
+                ) in held_values
+            else:
+                clash = identifier_type.id in held_types
+            if clash:
+                src_identifier.sudo().unlink()
+            else:
+                src_identifier.sudo().write({"partner_id": dst_partner.id})
+                held_types.add(identifier_type.id)
+                held_values.add((identifier_type.id, src_identifier.normalized_value))
+
     def _merge(
         self,
         partner_ids: list[int],
@@ -232,6 +258,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         deferred_values = {}
         if self._is_source_absorbed_on_merge():
             self._merge_bank_accounts(src_partners, dst_partner)
+            self._merge_identifiers(src_partners, dst_partner)
 
         self._update_foreign_keys(src_partners, dst_partner)
         self._update_reference_fields(src_partners, dst_partner)
