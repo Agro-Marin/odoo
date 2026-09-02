@@ -3,11 +3,9 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
-from werkzeug.exceptions import HTTPException, NotFound
-
 from odoo import http
 from odoo.exceptions import AccessDenied, AccessError, MissingError, UserError
-from odoo.http import SessionExpiredException, request
+from odoo.http import HTTPException, NotFound, SessionExpiredException, request
 
 from odoo.addons.mail.controllers.thread import ThreadController
 from odoo.addons.mail.controllers.utils import to_record_id

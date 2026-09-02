@@ -1,10 +1,8 @@
 from typing import Any
 
-from werkzeug.exceptions import BadRequest
-
 from odoo import _
 from odoo.exceptions import AccessError, MissingError, UserError
-from odoo.http import Controller, request, route
+from odoo.http import BadRequest, Controller, request, route
 
 from .utils import clean_action
 

@@ -5,11 +5,15 @@ import typing
 import zipfile
 from typing import Any
 
-from werkzeug.exceptions import NotFound, UnsupportedMediaType
-
 from odoo import http
 from odoo.exceptions import AccessError, UserError
-from odoo.http import Response, content_disposition, request
+from odoo.http import (
+    NotFound,
+    Response,
+    UnsupportedMediaType,
+    content_disposition,
+    request,
+)
 from odoo.tools.misc import file_open
 from odoo.tools.pdf import DependencyError, PdfReadError, extract_page
 

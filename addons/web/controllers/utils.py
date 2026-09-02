@@ -5,11 +5,10 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import babel.messages.pofile
-import werkzeug.exceptions
 from werkzeug.urls import iri_to_uri
 
 from odoo import http
-from odoo.http import request
+from odoo.http import abort, request
 from odoo.tools.misc import file_open
 from odoo.tools.translate import JAVASCRIPT_TRANSLATION_COMMENT
 
@@ -83,7 +82,7 @@ def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -
             query_string = iri_to_uri(r.query_string.decode())
             url_redirect = url_redirect._replace(query=query_string)
         request.session.db = db
-        werkzeug.exceptions.abort(request.redirect(urlunsplit(url_redirect), 302))
+        abort(request.redirect(urlunsplit(url_redirect), 302))
 
     if not db and request.session.db and http.db_filter([request.session.db]):
         db = request.session.db
@@ -94,13 +93,13 @@ def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -
             db = all_dbs[0]
 
     if not db:
-        werkzeug.exceptions.abort(request.redirect(redirect, 303))
+        abort(request.redirect(redirect, 303))
 
     if db != request.session.db:
         request.session = http.root.session_store.new()
         request.session.update(http.prepare_default_session(), db=db)
         request.session.context["lang"] = request.get_default_lang()
-        werkzeug.exceptions.abort(request.redirect(request.httprequest.url, 302))
+        abort(request.redirect(request.httprequest.url, 302))
 
 
 def generate_views(action: dict) -> None:

@@ -136,9 +136,10 @@ post_dispatch out of band.
 
 ## Module map
 
-`doc/architecture/module.md` groups these modules into `[serving]` and
-`[features]` tiers; the direction between them is enforced by the
-`http-features-below-serving` contract.
+`doc/architecture/module.md` groups these modules into `[foundation]`,
+`[serving]` and `[features]` tiers; the direction between them is enforced by
+the `http-features-below-serving` contract, which holds `[foundation]` below
+`[serving]` as well.
 
 | Module | Tier | Contents |
 |---|---|---|
@@ -160,9 +161,9 @@ post_dispatch out of band.
 | `openapi.py` | features | `prepare_openapi_document`: an OpenAPI `3.1.0` document generated from the routing map |
 | `_params.py` | features | `ParamSpec` and the annotation-driven coercion behind `@route(typed=True)` |
 | `geoip.py` | features | `GeoIP` lookup exposed on the request (`_GeoIPNull` when unavailable) |
-| `constants.py` | features | Package-wide constants, `prepare_allow_header`, and the session/ensure-db path registries with their `is_ensure_db_path` predicate |
-| `exceptions.py` | features | `RegistryError`, `SessionExpiredException`, and `get_error_response`/`set_error_response` — the only sanctioned way to read and write the `error_response` an exception carries |
-| `_protocols.py` | features | `HttpExtension` — the `Protocol` `ir.http` satisfies, pinned by `TestIrHttpImplementsProtocol`; `Endpoint`/`HasRouting`/`RoutedMethod` for the attributes `@route` stuffs onto a handler; `HasHttpStatus`. `RequestState` alone is `if TYPE_CHECKING:` — it is `object` at runtime |
+| `constants.py` | foundation | Package-wide constants, `prepare_allow_header`, and the session/ensure-db path registries with their `is_ensure_db_path` predicate |
+| `exceptions.py` | foundation | the HTTP exception vocabulary addon code raises — werkzeug's `NotFound`, `Forbidden`, `BadRequest`, `Unauthorized`, `HTTPException`, `abort` and the rest, re-exported so a controller never imports werkzeug — plus `RegistryError`, `SessionExpiredException`, and `get_error_response`/`set_error_response` — the only sanctioned way to read and write the `error_response` an exception carries |
+| `_protocols.py` | foundation | `HttpExtension` — the `Protocol` `ir.http` satisfies, pinned by `TestIrHttpImplementsProtocol`; `Endpoint`/`HasRouting`/`RoutedMethod` for the attributes `@route` stuffs onto a handler; `HasHttpStatus`. `RequestState` alone is `if TYPE_CHECKING:` — it is `object` at runtime |
 
 ## Related
 

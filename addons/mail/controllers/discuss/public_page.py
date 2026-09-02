@@ -3,11 +3,10 @@ import typing
 from typing import Literal
 
 import psycopg.errors
-from werkzeug.exceptions import NotFound
 
 from odoo import http
 from odoo.exceptions import UserError
-from odoo.http import Response, request
+from odoo.http import NotFound, Response, request
 from odoo.tools import consteq, email_normalize, replace_exceptions
 from odoo.tools.misc import resolve_hash_signed
 

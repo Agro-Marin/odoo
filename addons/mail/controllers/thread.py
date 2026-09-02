@@ -3,11 +3,10 @@ import typing
 from typing import Any, Literal
 
 from markupsafe import Markup
-from werkzeug.exceptions import NotFound
 
 from odoo import http, models
 from odoo.exceptions import UserError
-from odoo.http import request
+from odoo.http import NotFound, request
 from odoo.tools.mail import email_normalize
 from odoo.tools.misc import is_valid_limited_field_access_token
 

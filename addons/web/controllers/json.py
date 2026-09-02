@@ -6,12 +6,11 @@ from urllib.parse import urlencode
 
 import psycopg.errors
 from lxml import etree
-from werkzeug.exceptions import BadRequest, NotFound
 
 from odoo import http
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
-from odoo.http import request
+from odoo.http import BadRequest, NotFound, request
 from odoo.tools.safe_eval import safe_eval
 
 from .json_helpers import (

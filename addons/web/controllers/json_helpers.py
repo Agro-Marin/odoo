@@ -5,10 +5,9 @@ from typing import Literal
 
 from dateutil.relativedelta import relativedelta
 from lxml import etree
-from werkzeug.exceptions import BadRequest
 
 from odoo.fields import Domain
-from odoo.http import request
+from odoo.http import BadRequest, request
 from odoo.models import is_valid_object_name
 from odoo.tools.safe_eval import safe_eval
 

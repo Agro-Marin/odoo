@@ -38,13 +38,15 @@ odoo/
 │                      probe (is this DSN reachable, permanently or not),
 │                      metrics (SQL per cursor) · stats (what the pool did)
 ├── http/           Decomposed http.py (flat modules)
+│   ├── [foundation]   constants, exceptions (the HTTP exception vocabulary),
+│   │                  _protocols
 │   ├── [serving]   application, dispatcher, routing, session, request_class,
 │   │               _serve, _response, wrappers, stream, _csrf, controller,
 │   │               core (the `request` proxy + its LocalStack), helpers,
 │   │               _retry (the RetryParticipant handed to service/transaction)
 │   └── [features]  openapi (OpenAPI 3.1 from the routing map),
 │                   _params (annotation-driven @route(typed=True) coercion),
-│                   geoip, constants, exceptions, _protocols
+│                   geoip
 ├── service/        Process lifecycle + the servers
 │   ├── server, _base_server, _threaded (ThreadedServer + EventServer),
 │   │   _prefork, _worker, _watcher, wsgi, _cron, lifecycle,
@@ -104,7 +106,11 @@ work around it. None does now.
 > caption: `db/errors.py` (with `dsn`/`utils`) imports nothing else in `db/` and
 > is used by both tiers, so it is `[foundation]`, not `[connectivity]`;
 > `http/helpers.py` imports `core` and is imported by
-> `dispatcher`/`_serve`/`request_class`, so it is `[serving]`, not `[features]`.
+> `dispatcher`/`_serve`/`request_class`, so it is `[serving]`, not `[features]`;
+> `http/constants.py`, `exceptions.py` and `_protocols.py` import nothing else
+> in `http/` at runtime and are read by both tiers, so they are `[foundation]`,
+> and `http-features-below-serving` holds them below `[serving]` alongside
+> `[features]`.
 
 Both tiers were documentation only until they were measured, and both turned out
 already layered. Each back-edge was a module filed in the wrong bracket, not a
@@ -131,7 +137,7 @@ plausible wrong answer on its own:
 - **`from . import x`.** A relative import with no module names its targets in
   `node.names`, not in `node.module`. Skip that form and `db/`'s back-edge
   disappears, leaving the tier looking cleaner than it was.
-- **Runtime against typing.** `http/_protocols.py` is `[features]` and names
+- **Runtime against typing.** `http/_protocols.py` is `[foundation]` and names
   `Dispatcher`, `Session`, `FutureResponse`, `HTTPRequest` and `Response` from
   `[serving]` — upward, and legal, because all five are inside
   `if TYPE_CHECKING:` and never execute. `http-features-below-serving` is
@@ -303,7 +309,7 @@ definition that runs.
 | `facade-boundary` | addon code (`odoo/addons/**` **and** the repo-root `addons/**`) must not import `odoo.orm.*` (use `odoo.api`/`odoo.fields`/`odoo.models`) | ✅ clean |
 | `core-does-not-depend-on-addons` | core packages must not import `odoo.addons.<module>` (bare `odoo.addons` for `__path__` discovery is fine) | ✅ 0 new, 2 pinned rules |
 | `db-resilience-below-connectivity` | `db/` `[resilience]` (breaker, lag, budget, leaks, reaper, probe, metrics, stats) must not import `[connectivity]` (pool, cursor, ddl, schema, savepoint, schema_cache, bulk, lifecycle, endpoints, replica) | ✅ clean |
-| `http-features-below-serving` | `http/` `[features]` (openapi, `_params`, geoip, constants, exceptions, `_protocols`) must not import `[serving]` | ✅ clean |
+| `http-features-below-serving` | `http/` `[features]` (openapi, `_params`, geoip) and `[foundation]` (constants, exceptions, `_protocols`) must not import `[serving]` | ✅ clean |
 | `orm-below-the-serving-tier` | `odoo/orm/**` must not import `odoo.service`, `odoo.http` or `odoo.cli` — the serving tier runs on the ORM, never the reverse | ✅ clean |
 | `transaction-primitive-is-transport-agnostic` | `odoo/service/transaction.py` must not import `odoo.http` — the transport injects a `RetryParticipant` instead (ADR-0003's seam shape) | ✅ clean |
 | `root-modules-are-foundational` | `odoo/exceptions.py` & `odoo/release.py` must not import `odoo.*` except `odoo.libs` (ADR-0016). **Not** `logutils.py`, which imports `db`/`tools` and is a consumer of the stack | ✅ clean |

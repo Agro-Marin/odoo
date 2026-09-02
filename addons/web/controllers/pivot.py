@@ -3,10 +3,9 @@ from collections import deque
 
 import xlsxwriter
 from werkzeug.datastructures import FileStorage
-from werkzeug.exceptions import UnprocessableEntity
 
 from odoo import _, http
-from odoo.http import Response, content_disposition, request
+from odoo.http import Response, UnprocessableEntity, content_disposition, request
 from odoo.libs.documents import extension_for
 from odoo.libs.filesystem import osutil
 from odoo.libs.json import loads as json_loads

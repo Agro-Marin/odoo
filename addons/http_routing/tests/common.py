@@ -110,7 +110,7 @@ def MockRequest(
         request.is_frontend = is_frontend
         request.is_frontend_multilang = is_frontend and multilang
     if country_code or city_name:
-        request.geoip._city_record = odoo.http.geoip2.models.City(
+        request.geoip._city_record = odoo.http.geoip.geoip2.models.City(
             ["en"],
             country=(country_code and {"iso_code": country_code}) or {},
             city=(city_name and {"names": {"en": city_name}}) or {},

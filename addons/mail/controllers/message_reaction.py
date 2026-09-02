@@ -1,9 +1,7 @@
 import typing
 
-from werkzeug.exceptions import NotFound
-
 from odoo import http, models
-from odoo.http import request
+from odoo.http import NotFound, request
 
 from odoo.addons.mail.controllers.thread import ThreadController
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context

@@ -4,10 +4,9 @@ from datetime import timedelta
 
 import babel
 import requests
-from werkzeug.exceptions import NotFound
 
 from odoo import fields
-from odoo.http import Controller, request, route
+from odoo.http import Controller, NotFound, request, route
 
 from odoo.addons.mail.controllers.utils import to_record_id
 

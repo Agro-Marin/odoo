@@ -1,10 +1,8 @@
 import threading
 from typing import Any
 
-from werkzeug.exceptions import NotFound
-
 from odoo import http
-from odoo.http import request
+from odoo.http import NotFound, request
 from odoo.service.model import call_kw
 
 from .utils import clean_action

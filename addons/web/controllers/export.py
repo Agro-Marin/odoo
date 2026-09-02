@@ -5,11 +5,9 @@ import typing
 from collections import defaultdict
 from typing import Any
 
-from werkzeug.exceptions import InternalServerError
-
 from odoo import http
 from odoo.exceptions import UserError
-from odoo.http import Response, content_disposition, request
+from odoo.http import InternalServerError, Response, content_disposition, request
 from odoo.libs.accel import csv_export as _rust_csv_export
 from odoo.libs.documents import mimetype_for
 from odoo.libs.filesystem import osutil

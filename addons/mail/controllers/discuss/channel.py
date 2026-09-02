@@ -1,11 +1,10 @@
 from typing import Any
 
 from markupsafe import Markup
-from werkzeug.exceptions import NotFound
 
 from odoo import http
 from odoo.exceptions import UserError
-from odoo.http import request
+from odoo.http import NotFound, request
 
 from odoo.addons.mail.controllers.utils import (
     clamp_limit,

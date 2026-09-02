@@ -2,10 +2,9 @@ from datetime import datetime
 from typing import Literal
 
 from dateutil.relativedelta import relativedelta
-from werkzeug.exceptions import NotFound
 
 from odoo import fields
-from odoo.http import Controller, request, route
+from odoo.http import Controller, NotFound, request, route
 
 from odoo.addons.mail.controllers.utils import get_channel_or_404
 

@@ -1,10 +1,8 @@
 import json
 from collections import defaultdict
 
-from werkzeug.exceptions import NotFound
-
 from odoo import http
-from odoo.http import Response, request
+from odoo.http import NotFound, Response, request
 
 from odoo.addons.mail.controllers.utils import (
     get_channel_or_404,

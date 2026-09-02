@@ -39,6 +39,18 @@ class Known:
     reason: str
 
 
+_HTTP_FOUNDATION = (
+    "odoo.http.constants",
+    "odoo.http.exceptions",
+    "odoo.http._protocols",
+)
+
+_HTTP_FEATURES = (
+    "odoo.http.openapi",
+    "odoo.http._params",
+    "odoo.http.geoip",
+)
+
 CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT = frozenset(
     {
         "tests",
@@ -308,14 +320,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="http-features-below-serving",
-        source=(
-            "odoo.http.openapi",
-            "odoo.http._params",
-            "odoo.http.geoip",
-            "odoo.http.constants",
-            "odoo.http.exceptions",
-            "odoo.http._protocols",
-        ),
+        source=(*_HTTP_FEATURES, *_HTTP_FOUNDATION),
         forbidden=(
             "odoo.http.application",
             "odoo.http.dispatcher",
@@ -335,7 +340,10 @@ CONTRACTS: tuple[Contract, ...] = (
         allow=(),
         rationale=(
             "The [features] modules describe or decorate the request pipeline; the "
-            "[serving] modules run it. Features must not import serving."
+            "[serving] modules run it. Features must not import serving. The "
+            "[foundation] modules (constants, the exception vocabulary, the "
+            "protocols) import nothing else in http/ at runtime and are read by "
+            "both tiers, so they sit below serving as well."
         ),
     ),
     Contract(

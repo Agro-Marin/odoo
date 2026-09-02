@@ -1,9 +1,7 @@
 from typing import Any
 
-from werkzeug.exceptions import NotFound
-
 from odoo import http, models
-from odoo.http import request
+from odoo.http import NotFound, request
 from odoo.tools import file_open
 
 from odoo.addons.mail.tools.discuss import Store

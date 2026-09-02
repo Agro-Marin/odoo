@@ -2,10 +2,14 @@ import logging
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-import werkzeug.exceptions
-
 from odoo import http
-from odoo.http import Response, content_disposition, request
+from odoo.http import (
+    BadRequest,
+    InternalServerError,
+    Response,
+    content_disposition,
+    request,
+)
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
 from odoo.tools.misc import html_escape
@@ -80,9 +84,7 @@ class ReportController(http.Controller):
             ]
             return request.prepare_response(text, headers=texthttpheaders)
         else:
-            raise werkzeug.exceptions.BadRequest(
-                description=f"Converter {converter!r} not supported."
-            )
+            raise BadRequest(description=f"Converter {converter!r} not supported.")
 
     @http.route(
         [
@@ -95,7 +97,7 @@ class ReportController(http.Controller):
     )
     def report_barcode(self, barcode_type: str, value: str, **kwargs) -> Response:
         if value is not None and len(value) > _MAX_BARCODE_VALUE_LEN:
-            raise werkzeug.exceptions.BadRequest("Barcode value is too long.")
+            raise BadRequest("Barcode value is too long.")
         if "width" in kwargs:
             kwargs["width"] = _clamp_barcode_dimension(kwargs["width"], 600)
         if "height" in kwargs:
@@ -105,9 +107,7 @@ class ReportController(http.Controller):
                 barcode_type, value, **kwargs
             )
         except ValueError, AttributeError, KeyError:
-            raise werkzeug.exceptions.BadRequest(
-                "Cannot convert into barcode."
-            ) from None
+            raise BadRequest("Cannot convert into barcode.") from None
 
         return request.prepare_response(
             barcode,
@@ -135,7 +135,7 @@ class ReportController(http.Controller):
                 pattern = "/report/pdf/" if type_ == "qweb-pdf" else "/report/text/"
                 _, _, after_pattern = url.partition(pattern)
                 if not after_pattern:
-                    raise werkzeug.exceptions.BadRequest(
+                    raise BadRequest(
                         description=f"URL does not match expected pattern {pattern!r}."
                     )
                 reportname = after_pattern.split("?")[0]
@@ -182,9 +182,7 @@ class ReportController(http.Controller):
                 )
                 return response
             else:
-                raise werkzeug.exceptions.BadRequest(
-                    description=f"Report type {type_!r} not supported."
-                )
+                raise BadRequest(description=f"Report type {type_!r} not supported.")
         except Exception as e:
             _logger.warning(
                 "Error while generating report %s", reportname, exc_info=True
@@ -192,4 +190,4 @@ class ReportController(http.Controller):
             se = http.serialize_exception(e)
             error = {"code": 0, "message": "Odoo Server Error", "data": se}
             res = request.prepare_response(html_escape(json_dumps(error)))
-            raise werkzeug.exceptions.InternalServerError(response=res) from e
+            raise InternalServerError(response=res) from e

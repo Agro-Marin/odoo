@@ -6,11 +6,9 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-import werkzeug.exceptions
 import werkzeug.routing
 import werkzeug.utils
 from werkzeug.datastructures import WWWAuthenticate
-from werkzeug.exceptions import Unauthorized
 from werkzeug.routing.converters import NumberConverter
 
 import odoo
@@ -19,7 +17,11 @@ from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessDenied
 from odoo.http import (
     SAFE_HTTP_METHODS,
+    HTTPException,
+    NotFound,
     Response,
+    Unauthorized,
+    abort,
     prepare_routing_map,
     request,
 )
@@ -192,9 +194,7 @@ class IrHttp(models.AbstractModel):
             raise Unauthorized(e, www_authenticate=WWWAuthenticate("bearer"))
         elif not is_document_navigation():
             e = 'Missing "Authorization" or Sec-headers for interactive usage.'
-            raise werkzeug.exceptions.Unauthorized(
-                e, www_authenticate=WWWAuthenticate("bearer")
-            )
+            raise Unauthorized(e, www_authenticate=WWWAuthenticate("bearer"))
         cls._auth_method_user()
 
     @classmethod
@@ -240,7 +240,7 @@ class IrHttp(models.AbstractModel):
         except (
             AccessDenied,
             http.SessionExpiredException,
-            werkzeug.exceptions.HTTPException,
+            HTTPException,
         ):
             raise
         except Exception as exc:
@@ -299,11 +299,11 @@ class IrHttp(models.AbstractModel):
                     "handle_params_access_error"
                 ):
                     if response := handle_error(e, **args):
-                        werkzeug.exceptions.abort(response)
+                        abort(response)
                 if request.env.user.is_public or isinstance(
                     e, odoo.exceptions.MissingError
                 ):
-                    raise werkzeug.exceptions.NotFound from e
+                    raise NotFound from e
                 raise
 
     @classmethod

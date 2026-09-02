@@ -3,9 +3,8 @@ import logging
 from urllib.parse import urlencode
 
 import requests
-from werkzeug.exceptions import NotFound, ServiceUnavailable
 
-from odoo.http import Controller, request, route
+from odoo.http import Controller, NotFound, ServiceUnavailable, request, route
 
 KLIPY_CONTENT_FILTER = "medium"
 KLIPY_GIF_LIMIT = 8

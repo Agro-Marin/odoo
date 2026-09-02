@@ -4,12 +4,11 @@ from functools import lru_cache, partial
 from urllib.parse import parse_qsl, urlencode, urlparse
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont
-from werkzeug.exceptions import NotFound
 from werkzeug.utils import send_file
 
 from odoo import http, models
 from odoo.exceptions import AccessError
-from odoo.http import STATIC_CACHE, Response, request
+from odoo.http import STATIC_CACHE, NotFound, Response, request
 from odoo.tools import consteq
 from odoo.tools.misc import file_open
 
