@@ -328,12 +328,7 @@ class StockLocation(models.Model):
         replenish_locations = self.filtered("replenish_location")
         if not replenish_locations:
             return
-        ancestor_ids = {
-            int(node)
-            for location in replenish_locations
-            if location.parent_path
-            for node in location.parent_path.split("/")[:-1]
-        }
+        ancestor_ids = replenish_locations._ancestor_ids(include_self=True)
         others = self.with_context(active_test=False).search(
             Domain("replenish_location", "=", True)
             & Domain("id", "not in", replenish_locations.ids)
@@ -343,14 +338,10 @@ class StockLocation(models.Model):
             ),
         )
         for location in replenish_locations:
-            if not location.parent_path:
-                continue
             for other in others:
-                if not other.parent_path:
-                    continue
-                if location.parent_path.startswith(
-                    other.parent_path
-                ) or other.parent_path.startswith(location.parent_path):
+                if location._is_descendant_of(other) or other._is_descendant_of(
+                    location
+                ):
                     raise ValidationError(
                         _(
                             "Another parent/sub replenish location %s exists, if you wish to change it, uncheck it first",
@@ -632,7 +623,7 @@ class StockLocation(models.Model):
     )
     def _compute_warehouse_id(self):
         chains = {
-            location.id: [int(node) for node in location.parent_path.split("/")[:-1]]
+            location.id: list(location._ancestor_ids(include_self=True))
             for location in self
         }
         warehouses = (
@@ -669,7 +660,7 @@ class StockLocation(models.Model):
         )
         descendant_ids = defaultdict(list)
         for location in internal_locations:
-            for ancestor_id in map(int, location.parent_path.split("/")[:-1]):
+            for ancestor_id in location._ancestor_ids(include_self=True):
                 descendant_ids[ancestor_id].append(location.id)
         for location in self:
             location.child_internal_location_ids = self.browse(
@@ -715,10 +706,7 @@ class StockLocation(models.Model):
         ).ids
 
     def _is_child_of(self, other_location):
-        self.check_singleton()
-        if not self.parent_path or not other_location.parent_path:
-            return False
-        return self.parent_path.startswith(other_location.parent_path)
+        return self._is_descendant_of(other_location)
 
     def _is_prefixed_by_parent(self):
         self.check_singleton()
