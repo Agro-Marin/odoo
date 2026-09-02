@@ -216,6 +216,32 @@ test("mention a channel", async () => {
     expect.verifySteps(["get_mention_suggestions: a"]);
 });
 
+describe("Focus on open", () => {
+    // The real composer view carries disable_autofocus, so the form view does
+    // NOT focus the first field: whatever focus happens is the composer's own.
+    // Leave it out here and the arch focuses the body by itself, which makes
+    // this test pass against a build that never focuses anything.
+    beforeEach(() => {
+        mailModels.MailComposeMessage._views = {
+            "form,false": `
+            <form js_class="mail_composer_form" disable_autofocus="1">
+                <field name="composition_comment_option" invisible="1"/>
+                <field name="body" type="html" widget="html_composer_message"/>
+            </form>`,
+        };
+    });
+
+    test("body is focused when the full composer opens on a plain comment", async () => {
+        await start();
+        await openFormView("res.partner", serverState.partnerId);
+        await click("button", { text: "Send message" });
+        await click("button[title='Open Full Composer']");
+        await waitFor(".note-editable[contenteditable]");
+        await animationFrame();
+        expect(".note-editable[contenteditable]").toBeFocused();
+    });
+});
+
 describe("Remove attachments", () => {
     beforeEach(() => {
         mailModels.MailComposeMessage._views = {
