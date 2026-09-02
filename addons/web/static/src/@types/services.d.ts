@@ -43,6 +43,7 @@ declare module "services" {
 
     // View services
     import { demoDataService } from "@web/views/settings/widgets/demo_data_service";
+    import { fillTemporalService } from "@web/views/fill_temporal_service";
     import { userInviteService } from "@web/views/settings/widgets/user_invite_service";
     import { viewService } from "@web/views/view_service";
 
@@ -79,6 +80,7 @@ declare module "services" {
         error: typeof errorService;
         field: typeof fieldService;
         file_upload: typeof fileUploadService;
+        fillTemporalService: typeof fillTemporalService;
         form_dialog_stack: typeof formDialogStackService;
         hotkey: typeof hotkeyService;
         http: typeof httpService;

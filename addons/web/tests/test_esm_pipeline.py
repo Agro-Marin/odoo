@@ -1095,11 +1095,7 @@ class TestTransitiveImportClosure(TransactionCase):
         ]
         self.assertEqual(len(importmaps), 1)
         imports = json.loads(importmaps[0]["text"])["imports"]
-        for spec in (
-            "@web/libs/bootstrap",
-            "@web/../lib/bootstrap/bootstrap.esm.js",
-            "@popperjs/core",
-        ):
+        for spec in ("@web/libs/bootstrap", "@popperjs/core"):
             self.assertIn(spec, imports, msg=f"{spec} missing from import map")
 
         seed = "@web/libs/bootstrap"
@@ -1125,6 +1121,8 @@ class TestTransitiveImportClosure(TransactionCase):
                             posixpath.normpath(f"{posixpath.dirname(url)}/{imported}"),
                         ),
                     )
+                elif imported.startswith("/"):
+                    queue.append((imported, imported))
                 else:
                     queue.append((imported, imports.get(imported)))
         self.assertFalse(
