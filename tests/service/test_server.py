@@ -754,6 +754,50 @@ class TestWorkerCheckLimits:
         assert bare_worker.alive is True
 
 
+class TestIdleRegistryEvictionRunsOnEveryPulse:
+    """registry_idle_timeout was inert in the steady state it exists for: the
+    evictor's only production caller was Registry._new_finalize, so a server
+    with a stable database set never evicted after boot. Every flavour's
+    periodic pulse sweeps it now; the timeout<=0 no-op guard lives in the
+    method itself."""
+
+    def test_worker_check_limits_sweeps(self, bare_worker):
+        with (
+            worker_check_limits_env(),
+            patch("odoo.service._worker.Registry._evict_idle_registries") as evict,
+        ):
+            bare_worker.check_limits()
+        evict.assert_called_once_with()
+
+    def test_threaded_check_limits_sweeps(self, srv):
+        ts = object.__new__(srv.ThreadedServer)
+        ts.logger = MagicMock()
+        ts.limits_reached_threads = set()
+        ts.limit_reached_time = None
+        with (
+            patch.object(
+                srv.ThreadedServer, "get_memory_over_soft_limit", return_value=None
+            ),
+            patch("odoo.service._threaded.Registry._evict_idle_registries") as evict,
+        ):
+            ts.check_limits()
+        evict.assert_called_once_with()
+
+    def test_evented_check_limits_sweeps(self, srv):
+        es = object.__new__(srv.EventServer)
+        es.logger = MagicMock()
+        es.ppid = os.getppid()
+        es.pid = os.getpid()
+        with (
+            patch.object(
+                srv.EventServer, "get_memory_over_soft_limit", return_value=None
+            ),
+            patch("odoo.service._threaded.Registry._evict_idle_registries") as evict,
+        ):
+            es.check_limits()
+        evict.assert_called_once_with()
+
+
 class TestWorkerRunFaultExit:
     def _make_worker(self, srv):
         w = object.__new__(srv.Worker)

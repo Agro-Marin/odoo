@@ -108,6 +108,7 @@ class Worker:
         empty_pipe(self.wakeup_fd_r)
 
     def check_limits(self) -> None:
+        Registry._evict_idle_registries()
         if self.ppid != os.getppid():
             self.logger.info("Parent changed")
             self.alive = False

@@ -118,6 +118,7 @@ class ThreadedServer(CommonServer):
             raise KeyboardInterrupt
 
     def check_limits(self) -> None:
+        Registry._evict_idle_registries()
         memory_over_limit = self.get_memory_over_soft_limit() is not None
 
         now = time.monotonic()
@@ -465,6 +466,7 @@ class EventServer(CommonServer):
         return self.settings.limit_memory_soft_gevent or self.settings.limit_memory_soft
 
     def check_limits(self) -> None:
+        Registry._evict_idle_registries()
         should_restart = False
         new_ppid = os.getppid()
         if self.ppid != new_ppid:
