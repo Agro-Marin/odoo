@@ -131,7 +131,10 @@ export class Settings extends Record {
             noiseSuppression: true,
         };
         if (this.audioInputDeviceId) {
-            constraints.deviceId = this.audioInputDeviceId;
+            // `exact` is what makes a mid-call switch actually switch: a bare
+            // `deviceId` is an *ideal* constraint, so the browser is free to
+            // keep handing back the microphone already in use.
+            constraints.deviceId = { exact: this.audioInputDeviceId };
         }
         return constraints;
     }
