@@ -61,6 +61,44 @@ def test_the_compute_still_runs_one_record_at_a_time(env):
     )
 
 
+def test_a_lazy_read_never_computes_a_record_inside_its_dependencys_window(env):
+    # replicates the state a real-database parent_id write leaves behind: the
+    # parent changed in cache, every affected root_id pending with its cache
+    # dropped, the backend still holding the pre-write values. write() cannot
+    # produce it here because the in-memory backend's search flushes eagerly;
+    # against PostgreSQL the pending set survives to the first lazy read.
+    Node = env["rec.node"]
+    root = Node.create([{"name": "root"}])
+    chain = [root]
+    for i in range(5):
+        chain.append(Node.create([{"name": f"c{i}", "parent_id": chain[-1].id}]))
+    env.flush_all()
+    env.invalidate_all(flush=False)
+
+    detached = chain[1]
+    subtree = chain[1] + chain[2] + chain[3] + chain[4] + chain[5]
+    parent_field = Node._fields["parent_id"]
+    root_field = Node._fields["root_id"]
+    # warm parent_id so no read below reaches the backend, whose fetch runs a
+    # flush_all -- against PostgreSQL a parent_id fetch flushes nothing
+    subtree.fetch(["parent_id"])
+    Node.invalidate_model(["root_id"], flush=False)
+    parent_field.mark_dirty(detached, False)
+    env.add_to_compute(root_field, subtree)
+
+    middle = chain[3]
+    assert middle.root_id == detached
+
+    env.flush_all()
+    env.invalidate_all(flush=False)
+    for node in chain[1:]:
+        assert node.root_id == detached, (
+            f"{node.name} stored root_id {node.root_id.name!r}, not "
+            f"{detached.name!r} -- it was computed inside an ancestor's "
+            f"protection window and read the ancestor's pre-write value"
+        )
+
+
 def test_a_chain_still_resolves_parents_before_children(env):
     Node = env["rec.node"]
     root = Node.create([{"name": "root"}])
