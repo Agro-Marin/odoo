@@ -46,6 +46,16 @@ class TestDiscussChannelTypePolicy(MailCommon):
                 channel = self._channel_of_type(channel_type)
                 self.assertEqual(channel._narrates_membership_changes(), narrates)
 
+    def test_seeding_new_member_separator_is_channel_and_group(self):
+        expected = {"chat": False, "channel": True, "group": True}
+        for channel_type, seeds in expected.items():
+            with self.subTest(channel_type=channel_type):
+                channel = self._channel_of_type(channel_type)
+                self.assertEqual(
+                    channel_type in channel._types_seeding_new_member_separator(),
+                    seeds,
+                )
+
     def test_auto_inviting_to_call_is_every_type_but_channel(self):
         expected = {"chat": True, "channel": False, "group": True}
         for channel_type, invites in expected.items():

@@ -1395,8 +1395,13 @@ class DiscussChannel(models.Model):
         vals_by_sudo = defaultdict(list)
         channels_by_sudo = defaultdict(list)
         parent_personas = self._get_parent_channel_personas(partners, guests)
+        separator_by_channel_id = self._get_new_member_separators()
         for channel in self:
             existing_members = existing_by_channel[channel]
+            # `setdefault`, so an explicit create_member_params still wins.
+            member_defaults = dict(create_member_params or {})
+            if separator := separator_by_channel_id.get(channel.id):
+                member_defaults.setdefault("new_message_separator", separator)
             actor_holds_parent = bool(
                 channel.parent_channel_id and channel.parent_channel_id.self_member_id
             )
@@ -1405,7 +1410,7 @@ class DiscussChannel(models.Model):
                 as_sudo = actor_holds_parent and ("partner", partner.id) in admitted
                 vals_by_sudo[as_sudo].append(
                     {
-                        **(create_member_params or {}),
+                        **member_defaults,
                         "partner_id": partner.id,
                         "channel_id": channel.id,
                     }
@@ -1415,7 +1420,7 @@ class DiscussChannel(models.Model):
                 as_sudo = actor_holds_parent and ("guest", guest.id) in admitted
                 vals_by_sudo[as_sudo].append(
                     {
-                        **(create_member_params or {}),
+                        **member_defaults,
                         "guest_id": guest.id,
                         "channel_id": channel.id,
                     }
@@ -1429,6 +1434,21 @@ class DiscussChannel(models.Model):
             for channel, member in zip(channels_by_sudo[as_sudo], created, strict=True):
                 by_channel[channel] |= member
         return all_created, by_channel
+
+    def _get_new_member_separators(self) -> dict[int, int]:
+        """`new_message_separator` a member added now should start at, by channel id.
+
+        Absent from the mapping means "leave the field to its default of 0",
+        which is what an empty channel and an excluded type both want.
+        """
+        channels = self.filtered(
+            lambda c: c.channel_type in self._types_seeding_new_member_separator()
+        )
+        if not channels:
+            return {}
+        return {
+            message.res_id: message.id + 1 for message in channels._get_last_messages()
+        }
 
     def _invite_new_members_to_call(self, new_members_by_channel: dict) -> None:
         for channel in self:
@@ -2206,6 +2226,16 @@ class DiscussChannel(models.Model):
         """Whether adding a member while a call is running rings them in."""
         self.check_singleton()
         return not is_channel(self)
+
+    def _types_seeding_new_member_separator(self) -> list[str]:
+        """Whether a member added later starts at the last message instead of 0.
+
+        The types you can be invited into after the fact and that accumulate
+        history. Deliberately excludes `livechat`: an operator joining a
+        conversation has to read what the visitor already wrote, so their unread
+        counter must keep flagging it.
+        """
+        return ["channel", "group"]
 
     def _types_allowing_seen_infos(self) -> list[str]:
         return ["chat", "group"]
