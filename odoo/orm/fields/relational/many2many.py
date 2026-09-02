@@ -11,11 +11,12 @@ from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import SENTINEL, Sentinel
 
 from ..._recordset import is_search_overridden
-from ...primitives import Command, NewId
+from ...primitives import NewId
 from ...validation import check_pg_name
 from .. import _field_ddl as _ddl
 from ..base import Field
 from ._base import _RelationalMulti
+from ._commands import CommandDelta
 
 if typing.TYPE_CHECKING:
     from odoo.tools.misc import Collector
@@ -28,21 +29,6 @@ if typing.TYPE_CHECKING:
     from ...models import BaseModel
 
     OnDelete = typing.Literal["cascade", "set null", "restrict"]
-
-
-def _relation_add(new_relation: dict, xs, y) -> None:
-    for x in xs:
-        new_relation[x].add(y)
-
-
-def _relation_remove(new_relation: dict, xs, y) -> None:
-    for x in xs:
-        new_relation[x].discard(y)
-
-
-def _relation_set(new_relation: dict, xs, ys) -> None:
-    for x in xs:
-        new_relation[x] = OrderedSet(ys)
 
 
 def _relation_delete(old_relation: dict, new_relation: dict, ys) -> None:
@@ -311,44 +297,20 @@ class Many2many(_RelationalMulti):
         self, records_commands_list, comodel, old_relation: dict, new_relation: dict
     ) -> None:
         for recs, commands in records_commands_list:
-            to_create = []
-            to_delete = []
-            for command in commands or ():
-                if not isinstance(command, (list, tuple)) or not command:
-                    continue
-                match command[0]:
-                    case Command.CREATE:
-                        to_create.append((recs._ids, command[2]))
-                    case Command.UPDATE:
-                        prefetch_ids = recs[self.name]._prefetch_ids
-                        comodel.browse(command[1]).with_prefetch(prefetch_ids).write(
-                            command[2]
-                        )
-                    case Command.DELETE:
-                        to_delete.append(command[1])
-                    case Command.UNLINK:
-                        _relation_remove(new_relation, recs._ids, command[1])
-                    case Command.LINK:
-                        _relation_add(new_relation, recs._ids, command[1])
-                    case Command.CLEAR | Command.SET:
-                        to_create = [
-                            (set(ids) - set(recs._ids), vals)
-                            for (ids, vals) in to_create
-                        ]
-                        _relation_set(
-                            new_relation,
-                            recs._ids,
-                            command[2] if command[0] == Command.SET else (),
-                        )
-
-            if to_create:
-                lines = comodel.create([vals for ids, vals in to_create])
-                for line, (ids, _vals) in zip(lines, to_create, strict=True):
-                    _relation_add(new_relation, ids, line.id)
-
-            if to_delete:
-                comodel.browse(to_delete).unlink()
-                _relation_delete(old_relation, new_relation, to_delete)
+            delta = CommandDelta.fold(commands)
+            for line_id, vals in delta.updated:
+                prefetch_ids = recs[self.name]._prefetch_ids
+                comodel.browse(line_id).with_prefetch(prefetch_ids).write(vals)
+            created_ids: tuple = ()
+            if delta.created:
+                created_ids = comodel.create(
+                    [vals for _ref, vals in delta.created]
+                )._ids
+            for x in recs._ids:
+                new_relation[x] = delta.final_ids(new_relation[x], created_ids)
+            if delta.deleted:
+                comodel.browse(list(delta.deleted)).unlink()
+                _relation_delete(old_relation, new_relation, delta.deleted)
 
     def _check_new_relation_access(
         self, model, comodel, old_relation: dict, new_relation: dict
@@ -373,9 +335,7 @@ class Many2many(_RelationalMulti):
         if not records_commands_list:
             return
 
-        model = records_commands_list[0][0].browse()
-        comodel = model.env[self.comodel_name].with_context(**self.context)
-        comodel = self._check_sudo_commands(comodel)
+        model, comodel = self._writer_models(records_commands_list)
 
         ids = OrderedSet(rid for recs, cs in records_commands_list for rid in recs.ids)
         records = model.browse(ids)
@@ -410,9 +370,7 @@ class Many2many(_RelationalMulti):
         if not records_commands_list:
             return
 
-        model = records_commands_list[0][0].browse()
-        comodel = model.env[self.comodel_name].with_context(**self.context)
-        comodel = self._check_sudo_commands(comodel)
+        model, comodel = self._writer_models(records_commands_list)
 
         def new(id_):
             return id_ and NewId(id_)
@@ -425,30 +383,12 @@ class Many2many(_RelationalMulti):
         new_relation = {x: OrderedSet(ys) for x, ys in old_relation.items()}
 
         for recs, commands in records_commands_list:
-            for command in commands:
-                if not isinstance(command, (list, tuple)) or not command:
-                    continue
-                match command[0]:
-                    case Command.CREATE:
-                        line_id = comodel.new(command[2], ref=command[1]).id
-                        for id_ in recs._ids:
-                            new_relation[id_].add(line_id)
-                    case Command.UPDATE:
-                        line_id = new(command[1])
-                        comodel.browse([line_id]).update(command[2])
-                    case Command.DELETE | Command.UNLINK:
-                        line_id = new(command[1])
-                        for id_ in recs._ids:
-                            new_relation[id_].discard(line_id)
-                    case Command.LINK:
-                        line_id = new(command[1])
-                        for id_ in recs._ids:
-                            new_relation[id_].add(line_id)
-                    case Command.CLEAR | Command.SET:
-                        line_ids = command[2] if command[0] == Command.SET else ()
-                        line_ids = OrderedSet(new(line_id) for line_id in line_ids)
-                        for id_ in recs._ids:
-                            new_relation[id_] = OrderedSet(line_ids)
+            delta = CommandDelta.fold(commands, new)
+            created_ids = [comodel.new(vals, ref=ref).id for ref, vals in delta.created]
+            for line_id, vals in delta.updated:
+                comodel.browse([line_id]).update(vals)
+            for id_ in recs._ids:
+                new_relation[id_] = delta.final_ids(new_relation[id_], created_ids)
 
         if new_relation == old_relation:
             return

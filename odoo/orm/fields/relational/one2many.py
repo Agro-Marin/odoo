@@ -11,10 +11,11 @@ from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import SENTINEL, Sentinel
 
 from ...domain import Domain
-from ...primitives import SQL_OPERATORS, Command, NewId
+from ...primitives import SQL_OPERATORS, NewId
 from ..base import Field
 from ..reference import Many2oneReference
 from ._base import _RelationalMulti
+from ._commands import CommandDelta
 from .many2one import Many2one
 
 if typing.TYPE_CHECKING:
@@ -195,23 +196,19 @@ class One2many(_RelationalMulti):
                 self._update_cache(record, (record[self.name] - lines)._ids)
 
         for recs, commands in records_commands_list:
-            for command in commands or ():
-                match command[0]:
-                    case Command.CREATE:
-                        for record in recs:
-                            link(record, comodel.new(command[2], ref=command[1]))
-                    case Command.UPDATE:
-                        update_line(browse_lines([command[1]]), command[2])
-                    case Command.DELETE | Command.UNLINK:
-                        unlink(browse_lines([command[1]]))
-                    case Command.LINK:
-                        link(recs[-1], browse_lines([command[1]]))
-                    case Command.CLEAR | Command.SET:
-                        self._update_cache(recs, ())
-                        lines = browse_lines(
-                            command[2] if command[0] == Command.SET else []
-                        )
-                        self._update_cache(recs[-1], lines._ids)
+            delta = CommandDelta.fold(commands)
+            if delta.replaced:
+                self._update_cache(recs, ())
+                self._update_cache(recs[-1], browse_lines(delta.set_ids)._ids)
+            for ref, vals in delta.created:
+                for record in recs:
+                    link(record, comodel.new(vals, ref=ref))
+            for line_id, vals in delta.updated:
+                update_line(browse_lines([line_id]), vals)
+            if delta.removed:
+                unlink(browse_lines(list(delta.removed)))
+            if delta.linked:
+                link(recs[-1], browse_lines(list(delta.linked)))
 
     def _orphan_lines(self, comodel, model, recs, lines, inverse):
         domain = (
@@ -265,38 +262,29 @@ class One2many(_RelationalMulti):
                 to_link.clear()
 
         for recs, commands in records_commands_list:
-            for command in commands or ():
-                match command[0]:
-                    case Command.CREATE:
-                        line_vals = dict(command[2])
-                        if reference_model_field:
-                            line_vals[reference_model_field] = model._name
-                        to_create.extend(
-                            {**line_vals, inverse: record.id} for record in recs
-                        )
-                    case Command.UPDATE:
-                        prefetch_ids = recs[self.name]._prefetch_ids
-                        comodel.browse(command[1]).with_prefetch(prefetch_ids).write(
-                            command[2]
-                        )
-                    case Command.DELETE:
-                        to_delete.append(command[1])
-                    case Command.UNLINK:
-                        unlink(comodel.browse(command[1]))
-                    case Command.LINK:
-                        to_link[recs[-1]].add(command[1])
-                    case Command.CLEAR | Command.SET:
-                        line_ids = command[2] if command[0] == Command.SET else []
-                        if not allow_full_delete:
-                            if line_ids:
-                                if line_ids.__class__ is int:
-                                    line_ids = [line_ids]
-                                to_link[recs[-1]].update(line_ids)
-                            continue
-                        flush()
-                        lines = comodel.browse(line_ids)
-                        unlink(self._orphan_lines(comodel, model, recs, lines, inverse))
-                        lines[inverse] = recs[-1]
+            delta = CommandDelta.fold(commands, superseding=allow_full_delete)
+            for line_id, vals in delta.updated:
+                prefetch_ids = recs[self.name]._prefetch_ids
+                comodel.browse(line_id).with_prefetch(prefetch_ids).write(vals)
+            to_delete.extend(delta.deleted)
+            if delta.unlinked:
+                unlink(comodel.browse(list(delta.unlinked)))
+            if delta.replaced:
+                if not allow_full_delete:
+                    if delta.set_ids:
+                        to_link[recs[-1]].update(delta.set_ids)
+                else:
+                    flush()
+                    lines = comodel.browse(delta.set_ids)
+                    unlink(self._orphan_lines(comodel, model, recs, lines, inverse))
+                    lines[inverse] = recs[-1]
+            for _ref, vals in delta.created:
+                line_vals = dict(vals)
+                if reference_model_field:
+                    line_vals[reference_model_field] = model._name
+                to_create.extend({**line_vals, inverse: record.id} for record in recs)
+            if delta.linked:
+                to_link[recs[-1]].update(delta.linked)
 
         flush()
 
@@ -320,9 +308,7 @@ class One2many(_RelationalMulti):
         if not records_commands_list:
             return
 
-        model = records_commands_list[0][0].browse()
-        comodel = model.env[self.comodel_name].with_context(**self.context)
-        comodel = self._check_sudo_commands(comodel)
+        model, comodel = self._writer_models(records_commands_list)
 
         if self.store:
             self._write_real_stored(records_commands_list, model, comodel, create)
@@ -337,9 +323,7 @@ class One2many(_RelationalMulti):
         if not records_commands_list:
             return
 
-        model = records_commands_list[0][0].browse()
-        comodel = model.env[self.comodel_name].with_context(**self.context)
-        comodel = self._check_sudo_commands(comodel)
+        model, comodel = self._writer_models(records_commands_list)
 
         ids = {record.id for records, _ in records_commands_list for record in records}
         records = model.browse(ids)
@@ -357,31 +341,25 @@ class One2many(_RelationalMulti):
                 inverse_field._update_cache(record[self.name], record.id)
 
             for recs, commands in records_commands_list:
-                for command in commands:
-                    match command[0]:
-                        case Command.CREATE:
-                            for record in recs:
-                                line = comodel.new(command[2], ref=command[1])
-                                line[inverse] = record
-                        case Command.UPDATE:
-                            browse([command[1]]).update(command[2])
-                        case Command.DELETE | Command.UNLINK:
-                            browse([command[1]])[inverse] = False
-                        case Command.LINK:
-                            browse([command[1]])[inverse] = recs[-1]
-                        case Command.CLEAR:
-                            for record in recs:
-                                if removed := record[self.name]:
-                                    removed[inverse] = False
-                            self._update_cache(recs, ())
-                        case Command.SET:
-                            last, lines = recs[-1], browse(command[2])
-                            for record in recs:
-                                if removed := record[self.name] - lines:
-                                    removed[inverse] = False
-                            self._update_cache(recs, ())
-                            self._update_cache(last, lines._ids)
-                            inverse_field._update_cache(lines, last.id)
+                delta = CommandDelta.fold(commands, lambda id_: id_ and NewId(id_))
+                if delta.replaced:
+                    last, lines = recs[-1], comodel.browse(delta.set_ids)
+                    for record in recs:
+                        if removed := record[self.name] - lines:
+                            removed[inverse] = False
+                    self._update_cache(recs, ())
+                    self._update_cache(last, lines._ids)
+                    inverse_field._update_cache(lines, last.id)
+                for ref, vals in delta.created:
+                    for record in recs:
+                        line = comodel.new(vals, ref=ref)
+                        line[inverse] = record
+                for line_id, vals in delta.updated:
+                    comodel.browse([line_id]).update(vals)
+                if delta.removed:
+                    comodel.browse(list(delta.removed))[inverse] = False
+                if delta.linked:
+                    comodel.browse(list(delta.linked))[inverse] = recs[-1]
 
         else:
             self._write_nonstored_commands(

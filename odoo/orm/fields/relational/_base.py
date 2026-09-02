@@ -21,6 +21,7 @@ from ...domain import Domain
 from ...domain.constants import SUBDOMAIN_OPERATORS
 from ...primitives import COLLECTION_TYPES, PREFETCH_MAX, Command, IdType, NewId
 from ..base import Field, _logger
+from ._commands import CommandDelta
 
 
 def _strip_granularity_suffix(field_expr: str) -> str:
@@ -320,36 +321,21 @@ class _RelationalMulti(_Relational):
             else:
                 browse = comodel.browse
             if record._has_origin:
-                id_set = OrderedSet(
-                    record.with_context(active_test=False)[self.name]._ids
-                )
+                current = record.with_context(active_test=False)[self.name]._ids
             else:
-                id_set = OrderedSet()
-            for command in value:
-                if isinstance(command, (tuple, list)):
-                    match command[0]:
-                        case Command.CREATE:
-                            id_set.add(comodel.new(command[2], ref=command[1]).id)
-                        case Command.UPDATE:
-                            line = browse(command[1])
-                            if validate:
-                                line.update(command[2])
-                            else:
-                                line._update_cache(command[2], validate=False)
-                            id_set.add(line.id)
-                        case Command.DELETE | Command.UNLINK:
-                            id_set.discard(browse(command[1]).id)
-                        case Command.LINK:
-                            id_set.add(browse(command[1]).id)
-                        case Command.CLEAR:
-                            id_set.clear()
-                        case Command.SET:
-                            id_set = OrderedSet(browse(it).id for it in command[2])
-                elif isinstance(command, dict):
-                    id_set.add(comodel.new(command).id)
+                current = ()
+            delta = CommandDelta.fold(value, lambda it: browse(it).id)
+            line_ids = [comodel.new(vals, ref=ref).id for ref, vals in delta.created]
+            for line_id, vals in delta.updated:
+                line = comodel.browse((line_id,))
+                if validate:
+                    line.update(vals)
                 else:
-                    id_set.add(browse(command).id)
-            return tuple(id_set)
+                    line._update_cache(vals, validate=False)
+                line_ids.append(line.id)
+            return typing.cast(
+                "tuple[int | NewId, ...]", tuple(delta.final_ids(current, line_ids))
+            )
 
         elif not value:
             return ()
@@ -528,6 +514,13 @@ class _RelationalMulti(_Relational):
         records_commands_list: Sequence[tuple[BaseModel, list[CommandValue]]],
     ) -> None:
         raise NotImplementedError
+
+    def _writer_models(
+        self, records_commands_list: Sequence[tuple[BaseModel, list[CommandValue]]]
+    ) -> tuple[BaseModel, BaseModel]:
+        model = records_commands_list[0][0].browse()
+        comodel = model.env[self.comodel_name].with_context(**self.context)
+        return model, self._check_sudo_commands(comodel)
 
     def _check_sudo_commands(self, comodel: BaseModel) -> BaseModel:
         if comodel._allow_sudo_commands:
