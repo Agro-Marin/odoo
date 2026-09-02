@@ -192,13 +192,13 @@ class TestHrAttendanceOvertime(HttpCase):
 
     def test_simple_overtime(self):
         checkin_am = self.env["hr.attendance"].create(
-            {"employee_id": self.employee.id, "check_in": datetime(2021, 1, 4, 8, 0)}
+            {"employee_id": self.employee.id, "check_in": datetime(2021, 1, 4, 7, 0)}
         )
         self.env["hr.attendance"].create(
             {
                 "employee_id": self.other_employee.id,
-                "check_in": datetime(2021, 1, 4, 8, 0),
-                "check_out": datetime(2021, 1, 4, 22, 0),
+                "check_in": datetime(2021, 1, 4, 7, 0),
+                "check_out": datetime(2021, 1, 4, 21, 0),
             }
         )
 
@@ -207,17 +207,17 @@ class TestHrAttendanceOvertime(HttpCase):
         )
         self.assertFalse(overtime, "No overtime record should exist for that employee")
 
-        checkin_am.write({"check_out": datetime(2021, 1, 4, 12, 0)})
+        checkin_am.write({"check_out": datetime(2021, 1, 4, 11, 0)})
 
         checkin_pm = self.env["hr.attendance"].create(
-            {"employee_id": self.employee.id, "check_in": datetime(2021, 1, 4, 13, 0)}
+            {"employee_id": self.employee.id, "check_in": datetime(2021, 1, 4, 12, 0)}
         )
         self.assertEqual(
             overtime.duration,
             0,
             "Overtime duration should be 0 when an attendance has not been checked out.",
         )
-        checkin_pm.write({"check_out": datetime(2021, 1, 4, 18, 0)})
+        checkin_pm.write({"check_out": datetime(2021, 1, 4, 17, 0)})
         overtime = self.env["hr.attendance.overtime.line"].search(
             [("employee_id", "=", self.employee.id), ("date", "=", date(2021, 1, 4))]
         )
@@ -354,13 +354,13 @@ class TestHrAttendanceOvertime(HttpCase):
             [
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2021, 1, 4, 7, 55),
-                    "check_out": datetime(2021, 1, 4, 12, 0),
+                    "check_in": datetime(2021, 1, 4, 6, 55),
+                    "check_out": datetime(2021, 1, 4, 11, 0),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2021, 1, 4, 13, 0),
-                    "check_out": datetime(2021, 1, 4, 17, 5),
+                    "check_in": datetime(2021, 1, 4, 12, 0),
+                    "check_out": datetime(2021, 1, 4, 16, 5),
                 },
             ]
         )
@@ -1275,8 +1275,8 @@ class TestHrAttendanceOvertime(HttpCase):
         )
 
         self.assertEqual(attendance.worked_hours, 9.0)
-        self.assertEqual(attendance.overtime_hours, 4.0)
-        self.assertEqual(attendance.expected_hours, 5.0)
+        self.assertEqual(attendance.overtime_hours, 5.0)
+        self.assertEqual(attendance.expected_hours, 4.0)
 
     def test_company_tolerance_multiple_attendances(self):
         self.employee.ruleset_id.rule_ids.employer_tolerance = 0.25
@@ -1291,33 +1291,33 @@ class TestHrAttendanceOvertime(HttpCase):
             [
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 4, 7, 0),
-                    "check_out": datetime(2023, 1, 4, 8, 0),
+                    "check_in": datetime(2023, 1, 4, 6, 0),
+                    "check_out": datetime(2023, 1, 4, 7, 0),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 4, 12, 0),
-                    "check_out": datetime(2023, 1, 4, 20, 30),
+                    "check_in": datetime(2023, 1, 4, 11, 0),
+                    "check_out": datetime(2023, 1, 4, 19, 30),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 5, 7, 0),
-                    "check_out": datetime(2023, 1, 5, 8, 0),
+                    "check_in": datetime(2023, 1, 5, 6, 0),
+                    "check_out": datetime(2023, 1, 5, 7, 0),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 5, 12, 0),
-                    "check_out": datetime(2023, 1, 5, 20, 14),
+                    "check_in": datetime(2023, 1, 5, 11, 0),
+                    "check_out": datetime(2023, 1, 5, 19, 14),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 6, 7, 44),
-                    "check_out": datetime(2023, 1, 6, 12, 00),
+                    "check_in": datetime(2023, 1, 6, 6, 44),
+                    "check_out": datetime(2023, 1, 6, 11, 00),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 6, 13, 30),
-                    "check_out": datetime(2023, 1, 6, 17, 44),
+                    "check_in": datetime(2023, 1, 6, 12, 30),
+                    "check_out": datetime(2023, 1, 6, 16, 44),
                 },
             ]
         )
@@ -1349,33 +1349,33 @@ class TestHrAttendanceOvertime(HttpCase):
             [
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 4, 7, 0),
-                    "check_out": datetime(2023, 1, 4, 8, 0),
+                    "check_in": datetime(2023, 1, 4, 6, 0),
+                    "check_out": datetime(2023, 1, 4, 7, 0),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 4, 12, 0),
-                    "check_out": datetime(2023, 1, 4, 19, 30),
+                    "check_in": datetime(2023, 1, 4, 11, 0),
+                    "check_out": datetime(2023, 1, 4, 18, 30),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 5, 7, 0),
-                    "check_out": datetime(2023, 1, 5, 8, 0),
+                    "check_in": datetime(2023, 1, 5, 6, 0),
+                    "check_out": datetime(2023, 1, 5, 7, 0),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 5, 12, 0),
-                    "check_out": datetime(2023, 1, 5, 19, 54),
+                    "check_in": datetime(2023, 1, 5, 11, 0),
+                    "check_out": datetime(2023, 1, 5, 18, 54),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 6, 7, 44),
-                    "check_out": datetime(2023, 1, 6, 12, 00),
+                    "check_in": datetime(2023, 1, 6, 6, 44),
+                    "check_out": datetime(2023, 1, 6, 11, 00),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2023, 1, 6, 13, 30),
-                    "check_out": datetime(2023, 1, 6, 16, 44),
+                    "check_in": datetime(2023, 1, 6, 12, 30),
+                    "check_out": datetime(2023, 1, 6, 15, 44),
                 },
             ]
         )

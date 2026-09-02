@@ -891,7 +891,9 @@ class HrAttendance(models.Model):
 
     def _get_localized_times(self):
         self.check_singleton()
-        tz = timezone(self.employee_id.sudo()._get_version(self.check_in.date()).tz)
+        tz = timezone(
+            self.employee_id.sudo()._get_version(self.check_in.date())._get_tz()
+        )
         localized_start = (
             self.check_in.replace(tzinfo=UTC).astimezone(tz).replace(tzinfo=None)
         )

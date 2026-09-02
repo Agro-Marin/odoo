@@ -221,14 +221,14 @@ class TestHrAttendanceUndertime(HttpCase):
         checkin_am = self.env["hr.attendance"].create(
             {
                 "employee_id": self.employee.id,
-                "check_in": datetime(2021, 1, 4, 8, 0),
+                "check_in": datetime(2021, 1, 4, 7, 0),
             }
         )
         self.env["hr.attendance"].create(
             {
                 "employee_id": self.other_employee.id,
-                "check_in": datetime(2021, 1, 4, 8, 0),
-                "check_out": datetime(2021, 1, 4, 15, 0),
+                "check_in": datetime(2021, 1, 4, 7, 0),
+                "check_out": datetime(2021, 1, 4, 14, 0),
             }
         )
 
@@ -237,7 +237,7 @@ class TestHrAttendanceUndertime(HttpCase):
         )
         self.assertFalse(overtime, "No overtime record should exist for that employee")
 
-        checkin_am.write({"check_out": datetime(2021, 1, 4, 12, 0)})
+        checkin_am.write({"check_out": datetime(2021, 1, 4, 11, 0)})
         overtime = checkin_am._linked_overtimes()
         self.assertTrue(overtime, "An overtime record should be created")
         self.assertEqual(overtime.duration, -4)
@@ -245,7 +245,7 @@ class TestHrAttendanceUndertime(HttpCase):
         checkin_pm = self.env["hr.attendance"].create(
             {
                 "employee_id": self.employee.id,
-                "check_in": datetime(2021, 1, 4, 13, 0),
+                "check_in": datetime(2021, 1, 4, 12, 0),
             }
         )
         overtime = checkin_pm._linked_overtimes()
@@ -253,7 +253,7 @@ class TestHrAttendanceUndertime(HttpCase):
             overtime.exists(),
             "Overtime duration should not exist when an attendance has not been checked out.",
         )
-        checkin_pm.write({"check_out": datetime(2021, 1, 4, 18, 0)})
+        checkin_pm.write({"check_out": datetime(2021, 1, 4, 17, 0)})
         overtime = self.env["hr.attendance.overtime.line"].search(
             [("employee_id", "=", self.employee.id), ("date", "=", date(2021, 1, 4))]
         )
@@ -412,8 +412,8 @@ class TestHrAttendanceUndertime(HttpCase):
         m_attendance_1 = self.env["hr.attendance"].create(
             {
                 "employee_id": self.employee.id,
-                "check_in": datetime(2023, 1, 3, 8, 0),
-                "check_out": datetime(2023, 1, 3, 12, 0),
+                "check_in": datetime(2023, 1, 3, 7, 0),
+                "check_out": datetime(2023, 1, 3, 11, 0),
             }
         )
         self.assertAlmostEqual(m_attendance_1.overtime_hours, -4, 2)
@@ -421,8 +421,8 @@ class TestHrAttendanceUndertime(HttpCase):
         m_attendance_2 = self.env["hr.attendance"].create(
             {
                 "employee_id": self.employee.id,
-                "check_in": datetime(2023, 1, 3, 13, 0),
-                "check_out": datetime(2023, 1, 3, 17, 0),
+                "check_in": datetime(2023, 1, 3, 12, 0),
+                "check_out": datetime(2023, 1, 3, 16, 0),
             }
         )
         self.assertAlmostEqual(m_attendance_1.overtime_hours, 0, 2)
@@ -431,8 +431,8 @@ class TestHrAttendanceUndertime(HttpCase):
         m_attendance_3 = self.env["hr.attendance"].create(
             {
                 "employee_id": self.employee.id,
-                "check_in": datetime(2023, 1, 3, 18, 0),
-                "check_out": datetime(2023, 1, 3, 19, 0),
+                "check_in": datetime(2023, 1, 3, 17, 0),
+                "check_out": datetime(2023, 1, 3, 18, 0),
             }
         )
         self.assertAlmostEqual(m_attendance_1.overtime_hours, 0, 2)
@@ -454,7 +454,7 @@ class TestHrAttendanceUndertime(HttpCase):
 
         m_attendance_3.write(
             {
-                "check_out": datetime(2023, 1, 3, 20, 00),
+                "check_out": datetime(2023, 1, 3, 19, 00),
             }
         )
         self.assertAlmostEqual(m_attendance_3.overtime_hours, 2, 2)
@@ -486,7 +486,7 @@ class TestHrAttendanceUndertime(HttpCase):
                 "check_out": datetime(2024, 5, 30, 10, 0),
             }
         )
-        self.assertAlmostEqual(early_attendance2.overtime_hours, -1, 2)
+        self.assertAlmostEqual(early_attendance2.overtime_hours, -2, 2)
 
         overtime_record2 = early_attendance2.linked_overtime_ids
         self.assertEqual(
@@ -494,7 +494,7 @@ class TestHrAttendanceUndertime(HttpCase):
             1,
             "One undertime records should be created for that attendance.",
         )
-        self.assertAlmostEqual(overtime_record2.duration, -1, 2)
+        self.assertAlmostEqual(overtime_record2.duration, -2, 2)
 
         early_attendance3 = self.env["hr.attendance"].create(
             {
@@ -625,7 +625,7 @@ class TestHrAttendanceUndertime(HttpCase):
         )
         overtime.action_approve()
 
-        self.assertEqual(attendance.validated_overtime_hours, -4)
+        self.assertEqual(attendance.validated_overtime_hours, -5)
         self.assertEqual(attendance.overtime_hours, attendance.validated_overtime_hours)
 
         attendance.action_refuse_overtime()
@@ -678,13 +678,13 @@ class TestHrAttendanceUndertime(HttpCase):
             [
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2021, 1, 4, 8, 5),
-                    "check_out": datetime(2021, 1, 4, 12, 0),
+                    "check_in": datetime(2021, 1, 4, 7, 5),
+                    "check_out": datetime(2021, 1, 4, 11, 0),
                 },
                 {
                     "employee_id": self.employee.id,
-                    "check_in": datetime(2021, 1, 4, 13, 0),
-                    "check_out": datetime(2021, 1, 4, 16, 55),
+                    "check_in": datetime(2021, 1, 4, 12, 0),
+                    "check_out": datetime(2021, 1, 4, 15, 55),
                 },
             ]
         )

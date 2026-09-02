@@ -383,16 +383,21 @@ class TestAttendanceComputeQueryScope(TransactionCase):
     def test_hours_last_month_ignores_attendances_outside_the_month(self):
         employee = self.employees[0]
         last_year = fields.Datetime.now() - relativedelta(years=1)
-        self.env["hr.attendance"].create(
+        stale = self.env["hr.attendance"].create(
             {
                 "employee_id": employee.id,
                 "check_in": last_year,
                 "check_out": last_year + relativedelta(hours=8),
             }
         )
+        this_month = employee.attendance_ids - stale
         self.env.invalidate_all()
+        self.assertTrue(
+            stale.worked_hours,
+            "the excluded attendance must carry hours, or excluding it proves nothing",
+        )
         self.assertEqual(
             employee.hours_last_month,
-            2.0,
-            "only the two hours worked this month count towards it",
+            round(sum(this_month.mapped("worked_hours")), 2),
+            "only what was worked this month counts towards it",
         )
