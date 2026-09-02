@@ -212,19 +212,22 @@ class TestPartnerIdentifier(TransactionCase):
                 )
 
     def test_a_code_specific_rule_runs_after_the_format(self):
-        """`_check_<code>` is the extension point a localization adds.
+        """`_validate_code_<code>` is the extension point a localization adds.
 
         Patched onto the registry class, not the recordset: recordsets carry
         `__slots__`, so an instance attribute raises rather than shadowing.
         """
         checked = []
 
-        def _check_test_rfc(self, value):
+        def _validate_code_test_rfc(self, value):
             checked.append(value)
             return value.startswith("VAN")
 
         with patch.object(
-            type(self.rfc), "_check_test_rfc", _check_test_rfc, create=True
+            type(self.rfc),
+            "_validate_code_test_rfc",
+            _validate_code_test_rfc,
+            create=True,
         ):
             self.company._update_identifier("TEST_RFC", "VAN850101QW1")
             self.assertEqual(checked, ["VAN850101QW1"])
@@ -288,3 +291,22 @@ class TestPartnerIdentifier(TransactionCase):
         with self.assertRaises(ValidationError):
             with self.cr.savepoint():
                 mine.with_user(manager)._update_identifier("TEST_RFC", "VAN850101QW1")
+
+    def test_a_code_does_not_collide_with_a_model_method(self):
+        """The code-specific rule is dispatched by name, so a type whose code
+        happens to match a real method (e.g. "hook" -> _check_hook, or
+        "pattern_compiles" -> the constraint) must not hijack validation."""
+        for code in ("hook", "pattern_compiles"):
+            with self.subTest(code=code):
+                self.Type.create(
+                    {
+                        "name": f"Collide {code}",
+                        "code": code,
+                        "pattern": r"[A-Z]{3}[0-9]{3}",
+                    }
+                )
+                partner = self.Partner.create(
+                    {"name": f"Collide {code} Co", "is_company": True}
+                )
+                partner._update_identifier(code, "ABC123")
+                self.assertEqual(partner._get_identifier(code), "ABC123")
