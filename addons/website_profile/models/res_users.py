@@ -1,17 +1,20 @@
 import hashlib
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
-from odoo import _, api, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import consteq
 
 VALIDATION_KARMA_GAIN = 3
+VALIDATION_EMAIL_COOLDOWN = timedelta(seconds=60)
 
 
 class ResUsers(models.Model):
     _inherit = "res.users"
+
+    profile_validation_email_last_sent = fields.Datetime(copy=False)
 
     @property
     def SELF_READABLE_FIELDS(self):
@@ -77,6 +80,11 @@ class ResUsers(models.Model):
     def _send_profile_validation_email(self, **kwargs):
         if not self.email:
             return False
+        now = fields.Datetime.now()
+        last_sent = self.profile_validation_email_last_sent
+        if last_sent and now - last_sent < VALIDATION_EMAIL_COOLDOWN:
+            return False
+        self.sudo().profile_validation_email_last_sent = now
         token = self._generate_profile_token(self.id, self.email)
         activation_template = self.env.ref("website_profile.validation_email")
         if activation_template:
