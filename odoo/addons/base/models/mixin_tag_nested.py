@@ -1,26 +1,19 @@
-from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo import _lt, api, models
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class MixinTagNested(models.AbstractModel):
     _name = "mixin.tag.nested"
-    _inherit = ["mixin.tag"]
+    _inherit = ["mixin.tag", "mixin.hierarchy"]
     _description = "Nested Tag (tag with a parent/child hierarchy)"
-    _parent_store = True
 
-    parent_path = fields.Char(index=True)
+    _hierarchy_cycle_message = _lt("You can not create recursive tags.")
 
     _name_src_uniq = name_uniq_index(
         "parent_id",
         message="A tag with this name already exists under the same parent.",
     )
-
-    @api.constrains("parent_id")
-    def _check_parent_id(self):
-        if self._has_cycle():
-            raise ValidationError(_("You can not create recursive tags."))
 
     @api.depends("name", "parent_id.name")
     def _compute_display_name(self):
