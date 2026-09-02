@@ -13,34 +13,15 @@ registry.category("web_tour.tours").add("time_off_request_calendar_view", {
         {
             content: "Click on the first Thursday of the year",
             trigger: ".fc-daygrid-day.fc-day-thu",
-            run: () => {
-                const el = document.querySelector(
-                    ".fc-daygrid-day.fc-day-thu",
-                ).firstChild;
-                el.scrollIntoView();
-
-                const fromPosition = el.getBoundingClientRect();
-                fromPosition.x += el.offsetWidth / 2;
-                fromPosition.y += el.offsetHeight / 2;
-
-                el.dispatchEvent(
-                    new MouseEvent("mousedown", {
-                        bubbles: true,
-                        which: 1,
-                        button: 0,
-                        clientX: fromPosition.x,
-                        clientY: fromPosition.y,
-                    }),
-                );
-                el.dispatchEvent(
-                    new MouseEvent("mouseup", {
-                        bubbles: true,
-                        which: 1,
-                        button: 0,
-                        clientX: fromPosition.x,
-                        clientY: fromPosition.y,
-                    }),
-                );
+            async run(helpers) {
+                // The first `.fc-day-thu` cell is a disabled December cell in
+                // any year whose January 1st falls on Friday through Sunday,
+                // so aim at the first Thursday of the displayed year by date.
+                const year = new Date().getFullYear();
+                const first = new Date(Date.UTC(year, 0, 1));
+                first.setUTCDate(first.getUTCDate() + ((4 - first.getUTCDay() + 7) % 7));
+                const date = first.toISOString().slice(0, 10);
+                await helpers.click(`.fc-daygrid-day[data-date="${date}"]`);
             },
         },
         {
