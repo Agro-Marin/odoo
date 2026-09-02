@@ -294,34 +294,31 @@ def test_all_cached_ids_spans_per_context_subdicts() -> None:
     from odoo.orm.components.cache import FieldCache
 
     cache = FieldCache()
-    cache._data["G"] = {("en_US",): {1: "a"}, ("fr_FR",): {2: "b"}}
-    assert set(cache.all_cached_ids("G", context_dependent=True)) == {1, 2}
+    cache.get_context_data("G", ("en_US",))[1] = "a"
+    cache.get_context_data("G", ("fr_FR",))[2] = "b"
+    assert set(cache.all_context_cached_ids("G")) == {1, 2}
 
 
 def test_all_cached_ids_skips_stale_flat_entries() -> None:
     from odoo.orm.components.cache import FieldCache
 
     cache = FieldCache()
-    cache._data["G"] = {
-        ("en_US",): {1: "a"},
-        5: "stale-scalar",
-        6: None,
-        7: {"json-key": "v"},
-    }
-    assert set(cache.all_cached_ids("G", context_dependent=True)) == {1}
+    cache.get_context_data("G", ("en_US",))[1] = "a"
+    cache.get_field_data("G").update({5: "stale-scalar", 6: None, 7: {"json-key": "v"}})
+    assert set(cache.all_context_cached_ids("G")) == {1}
 
 
 def test_invalidate_mixed_state_never_reaches_into_json_values() -> None:
     from odoo.orm.components.cache import FieldCache
 
     cache = FieldCache()
-    cache._data["G"] = {
-        ("en_US",): {1: "a", 2: "b"},
-        1: {2: "json-payload"},
-    }
-    cache.invalidate("G", [2], context_dependent=True)
-    assert cache._data["G"][("en_US",)] == {1: "a"}
-    assert cache._data["G"][1] == {2: "json-payload"}
-    cache.invalidate("G", [1], context_dependent=True)
-    assert 1 not in cache._data["G"]
-    assert cache._data["G"][("en_US",)] == {}
+    sub = cache.get_context_data("G", ("en_US",))
+    sub.update({1: "a", 2: "b"})
+    flat = cache.get_field_data("G")
+    flat[1] = {2: "json-payload"}
+    cache.invalidate("G", [2])
+    assert sub == {1: "a"}
+    assert flat[1] == {2: "json-payload"}
+    cache.invalidate("G", [1])
+    assert 1 not in flat
+    assert sub == {}

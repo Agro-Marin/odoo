@@ -27,6 +27,13 @@ _DELEGATIONS = [
     ("get_patches", "cache", "get_patches", 1, True),
     ("iter_field_items", "cache", "iter_field_items", 0, True),
     ("iter_context_caches", "cache", "iter_context_caches", 1, True),
+    ("get_context_data", "cache", "get_context_data", 2, True),
+    ("get_context_data_or_none", "cache", "get_context_data_or_none", 2, True),
+    ("has_any_cached", "cache", "has_any_cached", 1, True),
+    ("has_any_context_cached", "cache", "has_any_context_cached", 1, True),
+    ("all_cached_ids", "cache", "all_cached_ids", 1, True),
+    ("all_context_cached_ids", "cache", "all_context_cached_ids", 1, True),
+    ("cached_fields", "cache", "cached_fields", 0, True),
     ("clear_cache", "cache", "clear", 0, False),
     ("schedule", "engine", "schedule", 2, False),
     ("mark_done", "engine", "mark_done", 2, False),
@@ -48,16 +55,7 @@ _NON_PASSTHROUGH = {
 }
 
 _KWARG_DELEGATIONS = [
-    (
-        "invalidate",
-        "cache",
-        "invalidate",
-        2,
-        ("context_dependent", "keep_dirty"),
-        False,
-    ),
-    ("all_cached_ids", "cache", "all_cached_ids", 1, ("context_dependent",), True),
-    ("has_any_cached", "cache", "has_any_cached", 1, ("context_dependent",), True),
+    ("invalidate", "cache", "invalidate", 2, ("keep_dirty",), False),
 ]
 
 

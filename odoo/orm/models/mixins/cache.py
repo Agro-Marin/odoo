@@ -24,12 +24,9 @@ class RecordCache(Mapping):
     def _peek(self, field) -> Mapping | None:
         record = self._record
         env = record.env
-        cache = env._core.get_field_data_or_none(field)
-        if cache is None:
-            return None
         if field in env._field_depends_context:
-            return cache.get(env.cache_key(field))
-        return cache
+            return env._core.get_context_data_or_none(field, env.cache_key(field))
+        return env._core.get_field_data_or_none(field)
 
     def __contains__(self, name: object) -> bool:
         record = self._record

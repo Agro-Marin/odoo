@@ -39,9 +39,7 @@ class Cache:
     def __repr__(self) -> str:
         data: dict[Field, dict] = {}
         core = self.transaction.core
-        for field, field_cache in sorted(
-            core.iter_field_items(), key=lambda item: str(item[0])
-        ):
+        for field in sorted(core.cached_fields(), key=str):
             dirty_ids = core.get_dirty(field) or ()
 
             def entries(values, dirty_ids=dirty_ids, field=field):
@@ -58,7 +56,7 @@ class Cache:
                     for key, key_cache in core.iter_context_caches(field)
                 }
             else:
-                data[field] = entries(field_cache)
+                data[field] = entries(core.get_field_data_or_none(field) or {})
         return repr(data)
 
     def _field_cache(
@@ -154,9 +152,7 @@ class Cache:
     ) -> BaseModel:
         ids: Iterable
         if all_contexts and field in model.pool.field_depends_context:
-            ids = OrderedSet(
-                self.transaction.core.all_cached_ids(field, context_dependent=True)
-            )
+            ids = OrderedSet(self.transaction.core.all_context_cached_ids(field))
         else:
             ids = self._field_cache(model, field)
         return model.browse(ids)
@@ -234,7 +230,7 @@ class Cache:
                     )
                 )
 
-        for field, field_cache in core.iter_field_items():
+        for field in list(core.cached_fields()):
             if (
                 not field.store
                 or not field.column_type
@@ -252,7 +248,7 @@ class Cache:
                     if "company" in context:
                         context["allowed_company_ids"] = [context.pop("company")]
                     process(model.with_context(context), field, inner_cache)
-            else:
+            elif (field_cache := core.get_field_data_or_none(field)) is not None:
                 process(model, field, field_cache)
 
         if invalids:

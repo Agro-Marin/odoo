@@ -182,7 +182,7 @@ The Python boundary checker is one gate among several. The
 | `layer_check.py` | the Python layering contracts in [`module.md`](module.md#enforced-dependency-rules) |
 | `mixin_coupling_check.py` | the `self`-call graph the import graph cannot see |
 | `js_mixin_coupling.py` | the same for JS: the `this`-call graph across `SearchModel`'s mixin chain, which produces no import edge and no cross-module member access, so every other JS gate reads it as empty |
-| `env_surface_check.py` | the Layer→runtime `env` seam, and that every reached `Environment` member exists |
+| `env_surface_check.py` | the Layer→runtime `env` seam, that every reached `Environment` member exists, and Layer 1's whole view of the cache: the exact count of its `env._core` reaches and the exact set of `OrmCore` members they name |
 | `pool_surface_check.py` | the Layer→runtime `pool` seam: private reach, member validity, and `components/` at zero |
 | `env_model_surface_check.py` | the framework's string-keyed dependency on addon-owned models (`env["res.users"]`), which `core-does-not-depend-on-addons` cannot see — *which* models (exact set) **and** which subtrees may reach none. Reads six syntaxes, not just the subscript |
 | `worker_thread_surface_check.py` | inline `threading.current_thread().<attr>` reads of per-request bookkeeping (`dbname`, `cursor_mode`, …), which mypy and `layer_check` cannot see |

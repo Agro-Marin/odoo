@@ -62,39 +62,37 @@ class _FieldConvertMixin[T](_FieldStubs):
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
 
     def _column_update_model_translation(
-        self, record: ModelLike, record_id, field_cache
+        self, record: ModelLike, record_id
     ) -> typing.Any:
         langs_dict = {}
-        flat_value = SENTINEL
         found = False
-        for cache_key, sub_cache in field_cache.items():
-            if not isinstance(sub_cache, dict):
-                if cache_key == record_id:
-                    found = True
-                    if sub_cache is not None:
-                        flat_value = sub_cache
-                continue
+        for cache_key, sub_cache in record.env._core.iter_context_caches(self):
             if (value := sub_cache.get(record_id, SENTINEL)) is not SENTINEL:
                 found = True
-                lang = cache_key[0]
                 if value is not None:
-                    langs_dict[lang] = value
-        if not found:
-            raise KeyError(record_id)
-        if not langs_dict and flat_value is not SENTINEL:
-            langs_dict[record.env.lang or "en_US"] = flat_value
+                    langs_dict[cache_key[0]] = value
+        if not langs_dict:
+            flat_value = self._flat_column_value(record, record_id)
+            if flat_value is SENTINEL:
+                if not found:
+                    raise KeyError(record_id)
+            elif flat_value is not None:
+                langs_dict[record.env.lang or "en_US"] = flat_value
         return PsycopgJson(langs_dict) if langs_dict else None
 
-    def _column_update_plain(
-        self, record: ModelLike, record_id, field_cache
-    ) -> typing.Any:
-        if not self._is_context_dependent(record.env):
-            value = field_cache[record_id]
+    def _flat_column_value(self, record: ModelLike, record_id) -> typing.Any:
+        flat = record.env._core.get_field_data_or_none(self)
+        return SENTINEL if flat is None else flat.get(record_id, SENTINEL)
+
+    def _column_update_plain(self, record: ModelLike, record_id) -> typing.Any:
+        env = record.env
+        if not self._is_context_dependent(env):
+            value = env._core.get_field_data(self)[record_id]
             if value is PENDING:
                 return PENDING
             return self.convert_to_column(value, record, validate=False)
         found = False
-        for cache in field_cache.values():
+        for _key, cache in env._core.iter_context_caches(self):
             if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
                 found = True
                 if value is not PENDING:
@@ -104,19 +102,12 @@ class _FieldConvertMixin[T](_FieldStubs):
         raise KeyError(record_id)
 
     def _column_update_company_dependent(
-        self, record: ModelLike, record_id, field_cache
+        self, record: ModelLike, record_id
     ) -> typing.Any:
         values = {}
-        flat_value = SENTINEL
         found = False
         saw_pending = False
-        for ctx_key, cache in field_cache.items():
-            if not isinstance(cache, dict):
-                if ctx_key == record_id:
-                    found = True
-                    if cache is not None:
-                        flat_value = cache
-                continue
+        for ctx_key, cache in record.env._core.iter_context_caches(self):
             if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
                 found = True
                 if value is PENDING:
@@ -125,27 +116,29 @@ class _FieldConvertMixin[T](_FieldStubs):
                     values[ctx_key[0]] = self._to_json_value(
                         self.convert_to_column(value, record)
                     )
-        if not found:
-            raise KeyError(record_id)
-        if not values and flat_value is not SENTINEL:
-            values[record.env.company.id] = self._to_json_value(
-                self.convert_to_column(flat_value, record)
-            )
+        if not values:
+            flat_value = self._flat_column_value(record, record_id)
+            if flat_value is SENTINEL:
+                if not found:
+                    raise KeyError(record_id)
+            elif flat_value is not None:
+                values[record.env.company.id] = self._to_json_value(
+                    self.convert_to_column(flat_value, record)
+                )
         if not values and saw_pending:
             return PENDING
         return PsycopgJson(values) if values else None
 
     def get_column_update(self, record: ModelLike) -> typing.Any:
         record_id = record.id
-        field_cache = record.env._core.get_field_data(self)
         if self.translate is True:
-            return self._column_update_model_translation(record, record_id, field_cache)
+            return self._column_update_model_translation(record, record_id)
         if self.translate:
-            value = field_cache[record_id]
+            value = record.env._core.get_field_data(self)[record_id]
             return PsycopgJson(value) if value else None
         if not self.company_dependent:
-            return self._column_update_plain(record, record_id, field_cache)
-        return self._column_update_company_dependent(record, record_id, field_cache)
+            return self._column_update_plain(record, record_id)
+        return self._column_update_company_dependent(record, record_id)
 
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True

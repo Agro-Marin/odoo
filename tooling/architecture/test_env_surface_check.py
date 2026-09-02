@@ -72,6 +72,60 @@ class TestCatchesRename(unittest.TestCase):
         self.assertFalse(report.ok)
 
 
+class TestLayer1CorePin(unittest.TestCase):
+    def test_a_direct_reach_names_the_member(self):
+        report = _check_source("def f(self):\n    return self.env._core.get_dirty(1)\n")
+        self.assertEqual(
+            [(r.layer, r.member) for r in report.core_reaches],
+            [("Layer 1", "get_dirty")],
+        )
+
+    def test_a_local_bound_from_core_is_followed(self):
+        report = _check_source(
+            "def f(records):\n"
+            "    core = records.env._core\n"
+            "    core.mark_dirty(1, [])\n"
+            "    return core.get_patches(1)\n"
+        )
+        self.assertEqual(
+            sorted(r.member for r in report.core_reaches),
+            ["get_patches", "mark_dirty"],
+        )
+
+    def test_a_probe_file_is_not_measured_against_the_pin(self):
+        report = _check_source("def f(self):\n    return self.env._core.get_dirty(1)\n")
+        self.assertEqual(report.core_drift, [])
+        self.assertTrue(report.ok)
+
+    def test_the_pin_reads_the_tree(self):
+        report = esc.check()
+        reaches = report.layer1_core_reaches
+        self.assertEqual(len(reaches), esc.LAYER1_CORE_REACHES)
+        self.assertEqual({r.member for r in reaches}, esc.LAYER1_CORE_MEMBERS)
+        self.assertEqual(report.core_drift, [])
+
+    def test_drift_is_reported_in_both_directions(self):
+        reaches = esc.check().layer1_core_reaches
+        extra = esc.CoreReach("odoo/orm/fields/base.py", "Layer 1", "clear_cache", 1)
+        drift = esc._core_pin_drift([*reaches, extra])
+        self.assertTrue(any("clear_cache" in line for line in drift))
+        self.assertTrue(any("pins 33" in line or "pins " in line for line in drift))
+        fewer = [r for r in reaches if r.member != "add_patch"]
+        drift = esc._core_pin_drift(fewer)
+        self.assertTrue(any("'add_patch'" in line for line in drift))
+
+    def test_every_pinned_member_is_an_orm_core_method(self):
+        if str(esc.REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(esc.REPO_ROOT))
+        try:
+            from odoo.orm.components.core import OrmCore
+        except Exception as exc:  # pragma: no cover - env-dependent
+            raise unittest.SkipTest(f"odoo not importable: {exc}") from exc
+        for member in sorted(esc.LAYER1_CORE_MEMBERS):
+            with self.subTest(member=member):
+                self.assertTrue(callable(getattr(OrmCore, member, None)))
+
+
 class TestEnvironmentMembers(unittest.TestCase):
     def test_inherited_mapping_methods_are_resolved(self):
         self.assertIn("get", esc.environment_members())

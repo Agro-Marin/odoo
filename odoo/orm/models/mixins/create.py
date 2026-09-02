@@ -420,10 +420,8 @@ class CreateMixin(_ModelStubs):
         if not ids:
             return
         env = self.env
-        core = env._core
         for field in self._fields.values():
-            if core.get_field_data_or_none(field) is not None:
-                field._invalidate_cache(env, ids)
+            field._invalidate_cache(env, ids)
 
     @api.model
     def _create(self, data_list: list[ValuesType]) -> Self:

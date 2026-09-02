@@ -687,7 +687,7 @@ class TestAPI(SavepointCaseWithUserDemo):
             byfn = (p0 | p1 | p2).grouped("function")
             self.env.invalidate_all()
             self.assertFalse(
-                dict(self.env._core.iter_field_items()),
+                list(self.env._core.cached_fields()),
                 "ensure the cache is empty",
             )
             self.assertEqual(byfn["guest"].mapped("name"), ["bob", "rhod"])

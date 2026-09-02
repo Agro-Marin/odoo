@@ -5,13 +5,14 @@ from typing import TYPE_CHECKING, Any
 from ._protocols import FieldKey
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Iterable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
 
 _MISSING = object()
+_REITERABLE = (list, tuple, set, frozenset)
 
 
 class FieldCache[F: FieldKey = FieldKey]:
-    __slots__ = ("_data", "_dirty", "_on_detach", "_patches")
+    __slots__ = ("_contexts", "_data", "_dirty", "_on_detach", "_patches")
 
     def __init__(
         self,
@@ -19,6 +20,7 @@ class FieldCache[F: FieldKey = FieldKey]:
         on_detach: Callable[[], None] | None = None,
     ) -> None:
         self._data: defaultdict[F, dict[Any, Any]] = defaultdict(dict)
+        self._contexts: defaultdict[F, dict[tuple, dict[Any, Any]]] = defaultdict(dict)
         self._dirty: defaultdict[F, set[Any]] = defaultdict(dirty_factory or set)
         self._patches: defaultdict[F, defaultdict[Any, list[Any]]] = defaultdict(
             lambda: defaultdict(list)
@@ -30,6 +32,21 @@ class FieldCache[F: FieldKey = FieldKey]:
 
     def get_field_data_or_none(self, field: F) -> dict[Any, Any] | None:
         return self._data.get(field)
+
+    def get_context_data(self, field: F, key: tuple) -> dict[Any, Any]:
+        contexts = self._contexts[field]
+        sub_cache = contexts.get(key)
+        if sub_cache is None:
+            sub_cache = contexts[key] = {}
+        return sub_cache
+
+    def get_context_data_or_none(self, field: F, key: tuple) -> dict[Any, Any] | None:
+        contexts = self._contexts.get(field)
+        return None if contexts is None else contexts.get(key)
+
+    def iter_context_caches(self, field: F) -> Iterable[tuple[tuple, dict[Any, Any]]]:
+        contexts = self._contexts.get(field)
+        return () if contexts is None else contexts.items()
 
     def set_value(self, field: F, record_id: Any, value: Any) -> None:
         self._data[field][record_id] = value
@@ -89,152 +106,74 @@ class FieldCache[F: FieldKey = FieldKey]:
     def get_patches(self, field: F) -> dict[Any, list[Any]] | None:
         return self._patches.get(field)
 
-    def _has_context_keys(self, field_cache: dict[Any, Any]) -> bool:
-        return any(isinstance(key, tuple) for key in field_cache)
-
     def invalidate(
         self,
         field: F,
         ids: Iterable[Any] | None = None,
         *,
-        context_dependent: bool | None = None,
         keep_dirty: bool = False,
     ) -> None:
         field_cache = self._data.get(field)
-        if not field_cache:
+        contexts = self._contexts.get(field)
+        if not field_cache and not contexts:
             return
-        if context_dependent is None:
-            context_dependent = self._has_context_keys(field_cache)
         dirty = (self._dirty.get(field) or None) if keep_dirty else None
-        if context_dependent:
-            self._invalidate_context(field_cache, ids, dirty)
-        else:
-            self._invalidate_flat(field_cache, ids, dirty)
+        if ids is not None:
+            if dirty is not None:
+                ids = [id_ for id_ in ids if id_ not in dirty]
+            elif contexts and type(ids) not in _REITERABLE:
+                ids = tuple(ids)
+        if field_cache:
+            _evict(field_cache, ids, dirty)
+        if contexts:
+            for sub_cache in contexts.values():
+                _evict(sub_cache, ids, dirty)
 
-    @staticmethod
-    def _invalidate_flat(
-        field_cache: dict[Any, Any],
-        ids: Iterable[Any] | None,
-        dirty: set[Any] | None,
-    ) -> None:
-        if ids is None:
-            if dirty is None:
-                field_cache.clear()
-            else:
-                for id_ in [k for k in field_cache if k not in dirty]:
-                    del field_cache[id_]
-            return
-        for id_ in ids:
-            if dirty is None or id_ not in dirty:
-                field_cache.pop(id_, None)
+    def has_any_cached(self, field: F) -> bool:
+        return bool(self._data.get(field))
 
-    @staticmethod
-    def _invalidate_context(
-        field_cache: dict[Any, Any],
-        ids: Iterable[Any] | None,
-        dirty: set[Any] | None,
-    ) -> None:
-        if ids is None:
-            for key in list(field_cache):
-                if isinstance(key, tuple):
-                    sub_cache = field_cache[key]
-                    if dirty is None:
-                        sub_cache.clear()
-                    else:
-                        for id_ in [k for k in sub_cache if k not in dirty]:
-                            del sub_cache[id_]
-                elif dirty is None or key not in dirty:
-                    del field_cache[key]
-            return
-        if isinstance(ids, Iterator):
-            ids = tuple(ids)
-        if dirty is not None:
-            ids = [id_ for id_ in ids if id_ not in dirty]
-        for id_ in ids:
-            field_cache.pop(id_, None)
-        for key, sub_cache in field_cache.items():
-            if isinstance(key, tuple):
-                for id_ in ids:
-                    sub_cache.pop(id_, None)
+    def has_any_context_cached(self, field: F) -> bool:
+        contexts = self._contexts.get(field)
+        return contexts is not None and any(contexts.values())
 
-    def has_any_cached(
-        self, field: F, *, context_dependent: bool | None = None
-    ) -> bool:
-        field_cache = self._data.get(field)
-        if not field_cache:
-            return False
-        if context_dependent is None:
-            context_dependent = self._has_context_keys(field_cache)
-        if not context_dependent:
-            return True
-        return any(sub for key, sub in field_cache.items() if isinstance(key, tuple))
+    def all_cached_ids(self, field: F) -> Mapping[Any, Any]:
+        return self._data.get(field) or {}
 
-    def all_cached_ids(
-        self, field: F, *, context_dependent: bool | None = None
-    ) -> Mapping[Any, Any]:
-        field_cache = self._data.get(field)
-        if not field_cache:
-            return {}
-        if context_dependent is None:
-            context_dependent = self._has_context_keys(field_cache)
-        if context_dependent:
-            subs = [v for k, v in field_cache.items() if isinstance(k, tuple)]
-            return ChainMap(*subs) if subs else {}
-        return field_cache
+    def all_context_cached_ids(self, field: F) -> Mapping[Any, Any]:
+        contexts = self._contexts.get(field)
+        return ChainMap(*contexts.values()) if contexts else {}
 
-    def iter_context_caches(self, field: F) -> Iterator[tuple[tuple, dict]]:
-        field_cache = self._data.get(field)
-        if not field_cache:
-            return
-        for key, sub_cache in field_cache.items():
-            if isinstance(key, tuple):
-                yield key, sub_cache
-
-    def invalidate_field(self, field: F, ids: Collection | None = None) -> None:
-        field_cache = self._data.get(field)
-        if not field_cache:
-            return
-        context_dependent = self._has_context_keys(field_cache)
-        self.invalidate(field, ids, context_dependent=context_dependent)
-        if context_dependent:
-            emptied = [
-                key
-                for key, sub_cache in field_cache.items()
-                if isinstance(key, tuple) and not sub_cache
-            ]
-            for key in emptied:
-                del field_cache[key]
-            if emptied and self._on_detach is not None:
-                self._on_detach()
+    def cached_fields(self) -> Iterator[F]:
+        return iter(self._data.keys() | self._contexts.keys())
 
     def invalidate_all(self) -> None:
         if self._on_detach is not None:
             self._on_detach()
         if not self._dirty:
             self._data.clear()
+            self._contexts.clear()
             return
         for field in list(self._data):
             dirty_ids = self._dirty.get(field)
-            if not dirty_ids:
-                del self._data[field]
+            if dirty_ids and _retain(self._data[field], dirty_ids):
                 continue
-            field_cache = self._data[field]
-            for k, v in list(field_cache.items()):
-                if isinstance(k, tuple):
-                    for sub_id in list(v):
-                        if sub_id not in dirty_ids:
-                            del v[sub_id]
-                    if not v:
-                        del field_cache[k]
-                elif k not in dirty_ids:
-                    del field_cache[k]
-            if not field_cache:
-                del self._data[field]
+            del self._data[field]
+        for field in list(self._contexts):
+            dirty_ids = self._dirty.get(field)
+            contexts = self._contexts[field]
+            if dirty_ids:
+                for key in [
+                    k for k, sub in contexts.items() if not _retain(sub, dirty_ids)
+                ]:
+                    del contexts[key]
+            if not dirty_ids or not contexts:
+                del self._contexts[field]
 
     def clear(self) -> None:
         if self._on_detach is not None:
             self._on_detach()
         self._data.clear()
+        self._contexts.clear()
         self._dirty.clear()
         self._patches.clear()
 
@@ -242,6 +181,25 @@ class FieldCache[F: FieldKey = FieldKey]:
         return iter(self._data.items())
 
     def __repr__(self) -> str:
-        n_fields = len(self._data)
+        n_fields = len(self._data.keys() | self._contexts.keys())
         n_dirty = sum(len(ids) for ids in self._dirty.values())
         return f"<FieldCache fields={n_fields} dirty_entries={n_dirty}>"
+
+
+def _evict(
+    values: dict[Any, Any], ids: Iterable[Any] | None, dirty: set[Any] | None
+) -> None:
+    if ids is None:
+        if dirty is None:
+            values.clear()
+        else:
+            _retain(values, dirty)
+        return
+    for id_ in ids:
+        values.pop(id_, None)
+
+
+def _retain(values: dict[Any, Any], ids: set[Any]) -> bool:
+    for id_ in [k for k in values if k not in ids]:
+        del values[id_]
+    return bool(values)

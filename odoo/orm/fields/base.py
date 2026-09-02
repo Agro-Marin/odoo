@@ -476,10 +476,10 @@ class Field[T](
         return field_cache
 
     def _get_cache_impl(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
-        cache = env._core.get_field_data(self)
+        core = env._core
         if self._is_context_dependent(env):
-            cache = cache.setdefault(env.cache_key(self), {})
-        return cache
+            return core.get_context_data(self, env.cache_key(self))
+        return core.get_field_data(self)
 
     def _invalidate_cache(
         self,
@@ -488,17 +488,13 @@ class Field[T](
         *,
         keep_dirty: bool = False,
     ) -> None:
-        env._core.invalidate(
-            self,
-            ids,
-            context_dependent=self._is_context_dependent(env),
-            keep_dirty=keep_dirty,
-        )
+        env._core.invalidate(self, ids, keep_dirty=keep_dirty)
 
     def _get_all_cache_ids(self, env: Environment) -> Mapping[IdType, typing.Any]:
-        return env._core.all_cached_ids(
-            self, context_dependent=self._is_context_dependent(env)
-        )
+        core = env._core
+        if self._is_context_dependent(env):
+            return core.all_context_cached_ids(self)
+        return core.all_cached_ids(self)
 
     def _cache_missing_ids(self, records: ModelLike) -> Iterator[IdType]:
         field_cache = self._get_cache(records.env)

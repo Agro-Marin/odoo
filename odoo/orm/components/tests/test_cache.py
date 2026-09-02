@@ -162,41 +162,45 @@ class TestFieldCacheInvalidation(unittest.TestCase):
         self.cache.set_value("name", 2, "Bob")
         self.cache.set_value("email", 1, "alice@x.com")
 
-    def test_invalidate_field_all(self) -> None:
-        self.cache.invalidate_field("name")
+    def test_invalidate_whole_field(self) -> None:
+        self.cache.invalidate("name")
         self.assertFalse(self.cache.has_value("name", 1))
         self.assertFalse(self.cache.has_value("name", 2))
         self.assertTrue(self.cache.has_value("email", 1))
 
-    def test_invalidate_field_specific_ids(self) -> None:
-        self.cache.invalidate_field("name", [1])
+    def test_invalidate_specific_ids(self) -> None:
+        self.cache.invalidate("name", [1])
         self.assertFalse(self.cache.has_value("name", 1))
         self.assertTrue(self.cache.has_value("name", 2))
 
-    def test_invalidate_field_nonexistent(self) -> None:
-        self.cache.invalidate_field("nonexistent")
-        self.cache.invalidate_field("nonexistent", [1])
+    def test_invalidate_nonexistent(self) -> None:
+        self.cache.invalidate("nonexistent")
+        self.cache.invalidate("nonexistent", [1])
+        self.assertIsNone(self.cache.get_field_data_or_none("nonexistent"))
+        self.assertEqual(list(self.cache.iter_context_caches("nonexistent")), [])
 
-    def test_invalidate_field_specific_ids_context_dependent(self) -> None:
+    def test_invalidate_specific_ids_context_dependent(self) -> None:
         cache = FieldCache()
-        cache._data["G"][("en_US",)] = {1: "one_en", 2: "two_en"}
-        cache._data["G"][("es_MX",)] = {1: "one_es", 3: "three_es"}
-        cache.invalidate_field("G", [1])
-        self.assertEqual(cache._data["G"][("en_US",)], {2: "two_en"})
-        self.assertEqual(cache._data["G"][("es_MX",)], {3: "three_es"})
+        cache.get_context_data("G", ("en_US",)).update({1: "one_en", 2: "two_en"})
+        cache.get_context_data("G", ("es_MX",)).update({1: "one_es", 3: "three_es"})
+        cache.invalidate("G", [1])
+        self.assertEqual(cache.get_context_data("G", ("en_US",)), {2: "two_en"})
+        self.assertEqual(cache.get_context_data("G", ("es_MX",)), {3: "three_es"})
 
-    def test_invalidate_field_context_dependent_drops_emptied_cache_key(self) -> None:
+    def test_invalidate_context_dependent_keeps_the_emptied_sub_cache(self) -> None:
         cache = FieldCache()
-        cache._data["G"][("en_US",)] = {1: "one_en"}
-        cache._data["G"][("es_MX",)] = {1: "one_es", 2: "two_es"}
-        cache.invalidate_field("G", [1])
-        self.assertNotIn(("en_US",), cache._data["G"])
-        self.assertEqual(cache._data["G"][("es_MX",)], {2: "two_es"})
+        en = cache.get_context_data("G", ("en_US",))
+        en[1] = "one_en"
+        cache.get_context_data("G", ("es_MX",)).update({1: "one_es", 2: "two_es"})
+        cache.invalidate("G", [1])
+        self.assertIs(cache.get_context_data_or_none("G", ("en_US",)), en)
+        self.assertEqual(en, {})
+        self.assertEqual(cache.get_context_data("G", ("es_MX",)), {2: "two_es"})
 
-    def test_invalidate_field_flat_dict_valued_stays_flat(self) -> None:
+    def test_invalidate_flat_dict_valued_stays_flat(self) -> None:
         cache = FieldCache()
-        cache._data["json_f"] = {1: {"k": "v1"}, 2: {"k": "v2"}}
-        cache.invalidate_field("json_f", [1])
+        cache.get_field_data("json_f").update({1: {"k": "v1"}, 2: {"k": "v2"}})
+        cache.invalidate("json_f", [1])
         self.assertFalse(cache.has_value("json_f", 1))
         self.assertEqual(cache.get_value("json_f", 2), {"k": "v2"})
 
@@ -220,22 +224,41 @@ class TestFieldCacheInvalidation(unittest.TestCase):
 
     def test_invalidate_all_context_dep_evicts_clean(self) -> None:
         cache = FieldCache()
-        cache._data["G"][("en_US",)] = {1: "dirty_en", 2: "clean_en"}
-        cache._data["G"][("es_MX",)] = {1: "dirty_es", 3: "clean_es_only"}
+        cache.get_context_data("G", ("en_US",)).update({1: "dirty_en", 2: "clean_en"})
+        cache.get_context_data("G", ("es_MX",)).update({1: "dirty_es", 3: "clean_es"})
         cache.mark_dirty("G", [1])
         cache.invalidate_all()
-        self.assertEqual(cache._data["G"][("en_US",)], {1: "dirty_en"})
-        self.assertEqual(cache._data["G"][("es_MX",)], {1: "dirty_es"})
+        self.assertEqual(
+            dict(cache.iter_context_caches("G")),
+            {("en_US",): {1: "dirty_en"}, ("es_MX",): {1: "dirty_es"}},
+        )
+
+    def test_invalidate_all_drops_a_context_sub_cache_holding_nothing_dirty(
+        self,
+    ) -> None:
+        cache = FieldCache()
+        cache.get_context_data("G", ("en_US",)).update({1: "dirty_en"})
+        cache.get_context_data("G", ("es_MX",)).update({2: "clean_es"})
+        cache.get_context_data("H", ("en_US",)).update({1: "clean_h"})
+        cache.mark_dirty("G", [1])
+        cache.invalidate_all()
+        self.assertEqual(
+            dict(cache.iter_context_caches("G")), {("en_US",): {1: "dirty_en"}}
+        )
+        self.assertEqual(list(cache.iter_context_caches("H")), [])
+        self.assertEqual(set(cache.cached_fields()), {"G"})
 
     def test_invalidate_all_flat_dict_valued_preserves_dirty(self) -> None:
         cache = FieldCache()
-        cache._data["json_f"] = {1: {"k": "v1"}, 2: {"k": "v2"}}
-        cache._data["props_f"] = {1: {"prio": "high"}, 2: {"prio": "low"}}
+        cache.get_field_data("json_f").update({1: {"k": "v1"}, 2: {"k": "v2"}})
+        cache.get_field_data("props_f").update(
+            {1: {"prio": "high"}, 2: {"prio": "low"}}
+        )
         cache.mark_dirty("json_f", [1])
         cache.mark_dirty("props_f", [1])
         cache.invalidate_all()
-        self.assertEqual(cache._data["json_f"], {1: {"k": "v1"}})
-        self.assertEqual(cache._data["props_f"], {1: {"prio": "high"}})
+        self.assertEqual(cache.get_field_data("json_f"), {1: {"k": "v1"}})
+        self.assertEqual(cache.get_field_data("props_f"), {1: {"prio": "high"}})
 
     def test_clear_everything(self) -> None:
         self.cache.mark_dirty("name", [1])
@@ -246,65 +269,100 @@ class TestFieldCacheInvalidation(unittest.TestCase):
         self.assertIsNone(self.cache.get_patches("line_ids"))
 
 
-class TestFieldCacheShapeAndIterables(unittest.TestCase):
-    def _mixed_cache(self) -> FieldCache:
+class TestFieldCacheTwoStores(unittest.TestCase):
+    def _both_stores(self) -> FieldCache:
         cache = FieldCache()
-        data = cache.get_field_data("G")
-        data[("en_US",)] = {1: "one_en", 2: "two_en"}
-        data[("es_MX",)] = {1: "one_es", 3: "three_es"}
-        data[99] = "stale-flat-value"
+        cache.get_context_data("G", ("en_US",)).update({1: "one_en", 2: "two_en"})
+        cache.get_context_data("G", ("es_MX",)).update({1: "one_es", 3: "three_es"})
+        cache.get_field_data("G")[99] = "flat-value"
         return cache
 
-    def test_invalidate_context_dependent_accepts_an_iterator(self) -> None:
+    def test_get_context_data_creates_and_returns_the_live_sub_cache(self) -> None:
         cache = FieldCache()
-        data = cache.get_field_data("G")
-        data[("en_US",)] = {1: "one_en", 2: "two_en"}
-        data[("es_MX",)] = {1: "one_es", 2: "two_es"}
-        cache.invalidate("G", (i for i in (1, 2)), context_dependent=True)
-        self.assertEqual(data[("en_US",)], {})
-        self.assertEqual(data[("es_MX",)], {})
+        sub = cache.get_context_data("G", ("en_US",))
+        self.assertEqual(sub, {})
+        sub[1] = "x"
+        self.assertIs(cache.get_context_data("G", ("en_US",)), sub)
+        self.assertIs(cache.get_context_data_or_none("G", ("en_US",)), sub)
 
-    def test_invalidate_context_dependent_iterator_matches_list(self) -> None:
-        def build():
-            cache = FieldCache()
-            data = cache.get_field_data("G")
-            data[("en_US",)] = {1: "a", 2: "b", 3: "c"}
-            data[("es_MX",)] = {1: "d", 3: "e"}
-            return cache, data
+    def test_get_context_data_or_none_does_not_vivify(self) -> None:
+        cache = FieldCache()
+        self.assertIsNone(cache.get_context_data_or_none("G", ("en_US",)))
+        self.assertEqual(list(cache.iter_context_caches("G")), [])
+        self.assertEqual(list(cache.cached_fields()), [])
 
-        cache_list, data_list = build()
-        cache_list.invalidate("G", [1, 3], context_dependent=True)
-        cache_iter, data_iter = build()
-        cache_iter.invalidate("G", iter([1, 3]), context_dependent=True)
-        self.assertEqual(data_iter, data_list)
+    def test_the_flat_store_and_the_context_store_do_not_see_each_other(self) -> None:
+        cache = self._both_stores()
+        self.assertEqual(cache.get_field_data("G"), {99: "flat-value"})
+        self.assertEqual(set(cache.all_cached_ids("G")), {99})
+        self.assertEqual(set(cache.all_context_cached_ids("G")), {1, 2, 3})
+        self.assertNotIn(99, cache.all_context_cached_ids("G"))
+        self.assertTrue(cache.has_any_cached("G"))
+        self.assertTrue(cache.has_any_context_cached("G"))
 
-    def test_all_cached_ids_skips_stale_flat_entry(self) -> None:
-        cache = self._mixed_cache()
-        ids = cache.all_cached_ids("G", context_dependent=True)
-        self.assertEqual(set(ids), {1, 2, 3})
+    def test_has_any_context_cached_needs_a_value_not_a_sub_cache(self) -> None:
+        cache = FieldCache()
+        cache.get_context_data("G", ("en_US",))
+        self.assertFalse(cache.has_any_context_cached("G"))
+        self.assertFalse(cache.has_any_cached("G"))
+        cache.get_context_data("G", ("en_US",))[1] = "x"
+        self.assertTrue(cache.has_any_context_cached("G"))
+        self.assertFalse(cache.has_any_cached("G"))
 
-    def test_iter_context_caches_skips_stale_flat_entry(self) -> None:
-        cache = self._mixed_cache()
-        pairs = dict(cache.iter_context_caches("G"))
+    def test_invalidate_accepts_an_iterator(self) -> None:
+        cache = self._both_stores()
+        cache.invalidate("G", (i for i in (1, 2, 99)))
         self.assertEqual(
-            pairs,
-            {
-                ("en_US",): {1: "one_en", 2: "two_en"},
-                ("es_MX",): {1: "one_es", 3: "three_es"},
-            },
+            dict(cache.iter_context_caches("G")),
+            {("en_US",): {}, ("es_MX",): {3: "three_es"}},
+        )
+        self.assertEqual(cache.get_field_data("G"), {})
+
+    def test_invalidate_iterator_matches_list(self) -> None:
+        cache_list, cache_iter = self._both_stores(), self._both_stores()
+        cache_list.invalidate("G", [1, 3])
+        cache_iter.invalidate("G", iter([1, 3]))
+        self.assertEqual(
+            dict(cache_iter.iter_context_caches("G")),
+            dict(cache_list.iter_context_caches("G")),
+        )
+
+    def test_invalidate_reaches_both_stores(self) -> None:
+        cache = self._both_stores()
+        cache.invalidate("G")
+        self.assertEqual(cache.get_field_data("G"), {})
+        self.assertEqual(
+            dict(cache.iter_context_caches("G")), {("en_US",): {}, ("es_MX",): {}}
         )
 
     def test_iter_context_caches_yields_live_sub_dicts(self) -> None:
-        cache = self._mixed_cache()
+        cache = self._both_stores()
         for _key, sub in cache.iter_context_caches("G"):
             sub.pop(1, None)
-        data = cache.get_field_data("G")
-        self.assertEqual(data[("en_US",)], {2: "two_en"})
-        self.assertEqual(data[("es_MX",)], {3: "three_es"})
+        self.assertEqual(cache.get_context_data("G", ("en_US",)), {2: "two_en"})
+        self.assertEqual(cache.get_context_data("G", ("es_MX",)), {3: "three_es"})
 
     def test_iter_context_caches_on_unknown_field(self) -> None:
         cache = FieldCache()
         self.assertEqual(list(cache.iter_context_caches("nope")), [])
+
+    def test_cached_fields_is_the_union_of_both_stores(self) -> None:
+        cache = FieldCache()
+        cache.set_value("flat", 1, "a")
+        cache.get_context_data("ctx", ("en_US",))[1] = "b"
+        self.assertEqual(set(cache.cached_fields()), {"flat", "ctx"})
+        self.assertEqual(dict(cache.iter_field_items()), {"flat": {1: "a"}})
+
+    def test_all_context_cached_ids_prefers_no_context_over_another(self) -> None:
+        cache = FieldCache()
+        cache.get_context_data("G", ("en_US",)).update({1: "a", 2: "b"})
+        cache.get_context_data("G", ("es_MX",)).update({2: "c", 3: "d"})
+        ids = cache.all_context_cached_ids("G")
+        self.assertEqual(set(ids), {1, 2, 3})
+        self.assertTrue(ids)
+        self.assertFalse(cache.all_context_cached_ids("never"))
+        self.assertFalse(cache.all_cached_ids("never"))
+        self.assertIsNone(cache.get_field_data_or_none("never"))
 
 
 class TestFieldCacheIntrospection(unittest.TestCase):
@@ -321,9 +379,10 @@ class TestFieldCacheIntrospection(unittest.TestCase):
 
     def test_repr(self) -> None:
         self.cache.set_value("name", 1, "Alice")
+        self.cache.get_context_data("scoped", ("x",))[1] = "s"
         self.cache.mark_dirty("name", [1])
         r = repr(self.cache)
-        self.assertIn("fields=1", r)
+        self.assertIn("fields=2", r)
         self.assertIn("dirty_entries=1", r)
 
 
@@ -386,46 +445,3 @@ class TestPopDirtyForModel(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class TestInvalidateDerivesContextDependence(unittest.TestCase):
-    def _context_cache(self) -> FieldCache:
-        cache = FieldCache()
-        cache.get_field_data("F")[("en_US",)] = {1: "a", 2: "b"}
-        cache.get_field_data("F")[("fr_FR",)] = {1: "x", 2: "y"}
-        return cache
-
-    def test_a_context_cache_is_invalidated_without_being_told(self) -> None:
-        cache = self._context_cache()
-        cache.invalidate("F", [1])
-        self.assertEqual(cache.get_field_data("F")[("en_US",)], {2: "b"})
-        self.assertEqual(cache.get_field_data("F")[("fr_FR",)], {2: "y"})
-
-    def test_a_flat_cache_is_invalidated_without_being_told(self) -> None:
-        cache = FieldCache()
-        cache.get_field_data("F").update({1: "a", 2: "b"})
-        cache.invalidate("F", [1])
-        self.assertEqual(cache.get_field_data("F"), {2: "b"})
-
-    def test_deriving_matches_stating_it_correctly(self) -> None:
-        derived, stated = self._context_cache(), self._context_cache()
-        derived.invalidate("F", [1])
-        stated.invalidate("F", [1], context_dependent=True)
-        self.assertEqual(derived.get_field_data("F"), stated.get_field_data("F"))
-
-    def test_all_cached_ids_derives_too(self) -> None:
-        cache = self._context_cache()
-        self.assertEqual(set(cache.all_cached_ids("F")), {1, 2})
-        flat = FieldCache()
-        flat.get_field_data("G").update({7: "a"})
-        self.assertEqual(set(flat.all_cached_ids("G")), {7})
-
-    def test_stating_it_wrongly_is_what_deriving_avoids(self) -> None:
-        wrong = self._context_cache()
-        wrong.invalidate("F", [1], context_dependent=False)
-        self.assertEqual(
-            wrong.get_field_data("F")[("en_US",)],
-            {1: "a", 2: "b"},
-            "this is the trap: a caller that says False leaves the sub-caches "
-            "stale, and nothing complains",
-        )

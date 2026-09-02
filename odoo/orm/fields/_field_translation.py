@@ -56,7 +56,7 @@ def scalar_fallback(
     cur_val = field._get_cache(env).get(record_id, SENTINEL)
     if cur_val is not SENTINEL:
         return cur_val
-    fb_cache = env._core.get_field_data(field).get(fallback_cache_key(field, env))
+    fb_cache = env._core.get_context_data_or_none(field, fallback_cache_key(field, env))
     if fb_cache is not None:
         return fb_cache.get(record_id, SENTINEL)
     return SENTINEL
@@ -190,14 +190,14 @@ def insert_cache(
     env = records.env
     if field.translate is True:
         if env.context.get("prefetch_langs"):
-            field_data = env._core.get_field_data(field)
+            core = env._core
             sub_caches: dict[str, dict] = {}
 
             def sub_cache(lang: str) -> dict:
                 sub = sub_caches.get(lang)
                 if sub is None:
-                    sub = sub_caches[lang] = field_data.setdefault(
-                        lang_cache_key(field, env, lang), {}
+                    sub = sub_caches[lang] = core.get_context_data(
+                        field, lang_cache_key(field, env, lang)
                     )
                 return sub
 
@@ -259,27 +259,27 @@ def update_cache(
 ) -> bool:
     if field.translate is True and isinstance(cache_value, dict):
         env = records.env
-        field_data = env._core.get_field_data(field)
+        core = env._core
         ids = records._ids
         for lang, scalar in cache_value.items():
             if lang.startswith("_"):
                 continue
-            sub = field_data.setdefault(lang_cache_key(field, env, lang), {})
+            sub = core.get_context_data(field, lang_cache_key(field, env, lang))
             if len(ids) <= 1:
                 if ids:
                     sub[ids[0]] = scalar
             else:
                 sub.update(dict.fromkeys(ids, scalar))
         if field.is_column and dirty:
-            env._core.mark_dirty(field, (id_ for id_ in ids if id_))
+            core.mark_dirty(field, (id_ for id_ in ids if id_))
         return True
     if field.translate is True:
         Field._update_cache(field, records, cache_value, dirty)
         if not field.compute and not any(
             id_ or getattr(id_, "origin", None) for id_ in records._ids
         ):
-            en_cache = records.env._core.get_field_data(field).setdefault(
-                fallback_cache_key(field, records.env), {}
+            en_cache = records.env._core.get_context_data(
+                field, fallback_cache_key(field, records.env)
             )
             for id_ in records._ids:
                 en_cache.setdefault(id_, cache_value)
@@ -316,10 +316,9 @@ def _flush_pending_none(
     if not dirty_records:
         return
     if field.translate is True:
-        field_data = records.env._core.get_field_data(field)
         has_dirty_none = any(
             sub.get(rid, SENTINEL) is None
-            for sub in field_data.values()
+            for _key, sub in records.env._core.iter_context_caches(field)
             for rid in dirty_records._ids
         )
     else:

@@ -21,9 +21,42 @@ REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="env_surface_check")
 CORE = REPO_ROOT / "odoo"
 ENVIRONMENT_PY = CORE / "orm" / "runtime" / "environment.py"
 
-__all__ = ["SCOPE", "check", "environment_members", "iter_scope_files"]
+__all__ = [
+    "LAYER1_CORE_MEMBERS",
+    "LAYER1_CORE_REACHES",
+    "SCOPE",
+    "check",
+    "environment_members",
+    "iter_scope_files",
+]
 
 SANCTIONED_PRIVATE: frozenset[str] = frozenset({"_", "_core"})
+
+# Layer 1's whole view of the cache and compute engine is the named OrmCore
+# methods below, reached as ``env._core.<member>`` or through a local bound from
+# ``env._core``. The pair is exact in both directions: a new member or a new
+# reach moves it and must be re-banked here, the same way a removed one must.
+LAYER1_CORE_MEMBERS: frozenset[str] = frozenset(
+    {
+        "add_patch",
+        "all_cached_ids",
+        "all_context_cached_ids",
+        "get_context_data",
+        "get_context_data_or_none",
+        "get_dirty",
+        "get_field_data",
+        "get_field_data_or_none",
+        "get_patches",
+        "has_pending_field",
+        "invalidate",
+        "is_protected",
+        "iter_context_caches",
+        "mark_dirty",
+        "pending_ids",
+        "protected_ids",
+    }
+)
+LAYER1_CORE_REACHES: int = 33
 
 
 @dataclass(frozen=True)
@@ -93,6 +126,14 @@ class Reach:
         return self.attr.startswith("_")
 
 
+@dataclass(frozen=True)
+class CoreReach:
+    path: str
+    layer: str
+    member: str
+    lineno: int
+
+
 @dataclass
 class Report:
     reaches: list[Reach] = field(default_factory=list)
@@ -100,21 +141,45 @@ class Report:
     known: list[Reach] = field(default_factory=list)
     unknown_members: list[Reach] = field(default_factory=list)
     env_members: set[str] = field(default_factory=set)
+    core_reaches: list[CoreReach] = field(default_factory=list)
+    core_drift: list[str] = field(default_factory=list)
+
+    @property
+    def layer1_core_reaches(self) -> list[CoreReach]:
+        return [r for r in self.core_reaches if r.layer == "Layer 1"]
 
     @property
     def ok(self) -> bool:
-        return not self.new and not self.unknown_members
+        return not self.new and not self.unknown_members and not self.core_drift
 
 
 class _EnvReachCollector(ast.NodeVisitor):
     def __init__(self) -> None:
         self.hits: list[tuple[str, int, bool]] = []
+        self.core_hits: list[tuple[str, int]] = []
+        self.core_aliases: set[str] = set()
 
     @staticmethod
     def _is_env(node: ast.expr) -> bool:
         return (isinstance(node, ast.Attribute) and node.attr == "env") or (
             isinstance(node, ast.Name) and node.id == "env"
         )
+
+    def _is_core(self, node: ast.expr) -> bool:
+        return (
+            isinstance(node, ast.Attribute)
+            and node.attr == "_core"
+            and self._is_env(node.value)
+        ) or (isinstance(node, ast.Name) and node.id in self.core_aliases)
+
+    def visit(self, node: ast.AST) -> None:
+        if isinstance(node, ast.Module):
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Assign) and self._is_core(sub.value):
+                    self.core_aliases.update(
+                        t.id for t in sub.targets if isinstance(t, ast.Name)
+                    )
+        super().visit(node)
 
     def visit_Subscript(self, node: ast.Subscript) -> None:
         value = node.value
@@ -132,6 +197,8 @@ class _EnvReachCollector(ast.NodeVisitor):
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if self._is_env(node.value):
             self.hits.append((node.attr, node.lineno, False))
+        elif self._is_core(node.value):
+            self.core_hits.append((node.attr, node.lineno))
         self.generic_visit(node)
 
 
@@ -176,12 +243,37 @@ def _is_known(path: str, attr: str) -> bool:
     return any(k.path == path and k.attr == attr for k in KNOWN_VIOLATIONS)
 
 
+def _core_pin_drift(reaches: list[CoreReach]) -> list[str]:
+    drift: list[str] = []
+    members = {r.member for r in reaches}
+    if len(reaches) != LAYER1_CORE_REACHES:
+        drift.append(
+            f"Layer 1 reaches env._core {len(reaches)} time(s); "
+            f"LAYER1_CORE_REACHES pins {LAYER1_CORE_REACHES}"
+        )
+    for member in sorted(members - LAYER1_CORE_MEMBERS):
+        where = [f"{r.path}:{r.lineno}" for r in reaches if r.member == member]
+        drift.append(
+            f"Layer 1 reaches env._core.{member}, not in LAYER1_CORE_MEMBERS: "
+            + ", ".join(where)
+        )
+    drift.extend(
+        f"LAYER1_CORE_MEMBERS pins {member!r} but Layer 1 no longer reaches it"
+        for member in sorted(LAYER1_CORE_MEMBERS - members)
+    )
+    return drift
+
+
 def check(files: list[tuple[Path, str]] | None = None) -> Report:
     report = Report(env_members=environment_members())
     for path, layer in files if files is not None else iter_scope_files():
         rel = path.relative_to(REPO_ROOT).as_posix()
         collector = _EnvReachCollector()
         collector.visit(ast.parse(path.read_text(encoding="utf-8"), filename=str(path)))
+        report.core_reaches.extend(
+            CoreReach(rel, layer, member, lineno)
+            for member, lineno in collector.core_hits
+        )
         for attr, lineno, via_dict in collector.hits:
             reach = Reach(rel, layer, attr, lineno, via_dict)
             report.reaches.append(reach)
@@ -194,6 +286,8 @@ def check(files: list[tuple[Path, str]] | None = None) -> Report:
                     report.new.append(reach)
             elif layer == "components":
                 report.new.append(reach)
+    if files is None:
+        report.core_drift = _core_pin_drift(report.layer1_core_reaches)
     return report
 
 
@@ -212,6 +306,15 @@ def _render(report: Report) -> str:
     lines.append("-" * 64)
     lines.append(f"Environment members resolved: {len(report.env_members)}")
     lines.append(f"total env reaches: {len(report.reaches)}")
+    layer1_core = report.layer1_core_reaches
+    lines.append(
+        f"Layer 1 -> env._core: {len(layer1_core)} reaches through "
+        f"{len({r.member for r in layer1_core})} members "
+        f"(pinned: {LAYER1_CORE_REACHES} / {len(LAYER1_CORE_MEMBERS)})"
+    )
+    if report.core_drift:
+        lines.append("\nLAYER 1 env._core PIN MOVED:")
+        lines.extend(f"  {line}" for line in report.core_drift)
 
     if report.unknown_members:
         lines.append("\nMEMBERS THAT DO NOT EXIST ON Environment:")
@@ -257,6 +360,8 @@ def main(argv: list[str] | None = None) -> int:
                         for r in report.unknown_members
                     ],
                     "known": len(report.known),
+                    "layer1_core_reaches": len(report.layer1_core_reaches),
+                    "core_drift": report.core_drift,
                 },
                 indent=2,
             )

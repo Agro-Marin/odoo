@@ -39,30 +39,38 @@ class OrmCore[F: FieldKey = FieldKey]:
     def get_field_data_or_none(self, field: F) -> dict[Any, Any] | None:
         return self._cache.get_field_data_or_none(field)
 
+    def get_context_data(self, field: F, key: tuple) -> dict[Any, Any]:
+        return self._cache.get_context_data(field, key)
+
+    def get_context_data_or_none(self, field: F, key: tuple) -> dict[Any, Any] | None:
+        return self._cache.get_context_data_or_none(field, key)
+
     def invalidate(
         self,
         field: F,
         ids: Iterable[Any] | None = None,
         *,
-        context_dependent: bool | None = None,
         keep_dirty: bool = False,
     ) -> None:
-        self._cache.invalidate(
-            field, ids, context_dependent=context_dependent, keep_dirty=keep_dirty
-        )
+        self._cache.invalidate(field, ids, keep_dirty=keep_dirty)
 
-    def has_any_cached(
-        self, field: F, *, context_dependent: bool | None = None
-    ) -> bool:
-        return self._cache.has_any_cached(field, context_dependent=context_dependent)
+    def has_any_cached(self, field: F) -> bool:
+        return self._cache.has_any_cached(field)
 
-    def all_cached_ids(
-        self, field: F, *, context_dependent: bool | None = None
-    ) -> Mapping[Any, Any]:
-        return self._cache.all_cached_ids(field, context_dependent=context_dependent)
+    def has_any_context_cached(self, field: F) -> bool:
+        return self._cache.has_any_context_cached(field)
 
-    def iter_context_caches(self, field: F) -> Iterator[tuple[tuple, dict[Any, Any]]]:
+    def all_cached_ids(self, field: F) -> Mapping[Any, Any]:
+        return self._cache.all_cached_ids(field)
+
+    def all_context_cached_ids(self, field: F) -> Mapping[Any, Any]:
+        return self._cache.all_context_cached_ids(field)
+
+    def iter_context_caches(self, field: F) -> Iterable[tuple[tuple, dict[Any, Any]]]:
         return self._cache.iter_context_caches(field)
+
+    def cached_fields(self) -> Iterator[F]:
+        return self._cache.cached_fields()
 
     def mark_dirty(self, field: F, ids: Iterable[Any]) -> None:
         self._cache.mark_dirty(field, ids)

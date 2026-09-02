@@ -54,7 +54,7 @@ def test_update_cache_dict_distributes_into_full_shaped_subcaches():
         field = env.registry["tpls.member"]._fields["label"]
         dark = record.with_context(scheme="dark")
         field._update_cache(dark, {"en_US": "Hello", "fr_FR": "Bonjour"})
-        field_data = env._core.get_field_data(field)
+        field_data = dict(env._core.iter_context_caches(field))
         assert ("en_US", "dark") in field_data
         assert ("fr_FR", "dark") in field_data
         assert ("en_US",) not in field_data
@@ -69,7 +69,7 @@ def test_insert_cache_prefetch_langs_distributes_into_full_shaped_subcaches():
         field = env.registry["tpls.member"]._fields["label"]
         dark = record.with_context(scheme="dark", prefetch_langs=True)
         field._insert_cache(dark, [{"en_US": "Hello", "fr_FR": "Bonjour"}])
-        field_data = env._core.get_field_data(field)
+        field_data = dict(env._core.iter_context_caches(field))
         assert ("en_US", "dark") in field_data
         assert ("fr_FR", "dark") in field_data
         assert ("es_ES", "dark") in field_data
@@ -86,7 +86,7 @@ def test_insert_cache_prefetch_langs_none_value_full_shaped():
         field = env.registry["tpls.member"]._fields["label"]
         dark = record.with_context(scheme="dark", prefetch_langs=True)
         field._insert_cache(dark, [None])
-        field_data = env._core.get_field_data(field)
+        field_data = dict(env._core.iter_context_caches(field))
         assert all(len(key) == 2 for key in field_data)
         for lang in ("en_US", "fr_FR", "es_ES"):
             assert field_data[(lang, "dark")][record.id] is None
@@ -97,7 +97,7 @@ def test_plain_lang_field_keys_stay_1tuples():
         record = env["tpls.container"].create({"name": "c"})
         field = env.registry["tpls.container"]._fields["name_translated"]
         field._update_cache(record, {"en_US": "Hello", "fr_FR": "Bonjour"})
-        field_data = env._core.get_field_data(field)
+        field_data = dict(env._core.iter_context_caches(field))
         assert ("en_US",) in field_data
         assert ("fr_FR",) in field_data
         assert all(len(key) == 1 for key in field_data)

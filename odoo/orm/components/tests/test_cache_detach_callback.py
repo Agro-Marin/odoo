@@ -37,37 +37,43 @@ class TestDetachCallback(unittest.TestCase):
         self.assertEqual(len(self.fired), 1)
         self.assertIsNone(self.cache.get_field_data_or_none(self.f))
 
-    def test_invalidate_field_fires_when_it_drops_a_sub_dict(self) -> None:
+    def test_invalidate_all_drops_the_sub_caches_it_empties(self) -> None:
         key = ("en_US",)
-        self.cache.get_field_data(self.f)[key] = {1: "x"}
-        self.cache.invalidate_field(self.f, [1])
+        sub = self.cache.get_context_data(self.f, key)
+        sub[1] = "x"
+        self.cache.invalidate_all()
         self.assertEqual(len(self.fired), 1)
-        self.assertNotIn(key, self.cache.get_field_data(self.f))
+        self.assertIsNone(self.cache.get_context_data_or_none(self.f, key))
+        self.assertIsNot(self.cache.get_context_data(self.f, key), sub)
 
     def test_invalidate_does_not_fire(self) -> None:
         self.cache.set_value(self.f, 1, "x")
-        self.cache.invalidate(self.f, [1], context_dependent=False)
+        self.cache.invalidate(self.f, [1])
         self.assertEqual(self.fired, [])
 
     def test_invalidate_whole_field_does_not_fire(self) -> None:
         self.cache.set_value(self.f, 1, "x")
-        self.cache.invalidate(self.f, None, context_dependent=False)
+        self.cache.invalidate(self.f, None)
         self.assertEqual(self.fired, [])
         self.assertEqual(self.cache.get_field_data(self.f), {})
 
-    def test_context_dependent_invalidate_keeps_the_sub_dict_object(self) -> None:
+    def test_context_invalidate_keeps_the_sub_dict_object(self) -> None:
         key = ("en_US",)
-        sub = {1: "x"}
-        self.cache.get_field_data(self.f)[key] = sub
-        self.cache.invalidate(self.f, None, context_dependent=True)
+        sub = self.cache.get_context_data(self.f, key)
+        sub[1] = "x"
+        self.cache.invalidate(self.f, None)
         self.assertEqual(self.fired, [])
-        self.assertIs(self.cache.get_field_data(self.f)[key], sub)
+        self.assertIs(self.cache.get_context_data(self.f, key), sub)
         self.assertEqual(sub, {})
 
-    def test_invalidate_field_without_emptying_does_not_fire(self) -> None:
+    def test_a_memoised_sub_cache_never_holds_a_stale_value(self) -> None:
         key = ("en_US",)
-        self.cache.get_field_data(self.f)[key] = {1: "x", 2: "y"}
-        self.cache.invalidate_field(self.f, [1])
+        sub = self.cache.get_context_data(self.f, key)
+        sub.update({1: "v1", 2: "v2"})
+        self.cache.invalidate(self.f, [1])
+        self.assertEqual(sub, {2: "v2"})
+        self.cache.invalidate(self.f, None)
+        self.assertEqual(sub, {})
         self.assertEqual(self.fired, [])
 
     def test_no_callback_configured_is_a_no_op(self) -> None:

@@ -1342,7 +1342,7 @@ class TestAccelFieldCache(PerfTestCase):
         def bench():
             for id_ in inv_ids:
                 cache.set_value(f, id_, "x")
-            cache.invalidate_field(f, inv_ids)
+            cache.invalidate(f, inv_ids)
 
         timer = _bench(bench, n=ITERATIONS)
         self._log(timer.stats("cache.invalidate(100of1000)", warmup=0))

@@ -20,10 +20,10 @@ def _env():
 
 def _cache_with_stale_flat_entry(env, field, record):
     record.scoped = "value-in-context"
-    raw = env._core.get_field_data(field)
-    assert any(isinstance(key, tuple) for key in raw), raw
-    raw[10**9] = "stale-flat-value"
-    return raw
+    assert list(env._core.iter_context_caches(field))
+    flat = env._core.get_field_data(field)
+    flat[10**9] = "stale-flat-value"
+    return flat
 
 
 def test_get_records_all_contexts_ignores_stale_flat_entry():
@@ -74,6 +74,6 @@ def test_iter_context_caches_matches_all_cached_ids():
         from_pairs = {
             id_ for _key, sub in env._core.iter_context_caches(field) for id_ in sub
         }
-        from_ids = set(env._core.all_cached_ids(field, context_dependent=True))
+        from_ids = set(env._core.all_context_cached_ids(field))
 
         assert from_pairs == from_ids == {rec.id}

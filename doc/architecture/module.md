@@ -284,11 +284,26 @@ Two cache APIs, at different abstraction levels. **Both are sanctioned.**
 | `Cache.get_values(records, field)` | *recordset* | `env.cache` | resolves the field cache through the recordset's `env` |
 
 `env.cache` is **not** a legacy wrapper over `_core`. It is what saves a caller
-from knowing that a context-dependent field is stored `{cache_key: {id: value}}`
-rather than `{id: value}`, or that a term-translated one is reached through a
+from knowing that a context-dependent field lives in the cache's *context*
+store, `{cache_key: {id: value}}`, while every other field lives in its *flat*
+store, `{id: value}`, or that a term-translated one is reached through a
 `LangProxyDict`. The plan to retire `env.cache` in favour of `_core` was
 **dropped** for that reason: a mechanical rewrite onto `_core` would have
 mishandled those layouts and coupled addon code to private field helpers.
+
+**The two stores are addressed, never inferred.** `FieldCache` keeps the flat
+values and the per-context sub-caches in separate mappings, so which shape a
+field has is decided by the method a caller picks — `get_field_data` /
+`get_context_data(field, key)`, `all_cached_ids` / `all_context_cached_ids`,
+`has_any_cached` / `has_any_context_cached` — and `invalidate` sweeps both. No
+method looks at a key to guess whether it is a record id or a context tuple;
+the earlier `isinstance(key, tuple)` probe is gone, and a field that reaches the
+wrong store simply finds it empty. Layer 1 (`fields/`, `domain/`) sees the cache
+**only** through those named `OrmCore` methods: `env_surface_check.py` pins the
+exact count of Layer 1's `env._core` reaches and the exact set of members they
+name (`LAYER1_CORE_REACHES`, `LAYER1_CORE_MEMBERS`), so a field module that
+starts navigating a raw sub-cache again, or reaching a new member, moves a
+committed number.
 
 The raw objects stay private to `Transaction` (`_cache_store`,
 `_compute_engine`).
