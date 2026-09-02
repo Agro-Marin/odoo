@@ -12,8 +12,8 @@ _logger = logging.getLogger(__name__)
 
 
 def get_session_token(session: Session, env: Environment) -> str | bool:
-    self = env["res.users"].browse(session.uid)
-    return self._get_session_token(session.sid)
+    user = env["res.users"].browse(session.uid)
+    return user._get_session_token(session.sid)
 
 
 def is_session_valid(

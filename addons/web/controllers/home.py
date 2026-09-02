@@ -12,9 +12,9 @@ from odoo import http
 from odoo.exceptions import AccessError
 from odoo.http import Response, request
 from odoo.libs.json import dumps as json_dumps
-from odoo.service import get_env_str, security
+from odoo.service import security
 from odoo.service.metrics import CONTENT_TYPE as METRICS_CONTENT_TYPE
-from odoo.service.metrics import render_prometheus_exposition
+from odoo.service.metrics import get_metrics_token, render_prometheus_exposition
 from odoo.tools import config, str2bool
 from odoo.tools.json import orjson_default
 from odoo.tools.misc import consteq, hmac
@@ -278,7 +278,7 @@ class Home(http.Controller):
 
     @http.route("/web/metrics", type="http", auth="none", save_session=False)
     def metrics(self) -> Response:
-        token = get_env_str("ODOO_METRICS_TOKEN")
+        token = get_metrics_token()
         if not token:
             raise request.not_found()
         presented = request.httprequest.headers.get("Authorization", "")

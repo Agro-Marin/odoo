@@ -7,8 +7,14 @@ from typing import Any
 from odoo.modules.registry import Registry
 
 from . import _process_state
+from ._env import get_env_str
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
+
+
+def get_metrics_token() -> str:
+    return get_env_str("ODOO_METRICS_TOKEN")
+
 
 _BORROW_WAIT = "odoo_pool_borrow_wait_seconds"
 
@@ -374,4 +380,9 @@ def render_prometheus_exposition() -> str:
     return exp.render()
 
 
-__all__ = ("CONTENT_TYPE", "get_service_metrics", "render_prometheus_exposition")
+__all__ = (
+    "CONTENT_TYPE",
+    "get_metrics_token",
+    "get_service_metrics",
+    "render_prometheus_exposition",
+)

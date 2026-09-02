@@ -473,14 +473,14 @@ class EventServer(CommonServer):
         return self.settings.limit_memory_soft_gevent or self.settings.limit_memory_soft
 
     def check_limits(self) -> None:
-        restart = False
+        should_restart = False
         new_ppid = os.getppid()
         if self.ppid != new_ppid:
             self.logger.warning("Parent changed: %s -> %s", self.ppid, new_ppid)
-            restart = True
+            should_restart = True
         if self.get_memory_over_soft_limit() is not None:
-            restart = True
-        if restart:
+            should_restart = True
+        if should_restart:
             os.kill(self.pid, signal.SIGTERM)
 
     def run_watchdog(self, beat: int = 4) -> None:
