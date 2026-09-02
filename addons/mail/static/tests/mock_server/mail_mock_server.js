@@ -1244,6 +1244,12 @@ function _process_request_for_all(store, name, params, context = {}) {
         );
         store.add(channels);
     }
+    if (name === "mail.activity") {
+        /** @type {import("mock_models").MailActivity} */
+        const MailActivity = this.env["mail.activity"];
+        store.add(MailActivity.browse(params.ids));
+        return;
+    }
     if (name === "mixin.mail.thread") {
         store.add(
             this.env[params.thread_model].browse(params.thread_id),

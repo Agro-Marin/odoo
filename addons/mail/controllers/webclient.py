@@ -10,7 +10,7 @@ from odoo.exceptions import AccessDenied, AccessError, MissingError, UserError
 from odoo.http import SessionExpiredException, request
 
 from odoo.addons.mail.controllers.thread import ThreadController
-from odoo.addons.mail.controllers.utils import to_record_id
+from odoo.addons.mail.controllers.utils import to_record_id, to_record_ids
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 _logger = logging.getLogger(__name__)
@@ -135,6 +135,19 @@ class WebclientController(ThreadController):
                 user._init_messaging(store)
         if name == "mixin.mail.thread":
             cls._add_thread_fetch_param(store, params)
+        if name == "mail.activity":
+            cls._add_activity_fetch_param(store, params)
+
+    @classmethod
+    def _add_activity_fetch_param(cls, store: Store, params: Any) -> None:
+        # active_test=False: a popover may list an activity that was just done,
+        # and dropping it would leave a hole rather than the row it is showing
+        activities = (
+            request.env["mail.activity"]
+            .with_context(active_test=False)
+            .search_fetch([("id", "in", to_record_ids(params["ids"]))])
+        )
+        store.add(activities, "_store_activity_fields")
 
     @classmethod
     def _add_thread_fetch_param(cls, store: Store, params: Any) -> None:

@@ -28,7 +28,6 @@ export class ActivityListPopover extends Component {
 
     setup() {
         super.setup();
-        this.orm = useService("orm");
         this.store = useService("mail.store");
         this.updateFromProps(this.props).catch(() => {});
         onWillUpdateProps(
@@ -78,9 +77,8 @@ export class ActivityListPopover extends Component {
 
     /** @param {{activityIds: number[]}} props */
     async updateFromProps(props) {
-        const data = await this.orm.silent.call("mail.activity", "activity_format", [
-            props.activityIds,
-        ]);
-        this.store.insert(data);
+        // through the store so this joins the batched /mail/data request
+        // instead of paying a round trip of its own
+        await this.store.fetchStoreData("mail.activity", { ids: props.activityIds });
     }
 }
