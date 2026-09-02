@@ -1189,7 +1189,11 @@ class IrActionsReport(models.Model):
         return result
 
     def get_paperformat(self) -> Any:
-        return self.paperformat_id or self.env.company.paperformat_id
+        return (
+            self.paperformat_id
+            or self.env.company.paperformat_id
+            or self.env.ref("base.paperformat_euro", raise_if_not_found=False)
+        )
 
     def get_paperformat_by_xmlid(self, xml_id: str) -> Any:
         return (
