@@ -21,6 +21,7 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { LONG_PRESS_DELAY } from "@mail/utils/common/hooks";
 import { describe, expect, test } from "@odoo/hoot";
+import { queryAllTexts } from "@odoo/hoot-dom";
 import {
     animationFrame,
     leave,
@@ -2545,4 +2546,23 @@ test("Prevent adding reactions on messages without a mail thread", async () => {
     await contains("[title='Add a Reaction']");
     await contains(".o-mail-Message:eq(0) [title='Add a Reaction']");
     await contains(".o-mail-Message:eq(1):not(:has([title='Add a Reaction']))");
+});
+
+test("a mass-sent email can be forwarded from a record thread", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "TestPartner" });
+    const messageId = pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: "Mass-sent email message",
+        message_type: "email_outgoing",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    const env = await start();
+    await openFormView("res.partner", partnerId);
+    await contains(".o-mail-Message");
+    const store = env.services["mail.store"];
+    const message = store["mail.message"].get(messageId);
+    const thread = store.Thread.get({ model: "res.partner", id: partnerId });
+    expect(message.canForward(thread)).toBe(true);
 });

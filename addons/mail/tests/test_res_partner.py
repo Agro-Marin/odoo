@@ -233,6 +233,28 @@ class TestPartner(MailCommon):
         )
 
     @users("admin")
+    def test_mention_suggestions_internal_users_only(self):
+        """A note is internal, so it must not offer portal contacts to mention."""
+        name = "internal-only-probe"
+        portal = mail_new_test_user(
+            self.env, login=f"{name}-portal", groups="base.group_portal"
+        )
+        internal = mail_new_test_user(
+            self.env, login=f"{name}-internal", groups="base.group_user"
+        )
+
+        everyone = self.env["res.partner"].get_mention_suggestions(name)
+        suggested = {p["id"] for p in everyone["res.partner"]}
+        self.assertIn(portal.partner_id.id, suggested)
+        self.assertIn(internal.partner_id.id, suggested)
+
+        restricted = self.env["res.partner"].get_mention_suggestions(
+            name, internal_users_only=True
+        )
+        suggested = {p["id"] for p in restricted["res.partner"]}
+        self.assertNotIn(portal.partner_id.id, suggested)
+        self.assertIn(internal.partner_id.id, suggested)
+
     def test_find_or_create(self):
         original_partner = self.env["res.partner"].browse(
             self.env["res.partner"].name_create(self.samples[0][0])[0]

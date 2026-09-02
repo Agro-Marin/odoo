@@ -59,12 +59,16 @@ export class SuggestionService {
      * @param {import("models").Thread} [options.thread]
      * @param {AbortSignal} [options.abortSignal]
      */
-    async fetchSuggestions({ delimiter, term }, { thread, abortSignal } = {}) {
+    async fetchSuggestions(
+        { delimiter, term },
+        { thread, abortSignal, isNote = false } = {},
+    ) {
         const cleanedSearchTerm = cleanTerm(term);
         switch (delimiter) {
             case "@":
                 await this.fetchPartnersRoles(cleanedSearchTerm, thread, {
                     abortSignal,
+                    isNote,
                 });
                 break;
             case "#":
@@ -114,12 +118,15 @@ export class SuggestionService {
      * @param {import("models").Thread} [thread]
      * @param {Object} [options]
      * @param {AbortSignal} [options.abortSignal]
+     * @param {boolean} [options.isNote] restrict to internal users
      */
-    async fetchPartnersRoles(term, thread, { abortSignal } = {}) {
-        /** @type {{search: string, channel_id?: number}} */
+    async fetchPartnersRoles(term, thread, { abortSignal, isNote = false } = {}) {
+        /** @type {{search: string, channel_id?: number, internal_users_only?: boolean}} */
         const kwargs = { search: term };
         if (thread?.isChannelKind) {
             kwargs.channel_id = thread.id;
+        } else if (isNote) {
+            kwargs.internal_users_only = true;
         }
         const data = await this.makeOrmCall(
             "res.partner",
@@ -200,7 +207,7 @@ export class SuggestionService {
      * @param {import("models").Thread} [options.thread]
      * @returns {{ type: string, suggestions: Suggestion[] }}
      */
-    searchSuggestions({ delimiter, term }, { thread } = {}) {
+    searchSuggestions({ delimiter, term }, { thread, isNote = false } = {}) {
         thread = toRaw(thread);
         const cleanedSearchTerm = cleanTerm(term);
         switch (delimiter) {
@@ -208,6 +215,7 @@ export class SuggestionService {
                 const partners = this.searchPartnerSuggestions(
                     cleanedSearchTerm,
                     thread,
+                    { isNote },
                 );
                 const roles = this.searchRoleSuggestions(cleanedSearchTerm);
                 return {
@@ -252,7 +260,15 @@ export class SuggestionService {
      * @param {import("models").Thread} [thread]
      * @returns {boolean}
      */
-    isSuggestionValid(partner, thread) {
+    isSuggestionValid(partner, thread, { isNote = false } = {}) {
+        if (isNote) {
+            // a note is internal: mentioning a portal contact would notify
+            // someone who is not supposed to see it
+            return (
+                partner.main_user_id?.share === false &&
+                partner.notEq(this.store.odoobot)
+            );
+        }
         return (
             (this.store.self_partner?.main_user_id?.share === false ||
                 partner.mention_token) &&
@@ -264,9 +280,9 @@ export class SuggestionService {
      * @param {import("models").Thread} [thread]
      * @returns {import("models").ResPartner[]}
      */
-    getPartnerSuggestions(thread) {
+    getPartnerSuggestions(thread, { isNote = false } = {}) {
         return Object.values(this.store["res.partner"].records).filter((partner) =>
-            this.isSuggestionValid(partner, thread),
+            this.isSuggestionValid(partner, thread, { isNote }),
         );
     }
 
@@ -275,8 +291,8 @@ export class SuggestionService {
      * @param {import("models").Thread} [thread]
      * @returns {{type: string, suggestions: Object[]}}
      */
-    searchPartnerSuggestions(cleanedSearchTerm, thread) {
-        const partners = this.getPartnerSuggestions(thread);
+    searchPartnerSuggestions(cleanedSearchTerm, thread, { isNote = false } = {}) {
+        const partners = this.getPartnerSuggestions(thread, { isNote });
         const suggestions = [];
         for (const partner of partners) {
             if (!partner.name) {
@@ -349,7 +365,19 @@ export class SuggestionService {
 
     /** @param {import("models").Thread} [thread] */
     sortPartnerSuggestionsContext(thread) {
-        return {};
+        /**
+         * Highest message id each partner authored in this thread. Messages are
+         * ordered oldest first, so the last one seen for an author wins.
+         *
+         * @type {Map<number, number>}
+         */
+        const latestMessageIdByAuthorId = new Map();
+        for (const { author_id, id } of thread?.messages || []) {
+            if (author_id) {
+                latestMessageIdByAuthorId.set(author_id.id, id);
+            }
+        }
+        return { latestMessageIdByAuthorId };
     }
 
     /**

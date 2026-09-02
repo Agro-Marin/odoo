@@ -88,6 +88,11 @@ export class UseSuggestion {
     get composer() {
         return this.comp.props.composer;
     }
+
+    /** @returns {boolean} whether the hosting composer logs an internal note */
+    get isNote() {
+        return this.comp.props.type === "note";
+    }
     suggestionService = useService("mail.suggestion");
     state = useState({
         items: undefined,
@@ -306,6 +311,7 @@ export class UseSuggestion {
             this.search,
             {
                 thread: this.thread,
+                isNote: this.isNote,
             },
         );
         if (!suggestions.length) {
@@ -330,6 +336,7 @@ export class UseSuggestion {
             await this.suggestionService.fetchSuggestions(fetchedSearch, {
                 thread: this.thread,
                 abortSignal: this.abortController.signal,
+                isNote: this.isNote,
             });
         } catch (e) {
             this.lastFetchedSearch = null;
@@ -351,6 +358,7 @@ export class UseSuggestion {
             ...fetchedSearch,
             count: this.suggestionService.searchSuggestions(fetchedSearch, {
                 thread: this.thread,
+                isNote: this.isNote,
             }).suggestions.length,
         };
         if (!this.state.items?.suggestions.length) {

@@ -110,7 +110,7 @@
                         <label class="d-flex flex-column align-items-start flex-wrap w-100" title="Background blur intensity" aria-label="Background blur intensity">
                             <span class="me-2 text-truncate text-wrap">Background blur intensity</span>
                             <div class="d-flex w-100 flex-grow-1 align-items-center">
-                                <input class="flex-grow-2 form-range" type="range" min="0" max="20" step="1" t-att-value="store.settings.backgroundBlurAmount" t-on-change="onChangeBackgroundBlurAmount"/>
+                                <input class="flex-grow-2 form-range" type="range" min="0" max="20" step="1" t-att-value="store.settings.backgroundBlurAmount" t-on-input="onInputBackgroundBlurAmount"/>
                                 <span class="p-1 text-end o-discuss-DiscussCallSettings-width-text-percentage"><t t-out="Math.floor(store.settings.backgroundBlurAmount * 5)"/>%</span>
                             </div>
                         </label>
@@ -119,7 +119,7 @@
                         <label class="d-flex flex-column align-items-start flex-wrap h-100 w-100" title="Edge blur intensity" aria-label="Edge blur intensity">
                             <span class="me-2 text-truncate text-wrap">Edge blur intensity</span>
                             <div class="d-flex w-100 flex-grow-1 align-items-center">
-                                <input class="flex-grow-2 form-range" type="range" min="0" max="20" step="1" t-att-value="store.settings.edgeBlurAmount" t-on-change="onChangeEdgeBlurAmount"/>
+                                <input class="flex-grow-2 form-range" type="range" min="0" max="20" step="1" t-att-value="store.settings.edgeBlurAmount" t-on-input="onInputEdgeBlurAmount"/>
                                 <span class="p-1 text-end o-discuss-DiscussCallSettings-width-text-percentage"><t t-out="Math.floor(store.settings.edgeBlurAmount * 5)"/>%</span>
                             </div>
                         </label>

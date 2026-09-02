@@ -153,9 +153,9 @@ test("list activity widget: open dropdown", async () => {
     pyEnv["res.users"].write([serverState.userId], {
         activity_type_id: activityTypeId_2,
     });
-    onRpc("mail.activity", "activity_format", (params) => {
-        expect(params.args).toEqual([[activityId_1, activityId_2]]);
-        asyncStep("activity_format");
+    listenStoreFetch("mail.activity", { logParams: ["mail.activity"] });
+    onRpc("mail.activity", "activity_format", () => {
+        asyncStep("activity_format ORM call");
     });
     onRpc("mail.activity", "action_feedback", (params) => {
         pyEnv["res.partner"].write([serverState.partnerId], {
@@ -176,7 +176,10 @@ test("list activity widget: open dropdown", async () => {
     });
     await contains(".o-mail-ListActivity-summary", { text: "Call with Al" });
     await click(".o-mail-ActivityButton");
-    await waitForSteps(["activity_format"]);
+    // the popover data now rides in /mail/data, so no ORM round trip of its own
+    await waitForSteps([
+        `store fetch: mail.activity - {"ids":[${activityId_1},${activityId_2}]}`,
+    ]);
     await click(
         ":nth-child(1 of .o-mail-ActivityListPopoverItem) .o-mail-ActivityListPopoverItem-markAsDone",
     );

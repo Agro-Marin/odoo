@@ -1486,3 +1486,100 @@ test("keyboard selection in suggestion list survives an unrelated re-render", as
     await animationFrame();
     await contains(".o-mail-NavigableList-active", { text: "TestPartner2" });
 });
+
+test("recent message authors are suggested before the others, most recent first", async () => {
+    const pyEnv = await startServer();
+    const [partnerA, partnerB, partnerC, partnerD] = pyEnv["res.partner"].create([
+        { name: "Person A" },
+        { name: "Person B" },
+        { name: "Person C" },
+        { name: "Person D" },
+    ]);
+    const [, userB] = pyEnv["res.users"].create([
+        { partner_id: partnerA },
+        { partner_id: partnerB },
+        { partner_id: partnerC },
+        { partner_id: partnerD },
+    ]);
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "general",
+        channel_type: "channel",
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: partnerA }),
+            Command.create({ partner_id: partnerB }),
+            Command.create({ partner_id: partnerC }),
+            Command.create({ partner_id: partnerD }),
+        ],
+    });
+    pyEnv["mail.message"].create({
+        author_id: partnerD,
+        body: "older",
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message", { count: 1 });
+    await insertText(".o-mail-Composer-input", "@Person ");
+    // D authored the only message, so it outranks the alphabetical order.
+    await contains(".o-mail-Composer-suggestion:eq(0) strong", { text: "Person D" });
+    await contains(".o-mail-Composer-suggestion:eq(1) strong", { text: "Person A" });
+    await contains(".o-mail-Composer-suggestion:eq(2) strong", { text: "Person B" });
+    await contains(".o-mail-Composer-suggestion:eq(3) strong", { text: "Person C" });
+    await withUser(userB, () =>
+        rpc("/mail/message/post", {
+            post_data: {
+                body: "newer",
+                message_type: "comment",
+                subtype_xmlid: "mail.mt_comment",
+            },
+            thread_id: channelId,
+            thread_model: "discuss.channel",
+        }),
+    );
+    await contains(".o-mail-Message", { count: 2 });
+    // Edit the search term to re-trigger the local sort with the updated messages.
+    await press("Backspace");
+    await contains(".o-mail-Composer-suggestion:eq(0) strong", { text: "Person B" });
+    await contains(".o-mail-Composer-suggestion:eq(1) strong", { text: "Person D" });
+    await contains(".o-mail-Composer-suggestion:eq(2) strong", { text: "Person A" });
+    await contains(".o-mail-Composer-suggestion:eq(3) strong", { text: "Person C" });
+});
+
+test("an author is ranked by their most recent message, not their first", async () => {
+    const pyEnv = await startServer();
+    const [partnerA, partnerB] = pyEnv["res.partner"].create([
+        { name: "Person A" },
+        { name: "Person B" },
+    ]);
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "general",
+        channel_type: "channel",
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: partnerA }),
+            Command.create({ partner_id: partnerB }),
+        ],
+    });
+    // A spoke first and last; B spoke in between. Ranking by first message would
+    // put B on top, ranking by most recent puts A on top.
+    for (const [author_id, body] of [
+        [partnerA, "first"],
+        [partnerB, "second"],
+        [partnerA, "third"],
+    ]) {
+        pyEnv["mail.message"].create({
+            author_id,
+            body,
+            model: "discuss.channel",
+            res_id: channelId,
+        });
+    }
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message", { count: 3 });
+    await insertText(".o-mail-Composer-input", "@Person ");
+    await contains(".o-mail-Composer-suggestion:eq(0) strong", { text: "Person A" });
+    await contains(".o-mail-Composer-suggestion:eq(1) strong", { text: "Person B" });
+});

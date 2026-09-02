@@ -724,7 +724,7 @@ test("channel preview: basic rendering", async () => {
     await contains(".o-mail-NotificationItem");
     await contains(".o-mail-NotificationItem img");
     await contains(".o-mail-NotificationItem-name", { text: "General" });
-    await contains(".o-mail-NotificationItem-text", { text: "Demo: test hi" });
+    await contains(".o-mail-NotificationItem-text", { text: "Demo: test\u00a0hi" });
 });
 
 test("chat preview should not display correspondent name in body", async () => {
@@ -834,7 +834,9 @@ test("<br/> tags in message body preview are transformed in spaces", async () =>
     });
     await start();
     await click(".o_menu_systray .dropdown-toggle:has(i[aria-label='Messages'])");
-    await contains(".o-mail-NotificationItem-text", { text: "You: a b c d" });
+    await contains(".o-mail-NotificationItem-text", {
+        text: "You: a\u00a0b\u00a0c\u00a0d",
+    });
 });
 
 test("Messaging menu notification body of chat should show author name once", async () => {
@@ -1474,4 +1476,18 @@ test("user notification from inbox redirect to discuss inbox", async () => {
     await contains(
         ".o-mail-Message.o-highlighted .o-mail-Message-body:text('Hello world!')",
     );
+});
+
+test("a link in a message preview stays a link", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    pyEnv["mail.message"].create({
+        model: "discuss.channel",
+        body: `<a href="https://odoo.com/">https://odoo.com/</a>`,
+        author_id: serverState.partnerId,
+        res_id: channelId,
+    });
+    await start();
+    await click(".o_menu_systray i[aria-label='Messages']");
+    await contains(`.o-mail-NotificationItem-text a[href="https://odoo.com/"]`);
 });

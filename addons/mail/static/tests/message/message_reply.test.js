@@ -232,7 +232,7 @@ test("Replying to a message containing line breaks should be correctly inlined",
     await start();
     await openDiscuss(channelId);
     await contains(".o-mail-MessageInReply-message", {
-        text: "Message first line. Message second line. Message third line.",
+        text: "Message first line.\u00a0Message second line.\u00a0Message third line.",
     });
 });
 
@@ -350,4 +350,27 @@ test("Click reply to note again preserves composer content", async () => {
         ".o-mail-Composer-html.odoo-editor-editable:text('@Batman Strong Text'):has(a.o_mail_redirect:text('@Batman')):has(strong:text('Strong Text'))",
     );
     expect(editor.editable.textContent).toBe("\uFEFF@Batman\uFEFF\u00A0Strong Text");
+});
+
+test("a link in a replied-to message stays a link", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    const messageId = pyEnv["mail.message"].create({
+        body: `<p>Test Message <a href="https://odoo.com/">https://odoo.com/</a></p>`,
+        message_type: "comment",
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    pyEnv["mail.message"].create({
+        body: "Message in Reply",
+        message_type: "comment",
+        model: "discuss.channel",
+        author_id: serverState.partnerId,
+        parent_id: messageId,
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message", { count: 2 });
+    await contains(`.o-mail-MessageInReply-message a[href="https://odoo.com/"]`);
 });

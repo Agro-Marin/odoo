@@ -683,7 +683,11 @@ const threadPatch = {
         }
         return super.displayName;
     },
-    async fetchChannelMembers() {
+    /**
+     * @param {Object} [options]
+     * @param {string} [options.searchTerm] only fetch members matching this name
+     */
+    async fetchChannelMembers({ searchTerm = "" } = {}) {
         if (this.fetchMembersState === "pending") {
             return;
         }
@@ -697,12 +701,17 @@ const threadPatch = {
             data = await rpc("/discuss/channel/members", {
                 channel_id: this.id,
                 known_member_ids: known_member_ids,
+                // only when set: an empty term would change the payload of
+                // every ordinary member fetch for nothing
+                ...(searchTerm ? { search_term: searchTerm } : {}),
             });
         } catch (e) {
             this.fetchMembersState = previousState;
             throw e;
         }
-        this.fetchMembersState = "fetched";
+        // a search only ever brings back a slice, so the channel is not fully
+        // loaded just because this call returned
+        this.fetchMembersState = searchTerm ? previousState : "fetched";
         this.store.insert(data);
     },
     /** @param {number} [limit=30] */

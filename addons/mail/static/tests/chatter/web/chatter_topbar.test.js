@@ -232,3 +232,20 @@ test("composer state conserved when clicking on another topbar button", async ()
     await contains("button.active", { text: "Log note" });
     await contains("button:not(.active)", { text: "Send message" });
 });
+
+test("the recipients input shows how many followers will be notified", async () => {
+    const pyEnv = await startServer();
+    const [partnerId_1, partnerId_2, partnerId_3] = pyEnv["res.partner"].create([
+        { name: "Eden Hazard" },
+        { name: "Jean Michang" },
+        {},
+    ]);
+    pyEnv["mail.followers"].create([
+        { partner_id: partnerId_2, res_id: partnerId_3, res_model: "res.partner" },
+        { partner_id: partnerId_1, res_id: partnerId_3, res_model: "res.partner" },
+    ]);
+    await start();
+    await openFormView("res.partner", partnerId_3);
+    await click("button", { text: "Send message" });
+    await contains(".o-mail-RecipientsInput .badge", { text: "2 Followers" });
+});

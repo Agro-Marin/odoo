@@ -12,6 +12,7 @@ import {
     EMOJI_REGEX,
     generateEmojisOnHtml,
     getNonEditableMentions,
+    htmlToHtmlInline,
     htmlToTextContentInline,
 } from "@mail/utils/common/format";
 import { markup, toRaw } from "@odoo/owl";
@@ -463,7 +464,7 @@ export class Message extends Record {
             if (!this.body) {
                 return "";
             }
-            return decorateEmojis(htmlToTextContentInline(this.body));
+            return decorateEmojis(htmlToHtmlInline(this.body));
         },
     });
 

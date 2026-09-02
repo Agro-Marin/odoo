@@ -17,7 +17,9 @@ const messagePatch = {
         }
         return (
             !(thread.isChannelKind || thread.isMailbox) &&
-            ["comment", "email"].includes(this.message_type)
+            // `email_outgoing` is what a mailing leaves in the chatter: it is a
+            // message of the thread like any other and answering it is legitimate
+            ["comment", "email", "email_outgoing"].includes(this.message_type)
         );
     },
     async toggleStar() {

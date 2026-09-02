@@ -1,4 +1,8 @@
-import { addLink, parseAndTransform } from "@mail/utils/common/format";
+import {
+    addLink,
+    htmlToHtmlInline,
+    parseAndTransform,
+} from "@mail/utils/common/format";
 import { makeSequential } from "@mail/utils/common/misc";
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
@@ -235,4 +239,27 @@ test("isSequential doesn't execute intermediate call.", async () => {
     ]);
     expect(result).toEqual([1, undefined, undefined, undefined, 5]);
     expect.verifySteps(["1", "5"]);
+});
+
+test("htmlToHtmlInline replaces br with a non-breaking space", () => {
+    // the result is html, where U+00A0 serialises as the &nbsp; entity
+    expect(htmlToHtmlInline(markup`a<br/>b`).toString()).toBe("a&nbsp;b");
+});
+
+test("htmlToHtmlInline inserts a space between adjacent block elements", () => {
+    expect(htmlToHtmlInline(markup`<div>Before</div><p>After</p>`).toString()).toBe(
+        "Before&nbsp;After",
+    );
+});
+
+test("htmlToHtmlInline keeps a link as an anchor showing its href", () => {
+    expect(
+        htmlToHtmlInline(markup`<p>see <a href="https://odoo.com/">this</a></p>`).toString(),
+    ).toBe('see <a href="https://odoo.com/">https://odoo.com/</a>');
+});
+
+test("htmlToHtmlInline flattens everything else to its text", () => {
+    expect(htmlToHtmlInline(markup`<p><b>bold</b> and <i>italic</i></p>`).toString()).toBe(
+        "bold and italic",
+    );
 });

@@ -71,7 +71,7 @@
                     <field
                         name="subject"
                         placeholder="e.g. Welcome to MyCompany!"
-                        required="True" />
+                        required="composition_mode == 'mass_mail'" />
                     <field
                         name="reply_to"
                         placeholder="e.g. info@company.com"

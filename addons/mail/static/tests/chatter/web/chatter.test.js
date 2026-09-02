@@ -24,6 +24,7 @@ import { queryFirst } from "@odoo/hoot-dom";
 import { advanceTime, Deferred } from "@odoo/hoot-mock";
 import {
     asyncStep,
+    Command,
     defineActions,
     getService,
     makeServerError,
@@ -706,7 +707,9 @@ test("Mentions in composer should still work when using pager", async () => {
     await openFormView("res.partner", partnerId_1, {
         resIds: [partnerId_1, partnerId_2],
     });
-    await click("button", { text: "Log note" });
+    // Send message, not Log note: a note now only suggests internal users, and
+    // the partners this test mentions have no user at all.
+    await click("button", { text: "Send message" });
     await click(".o_pager_next");
     await insertText(".o-mail-Composer-input", "@");
     await contains(".o-mail-Composer-suggestion", { count: 3 });
@@ -939,4 +942,46 @@ test("saving a record still refreshes its chatter data", async () => {
     await click(".o_form_button_save");
     await advanceTime(1000);
     expect(fetchedThreadIds).toEqual([partnerId, partnerId]);
+});
+
+const ZOE_PARTNERS = [
+    {
+        name: "Zoe External",
+        email: "zoe.ext@test.com",
+        user_ids: [Command.create({ name: "Zoe Ext", share: true })],
+    },
+    {
+        name: "Zoe Internal",
+        email: "zoe.int@test.com",
+        user_ids: [Command.create({ name: "Zoe Int", share: false })],
+    },
+];
+
+test("a message suggests external contacts too", async () => {
+    const pyEnv = await startServer();
+    pyEnv["res.partner"].create(ZOE_PARTNERS);
+    const partnerId = pyEnv["res.partner"].create({ name: "Some Document" });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click("button", { text: "Send message" });
+    await insertText(".o-mail-Composer-input", "@Zoe");
+    await contains(".o-mail-Composer-suggestion strong", { text: "Zoe Internal" });
+    await contains(".o-mail-Composer-suggestion strong", { text: "Zoe External" });
+});
+
+test("a note only suggests internal users", async () => {
+    const pyEnv = await startServer();
+    pyEnv["res.partner"].create(ZOE_PARTNERS);
+    const partnerId = pyEnv["res.partner"].create({ name: "Some Document" });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click("button", { text: "Log note" });
+    await insertText(".o-mail-Composer-input", "@Zoe");
+    // Assert the internal one is there FIRST: it is the synchronisation point
+    // that makes the absence of the external one below a real absence.
+    await contains(".o-mail-Composer-suggestion strong", { text: "Zoe Internal" });
+    await contains(".o-mail-Composer-suggestion strong", {
+        text: "Zoe External",
+        count: 0,
+    });
 });
