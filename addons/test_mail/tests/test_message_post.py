@@ -2153,6 +2153,41 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
             )
         self.assertEqual(self._new_mails.subject, "Incidencia 42")
 
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_notification_header_shortens_record_name(self):
+        """The notification layout prints the record name inline in the header
+        bar, next to the access button, in a <td> with no clamp. A 260-character
+        name stretches that bar and pushes the button out of view."""
+        long_name = " ".join(["Incidencia de la linea de envasado"] * 8)
+        record = (
+            self.env["mail.test.simple"]
+            .with_context(self._test_context)
+            .create({"name": long_name, "email_from": "ignasse@example.com"})
+        )
+        self._reset_mail_context(record)
+        with self.mock_mail_gateway():
+            record.with_user(self.user_employee).with_context(
+                email_notification_force_header=True,
+            ).message_post(
+                body="<p>Test Body</p>",
+                partner_ids=[self.partner_1.id],
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        self.assertEqual(len(self._new_mails), 1)
+        body = self._new_mails.body_html
+        self.assertNotIn(
+            long_name,
+            body,
+            "the whole display_name must not reach the notification header",
+        )
+        self.assertIn(
+            "Incidencia de la linea de envasado Incidencia",
+            body,
+            "the start of the name must still identify the record",
+        )
+        self.assertIn("...", body)
+
     def test_subject_computed_collapses_whitespace(self):
         """Documented side effect of shortening: a display_name carrying newlines
         or runs of spaces comes back collapsed even when it is under the limit.

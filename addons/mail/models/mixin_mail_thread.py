@@ -2963,6 +2963,11 @@ class MixinMailThread(models.AbstractModel):
             ),
         }
 
+    # The layout prints the record name inline in the header bar, in a cell with
+    # white-space:nowrap, so a long name cannot wrap: it stretches the bar and
+    # pushes the access button out of view.
+    NOTIFICATION_RECORD_NAME_MAX_LENGTH = 100
+
     def _notify_by_email_prepare_rendering_context(
         self,
         message: MailMessage,
@@ -2989,7 +2994,11 @@ class MixinMailThread(models.AbstractModel):
             model_description = record_wlang._get_model_description(
                 msg_vals.get("model", message.model)
             )
-        record_name = force_record_name or message.with_context(lang=lang).record_name
+        record_name = textwrap.shorten(
+            force_record_name or message.with_context(lang=lang).record_name or "",
+            width=self.NOTIFICATION_RECORD_NAME_MAX_LENGTH,
+            placeholder="...",
+        )
 
         check_tracking = (
             msg_vals.get("tracking_value_ids", True) if msg_vals else bool(self)
