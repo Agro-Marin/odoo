@@ -1284,8 +1284,14 @@ class ResPartner(models.Model):
             if banks_to_sync:
                 banks_to_sync.acc_holder_name = vals["name"]
 
+        sync_fields = (
+            {"parent_id", "type"}
+            | set(self._address_fields())
+            | set(self._commercial_fields())
+        )
+        tracked_fields = [fname for fname in vals if fname in sync_fields]
         pre_values_list = [
-            {fname: partner[fname] for fname in vals} for partner in self
+            {fname: partner[fname] for fname in tracked_fields} for partner in self
         ]
 
         if "company_id" in vals:
@@ -1331,9 +1337,9 @@ class ResPartner(models.Model):
             self.env.registry.clear_cache()
         for partner, pre_values in zip(self, pre_values_list, strict=True):
             updated = {
-                fname: fvalue
-                for fname, fvalue in vals.items()
-                if partner[fname] != pre_values.get(fname)
+                fname: vals[fname]
+                for fname in tracked_fields
+                if partner[fname] != pre_values[fname]
             }
             if updated:
                 partner._fields_sync(updated)
