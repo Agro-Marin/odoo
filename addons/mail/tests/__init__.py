@@ -15,6 +15,7 @@ from . import test_mail_blacklist
 from . import test_mail_composer
 from . import test_mail_message_access_parity
 from . import test_mail_message_search
+from . import test_mail_message_subtype
 from . import test_mail_mail
 from . import test_mail_message
 from . import test_mail_message_translate
