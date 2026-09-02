@@ -21,9 +21,10 @@ The `@types/` ambients are loaded as ordinary program files by the `include`
 glob — `**/*.ts` matches `.d.ts` — not as `@types` packages, which is why
 `typeRoots` is absent: it resolves `<root>/<pkg>/index.d.ts`, and nothing in
 those folders provides one. Opt-in editor template at
-`addons/web/tooling/_jsconfig.json`; `addons/web/tooling/enable.sh` copies it to
-an untracked repo-root `jsconfig.json`. The template is the committed artefact —
-edit it, not the generated copy, which `enable.sh` overwrites.
+`addons/web/tooling/_jsconfig.json`, copied by hand to a gitignored repo-root
+`jsconfig.json` — the enable.sh that used to copy it was deleted in
+c07b2caf69a, because it also clobbered the root `eslint.config.mjs` and
+`package.json`. The template is the committed artefact — edit it, not the copy.
 
 Check a single file against the full program rather than in isolation — run the
 real config and filter to the file. An isolated program under-resolves the
@@ -230,9 +231,9 @@ registerField({ name: "text", view: "list" }, listTextField);
 registerField({ name: "text", view: "liist" }, buggyVariant);
 ```
 
-**Don't drop the string form** — 79 of the 112 fork-wide `registerField` /
+**Don't drop the string form** — 83 of the 113 fork-wide `registerField` /
 `registerFallbackField` sites are plain strings with no view prefix and no typo
-risk; the other 31 already use the spec object. Reserve the typed form for
+risk; the other 30 already use the spec object. Reserve the typed form for
 view-prefixed registrations and for `aliases`, which the string form cannot
 express.
 

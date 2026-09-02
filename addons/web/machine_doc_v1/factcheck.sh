@@ -580,7 +580,9 @@ assert_eq "STATE_MANAGEMENT lists Pattern 4 sites table" \
     "$(grep -c 'Pattern 4 sites' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
 
 #    - reactive.js exports SignalStore only (no `export const Reactive`)
-#    - reactive.test.js references SignalStore, not Reactive
+#    - reactive.test.js references SignalStore, not Reactive. The suite sits
+#      beside the module it tests, under tests/core/utils/ (ee7e885cf89); the
+#      old tests/core/ path made both greps read an empty string, not 0.
 #    - eslint.config.mjs has no Reactive-import rule (rule is now unenforceable
 #      anyway: the export does not exist, so the import fails at module-load)
 assert_eq "reactive.js does not export Reactive (alias dropped)" \
@@ -588,9 +590,9 @@ assert_eq "reactive.js does not export Reactive (alias dropped)" \
 assert_eq "reactive.js still exports SignalStore" \
     "$(grep -c 'export class SignalStore' "$WEB/static/src/core/utils/reactive.js")" "1"
 assert_eq "reactive.test.js imports SignalStore (not Reactive)" \
-    "$(grep -c 'import.*SignalStore.*@web/core/utils/reactive' "$WEB/static/tests/core/reactive.test.js")" "1"
+    "$(grep -c 'import.*SignalStore.*@web/core/utils/reactive' "$WEB/static/tests/core/utils/reactive.test.js")" "1"
 assert_eq "reactive.test.js does not import Reactive" \
-    "$(grep -cE 'import\s*\{[^}]*\bReactive\b[^}]*\}\s*from\s*"@web/core/utils/reactive"' "$WEB/static/tests/core/reactive.test.js")" "0"
+    "$(grep -cE 'import\s*\{[^}]*\bReactive\b[^}]*\}\s*from\s*"@web/core/utils/reactive"' "$WEB/static/tests/core/utils/reactive.test.js")" "0"
 if skip_missing "$REPO/eslint.config.mjs" "eslint Reactive-import rule assertion" 1; then :; else
     assert_eq "eslint.config.mjs no longer carries the Reactive-import rule" \
         "$(grep -c "imported.name='Reactive'" "$REPO/eslint.config.mjs")" "0"
@@ -656,8 +658,13 @@ assert_eq "graph_renderer.js imports from @web/core/lib/chartjs" \
     "$(grep -c '@web/core/lib/chartjs' "$WEB/static/src/views/graph/graph_renderer.js")" "1"
 assert_eq "core/lib/chartjs.js dynamic-imports chart.js" \
     "$(grep -c 'import("chart.js")' "$WEB/static/src/core/lib/chartjs.js")" "1"
+# `async` is incidental: since 8a9e5971f53 the loader returns makeLazyLib's
+# promise directly. Pin the export and the await at its call site, not the
+# keyword.
 assert_eq "core/lib/fullcalendar.js exports loadFullCalendar" \
-    "$(grep -c 'export async function loadFullCalendar' "$WEB/static/src/core/lib/fullcalendar.js")" "1"
+    "$(grep -cE 'export (async )?function loadFullCalendar\(\)' "$WEB/static/src/core/lib/fullcalendar.js")" "1"
+assert_eq "full_calendar_hook.js awaits loadFullCalendar()" \
+    "$(grep -c 'await loadFullCalendar()' "$WEB/static/src/views/calendar/hooks/full_calendar_hook.js")" "1"
 assert_eq "manifest no longer declares web.chartjs_lib / web.fullcalendar_lib" \
     "$(grep -cE 'chartjs_lib|fullcalendar_lib' "$WEB/__manifest__.py")" "0"
 assert_eq "no loadBundle(chartjs_lib) call sites remain in static/src" \
@@ -712,8 +719,26 @@ assert_eq "ARCHITECTURE.md rpc.js whitelist mentions all 6 keys" \
 #     defer to it rather than keep a second copy that can drift.
 assert_eq "ARCHITECTURE.md defers to versions.json" \
     "$(grep -c 'versions.json' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "3"
-assert_eq "versions.json pins every static/lib library dir" \
-    "$(python3 -c "import json;print(len(json.load(open('$WEB/static/lib/versions.json'))['libs']))")" "17"
+# The directory list IS the population, so the manifest is held against it
+# rather than against a literal count -- `17` here was a second copy of the
+# tree and went stale the day joint/ was vendored (2cca79e2baa) with its pin
+# already in place.
+read -r LIB_DIRS LIB_VENDORED LIB_UNPINNED <<<"$("$VENV_PY" - "$WEB/static/lib" <<'PYEOF' 2>/dev/null
+import json, pathlib, sys
+lib = pathlib.Path(sys.argv[1])
+dirs = {p.name for p in lib.iterdir() if p.is_dir()}
+libs = json.load(open(lib / "versions.json"))["libs"]
+unpinned = sorted(dirs ^ set(libs))
+print(len(dirs), sum(1 for v in libs.values() if v.get("version") != "generated"),
+      ",".join(unpinned) or 0)
+PYEOF
+)"
+assert_eq "versions.json pins every static/lib library dir, and nothing else" \
+    "${LIB_UNPINNED:-PARSE_FAILED}" "0"
+assert_doc_cites "ARCHITECTURE.md static/lib row: directories and vendored libraries" \
+    "$LIB_DIRS $LIB_VENDORED" '\| `static/lib/` \| %s directories \(%s vendored libraries' ARCHITECTURE.md
+assert_doc_cites "ARCHITECTURE.md vendored-libs paragraph: directories and vendored libraries" \
+    "$LIB_DIRS $LIB_VENDORED" '^%s directories: %s vendored libraries plus' ARCHITECTURE.md
 assert_eq "ARCHITECTURE.md no stale fullcalendar 6.1.20 / 7.0.0-rc.3" \
     "$(grep -cE 'fullcalendar.{0,30}(6\.1\.20|7\.0\.0-rc)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
 assert_eq "fullcalendar vendored bundle is v7 (final 7.0.0 present in source)" \
@@ -730,7 +755,11 @@ assert_eq "core/events.js does not export FORM_DIALOG_ADD" \
 
 # 14. ARCHITECTURE.md File Counts table.
 PY_TESTS=$(find "$WEB/tests" -name "test_*.py" | wc -l)
-assert_doc_cites "ARCHITECTURE.md File Counts: Python tests" "$PY_TESTS" '\| Python \(tests\) \| %s ' ARCHITECTURE.md
+PY_TESTS_ALL=$(find "$WEB/tests" -name "*.py" | wc -l)
+assert_doc_cites "ARCHITECTURE.md File Counts: Python tests" "$PY_TESTS $PY_TESTS_ALL" \
+    '\| Python \(tests\) \| %s \(`test_\*\.py`; %s files incl' ARCHITECTURE.md
+assert_doc_cites "ARCHITECTURE.md tests/ row: Python test files" "$PY_TESTS" \
+    '\| `tests/` \| %s Python test files' ARCHITECTURE.md
 assert_doc_cites "ARCHITECTURE.md File Counts: JS tests total" "$TESTS_JS" '\| JavaScript \(tests\) \| %s \(incl' ARCHITECTURE.md
 # Anchored on the File Counts row. `incl\. %s ...` alone also matched the
 # `static/tests/` row 350 lines earlier, so the figure was ambiguous: two lines
@@ -746,10 +775,13 @@ assert_doc_cites "ARCHITECTURE.md File Counts: Hoot suites" "$HOOT_JS" \
 assert_doc_cites "ARCHITECTURE.md static/tests row: JS files and Hoot suites" \
     "$TESTS_JS $HOOT_JS" \
     '\| `static/tests/` \| %s `\.js` \(incl\. %s `\*\.test\.js`' ARCHITECTURE.md
-assert_eq "ARCHITECTURE.md File Counts: vendored libs = 92" \
-    "$(grep -cE '\| JavaScript \(vendored libs\) \| 92 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "static/lib JS file count = 92 (reality check)" \
-    "$(find "$WEB/static/lib" -name "*.js" -type f | wc -l)" "92"
+LIB_JS=$(find "$WEB/static/lib" -name "*.js" -type f | wc -l)
+assert_doc_cites "ARCHITECTURE.md File Counts: vendored libs" "$LIB_JS" \
+    '\| JavaScript \(vendored libs\) \| %s \|' ARCHITECTURE.md
+# Every one of those files belongs to a directory versions.json pins; a stray
+# top-level file would be counted above and governed by nothing.
+assert_eq "every static/lib JS file sits inside a pinned library dir" \
+    "$(find "$WEB/static/lib" -maxdepth 1 -name "*.js" -type f | wc -l)" "0"
 
 # 15. Every Layer row must cite the count the filesystem reports for its
 #     directory.
@@ -834,35 +866,36 @@ dead_refs=$("$VENV_PY" - "$DOC" "$WORKSPACE" "$REPO" "$WEB" "$SIBLINGS_ABSENT" <
 import re, pathlib, sys, collections, os
 doc_dir, ws, repo, web = (pathlib.Path(a) for a in sys.argv[1:5])
 index = collections.defaultdict(list)
-bases_found = []
-# The sibling checkouts are direct children of the workspace root -- <ws>/odoo,
-# <ws>/enterprise, ... -- not nested under an `addons/` directory. Looking under
-# `addons/` built an EMPTY index, and an empty index makes every backticked path
-# in every doc unresolvable: the sweep reported 557 dead references, none of
-# which were dead. A gate that fails on everything is read as broken and
-# ignored, which costs exactly as much as one that passes on everything.
-for base in ("odoo", "enterprise", "agromarin", "design-themes"):
-    b = ws / base
-    if not b.is_dir():
-        continue
-    bases_found.append(base)
+# The tree under test is the one BASH_SOURCE resolved to, whatever its directory
+# is called: a detached worktree is `wt-<topic>/`, a CI checkout is whatever
+# actions/checkout was handed, and only the shared workspace checkout is
+# literally `odoo/`. Keying the fork on that NAME -- `ws / "odoo"` -- made every
+# other layout ROOT_MISRESOLVED, and made the guard below fail on precisely the
+# isolated trees §1.4 says to measure in. The siblings keep their names, which
+# is the workspace convention (direct children of <ws>, never under an
+# `addons/` directory -- looking there once built an EMPTY index and reported
+# 557 dead references, none of which were dead). A second `odoo/` beside a
+# worktree is somebody else's checkout and is deliberately not indexed: a
+# reference that resolves only there is dead in the tree these docs describe.
+roots = [repo] + [ws / s for s in ("enterprise", "agromarin", "design-themes")
+                  if (ws / s).is_dir()]
+for b in roots:
     for p in b.rglob("*"):
         if p.is_file():
             index[p.name].append(str(p))
 # THE TREE UNDER TEST MUST BE IN THE INDEX. Without this, a misresolved root
 # degrades to "everything is unjudged" and the sweep PASSES having compared
 # nothing -- which is how the `unjudged` allowance below, added to stop absent
-# siblings reading as drift, silently swallowed 565 references in a checkout
-# whose directory was not named `odoo`. That is strictly worse than the failure
-# it replaced: the old behaviour at least reported 565 dead refs and was
-# obviously broken. An escape hatch for "cannot decide" needs a floor, or it
-# becomes an escape hatch for "did not look".
-if repo.name not in bases_found or (ws / repo.name).resolve() != repo.resolve():
+# siblings reading as drift, once silently swallowed 565 references. An escape
+# hatch for "cannot decide" needs a floor, or it becomes an escape hatch for
+# "did not look". The floor: the harness must find itself.
+if str(doc_dir / "factcheck.sh") not in index.get("factcheck.sh", []):
     print("ROOT_MISRESOLVED", 0)
     raise SystemExit(0)
 # Deliberately-absent references: load_coordinator.js is cited AS deleted;
-# jsconfig.json is generated (untracked) by addons/web/tooling/enable.sh from
-# the committed _jsconfig.json template. The three search_* names are cited by
+# jsconfig.json is a gitignored hand copy of the committed
+# addons/web/tooling/_jsconfig.json template (the enable.sh that once copied it
+# went in c07b2caf69a). The three search_* names are cited by
 # COMPONENT_DIAGRAM.md's rename note precisely to say they are gone -- the note
 # names each pre-rename file next to what replaced it, so resolving them would
 # mean the rename had not happened.
@@ -1164,10 +1197,10 @@ if [ -z "${ODOO_CONF:-}" ] || [ ! -f "$ODOO_CONF" ]; then
     echo "SKIP: TEST_TAGS prepare_suite counts — no Odoo config found" \
          "(looked for <env>.conf beside a matching venv under $WORKSPACE;" \
          "set ODOO_CONF/VENV_PY to override)"
-    SKIP=$((SKIP+16))
+    SKIP=$((SKIP+8))
 elif ! (cd "$REPO" && "$VENV_PY" -c "import odoo" >/dev/null 2>&1); then
     echo "SKIP: TEST_TAGS prepare_suite counts — odoo not importable with $VENV_PY"
-    SKIP=$((SKIP+16))
+    SKIP=$((SKIP+8))
 else
     # `prepare_suite` is the only source of truth here. This loop used to carry a
     # hardcoded expected count per tag AND assert the doc cited it — two copies
@@ -1571,8 +1604,15 @@ assert_doc_cites "CONVENTIONS field-widget prose cites the registerField site co
     "${RF_TOTAL:-PARSE_FAILED}" 'widget directories and %s fork-wide' CONVENTIONS.md
 assert_doc_cites "CONVENTIONS rename-guidance prose cites the registerField site count" \
     "${RF_TOTAL:-PARSE_FAILED}" 'inside .fields/., %s fork-wide' CONVENTIONS.md
-assert_doc_cites "JSDOC cites the real registerField site count" \
-    "${RF_TOTAL:-PARSE_FAILED}" 'of the %s fork-wide' JSDOC_TYPE_TIGHTENING.md
+# The split is restated three times; only ARCHITECTURE's copy was pinned, so
+# CONVENTIONS and JSDOC kept saying 79/31 under a total they had been rewritten
+# to 113 -- a sum that does not add up, in a sentence that names the total.
+assert_doc_cites "JSDOC cites the real plain-form share of the registerField sites" \
+    "${RF_PLAIN:-PARSE_FAILED} ${RF_TOTAL:-PARSE_FAILED}" '%s of the %s fork-wide' JSDOC_TYPE_TIGHTENING.md
+assert_doc_cites "JSDOC cites the real spec-form count" \
+    "${RF_SPEC:-PARSE_FAILED}" 'the other %s already use the spec object' JSDOC_TYPE_TIGHTENING.md
+assert_doc_cites "CONVENTIONS field-widget prose cites the real plain/spec split" \
+    "${RF_PLAIN:-PARSE_FAILED} ${RF_SPEC:-PARSE_FAILED}" '\(%s plain, %s through the typed spec form\)' CONVENTIONS.md
 assert_doc_cites "ARCHITECTURE cites the real plain/spec split" \
     "${RF_PLAIN:-PARSE_FAILED}" '%s plain and' ARCHITECTURE.md
 assert_doc_cites "ARCHITECTURE cites the real spec-form count" \
@@ -1754,7 +1794,7 @@ OBS_TEST="$WEB/static/tests/core/utils/trace_choke_points.test.js"
 assert_eq "trace_choke_points suite exists" \
     "$([ -f "$OBS_TEST" ] && echo yes || echo no)" "yes"
 assert_eq "trace_choke_points asserts component.mount does NOT fire in HOOT" \
-    "$(grep -c 'trace\["component.mount"\]).toBe(undefined)' "$OBS_TEST")" "1"
+    "$(grep -cE 'trace\["component\.mount"\]\)\.toBe\(.*undefined\)' "$OBS_TEST")" "1"
 # rpc.* DOES fire in HOOT, once its guards ask active() rather than enabled().
 # Pinned as a positive so the correction cannot silently revert.
 assert_eq "trace_choke_points asserts rpc.request DOES fire in HOOT" \

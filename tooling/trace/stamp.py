@@ -22,7 +22,7 @@ DEFAULT_ROOT = "addons/web/static/src"
 CLASS_RE = re.compile(r"^(\s*)(?:export\s+)?class\s+(\w+)\s+extends\s+[\w.]+\s*\{")
 SETUP_RE = re.compile(r"^(\s*)setup\s*\(\s*\)\s*\{\s*$")
 IMPORT_RE = re.compile(r"^import\s.*;\s*$")
-FUNCTION_LINE_BUDGET = 80
+FUNCTION_LINE_BUDGET = 90
 
 
 def iter_files(root: Path) -> list[Path]:

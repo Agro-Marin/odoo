@@ -79,9 +79,9 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 | `controllers/` | 24 `.py` — HTTP endpoints (22 Controller classes, 76 route handlers) | `ROUTE_MAP.md` |
 | `models/` | 25 `.py` — ORM extensions (24 model classes: web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
 | `static/src/` | 821 JavaScript/OWL source files across 238 directories (FSD layers) | `DIRECTORY_MAP.md` |
-| `static/lib/` | 17 directories (16 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
+| `static/lib/` | 18 directories (17 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
 | `static/tests/` | 753 `.js` (incl. 691 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
-| `tests/` | 59 Python test files (`test_*.py`) | `TEST_TAGS.md` |
+| `tests/` | 60 Python test files (`test_*.py`) | `TEST_TAGS.md` |
 | `machine_doc_v1/` | This directory: `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) · `LAZY_VIEW_LOADING.md` · `VIEW_TEARDOWN_COST.md` (both decision records: investigated, not pursued) · `LIST_EDIT_RENDER_COST.md` (decision record: row-level waste fixed, renderer-level amplification measured and not pursued) · the maps below · `factcheck.sh` | — |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 
@@ -97,7 +97,7 @@ Layered organization under `static/src/`:
 | **Primitives** | `core/` | Registry, utils, reactivity, browser abstraction, l10n, network + ORM, errors, py_js, tree, debug, hotkeys, navigation, `lib/` lazy ESM loaders | 175 JS |
 | **Components** | `components/` | Reusable OWL UI components (dropdown, pickers, editors, file handling) | 109 JS |
 | **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 46 JS |
-| **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 112 fork-wide `registerField` / `registerFallbackField` sites | 128 JS |
+| **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 113 fork-wide `registerField` / `registerFallbackField` sites | 128 JS |
 | **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 173 JS |
 | **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu, colour scheme, density, debug/profiling | 76 JS |
 | **Search** | `search/` | Search model and mixins, search bar, facets, filters, group-by, favorites, embedded actions bar | 38 JS |
@@ -296,6 +296,7 @@ Promise.
 | `public.interactions` | `public/interaction_service.js` | Public-page interaction registry/lifecycle (frontend equivalent of the backend component tree) |
 | `demo_data` | `views/settings/widgets/demo_data_service.js` | Caches whether demo data is active (Settings widgets) |
 | `user_invite` | `views/settings/widgets/user_invite_service.js` | Caches the user-invite panel payload (Settings widgets) |
+| `fillTemporalService` | `views/fill_temporal_service.js` | `FillTemporal`: one memoised `FillTemporalPeriod` per model + date field + granularity, whose `getDomain()` widens a group-by domain to a whole cycle so `_read_group_fill_temporal` can emit the empty periods. Moved here from `crm` on 2026-08-28 (the ORM feature is core; nothing in it is about leads); its only consumer is still crm's forecast views, reached through the registry |
 | `slow_rpc` | `core/network/slow_rpc_service.js` | Patience-UX: shows a sticky `notification.add(_t("This is taking longer than usual…"))` toast when a non-silent RPC exceeds `SLOW_RPC_CONFIG.thresholdMs` (default 5 s, mutable). Listens on `rpcBus` for `RPC:REQUEST`/`RPC:RESPONSE`; success, error, abort, and timeout all clear the timer. Silent RPCs opt out, as with error dialogs. |
 
 > Additional webclient-level services: `action`, `menu`, `view`, `currency`,
@@ -314,7 +315,7 @@ Each view type lives in `static/src/views/<type>/`:
 | Graph | `views/graph/` | Yes | Charts (bar, line, pie). The view is in `assets_backend`; only the Chart.js *library* is lazy (`core/lib/chartjs.js` `loadChartJS()`) — see CONVENTIONS gotcha #6 |
 | Pivot | `views/pivot/` | Yes | Crosstab analysis. In `assets_backend`; not lazy-loaded |
 
-Field widgets (68 widget directories across 7 subcategories; 112 fork-wide `registerField` / `registerFallbackField` sites, 81 plain and 31 through the typed spec form) live in `fields/` (top-level). Import path: `@web/fields/*`. Registration goes through `registerField()` / `registerFallbackField()` in `fields/_registry.js`, never `registry.category("fields").add()` directly.
+Field widgets (68 widget directories across 7 subcategories; 113 fork-wide `registerField` / `registerFallbackField` sites, 83 plain and 30 through the typed spec form) live in `fields/` (top-level). Import path: `@web/fields/*`. Registration goes through `registerField()` / `registerFallbackField()` in `fields/_registry.js`, never `registry.category("fields").add()` directly.
 
 ## Controller Utilities (`views/view_utils.js`)
 
@@ -424,7 +425,7 @@ Do not restate versions here — read `versions.json`, and see
 in-file divergence markers, and the libraries needing extra care (`dompurify`,
 `fullcalendar`, `pdfjs`, `popper_compat`, `zxing-library`).
 
-17 directories: 16 vendored libraries plus `popper_compat/`, which is **not a
+18 directories: 17 vendored libraries plus `popper_compat/`, which is **not a
 vendored library** but a generated self-contained build of
 `@web/libs/popper_compat.js` (it replaced Popper; Bootstrap was Popper's only
 importer). Bundles inline the source module instead — only import-map pages (the
@@ -438,10 +439,10 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 |----------|-------|
 | Python (controllers) | 24 (22 Controller classes across 20 route-bearing files + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 25 (24 model files + `__init__.py`) |
-| Python (tests) | 59 (`test_*.py`; 60 files incl. `__init__.py`) |
+| Python (tests) | 60 (`test_*.py`; 61 files incl. `__init__.py`) |
 | JavaScript (src) | 821 (819 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
 | JavaScript (tests) | 753 (incl. 691 `*.test.js` Hoot suites) |
-| JavaScript (vendored libs) | 92 |
+| JavaScript (vendored libs) | 94 |
 | SCSS/CSS | 199 (32 in `static/src/scss/` shared base; remaining 167 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 282 (13 views + 4 data + 265 OWL templates) |
 | i18n (.po + .pot) | 61 |
