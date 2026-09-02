@@ -6731,9 +6731,10 @@ imports:
    cd <odoo repo>
 
    pytest                                          # Tier 1 (config: pytest.ini)
-   pytest odoo/orm/tests odoo/http/tests tests/service tests/framework  # Tier 2
+   pytest odoo/orm/tests odoo/http/tests odoo/db/tests odoo/tools/tests \
+       tests/service tests/framework                                     # Tier 2
 
-Pass **all four** Tier-2 paths. None is in Tier 1's ``testpaths``, so a shorter
+Pass **all six** Tier-2 paths. None is in Tier 1's ``testpaths``, so a shorter
 command silently skips whole suites and still reports success.
 
 ``tests/framework`` holds the gates that assert things about the real ``odoo.*``

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Run a gate under the toolchain CI runs it with, and nothing else.
+#
+# py_typecheck.yml installs mypy alone and ruff.yml installs ruff alone, both at
+# the versions requirements-dev.txt pins, so a count taken in the development
+# virtualenv (a different mypy major, real lxml/psycopg stubs) is not the gate's.
+# This launcher keeps one small virtualenv, tooling/.venv-gates, built from that
+# file, refuses to run if its ruff or mypy drift from the pins, and executes the
+# given command with that virtualenv first on PATH.
+#
+#   tooling/gate ruff check odoo/ --no-cache --statistics
+#   tooling/gate mypy --no-incremental --config-file mypy.ini -p odoo.orm
+#   tooling/gate python tooling/architecture/layer_check.py --check
+#   tooling/gate --pins        # print the pinned versions
+#   tooling/gate --python      # print the interpreter it would use
+set -eu
+here="$(cd "$(dirname "$0")" && pwd)"
+root="$here"
+while [ "$root" != "/" ] && [ ! -f "$root/odoo-bin" ]; do root="$(dirname "$root")"; done
+if [ ! -f "$root/odoo-bin" ]; then
+    echo "gate: no odoo-bin above $here; cannot locate the checkout" >&2
+    exit 1
+fi
+pins="$root/requirements-dev.txt"
+venv="${ODOO_GATE_VENV:-$here/.venv-gates}"
+
+pin_of() {  # pin_of ruff -> 0.16.2
+    sed -n "s/^$1==\([0-9][0-9.]*\).*/\1/p" "$pins" | head -1
+}
+
+case "${1:-}" in
+    --pins)
+        for tool in ruff mypy; do echo "$tool==$(pin_of "$tool")"; done
+        exit 0 ;;
+    --python)
+        echo "$venv/bin/python"
+        exit 0 ;;
+    ""|-h|--help)
+        sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+        exit 0 ;;
+esac
+
+if [ ! -x "$venv/bin/python" ]; then
+    base="${ODOO_GATE_BASE_PYTHON:-python3}"
+    echo "gate: creating $venv from $pins with $base" >&2
+    "$base" -m venv "$venv"
+    "$venv/bin/python" -m pip install --quiet --disable-pip-version-check -r "$pins"
+fi
+
+for tool in ruff mypy; do
+    want="$(pin_of "$tool")"
+    [ -n "$want" ] || continue
+    have="$("$venv/bin/$tool" --version 2>/dev/null | sed -n 's/^[a-z]* \([0-9][0-9.]*\).*/\1/p' | head -1)"
+    if [ "$have" != "$want" ]; then
+        echo "gate: $venv has $tool $have, requirements-dev.txt pins $want;" >&2
+        echo "  delete $venv and rerun, or fix the pin" >&2
+        exit 2
+    fi
+done
+
+export PATH="$venv/bin:$PATH"
+export ODOO_GATE_PYTHON="$venv/bin/python"
+exec "$@"
