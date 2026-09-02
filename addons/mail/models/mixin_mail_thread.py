@@ -696,7 +696,11 @@ class MixinMailThread(models.AbstractModel):
         writer_uids = self.env.cr.precommit.data.setdefault(
             f"mail.tracking.uid.{self._name}", {}
         )
-        for record in self:
+        # sudo: the tracked set is the model's, not the writer's — reading a
+        # tracked x2many searches its comodel, so a writer without access to
+        # that comodel would get an AccessError out of a field they never
+        # touched. `_track_finalize` already reads the end values elevated.
+        for record in self.sudo():
             if not record.id:
                 continue
             writer_uids.setdefault(record.id, self.env.uid)
