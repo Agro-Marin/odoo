@@ -6,7 +6,7 @@ export class Policy {
      * @param {String} password
      * @returns {number}
      */
-    score(password) {}
+    score() {}
 }
 
 export class ConcretePolicy extends Policy {
@@ -56,7 +56,8 @@ export class ConcretePolicy extends Policy {
         // for us. We could generate the regex statically but they're huge
         // and gnarly as hell.
         const wordCount = password.split(/[^\W_]+/).length - 1;
-        const wordscore = this.minwords !== 0 ? Math.min(wordCount / this.minwords, 1.0) : 1.0;
+        const wordscore =
+            this.minwords !== 0 ? Math.min(wordCount / this.minwords, 1.0) : 1.0;
         // See above for issues pertaining to character classification:
         // we'll classify using the ascii range because that's basically our
         // only option
@@ -80,7 +81,11 @@ export class ConcretePolicy extends Policy {
  * @param {Policy} requirements
  * @param {Policy} recommendations
  */
-export function computeScore(password, requirements, recommendations = recommendations) {
+export function computeScore(
+    password,
+    requirements,
+    recommendations = recommendations,
+) {
     const req = requirements.score(password);
     const rec = recommendations.score(password);
     return Math.pow(req, 4) * (0.5 + Math.pow(rec, 2) / 2);

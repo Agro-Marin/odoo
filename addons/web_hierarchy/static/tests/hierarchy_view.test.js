@@ -104,7 +104,9 @@ test("load hierarchy view", async () => {
     expect(".o_hierarchy_view").toHaveCount(1);
     expect(".o_hierarchy_button_add").toHaveCount(1);
     expect(".o_hierarchy_view .o_hierarchy_renderer").toHaveCount(1);
-    expect(".o_hierarchy_view .o_hierarchy_renderer > .o_hierarchy_container").toHaveCount(1);
+    expect(
+        ".o_hierarchy_view .o_hierarchy_renderer > .o_hierarchy_container",
+    ).toHaveCount(1);
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_separator").toHaveCount(1);
     expect(".o_hierarchy_line_part").toHaveCount(2);
@@ -116,7 +118,9 @@ test("load hierarchy view", async () => {
     expect(".o_hierarchy_node_button.btn-primary").toHaveCount(1);
     expect(".o_hierarchy_node_button.btn-primary.d-grid").toHaveCount(1);
     expect(".o_hierarchy_node_button.btn-primary.rounded-0").toHaveCount(1);
-    expect(".o_hierarchy_node_button.btn-primary .fa-rotate-90.align-text-top").toHaveCount(1);
+    expect(
+        ".o_hierarchy_node_button.btn-primary .fa-rotate-90.align-text-top",
+    ).toHaveCount(1);
     expect(".o_hierarchy_node_button.btn-primary").toHaveText("Unfold\n1");
 
     expect(".o_hierarchy_row:eq(0) .o_hierarchy_node").toHaveCount(1);
@@ -165,7 +169,9 @@ test("display child nodes", async () => {
     ]);
 
     expect(".o_hierarchy_row:eq(2) .o_hierarchy_node").toHaveCount(1);
-    expect(".o_hierarchy_row:eq(2) .o_hierarchy_node_content").toHaveText("Louis\nJosephine");
+    expect(".o_hierarchy_row:eq(2) .o_hierarchy_node_content").toHaveText(
+        "Louis\nJosephine",
+    );
     expect.verifySteps(["get child data", "fetch descendants"]);
 });
 
@@ -221,7 +227,9 @@ test("collapse child nodes", async () => {
     expect(".o_hierarchy_node_button.btn-secondary").toHaveCount(0);
     expect(".o_hierarchy_node_button").toHaveCount(1);
     expect(".o_hierarchy_node_container:not(.o_hierarchy_node_button)").toHaveCount(1);
-    expect(queryAllTexts(".o_hierarchy_row .o_hierarchy_node_content")).toEqual(["Albert"]);
+    expect(queryAllTexts(".o_hierarchy_row .o_hierarchy_node_content")).toEqual([
+        "Albert",
+    ]);
 });
 
 test("display the parent above the line when many records on the parent row", async () => {
@@ -289,11 +297,14 @@ test("Add a custom domain leaf on default state of the view with a globalDomain 
     await enableFilters(["find_fifth"]);
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_node").toHaveCount(3);
-    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(["D\nB", "E\nD", "F\nD"], {
-        message: `E is shown because it matches the query and the custom domain leaf [['parent_id', '=', false]]
+    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
+        ["D\nB", "E\nD", "F\nD"],
+        {
+            message: `E is shown because it matches the query and the custom domain leaf [['parent_id', '=', false]]
             is not applied since the view is not in its "default state", nor is the query empty. D and F are
             shown since E was the only record matching the query, so its parent and siblings are fetched`,
-    });
+        },
+    );
     await removeFacet("find_fifth");
     await enableFilters(["exclude_third"]);
     expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(["B", "D\nB"], {
@@ -363,9 +374,13 @@ test("fetch parent record", async () => {
     expect(".o_hierarchy_node").toHaveCount(2);
     expect(".o_hierarchy_separator").toHaveCount(1);
 
-    expect(".o_hierarchy_row:eq(0) .o_hierarchy_node_content").toHaveText("Josephine\nAlbert");
+    expect(".o_hierarchy_row:eq(0) .o_hierarchy_node_content").toHaveText(
+        "Josephine\nAlbert",
+    );
 
-    expect(".o_hierarchy_row:eq(1) .o_hierarchy_node_content").toHaveText("Louis\nJosephine");
+    expect(".o_hierarchy_row:eq(1) .o_hierarchy_node_content").toHaveText(
+        "Louis\nJosephine",
+    );
     expect(".o_hierarchy_node_container button .fa-chevron-up").toHaveCount(1, {
         message:
             "Button to fetch the parent node should be visible on the first node displayed in the view.",
@@ -382,7 +397,9 @@ test("fetch parent record", async () => {
         "Josephine\nAlbert",
     ]);
 
-    expect(".o_hierarchy_row:eq(2) .o_hierarchy_node_content").toHaveText("Louis\nJosephine");
+    expect(".o_hierarchy_row:eq(2) .o_hierarchy_node_content").toHaveText(
+        "Louis\nJosephine",
+    );
 });
 
 test("fetch parent when there are many records without the same parent in the same row", async () => {
@@ -481,13 +498,13 @@ test("fetch parent of node with children displayed", async () => {
     expect(".o_hierarchy_node_container").toHaveCount(5);
     expect(".o_hierarchy_node_container button .fa-chevron-up").toHaveCount(4);
     const georgesNode = queryOne(
-        ".o_hierarchy_node_container:has(button[name=hierarchy_search_parent_node]):eq(0)"
+        ".o_hierarchy_node_container:has(button[name=hierarchy_search_parent_node]):eq(0)",
     );
     expect(queryOne(".o_hierarchy_node_content", { root: georgesNode })).toHaveText(
-        "Georges\nAlbert"
+        "Georges\nAlbert",
     );
     await contains(
-        queryOne("button[name=hierarchy_search_subsidiaries]", { root: georgesNode })
+        queryOne("button[name=hierarchy_search_subsidiaries]", { root: georgesNode }),
     ).click();
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_node").toHaveCount(5);
@@ -499,7 +516,9 @@ test("fetch parent of node with children displayed", async () => {
         "Louis\nJosephine",
     ]);
     expect(".o_hierarchy_row:eq(1) .o_hierarchy_node").toHaveCount(1);
-    expect(".o_hierarchy_row:eq(1) .o_hierarchy_node_content").toHaveText("Lisa\nGeorges");
+    expect(".o_hierarchy_row:eq(1) .o_hierarchy_node_content").toHaveText(
+        "Lisa\nGeorges",
+    );
     await contains(".o_hierarchy_node_container button .fa-chevron-up").click();
     expect(".o_hierarchy_row").toHaveCount(3);
     expect(".o_hierarchy_node").toHaveCount(4);
@@ -519,11 +538,11 @@ test("drag and drop is disabled by default", async () => {
     ]);
 
     expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
-        "Georges\nAlbert"
+        "Georges\nAlbert",
     );
 
     await contains(".o_hierarchy_node_container:eq(1) .o_hierarchy_node").dragAndDrop(
-        ".o_hierarchy_row:first-child"
+        ".o_hierarchy_row:first-child",
     );
 
     expect(".o_hierarchy_row").toHaveCount(2);
@@ -538,7 +557,7 @@ test("drag and drop is disabled by default", async () => {
 test("drag and drop record on another row", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     await mountView({
         type: "hierarchy",
@@ -552,18 +571,18 @@ test("drag and drop record on another row", async () => {
         "Josephine\nAlbert",
     ]);
     expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
-        "Georges\nAlbert"
+        "Georges\nAlbert",
     );
 
     await contains(".o_hierarchy_node_container:eq(1) .o_hierarchy_node").dragAndDrop(
-        ".o_hierarchy_row:first-child"
+        ".o_hierarchy_row:first-child",
     );
 
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_node").toHaveCount(3);
     expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
         ["Albert", "Georges", "Josephine\nAlbert"],
-        { message: "Georges should no longer have a manager" }
+        { message: "Georges should no longer have a manager" },
     );
 });
 
@@ -571,20 +590,25 @@ test("drag and drop record at an invalid position", async () => {
     expect.assertions(8);
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     patchWithCleanup(HierarchyModel.prototype, {
         async updateParentId(node, parentResId = false) {
-            return this.orm.call(this.resModel, "custom_update_parent_id", [node.resId], {
-                parent_id: parentResId,
-            });
+            return this.orm.call(
+                this.resModel,
+                "custom_update_parent_id",
+                [node.resId],
+                {
+                    parent_id: parentResId,
+                },
+            );
         },
         async updateParentNode() {
             await expect(super.updateParentNode(...arguments)).rejects.toThrow(
                 makeServerError({
                     type: "ValidationError",
                     description: "Prevented update parent",
-                })
+                }),
             );
         },
     });
@@ -607,25 +631,28 @@ test("drag and drop record at an invalid position", async () => {
     ]);
 
     expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
-        "Georges\nAlbert"
+        "Georges\nAlbert",
     );
 
     await contains(".o_hierarchy_node_container:eq(1) .o_hierarchy_node").dragAndDrop(
-        ".o_hierarchy_row:first-child"
+        ".o_hierarchy_row:first-child",
     );
 
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_node").toHaveCount(3);
     expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
         ["Albert", "Georges\nAlbert", "Josephine\nAlbert"],
-        { message: "The view should not have been modified since the position is invalid" }
+        {
+            message:
+                "The view should not have been modified since the position is invalid",
+        },
     );
 });
 
 test("drag and drop record on sibling node", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     await mountView({
         type: "hierarchy",
@@ -640,28 +667,28 @@ test("drag and drop record on sibling node", async () => {
     ]);
 
     expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
-        "Georges\nAlbert"
+        "Georges\nAlbert",
     );
     expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText(
-        "Josephine\nAlbert"
+        "Josephine\nAlbert",
     );
 
     await contains(".o_hierarchy_node_container:eq(1) .o_hierarchy_node").dragAndDrop(
-        ".o_hierarchy_node_container:eq(2)"
+        ".o_hierarchy_node_container:eq(2)",
     );
 
     expect(".o_hierarchy_row").toHaveCount(3);
     expect(".o_hierarchy_node").toHaveCount(4);
     expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
         ["Albert", "Josephine\nAlbert", "Georges\nJosephine", "Louis\nJosephine"],
-        { message: "Georges should have Josephine as manager" }
+        { message: "Georges should have Josephine as manager" },
     );
 });
 
 test("drag and drop record on node of another tree", async () => {
     Employee._views["hierarchy,1"] = Employee._views["hierarchy,1"].replace(
         `<hierarchy child_field="child_ids">`,
-        `<hierarchy child_field="child_ids" draggable="1">`
+        `<hierarchy child_field="child_ids" draggable="1">`,
     );
     Employee._records = [
         { id: 1, name: "A", parent_id: false, child_ids: [3, 4] },
@@ -689,26 +716,38 @@ test("drag and drop record on node of another tree", async () => {
         "E\nC",
     ]);
 
-    expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText("B");
-    expect(".o_hierarchy_node_container:eq(3) .o_hierarchy_node_content").toHaveText("D\nA");
+    expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
+        "B",
+    );
+    expect(".o_hierarchy_node_container:eq(3) .o_hierarchy_node_content").toHaveText(
+        "D\nA",
+    );
 
     await contains(".o_hierarchy_node_container:eq(3) .o_hierarchy_node").dragAndDrop(
-        ".o_hierarchy_node_container:eq(1)"
+        ".o_hierarchy_node_container:eq(1)",
     );
 
     expect(".o_hierarchy_row").toHaveCount(2);
-    expect(queryAllTexts(".o_hierarchy_row .o_hierarchy_node_content")).toEqual(["A", "B", "D\nB"]);
+    expect(queryAllTexts(".o_hierarchy_row .o_hierarchy_node_content")).toEqual([
+        "A",
+        "B",
+        "D\nB",
+    ]);
 
-    expect(".o_hierarchy_node_container:eq(0) .o_hierarchy_node_content").toHaveText("A");
+    expect(".o_hierarchy_node_container:eq(0) .o_hierarchy_node_content").toHaveText(
+        "A",
+    );
 
     await contains(
-        ".o_hierarchy_node_container:eq(0) .o_hierarchy_node_button.btn-primary"
+        ".o_hierarchy_node_container:eq(0) .o_hierarchy_node_button.btn-primary",
     ).click();
 
-    expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText("C\nA");
+    expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText(
+        "C\nA",
+    );
 
     await contains(
-        ".o_hierarchy_node_container:eq(2) .o_hierarchy_node_button.btn-primary"
+        ".o_hierarchy_node_container:eq(2) .o_hierarchy_node_button.btn-primary",
     ).click();
 
     expect(queryAllTexts(".o_hierarchy_row .o_hierarchy_node_content")).toEqual(
@@ -716,14 +755,14 @@ test("drag and drop record on node of another tree", async () => {
         {
             message:
                 "Nodes that were folded as a result of the drop operation should all still be unfoldable",
-        }
+        },
     );
 });
 
 test("drag and drop node unfolded on first row", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     await mountView({
         type: "hierarchy",
@@ -738,41 +777,45 @@ test("drag and drop node unfolded on first row", async () => {
     ]);
 
     expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText(
-        "Josephine\nAlbert"
+        "Josephine\nAlbert",
     );
     await contains(
-        ".o_hierarchy_node_container:eq(2) button[name='hierarchy_search_subsidiaries']"
+        ".o_hierarchy_node_container:eq(2) button[name='hierarchy_search_subsidiaries']",
     ).click();
 
     await contains(".o_hierarchy_node_container:eq(2) .o_hierarchy_node").dragAndDrop(
-        ".o_hierarchy_row:first-child"
+        ".o_hierarchy_row:first-child",
     );
 
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_node").toHaveCount(3);
     expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
         ["Albert", "Josephine", "Louis\nJosephine"],
-        { message: "Georges should have Josephine as manager" }
+        { message: "Georges should have Josephine as manager" },
     );
 
     expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText(
-        "Louis\nJosephine"
+        "Louis\nJosephine",
     );
     await contains(".o_hierarchy_node_container:eq(2) .o_hierarchy_node").dragAndDrop(
-        ".o_hierarchy_row:first-child"
+        ".o_hierarchy_row:first-child",
     );
 
     expect(".o_hierarchy_row").toHaveCount(1);
     expect(".o_hierarchy_node").toHaveCount(3);
-    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(["Albert", "Josephine", "Louis"], {
-        message: "Louis should still be draggable after being dragged along with Josephine",
-    });
+    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
+        ["Albert", "Josephine", "Louis"],
+        {
+            message:
+                "Louis should still be draggable after being dragged along with Josephine",
+        },
+    );
 });
 
 test("drag and drop node when other node is unfolded on first row", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     await mountView({
         type: "hierarchy",
@@ -787,31 +830,31 @@ test("drag and drop node when other node is unfolded on first row", async () => 
     ]);
 
     expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
-        "Georges\nAlbert"
+        "Georges\nAlbert",
     );
     expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText(
-        "Josephine\nAlbert"
+        "Josephine\nAlbert",
     );
     await contains(
-        ".o_hierarchy_node_container:eq(2) button[name='hierarchy_search_subsidiaries']"
+        ".o_hierarchy_node_container:eq(2) button[name='hierarchy_search_subsidiaries']",
     ).click();
 
     await contains(".o_hierarchy_node_container:eq(1) .o_hierarchy_node").dragAndDrop(
-        ".o_hierarchy_row:eq(0)"
+        ".o_hierarchy_row:eq(0)",
     );
 
     expect(".o_hierarchy_row").toHaveCount(3);
     expect(".o_hierarchy_node").toHaveCount(4);
     expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
         ["Albert", "Georges", "Josephine\nAlbert", "Louis\nJosephine"],
-        { message: "Georges should no longer have a manager" }
+        { message: "Georges should no longer have a manager" },
     );
 });
 
 test("drag and drop node unfolded on another row", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     Employee._records = [
         { id: 1, name: "Albert", parent_id: false, child_ids: [2] },
@@ -827,65 +870,80 @@ test("drag and drop node unfolded on another row", async () => {
     });
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_node").toHaveCount(2);
-    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(["Albert", "Georges\nAlbert"]);
+    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual([
+        "Albert",
+        "Georges\nAlbert",
+    ]);
 
     expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
-        "Georges\nAlbert"
+        "Georges\nAlbert",
     );
     await contains(
-        ".o_hierarchy_node_container:eq(1) button[name='hierarchy_search_subsidiaries']"
+        ".o_hierarchy_node_container:eq(1) button[name='hierarchy_search_subsidiaries']",
     ).click();
 
     expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText(
-        "Josephine\nGeorges"
+        "Josephine\nGeorges",
     );
     await contains(
-        ".o_hierarchy_node_container:eq(2) button[name='hierarchy_search_subsidiaries']"
+        ".o_hierarchy_node_container:eq(2) button[name='hierarchy_search_subsidiaries']",
     ).click();
 
     expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText(
-        "Josephine\nGeorges"
+        "Josephine\nGeorges",
     );
     expect(".o_hierarchy_node_container:eq(4) .o_hierarchy_node_content").toHaveText(
-        "Louis\nJosephine"
+        "Louis\nJosephine",
     );
     expect(".o_hierarchy_row").toHaveCount(4);
     expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
-        ["Albert", "Georges\nAlbert", "Josephine\nGeorges", "Kelly\nGeorges", "Louis\nJosephine"],
-        { message: "Kelly should be displayed" }
+        [
+            "Albert",
+            "Georges\nAlbert",
+            "Josephine\nGeorges",
+            "Kelly\nGeorges",
+            "Louis\nJosephine",
+        ],
+        { message: "Kelly should be displayed" },
     );
 
     await contains(".o_hierarchy_node_container:eq(2) .o_hierarchy_node").dragAndDrop(
-        ":nth-child(2 of .o_hierarchy_row)"
+        ":nth-child(2 of .o_hierarchy_row)",
     );
 
     expect(".o_hierarchy_row").toHaveCount(3);
     expect(".o_hierarchy_node").toHaveCount(4);
     expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
         ["Albert", "Georges\nAlbert", "Josephine\nAlbert", "Louis\nJosephine"],
-        { message: "Josephine should have Albert as a manager and Kelly should be hidden" }
+        {
+            message:
+                "Josephine should have Albert as a manager and Kelly should be hidden",
+        },
     );
 
     expect(".o_hierarchy_node_container:eq(3) .o_hierarchy_node_content").toHaveText(
-        "Louis\nJosephine"
+        "Louis\nJosephine",
     );
 
     await contains(".o_hierarchy_node_container:eq(3) .o_hierarchy_node").dragAndDrop(
-        ":nth-child(2 of .o_hierarchy_row)"
+        ":nth-child(2 of .o_hierarchy_row)",
     );
 
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_node").toHaveCount(4);
     expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
         ["Albert", "Georges\nAlbert", "Josephine\nAlbert", "Louis\nAlbert"],
-        { message: "Louis should still be draggable after being dragged along with Josephine" }
+        {
+            message:
+                "Louis should still be draggable after being dragged along with Josephine",
+        },
     );
 });
 
 test("drag and drop node as a child of a sibling of its parent", async () => {
     Employee._views["hierarchy,1"] = Employee._views["hierarchy,1"].replace(
         `<hierarchy child_field="child_ids">`,
-        `<hierarchy child_field="child_ids" draggable="1">`
+        `<hierarchy child_field="child_ids" draggable="1">`,
     );
     Employee._records = [
         { id: 1, name: "A", parent_id: false, child_ids: [2, 3] },
@@ -910,23 +968,27 @@ test("drag and drop node as a child of a sibling of its parent", async () => {
         "E\nB",
     ]);
 
-    expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText("C\nA");
-    expect(".o_hierarchy_node_container:eq(4) .o_hierarchy_node_content").toHaveText("E\nB");
+    expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText(
+        "C\nA",
+    );
+    expect(".o_hierarchy_node_container:eq(4) .o_hierarchy_node_content").toHaveText(
+        "E\nB",
+    );
 
     await contains(".o_hierarchy_node_container:eq(4) .o_hierarchy_node").dragAndDrop(
-        ".o_hierarchy_node_container:eq(2)"
+        ".o_hierarchy_node_container:eq(2)",
     );
     expect(".o_hierarchy_row").toHaveCount(3);
     expect(queryAllTexts(".o_hierarchy_row .o_hierarchy_node_content")).toEqual(
         ["A", "B\nA", "C\nA", "E\nC"],
-        { message: "B should be folded and C unfolded" }
+        { message: "B should be folded and C unfolded" },
     );
 });
 
 test("drag and drop record and respect ordering", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy default_order='name' draggable='1'>"
+        "<hierarchy default_order='name' draggable='1'>",
     );
     Employee._records = [
         { id: 1, name: "F", parent_id: false, child_ids: [] },
@@ -955,7 +1017,7 @@ test("drag and drop record and respect ordering", async () => {
     ]);
 
     await contains(".o_hierarchy_node_container:eq(4) .o_hierarchy_node").dragAndDrop(
-        ".o_hierarchy_row:first-child"
+        ".o_hierarchy_row:first-child",
     );
 
     expect(".o_hierarchy_row").toHaveCount(2);
@@ -970,7 +1032,7 @@ test("drag and drop record and respect ordering", async () => {
     ]);
 
     await contains(".o_hierarchy_node_container:eq(1) .o_hierarchy_node").dragAndDrop(
-        ":nth-child(2 of .o_hierarchy_row)"
+        ":nth-child(2 of .o_hierarchy_row)",
     );
 
     expect(".o_hierarchy_row").toHaveCount(2);
@@ -988,7 +1050,7 @@ test("drag and drop record and respect ordering", async () => {
 test("drag node and move it on a row", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     await mountView({
         type: "hierarchy",
@@ -997,10 +1059,10 @@ test("drag node and move it on a row", async () => {
 
     expect(".o_hierarchy_node").toHaveCount(3);
     expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
-        "Georges\nAlbert"
+        "Georges\nAlbert",
     );
     const { drop, moveTo } = await contains(
-        ".o_hierarchy_node_container:eq(1) .o_hierarchy_node"
+        ".o_hierarchy_node_container:eq(1) .o_hierarchy_node",
     ).drag();
 
     await moveTo(".o_hierarchy_row:eq(0)");
@@ -1015,7 +1077,7 @@ test("drag node and move it on a row", async () => {
 test("drag node and move it on another node", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     await mountView({
         type: "hierarchy",
@@ -1024,14 +1086,14 @@ test("drag node and move it on another node", async () => {
 
     expect(".o_hierarchy_node").toHaveCount(3);
     expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
-        "Georges\nAlbert"
+        "Georges\nAlbert",
     );
     expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText(
-        "Josephine\nAlbert"
+        "Josephine\nAlbert",
     );
 
     const { drop, moveTo } = await contains(
-        ".o_hierarchy_node_container:eq(1) .o_hierarchy_node"
+        ".o_hierarchy_node_container:eq(1) .o_hierarchy_node",
     ).drag();
 
     await moveTo(".o_hierarchy_node_container:eq(2) .o_hierarchy_node");
@@ -1048,7 +1110,7 @@ test("drag node and move it on another node", async () => {
 test("drag node to scroll", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     Employee._records = [
         { id: 1, name: "A", parent_id: false, child_ids: [2] },
@@ -1126,14 +1188,14 @@ test("check default icon is correctly used inside button to display child nodes"
         resModel: "hr.employee",
     });
 
-    expect(".o_hierarchy_node button[name=hierarchy_search_subsidiaries].btn-primary").toHaveCount(
-        1
-    );
-    expect(".o_hierarchy_node button[name=hierarchy_search_subsidiaries].btn-primary").toHaveText(
-        "Unfold\n1"
-    );
     expect(
-        ".o_hierarchy_node button[name=hierarchy_search_subsidiaries] i.fa-share-alt.fa-rotate-90.align-text-top"
+        ".o_hierarchy_node button[name=hierarchy_search_subsidiaries].btn-primary",
+    ).toHaveCount(1);
+    expect(
+        ".o_hierarchy_node button[name=hierarchy_search_subsidiaries].btn-primary",
+    ).toHaveText("Unfold\n1");
+    expect(
+        ".o_hierarchy_node button[name=hierarchy_search_subsidiaries] i.fa-share-alt.fa-rotate-90.align-text-top",
     ).toHaveCount(1, {
         message:
             "The default icon of the hierarchy view should be displayed inside the button to unfold the node.",
@@ -1143,26 +1205,25 @@ test("check default icon is correctly used inside button to display child nodes"
 test("use other icon used next to Unfold string displayed inside the button", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy icon='fa-users'>"
+        "<hierarchy icon='fa-users'>",
     );
     await mountView({
         type: "hierarchy",
         resModel: "hr.employee",
     });
 
-    expect(".o_hierarchy_node button[name=hierarchy_search_subsidiaries].btn-primary").toHaveCount(
-        1
-    );
-    expect(".o_hierarchy_node button[name=hierarchy_search_subsidiaries].btn-primary").toHaveText(
-        "Unfold\n1"
-    );
-    expect(".o_hierarchy_node button[name=hierarchy_search_subsidiaries] i.fa-users").toHaveCount(
-        1,
-        {
-            message:
-                "The icon defined in the attribute icon in hierarchy tag should be displayed inside the button to unfold the node instead of the default one.",
-        }
-    );
+    expect(
+        ".o_hierarchy_node button[name=hierarchy_search_subsidiaries].btn-primary",
+    ).toHaveCount(1);
+    expect(
+        ".o_hierarchy_node button[name=hierarchy_search_subsidiaries].btn-primary",
+    ).toHaveText("Unfold\n1");
+    expect(
+        ".o_hierarchy_node button[name=hierarchy_search_subsidiaries] i.fa-users",
+    ).toHaveCount(1, {
+        message:
+            "The icon defined in the attribute icon in hierarchy tag should be displayed inside the button to unfold the node instead of the default one.",
+    });
 });
 
 test("use `hierarchy_res_id` context to load the view at that specific node with its siblings and parent node", async () => {
@@ -1188,13 +1249,15 @@ test("use `hierarchy_res_id` context to load the view at that specific node with
         "Lisa\nJosephine",
         "Louis\nJosephine",
     ]);
-    expect(".o_hierarchy_node_container button[name=hierarchy_search_parent_node]").toHaveCount(1);
+    expect(
+        ".o_hierarchy_node_container button[name=hierarchy_search_parent_node]",
+    ).toHaveCount(1);
 });
 
 test("cannot set the record dragged as parent", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     onRpc("hr.employee", "write", () => {
         expect.step("setManager");
@@ -1227,7 +1290,7 @@ test("cannot set the record dragged as parent", async () => {
 test("cannot create cyclic", async () => {
     Employee._views["hierarchy"] = Employee._views["hierarchy"].replace(
         "<hierarchy>",
-        "<hierarchy draggable='1'>"
+        "<hierarchy draggable='1'>",
     );
     onRpc("hr.employee", "write", () => {
         expect.step("setManager");
@@ -1316,13 +1379,13 @@ test("can properly evaluate invisible elements in a hierarchy card", async () =>
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_node").toHaveCount(3);
     expect(".o_hierarchy_node_container:eq(0) .o_hierarchy_node_content").toHaveText(
-        "Albert\n\nwithChildren"
+        "Albert\n\nwithChildren",
     );
     expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
-        "Georges\nAlbert"
+        "Georges\nAlbert",
     );
     expect(".o_hierarchy_node_container:eq(2) .o_hierarchy_node_content").toHaveText(
-        "Josephine\nAlbert\n\nwithChildren"
+        "Josephine\nAlbert\n\nwithChildren",
     );
     expect(".o_hierarchy_node_container:eq(0) .o_children_text").toHaveCount(1);
     expect(".o_hierarchy_node_container:eq(1) .o_children_text").toHaveCount(0);
@@ -1367,9 +1430,11 @@ test("Reload the view with the same unfolded records when clicking with a view b
         "Louis\nJosephine\nprefix",
     ]);
     expect(".o_hierarchy_node_container:eq(1) .o_hierarchy_node_content").toHaveText(
-        "Georges\nAlbert\nprefix"
+        "Georges\nAlbert\nprefix",
     );
-    await contains(".o_hierarchy_node_container:eq(1) button[name='prefix_underscore']").click();
+    await contains(
+        ".o_hierarchy_node_container:eq(1) button[name='prefix_underscore']",
+    ).click();
     expect(".o_hierarchy_row").toHaveCount(3);
     expect(".o_hierarchy_node").toHaveCount(4);
     expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
@@ -1379,7 +1444,7 @@ test("Reload the view with the same unfolded records when clicking with a view b
             "Josephine\nAlbert\nprefix",
             "Louis\nJosephine\nprefix",
         ],
-        { message: "The view should have reloaded the same data (with Louis)" }
+        { message: "The view should have reloaded the same data (with Louis)" },
     );
 });
 
@@ -1434,7 +1499,7 @@ test("Keep the same hierarchy state when we go back to the view with the breadcr
 test("Keep the state of the branch when we open another branch in the same level", async () => {
     Employee._records.push(
         { id: 5, name: "Jean", parent_id: 2, child_ids: [6] },
-        { id: 6, name: "Claude", parent_id: 5, child_ids: [] }
+        { id: 6, name: "Claude", parent_id: 5, child_ids: [] },
     );
     // check we keep in cache the previous branch to avoid fetching again the same data
     await mountView({
@@ -1514,15 +1579,12 @@ test("Avoid fetching subnodes if those subnodes are already in the view", async 
     await contains(".o_hierarchy_node_button.btn-primary:eq(0)").click();
     expect.verifySteps([]);
     expect(".o_hierarchy_row").toHaveCount(2);
-    expect(queryAllTexts(".o_hierarchy_row:first-child .o_hierarchy_node_content")).toEqual([
-        "Albert",
-        "Louis\nJosephine",
-        "Jean\nGeorges",
-    ]);
-    expect(queryAllTexts(".o_hierarchy_row:last-child .o_hierarchy_node_content")).toEqual([
-        "Georges\nAlbert",
-        "Josephine\nAlbert",
-    ]);
+    expect(
+        queryAllTexts(".o_hierarchy_row:first-child .o_hierarchy_node_content"),
+    ).toEqual(["Albert", "Louis\nJosephine", "Jean\nGeorges"]);
+    expect(
+        queryAllTexts(".o_hierarchy_row:last-child .o_hierarchy_node_content"),
+    ).toEqual(["Georges\nAlbert", "Josephine\nAlbert"]);
     // The button to show the subnodes should be displayed for Georges and Josephine
     expect(".o_hierarchy_node_button.btn-primary").toHaveCount(2);
 });
@@ -1560,7 +1622,9 @@ test("Open record on new window", async () => {
         ],
     });
 
-    await contains(".o_hierarchy_node_container:eq(1) .o_hierarchy_node").click({ ctrlKey: true });
+    await contains(".o_hierarchy_node_container:eq(1) .o_hierarchy_node").click({
+        ctrlKey: true,
+    });
     expect(".o_hierarchy_view").toHaveCount(1);
     expect(".o_form_view").toHaveCount(0);
     expect.verifySteps([
@@ -1580,4 +1644,3 @@ test("Open record on new window", async () => {
         'set current_state-{"actionStack":[{"displayName":"","model":"hr.employee","view_type":"hierarchy"}],"model":"hr.employee"}',
     ]);
 });
-

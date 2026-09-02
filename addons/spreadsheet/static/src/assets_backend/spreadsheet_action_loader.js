@@ -42,7 +42,7 @@ export function addSpreadsheetActionLazyLoader(actionName, path, displayName) {
                     const msg = _t("%s couldn't be loaded", actionName);
                     env.services.notification.add(msg, { type: "danger" });
                 },
-                { force: true }
+                { force: true },
             );
         }
         // then do the action again, with the actual definition registered

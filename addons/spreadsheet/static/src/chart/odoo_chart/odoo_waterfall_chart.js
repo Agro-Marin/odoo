@@ -1,9 +1,12 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
-import { onOdooChartItemHover, onWaterfallOdooChartItemClick } from "./odoo_chart_helpers.js";
+import {
+    onOdooChartItemHover,
+    onWaterfallOdooChartItemClick,
+} from "./odoo_chart_helpers.js";
 
 const { chartRegistry } = registries;
 
@@ -55,7 +58,8 @@ chartRegistry.add("odoo_waterfall", {
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooWaterfallChart.validateChartDefinition(validator, definition),
-    transformDefinition: (definition) => OdooWaterfallChart.transformDefinition(definition),
+    transformDefinition: (definition) =>
+        OdooWaterfallChart.transformDefinition(definition),
     getChartDefinitionFromContextCreation: () =>
         OdooWaterfallChart.getDefinitionFromContextCreation(),
     name: _t("Waterfall"),
@@ -87,8 +91,13 @@ function createOdooChartRuntime(chart, getters) {
                 title: getChartTitle(definition, getters),
                 legend: getWaterfallChartLegend(definition, chartData),
                 tooltip: getWaterfallChartTooltip(definition, chartData),
-                chartShowValuesPlugin: getWaterfallChartShowValues(definition, chartData),
-                waterfallLinesPlugin: { showConnectorLines: definition.showConnectorLines },
+                chartShowValuesPlugin: getWaterfallChartShowValues(
+                    definition,
+                    chartData,
+                ),
+                waterfallLinesPlugin: {
+                    showConnectorLines: definition.showConnectorLines,
+                },
             },
             onHover: onOdooChartItemHover(),
             onClick: onWaterfallOdooChartItemClick(getters, chart),

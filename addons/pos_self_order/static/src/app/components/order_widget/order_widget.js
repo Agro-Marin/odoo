@@ -34,7 +34,7 @@ export class OrderWidget extends Component {
         const isNoLine = this.selfOrder.currentOrder.lines.length === 0;
         const hasNotAllLinesSent = this.selfOrder.currentOrder.unsentLines;
 
-        let label = "";
+        let label;
         let disabled = false;
 
         if (currentPage === "product_list") {

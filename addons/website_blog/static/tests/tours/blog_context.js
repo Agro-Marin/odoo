@@ -22,7 +22,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check that 'aaa Blog Test' Blog is open",
-            trigger: ":iframe .website_blog nav .nav-item a.active:contains('aaa Blog Test')",
+            trigger:
+                ":iframe .website_blog nav .nav-item a.active:contains('aaa Blog Test')",
         },
         {
             content: "Click on New Post",
@@ -89,7 +90,9 @@ registerWebsitePreviewTour(
             trigger: ":iframe #o_wblog_blog_top .h1:contains('Latest Posts Edited')",
             run() {
                 if (this.anchor.classList.contains("o_not_editable")) {
-                    console.error("Latest Posts heading should not keep the o_not_editable class.");
+                    console.error(
+                        "Latest Posts heading should not keep the o_not_editable class.",
+                    );
                 }
             },
         },
@@ -102,5 +105,5 @@ registerWebsitePreviewTour(
             content: "Check the blog info is available",
             trigger: ":iframe #o_wblog_post_info",
         },
-    ]
+    ],
 );

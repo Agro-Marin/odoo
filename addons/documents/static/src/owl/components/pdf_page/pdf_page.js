@@ -51,7 +51,7 @@ export class PdfPage extends Component {
      * @public
      * @param {MouseEvent} ev
      */
-    onClickWrapper(ev) {
+    onClickWrapper() {
         if (this.props.onPageClicked) {
             this.props.onPageClicked(this.props.pageId);
         }

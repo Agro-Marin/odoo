@@ -19,11 +19,14 @@ registerThreadAction("open-hr-profile", {
         }),
     async setup({ thread }) {
         let employeeId;
-        if (thread?.correspondent?.partner_id && !thread.correspondent.partner_id.employeeId) {
+        if (
+            thread?.correspondent?.partner_id &&
+            !thread.correspondent.partner_id.employeeId
+        ) {
             const employees = await this.store.env.services.orm.silent.searchRead(
                 "hr.employee.public",
                 [["user_partner_id", "=", thread.correspondent.partner_id.id]],
-                ["id"]
+                ["id"],
             );
             employeeId = employees[0]?.id;
             if (employeeId) {

@@ -37,7 +37,9 @@ export class DocumentsOperationNewFolder extends Component {
             context: {
                 default_type: "folder",
                 default_user_folder_id: currentFolder.toString(),
-                ...(currentFolder === "COMPANY" ? { default_access_internal: "edit" } : {}),
+                ...(currentFolder === "COMPANY"
+                    ? { default_access_internal: "edit" }
+                    : {}),
                 form_view_ref: "documents.document_view_form_new_folder",
             },
             onRecordSaved: (result) => {
@@ -57,7 +59,10 @@ export class DocumentsOperationNewFolder extends Component {
 
     get buttonLabel() {
         return _t("Create a folder in %(folder)s", {
-            folder: truncate(this.props.record.data.display_name, DESTINATION_MAX_LENGTH),
+            folder: truncate(
+                this.props.record.data.display_name,
+                DESTINATION_MAX_LENGTH,
+            ),
         });
     }
 }

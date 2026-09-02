@@ -14,7 +14,9 @@ defineCalendarModels();
 preloadFullCalendar();
 
 test("activity click on Reschedule", async () => {
-    registerArchs({ "calendar.event,false,calendar": `<calendar date_start="start"/>` });
+    registerArchs({
+        "calendar.event,false,calendar": `<calendar date_start="start"/>`,
+    });
     const pyEnv = await startServer();
     const resPartnerId = pyEnv["res.partner"].create({});
     const meetingActivityTypeId = pyEnv["mail.activity.type"].create({

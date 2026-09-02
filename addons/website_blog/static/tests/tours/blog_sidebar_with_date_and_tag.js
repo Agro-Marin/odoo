@@ -12,11 +12,13 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            content: "Verify that the blog post list shows only posts from the 'Nature' category.",
+            content:
+                "Verify that the blog post list shows only posts from the 'Nature' category.",
             trigger: ":iframe .o_wblog_post_name:contains('Nature')",
         },
         {
-            content: "Check if the archive dropdown contains exactly 1 option: February.",
+            content:
+                "Check if the archive dropdown contains exactly 1 option: February.",
             trigger: ":iframe select[name=archive]",
             run: function () {
                 const optionEls = this.anchor.querySelectorAll("optgroup option");
@@ -33,11 +35,13 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            content: "Verify that the blog post list shows only posts from the 'Space' category.",
+            content:
+                "Verify that the blog post list shows only posts from the 'Space' category.",
             trigger: ":iframe .o_wblog_post_name:contains('Space')",
         },
         {
-            content: "Verify that the archive dropdown now contains only 1 option: January.",
+            content:
+                "Verify that the archive dropdown now contains only 1 option: January.",
             trigger: ":iframe select[name=archive]",
             run: function () {
                 const optionEls = this.anchor.querySelectorAll("optgroup option");
@@ -58,5 +62,5 @@ registerWebsitePreviewTour(
                 "Verify that 'Add some' button has the correct URL for navigating to the backend.",
             trigger: ":iframe #edit-in-backend[href*='/odoo/website/blog.post/']",
         },
-    ]
+    ],
 );

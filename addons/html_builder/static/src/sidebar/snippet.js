@@ -27,7 +27,7 @@ export class Snippet extends Component {
     onClickInstall() {
         this.props.snippetModel.installSnippetModule(
             this.props.snippet,
-            this.env.editor.config.installSnippetModule
+            this.env.editor.config.installSnippetModule,
         );
     }
 }

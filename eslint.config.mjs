@@ -4,8 +4,10 @@ import simpleImportSort from "eslint-plugin-simple-import-sort";
 import globals from "globals";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Whitelisted modules — only these are linted.
-// Add new modules here as they are onboarded to ESLint.
+// Onboarded modules — these get the full Odoo ruleset below. Every other
+// .js/.mjs in the repo is still linted, by `js.configs.recommended` plus
+// prettier (neither carries a `files` key, so both apply repo-wide); the lane
+// is a hard zero over all of it. Add a module here to onboard it.
 // ─────────────────────────────────────────────────────────────────────────────
 const COMMUNITY_MODULES = [
     "addons/api_doc",
@@ -297,500 +299,578 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
     const allModuleGlobs = modules.map((m) => `${m}/**/*.{js,mjs}`);
 
     return [
-    // =========================================================================
-    // Global ignores — blacklisted paths within whitelisted modules
-    // =========================================================================
-    {
-        ignores: [...SHARED_IGNORES, ...ignores],
-    },
-
-    // =========================================================================
-    // Base configuration (eslint:recommended + prettier)
-    // =========================================================================
-    js.configs.recommended,
-    prettier,
-
-    // =========================================================================
-    // Main rules — applied to all whitelisted modules
-    // =========================================================================
-    {
-        files: allModuleGlobs,
-        plugins: {
-            "simple-import-sort": simpleImportSort,
+        // =========================================================================
+        // Global ignores — blacklisted paths within whitelisted modules
+        // =========================================================================
+        {
+            ignores: [...SHARED_IGNORES, ...ignores],
         },
-        languageOptions: {
-            ecmaVersion: "latest",
-            sourceType: "module",
-            globals: {
-                ...globals.browser,
-                // Odoo-specific globals
-                odoo: "readonly",
-                $: "readonly",
-                jQuery: "readonly",
-                Chart: "readonly",
-                fuzzy: "readonly",
-                StackTrace: "readonly",
-                QUnit: "readonly",
-                luxon: "readonly",
-                py: "readonly",
-                FullCalendar: "readonly",
-                globalThis: "readonly",
-                ScrollSpy: "readonly",
-                module: "readonly",
-                // Test frameworks
-                chai: "readonly",
-                describe: "readonly",
-                it: "readonly",
-                mocha: "readonly",
-                // Libraries
-                DOMPurify: "readonly",
-                Prism: "readonly",
-                // Bootstrap components
-                Alert: "readonly",
-                Collapse: "readonly",
-                Dropdown: "readonly",
-                Modal: "readonly",
-                Offcanvas: "readonly",
-                Popover: "readonly",
-                Tooltip: "readonly",
+
+        // =========================================================================
+        // Base configuration (eslint:recommended + prettier)
+        // =========================================================================
+        js.configs.recommended,
+        prettier,
+
+        // =========================================================================
+        // Main rules — applied to all whitelisted modules
+        // =========================================================================
+        {
+            files: allModuleGlobs,
+            plugins: {
+                "simple-import-sort": simpleImportSort,
             },
-        },
-        rules: {
-            // Deliberately optionless: eslint-plugin-prettier resolves the
-            // nearest .prettierrc.json for each file, and rule options passed
-            // here would SHADOW it — giving two sources of truth that drift
-            // silently (eslint and the `prettier` CLI would then disagree on
-            // the same file). Each repo ships its own .prettierrc.json, which
-            // is required anyway: prettier resolves config from the file's own
-            // directory upward, and addons/enterprise is a sibling tree that
-            // can never reach addons/odoo's copy. Keep the two in sync.
-            "prettier/prettier": "error",
-            "no-undef": "error",
-            "no-restricted-globals": ["error", "event", "self"],
-            eqeqeq: ["error", "smart"],
-            "no-var": "error",
-            "no-const-assign": "error",
-            "no-debugger": "error",
-            "no-dupe-class-members": "error",
-            "no-dupe-keys": "error",
-            "no-dupe-args": "error",
-            "no-dupe-else-if": "error",
-            "no-unsafe-negation": "error",
-            // Intentional error-swallowing is spelled `catch {}`; the rule
-            // otherwise only accepts it when a comment sits inside the block.
-            "no-empty": ["error", { allowEmptyCatch: true }],
-            "no-duplicate-imports": "off",
-            "simple-import-sort/imports": ["error", {
-                groups: [
-                    // Side effect imports
-                    ["^\\u0000"],
-                    // @odoo, @web, @mail, @point_of_sale, etc.
-                    ["^@\\w"],
-                    // Relative imports
-                    ["^\\."],
-                ],
-            }],
-            "simple-import-sort/exports": "error",
-            "valid-typeof": "error",
-            "no-unused-vars": ["error", {
-                vars: "all",
-                args: "none",
-                ignoreRestSiblings: false,
-                caughtErrors: "all",
-            }],
-            curly: ["error", "all"],
-            "no-restricted-syntax": [
-                "error",
-                "PrivateIdentifier",
-                {
-                    // H-5 Pattern 4 smell detector — state-management
-                    // review 2026-04-19.  A setter inside a
-                    // ``reactive({...})`` literal conflates state with
-                    // effects: the setter runs SIDE effects on other
-                    // reactive state when ``obj.foo = x`` is written,
-                    // hiding a data-flow edge the signal system can't
-                    // reason about.  Express the effect explicitly with
-                    // ``useEffect(() => ..., () => [obj.foo])`` and
-                    // keep the signal itself a plain field.
-                    //
-                    // The escape hatch — read-only caching / pure
-                    // derivation — only needs a getter (no setter), so
-                    // this selector only fires on ``set``.
-                    selector:
-                        "CallExpression[callee.name='reactive'] > ObjectExpression > Property[kind='set']",
-                    message:
-                        "Pattern 4 smell: setters inside reactive({...}) conflate state with effects. Use plain reactive({foo: null}) + useEffect for side effects, or a SignalStore subclass for computation. See machine_doc_v1/STATE_MANAGEMENT.md §Pattern 4.",
+            languageOptions: {
+                ecmaVersion: "latest",
+                sourceType: "module",
+                globals: {
+                    ...globals.browser,
+                    // Odoo-specific globals
+                    odoo: "readonly",
+                    $: "readonly",
+                    jQuery: "readonly",
+                    Chart: "readonly",
+                    fuzzy: "readonly",
+                    StackTrace: "readonly",
+                    QUnit: "readonly",
+                    luxon: "readonly",
+                    py: "readonly",
+                    FullCalendar: "readonly",
+                    globalThis: "readonly",
+                    ScrollSpy: "readonly",
+                    module: "readonly",
+                    // Test frameworks
+                    chai: "readonly",
+                    describe: "readonly",
+                    it: "readonly",
+                    mocha: "readonly",
+                    // Libraries
+                    DOMPurify: "readonly",
+                    Prism: "readonly",
+                    // Bootstrap components
+                    Alert: "readonly",
+                    Collapse: "readonly",
+                    Dropdown: "readonly",
+                    Modal: "readonly",
+                    Offcanvas: "readonly",
+                    Popover: "readonly",
+                    Tooltip: "readonly",
                 },
-            ],
-            "prefer-const": ["error", {
-                destructuring: "all",
-                ignoreReadBeforeAssign: true,
-            }],
-            "arrow-body-style": ["error", "as-needed"],
-        },
-    },
-
-    // =========================================================================
-    // no-console — incremental rollout
-    //
-    // Keeps stray console.log/debug/info out of shipped code (warn/error are
-    // allowed for genuine diagnostics). Enforced only on the modules cleaned so
-    // far; add module globs here as each one is scrubbed, the same way modules
-    // are onboarded to ESLint above. The test-file and tooling-scripts blocks
-    // below turn this back off for those trees (they run later, so they win).
-    // Dedicated logging/debug/QA utilities opt out with a file-level disable.
-    // =========================================================================
-    ...(noConsoleModules.length
-        ? [
-              {
-                  files: noConsoleModules.map((m) => `${m}/**/*.js`),
-                  rules: {
-                      "no-console": ["error", { allow: ["warn", "error"] }],
-                  },
-              },
-          ]
-        : []),
-
-    // =========================================================================
-    // Test files (Hoot environment) — all modules, whitelisted or not
-    //
-    // Hoot's primitives (test/expect/describe…) are IMPORTED from "@odoo/hoot",
-    // so they never need to be globals. What test files in NON-whitelisted
-    // modules were missing is the base browser environment: they are linted by
-    // `js.configs.recommended` (which has no `files` key, so it applies
-    // repo-wide) but only whitelisted modules got `globals.browser` above —
-    // every `no-undef` hit in static/tests was a browser global (document,
-    // window, console, Event, …) or `odoo`. Declare them here for every
-    // module's test tree; for whitelisted modules this merges harmlessly with
-    // the main block.
-    // =========================================================================
-    {
-        files: ["**/static/tests/**/*.js"],
-        languageOptions: {
-            globals: {
-                ...globals.browser,
-                odoo: "readonly",
-                luxon: "readonly",
-                QUnit: "readonly",
             },
-        },
-        rules: {
-            // Debug logging in tests is fine.
-            "no-console": "off",
-            // Under native ESM, module identity is keyed by resolved URL, so a
-            // relative `../src/...` import and the canonical `@addon/...` bare
-            // specifier for the same file resolve to TWO distinct module
-            // instances. Tests that imported source that way got duplicate
-            // class references, breaking `instanceof`/`Array.includes` identity
-            // checks (e.g. plugin-set membership) and silently 404'ing on the
-            // un-normalized path. Always import addon source via its bare
-            // specifier. The old odoo.define loader hid this by normalizing
-            // paths; native ESM does not.
-            "no-restricted-imports": ["error", {
-                patterns: [
+            rules: {
+                // Deliberately optionless: eslint-plugin-prettier resolves the
+                // nearest .prettierrc.json for each file, and rule options passed
+                // here would SHADOW it — giving two sources of truth that drift
+                // silently (eslint and the `prettier` CLI would then disagree on
+                // the same file). Each repo ships its own .prettierrc.json, which
+                // is required anyway: prettier resolves config from the file's own
+                // directory upward, and addons/enterprise is a sibling tree that
+                // can never reach addons/odoo's copy. Keep the two in sync.
+                "prettier/prettier": "error",
+                "no-undef": "error",
+                "no-restricted-globals": ["error", "event", "self"],
+                eqeqeq: ["error", "smart"],
+                "no-var": "error",
+                "no-const-assign": "error",
+                "no-debugger": "error",
+                "no-dupe-class-members": "error",
+                "no-dupe-keys": "error",
+                "no-dupe-args": "error",
+                "no-dupe-else-if": "error",
+                "no-unsafe-negation": "error",
+                // Intentional error-swallowing is spelled `catch {}`; the rule
+                // otherwise only accepts it when a comment sits inside the block.
+                "no-empty": ["error", { allowEmptyCatch: true }],
+                "no-duplicate-imports": "off",
+                "simple-import-sort/imports": [
+                    "error",
                     {
-                        group: ["**/../src/**", "**/src/*"],
+                        groups: [
+                            // Side effect imports
+                            ["^\\u0000"],
+                            // @odoo, @web, @mail, @point_of_sale, etc.
+                            ["^@\\w"],
+                            // Relative imports
+                            ["^\\."],
+                        ],
+                    },
+                ],
+                "simple-import-sort/exports": "error",
+                "valid-typeof": "error",
+                "no-unused-vars": [
+                    "error",
+                    {
+                        vars: "all",
+                        args: "none",
+                        ignoreRestSiblings: false,
+                        caughtErrors: "all",
+                    },
+                ],
+                curly: ["error", "all"],
+                "no-restricted-syntax": [
+                    "error",
+                    "PrivateIdentifier",
+                    {
+                        // H-5 Pattern 4 smell detector — state-management
+                        // review 2026-04-19.  A setter inside a
+                        // ``reactive({...})`` literal conflates state with
+                        // effects: the setter runs SIDE effects on other
+                        // reactive state when ``obj.foo = x`` is written,
+                        // hiding a data-flow edge the signal system can't
+                        // reason about.  Express the effect explicitly with
+                        // ``useEffect(() => ..., () => [obj.foo])`` and
+                        // keep the signal itself a plain field.
+                        //
+                        // The escape hatch — read-only caching / pure
+                        // derivation — only needs a getter (no setter), so
+                        // this selector only fires on ``set``.
+                        selector:
+                            "CallExpression[callee.name='reactive'] > ObjectExpression > Property[kind='set']",
                         message:
-                            "Do not import addon source from a test via a relative '../src/...' path — under native ESM it resolves to a DUPLICATE module instance (breaks class identity / plugin-set membership and 404s the un-normalized URL). Use the canonical bare specifier, e.g. `@html_editor/...` or `@web/...`.",
+                            "Pattern 4 smell: setters inside reactive({...}) conflate state with effects. Use plain reactive({foo: null}) + useEffect for side effects, or a SignalStore subclass for computation. See machine_doc_v1/STATE_MANAGEMENT.md §Pattern 4.",
                     },
                 ],
-            }],
-        },
-    },
-
-    // =========================================================================
-    // Service Worker override — `self` is the standard global
-    // =========================================================================
-    {
-        files: ["**/service_worker.js"],
-        languageOptions: {
-            globals: {
-                ...globals.serviceworker,
+                "prefer-const": [
+                    "error",
+                    {
+                        destructuring: "all",
+                        ignoreReadBeforeAssign: true,
+                    },
+                ],
+                "arrow-body-style": ["error", "as-needed"],
             },
         },
-        rules: {
-            "no-restricted-globals": ["error", "event"],
-        },
-    },
 
-    // Web/dedicated workers (e.g. discuss tick_worker.js) — eslint 10 dropped
-    // `/* eslint-env worker */` comments, so declare the worker globals here.
-    {
-        files: ["**/*_worker.js"],
-        languageOptions: {
-            globals: {
-                ...globals.worker,
+        // =========================================================================
+        // no-console — incremental rollout
+        //
+        // Keeps stray console.log/debug/info out of shipped code (warn/error are
+        // allowed for genuine diagnostics). Enforced only on the modules cleaned so
+        // far; add module globs here as each one is scrubbed, the same way modules
+        // are onboarded to ESLint above. The test-file and tooling-scripts blocks
+        // below turn this back off for those trees (they run later, so they win).
+        // Dedicated logging/debug/QA utilities opt out with a file-level disable.
+        // =========================================================================
+        ...(noConsoleModules.length
+            ? [
+                  {
+                      files: noConsoleModules.map((m) => `${m}/**/*.js`),
+                      rules: {
+                          "no-console": ["error", { allow: ["warn", "error"] }],
+                      },
+                  },
+              ]
+            : []),
+
+        // =========================================================================
+        // Test files (Hoot environment) — all modules, whitelisted or not
+        //
+        // Hoot's primitives (test/expect/describe…) are IMPORTED from "@odoo/hoot",
+        // so they never need to be globals. What test files in NON-whitelisted
+        // modules were missing is the base browser environment: they are linted by
+        // `js.configs.recommended` (which has no `files` key, so it applies
+        // repo-wide) but only whitelisted modules got `globals.browser` above —
+        // every `no-undef` hit in static/tests was a browser global (document,
+        // window, console, Event, …) or `odoo`. Declare them here for every
+        // module's test tree; for whitelisted modules this merges harmlessly with
+        // the main block.
+        // =========================================================================
+        {
+            files: ["**/static/tests/**/*.js"],
+            languageOptions: {
+                globals: {
+                    ...globals.browser,
+                    odoo: "readonly",
+                    luxon: "readonly",
+                    QUnit: "readonly",
+                },
+            },
+            rules: {
+                // Debug logging in tests is fine.
+                "no-console": "off",
+                // Under native ESM, module identity is keyed by resolved URL, so a
+                // relative `../src/...` import and the canonical `@addon/...` bare
+                // specifier for the same file resolve to TWO distinct module
+                // instances. Tests that imported source that way got duplicate
+                // class references, breaking `instanceof`/`Array.includes` identity
+                // checks (e.g. plugin-set membership) and silently 404'ing on the
+                // un-normalized path. Always import addon source via its bare
+                // specifier. The old odoo.define loader hid this by normalizing
+                // paths; native ESM does not.
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        patterns: [
+                            {
+                                group: ["**/../src/**", "**/src/*"],
+                                message:
+                                    "Do not import addon source from a test via a relative '../src/...' path — under native ESM it resolves to a DUPLICATE module instance (breaks class identity / plugin-set membership and 404s the un-normalized URL). Use the canonical bare specifier, e.g. `@html_editor/...` or `@web/...`.",
+                            },
+                        ],
+                    },
+                ],
             },
         },
-    },
 
-    // =========================================================================
-    // Node tooling scripts — build/typecheck helpers, not browser code
-    //
-    // Files under the repo-root tooling/ tree run under Node, so they
-    // legitimately use `process`,
-    // `console`, etc. They are matched by `js.configs.recommended` (no `files`
-    // key → repo-wide, and eslint lints .mjs by default) but were never given
-    // the main block's browser globals — which is correct, they aren't browser
-    // code; they just also lacked Node's. Declare the Node environment for them
-    // so their `process`/`console` use stops tripping `no-undef`.
-    //
-    // tools/assets/js/ is the same situation outside tooling/: the asset
-    // pipeline spawns those files as a real Node child process (see
-    // `shutil.which("node")` in odoo/tools/assets/esm_lexer.py), so they talk
-    // over process.stdin/stdout. Note the worker there is `.mjs`, so the
-    // `**/*_worker.js` block below never applied to it — and that block grants
-    // WEB-worker globals, which are the wrong environment for it anyway.
-    // =========================================================================
-    {
-        files: ["**/tooling/**/*.{js,mjs,cjs}", "**/tools/assets/js/**/*.{js,mjs,cjs}"],
-        languageOptions: {
-            globals: {
-                ...globals.node,
+        // =========================================================================
+        // Source files — all modules, whitelisted or not
+        //
+        // The same gap as the test tree above, on the other side of static/: a
+        // module not yet onboarded is still matched by `js.configs.recommended`,
+        // and without the browser environment every `document`, `window`,
+        // `setTimeout` or `odoo` it touched was a `no-undef` — 597 of them across
+        // 120 modules, none saying anything about the code. Browser code gets
+        // the browser environment; onboarding a module adds the ruleset.
+        // =========================================================================
+        {
+            files: ["**/static/src/**/*.js"],
+            languageOptions: {
+                globals: {
+                    ...globals.browser,
+                    odoo: "readonly",
+                    luxon: "readonly",
+                },
             },
         },
-        rules: {
-            // CLI tooling prints to stdout/stderr — console is its output.
-            "no-console": "off",
-        },
-    },
 
-    // =========================================================================
-    // Layer boundary enforcement (Feature-Sliced Design)
-    //
-    // Import direction is law — lower layers cannot import higher.
-    // =========================================================================
+        // Google Maps arrives through a <script> tag on the page, so `google`
+        // is a real global there and nowhere else.
+        {
+            files: ["**/website_google_map/static/src/**/*.js"],
+            languageOptions: {
+                globals: {
+                    google: "readonly",
+                },
+            },
+        },
 
-    // ── Entity layer: model/ ─────────────────────────────────────────────
-    {
-        files: ["**/web/static/src/model/**/*.js"],
-        rules: {
-            "no-restricted-imports": ["error", {
-                patterns: [
-                    {
-                        group: ["@web/views/*", "@web/search/*"],
-                        message: "Entity layer cannot import widget layer. Use dependency injection.",
-                    },
-                    {
-                        group: ["@web/webclient/*"],
-                        message: "Entity layer cannot import page layer.",
-                    },
-                ],
-            }],
+        // =========================================================================
+        // Service Worker override — `self` is the standard global
+        // =========================================================================
+        {
+            files: ["**/service_worker.js"],
+            languageOptions: {
+                globals: {
+                    ...globals.serviceworker,
+                },
+            },
+            rules: {
+                "no-restricted-globals": ["error", "event"],
+            },
         },
-    },
-    // ── Entity layer: core/domain.js ─────────────────────────────────────
-    {
-        files: ["**/web/static/src/core/domain.js"],
-        rules: {
-            "no-restricted-imports": ["error", {
-                patterns: [
-                    {
-                        group: ["@web/views/*", "@web/search/*"],
-                        message: "Entity layer cannot import widget layer. Use dependency injection.",
-                    },
-                    {
-                        group: ["@web/webclient/*"],
-                        message: "Entity layer cannot import page layer.",
-                    },
-                ],
-            }],
-        },
-    },
-    // ── Feature layer: fields/ ───────────────────────────────────────────
-    {
-        files: ["**/web/static/src/fields/**/*.js"],
-        rules: {
-            "no-restricted-imports": ["error", {
-                patterns: [
-                    {
-                        group: ["@web/views/*"],
-                        message: "Feature layer (fields/) cannot import widget layer (views/). Move shared code to core/ or use registry indirection.",
-                    },
-                    {
-                        group: ["@web/search/*"],
-                        message: "Feature layer (fields/) cannot import widget layer (search/).",
-                    },
-                    {
-                        group: ["@web/webclient/*"],
-                        message: "Feature layer cannot import page layer.",
-                    },
-                ],
-            }],
-        },
-    },
-    // ── Shared layer: core/ ──────────────────────────────────────────────
-    // The shared tier is ORDERED: core < ui < components. It used to be flat,
-    // and that is what let `services/` grow inside it importing freely across
-    // all three. Mirrors tooling/architecture/js_layer_check.py.
-    {
-        files: ["**/web/static/src/core/**/*.js"],
-        rules: {
-            "no-restricted-imports": ["error", {
-                patterns: [
-                    {
-                        group: ["@web/ui/*", "@web/components/*"],
-                        message: "core/ is the floor of the shared tier: it owns no surface, so it cannot import ui/ or components/. File the module with what it serves instead.",
-                    },
-                    {
-                        group: ["@web/model/*"],
-                        message: "Shared layer cannot import entity layer.",
-                    },
-                    {
-                        group: ["@web/views/*", "@web/search/*"],
-                        message: "Shared layer cannot import widget layer.",
-                    },
-                    {
-                        group: ["@web/webclient/*"],
-                        message: "Shared layer cannot import page layer.",
-                    },
-                    {
-                        group: ["@web/fields/*"],
-                        message: "Shared layer cannot import feature layer.",
-                    },
-                ],
-            }],
-        },
-    },
-    // ── Shared layer: ui/ ─────────────────────────────────────────────────
-    {
-        files: ["**/web/static/src/ui/**/*.js"],
-        rules: {
-            "no-restricted-imports": ["error", {
-                patterns: [
-                    {
-                        group: ["@web/components/*"],
-                        message: "Overlay infrastructure sits BELOW the widgets that use it: a widget opens a popover, a popover does not know what a widget is. A single-purpose service belongs next to the component it renders.",
-                    },
-                    {
-                        group: ["@web/model/*"],
-                        message: "Shared layer (ui/) cannot import entity layer.",
-                    },
-                    {
-                        group: ["@web/views/*", "@web/search/*"],
-                        message: "Shared layer (ui/) cannot import widget layer.",
-                    },
-                    {
-                        group: ["@web/webclient/*"],
-                        message: "Shared layer (ui/) cannot import page layer.",
-                    },
-                    {
-                        group: ["@web/fields/*"],
-                        message: "Shared layer (ui/) cannot import feature layer.",
-                    },
-                ],
-            }],
-        },
-    },
-    // ── Shared layer: components/ ─────────────────────────────────────────
-    {
-        files: ["**/web/static/src/components/**/*.js"],
-        rules: {
-            "no-restricted-imports": ["error", {
-                patterns: [
-                    {
-                        group: ["@web/model/*"],
-                        message: "Presentational components take their data as props; reaching into model/ binds them to the datapoint instead of the values they render.",
-                    },
-                    {
-                        group: ["@web/views/*", "@web/search/*"],
-                        message: "Shared layer (components/) cannot import widget layer.",
-                    },
-                    {
-                        group: ["@web/webclient/*"],
-                        message: "Shared layer (components/) cannot import page layer.",
-                    },
-                    {
-                        group: ["@web/fields/*"],
-                        message: "Shared layer (components/) cannot import feature layer.",
-                    },
-                ],
-            }],
-        },
-    },
 
-    // =========================================================================
-    // Component-lifecycle: ban this.env.services.X in web's component layer
-    //
-    // ``this.env.services.X`` bypasses the lifecycle-protection wrapper that
-    // ``useService("X")`` installs around every method via ``_protectMethod``
-    // (core/utils/hooks.js).  Without it, an in-flight promise that resolves
-    // after the component unmounts will run on a destroyed component, causing
-    // "this.render is not a function" or stale-state bugs that are hard to
-    // reproduce.
-    //
-    // Bare ``env.services.X`` (no ``this``) inside registry factories and
-    // command providers is intentionally NOT flagged — those are not OWL
-    // components.
-    //
-    // Scope: web's source files only.  Other addons (POS, mail, hr_attendance)
-    // have many existing call sites that need a per-module audit before this
-    // rule can be widened safely.
-    // =========================================================================
-    {
-        files: ["**/web/static/src/**/*.js"],
-        rules: {
-            "no-restricted-syntax": [
-                "error",
-                "PrivateIdentifier",
-                {
-                    selector:
-                        "CallExpression[callee.name='reactive'] > ObjectExpression > Property[kind='set']",
-                    message:
-                        "Pattern 4 smell: setters inside reactive({...}) conflate state with effects. Use plain reactive({foo: null}) + useEffect for side effects, or a SignalStore subclass for computation. See machine_doc_v1/STATE_MANAGEMENT.md §Pattern 4.",
+        // Web/dedicated workers (e.g. discuss tick_worker.js) — eslint 10 dropped
+        // `/* eslint-env worker */` comments, so declare the worker globals here.
+        {
+            files: ["**/*_worker.js"],
+            languageOptions: {
+                globals: {
+                    ...globals.worker,
                 },
-                {
-                    // `toBeCloseTo(x, { digits: n })` is the Jest spelling and
-                    // hoot has no such option: its matcher takes an absolute
-                    // `margin` and DEFAULTS IT TO 1. So the Jest form does not
-                    // tighten the comparison, it loosens it to +/-1 — which on a
-                    // 0..1 quantity asserts nothing at all, and is how a bottom
-                    // sheet progress test passed against a value of 0.148.
-                    selector:
-                        "CallExpression[callee.property.name='toBeCloseTo'] > ObjectExpression > Property[key.name=/^(digits|precision|numDigits)$/]",
-                    message:
-                        "hoot's toBeCloseTo takes { margin } (an absolute tolerance, default 1), not { digits }. `{ digits: n }` is silently ignored, so the assertion holds to +/-1 — vacuous for any quantity smaller than that. Spell the margin you mean.",
-                },
-                {
-                    // Any receiver, not just `this`. The selector used to
-                    // require a ThisExpression, which is the shape a *class*
-                    // reaches a service through -- but a hook holds its
-                    // component in a local (`const owner = useComponent()`) and
-                    // reaches `owner.env.services.x`, the identical hazard with
-                    // none of the lifecycle protection, and the gate could not
-                    // see it. Within this scope that widening reports eleven
-                    // sites; each now carries a disable naming its reason,
-                    // which is the point: a raw service read should be a
-                    // decision on the page, not an accident of spelling.
-                    //
-                    // A bare `env.services.x` still does not match, and must
-                    // not: a registry callback is handed an `env` and has no
-                    // component to protect.
-                    selector:
-                        "MemberExpression[property.name='services'][object.type='MemberExpression'][object.property.name='env']",
-                    message:
-                        "Use useService('X') instead of <holder>.env.services.X. useService adds component-lifecycle protection that prevents promise-resolution-after-destroy bugs. If you genuinely need the raw service (e.g., the dialog outlives the widget, or there is no component to protect), add `// eslint-disable-next-line no-restricted-syntax` with a comment explaining why.",
-                },
-                // (Removed 2026-05-09) The `Reactive` BC alias was dropped
-                // from `@web/core/utils/reactive` along with this rule.
-                // Attempting `import { Reactive } from "@web/core/utils/reactive"`
-                // now fails at module-load with a native "no such export"
-                // error — clearer than a lint warning, and impossible to
-                // suppress with eslint-disable.
+            },
+        },
+
+        // =========================================================================
+        // Node tooling scripts — build/typecheck helpers, not browser code
+        //
+        // Files under the repo-root tooling/ tree run under Node, so they
+        // legitimately use `process`,
+        // `console`, etc. They are matched by `js.configs.recommended` (no `files`
+        // key → repo-wide, and eslint lints .mjs by default) but were never given
+        // the main block's browser globals — which is correct, they aren't browser
+        // code; they just also lacked Node's. Declare the Node environment for them
+        // so their `process`/`console` use stops tripping `no-undef`.
+        //
+        // tools/assets/js/ is the same situation outside tooling/: the asset
+        // pipeline spawns those files as a real Node child process (see
+        // `shutil.which("node")` in odoo/tools/assets/esm_lexer.py), so they talk
+        // over process.stdin/stdout. Note the worker there is `.mjs`, so the
+        // `**/*_worker.js` block below never applied to it — and that block grants
+        // WEB-worker globals, which are the wrong environment for it anyway.
+        // =========================================================================
+        {
+            files: [
+                "**/tooling/**/*.{js,mjs,cjs}",
+                "**/tools/assets/js/**/*.{js,mjs,cjs}",
             ],
+            languageOptions: {
+                globals: {
+                    ...globals.node,
+                },
+            },
+            rules: {
+                // CLI tooling prints to stdout/stderr — console is its output.
+                "no-console": "off",
+            },
         },
-    },
 
-    // columnize.test.js — hand-formatted HTML-fixture test with inline
-    // `/* eslint-disable */` blocks placed mid-expression. Prettier mangles
-    // those into INVALID JS (spurious extra `)`), so its formatter must not run
-    // on this file. The fixtures are deliberately hand-aligned; leave them be.
-    {
-        files: ["**/html_editor/static/tests/columnize.test.js"],
-        rules: {
-            "prettier/prettier": "off",
+        // =========================================================================
+        // Layer boundary enforcement (Feature-Sliced Design)
+        //
+        // Import direction is law — lower layers cannot import higher.
+        // =========================================================================
+
+        // ── Entity layer: model/ ─────────────────────────────────────────────
+        {
+            files: ["**/web/static/src/model/**/*.js"],
+            rules: {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        patterns: [
+                            {
+                                group: ["@web/views/*", "@web/search/*"],
+                                message:
+                                    "Entity layer cannot import widget layer. Use dependency injection.",
+                            },
+                            {
+                                group: ["@web/webclient/*"],
+                                message: "Entity layer cannot import page layer.",
+                            },
+                        ],
+                    },
+                ],
+            },
         },
-    },
+        // ── Entity layer: core/domain.js ─────────────────────────────────────
+        {
+            files: ["**/web/static/src/core/domain.js"],
+            rules: {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        patterns: [
+                            {
+                                group: ["@web/views/*", "@web/search/*"],
+                                message:
+                                    "Entity layer cannot import widget layer. Use dependency injection.",
+                            },
+                            {
+                                group: ["@web/webclient/*"],
+                                message: "Entity layer cannot import page layer.",
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+        // ── Feature layer: fields/ ───────────────────────────────────────────
+        {
+            files: ["**/web/static/src/fields/**/*.js"],
+            rules: {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        patterns: [
+                            {
+                                group: ["@web/views/*"],
+                                message:
+                                    "Feature layer (fields/) cannot import widget layer (views/). Move shared code to core/ or use registry indirection.",
+                            },
+                            {
+                                group: ["@web/search/*"],
+                                message:
+                                    "Feature layer (fields/) cannot import widget layer (search/).",
+                            },
+                            {
+                                group: ["@web/webclient/*"],
+                                message: "Feature layer cannot import page layer.",
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+        // ── Shared layer: core/ ──────────────────────────────────────────────
+        // The shared tier is ORDERED: core < ui < components. It used to be flat,
+        // and that is what let `services/` grow inside it importing freely across
+        // all three. Mirrors tooling/architecture/js_layer_check.py.
+        {
+            files: ["**/web/static/src/core/**/*.js"],
+            rules: {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        patterns: [
+                            {
+                                group: ["@web/ui/*", "@web/components/*"],
+                                message:
+                                    "core/ is the floor of the shared tier: it owns no surface, so it cannot import ui/ or components/. File the module with what it serves instead.",
+                            },
+                            {
+                                group: ["@web/model/*"],
+                                message: "Shared layer cannot import entity layer.",
+                            },
+                            {
+                                group: ["@web/views/*", "@web/search/*"],
+                                message: "Shared layer cannot import widget layer.",
+                            },
+                            {
+                                group: ["@web/webclient/*"],
+                                message: "Shared layer cannot import page layer.",
+                            },
+                            {
+                                group: ["@web/fields/*"],
+                                message: "Shared layer cannot import feature layer.",
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+        // ── Shared layer: ui/ ─────────────────────────────────────────────────
+        {
+            files: ["**/web/static/src/ui/**/*.js"],
+            rules: {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        patterns: [
+                            {
+                                group: ["@web/components/*"],
+                                message:
+                                    "Overlay infrastructure sits BELOW the widgets that use it: a widget opens a popover, a popover does not know what a widget is. A single-purpose service belongs next to the component it renders.",
+                            },
+                            {
+                                group: ["@web/model/*"],
+                                message:
+                                    "Shared layer (ui/) cannot import entity layer.",
+                            },
+                            {
+                                group: ["@web/views/*", "@web/search/*"],
+                                message:
+                                    "Shared layer (ui/) cannot import widget layer.",
+                            },
+                            {
+                                group: ["@web/webclient/*"],
+                                message: "Shared layer (ui/) cannot import page layer.",
+                            },
+                            {
+                                group: ["@web/fields/*"],
+                                message:
+                                    "Shared layer (ui/) cannot import feature layer.",
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+        // ── Shared layer: components/ ─────────────────────────────────────────
+        {
+            files: ["**/web/static/src/components/**/*.js"],
+            rules: {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        patterns: [
+                            {
+                                group: ["@web/model/*"],
+                                message:
+                                    "Presentational components take their data as props; reaching into model/ binds them to the datapoint instead of the values they render.",
+                            },
+                            {
+                                group: ["@web/views/*", "@web/search/*"],
+                                message:
+                                    "Shared layer (components/) cannot import widget layer.",
+                            },
+                            {
+                                group: ["@web/webclient/*"],
+                                message:
+                                    "Shared layer (components/) cannot import page layer.",
+                            },
+                            {
+                                group: ["@web/fields/*"],
+                                message:
+                                    "Shared layer (components/) cannot import feature layer.",
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+
+        // =========================================================================
+        // Component-lifecycle: ban this.env.services.X in web's component layer
+        //
+        // ``this.env.services.X`` bypasses the lifecycle-protection wrapper that
+        // ``useService("X")`` installs around every method via ``_protectMethod``
+        // (core/utils/hooks.js).  Without it, an in-flight promise that resolves
+        // after the component unmounts will run on a destroyed component, causing
+        // "this.render is not a function" or stale-state bugs that are hard to
+        // reproduce.
+        //
+        // Bare ``env.services.X`` (no ``this``) inside registry factories and
+        // command providers is intentionally NOT flagged — those are not OWL
+        // components.
+        //
+        // Scope: web's source files only.  Other addons (POS, mail, hr_attendance)
+        // have many existing call sites that need a per-module audit before this
+        // rule can be widened safely.
+        // =========================================================================
+        {
+            files: ["**/web/static/src/**/*.js"],
+            rules: {
+                "no-restricted-syntax": [
+                    "error",
+                    "PrivateIdentifier",
+                    {
+                        selector:
+                            "CallExpression[callee.name='reactive'] > ObjectExpression > Property[kind='set']",
+                        message:
+                            "Pattern 4 smell: setters inside reactive({...}) conflate state with effects. Use plain reactive({foo: null}) + useEffect for side effects, or a SignalStore subclass for computation. See machine_doc_v1/STATE_MANAGEMENT.md §Pattern 4.",
+                    },
+                    {
+                        // `toBeCloseTo(x, { digits: n })` is the Jest spelling and
+                        // hoot has no such option: its matcher takes an absolute
+                        // `margin` and DEFAULTS IT TO 1. So the Jest form does not
+                        // tighten the comparison, it loosens it to +/-1 — which on a
+                        // 0..1 quantity asserts nothing at all, and is how a bottom
+                        // sheet progress test passed against a value of 0.148.
+                        selector:
+                            "CallExpression[callee.property.name='toBeCloseTo'] > ObjectExpression > Property[key.name=/^(digits|precision|numDigits)$/]",
+                        message:
+                            "hoot's toBeCloseTo takes { margin } (an absolute tolerance, default 1), not { digits }. `{ digits: n }` is silently ignored, so the assertion holds to +/-1 — vacuous for any quantity smaller than that. Spell the margin you mean.",
+                    },
+                    {
+                        // Any receiver, not just `this`. The selector used to
+                        // require a ThisExpression, which is the shape a *class*
+                        // reaches a service through -- but a hook holds its
+                        // component in a local (`const owner = useComponent()`) and
+                        // reaches `owner.env.services.x`, the identical hazard with
+                        // none of the lifecycle protection, and the gate could not
+                        // see it. Within this scope that widening reports eleven
+                        // sites; each now carries a disable naming its reason,
+                        // which is the point: a raw service read should be a
+                        // decision on the page, not an accident of spelling.
+                        //
+                        // A bare `env.services.x` still does not match, and must
+                        // not: a registry callback is handed an `env` and has no
+                        // component to protect.
+                        selector:
+                            "MemberExpression[property.name='services'][object.type='MemberExpression'][object.property.name='env']",
+                        message:
+                            "Use useService('X') instead of <holder>.env.services.X. useService adds component-lifecycle protection that prevents promise-resolution-after-destroy bugs. If you genuinely need the raw service (e.g., the dialog outlives the widget, or there is no component to protect), add `// eslint-disable-next-line no-restricted-syntax` with a comment explaining why.",
+                    },
+                    // (Removed 2026-05-09) The `Reactive` BC alias was dropped
+                    // from `@web/core/utils/reactive` along with this rule.
+                    // Attempting `import { Reactive } from "@web/core/utils/reactive"`
+                    // now fails at module-load with a native "no such export"
+                    // error — clearer than a lint warning, and impossible to
+                    // suppress with eslint-disable.
+                ],
+            },
+        },
+
+        // columnize.test.js — hand-formatted HTML-fixture test with inline
+        // `/* eslint-disable */` blocks placed mid-expression. Prettier mangles
+        // those into INVALID JS (spurious extra `)`), so its formatter must not run
+        // on this file. The fixtures are deliberately hand-aligned; leave them be.
+        {
+            files: ["**/html_editor/static/tests/columnize.test.js"],
+            rules: {
+                "prettier/prettier": "off",
+            },
+        },
     ];
 }
 

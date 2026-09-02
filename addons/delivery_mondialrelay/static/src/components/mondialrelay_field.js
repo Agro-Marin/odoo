@@ -11,7 +11,8 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 const errorHandlerRegistry = registry.category("error_handlers");
 
 const JQUERY_URL = "/delivery_mondialrelay/static/lib/jquery.slim.min.js";
-const MONDIALRELAY_SCRIPT_URL = "https://widget.mondialrelay.com/parcelshop-picker/jquery.plugin.mondialrelay.parcelshoppicker.min.js"
+const MONDIALRELAY_SCRIPT_URL =
+    "https://widget.mondialrelay.com/parcelshop-picker/jquery.plugin.mondialrelay.parcelshoppicker.min.js";
 
 function corsIgnoredErrorHandler(env, error) {
     if (error instanceof ThirdPartyScriptError) {
@@ -21,7 +22,7 @@ function corsIgnoredErrorHandler(env, error) {
 
 export class MondialRelayField extends Component {
     static template = xml`<div t-if="enabled" t-ref="root"/>`;
-    static props = {...standardFieldProps};
+    static props = { ...standardFieldProps };
     setup() {
         this.root = useRef("root");
         this.state = useState({
@@ -36,7 +37,9 @@ export class MondialRelayField extends Component {
             const loadLibs = window.jQuery
                 ? loadJS(MONDIALRELAY_SCRIPT_URL)
                 : loadJS(JQUERY_URL).then(() => loadJS(MONDIALRELAY_SCRIPT_URL));
-            loadLibs.then(() => {this.state.libLoaded = true});
+            loadLibs.then(() => {
+                this.state.libLoaded = true;
+            });
         });
 
         useEffect(
@@ -47,7 +50,7 @@ export class MondialRelayField extends Component {
                 this.insertWidget(el);
             },
             () => [this.state.libLoaded && this.root.el],
-        )
+        );
     }
 
     get enabled() {
@@ -60,20 +63,20 @@ export class MondialRelayField extends Component {
             Brand: this.props.record.data.mondialrelay_brand,
             ColLivMod: this.props.record.data.mondial_realy_colLivMod,
             AllowedCountries: this.props.record.data.mondialrelay_allowed_countries,
-            PostCode: this.props.record.data.shipping_zip || '',
-            Country: this.props.record.data.shipping_country_code  || '',
+            PostCode: this.props.record.data.shipping_zip || "",
+            Country: this.props.record.data.shipping_country_code || "",
             Responsive: true,
             ShowResultsOnMap: true,
             AutoSelect: this.props.record.data.mondialrelay_last_selected_id,
             OnParcelShopSelected: (RelaySelected) => {
                 const values = JSON.stringify({
-                    'id': RelaySelected.ID,
-                    'name': RelaySelected.Nom,
-                    'street': RelaySelected.Adresse1,
-                    'street2': RelaySelected.Adresse2,
-                    'zip': RelaySelected.CP,
-                    'city': RelaySelected.Ville,
-                    'country': RelaySelected.Pays,
+                    id: RelaySelected.ID,
+                    name: RelaySelected.Nom,
+                    street: RelaySelected.Adresse1,
+                    street2: RelaySelected.Adresse2,
+                    zip: RelaySelected.CP,
+                    city: RelaySelected.Ville,
+                    country: RelaySelected.Pays,
                 });
                 this.props.record.update({ [this.props.name]: values });
             },
@@ -83,13 +86,17 @@ export class MondialRelayField extends Component {
                 // If code postal not valid, it will crash with Cors Error:
                 // Cannot read property 'on' of undefined at u.MR_FitBounds
                 const randInt = Math.floor(Math.random() * 100);
-                errorHandlerRegistry.add("corsIgnoredErrorHandler" + randInt, corsIgnoredErrorHandler, {sequence: 10});
+                errorHandlerRegistry.add(
+                    "corsIgnoredErrorHandler" + randInt,
+                    corsIgnoredErrorHandler,
+                    { sequence: 10 },
+                );
                 setTimeout(function () {
                     errorHandlerRegistry.remove("corsIgnoredErrorHandler" + randInt);
                 }, 10000);
             },
         };
-        el.style.display = '';
+        el.style.display = "";
         // MR plugin is a jQuery plugin — use jQuery wrapper
         window.jQuery(el).MR_ParcelShopPicker(params);
         window.jQuery(el).trigger("MR_RebindMap");

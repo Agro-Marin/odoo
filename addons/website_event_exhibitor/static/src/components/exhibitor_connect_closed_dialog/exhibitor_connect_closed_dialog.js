@@ -23,16 +23,18 @@ export class ExhibitorConnectClosedDialog extends Component {
      */
     async fetchSponsor() {
         const sponsorData = await rpc(
-            `/event_sponsor/${encodeURIComponent(this.props.sponsorId)}/read`
+            `/event_sponsor/${encodeURIComponent(this.props.sponsorId)}/read`,
         );
         // empty string on falsy so markup doesn't create a "false" string
         sponsorData.website_description = sponsorData.website_description || "";
         sponsorData.website_description = markup(sponsorData.website_description);
-        this.formatEventStartRemaining = formatDuration(sponsorData.event_start_remaining, true);
-        this.formatEventDateBegin = deserializeDateTime(
-            sponsorData.event_date_begin,
-            { tz: sponsorData.event_date_tz }
-        ).toLocaleString(DateTime.DATETIME_MED);
+        this.formatEventStartRemaining = formatDuration(
+            sponsorData.event_start_remaining,
+            true,
+        );
+        this.formatEventDateBegin = deserializeDateTime(sponsorData.event_date_begin, {
+            tz: sponsorData.event_date_tz,
+        }).toLocaleString(DateTime.DATETIME_MED);
         this.sponsorData = sponsorData;
     }
 }

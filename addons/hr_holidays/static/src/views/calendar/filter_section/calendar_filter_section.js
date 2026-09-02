@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { onWillStart,useState } from "@odoo/owl";
+import { onWillStart, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { CalendarFilterSection } from "@web/views/calendar";
 
@@ -29,7 +29,11 @@ export class TimeOffCalendarFilterSection extends CalendarFilterSection {
             return;
         }
         const filterData = {};
-        const data = await this.orm.call("hr.leave.type", "get_allocation_data_request", []);
+        const data = await this.orm.call(
+            "hr.leave.type",
+            "get_allocation_data_request",
+            [],
+        );
         data.forEach((leave) => {
             filterData[leave[3]] = leave;
         });

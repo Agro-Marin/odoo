@@ -1,9 +1,8 @@
 /** @odoo-module native */
-import { patch } from '@web/core/utils/patch';
-import { PaymentButton } from '@payment/interactions/payment_button';
+import { patch } from "@web/core/utils/patch";
+import { PaymentButton } from "@payment/interactions/payment_button";
 
 patch(PaymentButton.prototype, {
-
     /**
      * Verify that the payment button is ready to be enabled.
      *
@@ -26,14 +25,16 @@ patch(PaymentButton.prototype, {
      */
     _isTcCheckboxReady() {
         // Find the one T&C checkbox that is not hidden, either the desktop or the mobile one.
-        const checkboxes = document.querySelectorAll('#website_sale_tc_checkbox');
-        const visibleCheckbox = Array.from(checkboxes).find(el => el.offsetParent !== null);
+        const checkboxes = document.querySelectorAll("#website_sale_tc_checkbox");
+        const visibleCheckbox = Array.from(checkboxes).find(
+            (el) => el.offsetParent !== null,
+        );
 
-        if (!visibleCheckbox) { // The checkbox is not present.
+        if (!visibleCheckbox) {
+            // The checkbox is not present.
             return true; // Ignore the check.
         }
 
         return visibleCheckbox.checked;
     },
-
 });

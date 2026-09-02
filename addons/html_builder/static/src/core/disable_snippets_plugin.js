@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { omit } from "@web/core/utils/collections/objects";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { omit } from "@web/core/utils/collections/objects";
 
 /**
  * @typedef { Object } DisableSnippetsShared
@@ -17,7 +17,10 @@ export class DisableSnippetsPlugin extends Plugin {
         on_removed_handlers: this.disableUndroppableSnippets.bind(this),
         post_undo_handlers: this.disableUndroppableSnippets.bind(this),
         post_redo_handlers: this.disableUndroppableSnippets.bind(this),
-        on_mobile_preview_clicked: withSequence(20, this.disableUndroppableSnippets.bind(this)),
+        on_mobile_preview_clicked: withSequence(
+            20,
+            this.disableUndroppableSnippets.bind(this),
+        ),
     };
 
     setup() {
@@ -26,17 +29,36 @@ export class DisableSnippetsPlugin extends Plugin {
 
         // TODO only for website ?
         // TODO improve to add case when "+" menu appears (resize event ?)
-        const editableDropdownEls = this.editable.querySelectorAll(".dropdown-menu.o_editable");
+        const editableDropdownEls = this.editable.querySelectorAll(
+            ".dropdown-menu.o_editable",
+        );
         editableDropdownEls.forEach((dropdownEl) => {
-            const dropdownToggleEl = dropdownEl.parentNode.querySelector(".dropdown-toggle");
-            this.addDomListener(dropdownToggleEl, "shown.bs.dropdown", this._disableSnippets);
-            this.addDomListener(dropdownToggleEl, "hidden.bs.dropdown", this._disableSnippets);
+            const dropdownToggleEl =
+                dropdownEl.parentNode.querySelector(".dropdown-toggle");
+            this.addDomListener(
+                dropdownToggleEl,
+                "shown.bs.dropdown",
+                this._disableSnippets,
+            );
+            this.addDomListener(
+                dropdownToggleEl,
+                "hidden.bs.dropdown",
+                this._disableSnippets,
+            );
         });
 
         const offcanvasEls = this.editable.querySelectorAll(".offcanvas");
         offcanvasEls.forEach((offcanvasEl) => {
-            this.addDomListener(offcanvasEl, "shown.bs.offcanvas", this._disableSnippets);
-            this.addDomListener(offcanvasEl, "hidden.bs.offcanvas", this._disableSnippets);
+            this.addDomListener(
+                offcanvasEl,
+                "shown.bs.offcanvas",
+                this._disableSnippets,
+            );
+            this.addDomListener(
+                offcanvasEl,
+                "hidden.bs.offcanvas",
+                this._disableSnippets,
+            );
         });
 
         this.disableUndroppableSnippets();
@@ -47,7 +69,8 @@ export class DisableSnippetsPlugin extends Plugin {
      * TODO: trigger the computation in the situation that needs it.
      */
     disableUndroppableSnippets() {
-        const editableAreaEls = this.dependencies.setup_editor_plugin.getEditableAreas();
+        const editableAreaEls =
+            this.dependencies.setup_editor_plugin.getEditableAreas();
         const rootEl = this.dependencies.dropzone.getDropRootElement();
         const dropAreasBySelector = this.getDropAreas(editableAreaEls, rootEl);
 
@@ -56,8 +79,13 @@ export class DisableSnippetsPlugin extends Plugin {
         const checkSanitize = (el, snippetEl) => {
             let forbidSanitize = false;
             // Check if the snippet is sanitized/contains such snippets.
-            for (const el of [snippetEl, ...snippetEl.querySelectorAll("[data-snippet")]) {
-                const snippet = this.snippetModel.getOriginalSnippet(el.dataset.snippet);
+            for (const el of [
+                snippetEl,
+                ...snippetEl.querySelectorAll("[data-snippet"),
+            ]) {
+                const snippet = this.snippetModel.getOriginalSnippet(
+                    el.dataset.snippet,
+                );
                 if (snippet && snippet.forbidSanitize) {
                     forbidSanitize = snippet.forbidSanitize;
                     if (forbidSanitize === true) {
@@ -66,7 +94,9 @@ export class DisableSnippetsPlugin extends Plugin {
                 }
             }
             if (forbidSanitize === "form") {
-                return !el.closest('[data-oe-sanitize]:not([data-oe-sanitize="allow_form"])');
+                return !el.closest(
+                    '[data-oe-sanitize]:not([data-oe-sanitize="allow_form"])',
+                );
             } else {
                 return forbidSanitize ? !el.closest("[data-oe-sanitize]") : true;
             }
@@ -77,7 +107,7 @@ export class DisableSnippetsPlugin extends Plugin {
                 ({ selector, exclude, dropAreaEls }) =>
                     snippetEl.matches(selector) &&
                     !snippetEl.matches(exclude) &&
-                    dropAreaEls.some((el) => checkSanitize(el, snippetEl))
+                    dropAreaEls.some((el) => checkSanitize(el, snippetEl)),
             );
         };
 
@@ -94,7 +124,10 @@ export class DisableSnippetsPlugin extends Plugin {
         if (areGroupsDisabled) {
             ignoredCategories.push(...["snippet_structure", "snippet_custom"]);
         }
-        for (const category in omit(this.snippetModel.snippetsByCategory, ...ignoredCategories)) {
+        for (const category in omit(
+            this.snippetModel.snippetsByCategory,
+            ...ignoredCategories,
+        )) {
             snippets.push(...this.snippetModel.snippetsByCategory[category]);
         }
         snippets.forEach((snippet) => {
@@ -107,12 +140,14 @@ export class DisableSnippetsPlugin extends Plugin {
                 if (snippetGroup.groupName !== "custom") {
                     snippetGroup.isDisabled = !snippets.find(
                         (snippet) =>
-                            snippet.groupName === snippetGroup.groupName && !snippet.isDisabled
+                            snippet.groupName === snippetGroup.groupName &&
+                            !snippet.isDisabled,
                     );
                 } else {
-                    const customSnippets = this.snippetModel.snippetsByCategory["snippet_custom"];
+                    const customSnippets =
+                        this.snippetModel.snippetsByCategory["snippet_custom"];
                     snippetGroup.isDisabled = !customSnippets.find(
-                        (snippet) => !snippet.isDisabled
+                        (snippet) => !snippet.isDisabled,
                     );
                 }
             });
@@ -143,17 +178,25 @@ export class DisableSnippetsPlugin extends Plugin {
             let dropAreaEls = [];
             if (dropNear) {
                 dropAreaEls.push(
-                    ...this.dependencies.dropzone.getSelectorSiblings(editableAreaEls, rootEl, {
-                        selector: dropNear,
-                        excludeParent: excludeNearParent,
-                    })
+                    ...this.dependencies.dropzone.getSelectorSiblings(
+                        editableAreaEls,
+                        rootEl,
+                        {
+                            selector: dropNear,
+                            excludeParent: excludeNearParent,
+                        },
+                    ),
                 );
             }
             if (dropIn) {
                 dropAreaEls.push(
-                    ...this.dependencies.dropzone.getSelectorChildren(editableAreaEls, rootEl, {
-                        selector: dropIn,
-                    })
+                    ...this.dependencies.dropzone.getSelectorChildren(
+                        editableAreaEls,
+                        rootEl,
+                        {
+                            selector: dropIn,
+                        },
+                    ),
                 );
             }
             if (excludeAncestor) {

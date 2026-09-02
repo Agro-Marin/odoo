@@ -39,7 +39,7 @@ export function useSpreadsheetPrint(model) {
                 await preparePrint();
             }
         },
-        { capture: true }
+        { capture: true },
     );
     useExternalListener(window, "afterprint", afterPrint);
 
@@ -49,7 +49,7 @@ export function useSpreadsheetPrint(model) {
                 window.print();
             }
         },
-        () => [printState.active]
+        () => [printState.active],
     );
 
     /**
@@ -170,7 +170,7 @@ export function useSpreadsheetNotificationStore() {
             },
             {
                 onClose: callBack,
-            }
+            },
         );
     }
     const dialog = useService("dialog");

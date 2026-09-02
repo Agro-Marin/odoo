@@ -51,10 +51,7 @@ export class QFPay {
             }
             return response.data ? JSON.parse(response.data) : true;
         } catch (error) {
-            if (
-                error.name == "TypeError" &&
-                error.message == "Failed to fetch"
-            ) {
+            if (error.name == "TypeError" && error.message == "Failed to fetch") {
                 this.errorCallback(
                     new QFPayError(
                         _t(

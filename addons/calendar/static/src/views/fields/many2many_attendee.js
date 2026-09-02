@@ -1,11 +1,11 @@
 /** @odoo-module native */
+import { AttendeeTagsList } from "@calendar/views/fields/attendee_tags_list";
 import { registry } from "@web/core/registry";
 import {
     Many2ManyTagsAvatarField,
     many2ManyTagsAvatarField,
 } from "@web/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field";
 import { useSpecialData } from "@web/fields/relational/special_data";
-import { AttendeeTagsList } from "@calendar/views/fields/attendee_tags_list";
 
 const ICON_BY_STATUS = {
     accepted: "fa-check",
@@ -25,10 +25,13 @@ export class Many2ManyAttendee extends Many2ManyTagsAvatarField {
             return orm.call(
                 "res.partner",
                 "get_attendee_detail",
-                [record.data[name].records.map((rec) => rec.resId), [record.resId || false]],
+                [
+                    record.data[name].records.map((rec) => rec.resId),
+                    [record.resId || false],
+                ],
                 {
                     context,
-                }
+                },
             );
         });
     }
@@ -44,7 +47,7 @@ export class Many2ManyAttendee extends Many2ManyTagsAvatarField {
         const tags = super.tags.map((tag) => {
             const partner = partnerIds.find((partner) => tag.resId === partner.id);
             const noEmail = noEmailPartnerIds.find(
-                (noEmailPartner) => tag.resId == noEmailPartner.resId
+                (noEmailPartner) => tag.resId === noEmailPartner.resId,
             );
             if (partner) {
                 tag.status = partner.status;
@@ -55,7 +58,7 @@ export class Many2ManyAttendee extends Many2ManyTagsAvatarField {
             }
             if (
                 unavailablePartnerIds.find(
-                    (unavailablePartner) => tag.resId == unavailablePartner.resId
+                    (unavailablePartner) => tag.resId === unavailablePartner.resId,
                 )
             ) {
                 tag.isUnavailable = true;

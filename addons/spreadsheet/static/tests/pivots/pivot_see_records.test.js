@@ -1,5 +1,11 @@
-import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame, Deferred } from "@odoo/hoot-mock";
+import * as spreadsheet from "@odoo/o-spreadsheet";
+import {
+    selectCell,
+    setCellContent,
+    updatePivot,
+} from "@spreadsheet/../tests/helpers/commands";
 import {
     defineSpreadsheetActions,
     defineSpreadsheetModels,
@@ -7,14 +13,14 @@ import {
     Partner,
     Product,
 } from "@spreadsheet/../tests/helpers/data";
-
-import { selectCell, setCellContent, updatePivot } from "@spreadsheet/../tests/helpers/commands";
-import { doMenuAction, getActionMenu } from "@spreadsheet/../tests/helpers/ui";
+import {
+    getCell,
+    getCellFormula,
+    getCellValue,
+} from "@spreadsheet/../tests/helpers/getters";
 import { createSpreadsheetWithPivot } from "@spreadsheet/../tests/helpers/pivot";
+import { doMenuAction, getActionMenu } from "@spreadsheet/../tests/helpers/ui";
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
-
-import * as spreadsheet from "@odoo/o-spreadsheet";
-import { getCell, getCellFormula, getCellValue } from "@spreadsheet/../tests/helpers/getters";
 import { mockService, onRpc } from "@web/../tests/web_test_helpers";
 
 const { cellMenuRegistry } = spreadsheet.registries;
@@ -235,8 +241,12 @@ test("Can see records on PIVOT cells", async function () {
             selectCell(model, "G7", "42");
             await doMenuAction(cellMenuRegistry, ["pivot_see_records"], env);
 
-            expect(actions[0]).toEqual(actions[1], { message: "both actions are the same" });
-            expect(actions[0]).toEqual(actions[2], { message: "all actions are the same" });
+            expect(actions[0]).toEqual(actions[1], {
+                message: "both actions are the same",
+            });
+            expect(actions[0]).toEqual(actions[2], {
+                message: "all actions are the same",
+            });
 
             expect.verifySteps(["doAction", "doAction", "doAction"]);
             actions.length = 0;
@@ -279,7 +289,7 @@ test("Can see records on PIVOT cells", async function () {
 test("Cannot see records of pivot formula without value", async function () {
     const { env, model } = await createSpreadsheetWithPivot({ pivotType: "static" });
     expect(getCellFormula(model, "B3")).toBe(
-        `=PIVOT.VALUE(1,"probability:avg","bar",FALSE,"foo",1)`
+        `=PIVOT.VALUE(1,"probability:avg","bar",FALSE,"foo",1)`,
     );
     expect(getCellValue(model, "B3")).toBe("", { message: "B3 is empty" });
     selectCell(model, "B3");
@@ -319,7 +329,9 @@ test("See records is not visible on an empty cell", async function () {
     const { env, model } = await createSpreadsheetWithPivot();
     expect(getCell(model, "A21")).toBe(undefined);
     selectCell(model, "A21");
-    const action = cellMenuRegistry.getAll().find((item) => item.id === "pivot_see_records");
+    const action = cellMenuRegistry
+        .getAll()
+        .find((item) => item.id === "pivot_see_records");
     expect(action.isVisible(env)).toBe(false);
 });
 
@@ -362,7 +374,9 @@ test("See records is not visible if the pivot is not loaded, even if the cell ha
     setCellContent(model, "A1", '=IFERROR(PIVOT.VALUE("1","probability"), 42)');
     deferred = new Deferred();
     model.dispatch("REFRESH_ALL_DATA_SOURCES");
-    const action = cellMenuRegistry.getAll().find((item) => item.id === "pivot_see_records");
+    const action = cellMenuRegistry
+        .getAll()
+        .find((item) => item.id === "pivot_see_records");
     expect(action.isVisible(env)).toBe(false);
     deferred.resolve();
     await animationFrame();
@@ -386,7 +400,9 @@ test("See records with custom pivot groups", async function () {
     updatePivot(model, pivotId, {
         columns: [{ fieldName: "GroupedProducts", order: "asc" }],
         rows: [{ fieldName: "bar", order: "asc" }],
-        measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+        measures: [
+            { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+        ],
         customFields: {
             GroupedProducts: {
                 parentField: "product_id",
@@ -403,12 +419,20 @@ test("See records with custom pivot groups", async function () {
     selectCell(model, "B1"); // "Group1" group column header
     await doMenuAction(cellMenuRegistry, ["pivot_see_records"], env);
     expect.verifySteps(["doAction"]);
-    expect(doActionReceivedDomain).toEqual(["|", ["product_id", "=", 37], ["product_id", "=", 41]]);
+    expect(doActionReceivedDomain).toEqual([
+        "|",
+        ["product_id", "=", 37],
+        ["product_id", "=", 41],
+    ]);
 
     selectCell(model, "B2"); // "Probability" measure header
     await doMenuAction(cellMenuRegistry, ["pivot_see_records"], env);
     expect.verifySteps(["doAction"]);
-    expect(doActionReceivedDomain).toEqual(["|", ["product_id", "=", 37], ["product_id", "=", 41]]);
+    expect(doActionReceivedDomain).toEqual([
+        "|",
+        ["product_id", "=", 37],
+        ["product_id", "=", 41],
+    ]);
 
     selectCell(model, "B4"); // Pivot value for "Group1" group and bar = true
     await doMenuAction(cellMenuRegistry, ["pivot_see_records"], env);
@@ -431,5 +455,9 @@ test("See records with custom pivot groups", async function () {
     selectCell(model, "C3"); // Pivot value for "Others" group and bar = false
     await doMenuAction(cellMenuRegistry, ["pivot_see_records"], env);
     expect.verifySteps(["doAction"]);
-    expect(doActionReceivedDomain).toEqual(["&", ["product_id", "=", 200], ["bar", "=", false]]);
+    expect(doActionReceivedDomain).toEqual([
+        "&",
+        ["product_id", "=", 200],
+        ["bar", "=", false],
+    ]);
 });

@@ -11,10 +11,13 @@ export class DocumentsListActionItemDownload extends DocumentsListActionItem {
     }
 
     get isVisible() {
-        return this.props.record.data.type !== "binary" || this.props.record.data.attachment_id;
+        return (
+            this.props.record.data.type !== "binary" ||
+            this.props.record.data.attachment_id
+        );
     }
 
     async onActionClicked() {
-        await this.documentService.downloadDocuments([this.props.record])
+        await this.documentService.downloadDocuments([this.props.record]);
     }
 }

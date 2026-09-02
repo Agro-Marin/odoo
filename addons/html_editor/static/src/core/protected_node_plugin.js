@@ -24,10 +24,7 @@ export class ProtectedNodePlugin extends Plugin {
         before_filter_mutation_record_handlers:
             this.beforeFilteringMutationRecords.bind(this),
 
-        unsplittable_node_predicates: [
-            isProtecting,
-            isUnprotecting,
-        ],
+        unsplittable_node_predicates: [isProtecting, isUnprotecting],
         savable_mutation_record_predicates: this.isMutationRecordSavable.bind(this),
         removable_descendants_providers: this.filterDescendantsToRemove.bind(this),
     };

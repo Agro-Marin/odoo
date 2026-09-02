@@ -2,12 +2,14 @@
 import { useComponent } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
-import { useOwnedDialogs,useService } from "@web/core/utils/hooks";
+import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 
 import { AllocationFormViewDialog } from "./view_dialog/allocation_form_view_dialog.js";
 
 export function formatNumber(lang, number, maxDecimals = 2) {
-    const numberFormat = new Intl.NumberFormat(lang, { maximumFractionDigits: maxDecimals });
+    const numberFormat = new Intl.NumberFormat(lang, {
+        maximumFractionDigits: maxDecimals,
+    });
     return numberFormat.format(number);
 }
 
@@ -40,7 +42,7 @@ export function useLeaveCancelWizard() {
             },
             {
                 onClose: callback,
-            }
+            },
         );
     };
 }

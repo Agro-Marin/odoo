@@ -1,7 +1,7 @@
-import { luxon } from "@web/core/l10n/luxon";
 import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { serverState } from "@web/../tests/web_test_helpers";
 import { serializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 const { DateTime } = luxon;
 
 export class ResUsers extends mailModels.ResUsers {
@@ -52,7 +52,7 @@ export class ResUsers extends mailModels.ResUsers {
             {
                 fields: ["id", "start", "name", "allday"],
                 order: "start",
-            }
+            },
         );
         if (meetingsLines.length) {
             activities.unshift({

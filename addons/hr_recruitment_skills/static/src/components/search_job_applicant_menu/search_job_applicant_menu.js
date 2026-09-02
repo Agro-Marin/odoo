@@ -24,7 +24,7 @@ export class SearchJobApplicant extends Component {
         const action = await this.env.services.orm.call(
             "hr.job",
             "action_search_matching_applicants",
-            [globalContext.active_id]
+            [globalContext.active_id],
         );
         action.help = markup(action.help);
         return this.action.doAction(action);
@@ -38,7 +38,7 @@ export const searchJobApplicant = {
         return (
             searchModel.resModel === "hr.applicant" &&
             searchModel.globalContext.allow_search_matching_applicants &&
-            config.viewArch.classList.contains('o_search_matching_applicant')
+            config.viewArch.classList.contains("o_search_matching_applicant")
         );
     },
 };

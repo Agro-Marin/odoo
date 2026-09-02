@@ -12,12 +12,17 @@ import { registry } from "@web/core/registry";
 
 export class CustomizeTabPlugin extends Plugin {
     static id = "customizeTab";
-    static shared = ["getCustomizeComponent", "openCustomizeComponent", "closeCustomizeComponent"];
+    static shared = [
+        "getCustomizeComponent",
+        "openCustomizeComponent",
+        "closeCustomizeComponent",
+    ];
     /** @type {import("plugins").BuilderResources} */
     resources = {
         post_redo_handlers: () => this.closeCustomizeComponent(),
         post_undo_handlers: () => this.closeCustomizeComponent(),
-        change_current_options_containers_listeners: () => this.closeCustomizeComponent(),
+        change_current_options_containers_listeners: () =>
+            this.closeCustomizeComponent(),
     };
 
     setup() {

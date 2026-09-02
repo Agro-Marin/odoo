@@ -1,10 +1,11 @@
+import { Chatbot } from "@im_livechat/core/common/chatbot_model";
 import { patchWithCleanup } from "@web/../tests/helpers/utils";
 import { contains } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
-import { Chatbot } from "@im_livechat/core/common/chatbot_model";
 
-const messagesContain = (text) => `.o-livechat-root:shadow .o-mail-Message:contains("${text}")`;
+const messagesContain = (text) =>
+    `.o-livechat-root:shadow .o-mail-Message:contains("${text}")`;
 let chatbotDelayProcessingDef;
 
 registry.category("web_tour.tours").add("website_livechat_chatbot_flow_tour", {
@@ -34,17 +35,18 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_flow_tour", {
                 run() {
                     if (
                         this.anchor.querySelector(
-                            ".o-mail-Message-actions [title='Add a Reaction']"
+                            ".o-mail-Message-actions [title='Add a Reaction']",
                         )
                     ) {
                         console.error(
-                            "Reactions should not be available before thread is persisted."
+                            "Reactions should not be available before thread is persisted.",
                         );
                     }
                 },
             },
             {
-                trigger: '.o-livechat-root:shadow button:contains("I\'d like to buy the software")',
+                trigger:
+                    '.o-livechat-root:shadow button:contains("I\'d like to buy the software")',
                 run: "click",
             },
             {
@@ -54,7 +56,10 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_flow_tour", {
                 async run() {
                     await contains(".o-mail-Message-actions [title='Add a Reaction']", {
                         target: this.anchor.getRootNode(),
-                        parent: [".o-mail-Message", { text: "I'd like to buy the software" }],
+                        parent: [
+                            ".o-mail-Message",
+                            { text: "I'd like to buy the software" },
+                        ],
                     });
                 },
             },
@@ -73,7 +78,7 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_flow_tour", {
             {
                 // check invalid email detected and the bot asks for a retry
                 trigger: messagesContain(
-                    "'No, you won't get my email!' does not look like a valid email. Can you please try again?"
+                    "'No, you won't get my email!' does not look like a valid email. Can you please try again?",
                 ),
             },
             {
@@ -90,7 +95,9 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_flow_tour", {
             },
             {
                 // should ask for website now
-                trigger: messagesContain("Would you mind providing your website address?"),
+                trigger: messagesContain(
+                    "Would you mind providing your website address?",
+                ),
             },
             {
                 trigger: ".o-livechat-root:shadow .o-mail-Composer-input",
@@ -102,7 +109,7 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_flow_tour", {
             },
             {
                 trigger: messagesContain(
-                    "Great, do you want to leave any feedback for us to improve?"
+                    "Great, do you want to leave any feedback for us to improve?",
                 ),
                 // should ask for feedback now
             },
@@ -141,7 +148,7 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_flow_tour", {
                     chatbotDelayProcessingDef = new Deferred();
                     let failTimeout = setTimeout(() => {
                         chatbotDelayProcessingDef.reject(
-                            "Chatbot should stay in multi line step when user is typing."
+                            "Chatbot should stay in multi line step when user is typing.",
                         );
                     }, 5000);
                     chatbotDelayProcessingDef.then(() => clearTimeout(failTimeout));
@@ -150,7 +157,7 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_flow_tour", {
                     chatbotDelayProcessingDef = new Deferred();
                     failTimeout = setTimeout(() => {
                         chatbotDelayProcessingDef.reject(
-                            "Chatbot should stay in multi line step if user isn't done typing."
+                            "Chatbot should stay in multi line step if user isn't done typing.",
                         );
                     }, 5000);
                     chatbotDelayProcessingDef.then(() => clearTimeout(failTimeout));
@@ -190,16 +197,20 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_flow_tour", {
             {
                 // the path should now go towards 'Pricing Question (first part)'
                 trigger: messagesContain(
-                    "For any pricing question, feel free ton contact us at pricing@mycompany.com"
+                    "For any pricing question, feel free ton contact us at pricing@mycompany.com",
                 ),
             },
             {
                 // the path should now go towards 'Pricing Question (second part)'
-                trigger: messagesContain("We will reach back to you as soon as we can!"),
+                trigger: messagesContain(
+                    "We will reach back to you as soon as we can!",
+                ),
             },
             {
                 // should ask for website now
-                trigger: messagesContain("Would you mind providing your website address?"),
+                trigger: messagesContain(
+                    "Would you mind providing your website address?",
+                ),
             },
             {
                 trigger: ".o-livechat-root:shadow .o-mail-Composer-input",
@@ -212,7 +223,7 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_flow_tour", {
             {
                 // should ask for feedback now
                 trigger: messagesContain(
-                    "Great, do you want to leave any feedback for us to improve?"
+                    "Great, do you want to leave any feedback for us to improve?",
                 ),
             },
             {

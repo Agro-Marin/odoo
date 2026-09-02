@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { getSnippetName, isElementInViewport } from "@html_builder/utils/utils";
+import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 
 /**
  * @typedef {((snippetEl: HTMLElement) => void)[]} on_reveal_target_handlers
@@ -28,7 +28,10 @@ export class InvisibleElementsPanel extends Component {
         return this.env.editor.shared;
     }
 
-    updateInvisibleElementsPanel(invisibleEls, invisibleSelector = this.props.invisibleSelector) {
+    updateInvisibleElementsPanel(
+        invisibleEls,
+        invisibleSelector = this.props.invisibleSelector,
+    ) {
         // descendantPerSnippet: a map with its keys set to invisible
         // snippets that have invisible descendants. The value corresponding
         // to an invisible snippet element is a list filled with all its
@@ -39,11 +42,13 @@ export class InvisibleElementsPanel extends Component {
         // and create the map ("descendantPerSnippet") of the snippets and
         // their descendant snippets.
         const rootInvisibleSnippetEls = invisibleEls.filter((invisibleSnippetEl) => {
-            const ancestorInvisibleEl = invisibleSnippetEl.parentElement.closest(invisibleSelector);
+            const ancestorInvisibleEl =
+                invisibleSnippetEl.parentElement.closest(invisibleSelector);
             if (!ancestorInvisibleEl) {
                 return true;
             }
-            const descendantSnippets = descendantPerSnippet.get(ancestorInvisibleEl) || [];
+            const descendantSnippets =
+                descendantPerSnippet.get(ancestorInvisibleEl) || [];
             descendantPerSnippet.set(ancestorInvisibleEl, [
                 ...descendantSnippets,
                 invisibleSnippetEl,
@@ -75,7 +80,7 @@ export class InvisibleElementsPanel extends Component {
                 if (descendantSnippetEls) {
                     invisibleElement.children = createInvisibleEntries(
                         descendantSnippetEls,
-                        invisibleElement
+                        invisibleElement,
                     );
                 }
                 return invisibleElement;

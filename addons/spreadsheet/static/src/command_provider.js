@@ -18,13 +18,17 @@ export function useSpreadsheetCommandPalette() {
             setupSpreadsheetCommandProvider(env);
             return () => commandProviderRegistry.remove("spreadsheet_provider");
         },
-        () => []
+        () => [],
     );
 }
 
 function setupSpreadsheetCategories(spreadsheetEnv) {
     let sequence = 5;
-    commandCategoryRegistry.add("spreadsheet_insert_link", {}, { sequence: 0, force: true });
+    commandCategoryRegistry.add(
+        "spreadsheet_insert_link",
+        {},
+        { sequence: 0, force: true },
+    );
     for (const menu of topbarMenuRegistry.getMenuItems()) {
         const category = `spreadsheet_${menu.name(spreadsheetEnv)}`;
         commandCategoryRegistry.add(category, {}, { sequence, force: true });
@@ -52,7 +56,10 @@ function registerCommand(spreadsheetEnv, menu, parentName, category) {
         for (const subMenu of menu
             .children(spreadsheetEnv)
             .sort((a, b) => a.sequence - b.sequence)) {
-            if (!subMenu.isVisible(spreadsheetEnv) || !subMenu.isEnabled(spreadsheetEnv)) {
+            if (
+                !subMenu.isVisible(spreadsheetEnv) ||
+                !subMenu.isEnabled(spreadsheetEnv)
+            ) {
                 continue;
             }
             const subMenuName = `${subMenu.name(spreadsheetEnv)}`;
@@ -61,7 +68,10 @@ function registerCommand(spreadsheetEnv, menu, parentName, category) {
                     action() {
                         subMenu.execute(spreadsheetEnv);
                     },
-                    category: subMenu.id === "insert_link" ? "spreadsheet_insert_link" : category,
+                    category:
+                        subMenu.id === "insert_link"
+                            ? "spreadsheet_insert_link"
+                            : category,
                     name: `${parentName} / ${subMenuName}`,
                 });
             } else {
@@ -70,8 +80,8 @@ function registerCommand(spreadsheetEnv, menu, parentName, category) {
                         spreadsheetEnv,
                         subMenu,
                         `${parentName} / ${subMenuName}`,
-                        category
-                    )
+                        category,
+                    ),
                 );
             }
         }

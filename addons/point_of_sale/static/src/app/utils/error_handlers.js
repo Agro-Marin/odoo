@@ -1,8 +1,5 @@
 /** @odoo-module native */
-import {
-    ErrorDialog,
-    odooExceptionTitleMap,
-} from "@web/components/errors";
+import { ErrorDialog, odooExceptionTitleMap } from "@web/components/errors";
 import { ConnectionLostError, RPCError } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";

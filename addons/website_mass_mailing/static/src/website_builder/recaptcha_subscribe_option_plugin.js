@@ -11,7 +11,7 @@ class RecaptchaSubscribeOptionPlugin extends Plugin {
     resources = {
         builder_actions: {
             ToggleRecaptchaLegalAction,
-        }
+        },
     };
 
     hasRecaptcha() {
@@ -24,7 +24,7 @@ export class ToggleRecaptchaLegalAction extends BuilderAction {
     apply({ editingElement }) {
         const template = document.createElement("template");
         template.content.append(
-            renderToElement("google_recaptcha.recaptcha_legal_terms")
+            renderToElement("google_recaptcha.recaptcha_legal_terms"),
         );
         editingElement.appendChild(template.content.firstElementChild);
     }

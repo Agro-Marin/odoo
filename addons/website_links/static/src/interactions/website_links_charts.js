@@ -32,14 +32,16 @@ class WebsiteLinksCharts extends Interaction {
             "t-out": (el) =>
                 `${this.pieChartsData[el.parentNode.id].numCountries} ${_t("countries")}`,
         },
-        "#all_time_countries_charts, #last_month_countries_charts, #last_week_countries_charts": {
-            "t-att-style": (el) => ({
-                height: `${Math.max(
-                    this.pieChartsData[el.id].data.length * (this.chartWidth > 750 ? 1 : 2),
-                    20
-                )}em`,
-            }),
-        },
+        "#all_time_countries_charts, #last_month_countries_charts, #last_week_countries_charts":
+            {
+                "t-att-style": (el) => ({
+                    height: `${Math.max(
+                        this.pieChartsData[el.id].data.length *
+                            (this.chartWidth > 750 ? 1 : 2),
+                        20,
+                    )}em`,
+                }),
+            },
     };
 
     setup() {
@@ -67,7 +69,7 @@ class WebsiteLinksCharts extends Interaction {
             },
         };
         this.chartWidth = this.el.querySelector(
-            `#${Object.keys(this.pieChartsData)[0]}`
+            `#${Object.keys(this.pieChartsData)[0]}`,
         ).scrollWidth;
     }
 
@@ -103,26 +105,29 @@ class WebsiteLinksCharts extends Interaction {
             "#all_time_clicks_chart",
             beginDate,
             endDate,
-            formattedClicksByDay
+            formattedClicksByDay,
         );
         beginDate = endDate.minus({ days: 30 });
         this.numLastMonthClicks = this.createLineChart(
             "#last_month_clicks_chart",
             beginDate,
             endDate,
-            formattedClicksByDay
+            formattedClicksByDay,
         );
         beginDate = endDate.minus({ days: 7 });
         this.numLastWeekClicks = this.createLineChart(
             "#last_week_clicks_chart",
             beginDate,
             endDate,
-            formattedClicksByDay
+            formattedClicksByDay,
         );
 
         for (const pieChartId of Object.keys(this.pieChartsData)) {
             const pieChartData = this.pieChartsData[pieChartId];
-            pieChartData.numCountries = this.createPieChart(`#${pieChartId}`, pieChartData.data);
+            pieChartData.numCountries = this.createPieChart(
+                `#${pieChartId}`,
+                pieChartData.data,
+            );
         }
         this.updateContent();
     }
@@ -224,7 +229,7 @@ class WebsiteLinksCharts extends Interaction {
             "link.tracker.click",
             [this.linksDomain],
             ["create_date:day"],
-            ["__count"]
+            ["__count"],
         );
     }
 
@@ -233,7 +238,7 @@ class WebsiteLinksCharts extends Interaction {
             "link.tracker.click",
             [this.linksDomain],
             ["country_id"],
-            ["__count"]
+            ["__count"],
         );
     }
 
@@ -246,7 +251,7 @@ class WebsiteLinksCharts extends Interaction {
             "link.tracker.click",
             [this.linksDomain, ["create_date", ">", aWeekAgoString]],
             ["country_id"],
-            ["__count"]
+            ["__count"],
         );
     }
 
@@ -259,7 +264,7 @@ class WebsiteLinksCharts extends Interaction {
             "link.tracker.click",
             [this.linksDomain, ["create_date", ">", aMonthAgoString]],
             ["country_id"],
-            ["__count"]
+            ["__count"],
         );
     }
 }

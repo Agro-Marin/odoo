@@ -2,11 +2,11 @@
 
 import {
     changeOptionInPopover,
+    clickOnEditAndWaitEditMode,
     clickOnSave,
     clickOnSnippet,
     insertSnippet,
     registerWebsitePreviewTour,
-    clickOnEditAndWaitEditMode,
 } from "@website/js/tours/tour_utils";
 
 const blogPostsSnippet = {
@@ -55,7 +55,7 @@ registerWebsitePreviewTour(
         ...isSnippetVisible(true),
         ...clickOnSave(),
         ...isSnippetVisible(),
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -63,7 +63,7 @@ registerWebsitePreviewTour(
     {
         url: "/",
     },
-    isSnippetVisible
+    isSnippetVisible,
 );
 
 registerWebsitePreviewTour(
@@ -71,7 +71,7 @@ registerWebsitePreviewTour(
     {
         url: "/",
     },
-    isSnippetHidden
+    isSnippetHidden,
 );
 
 registerWebsitePreviewTour(
@@ -85,5 +85,5 @@ registerWebsitePreviewTour(
             content: "Check that the snippet 'missing option' warning is visible",
             trigger: ":iframe .s_dynamic_snippet_blog_posts .missing_option_warning",
         },
-    ]
+    ],
 );

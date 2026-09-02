@@ -21,7 +21,7 @@ export function orderNumberIs(trackingPrefix, trackingNumber) {
             const text = span.textContent || "";
             if (!text.startsWith(trackingPrefix) || !text.endsWith(trackingNumber)) {
                 throw new Error(
-                    `Order number '${text}' does not start with '${trackingPrefix}' and end with '${trackingNumber}'`
+                    `Order number '${text}' does not start with '${trackingPrefix}' and end with '${trackingNumber}'`,
                 );
             }
         },

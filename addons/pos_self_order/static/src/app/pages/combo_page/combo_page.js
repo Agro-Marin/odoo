@@ -12,6 +12,7 @@ import { ComboStepper } from "@pos_self_order/app/components/combo_stepper/combo
 import { ProductNameWidget } from "@pos_self_order/app/components/product_name_widget/product_name_widget";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { useService } from "@web/core/utils/hooks";
+
 import { computeTotalComboPrice } from "../../services/card_utils.js";
 import { formatProductName } from "../../utils.js";
 import { useScrollShadow } from "../../utils/scroll_shadow_hook.js";

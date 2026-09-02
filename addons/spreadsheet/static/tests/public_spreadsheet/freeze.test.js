@@ -2,23 +2,23 @@ import { animationFrame, describe, expect, test } from "@odoo/hoot";
 import { registries } from "@odoo/o-spreadsheet";
 import { createSpreadsheetWithChart } from "@spreadsheet/../tests/helpers/chart";
 import {
+    addChartFigureToCarousel,
     addGlobalFilter,
+    createCarousel,
     setCellContent,
     setCellFormat,
     setCellStyle,
     setGlobalFilterValue,
-    createCarousel,
-    addChartFigureToCarousel,
 } from "@spreadsheet/../tests/helpers/commands";
 import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { getCell, getEvaluatedCell } from "@spreadsheet/../tests/helpers/getters";
 import { THIS_YEAR_GLOBAL_FILTER } from "@spreadsheet/../tests/helpers/global_filter";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
 import { createSpreadsheetWithPivot } from "@spreadsheet/../tests/helpers/pivot";
+import { getMenuServerData } from "@spreadsheet/../tests/links/menu_data_utils";
 import { freezeOdooData, waitForDataLoaded } from "@spreadsheet/helpers/model";
 import { OdooPivot, OdooPivotRuntimeDefinition } from "@spreadsheet/pivot/odoo_pivot";
 
-import { getMenuServerData } from "@spreadsheet/../tests/links/menu_data_utils";
 import { createSpreadsheetWithList } from "../helpers/list.js";
 
 const { pivotRegistry } = registries;
@@ -30,7 +30,7 @@ test("odoo pivot functions are replaced with their value", async function () {
     const { model } = await createSpreadsheetWithPivot({ pivotType: "static" });
     expect(getCell(model, "A3").content).toBe('=PIVOT.HEADER(1,"bar",FALSE)');
     expect(getCell(model, "C3").content).toBe(
-        '=PIVOT.VALUE(1,"probability:avg","bar",FALSE,"foo",2)'
+        '=PIVOT.VALUE(1,"probability:avg","bar",FALSE,"foo",2)',
     );
     expect(getEvaluatedCell(model, "A3").value).toBe("No");
     expect(getEvaluatedCell(model, "C3").value).toBe(15);
@@ -82,7 +82,7 @@ test("values are not exported formatted", async function () {
     const { model } = await createSpreadsheetWithPivot({ pivotType: "static" });
     expect(getCell(model, "A3").content).toBe('=PIVOT.HEADER(1,"bar",FALSE)');
     expect(getCell(model, "C3").content).toBe(
-        '=PIVOT.VALUE(1,"probability:avg","bar",FALSE,"foo",2)'
+        '=PIVOT.VALUE(1,"probability:avg","bar",FALSE,"foo",2)',
     );
     setCellFormat(model, "C3", "mmmm yyyy");
     setCellContent(model, "C4", "=C3+31");
@@ -91,7 +91,9 @@ test("values are not exported formatted", async function () {
     expect(getEvaluatedCell(model, "C4").value).toBe(46);
     expect(getEvaluatedCell(model, "C4").formattedValue).toBe("February 1900");
     const data = await freezeOdooData(model);
-    const { model: sharedModel } = await createModelWithDataSource({ spreadsheetData: data });
+    const { model: sharedModel } = await createModelWithDataSource({
+        spreadsheetData: data,
+    });
     expect(getEvaluatedCell(sharedModel, "C3").value).toBe(15);
     expect(getEvaluatedCell(sharedModel, "C3").formattedValue).toBe("January 1900");
     expect(getEvaluatedCell(sharedModel, "C4").value).toBe(46);
@@ -133,7 +135,9 @@ test("computed format is exported", async function () {
     const formatId = data.sheets[0].formats.A1;
     const format = data.formats[formatId];
     expect(format).toBe("#,##0.00[$€]");
-    const { model: sharedModel } = await createModelWithDataSource({ spreadsheetData: data });
+    const { model: sharedModel } = await createModelWithDataSource({
+        spreadsheetData: data,
+    });
     expect(getCell(sharedModel, "A1").format).toBe("#,##0.00[$€]");
 });
 
@@ -146,7 +150,9 @@ test("odoo charts are replaced with an image", async function () {
 
 test("geo charts are replaced with an image", async function () {
     const { model } = await createSpreadsheetWithList({
-        modelConfig: { external: { geoJsonService: { getAvailableRegions: () => [] } } },
+        modelConfig: {
+            external: { geoJsonService: { getAvailableRegions: () => [] } },
+        },
     });
     const sheetId = model.getters.getActiveSheetId();
     model.dispatch("CREATE_CHART", {
@@ -194,7 +200,8 @@ test("translation function are replaced with their value", async function () {
         message: "the content is replaced with the value",
     });
     expect(cells.A2).toBe("for example", {
-        message: "the content is replaced with the value even when translation function is nested",
+        message:
+            "the content is replaced with the value even when translation function is nested",
     });
 });
 
@@ -305,7 +312,9 @@ test("odoo links are replaced with their label", async function () {
     expect(frozenData.sheets[0].cells.A2).toBe("menu_id");
     expect(frozenData.sheets[0].cells.A3).toBe("odoo_view");
     expect(frozenData.sheets[0].cells.A4).toBe("[external_link](https://odoo.com)");
-    expect(frozenData.sheets[0].cells.A5).toBe("[internal_link](o-spreadsheet://Sheet1)");
+    expect(frozenData.sheets[0].cells.A5).toBe(
+        "[internal_link](o-spreadsheet://Sheet1)",
+    );
 });
 
 test("spilled pivot table", async function () {
@@ -332,11 +341,11 @@ test("spilled pivot table", async function () {
     expect(sheet.styles).toEqual({ B12: 1 });
     expect(data.styles[sheet.styles["B12"]]).toEqual(
         { bold: true },
-        { message: "style is preserved" }
+        { message: "style is preserved" },
     );
 });
 
-test("empty string computed measure is exported as =\"\"", async function () {
+test('empty string computed measure is exported as =""', async function () {
     const { model } = await createSpreadsheetWithPivot();
     setCellContent(model, "A10", "=PIVOT(1)");
     expect(getEvaluatedCell(model, "B12").value).toBe(""); // empty value

@@ -31,7 +31,10 @@ export class HierarchyCard extends Component {
 
     setup() {
         const { archInfo } = this.props;
-        this.templates = compileViewTemplates(this.constructor.Compiler, archInfo.templateDocs);
+        this.templates = compileViewTemplates(
+            this.constructor.Compiler,
+            archInfo.templateDocs,
+        );
         this.evaluateBooleanExpr = evaluateBooleanExpr;
     }
 
@@ -62,11 +65,11 @@ export class HierarchyCard extends Component {
         this.props.openRecord(this.props.node, newWindow);
     }
 
-    onClickArrowUp(ev) {
+    onClickArrowUp() {
         this.props.node.fetchParentNode();
     }
 
-    onClickArrowDown(ev) {
+    onClickArrowDown() {
         if (this.props.node.nodes.length) {
             this.props.node.collapseChildNodes();
         } else {

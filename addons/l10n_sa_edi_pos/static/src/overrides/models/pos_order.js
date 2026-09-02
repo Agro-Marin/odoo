@@ -24,7 +24,7 @@ patch(PosOrder.prototype, {
         }
         return super.isToInvoice(...arguments);
     },
-    setToInvoice(to_invoice) {
+    setToInvoice() {
         if (this.isInvoiceMandatoryForSA()) {
             this.assertEditable();
             this.to_invoice = true;

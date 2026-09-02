@@ -91,12 +91,16 @@ export class ListDataSource extends OdooViewsDataSource {
         this.fieldPathsToFieldMap = {};
         const { domain, orderBy, context } = this._searchParams;
         const specification = await this._getReadSpec();
-        const { records } = await this._orm.webSearchRead(this._metaData.resModel, domain, {
-            specification,
-            order: orderByToString(orderBy),
-            limit: this.maxPosition,
-            context,
-        });
+        const { records } = await this._orm.webSearchRead(
+            this._metaData.resModel,
+            domain,
+            {
+                specification,
+                order: orderByToString(orderBy),
+                limit: this.maxPosition,
+                context,
+            },
+        );
         this.alreadyFetchedFieldPaths = new Set([...this.fieldPathsToFetch]);
         this.data = records;
         this.maxPositionFetched = this.maxPosition;
@@ -149,8 +153,8 @@ export class ListDataSource extends OdooViewsDataSource {
     async _getReadSpec() {
         const allFieldPaths = await Promise.all(
             [...this.fieldPathsToFetch].map((fieldPath) =>
-                this.fieldService.loadPath(this._metaData.resModel, fieldPath)
-            )
+                this.fieldService.loadPath(this._metaData.resModel, fieldPath),
+            ),
         );
         const validFieldPaths = allFieldPaths.filter((result) => !result.isInvalid);
         const spec = {};
@@ -237,7 +241,10 @@ export class ListDataSource extends OdooViewsDataSource {
         const field = this.getFieldFromFieldPath(fieldPath);
         if (!field) {
             return new EvaluationError(
-                _t("The field %s does not exist or you do not have access to that field", fieldPath)
+                _t(
+                    "The field %s does not exist or you do not have access to that field",
+                    fieldPath,
+                ),
             );
         }
         const mainRecord = this.data[position];
@@ -253,7 +260,9 @@ export class ListDataSource extends OdooViewsDataSource {
         if (Array.isArray(record)) {
             // remove duplicates?
             // needs to be formatted...
-            return record.map((r) => this._parseServerValue(field, r[lastField])).join(", ");
+            return record
+                .map((r) => this._parseServerValue(field, r[lastField]))
+                .join(", ");
         }
         return this._parseServerValue(field, record[lastField]);
     }
@@ -271,7 +280,9 @@ export class ListDataSource extends OdooViewsDataSource {
             }
             case "selection": {
                 const key = value;
-                const selectedOption = field.selection.find((array) => array[0] === key);
+                const selectedOption = field.selection.find(
+                    (array) => array[0] === key,
+                );
                 return selectedOption ? selectedOption[1] : "";
             }
             case "boolean":
@@ -279,13 +290,17 @@ export class ListDataSource extends OdooViewsDataSource {
             case "date":
                 return value ? toNumber(this._formatDate(value), DEFAULT_LOCALE) : "";
             case "datetime":
-                return value ? toNumber(this._formatDateTime(value), DEFAULT_LOCALE) : "";
+                return value
+                    ? toNumber(this._formatDateTime(value), DEFAULT_LOCALE)
+                    : "";
             case "properties": {
                 const properties = value || [];
                 return properties.map((property) => property.string).join(", ");
             }
             case "json":
-                return new EvaluationError(_t('Fields of type "%s" are not supported', "json"));
+                return new EvaluationError(
+                    _t('Fields of type "%s" are not supported', "json"),
+                );
             case "monetary":
             case "float":
             case "integer":
@@ -354,7 +369,7 @@ export class ListDataSource extends OdooViewsDataSource {
                     this._fetchingPromise = undefined;
                     this.load({ reload: true });
                     resolve();
-                })
+                }),
         );
     }
 }

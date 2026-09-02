@@ -22,9 +22,12 @@ export class DocumentsControlPanel extends ControlPanel {
         this.rightPanelState = useState(this.documentService.rightPanelReactive);
 
         onPatched(() => {
-            const searchPanelContainer = document.querySelector('.o_search_panel');
+            const searchPanelContainer = document.querySelector(".o_search_panel");
             if (searchPanelContainer) {
-                searchPanelContainer.classList.toggle('d-none', this.env.isSmall && this.env.model.root.selection.length);
+                searchPanelContainer.classList.toggle(
+                    "d-none",
+                    this.env.isSmall && this.env.model.root.selection.length,
+                );
             }
         });
     }
@@ -39,10 +42,12 @@ export class DocumentsControlPanel extends ControlPanel {
         const focusedSelected =
             focusing &&
             !!this.env.model.root.selection.find(
-                (r) => r.id === this.rightPanelState.focusedRecord.id
+                (r) => r.id === this.rightPanelState.focusedRecord.id,
             );
         return (
-            this.env.config.viewType !== "activity" && !previewing && (!focusing || focusedSelected)
+            this.env.config.viewType !== "activity" &&
+            !previewing &&
+            (!focusing || focusedSelected)
         );
     }
 
@@ -56,15 +61,21 @@ export class DocumentsControlPanel extends ControlPanel {
             ];
         }
 
-        return this.env.searchModel.getSelectedFolderAndParents().reverse().map(folder => {
-            return {
-                jsId: folder.id,
-                name: folder.display_name,
-                onSelected: () => {
-                    const folderSection = this.env.searchModel.getSections()[0];
-                    this.env.searchModel.toggleCategoryValue(folderSection.id, folder.id);
-                }
-            }
-        });
+        return this.env.searchModel
+            .getSelectedFolderAndParents()
+            .reverse()
+            .map((folder) => {
+                return {
+                    jsId: folder.id,
+                    name: folder.display_name,
+                    onSelected: () => {
+                        const folderSection = this.env.searchModel.getSections()[0];
+                        this.env.searchModel.toggleCategoryValue(
+                            folderSection.id,
+                            folder.id,
+                        );
+                    },
+                };
+            });
     }
 }

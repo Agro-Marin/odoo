@@ -6,7 +6,7 @@ import {
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BuilderTextInput } from "@html_builder/core/building_blocks/builder_text_input";
 import { BaseOptionComponent } from "@html_builder/core/utils";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { reactive, useState, xml } from "@odoo/owl";
 import { contains } from "@web/../tests/web_test_helpers";
 
@@ -17,13 +17,13 @@ test("hide/display base on applyTo", async () => {
         class extends BaseOptionComponent {
             static selector = ".parent-target";
             static template = xml`<BuilderButton applyTo="'.child-target'" classAction="'my-custom-class'"/>`;
-        }
+        },
     );
     addBuilderOption(
         class extends BaseOptionComponent {
             static selector = ".parent-target";
             static template = xml`<BuilderTextInput applyTo="'.my-custom-class'" action="'customAction'"/>`;
-        }
+        },
     );
     addBuilderAction({
         customAction: class extends BuilderAction {
@@ -35,19 +35,19 @@ test("hide/display base on applyTo", async () => {
     });
 
     const { getEditableContent } = await setupHTMLBuilder(
-        `<div class="parent-target"><div class="child-target">b</div></div>`
+        `<div class="parent-target"><div class="child-target">b</div></div>`,
     );
     const editableContent = getEditableContent();
     await contains(":iframe .parent-target").click();
     expect(editableContent).toHaveInnerHTML(
-        `<div class="parent-target"><div class="child-target">b</div></div>`
+        `<div class="parent-target"><div class="child-target">b</div></div>`,
     );
     expect("[data-class-action='my-custom-class']").not.toHaveClass("active");
     expect("[data-action-id='customAction']").toHaveCount(0);
 
     await contains("[data-class-action='my-custom-class']").click();
     expect(editableContent).toHaveInnerHTML(
-        `<div class="parent-target"><div class="child-target my-custom-class">b</div></div>`
+        `<div class="parent-target"><div class="child-target my-custom-class">b</div></div>`,
     );
     expect("[data-class-action='my-custom-class']").toHaveClass("active");
     expect("[data-action-id='customAction']").toHaveCount(1);
@@ -67,7 +67,7 @@ test("update default prop", async () => {
             setup() {
                 this.state = useState(state);
             }
-        }
+        },
     );
     addBuilderAction({
         customAction: class extends BuilderAction {

@@ -1,6 +1,7 @@
 import { registry } from "@web/core/registry";
 
-const messagesContain = (text) => `.o-livechat-root:shadow .o-mail-Message:contains("${text}")`;
+const messagesContain = (text) =>
+    `.o-livechat-root:shadow .o-mail-Message:contains("${text}")`;
 
 registry.category("web_tour.tours").add("website_livechat_chatbot_after_reload_tour", {
     steps: () => [

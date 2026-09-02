@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useNewAllocationRequest } from "@hr_holidays/views/hooks";
-import { Component, onWillStart,useState } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { DateTimeInput } from "@web/components/datetime";
 import { luxon } from "@web/core/l10n/luxon";
 import { useBus, useService } from "@web/core/utils/hooks";
@@ -48,11 +48,11 @@ export class TimeOffDashboard extends Component {
             "hr.employee",
             "get_time_off_dashboard_data",
             [this.state.date],
-            { context }
-        )
-        this.state.holidays = dashboardData['allocation_data'];
-        this.state.allocationRequests = dashboardData['allocation_request_amount'];
-        this.hasAccrualAllocation = dashboardData['has_accrual_allocation'];
+            { context },
+        );
+        this.state.holidays = dashboardData["allocation_data"];
+        this.state.allocationRequests = dashboardData["allocation_request_amount"];
+        this.hasAccrualAllocation = dashboardData["has_accrual_allocation"];
     }
 
     async newAllocationRequest() {

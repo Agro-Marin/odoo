@@ -1,14 +1,14 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { getHtmlStyle } from "@html_editor/utils/formatting";
-import {
-    CSS_SHORTHANDS,
-    applyNeededCss,
-    areCssValuesEqual,
-    normalizeColor,
-} from "@html_builder/utils/utils_css";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { getValueFromVar } from "@html_builder/utils/utils";
+import {
+    applyNeededCss,
+    areCssValuesEqual,
+    CSS_SHORTHANDS,
+    normalizeColor,
+} from "@html_builder/utils/utils_css";
+import { Plugin } from "@html_editor/plugin";
+import { getHtmlStyle } from "@html_editor/utils/formatting";
 
 /** @typedef {import("@html_builder/core/builder_action").ActionParams} ActionParams */
 /** @typedef {import("@html_builder/core/builder_action").ActionValue} ActionValue */
@@ -50,7 +50,9 @@ export class CoreBuilderActionPlugin extends Plugin {
 function getStyleValue(el, styleName) {
     const computedStyle = window.getComputedStyle(el);
     const cssProps = CSS_SHORTHANDS[styleName] || [styleName];
-    const cssValues = cssProps.map((cssProp) => computedStyle.getPropertyValue(cssProp).trim());
+    const cssValues = cssProps.map((cssProp) =>
+        computedStyle.getPropertyValue(cssProp).trim(),
+    );
     if (
         cssValues.length === 4 &&
         areCssValuesEqual(cssValues[3], cssValues[1], styleName, computedStyle)
@@ -72,7 +74,12 @@ function getStyleValue(el, styleName) {
     return cssValues.join(" ");
 }
 
-function setStyle(el, styleName, value, { extraClass, force = false, allowImportant = true } = {}) {
+function setStyle(
+    el,
+    styleName,
+    value,
+    { extraClass, force = false, allowImportant = true } = {},
+) {
     const computedStyle = window.getComputedStyle(el);
     const cssProps = CSS_SHORTHANDS[styleName] || [styleName];
     // Always reset the inline style first to not put inline style on an
@@ -92,7 +99,7 @@ function setStyle(el, styleName, value, { extraClass, force = false, allowImport
     // "a b c d" => "a b c d d d d"
     while (values.length < cssProps.length) {
         const len = values.length;
-        const index = len == 3 ? 1 : len == 1 || len == 2 ? 0 : len - 1;
+        const index = len === 3 ? 1 : len === 1 || len === 2 ? 0 : len - 1;
         values.push(values[index]);
     }
 
@@ -189,7 +196,7 @@ export class DataAttributeAction extends BuilderAction {
         }
         const color = normalizeColor(
             editingElement.dataset[attributeName],
-            getHtmlStyle(this.document)
+            getHtmlStyle(this.document),
         );
         return color;
     }
@@ -262,7 +269,11 @@ export class StyleAction extends BuilderAction {
         if (styleName === "box-shadow") {
             const value = getStyleValue(el, styleName);
             const inset = value.includes("inset");
-            let values = value.replace(/,\s/g, ",").replace("inset", "").trim().split(/\s+/g);
+            let values = value
+                .replace(/,\s/g, ",")
+                .replace("inset", "")
+                .trim()
+                .split(/\s+/g);
             const color = values.find((s) => !s.match(/^\d/));
             values = values.join(" ").replace(color, "").trim();
             return `${color} ${values}${inset ? " inset" : ""}`;
@@ -278,7 +289,7 @@ export class StyleAction extends BuilderAction {
                         (singleValue) =>
                             // Rounding value up avoids zoom-in issues.
                             // Zoom-out issues are not an expected use case.
-                            `${Math.ceil(parseFloat(singleValue))}px`
+                            `${Math.ceil(parseFloat(singleValue))}px`,
                     )
                     .join(" ");
             }
@@ -302,7 +313,13 @@ export class StyleAction extends BuilderAction {
         return currentValue === value;
     }
     apply({ editingElement, params = {}, value }) {
-        if (!this.delegateTo("apply_custom_css_style", { editingElement, params, value })) {
+        if (
+            !this.delegateTo("apply_custom_css_style", {
+                editingElement,
+                params,
+                value,
+            })
+        ) {
             this.applyCssStyle({ editingElement, params, value });
         }
     }

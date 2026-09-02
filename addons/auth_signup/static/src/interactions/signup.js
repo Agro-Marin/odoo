@@ -11,7 +11,9 @@ export class Signup extends Interaction {
     };
 
     onSubmit() {
-        const submitEl = this.el.querySelector('.oe_login_buttons > button[type="submit"]');
+        const submitEl = this.el.querySelector(
+            '.oe_login_buttons > button[type="submit"]',
+        );
         if (submitEl && !submitEl.disabled) {
             const removeLoadingEffect = addLoadingEffect(submitEl);
             this.registerCleanup(removeLoadingEffect);
@@ -19,6 +21,4 @@ export class Signup extends Interaction {
     }
 }
 
-registry
-    .category("public.interactions")
-    .add("auth_signup.signup", Signup);
+registry.category("public.interactions").add("auth_signup.signup", Signup);

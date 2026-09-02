@@ -1261,7 +1261,6 @@ describe("selection setters", () => {
                 ef,
                 2,
             ]);
-
         });
     });
 

@@ -28,9 +28,11 @@ export class WebsiteBlog extends Interaction {
      */
     async onNextBlogClick(ev) {
         const blogNextContainerEl = ev.currentTarget.closest("#o_wblog_next_container");
-        const nextInfo = blogNextContainerEl.querySelector("#o_wblog_next_post_info").dataset;
+        const nextInfo = blogNextContainerEl.querySelector(
+            "#o_wblog_next_post_info",
+        ).dataset;
         const recordCoverContainerEl = blogNextContainerEl.querySelector(
-            ".o_record_cover_container"
+            ".o_record_cover_container",
         );
         const classes = nextInfo.size.split(" ");
         recordCoverContainerEl.classList.add(...classes, nextInfo.textContent);
@@ -41,12 +43,16 @@ export class WebsiteBlog extends Interaction {
         // screen, regardless of its height.
         const placeholder = document.createElement("div");
         placeholder.style.minHeight = "100vh";
-        this.insert(placeholder, this.el.querySelector("#o_wblog_next_container"), "beforeend");
+        this.insert(
+            placeholder,
+            this.el.querySelector("#o_wblog_next_container"),
+            "beforeend",
+        );
         const nextUrl = verifyHttpsUrl(nextInfo.url);
         await this.forumScrollAction(
             blogNextContainerEl,
             300,
-            () => (browser.location.href = nextUrl)
+            () => (browser.location.href = nextUrl),
         );
     }
     /**
@@ -70,7 +76,7 @@ export class WebsiteBlog extends Interaction {
         await this.forumScrollAction(
             scrollTargetEl,
             500,
-            () => (browser.location.hash = "blog_content")
+            () => (browser.location.hash = "blog_content"),
         );
     }
 
@@ -80,18 +86,24 @@ export class WebsiteBlog extends Interaction {
      */
     onShareArticleClick(ev, currentTargetEl) {
         let url = "";
-        const blogPostTitle = document.querySelector(".o_wblog_post_name").textContent || "";
+        const blogPostTitle =
+            document.querySelector(".o_wblog_post_name").textContent || "";
         const articleURL = browser.location.href;
         if (currentTargetEl.classList.contains("o_twitter")) {
-            const tweetText = _t("Amazing blog article: %(title)s! Check it live: %(url)s", {
-                title: blogPostTitle,
-                url: articleURL,
-            });
+            const tweetText = _t(
+                "Amazing blog article: %(title)s! Check it live: %(url)s",
+                {
+                    title: blogPostTitle,
+                    url: articleURL,
+                },
+            );
             url =
                 "https://twitter.com/intent/tweet?tw_p=tweetbutton&text=" +
                 encodeURIComponent(tweetText);
         } else if (currentTargetEl.classList.contains("o_facebook")) {
-            url = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(articleURL);
+            url =
+                "https://www.facebook.com/sharer/sharer.php?u=" +
+                encodeURIComponent(articleURL);
         } else if (currentTargetEl.classList.contains("o_linkedin")) {
             url =
                 "https://www.linkedin.com/sharing/share-offsite/?url=" +

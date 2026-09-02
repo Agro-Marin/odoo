@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
-import { onOdooChartItemClick,onOdooChartItemHover } from "./odoo_chart_helpers.js";
+import { onOdooChartItemClick, onOdooChartItemHover } from "./odoo_chart_helpers.js";
 
 const { chartRegistry } = registries;
 
@@ -44,7 +44,8 @@ chartRegistry.add("odoo_scatter", {
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooScatterChart.validateChartDefinition(validator, definition),
-    transformDefinition: (definition) => OdooScatterChart.transformDefinition(definition),
+    transformDefinition: (definition) =>
+        OdooScatterChart.transformDefinition(definition),
     getChartDefinitionFromContextCreation: () =>
         OdooScatterChart.getDefinitionFromContextCreation(),
     name: _t("Scatter"),
@@ -61,7 +62,13 @@ function createOdooChartRuntime(chart, getters) {
         const trend = definition.dataSets[index]?.trend;
         return !trend?.display
             ? undefined
-            : getTrendDatasetForLineChart(trend, dataset.data, labels, "category", locale);
+            : getTrendDatasetForLineChart(
+                  trend,
+                  dataset.data,
+                  labels,
+                  "category",
+                  locale,
+              );
     });
 
     const chartData = {

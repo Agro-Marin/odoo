@@ -6,6 +6,7 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
+
 import { defineSnailmailModels } from "../snailmail_test_helpers.js";
 
 describe.current.tags("desktop");
@@ -83,7 +84,9 @@ test("Pending", async () => {
     await openFormView("res.partner", partnerId);
     await click(".o-mail-Message-notification i.fa-paper-plane");
     await contains(".o-snailmail-SnailmailNotificationPopover i.fa-clock-o");
-    await contains(".o-snailmail-SnailmailNotificationPopover", { text: "Awaiting Dispatch" });
+    await contains(".o-snailmail-SnailmailNotificationPopover", {
+        text: "Awaiting Dispatch",
+    });
 });
 
 test("No Price Available", async () => {

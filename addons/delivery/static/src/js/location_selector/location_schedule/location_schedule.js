@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
-import { Component } from '@odoo/owl';
-import { _t } from '@web/core/translation';
+import { Component } from "@odoo/owl";
+import { _t } from "@web/core/translation";
 
 export class LocationSchedule extends Component {
-    static template = 'delivery.locationSelector.schedule';
+    static template = "delivery.locationSelector.schedule";
     static props = {
         openingHours: {
             type: Object,

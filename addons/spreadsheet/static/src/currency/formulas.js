@@ -6,7 +6,7 @@ const { functionRegistry } = spreadsheet.registries;
 
 functionRegistry.add("ODOO.CURRENCY.RATE", {
     description: _t(
-        "This function takes in two currency codes as arguments, and returns the exchange rate from the first currency to the second as float."
+        "This function takes in two currency codes as arguments, and returns the exchange rate from the first currency to the second as float.",
     ),
     category: "Odoo",
     compute: function (currencyFrom, currencyTo, date, companyId) {
@@ -20,7 +20,10 @@ functionRegistry.add("ODOO.CURRENCY.RATE", {
         arg("currency_from (string)", _t("First currency code.")),
         arg("currency_to (string)", _t("Second currency code.")),
         arg("date (date, optional)", _t("Date of the rate.")),
-        arg("company_id (number, optional)", _t("The company to take the exchange rate from.")),
+        arg(
+            "company_id (number, optional)",
+            _t("The company to take the exchange rate from."),
+        ),
     ],
     returns: ["NUMBER"],
 });

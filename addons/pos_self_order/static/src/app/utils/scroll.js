@@ -47,7 +47,7 @@ export function scrollItemIntoViewX(
     const leftDiff = itemRect.left - containerRect.left;
     const rightDiff = itemRect.right - containerRect.right;
 
-    let offset = 0;
+    let offset;
     if (leftDiff < edgePadding) {
         offset = leftDiff - edgePadding;
     } else if (rightDiff > -edgePadding) {

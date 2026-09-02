@@ -1,21 +1,22 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import {
-    Many2ManyTagsAvatarUserField,
-    KanbanMany2ManyTagsAvatarUserField,
-    ListMany2ManyTagsAvatarUserField,
-    many2ManyTagsAvatarUserField,
-    kanbanMany2ManyTagsAvatarUserField,
-    listMany2ManyTagsAvatarUserField,
-} from "@mail/views/web/fields/many2many_avatar_user_field/many2many_avatar_user_field";
 import { EmployeeFieldRelationMixin } from "@hr/views/fields/employee_field_relation_mixin";
+import {
+    KanbanMany2ManyTagsAvatarUserField,
+    kanbanMany2ManyTagsAvatarUserField,
+    ListMany2ManyTagsAvatarUserField,
+    listMany2ManyTagsAvatarUserField,
+    Many2ManyTagsAvatarUserField,
+    many2ManyTagsAvatarUserField,
+} from "@mail/views/web/fields/many2many_avatar_user_field/many2many_avatar_user_field";
+import { registry } from "@web/core/registry";
 
 export class Many2ManyTagsAvatarEmployeeField extends EmployeeFieldRelationMixin(
-    Many2ManyTagsAvatarUserField
+    Many2ManyTagsAvatarUserField,
 ) {
     displayAvatarCard(record) {
         return (
-            (!this.env.isSmall && ["hr.employee", "hr.employee.public"].includes(this.relation)) ||
+            (!this.env.isSmall &&
+                ["hr.employee", "hr.employee.public"].includes(this.relation)) ||
             super.displayAvatarCard(record)
         );
     }
@@ -35,14 +36,17 @@ export const many2ManyTagsAvatarEmployeeField = {
     }),
 };
 
-registry.category("fields").add("many2many_avatar_employee", many2ManyTagsAvatarEmployeeField);
+registry
+    .category("fields")
+    .add("many2many_avatar_employee", many2ManyTagsAvatarEmployeeField);
 
 export class KanbanMany2ManyTagsAvatarEmployeeField extends EmployeeFieldRelationMixin(
-    KanbanMany2ManyTagsAvatarUserField
+    KanbanMany2ManyTagsAvatarUserField,
 ) {
     displayAvatarCard(record) {
         return (
-            (!this.env.isSmall && ["hr.employee", "hr.employee.public"].includes(this.relation)) ||
+            (!this.env.isSmall &&
+                ["hr.employee", "hr.employee.public"].includes(this.relation)) ||
             super.displayAvatarCard(record)
         );
     }
@@ -67,11 +71,12 @@ registry
     .add("activity.many2many_avatar_employee", kanbanMany2ManyTagsAvatarEmployeeField);
 
 export class ListMany2ManyTagsAvatarEmployeeField extends EmployeeFieldRelationMixin(
-    ListMany2ManyTagsAvatarUserField
+    ListMany2ManyTagsAvatarUserField,
 ) {
     displayAvatarCard(record) {
         return (
-            (!this.env.isSmall && ["hr.employee", "hr.employee.public"].includes(this.relation)) ||
+            (!this.env.isSmall &&
+                ["hr.employee", "hr.employee.public"].includes(this.relation)) ||
             super.displayAvatarCard(record)
         );
     }

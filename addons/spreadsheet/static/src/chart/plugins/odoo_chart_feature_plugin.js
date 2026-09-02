@@ -2,7 +2,10 @@
 import { OdooUIPlugin } from "@spreadsheet/plugins";
 import { _t } from "@web/core/translation";
 
-import { getBestGranularity, getValidGranularities } from "../../global_filters/helpers.js";
+import {
+    getBestGranularity,
+    getValidGranularities,
+} from "../../global_filters/helpers.js";
 
 export class OdooChartFeaturePlugin extends OdooUIPlugin {
     static getters = /** @type {const} */ (["getAvailableChartGranularities"]);
@@ -51,7 +54,9 @@ export class OdooChartFeaturePlugin extends OdooUIPlugin {
             ? this.getters.getGlobalFilterValue(filterId)
             : undefined;
         const allowed = getValidGranularities(currentFilterValue);
-        const available = allGranularities.filter(({ value }) => allowed.includes(value));
+        const available = allGranularities.filter(({ value }) =>
+            allowed.includes(value),
+        );
 
         this.granularityOptionsCache[chartId] = available;
         return available;

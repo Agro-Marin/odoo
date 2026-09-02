@@ -67,7 +67,7 @@ patch(PosOrder.prototype, {
             this.config.module_pos_restaurant &&
             !this.table_id &&
             !this.floating_order_name &&
-            this.state == "draft" &&
+            this.state === "draft" &&
             !this.isRefund,
         );
     },

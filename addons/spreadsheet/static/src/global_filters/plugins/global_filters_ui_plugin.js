@@ -9,6 +9,7 @@
  */
 
 import { OdooUIPlugin } from "@spreadsheet/plugins";
+
 import { globalFieldMatchingRegistry } from "../helpers.js";
 
 export class GlobalFiltersUIPlugin extends OdooUIPlugin {
@@ -36,11 +37,15 @@ export class GlobalFiltersUIPlugin extends OdooUIPlugin {
                     const filterFieldMatching = {};
                     for (const dataSourceId of matcher.getIds(this.getters)) {
                         if (dataSourceId === cmd.dataSourceId) {
-                            filterFieldMatching[dataSourceId] = cmd.fieldMatchings[filterId];
+                            filterFieldMatching[dataSourceId] =
+                                cmd.fieldMatchings[filterId];
                         } else {
                             filterFieldMatching[dataSourceId] =
-                                matcher.getFieldMatching(this.getters, dataSourceId, filterId) ||
-                                {};
+                                matcher.getFieldMatching(
+                                    this.getters,
+                                    dataSourceId,
+                                    filterId,
+                                ) || {};
                         }
                     }
                     this.dispatch("EDIT_GLOBAL_FILTER", {

@@ -16,19 +16,22 @@ export class CalendarListModel extends listView.Model {
      */
     async load(params = {}) {
         const filters = params?.context?.calendar_filters;
-        const emptyDomain = Array.isArray(params?.domain) && params.domain.length == 0;
+        const emptyDomain = Array.isArray(params?.domain) && params.domain.length === 0;
         if (filters && emptyDomain) {
             const selectedPartnerIds = await this.orm.call(
                 "res.users",
                 "get_selected_calendars_partner_ids",
-                [[user.userId], filters["user"]]
+                [[user.userId], filters["user"]],
             );
             // Filter attendees to be shown if 'everybody' filter isn't active.
             // `params.domain` is the search model's own (possibly frozen in
             // debug mode, always memoized) domain array -- build a new one
             // instead of mutating it in place.
             if (!filters["all"]) {
-                params.domain = [...params.domain, ["partner_ids", "in", selectedPartnerIds]];
+                params.domain = [
+                    ...params.domain,
+                    ["partner_ids", "in", selectedPartnerIds],
+                ];
             }
         }
         return super.load(params);

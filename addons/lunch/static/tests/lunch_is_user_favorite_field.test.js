@@ -2,7 +2,13 @@ import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { click } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { defineModels, fields, models, mountView, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    defineModels,
+    fields,
+    models,
+    mountView,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 
 class LunchProduct extends models.Model {
     _name = "lunch.product";
@@ -61,7 +67,7 @@ test("Check is_user_favorite field is readonly if the field is readonly", async 
 
     LunchProduct._views["kanban"] = LunchProduct._views["kanban"].replace(
         'widget="lunch_is_user_favorite"',
-        'widget="lunch_is_user_favorite" readonly="1"'
+        'widget="lunch_is_user_favorite" readonly="1"',
     );
 
     await mountView({

@@ -20,5 +20,5 @@ registry
     .category("public.interactions")
     .add(
         "website_event_track_live.WebsiteEventTrackReplaySuggestion",
-        WebsiteEventTrackReplaySuggestion
+        WebsiteEventTrackReplaySuggestion,
     );

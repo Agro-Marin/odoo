@@ -1,5 +1,5 @@
+import { click, contains } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
-import { contains, click } from "@web/../tests/utils";
 
 const sendFirstMessageSteps = [
     {
@@ -27,15 +27,20 @@ registry.category("web_tour.tours").add("website_livechat_no_session_with_hide_r
             run: "click",
         },
         {
-            trigger: ".o-livechat-root:shadow button:contains('Yes, leave conversation')",
+            trigger:
+                ".o-livechat-root:shadow button:contains('Yes, leave conversation')",
             run: "click",
         },
         {
-            trigger: ".o-livechat-root:shadow p:contains('Did we correctly answer your question?')",
+            trigger:
+                ".o-livechat-root:shadow p:contains('Did we correctly answer your question?')",
             async run() {
                 // Use contains instead of click action to ensure negative
                 // assertion is based on the correct parameters below.
-                await click("button", { target: this.anchor.getRootNode(), text: "New Session" });
+                await click("button", {
+                    target: this.anchor.getRootNode(),
+                    text: "New Session",
+                });
             },
         },
         ...sendFirstMessageSteps,
@@ -49,13 +54,18 @@ registry.category("web_tour.tours").add("website_livechat_no_session_with_hide_r
             run: "click",
         },
         {
-            trigger: ".o-livechat-root:shadow button:contains('Yes, leave conversation')",
+            trigger:
+                ".o-livechat-root:shadow button:contains('Yes, leave conversation')",
             run: "click",
         },
         {
-            trigger: ".o-livechat-root:shadow p:contains('Did we correctly answer your question?')",
+            trigger:
+                ".o-livechat-root:shadow p:contains('Did we correctly answer your question?')",
             async run() {
-                await contains("button", { target: this.anchor.getRootNode(), text: "Close" });
+                await contains("button", {
+                    target: this.anchor.getRootNode(),
+                    text: "Close",
+                });
                 await contains("button", {
                     target: this.anchor.getRootNode(),
                     text: "New Session",

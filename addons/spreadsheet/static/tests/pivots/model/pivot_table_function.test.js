@@ -1,11 +1,10 @@
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
-import { describe, expect, test, beforeEach } from "@odoo/hoot";
+import { setCellContent, updatePivot } from "@spreadsheet/../tests/helpers/commands";
 import {
     defineSpreadsheetActions,
     defineSpreadsheetModels,
 } from "@spreadsheet/../tests/helpers/data";
-
-import { setCellContent, updatePivot } from "@spreadsheet/../tests/helpers/commands";
 import {
     getEvaluatedCell,
     getEvaluatedFormatGrid,
@@ -84,7 +83,7 @@ test("PIVOT(negative row_count)", async function () {
     setCellContent(model, "A1", `=PIVOT("1", -1)`, "42");
     expect(getEvaluatedCell(model, "A1", "42").value).toBe("#ERROR");
     expect(getEvaluatedCell(model, "A1", "42").message).toBe(
-        "The number of rows must be positive."
+        "The number of rows must be positive.",
     );
 });
 
@@ -388,7 +387,10 @@ test("can hide a measure", async function () {
     const [pivotId] = model.getters.getPivotIds();
     const definition = model.getters.getPivotCoreDefinition(pivotId);
     updatePivot(model, pivotId, {
-        measures: [{ ...definition.measures[0], isHidden: true }, definition.measures[1]],
+        measures: [
+            { ...definition.measures[0], isHidden: true },
+            definition.measures[1],
+        ],
     });
     await animationFrame();
     // prettier-ignore

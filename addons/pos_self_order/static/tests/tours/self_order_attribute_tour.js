@@ -1,9 +1,9 @@
-import { registry } from "@web/core/registry";
-import * as Utils from "@pos_self_order/../tests/tours/utils/common";
-import * as CartPage from "@pos_self_order/../tests/tours/utils/cart_page_util";
-import * as ProductPage from "@pos_self_order/../tests/tours/utils/product_page_util";
-import * as LandingPage from "@pos_self_order/../tests/tours/utils/landing_page_util";
 import { negateStep } from "@point_of_sale/../tests/generic_helpers/utils";
+import * as CartPage from "@pos_self_order/../tests/tours/utils/cart_page_util";
+import * as Utils from "@pos_self_order/../tests/tours/utils/common";
+import * as LandingPage from "@pos_self_order/../tests/tours/utils/landing_page_util";
+import * as ProductPage from "@pos_self_order/../tests/tours/utils/product_page_util";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("self_attribute_selector", {
     steps: () => [
@@ -49,9 +49,12 @@ registry.category("web_tour.tours").add("self_multi_attribute_selector", {
                 { name: "Attribute 1", value: "Attribute Val 1" },
                 { name: "Attribute 1", value: "Attribute Val 2" },
             ],
-            false
+            false,
         ),
-        ProductPage.verifyIsCheckedAttribute("Attribute 1", ["Attribute Val 1", "Attribute Val 2"]),
+        ProductPage.verifyIsCheckedAttribute("Attribute 1", [
+            "Attribute Val 1",
+            "Attribute Val 2",
+        ]),
     ],
 });
 
@@ -84,7 +87,8 @@ registry.category("web_tour.tours").add("self_order_product_info", {
         Utils.clickBtn("Order Now"),
         LandingPage.selectLocation("Test-In"),
         {
-            trigger: ".o_self_product_box:contains('Product Info Test') .product_info_icon",
+            trigger:
+                ".o_self_product_box:contains('Product Info Test') .product_info_icon",
             run: "click",
         },
         {
@@ -103,41 +107,43 @@ registry.category("web_tour.tours").add("self_attribute_selector_shows_images", 
     ],
 });
 
-registry.category("web_tour.tours").add("test_self_order_multi_check_attribute_with_extra_price", {
-    steps: () =>
-        [
-            Utils.clickBtn("Order Now"),
-            ProductPage.clickProduct("Desk Organizer"),
-            {
-                content: "Check required badge for Fabric attribute",
-                trigger: "h2:contains('Fabric') .badge:contains('Required')",
-            },
-            {
-                content: "Check no required badge for Add-ons attribute",
-                trigger: "h2:contains('Add-ons'):not(:has(.badge))",
-            },
-            ProductPage.setupAttribute(
-                [
-                    { name: "Fabric", value: "Leather" },
-                    { name: "Add-ons", value: "Pen Holder" },
-                    { name: "Add-ons", value: "Mini Drawer" },
-                    { name: "Colour", value: "Blue" },
-                ],
-                false
-            ),
-            Utils.checkMissingRequiredsExists(),
-            Utils.clickMissingRequireds(),
-            {
-                content: "Size attribute selection is visible",
-                trigger: "h2:contains('Size'):visible",
-            },
-            ProductPage.setupAttribute([{ name: "Size", value: "M" }], false),
-            negateStep(Utils.checkMissingRequiredsExists()),
-            Utils.clickBtn("Add to Cart"),
-            Utils.clickBtn("Checkout"),
-            CartPage.checkProduct("Desk Organizer", "11.62", "1"),
-            Utils.clickBtn("Order"),
-            Utils.clickBtn("Ok"),
-            Utils.clickBtn("My Order"),
-        ].flat(),
-});
+registry
+    .category("web_tour.tours")
+    .add("test_self_order_multi_check_attribute_with_extra_price", {
+        steps: () =>
+            [
+                Utils.clickBtn("Order Now"),
+                ProductPage.clickProduct("Desk Organizer"),
+                {
+                    content: "Check required badge for Fabric attribute",
+                    trigger: "h2:contains('Fabric') .badge:contains('Required')",
+                },
+                {
+                    content: "Check no required badge for Add-ons attribute",
+                    trigger: "h2:contains('Add-ons'):not(:has(.badge))",
+                },
+                ProductPage.setupAttribute(
+                    [
+                        { name: "Fabric", value: "Leather" },
+                        { name: "Add-ons", value: "Pen Holder" },
+                        { name: "Add-ons", value: "Mini Drawer" },
+                        { name: "Colour", value: "Blue" },
+                    ],
+                    false,
+                ),
+                Utils.checkMissingRequiredsExists(),
+                Utils.clickMissingRequireds(),
+                {
+                    content: "Size attribute selection is visible",
+                    trigger: "h2:contains('Size'):visible",
+                },
+                ProductPage.setupAttribute([{ name: "Size", value: "M" }], false),
+                negateStep(Utils.checkMissingRequiredsExists()),
+                Utils.clickBtn("Add to Cart"),
+                Utils.clickBtn("Checkout"),
+                CartPage.checkProduct("Desk Organizer", "11.62", "1"),
+                Utils.clickBtn("Order"),
+                Utils.clickBtn("Ok"),
+                Utils.clickBtn("My Order"),
+            ].flat(),
+    });

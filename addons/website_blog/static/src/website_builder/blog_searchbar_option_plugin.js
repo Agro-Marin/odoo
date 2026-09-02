@@ -35,4 +35,6 @@ class BlogSearchbarOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(BlogSearchbarOptionPlugin.id, BlogSearchbarOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(BlogSearchbarOptionPlugin.id, BlogSearchbarOptionPlugin);

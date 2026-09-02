@@ -9,10 +9,10 @@ export class RecruitmentListController extends ListController {
         result.body =
             this.model.root.isDomainSelected || this.model.root.selection.length > 1
                 ? _t(
-                      "These job positions and all related applicants will be archived. Are you sure?"
+                      "These job positions and all related applicants will be archived. Are you sure?",
                   )
                 : _t(
-                      "This job position and all related applicants will be archived. Are you sure?"
+                      "This job position and all related applicants will be archived. Are you sure?",
                   );
         return result;
     }

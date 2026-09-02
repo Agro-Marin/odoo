@@ -14,7 +14,9 @@ registry.category("web_tour.tours").add("time_off_request_calendar_view", {
             content: "Click on the first Thursday of the year",
             trigger: ".fc-daygrid-day.fc-day-thu",
             run: () => {
-                const el = document.querySelector(".fc-daygrid-day.fc-day-thu").firstChild;
+                const el = document.querySelector(
+                    ".fc-daygrid-day.fc-day-thu",
+                ).firstChild;
                 el.scrollIntoView();
 
                 const fromPosition = el.getBoundingClientRect();
@@ -28,7 +30,7 @@ registry.category("web_tour.tours").add("time_off_request_calendar_view", {
                         button: 0,
                         clientX: fromPosition.x,
                         clientY: fromPosition.y,
-                    })
+                    }),
                 );
                 el.dispatchEvent(
                     new MouseEvent("mouseup", {
@@ -37,7 +39,7 @@ registry.category("web_tour.tours").add("time_off_request_calendar_view", {
                         button: 0,
                         clientX: fromPosition.x,
                         clientY: fromPosition.y,
-                    })
+                    }),
                 );
             },
         },

@@ -5,7 +5,10 @@ import { listView } from "@web/views/list";
 import { DocumentsControlPanel } from "../search/documents_control_panel.js";
 import { DocumentsListController } from "./documents_list_controller.js";
 import { DocumentsListModel } from "./documents_list_model.js";
-import { DocumentsSecondaryListRenderer, DocumentsListRenderer } from "./documents_list_renderer.js";
+import {
+    DocumentsSecondaryListRenderer,
+    DocumentsListRenderer,
+} from "./documents_list_renderer.js";
 import { DocumentsSearchModel } from "../search/documents_search_model.js";
 import { DocumentsSearchPanel } from "../search/documents_search_panel.js";
 

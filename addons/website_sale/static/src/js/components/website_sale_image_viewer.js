@@ -19,10 +19,10 @@ export class ProductImageViewer extends Dialog {
     setup() {
         super.setup();
         this.imageContainerRef = useRef("imageContainer");
-        this.images = [...this.props.images].map(image => {
+        this.images = [...this.props.images].map((image) => {
             return {
                 src: image.dataset.zoomImage || image.src,
-                thumbnailSrc: image.src.replace('/image_1024/', '/image_256/'),
+                thumbnailSrc: image.src.replace("/image_1024/", "/image_256/"),
             };
         });
         this.state = useState({
@@ -49,23 +49,33 @@ export class ProductImageViewer extends Dialog {
             (document) => {
                 const onGlobalClick = this.onGlobalClick.bind(this);
                 document.addEventListener("click", onGlobalClick);
-                return () => {document.removeEventListener("click", onGlobalClick)};
+                return () => {
+                    document.removeEventListener("click", onGlobalClick);
+                };
             },
             () => [document],
         );
         onMounted(() => {
-            const carousel = document.querySelector('.o_wsale_image_viewer_carousel');
+            const carousel = document.querySelector(".o_wsale_image_viewer_carousel");
             if (carousel) {
-                carousel.addEventListener('touchstart', this._onTouchstartCarousel.bind(this));
-                carousel.addEventListener('touchmove', this._onTouchmoveCarousel.bind(this));
-                const lastImg = carousel.querySelector('li:last-of-type img');
-                lastImg?.addEventListener('load', this._updateCarousel.bind(this), { once: true });
+                carousel.addEventListener(
+                    "touchstart",
+                    this._onTouchstartCarousel.bind(this),
+                );
+                carousel.addEventListener(
+                    "touchmove",
+                    this._onTouchmoveCarousel.bind(this),
+                );
+                const lastImg = carousel.querySelector("li:last-of-type img");
+                lastImg?.addEventListener("load", this._updateCarousel.bind(this), {
+                    once: true,
+                });
             }
         });
         // For some reason the styling does not always update properly.
         onRendered(() => {
             this.updateImage();
-        })
+        });
     }
 
     get selectedImage() {
@@ -90,11 +100,16 @@ export class ProductImageViewer extends Dialog {
     }
 
     previousImage() {
-        this.selectedImage = this.images[(this.state.selectedImageIdx - 1 + this.images.length) % this.images.length];
+        this.selectedImage =
+            this.images[
+                (this.state.selectedImageIdx - 1 + this.images.length) %
+                    this.images.length
+            ];
     }
 
     nextImage() {
-        this.selectedImage = this.images[(this.state.selectedImageIdx + 1) % this.images.length];
+        this.selectedImage =
+            this.images[(this.state.selectedImageIdx + 1) % this.images.length];
     }
 
     updateImage() {
@@ -110,14 +125,17 @@ export class ProductImageViewer extends Dialog {
      * @private
      */
     _updateCarousel() {
-        const thumbnailList = document.querySelector('.o_wsale_image_viewer_carousel ol');
+        const thumbnailList = document.querySelector(
+            ".o_wsale_image_viewer_carousel ol",
+        );
         const viewWidth = window.visualViewport.width;
         if (!thumbnailList || thumbnailList.scrollWidth <= viewWidth) {
             return;
         }
         const { selectedImageIdx } = this.state;
         const thumbnail = thumbnailList.childNodes[selectedImageIdx];
-        const { left: thumbOffset, width: thumbWidth } = thumbnail.getBoundingClientRect();
+        const { left: thumbOffset, width: thumbWidth } =
+            thumbnail.getBoundingClientRect();
 
         this.state.carouselOffset += (viewWidth - thumbWidth) / 2 - thumbOffset;
         thumbnailList.style.transform = `translate(${this.state.carouselOffset}px)`;
@@ -126,7 +144,10 @@ export class ProductImageViewer extends Dialog {
     onGlobalClick(ev) {
         if (ev.target.tagName === "IMG") {
             // Only zoom if the image did not move
-            if (this.dragStartPos.clientX === ev.clientX && this.dragStartPos.clientY === ev.clientY) {
+            if (
+                this.dragStartPos.clientX === ev.clientX &&
+                this.dragStartPos.clientY === ev.clientY
+            ) {
                 if (this.state.imageScale <= 1) {
                     this.zoomIn(ZOOM_STEP * 3);
                 } else {
@@ -134,7 +155,10 @@ export class ProductImageViewer extends Dialog {
                 }
             }
         }
-        if (ev.target.classList.contains('o_wsale_image_viewer_void') && !this.isDragging) {
+        if (
+            ev.target.classList.contains("o_wsale_image_viewer_void") &&
+            !this.isDragging
+        ) {
             ev.stopPropagation();
             ev.preventDefault();
             this.data.close();
@@ -143,12 +167,15 @@ export class ProductImageViewer extends Dialog {
         }
     }
 
-    zoomIn(step=undefined) {
+    zoomIn(step = undefined) {
         this.state.imageScale += step || ZOOM_STEP;
     }
 
-    zoomOut(step=undefined) {
-        this.state.imageScale = Math.max(0.5, this.state.imageScale - (step || ZOOM_STEP));
+    zoomOut(step = undefined) {
+        this.state.imageScale = Math.max(
+            0.5,
+            this.state.imageScale - (step || ZOOM_STEP),
+        );
     }
 
     onWheelImage(ev) {
@@ -189,7 +216,9 @@ export class ProductImageViewer extends Dialog {
         }
         this.state.touchClientX = touch.clientX;
         if (!this.state.touchmoveStep) {
-            const thumbnail = document.querySelector('img.o_wsale_image_viewer_thumbnail');
+            const thumbnail = document.querySelector(
+                "img.o_wsale_image_viewer_thumbnail",
+            );
             this.state.touchmoveStep = 0.75 * thumbnail?.clientWidth;
         }
     }

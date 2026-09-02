@@ -25,7 +25,9 @@ patch(MessagingMenu.prototype, {
     },
     getFailureNotificationName(failure) {
         if (failure.type === "snail") {
-            return _t("Snailmail Failure: %(modelName)s", { modelName: failure.modelName });
+            return _t("Snailmail Failure: %(modelName)s", {
+                modelName: failure.modelName,
+            });
         }
         return super.getFailureNotificationName(...arguments);
     },

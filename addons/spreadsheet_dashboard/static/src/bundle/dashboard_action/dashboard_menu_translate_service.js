@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import * as spreadsheet from "@odoo/o-spreadsheet";
-
 import { dynamicSpreadsheetTranslate } from "@spreadsheet/o_spreadsheet/translation";
+import { registry } from "@web/core/registry";
 
 const { urlRegistry } = spreadsheet.registries;
 
@@ -19,7 +18,10 @@ export const dashboardMenuTranslateService = {
                 createLink(url, label) {
                     const dashboard = dashboardLoader.getActiveDashboard();
                     const translatedLabel = dashboard
-                        ? dynamicSpreadsheetTranslate(dashboard.translationNamespace, label)
+                        ? dynamicSpreadsheetTranslate(
+                              dashboard.translationNamespace,
+                              label,
+                          )
                         : label;
                     return linkSpec.createLink(url, translatedLabel);
                 },

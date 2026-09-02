@@ -1,7 +1,9 @@
 /* global posmodel */
 
 const getData = ({ lineProductName, productName, partnerName } = {}) => {
-    const order = posmodel.models["pos.order"].find((o) => o.pos_reference.includes("device_sync"));
+    const order = posmodel.models["pos.order"].find((o) =>
+        o.pos_reference.includes("device_sync"),
+    );
 
     let partner = null;
     if (partnerName) {
@@ -15,7 +17,9 @@ const getData = ({ lineProductName, productName, partnerName } = {}) => {
 
     let product = null;
     if (productName) {
-        product = posmodel.models["product.product"].find((p) => p.display_name === productName);
+        product = posmodel.models["product.product"].find(
+            (p) => p.display_name === productName,
+        );
     }
 
     return { order, line, product, partner };
@@ -84,7 +88,9 @@ export function changeLineQuantity(productName, quantity) {
             run: async () => {
                 const { order, line } = getData({ lineProductName: productName });
                 await writeOnOrder(order, {
-                    lines: [[1, line.id, getLineData(line.product_id, order, quantity)]],
+                    lines: [
+                        [1, line.id, getLineData(line.product_id, order, quantity)],
+                    ],
                 });
             },
         },
@@ -141,7 +147,7 @@ export function createNewOrderOnTable(tableName, productTuple) {
                 };
                 const lines = productTuple.map(([productName, quantity]) => {
                     const product = posmodel.models["product.product"].find(
-                        (p) => p.display_name === productName
+                        (p) => p.display_name === productName,
                     );
                     const lineData = getLineData(product, false, quantity);
                     prices.amount_paid += lineData.price_subtotal;
@@ -157,7 +163,7 @@ export function createNewOrderOnTable(tableName, productTuple) {
                     ];
                 });
                 const table = posmodel.models["restaurant.table"].find(
-                    (t) => t.table_number === parseInt(tableName)
+                    (t) => t.table_number === parseInt(tableName),
                 );
                 await orm.create("pos.order", [
                     {

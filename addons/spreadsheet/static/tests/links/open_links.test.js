@@ -1,14 +1,16 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
-import { makeSpreadsheetMockEnv } from "@spreadsheet/../tests/helpers/model";
-import { makeMockEnv, mockService, patchWithCleanup } from "@web/../tests/web_test_helpers";
-
-import { getMenuServerData } from "@spreadsheet/../tests/links/menu_data_utils";
-
 import { setCellContent } from "@spreadsheet/../tests/helpers/commands";
+import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { getEvaluatedCell } from "@spreadsheet/../tests/helpers/getters";
+import { makeSpreadsheetMockEnv } from "@spreadsheet/../tests/helpers/model";
+import { getMenuServerData } from "@spreadsheet/../tests/links/menu_data_utils";
+import {
+    makeMockEnv,
+    mockService,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("headless");
 defineSpreadsheetModels();
@@ -149,7 +151,11 @@ test("Click a link containing an action xml id", async () => {
     };
 
     const model = new Model({}, { custom: { env } });
-    setCellContent(model, "A1", `[an action link](odoo://view/${JSON.stringify(view)})`);
+    setCellContent(
+        model,
+        "A1",
+        `[an action link](odoo://view/${JSON.stringify(view)})`,
+    );
     const cell = getEvaluatedCell(model, "A1");
     expect(urlRepresentation(cell.link, model.getters)).toBe("My Action Name");
     await openLink(cell.link, env);
@@ -190,7 +196,11 @@ test("Can open link when some views are absent from the referred action", async 
     };
 
     const model = new Model({}, { custom: { env } });
-    setCellContent(model, "A1", `[an action link](odoo://view/${JSON.stringify(view)})`);
+    setCellContent(
+        model,
+        "A1",
+        `[an action link](odoo://view/${JSON.stringify(view)})`,
+    );
     const cell = getEvaluatedCell(model, "A1");
     expect(urlRepresentation(cell.link, model.getters)).toBe("My Action Name");
     await openLink(cell.link, env);
@@ -221,7 +231,11 @@ test("Context is passed correctly to the action service", async () => {
     };
 
     const model = new Model({}, { custom: { env } });
-    setCellContent(model, "A1", `[an action link](odoo://view/${JSON.stringify(view)})`);
+    setCellContent(
+        model,
+        "A1",
+        `[an action link](odoo://view/${JSON.stringify(view)})`,
+    );
     const cell = getEvaluatedCell(model, "A1");
     expect(urlRepresentation(cell.link, model.getters)).toBe("My Action Name");
     await openLink(cell.link, env);

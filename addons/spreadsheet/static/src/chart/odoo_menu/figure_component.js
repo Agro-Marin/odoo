@@ -1,7 +1,8 @@
 /** @odoo-module native */
-import { patch } from "@web/core/utils/patch";
 import * as spreadsheet from "@odoo/o-spreadsheet";
 import { useService } from "@web/core/utils/hooks";
+import { patch } from "@web/core/utils/patch";
+
 import { navigateToOdooMenu } from "../odoo_chart/odoo_chart_helpers.js";
 
 patch(spreadsheet.components.FigureComponent.prototype, {
@@ -11,17 +12,28 @@ patch(spreadsheet.components.FigureComponent.prototype, {
         this.notificationService = useService("notification");
     },
     get chartId() {
-        if (this.props.figureUI.tag !== "chart" && this.props.figureUI.tag !== "carousel") {
+        if (
+            this.props.figureUI.tag !== "chart" &&
+            this.props.figureUI.tag !== "carousel"
+        ) {
             return undefined;
         }
         return this.env.model.getters.getChartIdFromFigureId(this.props.figureUI.id);
     },
     async navigateToOdooMenu(newWindow) {
         const menu = this.env.model.getters.getChartOdooMenu(this.chartId);
-        await navigateToOdooMenu(menu, this.actionService, this.notificationService, newWindow);
+        await navigateToOdooMenu(
+            menu,
+            this.actionService,
+            this.notificationService,
+            newWindow,
+        );
     },
     get hasOdooMenu() {
-        return this.chartId && this.env.model.getters.getChartOdooMenu(this.chartId) !== undefined;
+        return (
+            this.chartId &&
+            this.env.model.getters.getChartOdooMenu(this.chartId) !== undefined
+        );
     },
 });
 
@@ -33,10 +45,17 @@ patch(spreadsheet.components.ScorecardChart.prototype, {
     },
     async navigateToOdooMenu(newWindow) {
         const menu = this.env.model.getters.getChartOdooMenu(this.props.chartId);
-        await navigateToOdooMenu(menu, this.actionService, this.notificationService, newWindow);
+        await navigateToOdooMenu(
+            menu,
+            this.actionService,
+            this.notificationService,
+            newWindow,
+        );
     },
     get hasOdooMenu() {
-        return this.env.model.getters.getChartOdooMenu(this.props.chartId) !== undefined;
+        return (
+            this.env.model.getters.getChartOdooMenu(this.props.chartId) !== undefined
+        );
     },
     async onClick() {
         if (this.env.isDashboard() && this.hasOdooMenu) {
@@ -53,10 +72,17 @@ patch(spreadsheet.components.GaugeChartComponent.prototype, {
     },
     async navigateToOdooMenu(newWindow) {
         const menu = this.env.model.getters.getChartOdooMenu(this.props.chartId);
-        await navigateToOdooMenu(menu, this.actionService, this.notificationService, newWindow);
+        await navigateToOdooMenu(
+            menu,
+            this.actionService,
+            this.notificationService,
+            newWindow,
+        );
     },
     get hasOdooMenu() {
-        return this.env.model.getters.getChartOdooMenu(this.props.chartId) !== undefined;
+        return (
+            this.env.model.getters.getChartOdooMenu(this.props.chartId) !== undefined
+        );
     },
     async onClick() {
         if (this.env.isDashboard() && this.hasOdooMenu) {

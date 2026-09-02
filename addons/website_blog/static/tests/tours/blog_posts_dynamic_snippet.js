@@ -1,10 +1,10 @@
 import {
+    changeOption,
     changeOptionInPopover,
     clickOnSnippet,
+    goBackToBlocks,
     insertSnippet,
     registerWebsitePreviewTour,
-    goBackToBlocks,
-    changeOption,
 } from "@website/js/tours/tour_utils";
 
 const dynamicSnippet = {
@@ -42,7 +42,7 @@ registerWebsitePreviewTour(
         ...changeOptionInPopover(
             "Dynamic Snippet",
             "Fetched Elements",
-            `div[data-action-param*='1']`
+            `div[data-action-param*='1']`,
         ),
         {
             content: "Check That the `Model` option is visible",
@@ -60,11 +60,12 @@ registerWebsitePreviewTour(
         ...changeOptionInPopover(
             "Dynamic Snippet",
             "Template",
-            "[data-action-param*='blog_post_single_circle']"
+            "[data-action-param*='blog_post_single_circle']",
         ),
         {
             content: "Check if the content width is not set as 'Full-width'",
-            trigger: ":iframe .s_dynamic_snippet_container.o_container_small:not(.container-fluid)",
+            trigger:
+                ":iframe .s_dynamic_snippet_container.o_container_small:not(.container-fluid)",
         },
-    ]
+    ],
 );

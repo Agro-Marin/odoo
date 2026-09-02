@@ -4,10 +4,10 @@ import {
     setupHTMLBuilder,
 } from "@html_builder/../tests/helpers";
 import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
 import { describe, expect, test } from "@odoo/hoot";
 import { xml } from "@odoo/owl";
 import { contains } from "@web/../tests/web_test_helpers";
-import { BaseOptionComponent } from "@html_builder/core/utils";
 
 // TODO: test composite with each spec: prepare, load
 // TODO: test reloadComposite
@@ -51,7 +51,7 @@ test("can call 2 separate actions with composite action", async () => {
                     ]">
                 Click
             </BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`<section class="s_test">Test</section>`);
     await contains(":iframe .s_test").click();
@@ -93,7 +93,7 @@ test("can call the same action twice with composite action", async () => {
                     ]">
                 Click
             </BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`<section class="s_test">Test</section>`);
     await contains(":iframe .s_test").click();
@@ -131,7 +131,7 @@ test("composite action's isApplied returns false if no action defined it", async
                     ]">
                 Click
             </BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`<section class="s_test">Test</section>`);
     await contains(":iframe .s_test").click();
@@ -180,7 +180,7 @@ test("composite action should use the first getValue", async () => {
                     { action: 'action1' },
                     { action: 'action2' },
                 ]"/>`;
-        }
+        },
     );
     await setupHTMLBuilder(`<section class="s_test">Test</section>`);
     await contains(":iframe .s_test").click();
@@ -218,7 +218,7 @@ test("composite action's isApplied returns true if at least one action defined i
                     ]">
                 Click
             </BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`<section class="s_test">Test</section>`);
     await contains(":iframe .s_test").click();

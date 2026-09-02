@@ -8,7 +8,9 @@ patch(CoverPropertiesOption.prototype, {
     setup() {
         super.setup();
         this.blogState = useDomState((editingElement) => ({
-            isRegularCover: editingElement.classList.contains("o_wblog_post_page_cover_regular"),
+            isRegularCover: editingElement.classList.contains(
+                "o_wblog_post_page_cover_regular",
+            ),
         }));
     },
 

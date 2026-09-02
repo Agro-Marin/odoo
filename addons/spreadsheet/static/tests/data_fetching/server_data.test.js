@@ -1,8 +1,13 @@
-import { animationFrame } from "@odoo/hoot-mock";
-import { LoadingDataError } from "@spreadsheet/o_spreadsheet/errors";
-import { BatchEndpoint, Request, ServerData } from "@spreadsheet/data_sources/server_data";
-import { Deferred } from "@web/core/utils/concurrency";
 import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame } from "@odoo/hoot-mock";
+import {
+    BatchEndpoint,
+    Request,
+    ServerData,
+} from "@spreadsheet/data_sources/server_data";
+import { LoadingDataError } from "@spreadsheet/o_spreadsheet/errors";
+import { Deferred } from "@web/core/utils/concurrency";
+
 import { defineSpreadsheetActions, defineSpreadsheetModels } from "../helpers/data.js";
 
 describe.current.tags("headless");
@@ -20,9 +25,12 @@ test("simple synchronous get", async () => {
     const serverData = new ServerData(orm, {
         whenDataStartLoading: () => expect.step("data-fetching-notification"),
     });
-    expect(() => serverData.get("partner", "get_something", [5])).toThrow(LoadingDataError, {
-        message: "it should throw when it's not loaded",
-    });
+    expect(() => serverData.get("partner", "get_something", [5])).toThrow(
+        LoadingDataError,
+        {
+            message: "it should throw when it's not loaded",
+        },
+    );
     expect.verifySteps(["partner/get_something", "data-fetching-notification"]);
     await animationFrame();
     expect(serverData.get("partner", "get_something", [5])).toBe(5);
@@ -39,9 +47,12 @@ test("synchronous get which returns an error", async () => {
     const serverData = new ServerData(orm, {
         whenDataStartLoading: () => expect.step("data-fetching-notification"),
     });
-    expect(() => serverData.get("partner", "get_something", [5])).toThrow(LoadingDataError, {
-        message: "it should throw when it's not loaded",
-    });
+    expect(() => serverData.get("partner", "get_something", [5])).toThrow(
+        LoadingDataError,
+        {
+            message: "it should throw when it's not loaded",
+        },
+    );
     expect.verifySteps(["partner/get_something", "data-fetching-notification"]);
     await animationFrame();
     expect(() => serverData.get("partner", "get_something", [5])).toThrow(Error);
@@ -62,7 +73,7 @@ test("batch get with a single item", async () => {
     });
     expect(() => serverData.batch.get("partner", "get_something_in_batch", 5)).toThrow(
         LoadingDataError,
-        { message: "it should throw when it's not loaded" }
+        { message: "it should throw when it's not loaded" },
     );
     await animationFrame(); // wait for the next tick for the batch to be called
     expect.verifySteps(["data-fetching-notification"]);
@@ -85,14 +96,17 @@ test("batch get with multiple items", async () => {
     });
     expect(() => serverData.batch.get("partner", "get_something_in_batch", 5)).toThrow(
         LoadingDataError,
-        { message: "it should throw when it's not loaded" }
+        { message: "it should throw when it's not loaded" },
     );
     expect(() => serverData.batch.get("partner", "get_something_in_batch", 6)).toThrow(
         LoadingDataError,
-        { message: "it should throw when it's not loaded" }
+        { message: "it should throw when it's not loaded" },
     );
     await animationFrame();
-    expect.verifySteps(["partner/get_something_in_batch", "data-fetching-notification"]);
+    expect.verifySteps([
+        "partner/get_something_in_batch",
+        "data-fetching-notification",
+    ]);
     expect(serverData.batch.get("partner", "get_something_in_batch", 5)).toBe(5);
     expect(serverData.batch.get("partner", "get_something_in_batch", 6)).toBe(6);
     expect.verifySteps([]);
@@ -113,15 +127,15 @@ test("batch get with one error", async () => {
     });
     expect(() => serverData.batch.get("partner", "get_something_in_batch", 4)).toThrow(
         LoadingDataError,
-        { message: "it should throw when it's not loaded" }
+        { message: "it should throw when it's not loaded" },
     );
     expect(() => serverData.batch.get("partner", "get_something_in_batch", 5)).toThrow(
         LoadingDataError,
-        { message: "it should throw when it's not loaded" }
+        { message: "it should throw when it's not loaded" },
     );
     expect(() => serverData.batch.get("partner", "get_something_in_batch", 6)).toThrow(
         LoadingDataError,
-        { message: "it should throw when it's not loaded" }
+        { message: "it should throw when it's not loaded" },
     );
     await animationFrame();
     expect.verifySteps([
@@ -134,7 +148,9 @@ test("batch get with one error", async () => {
         "partner/get_something_in_batch",
     ]);
     expect(serverData.batch.get("partner", "get_something_in_batch", 4)).toBe(4);
-    expect(() => serverData.batch.get("partner", "get_something_in_batch", 5)).toThrow(Error);
+    expect(() => serverData.batch.get("partner", "get_something_in_batch", 5)).toThrow(
+        Error,
+    );
     expect(serverData.batch.get("partner", "get_something_in_batch", 6)).toBe(6);
     expect.verifySteps([]);
 });
@@ -149,8 +165,12 @@ test("concurrently get and batch get the same request", async () => {
     const serverData = new ServerData(orm, {
         whenDataStartLoading: () => expect.step("data-fetching-notification"),
     });
-    expect(() => serverData.batch.get("partner", "get_something", 5)).toThrow(LoadingDataError);
-    expect(() => serverData.get("partner", "get_something", [5])).toThrow(LoadingDataError);
+    expect(() => serverData.batch.get("partner", "get_something", 5)).toThrow(
+        LoadingDataError,
+    );
+    expect(() => serverData.get("partner", "get_something", [5])).toThrow(
+        LoadingDataError,
+    );
     await animationFrame();
     // it should have fetch the data once
     expect.verifySteps(["partner/get_something", "data-fetching-notification"]);

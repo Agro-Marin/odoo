@@ -45,27 +45,37 @@ export class BoothRegistration extends Interaction {
 
         this.activeBoothCategoryId = false;
         this.selectedBoothIds = [];
-        this.selectedBoothCategory = this.el.querySelector("input[name='booth_category_id']:checked");
+        this.selectedBoothCategory = this.el.querySelector(
+            "input[name='booth_category_id']:checked",
+        );
         if (this.selectedBoothCategory) {
             const boothEl = this.el.querySelector(".o_wbooth_booths");
-            this.selectedBoothIds = boothEl.dataset.selectedBoothIds.split(",").map(Number);
+            this.selectedBoothIds = boothEl.dataset.selectedBoothIds
+                .split(",")
+                .map(Number);
             this.activeBoothCategoryId = this.selectedBoothCategory.value;
             this.updateAvailableBoothsUI();
         }
     }
 
     async checkBoothsAvailability(eventBoothIds) {
-        const data = await this.waitFor(rpc("/event/booth/check_availability", {
-            event_booth_ids: eventBoothIds,
-        }));
+        const data = await this.waitFor(
+            rpc("/event/booth/check_availability", {
+                event_booth_ids: eventBoothIds,
+            }),
+        );
         if (data && data.unavailable_booths.length) {
-            const boothIdEls = this.el.querySelectorAll("input[name='event_booth_ids']");
+            const boothIdEls = this.el.querySelectorAll(
+                "input[name='event_booth_ids']",
+            );
             for (const boothIdEl of boothIdEls) {
                 if (data.unavailable_booths.includes(parseInt(boothIdEl.value))) {
                     boothIdEl.closest(".form-check").classList.add("text-danger");
                 }
             }
-            const unavailableBoothAlertEl = this.el.querySelector(".o_wbooth_unavailable_booth_alert");
+            const unavailableBoothAlertEl = this.el.querySelector(
+                ".o_wbooth_unavailable_booth_alert",
+            );
             unavailableBoothAlertEl.classList.remove("d-none");
             return false;
         }
@@ -73,16 +83,21 @@ export class BoothRegistration extends Interaction {
     }
 
     countSelectedBooths() {
-        return this.el.querySelectorAll(".form-check > input[type='checkbox']:checked").length;
+        return this.el.querySelectorAll(".form-check > input[type='checkbox']:checked")
+            .length;
     }
 
     updateBoothsList() {
         const boothsElem = this.el.querySelector(".o_wbooth_booths");
         boothsElem.replaceChildren();
-        this.renderAt("event_booth_checkbox_list", {
-            "event_booth_ids": this.boothCache[this.activeBoothCategoryId],
-            "selected_booth_ids": this.isFirstRender ? this.selectedBoothIds : [],
-        }, boothsElem);
+        this.renderAt(
+            "event_booth_checkbox_list",
+            {
+                event_booth_ids: this.boothCache[this.activeBoothCategoryId],
+                selected_booth_ids: this.isFirstRender ? this.selectedBoothIds : [],
+            },
+            boothsElem,
+        );
         this.isFirstRender = false;
     }
 
@@ -107,11 +122,15 @@ export class BoothRegistration extends Interaction {
     }
 
     showBoothCategoryDescription() {
-        const boothCategoryDescriptionEls = this.el.querySelectorAll(".o_wbooth_booth_category_description");
+        const boothCategoryDescriptionEls = this.el.querySelectorAll(
+            ".o_wbooth_booth_category_description",
+        );
         for (const boothCategoryDescriptionEl of boothCategoryDescriptionEls) {
             boothCategoryDescriptionEl.classList.add("d-none");
         }
-        const activeBoothEl = this.el.querySelector("#o_wbooth_booth_description_" + this.activeBoothCategoryId);
+        const activeBoothEl = this.el.querySelector(
+            "#o_wbooth_booth_description_" + this.activeBoothCategoryId,
+        );
         activeBoothEl.classList.remove("d-none");
     }
 
@@ -134,14 +153,18 @@ export class BoothRegistration extends Interaction {
         if (errors.includes("boothCategoryError")) {
             errorMessages.push(_t("The booth category doesn't exist."));
         }
-        if (errors.includes('existingPartnerError')) {
-            errorMessages.push(_t("It looks like your email is linked to an existing account."));
+        if (errors.includes("existingPartnerError")) {
+            errorMessages.push(
+                _t("It looks like your email is linked to an existing account."),
+            );
             this.inSigninError = true;
         } else {
             this.inSigninError = false;
         }
 
-        const errorMessageEl = this.el.querySelector(".o_wbooth_registration_error_message");
+        const errorMessageEl = this.el.querySelector(
+            ".o_wbooth_registration_error_message",
+        );
         errorMessageEl.textContent = errorMessages.join(" ");
         errorMessageEl.dispatchEvent(new Event("change"));
     }
@@ -155,10 +178,12 @@ export class BoothRegistration extends Interaction {
      */
     async updateAvailableBoothsUI() {
         if (this.boothCache[this.activeBoothCategoryId] === undefined) {
-            const data = await this.waitFor(rpc("/event/booth_category/get_available_booths", {
-                event_id: this.eventId,
-                booth_category_id: this.activeBoothCategoryId,
-            }));
+            const data = await this.waitFor(
+                rpc("/event/booth_category/get_available_booths", {
+                    event_id: this.eventId,
+                    booth_category_id: this.activeBoothCategoryId,
+                }),
+            );
             if (data) {
                 this.boothCache[this.activeBoothCategoryId] = data;
             }
@@ -187,7 +212,9 @@ export class BoothRegistration extends Interaction {
     }
 
     async onSubmitClick() {
-        const selectedBoothEls = this.el.querySelectorAll("input[name=event_booth_ids]:checked");
+        const selectedBoothEls = this.el.querySelectorAll(
+            "input[name=event_booth_ids]:checked",
+        );
         const selectedBoothIds = [...selectedBoothEls].map((el) => parseInt(el.value));
         const data = await this.waitFor(this.checkBoothsAvailability(selectedBoothIds));
         if (data) {
@@ -206,16 +233,28 @@ export class BoothRegistration extends Interaction {
         const formEl = this.el.querySelector("#o_wbooth_contact_details_form");
         if (this.checkConfirmationForm(formEl)) {
             const formData = new FormData(formEl);
-            const jsonResponse = await this.waitFor(post(`/event/${encodeURIComponent(this.el.dataset.eventId)}/booth/confirm`, formData));
+            const jsonResponse = await this.waitFor(
+                post(
+                    `/event/${encodeURIComponent(this.el.dataset.eventId)}/booth/confirm`,
+                    formData,
+                ),
+            );
             if (jsonResponse.success) {
                 this.el.querySelector(".o_wevent_booth_order_progress").remove();
-                const boothCategoryId = this.el.querySelector("input[name=booth_category_id]").value;
-                this.renderAt("event_booth_registration_complete", {
-                    booth_category_id: boothCategoryId,
-                    event_id: this.eventId,
-                    event_name: jsonResponse.event_name,
-                    contact: jsonResponse.contact,
-                }, formEl, "afterend");
+                const boothCategoryId = this.el.querySelector(
+                    "input[name=booth_category_id]",
+                ).value;
+                this.renderAt(
+                    "event_booth_registration_complete",
+                    {
+                        booth_category_id: boothCategoryId,
+                        event_id: this.eventId,
+                        event_name: jsonResponse.event_name,
+                        contact: jsonResponse.contact,
+                    },
+                    formEl,
+                    "afterend",
+                );
                 formEl.remove();
             } else if (jsonResponse.redirect) {
                 redirect(jsonResponse.redirect);

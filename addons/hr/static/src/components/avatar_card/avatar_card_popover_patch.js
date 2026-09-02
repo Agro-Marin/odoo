@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { patch } from "@web/core/utils/patch";
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { useService } from "@web/core/utils/hooks";
+import { patch } from "@web/core/utils/patch";
 
 export const patchAvatarCardPopover = {
     setup() {
@@ -22,8 +22,13 @@ export const patchAvatarCardPopover = {
         if (!this.employeeId) {
             return super.getProfileAction(...arguments);
         }
-        return this.orm.call("hr.employee", "get_formview_action", [this.employeeId.id]);
+        return this.orm.call("hr.employee", "get_formview_action", [
+            this.employeeId.id,
+        ]);
     },
 };
 
-export const unpatchAvatarCardPopover = patch(AvatarCardPopover.prototype, patchAvatarCardPopover);
+export const unpatchAvatarCardPopover = patch(
+    AvatarCardPopover.prototype,
+    patchAvatarCardPopover,
+);

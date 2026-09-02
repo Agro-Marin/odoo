@@ -43,9 +43,15 @@ export class DocumentsDocument extends models.Model {
     user_can_move = fields.Boolean({ default: true });
     is_editable_attachment = fields.Boolean();
     mimetype = fields.Char();
-    partner_id = fields.Many2one({ string: "Related partner", relation: "res.partner" });
+    partner_id = fields.Many2one({
+        string: "Related partner",
+        relation: "res.partner",
+    });
     owner_id = fields.Many2one({ relation: "res.users" });
-    previous_attachment_ids = fields.Many2many({ string: "History", relation: "ir.attachment" });
+    previous_attachment_ids = fields.Many2many({
+        string: "History",
+        relation: "ir.attachment",
+    });
     tag_ids = fields.Many2many({ relation: "documents.tag" });
     folder_id = fields.Many2one({ relation: "documents.document" });
     user_folder_id = fields.Char({ string: "Parent" });
@@ -100,10 +106,6 @@ export class DocumentsDocument extends models.Model {
     });
     alias_id = fields.Many2one({ relation: "mail.alias" });
     alias_domain_id = fields.Many2one({ relation: "mail.alias.domain" });
-    alias_email = fields.Char({
-        string: "Email Alias",
-        compute: "_compute_alias_email",
-    });
     alias_name = fields.Char();
     alias_email = fields.Char();
     alias_tag_ids = fields.Many2many({ relation: "documents.tag" });
@@ -165,7 +167,9 @@ export class DocumentsDocument extends models.Model {
     web_search_read() {
         const domain = arguments[0].domain;
         if (domain?.length > 0) {
-            const folderLeafIdx = domain.findIndex((leaf) => leaf[0] === "user_folder_id");
+            const folderLeafIdx = domain.findIndex(
+                (leaf) => leaf[0] === "user_folder_id",
+            );
             if (folderLeafIdx !== -1) {
                 domain.splice(folderLeafIdx, 1, [
                     "user_folder_id",
@@ -177,7 +181,7 @@ export class DocumentsDocument extends models.Model {
         return super.web_search_read(...arguments);
     }
 
-    action_move_folder(folder, target, before_folder_id = false) {
+    action_move_folder(folder, target) {
         const record = this.filter((r) => folder.id === r.id);
         record.folder_id = target;
     }
@@ -185,7 +189,7 @@ export class DocumentsDocument extends models.Model {
     /**
      * @override to
      */
-    async search_panel_select_range(fieldName) {
+    async search_panel_select_range() {
         const result = { parent_field: "user_folder_id" };
         result.values = await this._get_search_panel_specials();
         for (const record of this.search_read(
@@ -215,7 +219,7 @@ export class DocumentsDocument extends models.Model {
                 "id",
                 "is_folder",
                 "type",
-            ]
+            ],
         )) {
             if (!isNaN(record.user_folder_id)) {
                 record.user_folder_id = Number(record.user_folder_id);
@@ -292,7 +296,7 @@ export class DocumentsDocument extends models.Model {
         record.lock_uid = record.lock_uid ? false : serverState.odoobotId;
     }
 
-    get_documents_actions(folder_id) {
+    get_documents_actions() {
         return [];
     }
 }
@@ -314,22 +318,38 @@ export class DocumentsOperation extends models.Model {
     destination = fields.Char({ default: "MY" });
     display_name = fields.Char({ default: "My Drive" });
 
-    user_permission = fields.Char({ string: "Destination User Permission", default: "edit" });
-    access_internal = fields.Char({ string: "Destination Access Internal", default: "edit" });
-    access_via_link = fields.Char({ string: "Destination Access Via Link", default: "edit" });
-    is_access_via_link_hidden = fields.Boolean({ string: "Destination Link Access Hidden" });
+    user_permission = fields.Char({
+        string: "Destination User Permission",
+        default: "edit",
+    });
+    access_internal = fields.Char({
+        string: "Destination Access Internal",
+        default: "edit",
+    });
+    access_via_link = fields.Char({
+        string: "Destination Access Via Link",
+        default: "edit",
+    });
+    is_access_via_link_hidden = fields.Boolean({
+        string: "Destination Link Access Hidden",
+    });
 
     get_any_editor_destination() {
         for (const record of this.env["documents.document"].search_read(
             [["type", "=", "folder"]],
-            ["shortcut_document_id", "type", "user_permission"]
+            ["shortcut_document_id", "type", "user_permission"],
         )) {
             if (
                 record.type === "folder" &&
                 !record.shortcut_document_id &&
                 record.user_permission === "edit"
             ) {
-                return [{ destination: record.id.toString(), display_name: record.display_name }];
+                return [
+                    {
+                        destination: record.id.toString(),
+                        display_name: record.display_name,
+                    },
+                ];
             }
         }
         return [];
@@ -400,10 +420,10 @@ export function makeDocumentRecordData(id, name, data = {}) {
         (data.folder_id
             ? data.folder_id.toString()
             : data.owner_id
-            ? data.owner_id === serverState.userId
-                ? "MY"
-                : "SHARED"
-            : "COMPANY");
+              ? data.owner_id === serverState.userId
+                  ? "MY"
+                  : "SHARED"
+              : "COMPANY");
     return {
         ...defaultValues,
         id,
@@ -431,7 +451,10 @@ export function getDocumentsTestServerModelsData(additionalRecords = []) {
             },
         ],
         "documents.document": [
-            makeDocumentRecordData(1, "Folder 1", { type: "folder", user_permission: "edit" }),
+            makeDocumentRecordData(1, "Folder 1", {
+                type: "folder",
+                user_permission: "edit",
+            }),
             ...additionalRecords,
         ],
         "documents.tag": [
@@ -482,7 +505,9 @@ export const DocumentsModels = {
 };
 
 export function getDocumentsModel(modelName) {
-    return Object.values(DocumentsModels).find((model) => model.getModelName() === modelName);
+    return Object.values(DocumentsModels).find(
+        (model) => model.getModelName() === modelName,
+    );
 }
 
 export const mimetypeExamplesBase64 = {

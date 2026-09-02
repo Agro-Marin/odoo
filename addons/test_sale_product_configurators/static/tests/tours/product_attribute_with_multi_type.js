@@ -10,7 +10,12 @@ registry.category("web_tour.tours").add("product_attribute_multi_type", {
         ...tourUtils.createNewSalesOrder(),
         ...tourUtils.selectCustomer("Test Partner"),
         ...tourUtils.addProduct("Big Burger"),
-        configuratorTourUtils.selectAttribute("Big Burger", "Toppings", "Cheese", "multi"),
+        configuratorTourUtils.selectAttribute(
+            "Big Burger",
+            "Toppings",
+            "Cheese",
+            "multi",
+        ),
         ...configuratorTourUtils.saveConfigurator(),
         ...stepUtils.saveForm(),
     ],

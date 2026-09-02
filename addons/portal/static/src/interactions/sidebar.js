@@ -8,7 +8,6 @@ import { Interaction } from "@web/public/interaction";
 const { DateTime } = luxon;
 
 export class Sidebar extends Interaction {
-
     setup() {
         this.printContent = undefined;
         this.spyWatched = undefined;
@@ -33,11 +32,11 @@ export class Sidebar extends Interaction {
             const today = DateTime.now().startOf("day");
             const diff = dateTime.diff(today).as("days");
             if (diff === 0) {
-                timeagoEl.innerText = _t('Due today');
+                timeagoEl.innerText = _t("Due today");
             } else if (diff > 0) {
-                timeagoEl.innerText = _t('Due in %s days', Math.abs(diff).toFixed());
+                timeagoEl.innerText = _t("Due in %s days", Math.abs(diff).toFixed());
             } else {
-                timeagoEl.innerText = _t('%s days overdue', Math.abs(diff).toFixed());
+                timeagoEl.innerText = _t("%s days overdue", Math.abs(diff).toFixed());
             }
         }
     }
@@ -53,9 +52,11 @@ export class Sidebar extends Interaction {
             iframeEl.style.display = "none";
             this.printContent = iframeEl;
             this.insert(this.printContent, this.el);
-            this.addListener(this.printContent, "load", () => this.printContent.contentWindow.print());
+            this.addListener(this.printContent, "load", () =>
+                this.printContent.contentWindow.print(),
+            );
         } else {
-            this.printContent.contentWindow.print()
+            this.printContent.contentWindow.print();
         }
     }
 
@@ -77,16 +78,20 @@ export class Sidebar extends Interaction {
             return;
         }
 
-        const quoteEls = document.querySelectorAll("#quote_content [id^=quote_header_], #quote_content [id^=quote_]");
+        const quoteEls = document.querySelectorAll(
+            "#quote_content [id^=quote_header_], #quote_content [id^=quote_]",
+        );
         for (const quoteEl of quoteEls) {
             quoteEl.removeAttribute("id");
         }
         this.spyWatched.removeAttribute("id");
 
-        const quoteHeaderEls = this.spyWatched.querySelectorAll("#quote_content h2, #quote_content h3");
+        const quoteHeaderEls = this.spyWatched.querySelectorAll(
+            "#quote_content h2, #quote_content h3",
+        );
         for (const quoteHeaderEl of quoteHeaderEls) {
-            let id = null;
-            let text = null;
+            let id;
+            let text;
             switch (quoteHeaderEl.tagName.toLowerCase()) {
                 case "h2": {
                     id = this.setElementId("quote_header_", quoteHeaderEl);
@@ -152,7 +157,10 @@ export class Sidebar extends Interaction {
         for (const el of quoteHeaderEl.childNodes) {
             const tagName = el.tagName;
             const text = el.textContent.trim();
-            if (text && (!tagName || this.authorizedTextTag.includes(tagName.toLowerCase()))) {
+            if (
+                text &&
+                (!tagName || this.authorizedTextTag.includes(tagName.toLowerCase()))
+            ) {
                 rawText.push(text);
             }
         }

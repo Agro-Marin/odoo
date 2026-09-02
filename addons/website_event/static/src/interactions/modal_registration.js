@@ -6,9 +6,10 @@ import { session } from "@web/session";
 import { Interaction } from "@web/public/interaction";
 
 export class ModalRegistration extends Interaction {
-    static selector = "#modal_attendees_registration,.o_wevent_modal_slot_ticket_registration";
+    static selector =
+        "#modal_attendees_registration,.o_wevent_modal_slot_ticket_registration";
     dynamicContent = {
-        "form": {
+        form: {
             "t-on-submit": this.onSubmit,
         },
         ".js_goto_event, .btn-close": {
@@ -22,7 +23,10 @@ export class ModalRegistration extends Interaction {
 
     async willStart() {
         if (session.turnstile_site_key) {
-            const mod = await import("@website_cf_turnstile/interactions/turnstile").catch(() => null);
+            const mod =
+                await import("@website_cf_turnstile/interactions/turnstile").catch(
+                    () => null,
+                );
             if (mod?.TurnStile) {
                 this._turnstile = new mod.TurnStile("website_event_registration");
                 this._turnstile.turnstileEl.classList.add("float-end");
@@ -83,7 +87,9 @@ export class ModalRegistration extends Interaction {
         ev.preventDefault();
 
         const form = ev.currentTarget;
-        this.recaptchaToken = await this.recaptcha.getToken("website_event_registration");
+        this.recaptchaToken = await this.recaptcha.getToken(
+            "website_event_registration",
+        );
         if (this.recaptchaToken.error) {
             this.services.notification.add(this.recaptchaToken.error, {
                 type: "danger",

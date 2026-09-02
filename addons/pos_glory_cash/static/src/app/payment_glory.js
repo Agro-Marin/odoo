@@ -30,8 +30,7 @@ export class PaymentGlory extends PaymentInterface {
     onStatusChange(newStatus) {
         switch (newStatus) {
             case "IDLE": {
-                const isFirstStatus =
-                    this.gloryService.state.inventory.length === 0;
+                const isFirstStatus = this.gloryService.state.inventory.length === 0;
                 if (isFirstStatus && this.paymentLine) {
                     // In this case we have a stale payment
                     this.pos.getOrder().removePaymentline(this.paymentLine);
@@ -73,15 +72,12 @@ export class PaymentGlory extends PaymentInterface {
 
     get status() {
         return (
-            GLORY_STATUS_STRING[this.gloryService.status] ??
-            this.gloryService.status
+            GLORY_STATUS_STRING[this.gloryService.status] ?? this.gloryService.status
         );
     }
 
     get amountInserted() {
-        return this.gloryAmountToPosAmount(
-            this.gloryService.state.amountInserted,
-        );
+        return this.gloryAmountToPosAmount(this.gloryService.state.amountInserted);
     }
 
     get paymentLine() {
@@ -117,9 +113,7 @@ export class PaymentGlory extends PaymentInterface {
         }
         return (
             this.gloryService.state.lastDeviceError ??
-            _t(
-                "The cash machine has an error, please consult its display for details.",
-            )
+            _t("The cash machine has an error, please consult its display for details.")
         );
     }
 
@@ -128,10 +122,7 @@ export class PaymentGlory extends PaymentInterface {
             return false;
         }
 
-        if (
-            this.paymentLine.amount < 0 &&
-            this.pos.getCashier()._role !== "manager"
-        ) {
+        if (this.paymentLine.amount < 0 && this.pos.getCashier()._role !== "manager") {
             this.showError(
                 _t("Only managers can withdraw cash from the cash machine."),
             );
@@ -139,16 +130,12 @@ export class PaymentGlory extends PaymentInterface {
         }
 
         const amountInCents = Math.round(
-            this.paymentLine.amount *
-                Math.pow(10, this.pos.currency.decimal_places),
+            this.paymentLine.amount * Math.pow(10, this.pos.currency.decimal_places),
         );
-        const paymentResult =
-            await this.gloryService.sendPaymentRequest(amountInCents);
+        const paymentResult = await this.gloryService.sendPaymentRequest(amountInCents);
 
         if (!this.paymentLine) {
-            console.warn(
-                "Glory payment response received, but no payment in progress",
-            );
+            console.warn("Glory payment response received, but no payment in progress");
             return false;
         }
 
@@ -185,15 +172,11 @@ export class PaymentGlory extends PaymentInterface {
                 this.setPaymentInfo(paymentResult, false);
                 await this.pos.printReceipt({ printBillActionTriggered: true });
                 this.showError(
-                    _t(
-                        "There is insufficient cash in the machine to give change.",
-                    ),
+                    _t("There is insufficient cash in the machine to give change."),
                 );
                 return false;
             case "OCCUPIED_BY_OTHER":
-                this.showError(
-                    _t("The cash machine is in use by another POS."),
-                );
+                this.showError(_t("The cash machine is in use by another POS."));
                 return false;
             case "EXCLUSIVE_ERROR": {
                 this.showCancelDialog(
@@ -265,35 +248,25 @@ export class PaymentGlory extends PaymentInterface {
      * @param {boolean} isSuccessful
      * @returns {string}
      */
-    makeReceiptMessage(
-        transactionId,
-        amountDeposited,
-        amountReturned,
-        isSuccessful,
-    ) {
+    makeReceiptMessage(transactionId, amountDeposited, amountReturned, isSuccessful) {
         const header = isSuccessful
             ? _t("GLORY TRANSACTION SUCCESSFUL")
             : _t("GLORY TRANSACTION CANCELLED");
         const transactionIdLine = _t("Transaction ID: %s", transactionId);
         const depositedLine = _t(
             "Cash deposited: %s",
-            this.env.utils.formatCurrency(
-                this.gloryAmountToPosAmount(amountDeposited),
-            ),
+            this.env.utils.formatCurrency(this.gloryAmountToPosAmount(amountDeposited)),
         );
         const changeGivenLine = _t(
             "Change given: %s",
-            this.env.utils.formatCurrency(
-                this.gloryAmountToPosAmount(amountReturned),
-            ),
+            this.env.utils.formatCurrency(this.gloryAmountToPosAmount(amountReturned)),
         );
 
         return `${header}\n${transactionIdLine}\n${depositedLine}\n${changeGivenLine}\n\n`;
     }
 
     gloryAmountToPosAmount(amountInCents) {
-        const amount =
-            amountInCents / Math.pow(10, this.pos.currency.decimal_places);
+        const amount = amountInCents / Math.pow(10, this.pos.currency.decimal_places);
         return this.env.utils.roundCurrency(amount);
     }
 
@@ -311,8 +284,7 @@ export class PaymentGlory extends PaymentInterface {
         this.dialog.add(CancelDialog, {
             message,
             cancel: async () => {
-                const cancelStatus =
-                    await this.gloryService.initiatePaymentCancel();
+                const cancelStatus = await this.gloryService.initiatePaymentCancel();
                 if (
                     cancelStatus !== "SUCCESS" &&
                     !["IDLE", "RESETTING"].includes(this.gloryService.status)

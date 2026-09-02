@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { deserializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { patch } from "@web/core/utils/patch";
-
 import { WebsiteVisitor } from "@website/common/website_visitor_model";
 
 const { DateTime } = luxon;
@@ -16,7 +15,9 @@ patch(WebsiteVisitor.prototype, {
         const history = [];
         for (const h of this.page_visit_history) {
             const [label, date] = h;
-            const time = deserializeDateTime(date).toLocaleString(DateTime.TIME_24_SIMPLE);
+            const time = deserializeDateTime(date).toLocaleString(
+                DateTime.TIME_24_SIMPLE,
+            );
             history.push(`${label} (${time})`);
         }
         return history.join(" → ");

@@ -129,24 +129,32 @@ export function parseAccountingDate(dateRange, locale) {
         throw new EvaluationError(
             _t(
                 `'%s' is not a valid period. Supported formats are "21/12/2022", "Q1/2022", "12/2022", and "2022".`,
-                dateRange?.value
-            )
+                dateRange?.value,
+            ),
         );
     }
 }
 
-const YEAR_OFFSET_ARG = arg("offset (number, default=0)", _t("Offset applied to the years."))
-const COMPANY_ARG = arg("company_id (number, optional)", _t("The company to target (Advanced)."))
+const YEAR_OFFSET_ARG = arg(
+    "offset (number, default=0)",
+    _t("Offset applied to the years."),
+);
+const COMPANY_ARG = arg(
+    "company_id (number, optional)",
+    _t("The company to target (Advanced)."),
+);
 const POSTED_ARG = arg(
     "include_unposted (boolean, default=FALSE)",
-    _t("Set to TRUE to include unposted entries.")
-)
+    _t("Set to TRUE to include unposted entries."),
+);
 
 const ODOO_FIN_ARGS = () => [
     arg("account_codes (string)", _t("The prefix of the accounts.")),
     arg(
         "date_range (string, date)",
-        _t(`The date range. Supported formats are "21/12/2022", "Q1/2022", "12/2022", and "2022".`)
+        _t(
+            `The date range. Supported formats are "21/12/2022", "Q1/2022", "12/2022", and "2022".`,
+        ),
     ),
     YEAR_OFFSET_ARG,
     COMPANY_ARG,
@@ -156,11 +164,15 @@ const ODOO_FIN_ARGS = () => [
 const ODOO_RESIDUAL_ARGS = () => [
     arg(
         "account_codes (string, optional)",
-        _t("The prefix of the accounts. If none provided, all receivable and payable accounts will be used.")
+        _t(
+            "The prefix of the accounts. If none provided, all receivable and payable accounts will be used.",
+        ),
     ),
     arg(
         "date_range (string, date, optional)",
-        _t(`The date range. Supported formats are "21/12/2022", "Q1/2022", "12/2022", and "2022".`)
+        _t(
+            `The date range. Supported formats are "21/12/2022", "Q1/2022", "12/2022", and "2022".`,
+        ),
     ),
     YEAR_OFFSET_ARG,
     COMPANY_ARG,
@@ -168,9 +180,12 @@ const ODOO_RESIDUAL_ARGS = () => [
 ];
 
 const ODOO_PARTNER_BALANCE_ARGS = () => {
-    const partner_arg = arg("partner_ids (string)", _t("The partner ids (separated by a comma)."));
+    const partner_arg = arg(
+        "partner_ids (string)",
+        _t("The partner ids (separated by a comma)."),
+    );
     return [partner_arg, ...ODOO_RESIDUAL_ARGS()];
-}
+};
 
 functionRegistry.add("ODOO.CREDIT", {
     description: _t("Get the total credit for the specified account(s) and period."),
@@ -182,7 +197,7 @@ functionRegistry.add("ODOO.CREDIT", {
         dateRange,
         offset = { value: 0 },
         companyId = { value: null },
-        includeUnposted = { value: false }
+        includeUnposted = { value: false },
     ) {
         const _accountCodes = toString(accountCodes)
             .split(",")
@@ -198,7 +213,7 @@ functionRegistry.add("ODOO.CREDIT", {
                 _dateRange,
                 _offset,
                 _companyId,
-                _includeUnposted
+                _includeUnposted,
             ),
             format: this.getters.getCompanyCurrencyFormat(_companyId) || "#,##0.00",
         };
@@ -215,7 +230,7 @@ functionRegistry.add("ODOO.DEBIT", {
         dateRange,
         offset = { value: 0 },
         companyId = { value: null },
-        includeUnposted = { value: false }
+        includeUnposted = { value: false },
     ) {
         const _accountCodes = toString(accountCodes)
             .split(",")
@@ -231,7 +246,7 @@ functionRegistry.add("ODOO.DEBIT", {
                 _dateRange,
                 _offset,
                 _companyId,
-                _includeUnposted
+                _includeUnposted,
             ),
             format: this.getters.getCompanyCurrencyFormat(_companyId) || "#,##0.00",
         };
@@ -248,7 +263,7 @@ functionRegistry.add("ODOO.BALANCE", {
         dateRange,
         offset = { value: 0 },
         companyId = { value: null },
-        includeUnposted = { value: false }
+        includeUnposted = { value: false },
     ) {
         const _accountCodes = toString(accountCodes)
             .split(",")
@@ -264,21 +279,26 @@ functionRegistry.add("ODOO.BALANCE", {
                 _dateRange,
                 _offset,
                 _companyId,
-                _includeUnposted
+                _includeUnposted,
             ) -
             this.getters.getAccountPrefixCredit(
                 _accountCodes,
                 _dateRange,
                 _offset,
                 _companyId,
-                _includeUnposted
+                _includeUnposted,
             );
-        return { value, format: this.getters.getCompanyCurrencyFormat(_companyId) || "#,##0.00" };
+        return {
+            value,
+            format: this.getters.getCompanyCurrencyFormat(_companyId) || "#,##0.00",
+        };
     },
 });
 
 functionRegistry.add("ODOO.FISCALYEAR.START", {
-    description: _t("Returns the starting date of the fiscal year encompassing the provided date."),
+    description: _t(
+        "Returns the starting date of the fiscal year encompassing the provided date.",
+    ),
     args: [
         arg("day (date)", _t("The day from which to extract the fiscal year start.")),
         arg("company_id (number, optional)", _t("The company.")),
@@ -288,7 +308,7 @@ functionRegistry.add("ODOO.FISCALYEAR.START", {
     compute: function (date, companyId = { value: null }) {
         const startDate = this.getters.getFiscalStartDate(
             toJsDate(date, this.locale),
-            companyId.value === null ? null : toNumber(companyId, this.locale)
+            companyId.value === null ? null : toNumber(companyId, this.locale),
         );
         return {
             value: toNumber(startDate, this.locale),
@@ -298,7 +318,9 @@ functionRegistry.add("ODOO.FISCALYEAR.START", {
 });
 
 functionRegistry.add("ODOO.FISCALYEAR.END", {
-    description: _t("Returns the ending date of the fiscal year encompassing the provided date."),
+    description: _t(
+        "Returns the ending date of the fiscal year encompassing the provided date.",
+    ),
     args: [
         arg("day (date)", _t("The day from which to extract the fiscal year end.")),
         arg("company_id (number, optional)", _t("The company.")),
@@ -308,7 +330,7 @@ functionRegistry.add("ODOO.FISCALYEAR.END", {
     compute: function (date, companyId = { value: null }) {
         const endDate = this.getters.getFiscalEndDate(
             toJsDate(date, this.locale),
-            companyId.value === null ? null : toNumber(companyId, this.locale)
+            companyId.value === null ? null : toNumber(companyId, this.locale),
         );
         return {
             value: toNumber(endDate, this.locale),
@@ -343,7 +365,10 @@ functionRegistry.add("ODOO.ACCOUNT.GROUP", {
     args: [
         arg(
             "type (string)",
-            _t("The technical account type (possible values are: %s).", ACCOUNT_TYPES.join(", "))
+            _t(
+                "The technical account type (possible values are: %s).",
+                ACCOUNT_TYPES.join(", "),
+            ),
         ),
     ],
     category: "Odoo",
@@ -355,7 +380,9 @@ functionRegistry.add("ODOO.ACCOUNT.GROUP", {
 });
 
 functionRegistry.add("ODOO.RESIDUAL", {
-    description: _t("Return the residual amount for the specified account(s) and period"),
+    description: _t(
+        "Return the residual amount for the specified account(s) and period",
+    ),
     args: ODOO_RESIDUAL_ARGS(),
     category: "Odoo",
     returns: ["NUMBER"],
@@ -364,15 +391,15 @@ functionRegistry.add("ODOO.RESIDUAL", {
         dateRange,
         offset = { value: 0 },
         companyId = { value: null },
-        includeUnposted = { value: false }
+        includeUnposted = { value: false },
     ) {
         const _accountCodes = toString(accountCodes)
             .split(",")
             .map((code) => code.trim())
             .sort();
         const _offset = toNumber(offset, this.locale);
-        if ( !dateRange?.value ) {
-            dateRange = { value: new Date().getFullYear() }
+        if (!dateRange?.value) {
+            dateRange = { value: new Date().getFullYear() };
         }
         const _dateRange = parseAccountingDate(dateRange, this.locale);
         const _companyId = toNumber(companyId, this.locale);
@@ -383,15 +410,17 @@ functionRegistry.add("ODOO.RESIDUAL", {
                 _dateRange,
                 _offset,
                 _companyId,
-                _includeUnposted
+                _includeUnposted,
             ),
             format: this.getters.getCompanyCurrencyFormat(_companyId) || "#,##0.00",
         };
     },
-})
+});
 
 functionRegistry.add("ODOO.PARTNER.BALANCE", {
-    description: _t("Return the partner balance for the specified account(s) and period"),
+    description: _t(
+        "Return the partner balance for the specified account(s) and period",
+    ),
     args: ODOO_PARTNER_BALANCE_ARGS(),
     category: "Odoo",
     returns: ["NUMBER"],
@@ -401,7 +430,7 @@ functionRegistry.add("ODOO.PARTNER.BALANCE", {
         dateRange,
         offset = { value: 0 },
         companyId = { value: null },
-        includeUnposted = { value: false }
+        includeUnposted = { value: false },
     ) {
         const _partnerIds = toString(partnerIds)
             .split(",")
@@ -413,8 +442,8 @@ functionRegistry.add("ODOO.PARTNER.BALANCE", {
             .sort();
         const _offset = toNumber(offset, this.locale);
 
-        if ( !dateRange?.value ) {
-            dateRange = { value: new Date().getFullYear() }
+        if (!dateRange?.value) {
+            dateRange = { value: new Date().getFullYear() };
         }
         const _dateRange = parseAccountingDate(dateRange, this.locale);
         const _companyId = toNumber(companyId, this.locale);
@@ -426,20 +455,24 @@ functionRegistry.add("ODOO.PARTNER.BALANCE", {
                 _offset,
                 _companyId,
                 _includeUnposted,
-                _partnerIds
+                _partnerIds,
             ),
             format: this.getters.getCompanyCurrencyFormat(_companyId) || "#,##0.00",
         };
     },
-})
+});
 
 functionRegistry.add("ODOO.BALANCE.TAG", {
-    description: _t("Return the balance of accounts for the specified tag(s) and period"),
+    description: _t(
+        "Return the balance of accounts for the specified tag(s) and period",
+    ),
     args: [
         arg("account_tag_ids (string)", _t("The tag ids (separated by a comma).")),
         arg(
             "date_range (string, date, optional)",
-            _t(`The date range. Supported formats are "21/12/2022", "Q1/2022", "12/2022", and "2022".`)
+            _t(
+                `The date range. Supported formats are "21/12/2022", "Q1/2022", "12/2022", and "2022".`,
+            ),
         ),
         YEAR_OFFSET_ARG,
         COMPANY_ARG,
@@ -452,7 +485,7 @@ functionRegistry.add("ODOO.BALANCE.TAG", {
         dateRange,
         offset = { value: 0 },
         companyId = { value: null },
-        includeUnposted = { value: false }
+        includeUnposted = { value: false },
     ) {
         const _accountTagIds = toString(accountTagIds)
             .split(",")
@@ -460,8 +493,8 @@ functionRegistry.add("ODOO.BALANCE.TAG", {
             .sort();
         const _offset = toNumber(offset, this.locale);
 
-        if ( !dateRange?.value ) {
-            dateRange = { value: new Date().getFullYear() }
+        if (!dateRange?.value) {
+            dateRange = { value: new Date().getFullYear() };
         }
         const _dateRange = parseAccountingDate(dateRange, this.locale);
         const _companyId = toNumber(companyId, this.locale);
@@ -477,4 +510,4 @@ functionRegistry.add("ODOO.BALANCE.TAG", {
             format: this.getters.getCompanyCurrencyFormat(_companyId) || "#,##0.00",
         };
     },
-})
+});

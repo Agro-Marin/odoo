@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
 import { applyNeededCss } from "@html_builder/utils/utils_css";
+import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
 
 class ColorStylePlugin extends Plugin {
     static id = "colorStyle";
@@ -21,7 +21,11 @@ class ColorStylePlugin extends Plugin {
             if (match) {
                 value = `bg-${match[1]}`;
             }
-            this.dependencies.color.colorElement(editingElement, value, "backgroundColor");
+            this.dependencies.color.colorElement(
+                editingElement,
+                value,
+                "backgroundColor",
+            );
             return true;
         } else if (styleName === "color") {
             const match = value.match(/var\(--([a-zA-Z0-9-_]+)\)/);

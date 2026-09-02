@@ -31,7 +31,7 @@ async function createDashboardLoader(params = {}) {
         const [record] = await env.services.orm.read(
             "spreadsheet.dashboard",
             [dashboardId],
-            ["spreadsheet_data"]
+            ["spreadsheet_data"],
         );
         return { data: JSON.parse(record.spreadsheet_data), revisions: [] };
     });
@@ -85,9 +85,13 @@ test("load all dashboards of all containers", async () => {
 test("load twice does not duplicate spreadsheets", async () => {
     const loader = await createDashboardLoader();
     await loader.load();
-    expect(loader.getDashboardGroups()[1].dashboards).toMatchObject([{ status: Status.NotLoaded }]);
+    expect(loader.getDashboardGroups()[1].dashboards).toMatchObject([
+        { status: Status.NotLoaded },
+    ]);
     await loader.load();
-    expect(loader.getDashboardGroups()[1].dashboards).toMatchObject([{ status: Status.NotLoaded }]);
+    expect(loader.getDashboardGroups()[1].dashboards).toMatchObject([
+        { status: Status.NotLoaded },
+    ]);
 });
 
 test("load spreadsheet data", async () => {
@@ -124,14 +128,19 @@ test("load spreadsheet data only once", async () => {
 test("don't return empty dashboard group", async () => {
     const loader = await createDashboardLoader({
         mockRPC: async function (route, args) {
-            if (args.method === "web_search_read" && args.model === "spreadsheet.dashboard.group") {
+            if (
+                args.method === "web_search_read" &&
+                args.model === "spreadsheet.dashboard.group"
+            ) {
                 return {
                     length: 2,
                     records: [
                         {
                             id: 45,
                             name: "Group A",
-                            published_dashboard_ids: [{ id: 1, name: "Dashboard CRM 1" }],
+                            published_dashboard_ids: [
+                                { id: 1, name: "Dashboard CRM 1" },
+                            ],
                         },
                         {
                             id: 46,
@@ -163,7 +172,10 @@ test("load multiple spreadsheets", async () => {
     onRpc("/spreadsheet/dashboard/data/2", () => expect.step("spreadsheet 2 loaded"));
     const loader = await createDashboardLoader({
         mockRPC: function (route, args) {
-            if (args.method === "web_search_read" && args.model === "spreadsheet.dashboard.group") {
+            if (
+                args.method === "web_search_read" &&
+                args.model === "spreadsheet.dashboard.group"
+            ) {
                 expect.step("load groups");
             }
             if (args.method === "read" && args.model === "spreadsheet.dashboard") {

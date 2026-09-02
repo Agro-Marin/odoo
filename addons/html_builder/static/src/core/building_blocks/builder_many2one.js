@@ -1,5 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+
+import { useCachedModel } from "../cached_model_utils.js";
 import {
     basicContainerBuilderComponentProps,
     getAllActionsAndOperations,
@@ -11,7 +13,6 @@ import {
 } from "../utils.js";
 import { BuilderComponent } from "./builder_component.js";
 import { SelectMany2X } from "./select_many2x.js";
-import { useCachedModel } from "../cached_model_utils.js";
 
 export class BuilderMany2One extends Component {
     static template = "html_builder.BuilderMany2One";
@@ -39,12 +40,13 @@ export class BuilderMany2One extends Component {
         this.cachedModel = useCachedModel();
         this.callOperation = callOperation;
         this.hasPreview = useHasPreview(getAllActions);
-        this.applyOperation = this.env.editor.shared.history.makePreviewableAsyncOperation(
-            this.callApply.bind(this)
-        );
+        this.applyOperation =
+            this.env.editor.shared.history.makePreviewableAsyncOperation(
+                this.callApply.bind(this),
+            );
         const getAction = this.env.editor.shared.builderActions.getAction;
         const actionWithGetValue = getAllActions().find(
-            ({ actionId }) => getAction(actionId).getValue
+            ({ actionId }) => getAction(actionId).getValue,
         );
         const { actionId, actionParam } = actionWithGetValue;
         const getValue = (el) =>
@@ -64,7 +66,7 @@ export class BuilderMany2One extends Component {
                         await this.cachedModel.ormRead(
                             this.props.model,
                             [selected.id],
-                            ["display_name", "name"]
+                            ["display_name", "name"],
                         )
                     )[0];
                 }
@@ -81,11 +83,12 @@ export class BuilderMany2One extends Component {
 
         if (this.props.createAction) {
             this.createAction = this.env.editor.shared.builderActions.getAction(
-                this.props.createAction
+                this.props.createAction,
             );
-            this.createOperation = this.env.editor.shared.history.makePreviewableOperation(
-                this.createAction.apply
-            );
+            this.createOperation =
+                this.env.editor.shared.history.makePreviewableOperation(
+                    this.createAction.apply,
+                );
         }
     }
     callApply(applySpecs, isPreviewing) {
@@ -107,7 +110,7 @@ export class BuilderMany2One extends Component {
                         value: applySpec.actionValue,
                         loadResult: applySpec.loadResult,
                         dependencyManager: this.env.dependencyManager,
-                    })
+                    }),
                 );
             }
         }
@@ -135,7 +138,9 @@ export class BuilderMany2One extends Component {
         const args = { editingElement: this.env.getEditingElement(), value: name };
         this.env.editor.shared.operation.next(() => this.createOperation.commit(args), {
             load: () =>
-                this.createAction.load?.(args).then((loadResult) => (args.loadResult = loadResult)),
+                this.createAction
+                    .load?.(args)
+                    .then((loadResult) => (args.loadResult = loadResult)),
         });
     }
 }

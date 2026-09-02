@@ -1,11 +1,13 @@
 import { fields, models } from "@web/../tests/web_test_helpers";
 import { projectModels } from "@project/../tests/project_models";
 
-
 export class ProjectTask extends projectModels.ProjectTask {
     _name = "project.task";
 
-    sale_line_id = fields.Many2one({ string: "Sale Order Line", relation: "sale.order.line" });
+    sale_line_id = fields.Many2one({
+        string: "Sale Order Line",
+        relation: "sale.order.line",
+    });
 }
 
 export class ProjectMilestone extends projectModels.ProjectMilestone {

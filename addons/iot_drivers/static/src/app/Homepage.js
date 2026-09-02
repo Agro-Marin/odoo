@@ -1,7 +1,5 @@
 /** @odoo-module native */
 
-import { Component, onWillStart, useState, xml } from "/web/static/lib/owl/owl.es.js";
-
 import { DeviceDialog } from "./components/dialog/DeviceDialog.js";
 import { ServerDialog } from "./components/dialog/ServerDialog.js";
 import { SixDialog } from "./components/dialog/SixDialog.js";
@@ -12,6 +10,8 @@ import { IconButton } from "./components/IconButton.js";
 import { LoadingFullScreen } from "./components/LoadingFullScreen.js";
 import { SingleData } from "./components/SingleData.js";
 import useStore from "./hooks/useStore.js";
+
+import { Component, onWillStart, useState, xml } from "/web/static/lib/owl/owl.es.js";
 
 export class Homepage extends Component {
     static props = {};

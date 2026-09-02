@@ -1,6 +1,3 @@
-import { expect, getFixture, test } from "@odoo/hoot";
-import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { localization } from "@web/core/l10n/localization";
 import {
     getDragHelper,
     getDragMoveHelper,
@@ -8,6 +5,9 @@ import {
     waitForEndOfOperation,
     waitForSnippetDialog,
 } from "@html_builder/../tests/helpers";
+import { expect, getFixture, test } from "@odoo/hoot";
+import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { localization } from "@web/core/l10n/localization";
 
 test("Drag and drop basic test", async () => {
     const dropzoneSelectors = {
@@ -20,7 +20,7 @@ test("Drag and drop basic test", async () => {
             <section class="section-1"><div><p>Text 1</p></div></section>
             <section class="section-2"><div><p>Text 2</p></div></section>
         `,
-        { dropzoneSelectors }
+        { dropzoneSelectors },
     );
 
     await contains(":iframe section.section-1").click();
@@ -55,7 +55,7 @@ test("Can drop a snippet outside a dropzone in a rtl language", async () => {
     await setupHTMLBuilder("", { dropzoneSelectors });
     document.body.classList.add("o_rtl");
     const { moveTo, drop } = await contains(
-        ".o_snippets_container .o_snippet.o_draggable .o_snippet_thumbnail"
+        ".o_snippets_container .o_snippet.o_draggable .o_snippet_thumbnail",
     ).drag();
     expect(":iframe .oe_drop_zone").toHaveCount(1);
     // Move the snippet out of the sidebar, but not over a dropzone

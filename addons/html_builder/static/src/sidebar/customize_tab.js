@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { Component, onWillUpdateProps, useState } from "@odoo/owl";
-import { OptionsContainer } from "./option_container.js";
-import { useVisibilityObserver } from "../core/utils.js";
 import { CustomizeComponent } from "@html_builder/sidebar/customize_component";
+import { Component, onWillUpdateProps, useState } from "@odoo/owl";
+
+import { useVisibilityObserver } from "../core/utils.js";
+import { OptionsContainer } from "./option_container.js";
 
 export class CustomizeTab extends Component {
     static template = "html_builder.CustomizeTab";
@@ -20,7 +21,7 @@ export class CustomizeTab extends Component {
             hasContent: true,
         });
         this.customizeComponent = useState(
-            this.env.editor.shared.customizeTab.getCustomizeComponent()
+            this.env.editor.shared.customizeTab.getCustomizeComponent(),
         );
         useVisibilityObserver("content", (hasContent) => {
             this.state.hasContent = hasContent;
@@ -29,7 +30,8 @@ export class CustomizeTab extends Component {
             if (
                 !this.state.hasContent &&
                 nextProps.currentOptionsContainers.length > 0 &&
-                nextProps.currentOptionsContainers !== this.props.currentOptionsContainers
+                nextProps.currentOptionsContainers !==
+                    this.props.currentOptionsContainers
             ) {
                 // Force a reconsideration of `content`
                 this.state.hasContent = true;

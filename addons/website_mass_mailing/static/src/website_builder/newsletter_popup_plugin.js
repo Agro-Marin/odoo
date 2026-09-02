@@ -9,4 +9,6 @@ class NewsletterPopupPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(NewsletterPopupPlugin.id, NewsletterPopupPlugin);
+registry
+    .category("website-plugins")
+    .add(NewsletterPopupPlugin.id, NewsletterPopupPlugin);

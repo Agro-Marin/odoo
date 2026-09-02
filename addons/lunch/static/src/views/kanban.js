@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { registry } from '@web/core/registry';
+import { registry } from "@web/core/registry";
 
 import {
     kanbanView,
@@ -8,15 +8,17 @@ import {
     KanbanController,
 } from "@web/views/kanban";
 
-import { LunchDashboard } from '../components/lunch_dashboard.js';
-import { LunchRendererMixin } from '../mixins/lunch_renderer_mixin.js';
+import { LunchDashboard } from "../components/lunch_dashboard.js";
+import { LunchRendererMixin } from "../mixins/lunch_renderer_mixin.js";
 
-import { LunchSearchModel } from './search_model.js';
-import { LunchSearchPanel } from './search_panel.js';
+import { LunchSearchModel } from "./search_model.js";
+import { LunchSearchPanel } from "./search_panel.js";
 
 export class LunchKanbanRecord extends KanbanRecord {
-    onGlobalClick(ev) {
-        this.env.bus.trigger('lunch_open_order', {productId: this.props.record.resId});
+    onGlobalClick() {
+        this.env.bus.trigger("lunch_open_order", {
+            productId: this.props.record.resId,
+        });
     }
 }
 
@@ -47,7 +49,7 @@ class LunchKanbanController extends KanbanController {
     }
 }
 
-registry.category('views').add('lunch_kanban', {
+registry.category("views").add("lunch_kanban", {
     ...kanbanView,
     Controller: LunchKanbanController,
     Renderer: LunchKanbanRenderer,

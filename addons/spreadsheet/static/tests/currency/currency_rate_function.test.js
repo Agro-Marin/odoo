@@ -48,7 +48,11 @@ test("rate formula at a given date(time)", async () => {
         },
     });
     setCellContent(model, "A1", `=ODOO.CURRENCY.RATE("EUR","USD", "12-31-2020")`);
-    setCellContent(model, "A2", `=ODOO.CURRENCY.RATE("EUR","USD", "11-30-2020 00:00:00")`);
+    setCellContent(
+        model,
+        "A2",
+        `=ODOO.CURRENCY.RATE("EUR","USD", "11-30-2020 00:00:00")`,
+    );
     await waitForDataLoaded(model);
     expect.verifySteps(["rate fetched"]);
 });
@@ -65,7 +69,7 @@ test("invalid date", async () => {
     await waitForDataLoaded(model);
     expect(getCellValue(model, "A1")).toBe("#ERROR");
     expect(getEvaluatedCell(model, "A1").message).toBe(
-        "The function ODOO.CURRENCY.RATE expects a number value, but 'hello' is a string, and cannot be coerced to a number."
+        "The function ODOO.CURRENCY.RATE expects a number value, but 'hello' is a string, and cannot be coerced to a number.",
     );
 });
 

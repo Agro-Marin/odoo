@@ -24,14 +24,14 @@ patch(ControlButtons.prototype, {
             const coupon = this.pos.models["loyalty.card"].get(reward_line.coupon_id);
             return (
                 coupon &&
-                reward_line.reward.program_id.program_type == "ewallet" &&
+                reward_line.reward.program_id.program_type === "ewallet" &&
                 !coupon.isExpired()
             );
         });
     },
     _getEWalletPrograms() {
         return this.pos.models["loyalty.program"].filter(
-            (p) => p.program_type == "ewallet",
+            (p) => p.program_type === "ewallet",
         );
     },
     async onClickWallet() {
@@ -47,8 +47,8 @@ patch(ControlButtons.prototype, {
             return;
         }
         if (orderTotal < 0 && eWalletPrograms.length >= 1) {
-            let selectedProgram = null;
-            if (eWalletPrograms.length == 1) {
+            let selectedProgram;
+            if (eWalletPrograms.length === 1) {
                 selectedProgram = eWalletPrograms[0];
             } else {
                 selectedProgram = await makeAwaitable(this.dialog, SelectionPopup, {
@@ -73,8 +73,8 @@ patch(ControlButtons.prototype, {
                 );
             }
         } else if (eWalletRewards.length >= 1) {
-            let eWalletReward = null;
-            if (eWalletRewards.length == 1) {
+            let eWalletReward;
+            if (eWalletRewards.length === 1) {
                 eWalletReward = eWalletRewards[0];
             } else {
                 eWalletReward = await makeAwaitable(this.dialog, SelectionPopup, {
@@ -132,10 +132,10 @@ patch(ControlButtons.prototype, {
         }
         const result = {};
         const discountRewards = rewards.filter(
-            ({ reward }) => reward.reward_type == "discount",
+            ({ reward }) => reward.reward_type === "discount",
         );
         const freeProductRewards = rewards.filter(
-            ({ reward }) => reward.reward_type == "product",
+            ({ reward }) => reward.reward_type === "product",
         );
         const potentialFreeProductRewards = this.pos.getPotentialFreeProductRewards();
         const avaiRewards = [
@@ -178,9 +178,9 @@ patch(ControlButtons.prototype, {
             args["product"] = selectedProduct;
         }
         if (
-            (reward.reward_type == "product" &&
+            (reward.reward_type === "product" &&
                 reward.program_id.applies_on !== "both") ||
-            (reward.program_id.applies_on == "both" && potentialQty)
+            (reward.program_id.applies_on === "both" && potentialQty)
         ) {
             const product = args["product"] || reward.reward_product_ids[0];
             await this.pos.addLineToCurrentOrder(

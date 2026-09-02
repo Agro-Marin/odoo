@@ -1,12 +1,12 @@
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import * as PosLoyalty from "@pos_loyalty/../tests/tours/utils/pos_loyalty_util";
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
-import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import * as SelectionPopup from "@point_of_sale/../tests/generic_helpers/selection_popup_util";
-import { registry } from "@web/core/registry";
-import * as ProductConfiguratorPopup from "@point_of_sale/../tests/pos/tours/utils/product_configurator_util";
 import { negateStep } from "@point_of_sale/../tests/generic_helpers/utils";
+import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import * as PartnerList from "@point_of_sale/../tests/pos/tours/utils/partner_list_util";
+import * as ProductConfiguratorPopup from "@point_of_sale/../tests/pos/tours/utils/product_configurator_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as PosLoyalty from "@pos_loyalty/../tests/tours/utils/pos_loyalty_util";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("PosLoyaltyFreeProductTour", {
     steps: () =>
@@ -188,50 +188,58 @@ registry.category("web_tour.tours").add("PosLoyaltySpecificDiscountTour", {
         ].flat(),
 });
 
-registry.category("web_tour.tours").add("PosLoyaltySpecificDiscountWithFreeProductTour", {
-    steps: () =>
-        [
-            Chrome.startPoS(),
-            Dialog.confirm("Open Register"),
-            ProductScreen.clickDisplayedProduct("Test Product A"),
-            ProductScreen.clickDisplayedProduct("Test Product C"),
-            PosLoyalty.orderTotalIs("130.00"),
-            PosLoyalty.isRewardButtonHighlighted(true, false),
-            {
-                content: `click Reward button`,
-                trigger: ProductScreen.controlButtonTrigger("Reward"),
-                run: "click",
-            },
-            Dialog.cancel(),
-            PosLoyalty.orderTotalIs("130.00"),
-        ].flat(),
-});
+registry
+    .category("web_tour.tours")
+    .add("PosLoyaltySpecificDiscountWithFreeProductTour", {
+        steps: () =>
+            [
+                Chrome.startPoS(),
+                Dialog.confirm("Open Register"),
+                ProductScreen.clickDisplayedProduct("Test Product A"),
+                ProductScreen.clickDisplayedProduct("Test Product C"),
+                PosLoyalty.orderTotalIs("130.00"),
+                PosLoyalty.isRewardButtonHighlighted(true, false),
+                {
+                    content: `click Reward button`,
+                    trigger: ProductScreen.controlButtonTrigger("Reward"),
+                    run: "click",
+                },
+                Dialog.cancel(),
+                PosLoyalty.orderTotalIs("130.00"),
+            ].flat(),
+    });
 
-registry.category("web_tour.tours").add("PosLoyaltySpecificDiscountWithRewardProductDomainTour", {
-    steps: () =>
-        [
-            // Steps to check if the alert dialog for invalid domain loyalty program is present, only then will the pos screen load correctly
-            Dialog.is("A reward could not be loaded"),
-            Dialog.confirm("Ok"),
+registry
+    .category("web_tour.tours")
+    .add("PosLoyaltySpecificDiscountWithRewardProductDomainTour", {
+        steps: () =>
+            [
+                // Steps to check if the alert dialog for invalid domain loyalty program is present, only then will the pos screen load correctly
+                Dialog.is("A reward could not be loaded"),
+                Dialog.confirm("Ok"),
 
-            Chrome.startPoS(),
-            Dialog.confirm("Open Register"),
+                Chrome.startPoS(),
+                Dialog.confirm("Open Register"),
 
-            ProductScreen.clickDisplayedProduct("Product A"),
-            ProductScreen.selectedOrderlineHas("Product A", "1", "15.00"),
-            PosLoyalty.orderTotalIs("15.00"),
+                ProductScreen.clickDisplayedProduct("Product A"),
+                ProductScreen.selectedOrderlineHas("Product A", "1", "15.00"),
+                PosLoyalty.orderTotalIs("15.00"),
 
-            ProductScreen.clickDisplayedProduct("Product B"),
-            ProductScreen.selectedOrderlineHas("Product B", "1", "50.00"),
-            PosLoyalty.orderTotalIs("40.00"),
+                ProductScreen.clickDisplayedProduct("Product B"),
+                ProductScreen.selectedOrderlineHas("Product B", "1", "50.00"),
+                PosLoyalty.orderTotalIs("40.00"),
 
-            ProductScreen.clickControlButton("Reward"),
-            SelectionPopup.has("10$ on your order - Product B - Saleable", { run: "click" }),
-            ProductScreen.clickControlButton("Reward"),
-            SelectionPopup.has("10$ on your order - Product B - Not Saleable", { run: "click" }),
-            PosLoyalty.orderTotalIs("30.00"),
-        ].flat(),
-});
+                ProductScreen.clickControlButton("Reward"),
+                SelectionPopup.has("10$ on your order - Product B - Saleable", {
+                    run: "click",
+                }),
+                ProductScreen.clickControlButton("Reward"),
+                SelectionPopup.has("10$ on your order - Product B - Not Saleable", {
+                    run: "click",
+                }),
+                PosLoyalty.orderTotalIs("30.00"),
+            ].flat(),
+    });
 
 registry.category("web_tour.tours").add("PosLoyaltyRewardProductTag", {
     steps: () =>

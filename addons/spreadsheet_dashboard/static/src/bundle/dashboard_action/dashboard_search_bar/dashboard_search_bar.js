@@ -1,12 +1,12 @@
 /** @odoo-module native */
-import { Component, onWillStart, onWillUpdateProps, status,useState } from "@odoo/owl";
+import { Component, onWillStart, onWillUpdateProps, status, useState } from "@odoo/owl";
 import { FilterValuesList } from "@spreadsheet/global_filters/components/filter_values_list/filter_values_list";
 import { getFacetInfo } from "@spreadsheet/global_filters/helpers";
-import { Dropdown, DropdownItem,useDropdownState } from "@web/components/dropdown";
+import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
-import { useAutofocus,useChildRef, useService } from "@web/core/utils/hooks";
-import { fuzzyLookup,fuzzyTest } from "@web/core/utils/search";
+import { useAutofocus, useChildRef, useService } from "@web/core/utils/hooks";
+import { fuzzyLookup, fuzzyTest } from "@web/core/utils/search";
 
 import { DashboardDateFilter } from "../dashboard_date_filter/dashboard_date_filter.js";
 import { DashboardFacet } from "../dashboard_facet/dashboard_facet.js";
@@ -112,7 +112,11 @@ export class DashboardSearchBar extends Component {
     onSearchInputKeydown(ev) {
         if (ev.key === "Backspace" || ev.key === "Delete") {
             const lastFacet = this.facets[this.facets.length - 1];
-            if (ev.target.selectionStart === 0 && ev.target.selectionEnd === 0 && lastFacet) {
+            if (
+                ev.target.selectionStart === 0 &&
+                ev.target.selectionEnd === 0 &&
+                lastFacet
+            ) {
                 this.clearFilter(lastFacet.id);
             }
         }
@@ -143,13 +147,16 @@ export class DashboardSearchBar extends Component {
                 if (!this.state.subItemsLimits[id]) {
                     this.state.subItemsLimits[id] = SUB_ITEMS_DEFAULT_LIMIT;
                 }
-                tasks.push({ id, prom: this.computeSubItems(this.getGlobalFilter(id), query) });
+                tasks.push({
+                    id,
+                    prom: this.computeSubItems(this.getGlobalFilter(id), query),
+                });
             }
         }
 
         if (tasks.length) {
             const taskResults = await this.keepLast.add(
-                Promise.all(tasks.map((task) => task.prom))
+                Promise.all(tasks.map((task) => task.prom)),
             );
             tasks.forEach((task, index) => {
                 subItems[task.id] = taskResults[index];
@@ -165,14 +172,18 @@ export class DashboardSearchBar extends Component {
         }
 
         const filters = this.props.model.getters.getGlobalFilters();
-        const firstDateFilterIndex = filters.findIndex((filter) => filter.type === "date");
+        const firstDateFilterIndex = filters.findIndex(
+            (filter) => filter.type === "date",
+        );
         if (firstDateFilterIndex !== -1) {
             this.firstDateFilter = filters.splice(firstDateFilterIndex, 1)[0];
         }
         this.facets = await Promise.all(
             filters
-                .filter((filter) => this.props.model.getters.isGlobalFilterActive(filter.id))
-                .map((filter) => this.getFacetFor(filter))
+                .filter((filter) =>
+                    this.props.model.getters.isGlobalFilterActive(filter.id),
+                )
+                .map((filter) => this.getFacetFor(filter)),
         );
 
         this.items.length = 0;
@@ -203,7 +214,8 @@ export class DashboardSearchBar extends Component {
                 if (fuzzyTest(trimmedQuery.toLowerCase(), label.toLowerCase())) {
                     items.push({
                         id: nextItemId++,
-                        searchItemDescription: this.getTranslatedFilterLabel(globalFilter),
+                        searchItemDescription:
+                            this.getTranslatedFilterLabel(globalFilter),
                         preposition: _t("for"),
                         globalFilterId: globalFilter.id,
                         label,
@@ -267,19 +279,26 @@ export class DashboardSearchBar extends Component {
 
         switch (globalFilter.type) {
             case "relation": {
-                options = await this.orm.call(globalFilter.modelName, "name_search", [], {
-                    domain: [],
-                    context: {},
-                    limit: limitToFetch,
-                    name: query.trim(),
-                });
+                options = await this.orm.call(
+                    globalFilter.modelName,
+                    "name_search",
+                    [],
+                    {
+                        domain: [],
+                        context: {},
+                        limit: limitToFetch,
+                        name: query.trim(),
+                    },
+                );
                 break;
             }
             case "text": {
                 const allValues = this.getTextFilterAllowedValues(globalFilter) || [];
-                options = fuzzyLookup(query, allValues, (value) => value.formattedValue).map(
-                    (value) => [value.value, value.formattedValue]
-                );
+                options = fuzzyLookup(
+                    query,
+                    allValues,
+                    (value) => value.formattedValue,
+                ).map((value) => [value.value, value.formattedValue]);
                 break;
             }
             case "selection": {
@@ -287,7 +306,9 @@ export class DashboardSearchBar extends Component {
                 const fields = await this.fields.loadFields(resModel);
                 const field = fields[selectionField];
                 if (!field) {
-                    throw new Error(`Field "${selectionField}" not found in model "${resModel}"`);
+                    throw new Error(
+                        `Field "${selectionField}" not found in model "${resModel}"`,
+                    );
                 }
                 options = fuzzyLookup(query, field.selection, (value) => value[1]);
                 break;
@@ -318,7 +339,8 @@ export class DashboardSearchBar extends Component {
                     label: _t("Load more"),
                     unselectable: true,
                     loadMore: () => {
-                        this.state.subItemsLimits[globalFilter.id] += SUB_ITEMS_DEFAULT_LIMIT;
+                        this.state.subItemsLimits[globalFilter.id] +=
+                            SUB_ITEMS_DEFAULT_LIMIT;
                         const newSubItems = [...this.subItems];
                         newSubItems[globalFilter.id] = undefined;
                         this.computeState({ subItems: newSubItems });
@@ -365,8 +387,10 @@ export class DashboardSearchBar extends Component {
 
         return {
             virtualFocus: true,
-            getItems: () => this.menuRef.el?.querySelectorAll(":scope .o-dropdown-item") ?? [],
-            isNavigationAvailable: ({ navigator, target }) => this.inputDropdownState.isOpen,
+            getItems: () =>
+                this.menuRef.el?.querySelectorAll(":scope .o-dropdown-item") ?? [],
+            isNavigationAvailable: ({ navigator, target }) =>
+                this.inputDropdownState.isOpen,
             onUpdated: (navigator) => (this.navigator = navigator),
             hotkeys: {
                 escape: {
@@ -378,7 +402,8 @@ export class DashboardSearchBar extends Component {
                 arrowright: {
                     bypassEditableProtection: true,
                     allowRepeat: false,
-                    isAvailable: ({ navigator }) => isExpansible(navigator.activeItemIndex),
+                    isAvailable: ({ navigator }) =>
+                        isExpansible(navigator.activeItemIndex),
                     callback: (navigator) => {
                         const item = this.items[navigator.activeItemIndex];
                         if (item.isParent) {
@@ -392,18 +417,21 @@ export class DashboardSearchBar extends Component {
                 },
                 arrowleft: {
                     bypassEditableProtection: true,
-                    isAvailable: ({ navigator }) => isCollapsible(navigator.activeItemIndex),
+                    isAvailable: ({ navigator }) =>
+                        isCollapsible(navigator.activeItemIndex),
                     callback: (navigator) => {
                         const item = this.items[navigator.activeItemIndex];
 
                         const findIndex = (id) =>
                             this.items.findIndex(
-                                (item) => item.isParent && item.globalFilterId === id
+                                (item) => item.isParent && item.globalFilterId === id,
                             );
                         if (item && item.isParent && item.isExpanded) {
                             this.toggleItem(item, false);
                         } else if (item && item.isChild) {
-                            navigator.items[findIndex(item.globalFilterId)]?.setActive();
+                            navigator.items[
+                                findIndex(item.globalFilterId)
+                            ]?.setActive();
                         }
                     },
                 },
@@ -443,10 +471,13 @@ export class DashboardSearchBar extends Component {
         let newValue = undefined;
         switch (filter.type) {
             case "boolean":
-                newValue = item.value === true ? { operator: "set" } : { operator: "not_set" };
+                newValue =
+                    item.value === true ? { operator: "set" } : { operator: "not_set" };
                 break;
             case "text": {
-                const allowedValues = this.getTextFilterAllowedValues(filter)?.map((v) => v.value);
+                const allowedValues = this.getTextFilterAllowedValues(filter)?.map(
+                    (v) => v.value,
+                );
                 if (allowedValues && !allowedValues.includes(item.value)) {
                     break;
                 }

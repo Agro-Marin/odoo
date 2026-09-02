@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useCachedModel } from "@html_builder/core/cached_model_utils";
-import { Component, onWillDestroy,onWillUpdateProps, useState } from "@odoo/owl";
+import { Component, onWillDestroy, onWillUpdateProps, useState } from "@odoo/owl";
 import { useDropdownCloser } from "@web/components/dropdown";
 import { SelectMenu } from "@web/components/select_menu";
 import { _t } from "@web/core/translation";
@@ -64,7 +64,10 @@ export class SelectMany2X extends Component {
             limit: this.props.limit,
         });
         onWillUpdateProps(async (newProps) => {
-            if (this.searchInvalidationKey(this.props) !== this.searchInvalidationKey(newProps)) {
+            if (
+                this.searchInvalidationKey(this.props) !==
+                this.searchInvalidationKey(newProps)
+            ) {
                 this.prevSelectedIds = undefined;
                 this.prevSearchValue = undefined;
                 this.state.searchResults = [];
@@ -117,7 +120,7 @@ export class SelectMany2X extends Component {
         const results = await this.cachedModel.ormRead(
             this.props.model,
             tuples.map(([id, _name]) => id),
-            [...new Set(this.props.fields).add("display_name").add("name")]
+            [...new Set(this.props.fields).add("display_name").add("name")],
         );
         if (this.props.nullText && (!results.length || results[0].id)) {
             results.unshift({
@@ -141,7 +144,7 @@ export class SelectMany2X extends Component {
         const allRecords = await this.cachedModel.ormSearchRead(
             this.props.model,
             [],
-            ["id", "name"]
+            ["id", "name"],
         );
         const usedNames = [
             // Exclude existing names
@@ -164,7 +167,9 @@ export class SelectMany2X extends Component {
         this.prevSearchValue = searchValue;
         this.prevSelectedIds = selectedIds;
         await this.search(searchValue);
-        this.state.nameToCreate = (await this.canCreate(searchValue)) ? searchValue : "";
+        this.state.nameToCreate = (await this.canCreate(searchValue))
+            ? searchValue
+            : "";
     }
 
     preview(value) {

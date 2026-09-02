@@ -2,7 +2,10 @@
 import { onWillStart, useRef, useState } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
-import { FloatTimeField, floatTimeField } from "@web/fields/basic/float_time/float_time_field";
+import {
+    FloatTimeField,
+    floatTimeField,
+} from "@web/fields/basic/float_time/float_time_field";
 import { usePopover } from "@web/ui/popover";
 
 import { FloatTimeSelectionPopover } from "./float_time_selection_popover.js";
@@ -11,7 +14,10 @@ const { DateTime } = luxon;
 function floatToHoursMinutes(floatValue) {
     const hours = Math.floor(floatValue);
     const minutes = Math.round((floatValue - hours) * 60);
-    return { hours: String(hours).padStart(2, "0"), minutes: String(minutes).padStart(2, "0") };
+    return {
+        hours: String(hours).padStart(2, "0"),
+        minutes: String(minutes).padStart(2, "0"),
+    };
 }
 
 function hoursMinutesToFloat(hours, minutes) {
@@ -47,9 +53,10 @@ export class FloatTimeSelectionField extends FloatTimeField {
 
     get formattedValue() {
         const unitAmount = super.formattedValue;
-        return DateTime
-            .fromFormat(unitAmount, 'hh:mm', { numberingSystem: 'latn', zone: 'default'})
-            .toLocaleString({ hour: 'numeric', minute: 'numeric'});
+        return DateTime.fromFormat(unitAmount, "hh:mm", {
+            numberingSystem: "latn",
+            zone: "default",
+        }).toLocaleString({ hour: "numeric", minute: "numeric" });
     }
 
     onCharHoursClick(ev) {
@@ -66,7 +73,8 @@ export class FloatTimeSelectionField extends FloatTimeField {
     onTimeChange(newTimeValues) {
         this.timeValues.hours = newTimeValues.hours;
         this.timeValues.minutes = newTimeValues.minutes;
-        this.timeValues.floatValue = parseInt(newTimeValues.hours) + newTimeValues.minutes / 60;
+        this.timeValues.floatValue =
+            parseInt(newTimeValues.hours) + newTimeValues.minutes / 60;
     }
 
     handleInputChange() {

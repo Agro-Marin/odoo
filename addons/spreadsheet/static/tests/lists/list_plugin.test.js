@@ -1,7 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { makeServerError, mockService, serverState } from "@web/../tests/web_test_helpers";
-import { user } from "@web/core/user";
-
+import { animationFrame } from "@odoo/hoot-mock";
+import * as spreadsheet from "@odoo/o-spreadsheet";
 import {
     addGlobalFilter,
     redo,
@@ -10,10 +9,19 @@ import {
     undo,
 } from "@spreadsheet/../tests/helpers/commands";
 import {
+    defineSpreadsheetActions,
+    defineSpreadsheetModels,
+    generateListDefinition,
+    Partner,
+    Product,
+    ResGroup,
+    ResUsers,
+} from "@spreadsheet/../tests/helpers/data";
+import {
     getCell,
     getCellContent,
-    getCellFormula,
     getCellFormattedValue,
+    getCellFormula,
     getCells,
     getCellValue,
     getEvaluatedCell,
@@ -23,21 +31,14 @@ import {
 import { THIS_YEAR_GLOBAL_FILTER } from "@spreadsheet/../tests/helpers/global_filter";
 import { createSpreadsheetWithList } from "@spreadsheet/../tests/helpers/list";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
-import { CommandResult } from "@spreadsheet/o_spreadsheet/cancelled_reason";
-
-import { animationFrame } from "@odoo/hoot-mock";
-import * as spreadsheet from "@odoo/o-spreadsheet";
-import {
-    defineSpreadsheetActions,
-    defineSpreadsheetModels,
-    generateListDefinition,
-    Partner,
-    Product,
-    ResUsers,
-    ResGroup,
-} from "@spreadsheet/../tests/helpers/data";
-
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
+import { CommandResult } from "@spreadsheet/o_spreadsheet/cancelled_reason";
+import {
+    makeServerError,
+    mockService,
+    serverState,
+} from "@web/../tests/web_test_helpers";
+import { user } from "@web/core/user";
 const { DEFAULT_LOCALE, PIVOT_TABLE_CONFIG } = spreadsheet.constants;
 const { toZone } = spreadsheet.helpers;
 const { cellMenuRegistry } = spreadsheet.registries;
@@ -67,7 +68,9 @@ test("List field name should not be empty", async () => {
     const { model } = await createSpreadsheetWithList();
     setCellContent(model, "A1", `=ODOO.LIST(1,1,"")`);
     expect(getCellValue(model, "A1")).toBe("#ERROR");
-    expect(getEvaluatedCell(model, "A1").message).toBe("The field name should not be empty.");
+    expect(getEvaluatedCell(model, "A1").message).toBe(
+        "The field name should not be empty.",
+    );
 });
 
 test("ODOO.LIST.HEADER with a custom header string", async () => {
@@ -217,7 +220,11 @@ test("List formulas date formats are locale dependant", async function () {
     expect(getEvaluatedCell(model, "A2").format).toBe("m/d/yyyy");
     expect(getEvaluatedCell(model, "B2").format).toBe("m/d/yyyy hh:mm:ss a");
 
-    const myLocale = { ...DEFAULT_LOCALE, dateFormat: "d/m/yyyy", timeFormat: "hh:mm:ss" };
+    const myLocale = {
+        ...DEFAULT_LOCALE,
+        dateFormat: "d/m/yyyy",
+        timeFormat: "hh:mm:ss",
+    };
     model.dispatch("UPDATE_LOCALE", { locale: myLocale });
 
     expect(getEvaluatedCell(model, "A2").format).toBe("d/m/yyyy");
@@ -234,7 +241,9 @@ test("Json fields are not supported in list formulas", async function () {
     await waitForDataLoaded(model);
     expect(getEvaluatedCell(model, "A1").value).toBe(12);
     expect(getEvaluatedCell(model, "A2").value).toBe("#ERROR");
-    expect(getEvaluatedCell(model, "A2").message).toBe(`Fields of type "json" are not supported`);
+    expect(getEvaluatedCell(model, "A2").message).toBe(
+        `Fields of type "json" are not supported`,
+    );
 });
 
 test("can get a listId from cell formula", async function () {
@@ -318,12 +327,14 @@ test("Referencing non-existing fields does not crash", async function () {
     setCellContent(model, "A2", `=ODOO.LIST("1","1","${forbiddenFieldName}")`);
 
     await animationFrame();
-    expect(model.getters.getListDataSource(listId).getFields()[forbiddenFieldName]).toBe(undefined);
+    expect(
+        model.getters.getListDataSource(listId).getFields()[forbiddenFieldName],
+    ).toBe(undefined);
     expect(getCellValue(model, "A1")).toBe(forbiddenFieldName);
     const A2 = getEvaluatedCell(model, "A2");
     expect(A2.type).toBe("error");
     expect(A2.message).toBe(
-        `The field ${forbiddenFieldName} does not exist or you do not have access to that field`
+        `The field ${forbiddenFieldName} does not exist or you do not have access to that field`,
     );
 });
 
@@ -553,7 +564,9 @@ test("can edit list domain", async () => {
         listId,
         domain: [["foo", "in", [55]]],
     });
-    expect(model.getters.getListDefinition(listId).domain).toEqual([["foo", "in", [55]]]);
+    expect(model.getters.getListDefinition(listId).domain).toEqual([
+        ["foo", "in", [55]],
+    ]);
     await waitForDataLoaded(model);
     expect(getCellValue(model, "B2")).toBe("");
     model.dispatch("REQUEST_UNDO");
@@ -562,7 +575,9 @@ test("can edit list domain", async () => {
     await waitForDataLoaded(model);
     expect(getCellValue(model, "B2")).toBe(true);
     model.dispatch("REQUEST_REDO");
-    expect(model.getters.getListDefinition(listId).domain).toEqual([["foo", "in", [55]]]);
+    expect(model.getters.getListDefinition(listId).domain).toEqual([
+        ["foo", "in", [55]],
+    ]);
     await waitForDataLoaded(model);
     expect(getCellValue(model, "B2")).toBe("");
 });
@@ -578,7 +593,7 @@ test("can edit list sorting", async () => {
         [1,      true,   42669,  11,                74.8],
         [17,     true,   42719,  95,                   4],
         [2,      false,  42715,  15,                1000],
-    ]
+    ];
     // prettier-ignore
     const orderedGrid = [
         ["Foo", "Bar",   "Date", "Probability", "Money!"],
@@ -586,7 +601,7 @@ test("can edit list sorting", async () => {
         [12,     true,   42474,   10,               74.4],
         [1,      true,   42669,   11,               74.8],
         [2,      false,  42715,   15,               1000],
-    ]
+    ];
     const [listId] = model.getters.getListIds();
     expect(model.getters.getListDefinition(listId).orderBy).toEqual([]);
     expect(getEvaluatedGrid(model, "A1:E5")).toEqual(initialGrid);
@@ -700,7 +715,9 @@ test("Can see record with link to list cell", async function () {
 
     setCellContent(model, "A3", "=A1");
     setCellContent(model, "A4", "=IF(TRUE, A2, A1)");
-    const seeRecordAction = cellMenuRegistry.getAll().find((item) => item.id === "list_see_record");
+    const seeRecordAction = cellMenuRegistry
+        .getAll()
+        .find((item) => item.id === "list_see_record");
 
     selectCell(model, "A3");
     expect(seeRecordAction.isVisible(env)).toBe(true);
@@ -730,7 +747,9 @@ test("Can see record on vectorized list index", async function () {
     setCellContent(model, "D1", "3");
     setCellContent(model, "D2", "4");
     setCellContent(model, "A1", '=ODOO.LIST(1, C1:D2, "foo")');
-    const seeRecordAction = cellMenuRegistry.getAll().find((item) => item.id === "list_see_record");
+    const seeRecordAction = cellMenuRegistry
+        .getAll()
+        .find((item) => item.id === "list_see_record");
 
     selectCell(model, "A1");
     expect(seeRecordAction.isVisible(env)).toBe(true);
@@ -766,7 +785,7 @@ test("field matching is removed when filter is deleted", async function () {
         },
         {
             list: { 1: { chain: "product_id", type: "many2one" } },
-        }
+        },
     );
     const [filter] = model.getters.getGlobalFilters();
     const matching = {
@@ -781,7 +800,8 @@ test("field matching is removed when filter is deleted", async function () {
         id: filter.id,
     });
     expect(model.getters.getListFieldMatching("1", filter.id)).toBe(undefined, {
-        message: "it should have removed the pivot and its fieldMatching and datasource altogether",
+        message:
+            "it should have removed the pivot and its fieldMatching and datasource altogether",
     });
     expect(model.getters.getListDataSource("1").getComputedDomain()).toEqual([]);
     model.dispatch("REQUEST_UNDO");
@@ -1044,15 +1064,23 @@ test("can import (export) action xml id", async function () {
         },
     };
     const { model } = await createModelWithDataSource({ spreadsheetData });
-    expect(model.getters.getListDefinition(listId).actionXmlId).toBe("spreadsheet.test_action");
-    expect(model.exportData().lists[listId].actionXmlId).toBe("spreadsheet.test_action");
+    expect(model.getters.getListDefinition(listId).actionXmlId).toBe(
+        "spreadsheet.test_action",
+    );
+    expect(model.exportData().lists[listId].actionXmlId).toBe(
+        "spreadsheet.test_action",
+    );
 });
 
 test("Load list spreadsheet with models that cannot be accessed", async function () {
     let hasAccessRights = true;
     const { model } = await createSpreadsheetWithList({
         mockRPC: async function (route, args) {
-            if (args.model === "partner" && args.method === "web_search_read" && !hasAccessRights) {
+            if (
+                args.model === "partner" &&
+                args.method === "web_search_read" &&
+                !hasAccessRights
+            ) {
                 throw makeServerError({ description: "ya done!" });
             }
         },
@@ -1097,7 +1125,9 @@ test("Can duplicate a list", async () => {
         id: "2",
         name: `${originalListDefinition.name} (copy)`,
     };
-    expect(model.getters.getListDefinition(listIds[1])).toEqual(expectedDuplicatedDefinition);
+    expect(model.getters.getListDefinition(listIds[1])).toEqual(
+        expectedDuplicatedDefinition,
+    );
 
     expect(model.getters.getListFieldMatching(listId, "42")).toEqual(matching);
     expect(model.getters.getListFieldMatching("2", "42")).toEqual(matching);
@@ -1149,7 +1179,8 @@ test("INSERT_ODOO_LIST_WITH_TABLE adds a table that maches the list dimension", 
         linesNumber: 4,
     });
     const sheetId = model.getters.getActiveSheetId();
-    const { columns: currentColumns, model: resModel } = model.getters.getListDefinition("1");
+    const { columns: currentColumns, model: resModel } =
+        model.getters.getListDefinition("1");
     const col = 0;
     const row = 19;
     const threshold = 5;
@@ -1192,7 +1223,9 @@ test("An error is displayed if the list has invalid model", async function () {
     setCellContent(model, "A1", `=ODOO.LIST(1,1,"foo")`);
     await animationFrame();
     expect(getCellValue(model, "A1")).toBe("#ERROR");
-    expect(getEvaluatedCell(model, "A1").message).toBe(`The model "unknown" does not exist.`);
+    expect(getEvaluatedCell(model, "A1").message).toBe(
+        `The model "unknown" does not exist.`,
+    );
     const listDataSource = model.getters.getListDataSource(listId);
     expect(() => listDataSource.getFields()).toThrow(spreadsheet.EvaluationError);
 });
@@ -1237,14 +1270,18 @@ test("Invalid field chaining in list should be marked as such", async function (
     await animationFrame();
     expect(getCellValue(model, "A1")).toBe("#ERROR");
     expect(getEvaluatedCell(model, "A1").message).toBe(
-        `The field product_id.id.id does not exist or you do not have access to that field`
+        `The field product_id.id.id does not exist or you do not have access to that field`,
     );
 });
 
 test("Field chaining can be more than 1 deep", async function () {
     const { model } = await createSpreadsheetWithList();
     const listId = model.getters.getListIds()[0];
-    setCellContent(model, "A1", `=ODOO.LIST(${listId}, 2, "product_id.template_id.name")`);
+    setCellContent(
+        model,
+        "A1",
+        `=ODOO.LIST(${listId}, 2, "product_id.template_id.name")`,
+    );
     await animationFrame();
     expect(getCellValue(model, "A1")).toBe("xphone");
 });
@@ -1278,7 +1315,11 @@ test("Chaining fields are fetched with the same web_search_read", async function
         },
     });
     const listId = model.getters.getListIds()[0];
-    setCellContent(model, "A1", `=ODOO.LIST(${listId}, 1, "product_id.template_id.name")`);
+    setCellContent(
+        model,
+        "A1",
+        `=ODOO.LIST(${listId}, 1, "product_id.template_id.name")`,
+    );
     initialLoad = false;
     await animationFrame();
     expect.verifySteps(["web_search_read"]);

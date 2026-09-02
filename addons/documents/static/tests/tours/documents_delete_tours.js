@@ -25,7 +25,8 @@ function restoreDocumentSteps() {
             run: "click",
         },
         {
-            trigger: ".o_kanban_renderer:not(:has(.o_kanban_record:not(.o_kanban_ghost)))",
+            trigger:
+                ".o_kanban_renderer:not(:has(.o_kanban_record:not(.o_kanban_ghost)))",
             content: "Check that the document is no longer visible",
         },
     ];
@@ -60,7 +61,8 @@ registry.category("web_tour.tours").add("document_delete_tour", {
             run: "click",
         },
         {
-            trigger: ".o_kanban_renderer:not(:has(.o_kanban_record:not(.o_kanban_ghost)))",
+            trigger:
+                ".o_kanban_renderer:not(:has(.o_kanban_record:not(.o_kanban_ghost)))",
             content: "Check that the document is no longer visible",
         },
         ...restoreDocumentSteps(),
@@ -88,7 +90,8 @@ registry.category("web_tour.tours").add("document_delete_tour", {
             run: "click",
         },
         {
-            trigger: ".o_kanban_renderer:not(:has(.o_kanban_record:not(.o_kanban_ghost)))",
+            trigger:
+                ".o_kanban_renderer:not(:has(.o_kanban_record:not(.o_kanban_ghost)))",
             content: "Check that the document is no longer visible",
         },
         {
@@ -119,7 +122,8 @@ registry.category("web_tour.tours").add("document_delete_tour", {
             run: "click",
         },
         {
-            trigger: ".o_kanban_renderer:not(:has(.o_kanban_record:not(.o_kanban_ghost)))",
+            trigger:
+                ".o_kanban_renderer:not(:has(.o_kanban_record:not(.o_kanban_ghost)))",
             content: "Check that the document is no longer visible",
         },
         {
@@ -128,7 +132,8 @@ registry.category("web_tour.tours").add("document_delete_tour", {
             run: "click",
         },
         {
-            trigger: ".o_kanban_renderer:not(:has(.o_kanban_record:not(.o_kanban_ghost)))",
+            trigger:
+                ".o_kanban_renderer:not(:has(.o_kanban_record:not(.o_kanban_ghost)))",
             content: "Check that the document is no longer visible",
         },
     ],

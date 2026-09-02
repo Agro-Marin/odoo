@@ -26,7 +26,7 @@ export class SocketIoService {
     /**
      * @param {import("models").SocketIoCallbacks} callbacks
      */
-    constructor(callbacks) {
+    constructor() {
         this.setup(...arguments);
     }
 
@@ -100,8 +100,7 @@ export class SocketIoService {
                 );
             }
         };
-        this.websocket.onmessage = (event) =>
-            this._onMessageReceived(event.data);
+        this.websocket.onmessage = (event) => this._onMessageReceived(event.data);
     }
 
     sendMessage(message) {

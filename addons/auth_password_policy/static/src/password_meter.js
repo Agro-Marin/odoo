@@ -28,7 +28,7 @@ export class Meter extends Component {
 
         // Finding the appropriate strength range
         const { className, text } = strengthRanges.find(
-            ({ upperLimit }) => this.value <= upperLimit
+            ({ upperLimit }) => this.value <= upperLimit,
         );
         return { className, text };
     }
@@ -36,11 +36,15 @@ export class Meter extends Component {
     get title() {
         return _t(
             "Required: %s\n\nHint: to increase password strength, increase length, use multiple words, and use non-letter characters.",
-            String(this.props.required) || _t("no requirements")
+            String(this.props.required) || _t("no requirements"),
         );
     }
 
     get value() {
-        return computeScore(this.props.password, this.props.required, this.props.recommended);
+        return computeScore(
+            this.props.password,
+            this.props.required,
+            this.props.recommended,
+        );
     }
 }

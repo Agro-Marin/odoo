@@ -49,7 +49,7 @@ class ProductsItemOptionPlugin extends Plugin {
             (await this.services.orm.searchRead(
                 "website",
                 [["id", "=", this.currentWebsiteId]],
-                ["shop_default_sort"]
+                ["shop_default_sort"],
             ))
         );
     }
@@ -90,8 +90,8 @@ export class SetItemSizeAction extends BuilderAction {
             parseInt(
                 editingElement
                     .querySelector('[data-oe-model="product.template"]')
-                    .getAttribute("data-oe-id")
-            )
+                    .getAttribute("data-oe-id"),
+            ),
         );
         return rpc("/shop/config/product", {
             product_id: this.productItemPlugin.getProductTemplateID(),
@@ -112,8 +112,8 @@ export class ChangeSequenceAction extends BuilderAction {
             parseInt(
                 editingElement
                     .querySelector('[data-oe-model="product.template"]')
-                    .getAttribute("data-oe-id")
-            )
+                    .getAttribute("data-oe-id"),
+            ),
         );
         return rpc("/shop/config/product", {
             product_id: this.productItemPlugin.getProductTemplateID(),
@@ -122,4 +122,6 @@ export class ChangeSequenceAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(ProductsItemOptionPlugin.id, ProductsItemOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(ProductsItemOptionPlugin.id, ProductsItemOptionPlugin);

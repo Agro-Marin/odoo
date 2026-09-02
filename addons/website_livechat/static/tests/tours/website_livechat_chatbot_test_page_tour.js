@@ -1,7 +1,8 @@
-import { registry } from "@web/core/registry";
 import { contains } from "@web/../tests/utils";
+import { registry } from "@web/core/registry";
 
-const messagesContain = (text) => `.o-livechat-root:shadow .o-mail-Message:contains("${text}")`;
+const messagesContain = (text) =>
+    `.o-livechat-root:shadow .o-mail-Message:contains("${text}")`;
 
 registry.category("web_tour.tours").add("website_livechat_chatbot_test_page_tour", {
     steps: () => [
@@ -25,7 +26,8 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_test_page_tour
             run: "click",
         },
         {
-            trigger: '.o-livechat-root:shadow button:contains("I\'d like to buy the software")',
+            trigger:
+                '.o-livechat-root:shadow button:contains("I\'d like to buy the software")',
             run: "click",
         },
         {
@@ -59,13 +61,18 @@ registry.category("web_tour.tours").add("website_livechat_chatbot_test_page_tour
             run: "click",
         },
         {
-            trigger: ".o-livechat-root:shadow button:contains('Yes, leave conversation')",
+            trigger:
+                ".o-livechat-root:shadow button:contains('Yes, leave conversation')",
             run: "click",
         },
         {
-            trigger: ".o-livechat-root:shadow p:contains('Did we correctly answer your question?')",
+            trigger:
+                ".o-livechat-root:shadow p:contains('Did we correctly answer your question?')",
             async run() {
-                await contains("button", { target: this.anchor.getRootNode(), text: "Close" });
+                await contains("button", {
+                    target: this.anchor.getRootNode(),
+                    text: "Close",
+                });
                 await contains("button", {
                     target: this.anchor.getRootNode(),
                     text: "New Session",

@@ -1,11 +1,9 @@
 import {
-    defineModels,
     mockService,
     mountWithCleanup,
     serverState,
-    webModels,
 } from "@web/../tests/web_test_helpers";
-import { mailModels, click } from "@mail/../tests/mail_test_helpers";
+import { click } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { waitFor } from "@odoo/hoot-dom";
 import { defineDocumentsModels } from "./documents_test_helpers.js";
@@ -58,7 +56,7 @@ test("systray open documents activity loads custom action", async function () {
     };
 
     mockService("action", {
-        async loadAction(xmlId, context) {
+        async loadAction(xmlId) {
             if (xmlId === "documents.document_action") {
                 expect.step("load_document_action");
                 return {

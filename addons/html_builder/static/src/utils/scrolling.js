@@ -100,7 +100,7 @@ export function scrollTo(el, options = {}) {
     const iframe =
         !isInOneDocument &&
         Array.from(scrollable.querySelectorAll("iframe")).find((node) =>
-            node.contentDocument.contains(el)
+            node.contentDocument.contains(el),
         );
     const topLevelScrollable = getScrollingElement(scrollDocument);
 
@@ -132,8 +132,9 @@ export function scrollTo(el, options = {}) {
         let offset = options.forcedOffset;
         if (offset === undefined) {
             offset =
-                (scrollable === topLevelScrollable ? scrollFixedOffset(scrollDocument) : 0) +
-                (options.extraOffset || 0);
+                (scrollable === topLevelScrollable
+                    ? scrollFixedOffset(scrollDocument)
+                    : 0) + (options.extraOffset || 0);
         }
         return Math.max(0, elPosition - offset);
     }
@@ -147,7 +148,9 @@ export function scrollTo(el, options = {}) {
             const elapsedTime = currentTime - startTime;
             const progress = Math.min(elapsedTime / duration, 1);
             const easeInOutQuad =
-                progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                progress < 0.5
+                    ? 2 * progress * progress
+                    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
             // Recompute the scroll destination every time, to adapt to any
             // occurring change that would modify the scroll offset.
             const change = _computeScrollTop() - start;

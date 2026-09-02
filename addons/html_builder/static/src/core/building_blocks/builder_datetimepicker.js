@@ -1,7 +1,12 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime";
-import { ConversionError, formatDate, formatDateTime, parseDateTime } from "@web/core/l10n/dates";
+import {
+    ConversionError,
+    formatDate,
+    formatDateTime,
+    parseDateTime,
+} from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { pick } from "@web/core/utils/collections/objects";
 import { effect } from "@web/core/utils/reactive";
@@ -12,7 +17,10 @@ import {
     useInputBuilderComponent,
 } from "../utils.js";
 import { BuilderComponent } from "./builder_component.js";
-import { BuilderTextInputBase, textInputBasePassthroughProps } from "./builder_text_input_base.js";
+import {
+    BuilderTextInputBase,
+    textInputBasePassthroughProps,
+} from "./builder_text_input_base.js";
 
 const { DateTime } = luxon;
 
@@ -50,7 +58,7 @@ export class BuilderDateTimePicker extends Component {
                 // State to display in the input.
                 this.state.value = value;
             },
-            [state]
+            [state],
         );
 
         this.commit = (userInputValue) => {
@@ -97,7 +105,9 @@ export class BuilderDateTimePicker extends Component {
      * @returns {DateTime} the current value of the datetime picker
      */
     getCurrentValueDateTime() {
-        return this.domState.value ? DateTime.fromSeconds(parseInt(this.domState.value)) : false;
+        return this.domState.value
+            ? DateTime.fromSeconds(parseInt(this.domState.value))
+            : false;
     }
 
     /**
@@ -105,7 +115,9 @@ export class BuilderDateTimePicker extends Component {
      * @returns {String} a formatted date string
      */
     formatRawValue(rawValue) {
-        return rawValue ? this.formatDateTime(DateTime.fromSeconds(parseInt(rawValue))) : "";
+        return rawValue
+            ? this.formatDateTime(DateTime.fromSeconds(parseInt(rawValue)))
+            : "";
     }
 
     /**
@@ -139,7 +151,9 @@ export class BuilderDateTimePicker extends Component {
      * @returns {String} a formatted date string
      */
     get displayValue() {
-        return this.state.value !== undefined ? this.formatRawValue(this.state.value) : undefined;
+        return this.state.value !== undefined
+            ? this.formatRawValue(this.state.value)
+            : undefined;
     }
 
     get textInputBaseProps() {

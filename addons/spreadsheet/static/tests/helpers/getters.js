@@ -20,12 +20,20 @@ export function getCell(model, xc, sheetId = model.getters.getActiveSheetId()) {
     return model.getters.getCell({ sheetId, col, row });
 }
 
-export function getEvaluatedCell(model, xc, sheetId = model.getters.getActiveSheetId()) {
+export function getEvaluatedCell(
+    model,
+    xc,
+    sheetId = model.getters.getActiveSheetId(),
+) {
     const { col, row } = toCartesian(xc);
     return model.getters.getEvaluatedCell({ sheetId, col, row });
 }
 
-export function getEvaluatedGrid(model, zoneXc, sheetId = model.getters.getActiveSheetId()) {
+export function getEvaluatedGrid(
+    model,
+    zoneXc,
+    sheetId = model.getters.getActiveSheetId(),
+) {
     const { top, bottom, left, right } = toZone(zoneXc);
     const grid = [];
     for (const row of range(top, bottom + 1)) {
@@ -39,7 +47,11 @@ export function getEvaluatedGrid(model, zoneXc, sheetId = model.getters.getActiv
     return grid;
 }
 
-export function getEvaluatedFormatGrid(model, zoneXc, sheetId = model.getters.getActiveSheetId()) {
+export function getEvaluatedFormatGrid(
+    model,
+    zoneXc,
+    sheetId = model.getters.getActiveSheetId(),
+) {
     const { top, bottom, left, right } = toZone(zoneXc);
     const grid = [];
     for (const row of range(top, bottom + 1)) {
@@ -52,7 +64,11 @@ export function getEvaluatedFormatGrid(model, zoneXc, sheetId = model.getters.ge
     return grid;
 }
 
-export function getFormattedValueGrid(model, zoneXc, sheetId = model.getters.getActiveSheetId()) {
+export function getFormattedValueGrid(
+    model,
+    zoneXc,
+    sheetId = model.getters.getActiveSheetId(),
+) {
     const { top, bottom, left, right } = toZone(zoneXc);
     const grid = {};
     for (const row of range(top, bottom + 1)) {
@@ -87,8 +103,15 @@ export function getCellContent(model, xc, sheetId = model.getters.getActiveSheet
     return model.getters.getCellText({ sheetId, col, row }, { showFormula: true });
 }
 
-export function getCorrespondingCellFormula(model, xc, sheetId = model.getters.getActiveSheetId()) {
-    const cell = model.getters.getCorrespondingFormulaCell({ sheetId, ...toCartesian(xc) });
+export function getCorrespondingCellFormula(
+    model,
+    xc,
+    sheetId = model.getters.getActiveSheetId(),
+) {
+    const cell = model.getters.getCorrespondingFormulaCell({
+        sheetId,
+        ...toCartesian(xc),
+    });
     return cell && cell.isFormula ? cell.content : "";
 }
 
@@ -108,14 +131,20 @@ export function getBorders(model, xc, sheetId = model.getters.getActiveSheetId()
     if (!borders) {
         return null;
     }
-    Object.keys(borders).forEach((key) => borders[key] === undefined && delete borders[key]);
+    Object.keys(borders).forEach(
+        (key) => borders[key] === undefined && delete borders[key],
+    );
     return borders;
 }
 
 /**
  * Get the formatted value of the given xc
  */
-export function getCellFormattedValue(model, xc, sheetId = model.getters.getActiveSheetId()) {
+export function getCellFormattedValue(
+    model,
+    xc,
+    sheetId = model.getters.getActiveSheetId(),
+) {
     const { col, row } = toCartesian(xc);
     return model.getters.getCellText({ sheetId, col, row }, false);
 }

@@ -43,10 +43,10 @@ export class BackgroundShapeOptionPlugin extends Plugin {
             BackgroundShapeColorAction,
         },
         background_shape_groups_providers: withSequence(0, () =>
-            deepCopy(backgroundShapesDefinition)
+            deepCopy(backgroundShapesDefinition),
         ),
         background_shape_target_providers: withSequence(5, (editingElement) =>
-            editingElement.querySelector(":scope > .o_we_bg_filter")
+            editingElement.querySelector(":scope > .o_we_bg_filter"),
         ),
         content_not_editable_selectors: ".o_we_shape",
         system_node_selectors: ".o_we_shape",
@@ -79,7 +79,9 @@ export class BackgroundShapeOptionPlugin extends Plugin {
         }
         // Flip classes should no longer be used but are still present in some
         // theme snippets.
-        const flipEls = [...this.editable.querySelectorAll(".o_we_flip_x, .o_we_flip_y")];
+        const flipEls = [
+            ...this.editable.querySelectorAll(".o_we_flip_x, .o_we_flip_y"),
+        ];
         for (const flipEl of flipEls) {
             this.applyShape(flipEl, () => ({ flip: this.getShapeData(flipEl).flip }));
         }
@@ -134,7 +136,7 @@ export class BackgroundShapeOptionPlugin extends Plugin {
             // Apply custom image, flip, speed
             shapeContainerEl.style.setProperty(
                 "background-image",
-                `url("${this.getShapeSrc(editingElement)}")`
+                `url("${this.getShapeSrc(editingElement)}")`,
             );
             shapeContainerEl.style.backgroundPosition = "";
 
@@ -167,7 +169,7 @@ export class BackgroundShapeOptionPlugin extends Plugin {
     createShapeContainer(editingElement, shape) {
         const shapeContainer = this.insertShapeContainer(
             editingElement,
-            document.createElement("div")
+            document.createElement("div"),
         );
         editingElement.style.setProperty("position", "relative");
         shapeContainer.className = `o_we_shape o_${shape.replace(/\//g, "_")}`;
@@ -206,7 +208,8 @@ export class BackgroundShapeOptionPlugin extends Plugin {
      * @param {String} selectedBackgroundUrl
      */
     getShapeDefaultColors(selectedBackgroundUrl) {
-        const shapeSrc = selectedBackgroundUrl && getBgImageURLFromURL(selectedBackgroundUrl);
+        const shapeSrc =
+            selectedBackgroundUrl && getBgImageURLFromURL(selectedBackgroundUrl);
         const url = new URL(shapeSrc, window.location.origin);
         return Object.fromEntries(url.searchParams.entries());
     }
@@ -238,7 +241,8 @@ export class BackgroundShapeOptionPlugin extends Plugin {
      * @param {HTMLElement} editingElement
      */
     getShapeSrc(editingElement) {
-        const { shape, colors, flip, shapeAnimationSpeed } = this.getShapeData(editingElement);
+        const { shape, colors, flip, shapeAnimationSpeed } =
+            this.getShapeData(editingElement);
         if (!shape) {
             return "";
         }
@@ -250,7 +254,9 @@ export class BackgroundShapeOptionPlugin extends Plugin {
             searchParams.push(`flip=${encodeURIComponent(flip.sort().join(""))}`);
         }
         if (Number(shapeAnimationSpeed)) {
-            searchParams.push(`shapeAnimationSpeed=${encodeURIComponent(shapeAnimationSpeed)}`);
+            searchParams.push(
+                `shapeAnimationSpeed=${encodeURIComponent(shapeAnimationSpeed)}`,
+            );
         }
         return `/html_editor/shape/${encodeURIComponent(shape)}.svg?${searchParams.join("&")}`;
     }
@@ -303,7 +309,7 @@ export class BackgroundShapeOptionPlugin extends Plugin {
         const areColorsDefault = Object.entries(shapeData.colors).every(
             ([colorName, colorValue]) =>
                 defaultColors[colorName] &&
-                colorValue.toLowerCase() === defaultColors[colorName].toLowerCase()
+                colorValue.toLowerCase() === defaultColors[colorName].toLowerCase(),
         );
         if (areColorsDefault) {
             delete shapeData.colors;
@@ -322,19 +328,25 @@ export class BackgroundShapeOptionPlugin extends Plugin {
         shapeEl.remove();
     }
     showBackgroundShapes(editingElements) {
-        this.dependencies.customizeTab.openCustomizeComponent(ShapeSelector, editingElements, {
-            shapeActionId: "setBackgroundShape",
-            buttonWrapperClassName: "o-hb-bg-shape-btn",
-            selectorTitle: _t("Background Shapes"),
-            shapeGroups: this.getBackgroundShapeGroups(),
-            imgThroughDiv: true,
-            getShapeUrl: this.getShapeStyleUrl.bind(this),
-        });
+        this.dependencies.customizeTab.openCustomizeComponent(
+            ShapeSelector,
+            editingElements,
+            {
+                shapeActionId: "setBackgroundShape",
+                buttonWrapperClassName: "o-hb-bg-shape-btn",
+                selectorTitle: _t("Background Shapes"),
+                shapeGroups: this.getBackgroundShapeGroups(),
+                imgThroughDiv: true,
+                getShapeUrl: this.getShapeStyleUrl.bind(this),
+            },
+        );
     }
     getBackgroundShapeGroups() {
         if (!this.backgroundShapeGroups) {
             const shapeGroups = {};
-            for (const provider of this.getResource("background_shape_groups_providers")) {
+            for (const provider of this.getResource(
+                "background_shape_groups_providers",
+            )) {
                 const providedGroups = provider(shapeGroups);
                 if (providedGroups) {
                     Object.assign(shapeGroups, deepMerge(shapeGroups, providedGroups));
@@ -350,7 +362,7 @@ export class BackgroundShapeOptionPlugin extends Plugin {
                 .map((x) =>
                     Object.values(x.subgroups)
                         .map((x) => Object.entries(x.shapes))
-                        .flat()
+                        .flat(),
                 )
                 .flat();
             this.backgroundShapesById = Object.fromEntries(entries);
@@ -365,10 +377,14 @@ class BaseAnimationAction extends BuilderAction {
     setup() {
         this.applyShape = this.dependencies.backgroundShapeOption.applyShape;
         this.getShapeData = this.dependencies.backgroundShapeOption.getShapeData;
-        this.getImplicitColors = this.dependencies.backgroundShapeOption.getImplicitColors;
-        this.getBackgroundShapes = this.dependencies.backgroundShapeOption.getBackgroundShapes;
-        this.createShapeContainer = this.dependencies.backgroundShapeOption.createShapeContainer;
-        this.showBackgroundShapes = this.dependencies.backgroundShapeOption.showBackgroundShapes;
+        this.getImplicitColors =
+            this.dependencies.backgroundShapeOption.getImplicitColors;
+        this.getBackgroundShapes =
+            this.dependencies.backgroundShapeOption.getBackgroundShapes;
+        this.createShapeContainer =
+            this.dependencies.backgroundShapeOption.createShapeContainer;
+        this.showBackgroundShapes =
+            this.dependencies.backgroundShapeOption.showBackgroundShapes;
     }
 }
 class SetBackgroundShapeAction extends BaseAnimationAction {
@@ -399,7 +415,7 @@ class ToggleBgShapeAction extends BaseAnimationAction {
         if (previousSibling) {
             const previousShape = this.getShapeData(previousSibling).shape;
             shapeToSelect = allPossiblesShapesUrl.find(
-                (shape, i) => allPossiblesShapesUrl[i - 1] === previousShape
+                (shape, i) => allPossiblesShapesUrl[i - 1] === previousShape,
             );
         }
         // If there is no previous sibling, if the previous sibling
@@ -464,7 +480,9 @@ class FlipShapeAction extends BaseAnimationAction {
         // Compat: flip classes are no longer used but may be
         // present in client db.
         const selector = `.o_we_flip_${axis}`;
-        const hasFlipClass = !!editingElement.querySelector(`:scope > .o_we_shape${selector}`);
+        const hasFlipClass = !!editingElement.querySelector(
+            `:scope > .o_we_shape${selector}`,
+        );
         return hasFlipClass || this.getShapeData(editingElement).flip.includes(axis);
     }
 }

@@ -884,8 +884,7 @@ export class HistoryPlugin extends Plugin {
                               nodeList[index + 1] || record.nextSibling,
                           ];
                 const [nextNodeId, previousNodeId] = [nextSibling, previousSibling].map(
-                    (sibling) =>
-                        sibling ? this.nodeMap.getId(sibling) : sibling,
+                    (sibling) => (sibling ? this.nodeMap.getId(sibling) : sibling),
                 );
                 const nodeId = this.nodeMap.getId(node);
                 const serializedNode = this.serializeTree(tree);
@@ -951,7 +950,6 @@ export class HistoryPlugin extends Plugin {
      * @param {Object} [params.extraStepInfos]
      */
     addStep({ type = "original", extraStepInfos } = {}) {
-
         const currentStep = this.currentStep;
         currentStep.type = type;
         this.handleObserverRecords();

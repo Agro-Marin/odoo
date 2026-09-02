@@ -112,7 +112,7 @@ test("Open product", async () => {
     await mountLunchView();
 
     patchWithCleanup(LunchKanbanRenderer.prototype, {
-        openOrderLine(productId, orderId) {
+        openOrderLine(productId) {
             expect(productId).toBe(1);
         },
     });
@@ -161,7 +161,7 @@ test("Location change", async () => {
     expect(".lunch_location .dropdown-item:contains(New Office)").toHaveCount(1);
 
     await contains(
-        ".lunch_location li:not(.o_m2o_dropdown_option) .dropdown-item:not(.ui-state-active)"
+        ".lunch_location li:not(.o_m2o_dropdown_option) .dropdown-item:not(.ui-state-active)",
     ).click();
 
     expect("article.o_kanban_record").toHaveCount(2);
@@ -172,7 +172,7 @@ test("Manager: user change", async () => {
 
     mailModels.ResUsers._records.push(
         { id: 1, name: "Johnny Hache" },
-        { id: 2, name: "David Elora" }
+        { id: 2, name: "David Elora" },
     );
     let userInfos = { ...lunchInfos, is_manager: true };
     let expectedUserId = false; // false as we are requesting for the current user
@@ -204,15 +204,20 @@ test("Manager: user change", async () => {
 
     expectedUserId = 2;
     await contains(
-        ".lunch_user li:not(.o_m2o_dropdown_option) .dropdown-item:contains('David Elora')"
+        ".lunch_user li:not(.o_m2o_dropdown_option) .dropdown-item:contains('David Elora')",
     ).click();
 
-    expect(".o_lunch_banner span[name='o_lunch_balance']").toHaveText("Available Balance\n-10000.00€", {
-        message: "David Elora is poor",
-    });
+    expect(".o_lunch_banner span[name='o_lunch_balance']").toHaveText(
+        "Available Balance\n-10000.00€",
+        {
+            message: "David Elora is poor",
+        },
+    );
 
     await contains(".lunch_location input").click();
-    await contains(".lunch_location li:not(.o_m2o_dropdown_option) .dropdown-item:eq(1)").click();
+    await contains(
+        ".lunch_location li:not(.o_m2o_dropdown_option) .dropdown-item:eq(1)",
+    ).click();
     expect(".lunch_user input").toHaveValue("David Elora", {
         message: "changing location should not reset user",
     });
@@ -254,16 +259,18 @@ test("Trash existing order", async () => {
     await mountLunchView();
 
     expect("div.o_lunch_banner > div > div").toHaveCount(3);
-    expect("div.o_lunch_banner div[name='o_lunch_order_buttons'] > button:contains(Clear Order)").toHaveCount(1, {
+    expect(
+        "div.o_lunch_banner div[name='o_lunch_order_buttons'] > button:contains(Clear Order)",
+    ).toHaveCount(1, {
         message: "should have clear order button",
     });
     expect("div.o_lunch_banner li[name='o_lunch_order_line']").toHaveCount(1, {
         message: "should have one order line",
     });
 
-    expect("div.o_lunch_banner div[name='o_lunch_order_buttons'] > button:contains(Order Now)").toHaveCount(
-        1
-    );
+    expect(
+        "div.o_lunch_banner div[name='o_lunch_order_buttons'] > button:contains(Order Now)",
+    ).toHaveCount(1);
 
     await contains("div.o_lunch_banner > div button:contains(Clear Order)").click();
     expect("div.o_lunch_banner li[name='o_lunch_order_line']").toHaveCount(0);
@@ -313,7 +320,9 @@ test("Change existing order", async () => {
     });
     await mountLunchView();
 
-    await contains("div.o_lunch_banner li[name='o_lunch_order_line']:contains(Big Plate) i.oi-plus").click();
+    await contains(
+        "div.o_lunch_banner li[name='o_lunch_order_line']:contains(Big Plate) i.oi-plus",
+    ).click();
 });
 
 test("Confirm existing order", async () => {
@@ -358,11 +367,17 @@ test("Confirm existing order", async () => {
         return true;
     });
     await mountLunchView();
-    expect("div.o_lunch_banner span[name='o_lunch_balance'] span:nth-child(2)").toHaveText("12.05€");
+    expect(
+        "div.o_lunch_banner span[name='o_lunch_balance'] span:nth-child(2)",
+    ).toHaveText("12.05€");
 
-    await contains("div.o_lunch_banner div[name='o_lunch_order_buttons'] > button:contains(Order Now)").click();
+    await contains(
+        "div.o_lunch_banner div[name='o_lunch_order_buttons'] > button:contains(Order Now)",
+    ).click();
 
-    expect("div.o_lunch_banner span[name='o_lunch_balance'] span:nth-child(2)").toHaveText("7.10€", {
+    expect(
+        "div.o_lunch_banner span[name='o_lunch_balance'] span:nth-child(2)",
+    ).toHaveText("7.10€", {
         message: "Wallet should update",
     });
 });

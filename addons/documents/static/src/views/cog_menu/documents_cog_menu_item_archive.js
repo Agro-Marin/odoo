@@ -25,6 +25,6 @@ export const documentsCogMenuItemArchive = {
         DocumentsCogMenuItem.isVisible(
             env,
             ({ folder, documentService }) =>
-                documentService.userIsInternal && documentService.isEditable(folder)
+                documentService.userIsInternal && documentService.isEditable(folder),
         ),
 };

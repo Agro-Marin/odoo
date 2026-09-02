@@ -34,9 +34,11 @@ describe("useDomState", () => {
                     expect.step(`state: ${this.state.delay}`);
                     return this.state.delay;
                 }
-            }
+            },
         );
-        const { getEditor } = await setupHTMLBuilder(`<div class="test-options-target">a</div>`);
+        const { getEditor } = await setupHTMLBuilder(
+            `<div class="test-options-target">a</div>`,
+        );
         await animationFrame();
         await contains(":iframe .test-options-target").click();
         const editor = getEditor();
@@ -67,7 +69,7 @@ describe("waitSidebarUpdated", () => {
             testAction: class extends BuilderAction {
                 static id = "testAction";
                 isApplied({ editingElement, value }) {
-                    return editingElement.dataset.value == value;
+                    return editingElement.dataset.value === value;
                 }
                 async apply({ editingElement, value }) {
                     await delay(delayAmount);
@@ -113,13 +115,16 @@ describe("waitSidebarUpdated", () => {
                 this.state = useDomState(async (el) => {
                     await delay(delayAmount);
                     await deferred;
-                    return { value: el.dataset.value, showOther: el.dataset.value === "c" };
+                    return {
+                        value: el.dataset.value,
+                        showOther: el.dataset.value === "c",
+                    };
                 });
             }
         }
         addBuilderOption(TestOptionComponent);
         const { waitSidebarUpdated } = await setupHTMLBuilder(
-            `<div class="test" data-value="a">a</div>`
+            `<div class="test" data-value="a">a</div>`,
         );
 
         deferred = new Deferred();
@@ -177,11 +182,11 @@ test("UI is blocked when doing the reloadable operation", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton action="'testReload'">Click</BuilderButton>`;
-        }
+        },
     );
 
     const { waitSidebarUpdated } = await setupHTMLBuilder(
-        `<div class="test-options-target">Target</div>`
+        `<div class="test-options-target">Target</div>`,
     );
     await contains(":iframe .test-options-target").click();
     await contains(".options-container [data-action-id='testReload']").click();
@@ -234,7 +239,9 @@ test("Shouldn't reload(save, etc) when a reload is canceled", async () => {
                 this.reload = {};
             }
             load({ editingElement }) {
-                return { shouldReload: editingElement.classList.contains("should_reload") };
+                return {
+                    shouldReload: editingElement.classList.contains("should_reload"),
+                };
             }
             async apply({ editingElement, loadResult }) {
                 editingElement.dataset.applied = "true";
@@ -249,7 +256,7 @@ test("Shouldn't reload(save, etc) when a reload is canceled", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton action="'testCancelReload'">Click</BuilderButton>`;
-        }
+        },
     );
 
     await setupHTMLBuilder(`<div class="test-options-target">Target</div>`);
@@ -289,10 +296,10 @@ test("UI is unblocked when getting an error on a reloadable operation", async ()
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton action="'testAction'">Click</BuilderButton>`;
-        }
+        },
     );
     const { waitSidebarUpdated } = await setupHTMLBuilder(
-        `<div class="test-options-target">Target</div>`
+        `<div class="test-options-target">Target</div>`,
     );
     await contains(":iframe .test-options-target").click();
     await contains(".options-container [data-action-id='testAction']").click();

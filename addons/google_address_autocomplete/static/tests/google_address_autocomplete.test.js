@@ -50,7 +50,12 @@ class OtherModel extends models.Model {
 defineModels([ResPartner, ResCountryState, ResCountry, OtherModel]);
 
 onRpc("/autocomplete/address", () => ({
-    results: [{ formatted_address: "rue des Bourlottes 9, 1367 Ramillies", google_place_id: "1" }],
+    results: [
+        {
+            formatted_address: "rue des Bourlottes 9, 1367 Ramillies",
+            google_place_id: "1",
+        },
+    ],
 }));
 
 onRpc("/autocomplete/address_full", () => ({
@@ -109,12 +114,14 @@ test("correctly fill all standard fields", async () => {
         </form>`,
     });
     currentInput = "odoo farm 2";
-    await contains(".o_field_widget[name='street'] input").edit("odoo farm 2", { confirm: false });
+    await contains(".o_field_widget[name='street'] input").edit("odoo farm 2", {
+        confirm: false,
+    });
     await runAllTimers();
     expect.verifySteps(["/autocomplete/address"]);
 
     await contains(
-        ".o_field_widget[name='street'] .o-autocomplete--dropdown-item a:contains(Bourlottes)"
+        ".o_field_widget[name='street'] .o-autocomplete--dropdown-item a:contains(Bourlottes)",
     ).click();
     expect.verifySteps(["/autocomplete/address_full"]);
     const expectedFields = {
@@ -131,7 +138,9 @@ test("correctly fill all standard fields", async () => {
 
     const formerToken = googleSessionToken;
     currentInput = "odoo farm 3";
-    await contains(".o_field_widget[name='street'] input").edit("odoo farm 3", { confirm: false });
+    await contains(".o_field_widget[name='street'] input").edit("odoo farm 3", {
+        confirm: false,
+    });
     await runAllTimers();
     expect.verifySteps(["/autocomplete/address"]);
     expect(googleSessionToken).not.toBe(formerToken);
@@ -155,7 +164,7 @@ test("fills current field with values of unknown ones", async () => {
     });
     await runAllTimers();
     await contains(
-        ".o_field_widget[name='some_char'] .o-autocomplete--dropdown-item a:contains(Bourlottes)"
+        ".o_field_widget[name='some_char'] .o-autocomplete--dropdown-item a:contains(Bourlottes)",
     ).click();
 
     const expectedFields = {
@@ -180,7 +189,9 @@ test("typing in input should make form dirty", async () => {
         resId: 1,
     });
     expect(".o_form_button_save:visible").toHaveCount(0);
-    await contains(".o_field_widget[name='street'] input").edit("odoo farm 3", { confirm: false });
+    await contains(".o_field_widget[name='street'] input").edit("odoo farm 3", {
+        confirm: false,
+    });
     await contains(".o_form_button_save:visible").click();
     expect.verifySteps([{ street: "odoo farm 3" }]);
 });
@@ -203,7 +214,7 @@ test("support field mapping in options", async () => {
     });
     await runAllTimers();
     await contains(
-        ".o_field_widget[name='some_char'] .o-autocomplete--dropdown-item a:contains(Bourlottes)"
+        ".o_field_widget[name='some_char'] .o-autocomplete--dropdown-item a:contains(Bourlottes)",
     ).click();
 
     const expectedFields = {

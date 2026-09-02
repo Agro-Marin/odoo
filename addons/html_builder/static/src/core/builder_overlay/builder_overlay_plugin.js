@@ -1,15 +1,17 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { throttleForAnimation } from "@web/core/utils/timing";
-import { getScrollingElement, getScrollingTarget } from "@web/core/utils/dom/scrolling";
-import { checkElement } from "../builder_options_plugin.js";
-import { BuilderOverlay, sizingY, sizingX, sizingGrid } from "./builder_overlay.js";
 import { withSequence } from "@html_editor/utils/resource";
+import { getScrollingElement, getScrollingTarget } from "@web/core/utils/dom/scrolling";
+import { throttleForAnimation } from "@web/core/utils/timing";
+
+import { checkElement } from "../builder_options_plugin.js";
+import { BuilderOverlay, sizingGrid, sizingX, sizingY } from "./builder_overlay.js";
 
 function isResizable(el) {
     const isResizableY = el.matches(sizingY.selector) && !el.matches(sizingY.exclude);
     const isResizableX = el.matches(sizingX.selector) && !el.matches(sizingX.exclude);
-    const isResizableGrid = el.matches(sizingGrid.selector) && !el.matches(sizingGrid.exclude);
+    const isResizableGrid =
+        el.matches(sizingGrid.selector) && !el.matches(sizingGrid.exclude);
     return isResizableY || isResizableX || isResizableGrid;
 }
 
@@ -27,7 +29,8 @@ export class BuilderOverlayPlugin extends Plugin {
     /** @type {import("plugins").BuilderResources} */
     resources = {
         step_added_handlers: this.refreshOverlays.bind(this),
-        change_current_options_containers_listeners: this.openBuilderOverlays.bind(this),
+        change_current_options_containers_listeners:
+            this.openBuilderOverlays.bind(this),
         on_mobile_preview_clicked: withSequence(20, this.refreshOverlays.bind(this)),
         has_overlay_options: { hasOption: (el) => isResizable(el) },
     };
@@ -36,14 +39,14 @@ export class BuilderOverlayPlugin extends Plugin {
         // TODO find how to not overflow the mobile preview.
         this.iframe = this.editable.ownerDocument.defaultView.frameElement;
         this.overlayContainer = this.dependencies.localOverlay.makeLocalOverlay(
-            "builder-overlay-container"
+            "builder-overlay-container",
         );
         // If the user scrolls the mouse wheel while hovering overlayContainer,
         // no scroll will happen to the page. We need to manually process
         // wheel events happening on overlayContainer.
         this.overlayContainer.addEventListener(
             "wheel",
-            (ev) => (this.document.documentElement.scrollTop += ev.deltaY)
+            (ev) => (this.document.documentElement.scrollTop += ev.deltaY),
         );
         /** @type {[BuilderOverlay]} */
         this.overlays = [];
@@ -84,7 +87,7 @@ export class BuilderOverlayPlugin extends Plugin {
                     this.refreshPositions();
                 }, 250);
             }),
-            { capture: true }
+            { capture: true },
         );
 
         this._cleanups.push(() => {
@@ -105,7 +108,8 @@ export class BuilderOverlayPlugin extends Plugin {
                 iframe: this.iframe,
                 overlayContainer: this.overlayContainer,
                 history: this.dependencies.history,
-                hasOverlayOptions: checkElement(option.element, {}) && option.hasOverlayOptions,
+                hasOverlayOptions:
+                    checkElement(option.element, {}) && option.hasOverlayOptions,
                 next: this.dependencies.operation.next,
                 isMobileView: this.config.isMobileView,
                 mobileBreakpoint: this.config.mobileBreakpoint,
@@ -164,7 +168,9 @@ export class BuilderOverlayPlugin extends Plugin {
         // Hide all the active overlays.
         this.toggleOverlaysVisibility(false);
         // Show the preview of the one corresponding to the given element.
-        const overlayToShow = this.overlays.find((overlay) => overlay.overlayTarget === el);
+        const overlayToShow = this.overlays.find(
+            (overlay) => overlay.overlayTarget === el,
+        );
         if (!overlayToShow) {
             return;
         }
@@ -174,7 +180,9 @@ export class BuilderOverlayPlugin extends Plugin {
 
     hideOverlayPreview(el) {
         // Remove the preview.
-        const overlayToHide = this.overlays.find((overlay) => overlay.overlayTarget === el);
+        const overlayToHide = this.overlays.find(
+            (overlay) => overlay.overlayTarget === el,
+        );
         if (!overlayToHide) {
             return;
         }

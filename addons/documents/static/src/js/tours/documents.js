@@ -9,7 +9,9 @@ registry.category("web_tour.tours").add("documents_tour", {
         {
             trigger: '.o_app[data-menu-xmlid="documents.menu_root"]',
             content: markup(
-                _t("Want to become a <b>paperless company</b>? Let's discover Odoo Documents.")
+                _t(
+                    "Want to become a <b>paperless company</b>? Let's discover Odoo Documents.",
+                ),
             ),
             tooltipPosition: "bottom",
             run: "click",
@@ -54,11 +56,14 @@ registry.category("web_tour.tours").add("documents_tour", {
             run: "click",
         },
         {
-            trigger: ".o_control_panel_actions button:contains('" + _t("Send To Finance") + "')",
+            trigger:
+                ".o_control_panel_actions button:contains('" +
+                _t("Send To Finance") +
+                "')",
             content: markup(
                 _t(
-                    "Let's move this document to Finance<br/> <i>Tips: actions can be tailored to your process, according to the folder.</i>"
-                )
+                    "Let's move this document to Finance<br/> <i>Tips: actions can be tailored to your process, according to the folder.</i>",
+                ),
             ),
             tooltipPosition: "bottom",
             run: "click",
@@ -73,7 +78,8 @@ registry.category("web_tour.tours").add("documents_tour", {
             run: "click",
         },
         {
-            trigger: ".o_documents_action_dropdown button:contains(" + _t("Action") + "')",
+            trigger:
+                ".o_documents_action_dropdown button:contains(" + _t("Action") + "')",
             content: _t("Open the actions menu"),
             tooltipPosition: "bottom",
             run: "click",
@@ -84,7 +90,7 @@ registry.category("web_tour.tours").add("documents_tour", {
                 _t("Split PDF") +
                 "')",
             content: _t(
-                "As this PDF contains multiple documents, let's split and process in bulk."
+                "As this PDF contains multiple documents, let's split and process in bulk.",
             ),
             tooltipPosition: "left",
             run: "click",
@@ -93,15 +99,17 @@ registry.category("web_tour.tours").add("documents_tour", {
             trigger: ".o_page_splitter_wrapper:eq(3)",
             content: markup(
                 _t(
-                    "Click on the <b>page separator</b>: we don't want to split these two pages as they belong to the same document."
-                )
+                    "Click on the <b>page separator</b>: we don't want to split these two pages as they belong to the same document.",
+                ),
             ),
             tooltipPosition: "right",
             run: "click",
         },
         {
             trigger: ".o_documents_pdf_page_selector:eq(5)",
-            content: markup(_t("<b>Deselect this page</b> as we plan to process all bills first.")),
+            content: markup(
+                _t("<b>Deselect this page</b> as we plan to process all bills first."),
+            ),
             tooltipPosition: "left",
             run: "click",
         },

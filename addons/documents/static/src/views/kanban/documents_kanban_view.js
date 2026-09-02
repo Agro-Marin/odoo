@@ -11,7 +11,6 @@ import { DocumentsSearchPanel } from "../search/documents_search_panel.js";
 import { DocumentsKanbanArchParser } from "./documents_kanban_arch_parser.js";
 import { DocumentsKanbanCompiler } from "./documents_kanban_compiler.js";
 
-
 export const DocumentsKanbanView = Object.assign({}, kanbanView, {
     ArchParser: DocumentsKanbanArchParser,
     SearchModel: DocumentsSearchModel,

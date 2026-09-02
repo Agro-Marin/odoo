@@ -16,7 +16,7 @@ export class ProductGridLayout extends Interaction {
         },
         _root: {
             "t-att-class": () => ({
-                "o_grid_product_ready": this.isGridReady,
+                o_grid_product_ready: this.isGridReady,
             }),
             "t-att-style": () => ({
                 "--o-wsale-js-grid-product-height": this.gridHeight || "auto",
@@ -30,9 +30,10 @@ export class ProductGridLayout extends Interaction {
         this.isGridReady = false;
         this.loadedImages = new Set();
 
-        this.imagesEls = this.el.querySelectorAll('.product_detail_img');
-        this.isAutoRatioMode = this.el.classList.contains('o_grid_uses_ratio_auto') &&
-                               this.el.classList.contains('o_grid_uses_ratio_mobile_auto');
+        this.imagesEls = this.el.querySelectorAll(".product_detail_img");
+        this.isAutoRatioMode =
+            this.el.classList.contains("o_grid_uses_ratio_auto") &&
+            this.el.classList.contains("o_grid_uses_ratio_mobile_auto");
     }
 
     start() {
@@ -59,7 +60,7 @@ export class ProductGridLayout extends Interaction {
         if (firstImage.complete && firstImage.naturalHeight !== 0) {
             this.calculateImageHeight();
         } else {
-            this.addListener(firstImage, 'load', this.calculateImageHeight);
+            this.addListener(firstImage, "load", this.calculateImageHeight);
         }
     }
 
@@ -84,11 +85,11 @@ export class ProductGridLayout extends Interaction {
             this.finalizeAutoRatioCalculation();
         }, 5000);
 
-        this.imagesEls.forEach(imgEl => {
+        this.imagesEls.forEach((imgEl) => {
             if (imgEl.complete && imgEl.naturalHeight !== 0) {
                 this.processLoadedImage(imgEl);
             } else {
-                this.addListener(imgEl, 'load', () => {
+                this.addListener(imgEl, "load", () => {
                     this.processLoadedImage(imgEl);
 
                     // If all images are loaded, finalize early
@@ -137,7 +138,7 @@ export class ProductGridLayout extends Interaction {
         if (this.isAutoRatioMode) {
             // Recalculate max height from all loaded images
             this.maxHeight = 0;
-            this.loadedImages.forEach(imgEl => {
+            this.loadedImages.forEach((imgEl) => {
                 const height = imgEl.offsetHeight;
                 if (height > this.maxHeight) {
                     this.maxHeight = height;
@@ -156,4 +157,6 @@ registry
 
 registry
     .category("public.interactions.edit")
-    .add("website.website_sale_product_grid_layout", { Interaction: ProductGridLayout });
+    .add("website.website_sale_product_grid_layout", {
+        Interaction: ProductGridLayout,
+    });

@@ -63,6 +63,6 @@ export const documentCogMenuPinAction = {
     isDisplayed: (env) =>
         env.model.documentService.userIsDocumentUser &&
         DocumentCogMenuPinAction.isVisible(env, ({ folder, documentService }) =>
-            documentService.isEditable(folder)
-        )
+            documentService.isEditable(folder),
+        ),
 };

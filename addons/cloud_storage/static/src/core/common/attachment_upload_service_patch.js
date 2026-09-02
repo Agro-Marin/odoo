@@ -9,8 +9,8 @@ patch(AttachmentUploadService.prototype, {
     setup(env, services) {
         super.setup(env, services);
         this.uploadingCloudFiles = new Map();
-        window.addEventListener('beforeunload', () =>
-            this.abortByAttachmentId.forEach(abort => abort())
+        window.addEventListener("beforeunload", () =>
+            this.abortByAttachmentId.forEach((abort) => abort()),
         );
     },
 
@@ -25,7 +25,7 @@ patch(AttachmentUploadService.prototype, {
             /** @type {import("models").Attachment} */
             const attachment = this.store["ir.attachment"].get(attachment_id);
             attachment.remove();
-        }
+        };
         const xhr = new window.XMLHttpRequest();
         this.abortByAttachmentId.set(tmpId, xhr.abort.bind(xhr));
         const file = this.uploadingCloudFiles.get(tmpId);
@@ -43,7 +43,7 @@ patch(AttachmentUploadService.prototype, {
                 // usually it is because the token of the server for the cloud storage is expired
                 this.notificationService.add(
                     _t("You are not allowed to upload file to the cloud storage"),
-                    { type: "danger" }
+                    { type: "danger" },
                 );
                 removeAttachment();
                 def.resolve();
@@ -52,7 +52,9 @@ patch(AttachmentUploadService.prototype, {
             }
             // google returns 200, azure returns 201
             if (xhr.status !== upload_info.response_status) {
-                this.notificationService.add(_t("Cloud storage error"), { type: "danger" });
+                this.notificationService.add(_t("Cloud storage error"), {
+                    type: "danger",
+                });
                 removeAttachment();
                 def.resolve();
                 this._cleanupUploading(tmpId);
@@ -95,7 +97,9 @@ patch(AttachmentUploadService.prototype, {
             // replace the file to a dummy file with the same name and type
             // and send the dummy file to the server without real content overhead
             file = new File([new Blob([])], file.name, { type: file.type });
-            options = options ? { ...options, cloud_storage: true } : { cloud_storage: true };
+            options = options
+                ? { ...options, cloud_storage: true }
+                : { cloud_storage: true };
         }
         return super._upload(thread, composer, file, options, tmpId, tmpURL);
     },

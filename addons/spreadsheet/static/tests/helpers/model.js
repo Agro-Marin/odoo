@@ -8,6 +8,7 @@ import {
     makeMockEnv,
     onRpc,
 } from "@web/../tests/web_test_helpers";
+
 import { setCellContent } from "./commands.js";
 import { addRecordsFromServerData, addViewsFromServerData } from "./data.js";
 

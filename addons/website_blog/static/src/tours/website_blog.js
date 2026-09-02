@@ -68,7 +68,8 @@ registerWebsitePreviewTour(
             tooltipPosition: "top",
         },
         {
-            trigger: ".o_select_media_dialog .o_existing_attachment_cell:first .o_button_area",
+            trigger:
+                ".o_select_media_dialog .o_existing_attachment_cell:first .o_button_area",
             content: _t("Choose an image from the library."),
             tooltipPosition: "top",
             run: "click",
@@ -77,8 +78,8 @@ registerWebsitePreviewTour(
             trigger: ":iframe #o_wblog_post_content p",
             content: markup(
                 _t(
-                    "<b>Write your story here.</b> Use the top toolbar to style your text: add an image or table, set bold or italic, etc. Drag and drop building blocks for more graphical blogs."
-                )
+                    "<b>Write your story here.</b> Use the top toolbar to style your text: add an image or table, set bold or italic, etc. Drag and drop building blocks for more graphical blogs.",
+                ),
             ),
             tooltipPosition: "top",
             run: "editor Blog content",
@@ -87,7 +88,7 @@ registerWebsitePreviewTour(
         {
             trigger: ".o_menu_systray_item.o_mobile_preview > a",
             content: markup(
-                _t("Use this icon to preview your blog post on <b>mobile devices</b>.")
+                _t("Use this icon to preview your blog post on <b>mobile devices</b>."),
             ),
             tooltipPosition: "bottom",
             run: "click",
@@ -98,7 +99,7 @@ registerWebsitePreviewTour(
         {
             trigger: ".o_menu_systray_item.o_mobile_preview > a",
             content: _t(
-                "Once you have reviewed the content on mobile, you can switch back to the normal view by clicking here again"
+                "Once you have reviewed the content on mobile, you can switch back to the normal view by clicking here again",
             ),
             tooltipPosition: "right",
             run: "click",
@@ -110,12 +111,14 @@ registerWebsitePreviewTour(
             trigger: '.o_menu_systray_item a:contains("Unpublished")',
             tooltipPosition: "bottom",
             content: markup(
-                _t("<b>Publish your blog post</b> to make it visible to your visitors.")
+                _t(
+                    "<b>Publish your blog post</b> to make it visible to your visitors.",
+                ),
             ),
             run: "click",
         },
         {
             trigger: '.o_menu_systray_item a:contains("Published")',
         },
-    ]
+    ],
 );

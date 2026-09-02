@@ -3,7 +3,7 @@ import {
     clickOnEditAndWaitEditMode,
     clickOnSave,
     registerWebsitePreviewTour,
-} from '@website/js/tours/tour_utils';
+} from "@website/js/tours/tour_utils";
 
 const clickOnImgAndWaitForLoad = [
     {
@@ -33,7 +33,8 @@ const enterEditModeOfTestProduct = () => [
 const removeImg = [
     {
         content: "Click on Remove",
-        trigger: ".o_customize_tab [data-container-title='Image'] button[data-action-id='removeMedia']",
+        trigger:
+            ".o_customize_tab [data-container-title='Image'] button[data-action-id='removeMedia']",
         run: "click",
     },
     // If the snippet editor is not visible, the remove process is considered as
@@ -44,33 +45,43 @@ const removeImg = [
     },
 ];
 
-registerWebsitePreviewTour("add_and_remove_main_product_image_no_variant", {
-    url: "/shop?search=Test Remove Image",
-}, () => [
-    ...enterEditModeOfTestProduct(),
+registerWebsitePreviewTour(
+    "add_and_remove_main_product_image_no_variant",
     {
-        content: "Double click on the product image",
-        trigger: ":iframe #o-carousel-product img[alt='Test Remove Image']",
-        run: "dblclick",
+        url: "/shop?search=Test Remove Image",
     },
+    () => [
+        ...enterEditModeOfTestProduct(),
+        {
+            content: "Double click on the product image",
+            trigger: ":iframe #o-carousel-product img[alt='Test Remove Image']",
+            run: "dblclick",
+        },
+        {
+            content: "Click on the new image",
+            trigger:
+                ".o_select_media_dialog .o_existing_attachment_cell .o_button_area",
+            run: "click",
+        },
+        {
+            content:
+                "Check that the snippet editor of the clicked image has been loaded",
+            trigger: ".o_customize_tab [data-container-title='Image']",
+        },
+        ...removeImg,
+    ],
+);
+registerWebsitePreviewTour(
+    "remove_main_product_image_with_variant",
     {
-        content: "Click on the new image",
-        trigger: ".o_select_media_dialog .o_existing_attachment_cell .o_button_area",
-        run: "click",
+        url: "/shop?search=Test Remove Image",
     },
-    {
-        content: "Check that the snippet editor of the clicked image has been loaded",
-        trigger: ".o_customize_tab [data-container-title='Image']",
-    },
-    ...removeImg,
-]);
-registerWebsitePreviewTour("remove_main_product_image_with_variant", {
-    url: "/shop?search=Test Remove Image",
-}, () => [
-    ...enterEditModeOfTestProduct(),
-    ...clickOnImgAndWaitForLoad,
-    ...clickOnSave(),
-    ...clickOnEditAndWaitEditMode(),
-    ...clickOnImgAndWaitForLoad,
-    ...removeImg,
-]);
+    () => [
+        ...enterEditModeOfTestProduct(),
+        ...clickOnImgAndWaitForLoad,
+        ...clickOnSave(),
+        ...clickOnEditAndWaitEditMode(),
+        ...clickOnImgAndWaitForLoad,
+        ...removeImg,
+    ],
+);

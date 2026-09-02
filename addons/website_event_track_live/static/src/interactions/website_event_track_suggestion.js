@@ -54,4 +54,7 @@ export class WebsiteEventTrackSuggestion extends Interaction {
 
 registry
     .category("public.interactions")
-    .add("website_event_track_live.WebsiteEventTrackSuggestion", WebsiteEventTrackSuggestion);
+    .add(
+        "website_event_track_live.WebsiteEventTrackSuggestion",
+        WebsiteEventTrackSuggestion,
+    );

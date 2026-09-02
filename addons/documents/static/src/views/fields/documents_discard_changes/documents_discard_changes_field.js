@@ -14,4 +14,6 @@ export class DocumentsDiscardChangesField extends Component {
 
 export const documentsDiscardChangesField = { component: DocumentsDiscardChangesField };
 
-registry.category("fields").add("documents_discard_changes", documentsDiscardChangesField);
+registry
+    .category("fields")
+    .add("documents_discard_changes", documentsDiscardChangesField);

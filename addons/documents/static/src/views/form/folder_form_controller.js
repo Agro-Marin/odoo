@@ -36,7 +36,9 @@ export class FolderFormController extends FormController {
             },
             delete: {
                 isAvailable: () =>
-                    activeActions.delete && !this.model.root.isNew && this.model.root.data.active,
+                    activeActions.delete &&
+                    !this.model.root.isNew &&
+                    this.model.root.data.active,
                 sequence: 40,
                 icon: "fa-regular fa-trash-can",
                 description: _t("Delete"),
@@ -53,28 +55,28 @@ export class FolderFormController extends FormController {
         const displayDialog = await this.orm.call(
             this.props.resModel,
             "is_folder_containing_document",
-            [this.model.root.resId]
+            [this.model.root.resId],
         );
         if (displayDialog) {
             this.dialog.add(ConfirmationDialog, {
                 title: _t("Move to trash?"),
                 body: _t(
                     "Files will be sent to trash and deleted forever after %s days.",
-                    this._deletionDelay
+                    this._deletionDelay,
                 ),
                 confirmLabel: _t("Move to trash"),
                 confirm: async () => {
-                    await this.orm.call(
-                        this.props.resModel,
-                        "action_archive",
-                        [this.model.root.resId]
-                    );
+                    await this.orm.call(this.props.resModel, "action_archive", [
+                        this.model.root.resId,
+                    ]);
                     this.env.config.historyBack();
                 },
                 cancel: () => {},
             });
         } else {
-            await this.orm.call(this.props.resModel, "action_archive", [this.model.root.resId]);
+            await this.orm.call(this.props.resModel, "action_archive", [
+                this.model.root.resId,
+            ]);
             this.env.config.historyBack();
         }
     }

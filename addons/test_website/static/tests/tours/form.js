@@ -31,7 +31,8 @@ registerWebsitePreviewTour(
         ...clickOnSave(),
         {
             content: "Name field is hidden",
-            trigger: ":iframe .s_website_form:has(.s_website_form_field_hidden_if.d-none)",
+            trigger:
+                ":iframe .s_website_form:has(.s_website_form_field_hidden_if.d-none)",
         },
         ...clickOnEditAndWaitEditMode(),
 
@@ -53,7 +54,8 @@ registerWebsitePreviewTour(
         ...clickOnSave(),
         {
             content: "Name field is shown",
-            trigger: ":iframe .s_website_form:has(.s_website_form_field_hidden_if:not(.d-none))",
+            trigger:
+                ":iframe .s_website_form:has(.s_website_form_field_hidden_if:not(.d-none))",
         },
     ],
 );

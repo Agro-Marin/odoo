@@ -21,14 +21,21 @@ export class LunchCurrency extends Component {
 
 export class LunchOrderLine extends Component {
     static template = "lunch.LunchOrderLine";
-    static props = ["line", "currency", "onUpdateQuantity", "openOrderLine", "infos", "isToOrder"];
+    static props = [
+        "line",
+        "currency",
+        "onUpdateQuantity",
+        "openOrderLine",
+        "infos",
+        "isToOrder",
+    ];
     static components = {
         LunchCurrency,
     };
 
     setup() {
         super.setup();
-        this.orm = useService('orm');
+        this.orm = useService("orm");
         this.state = useState({ mobileOpen: false });
     }
 
@@ -36,19 +43,24 @@ export class LunchOrderLine extends Component {
         return this.props.line;
     }
 
-    get canAdd(){
-        let price = this.line.product[3]
-        this.line.toppings.forEach((line) => price += line[3])
-        const unpaid = parseFloat(this.props.infos.unpaid_subtotal)
-        return this.canEdit && (this.props.infos.wallet_with_config - unpaid) >= price;
+    get canAdd() {
+        let price = this.line.product[3];
+        this.line.toppings.forEach((line) => (price += line[3]));
+        const unpaid = parseFloat(this.props.infos.unpaid_subtotal);
+        return this.canEdit && this.props.infos.wallet_with_config - unpaid >= price;
     }
 
     get canEdit() {
-        return !['sent', 'confirmed'].includes(this.line.raw_state);
+        return !["sent", "confirmed"].includes(this.line.raw_state);
     }
 
     get badgeClass() {
-        const mapping = {'new': 'secondary', 'confirmed': 'success', 'sent': 'info', 'ordered': 'primary'};
+        const mapping = {
+            new: "secondary",
+            confirmed: "success",
+            sent: "info",
+            ordered: "primary",
+        };
         return mapping[this.line.raw_state];
     }
 
@@ -57,9 +69,9 @@ export class LunchOrderLine extends Component {
     }
 
     async updateQuantity(increment) {
-        await this.orm.call('lunch.order', 'update_quantity', [
+        await this.orm.call("lunch.order", "update_quantity", [
             this.props.line.id,
-            increment
+            increment,
         ]);
 
         await this.props.onUpdateQuantity();
@@ -89,7 +101,7 @@ export class LunchUser extends Component {
     static props = ["username", "isManager", "onUpdateUser"];
     static template = "lunch.LunchUser";
     getDomain() {
-        return [['share', '=', false]];
+        return [["share", "=", false]];
     }
 }
 
@@ -127,9 +139,9 @@ export class LunchDashboard extends Component {
             cartOpen: false,
         });
 
-        useBus(this.env.bus, 'lunch_update_dashboard', () => this._fetchLunchInfos());
+        useBus(this.env.bus, "lunch_update_dashboard", () => this._fetchLunchInfos());
         onWillStart(async () => {
-            await this._fetchLunchInfos()
+            await this._fetchLunchInfos();
             this.env.searchModel.updateLocationId(this.state.infos.user_location[0]);
         });
     }
@@ -139,15 +151,15 @@ export class LunchDashboard extends Component {
             ...args,
             context: user.context,
             user_id: this.env.searchModel.lunchState.userId,
-        })
+        });
     }
 
     async _fetchLunchInfos() {
-        this.state.infos = await this.lunchRpc('/lunch/infos');
+        this.state.infos = await this.lunchRpc("/lunch/infos");
     }
 
     async emptyCart() {
-        await this.lunchRpc('/lunch/trash');
+        await this.lunchRpc("/lunch/trash");
         await this._fetchLunchInfos();
     }
 
@@ -156,7 +168,7 @@ export class LunchDashboard extends Component {
     }
 
     get canOrder() {
-        return this.state.infos.raw_state === 'new';
+        return this.state.infos.raw_state === "new";
     }
 
     get location() {
@@ -168,7 +180,7 @@ export class LunchDashboard extends Component {
             return;
         }
 
-        await this.lunchRpc('/lunch/pay');
+        await this.lunchRpc("/lunch/pay");
         await this._fetchLunchInfos();
     }
 
@@ -189,7 +201,7 @@ export class LunchDashboard extends Component {
             return;
         }
 
-        await this.lunchRpc('/lunch/user_location_set', {
+        await this.lunchRpc("/lunch/user_location_set", {
             location_id: value[0].id,
         });
         await this._fetchLunchInfos();

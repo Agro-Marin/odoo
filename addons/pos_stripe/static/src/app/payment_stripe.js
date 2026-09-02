@@ -76,8 +76,8 @@ export class PaymentStripe extends PaymentInterface {
         // Because the reader can only connect to one instance of the SDK at a time.
         // We need the disconnect this reader if we want to use another one
         if (
-            this.pos.connectedReader != this.payment_method_id.stripe_serial_number &&
-            this.terminal.getConnectionStatus() == "connected"
+            this.pos.connectedReader !== this.payment_method_id.stripe_serial_number &&
+            this.terminal.getConnectionStatus() === "connected"
         ) {
             const disconnectResult = await this.terminal.disconnectReader();
             if (disconnectResult.error) {
@@ -90,7 +90,7 @@ export class PaymentStripe extends PaymentInterface {
             } else {
                 return await this.connectReader();
             }
-        } else if (this.terminal.getConnectionStatus() == "not_connected") {
+        } else if (this.terminal.getConnectionStatus() === "not_connected") {
             return await this.connectReader();
         } else {
             return true;
@@ -102,7 +102,7 @@ export class PaymentStripe extends PaymentInterface {
         const discoveredReaders = JSON.parse(this.pos.discoveredReaders);
         for (const selectedReader of discoveredReaders) {
             if (
-                selectedReader.serial_number ==
+                selectedReader.serial_number ===
                 this.payment_method_id.stripe_serial_number
             ) {
                 try {
@@ -347,7 +347,7 @@ export class PaymentStripe extends PaymentInterface {
     async stripeCancel() {
         if (!this.terminal) {
             return true;
-        } else if (this.terminal.getConnectionStatus() != "connected") {
+        } else if (this.terminal.getConnectionStatus() !== "connected") {
             this._showError(_t("Payment cancelled because not reader connected"));
             return true;
         } else {

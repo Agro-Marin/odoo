@@ -26,10 +26,7 @@ patch(ProductScreen.prototype, {
             return await super.addProductToOrder(product);
         }
 
-        if (
-            product.event_id.seats_available === 0 &&
-            product.event_id.seats_limited
-        ) {
+        if (product.event_id.seats_available === 0 && product.event_id.seats_limited) {
             this.notification.add("No more seats available for this event", {
                 type: "danger",
             });
@@ -39,15 +36,13 @@ patch(ProductScreen.prototype, {
         const event = product.event_id;
         const tickets = event.event_ticket_ids.filter(
             (ticket) =>
-                ticket.product_id &&
-                ticket.product_id.service_tracking === "event",
+                ticket.product_id && ticket.product_id.service_tracking === "event",
         );
 
         // Multi Slot
-        let avaibilityByTicket = {};
+        let avaibilityByTicket;
         let slotResult = {};
         let slotSelected;
-        let slotTicketAvailabilities = {};
         if (event.is_multi_slots) {
             // Updating data in case of event change
             await this.pos.data.read(
@@ -68,7 +63,7 @@ patch(ProductScreen.prototype, {
                     slotTickets.push([slot.id, ticket.id]);
                 }
             }
-            slotTicketAvailabilities = await this.pos.data.call(
+            const slotTicketAvailabilities = await this.pos.data.call(
                 "event.event",
                 "get_slot_tickets_availability_pos",
                 [event.id, slotTickets],
@@ -102,43 +97,37 @@ patch(ProductScreen.prototype, {
                 Object.values(av).some((a) => typeof a === "number" && a > 0),
             );
             if (!isAvailable || eventSeats === 0) {
-                this.notification.add(
-                    "All slots are booked out for this event.",
-                    {
-                        type: "danger",
-                    },
-                );
+                this.notification.add("All slots are booked out for this event.", {
+                    type: "danger",
+                });
                 return;
             }
-            const availabilityPerSlot = Object.values(
-                avaibilityByTicket,
-            ).reduce((acc, ticketAvailability) => {
-                Object.entries(ticketAvailability).forEach(
-                    ([slotId, availability]) => {
-                        if (!acc[slotId]) {
-                            acc[slotId] = 0;
-                        } else if (acc[slotId] === "unlimited") {
-                            return acc;
-                        }
-                        if (availability === "unlimited") {
-                            acc[slotId] = "unlimited";
-                        } else if (typeof availability === "number") {
-                            acc[slotId] = Math.max(acc[slotId], availability);
-                        } else {
-                            acc[slotId] = Math.max(acc[slotId], 0);
-                        }
-                    },
-                );
-                return acc;
-            }, {});
-            slotResult = await makeAwaitable(
-                this.dialog,
-                EventSlotSelectionPopup,
-                {
-                    availabilityPerSlot: availabilityPerSlot,
-                    event: event,
+            const availabilityPerSlot = Object.values(avaibilityByTicket).reduce(
+                (acc, ticketAvailability) => {
+                    Object.entries(ticketAvailability).forEach(
+                        ([slotId, availability]) => {
+                            if (!acc[slotId]) {
+                                acc[slotId] = 0;
+                            } else if (acc[slotId] === "unlimited") {
+                                return acc;
+                            }
+                            if (availability === "unlimited") {
+                                acc[slotId] = "unlimited";
+                            } else if (typeof availability === "number") {
+                                acc[slotId] = Math.max(acc[slotId], availability);
+                            } else {
+                                acc[slotId] = Math.max(acc[slotId], 0);
+                            }
+                        },
+                    );
+                    return acc;
                 },
+                {},
             );
+            slotResult = await makeAwaitable(this.dialog, EventSlotSelectionPopup, {
+                availabilityPerSlot: availabilityPerSlot,
+                event: event,
+            });
             if (!slotResult?.slotId) {
                 return;
             }
@@ -156,27 +145,19 @@ patch(ProductScreen.prototype, {
             }, {});
         }
 
-        const ticketResult = await makeAwaitable(
-            this.dialog,
-            EventConfiguratorPopup,
-            {
-                availabilityPerTicket: avaibilityByTicket,
-                slotResult: slotResult,
-                tickets: tickets,
-            },
-        );
+        const ticketResult = await makeAwaitable(this.dialog, EventConfiguratorPopup, {
+            availabilityPerTicket: avaibilityByTicket,
+            slotResult: slotResult,
+            tickets: tickets,
+        });
         if (!ticketResult || !ticketResult.length) {
             return;
         }
 
-        const result = await makeAwaitable(
-            this.dialog,
-            EventRegistrationPopup,
-            {
-                event: event,
-                data: ticketResult,
-            },
-        );
+        const result = await makeAwaitable(this.dialog, EventRegistrationPopup, {
+            event: event,
+            data: ticketResult,
+        });
 
         if (
             !result ||
@@ -187,12 +168,7 @@ patch(ProductScreen.prototype, {
         }
 
         const globalIdentificationAnswers = {};
-        const identificationQuestionTypes = [
-            "name",
-            "email",
-            "phone",
-            "company_name",
-        ];
+        const identificationQuestionTypes = ["name", "email", "phone", "company_name"];
 
         const { globalSimpleChoice, globalTextAnswer } = Object.entries(
             result.byOrder,
@@ -203,21 +179,16 @@ patch(ProductScreen.prototype, {
                 );
                 if (
                     question.question_type === "simple_choice" &&
-                    this.pos.models["event.question.answer"].get(
-                        parseInt(answer),
-                    )
+                    this.pos.models["event.question.answer"].get(parseInt(answer))
                 ) {
                     acc.globalSimpleChoice[questionId] = answer;
                 } else if (answer) {
                     acc.globalTextAnswer[questionId] = answer;
                     if (
-                        identificationQuestionTypes.includes(
-                            question.question_type,
-                        ) &&
+                        identificationQuestionTypes.includes(question.question_type) &&
                         !(question.question_type in globalIdentificationAnswers)
                     ) {
-                        globalIdentificationAnswers[question.question_type] =
-                            answer;
+                        globalIdentificationAnswers[question.question_type] = answer;
                     }
                 }
 
@@ -243,9 +214,7 @@ patch(ProductScreen.prototype, {
             for (const registration of data) {
                 // Global answers have precedence for identification question types.
                 const userData = { ...globalIdentificationAnswers };
-                for (const [questionId, answer] of Object.entries(
-                    registration,
-                )) {
+                for (const [questionId, answer] of Object.entries(registration)) {
                     const question = this.pos.models["event.question"].get(
                         parseInt(questionId),
                     );
@@ -253,9 +222,7 @@ patch(ProductScreen.prototype, {
                     if (
                         !question ||
                         !answer ||
-                        !identificationQuestionTypes.includes(
-                            question.question_type,
-                        ) ||
+                        !identificationQuestionTypes.includes(question.question_type) ||
                         question.question_type in userData
                     ) {
                         continue;

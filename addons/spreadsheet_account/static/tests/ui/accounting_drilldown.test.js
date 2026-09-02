@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { registries, constants } from "@odoo/o-spreadsheet";
+import { constants, registries } from "@odoo/o-spreadsheet";
 import { selectCell, setCellContent } from "@spreadsheet/../tests/helpers/commands";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
 import { doMenuAction } from "@spreadsheet/../tests/helpers/ui";

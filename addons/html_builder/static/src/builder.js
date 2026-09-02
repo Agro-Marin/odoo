@@ -25,7 +25,7 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
 import { addLoadingEffect as addButtonLoadingEffect } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
-import { MEDIAS_BREAKPOINTS,SIZES } from "@web/ui/viewport";
+import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/viewport";
 
 // These elements should only have inline content (even if they have a `block`
 // display style, for example if they are in a flex)
@@ -107,7 +107,8 @@ export class Builder extends Component {
                 mobileBreakpoint,
                 isMobileView: (targetEl) => {
                     const mobileViewThreshold =
-                        MEDIAS_BREAKPOINTS[SIZES[mobileBreakpoint.toUpperCase()]].minWidth;
+                        MEDIAS_BREAKPOINTS[SIZES[mobileBreakpoint.toUpperCase()]]
+                            .minWidth;
                     const clientWidth =
                         targetEl.ownerDocument.defaultView?.frameElement?.clientWidth ||
                         targetEl.ownerDocument.documentElement.clientWidth;
@@ -132,7 +133,8 @@ export class Builder extends Component {
                 closeEditor: async () => {
                     await this.props.closeEditor?.();
                 },
-                installSnippetModule: (snippet) => this.props.installSnippetModule?.(snippet),
+                installSnippetModule: (snippet) =>
+                    this.props.installSnippetModule?.(snippet),
                 /** @type {import("plugins").BuilderResources} */
                 resources: {
                     trigger_dom_updated: () => {
@@ -143,15 +145,17 @@ export class Builder extends Component {
                     }),
                     before_save_handlers: () => {
                         const snippetMenuEl = this.builder_sidebarRef.el;
-                        const saveButton = snippetMenuEl.querySelector("[data-action='save']");
+                        const saveButton =
+                            snippetMenuEl.querySelector("[data-action='save']");
                         delete this.removeLoadingEffect;
                         if (saveButton) {
                             // Add a loading effect on the save button and disable the other actions
                             this.removeLoadingEffect = addButtonLoadingEffect(
-                                snippetMenuEl.querySelector("[data-action='save']")
+                                snippetMenuEl.querySelector("[data-action='save']"),
                             );
                         }
-                        this.actionButtonEls = snippetMenuEl.querySelectorAll("[data-action]");
+                        this.actionButtonEls =
+                            snippetMenuEl.querySelectorAll("[data-action]");
                         for (const actionButtonEl of this.actionButtonEls) {
                             actionButtonEl.disabled = true;
                         }
@@ -165,7 +169,9 @@ export class Builder extends Component {
                     on_snippet_dropped_handlers: () => {
                         this.activeTargetEl = null;
                     },
-                    change_current_options_containers_listeners: (currentOptionsContainers) => {
+                    change_current_options_containers_listeners: (
+                        currentOptionsContainers,
+                    ) => {
                         this.state.currentOptionsContainers = currentOptionsContainers;
                         if (!currentOptionsContainers.length) {
                             // If there is no option, fallback on the current
@@ -183,31 +189,39 @@ export class Builder extends Component {
                     unsplittable_node_predicates: (/** @type {Node} */ node) =>
                         node.querySelector?.("[data-oe-translation-source-sha]"),
                     are_inlines_allowed_at_root_predicates: (el) =>
-                        ONLY_ALLOW_INLINE_TAGS.has(el.tagName.toLowerCase()) || undefined,
+                        ONLY_ALLOW_INLINE_TAGS.has(el.tagName.toLowerCase()) ||
+                        undefined,
                 },
                 localOverlayContainers: {
                     key: this.env.localOverlayContainerKey,
                     ref: this.props.overlayRef,
                 },
-                saveSnippet: (snippetEl, cleanForSaveHandlers, wrapWithSaveSnippetHandlers) =>
+                saveSnippet: (
+                    snippetEl,
+                    cleanForSaveHandlers,
+                    wrapWithSaveSnippetHandlers,
+                ) =>
                     this.snippetModel.saveSnippet(
                         snippetEl,
                         cleanForSaveHandlers,
-                        wrapWithSaveSnippetHandlers
+                        wrapWithSaveSnippetHandlers,
                     ),
                 snippetModel: this.snippetModel,
                 updateInvisibleElementsPanel: () => this.updateInvisibleEls(),
                 allowCustomStyle: true,
                 allowTargetBlank: true,
                 dropImageAsAttachment: true,
-                getAnimateTextConfig: () => ({ editor: this.editor, editorBus: this.editorBus }),
+                getAnimateTextConfig: () => ({
+                    editor: this.editor,
+                    editorBus: this.editorBus,
+                }),
                 baseContainers: ["P"],
                 cleanEmptyStructuralContainers: false,
                 isEditableRTL: false,
                 publicAttachments: true,
                 direction: "ltr",
             },
-            this.env.services
+            this.env.services,
         );
         this.props.onEditorLoad?.(this.editor);
 
@@ -221,7 +235,7 @@ export class Builder extends Component {
                 return;
             }
             this.editableEl = iframeEl.contentDocument.body.querySelector(
-                this.props.editableSelector
+                this.props.editableSelector,
             );
 
             if (this.editableEl.matches(".o_rtl")) {
@@ -264,9 +278,8 @@ export class Builder extends Component {
         onWillUpdateProps((nextProps) => {
             if (nextProps.isMobile !== this.props.isMobile) {
                 this.updateInvisibleEls(nextProps.isMobile);
-                this.invisibleElementsPanelState.invisibleSelector = this.getInvisibleSelector(
-                    nextProps.isMobile
-                );
+                this.invisibleElementsPanelState.invisibleSelector =
+                    this.getInvisibleSelector(nextProps.isMobile);
             }
         });
         // Fallback tab when no option is active.
@@ -336,12 +349,16 @@ export class Builder extends Component {
 
     onMobilePreviewClick() {
         this.props.toggleMobile();
-        this.editor.resources["on_mobile_preview_clicked"].forEach((handler) => handler());
+        this.editor.resources["on_mobile_preview_clicked"].forEach((handler) =>
+            handler(),
+        );
     }
 
     updateInvisibleEls(isMobile = this.props.isMobile) {
         this.invisibleElementsPanelState.invisibleEls = [
-            ...this.editor.editable.querySelectorAll(this.getInvisibleSelector(isMobile)),
+            ...this.editor.editable.querySelectorAll(
+                this.getInvisibleSelector(isMobile),
+            ),
         ];
     }
 

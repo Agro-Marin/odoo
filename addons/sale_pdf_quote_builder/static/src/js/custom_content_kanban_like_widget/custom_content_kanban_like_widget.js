@@ -23,7 +23,7 @@ export class CustomContentKanbanLikeWidget extends Component {
 
         // Initialize the state and update available documents when updating the quotation template.
         useEffect(
-            (saleOrderTemplate) => {
+            () => {
                 this.updateState();
             },
             () => [this.props.record.data.sale_order_template_id],

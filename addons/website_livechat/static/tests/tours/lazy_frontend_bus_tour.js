@@ -26,7 +26,7 @@ registry.category("web_tour.tours").add("website_livechat.lazy_frontend_bus", {
             },
         });
         odoo.__WOWL_DEBUG__.root.env.services["mail.store"].isReady.then(() =>
-            document.body.classList.add("o-mail-store-ready")
+            document.body.classList.add("o-mail-store-ready"),
         );
         return [
             {
@@ -42,7 +42,8 @@ registry.category("web_tour.tours").add("website_livechat.lazy_frontend_bus", {
                 run: "edit Hello, I need help!",
             },
             {
-                trigger: "body:not(.o-bus-service-started):not(.o-worker-service-started)",
+                trigger:
+                    "body:not(.o-bus-service-started):not(.o-worker-service-started)",
             },
             {
                 trigger: ".o-livechat-root:shadow .o-mail-Composer-input",

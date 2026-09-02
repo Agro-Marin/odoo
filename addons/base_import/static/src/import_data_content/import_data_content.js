@@ -26,7 +26,10 @@ export class ImportDataContent extends Component {
     getGroups(column) {
         const groups = [
             { choices: this.makeChoices(column.fields.basic) },
-            { choices: this.makeChoices(column.fields.suggested), label: _t("Suggested Fields") },
+            {
+                choices: this.makeChoices(column.fields.suggested),
+                label: _t("Suggested Fields"),
+            },
             {
                 choices: this.makeChoices(column.fields.additional),
                 label:
@@ -34,7 +37,10 @@ export class ImportDataContent extends Component {
                         ? _t("Additional Fields")
                         : _t("Standard Fields"),
             },
-            { choices: this.makeChoices(column.fields.relational), label: _t("Relation Fields") },
+            {
+                choices: this.makeChoices(column.fields.relational),
+                label: _t("Relation Fields"),
+            },
         ];
         return groups;
     }

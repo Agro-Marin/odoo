@@ -17,7 +17,7 @@ patch(OrderPaymentValidation.prototype, {
     checkRemainingOnlinePaymentLines(unpaidAmount) {
         const remainingLines = this.getRemainingOnlinePaymentLines();
         let remainingAmount = 0;
-        let amount = 0;
+        let amount;
         for (const line of remainingLines) {
             amount = line.getAmount();
             if (amount <= 0) {

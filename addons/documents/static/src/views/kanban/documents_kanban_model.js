@@ -11,7 +11,9 @@ export class DocumentsKanbanModel extends DocumentsModelMixin(RelationalModel) {
     }
 }
 
-export class DocumentsKanbanRecord extends DocumentsRecordMixin(RelationalModel.Record) {
+export class DocumentsKanbanRecord extends DocumentsRecordMixin(
+    RelationalModel.Record,
+) {
     async onReplaceDocument(ev) {
         if (!ev.target.files.length) {
             return;
@@ -21,7 +23,7 @@ export class DocumentsKanbanRecord extends DocumentsRecordMixin(RelationalModel.
             accessToken: this.data.access_token,
             context: {
                 document_id: this.data.id,
-            }
+            },
         });
         ev.target.value = "";
     }

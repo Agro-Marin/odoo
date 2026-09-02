@@ -1,8 +1,11 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { click } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { browser } from "@web/core/browser/browser";
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList(["website_blog.website_blog"]);
 describe.current.tags("interaction_dev");

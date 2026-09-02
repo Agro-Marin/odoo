@@ -25,6 +25,6 @@ export const documentsCogMenuItemDownload = {
     groupNumber: STATIC_COG_GROUP_ACTION_BASIC,
     isDisplayed: (env) =>
         DocumentsCogMenuItem.isVisible(env, ({ folder, documentService }) =>
-            documentService.canDownload(folder)
+            documentService.canDownload(folder),
         ),
 };

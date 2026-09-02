@@ -12,7 +12,7 @@ export class DocumentsCogMenuItemDetails extends DocumentsCogMenuItem {
         super.setup();
     }
 
-    async doActionOnFolder(folder) {
+    async doActionOnFolder() {
         this.documentService.toggleRightPanelVisibility();
     }
 }
@@ -24,6 +24,6 @@ export const documentsCogMenuItemDetails = {
         DocumentsCogMenuItem.isVisible(
             env,
             ({ documentService, folder }) =>
-                documentService.userIsInternal && typeof folder.id === "number"
+                documentService.userIsInternal && typeof folder.id === "number",
         ),
 };

@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { patch } from '@web/core/utils/patch';
+import { patch } from "@web/core/utils/patch";
 
-import { PaymentForm } from '@payment/interactions/payment_form';
+import { PaymentForm } from "@payment/interactions/payment_form";
 
 patch(PaymentForm.prototype, {
-
     /**
      * Configure 'cash_on_delivery' as a pay later method.
      *
@@ -12,9 +11,8 @@ patch(PaymentForm.prototype, {
      */
     _isPayLaterPaymentMethod(paymentMethodCode) {
         return (
-            paymentMethodCode === 'cash_on_delivery'
-            || super._isPayLaterPaymentMethod(...arguments)
+            paymentMethodCode === "cash_on_delivery" ||
+            super._isPayLaterPaymentMethod(...arguments)
         );
-    }
-
+    },
 });

@@ -47,7 +47,7 @@ export function getProductVariantByAttributes(
             prd.product_tmpl_id.id === productTemplate.id &&
             prd.product_template_variant_value_ids.length &&
             prd.product_template_variant_value_ids.every((ptav) =>
-                Object.values(selectedAttributes).some((value) => ptav.id == value),
+                Object.values(selectedAttributes).some((value) => ptav.id === value),
             ),
     );
 }

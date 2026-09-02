@@ -42,13 +42,15 @@ registry.category("web_tour.tours").add("hr_skills_tour", {
             run: "edit Mamie Rock",
         },
         {
-            trigger: ".modal:contains(new resume line) .o_field_widget[name='date_start'] button",
+            trigger:
+                ".modal:contains(new resume line) .o_field_widget[name='date_start'] button",
             content: "open date picker",
             run: "click",
         },
         {
             content: "Set start date",
-            trigger: ".modal:contains(new resume line) .o_field_widget[name='date_start'] input",
+            trigger:
+                ".modal:contains(new resume line) .o_field_widget[name='date_start'] input",
             run: "edit 12/05/2017",
         },
         {
@@ -58,7 +60,8 @@ registry.category("web_tour.tours").add("hr_skills_tour", {
         },
         {
             content: "Save it",
-            trigger: ".modal:contains(new resume line) .o_form_button_save:contains(save)",
+            trigger:
+                ".modal:contains(new resume line) .o_form_button_save:contains(save)",
             run: "click",
         },
         {
@@ -71,12 +74,14 @@ registry.category("web_tour.tours").add("hr_skills_tour", {
         },
         {
             content: "Change type",
-            trigger: ".modal:contains(new resume line) .o_field_widget[name='line_type_id'] .o_selection_badge:contains(Other Experience)",
+            trigger:
+                ".modal:contains(new resume line) .o_field_widget[name='line_type_id'] .o_selection_badge:contains(Other Experience)",
             run: "click",
         },
         {
             content: "Save experience change",
-            trigger: ".modal:contains(new resume line) .o_form_button_save:contains(save)",
+            trigger:
+                ".modal:contains(new resume line) .o_form_button_save:contains(save)",
             run: "click",
         },
         {
@@ -84,12 +89,14 @@ registry.category("web_tour.tours").add("hr_skills_tour", {
         },
         {
             content: "Add a new Skill",
-            trigger: ".o_field_skills_one2many button:contains('Pick a skill from the list')",
+            trigger:
+                ".o_field_skills_one2many button:contains('Pick a skill from the list')",
             run: "click",
         },
         {
             content: "Select Music",
-            trigger: ".o_field_widget[name='skill_type_id'] span:contains('Best Music')",
+            trigger:
+                ".o_field_widget[name='skill_type_id'] span:contains('Best Music')",
             run: "click",
         },
         {
@@ -104,7 +111,8 @@ registry.category("web_tour.tours").add("hr_skills_tour", {
         },
         {
             content: "Save new skill",
-            trigger: ".modal:contains(update skills) .o_form_button_save:contains(save & close)",
+            trigger:
+                ".modal:contains(update skills) .o_form_button_save:contains(save & close)",
             run: "click",
         },
         {
@@ -123,7 +131,8 @@ registry.category("web_tour.tours").add("hr_skills_tour", {
         },
         {
             content: "Select Certification",
-            trigger: ".o_field_widget[name='skill_type_id'] span:contains('Music Certification')",
+            trigger:
+                ".o_field_widget[name='skill_type_id'] span:contains('Music Certification')",
             run: "click",
         },
         {
@@ -153,7 +162,8 @@ registry.category("web_tour.tours").add("hr_skills_tour", {
         },
         {
             content: "Save new skill",
-            trigger: ".modal:contains(update skills) .o_form_button_save:contains(save & close)",
+            trigger:
+                ".modal:contains(update skills) .o_form_button_save:contains(save & close)",
             run: "click",
         },
         {

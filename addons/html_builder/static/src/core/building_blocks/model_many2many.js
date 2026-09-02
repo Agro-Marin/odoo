@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { Component, useState, onWillStart, onWillUpdateProps } from "@odoo/owl";
+import { useCachedModel } from "@html_builder/core/cached_model_utils";
+import { useDomState } from "@html_builder/core/utils";
+import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
-import { useDomState } from "@html_builder/core/utils";
-import { useCachedModel } from "@html_builder/core/cached_model_utils";
-import { BuilderComponent } from "./builder_component.js";
+
 import { BasicMany2Many } from "./basic_many2many.js";
+import { BuilderComponent } from "./builder_component.js";
 
 export class ModelMany2Many extends Component {
     static template = "html_builder.ModelMany2Many";
@@ -56,7 +57,7 @@ export class ModelMany2Many extends Component {
         const [record] = await this.cachedModel.ormRead(
             props.baseModel,
             [props.recordId],
-            [props.m2oField]
+            [props.m2oField],
         );
         const selectedRecordIds = record[props.m2oField];
         // TODO: handle no record
@@ -73,7 +74,7 @@ export class ModelMany2Many extends Component {
             const storedSelection = await this.cachedModel.ormRead(
                 this.state.searchModel,
                 selectedRecordIds,
-                ["display_name"]
+                ["display_name"],
             );
             for (const item of storedSelection) {
                 item.name = item.display_name;

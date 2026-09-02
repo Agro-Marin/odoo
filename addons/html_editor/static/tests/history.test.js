@@ -472,7 +472,6 @@ describe("makeSavePoint", () => {
         expect(getContent(el)).toBe(`<p>[]c</p>`);
     });
     test.todo("makeSavePoint should correctly revert mutations (2)", async () => {
-
         const { el, plugins } = await setupEditor(
             "<p>this is another paragraph with color 2</p>",
         );

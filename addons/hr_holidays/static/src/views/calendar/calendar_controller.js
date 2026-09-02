@@ -31,19 +31,22 @@ export class TimeOffCalendarController extends CalendarController {
 
     newTimeOffRequest() {
         const context = {};
-        if (this.props.context.active_id && this.props.context.active_model === "hr.employee") {
+        if (
+            this.props.context.active_id &&
+            this.props.context.active_model === "hr.employee"
+        ) {
             context["default_employee_id"] = this.props.context.active_id;
         } else if (this.employeeId) {
             context["default_employee_id"] = this.employeeId;
         }
-        if (this.model.meta.scale == "day") {
+        if (this.model.meta.scale === "day") {
             context["default_date_from"] = serializeDate(
                 this.model.data.range.start.set({ hours: 7 }),
-                "datetime"
+                "datetime",
             );
             context["default_date_to"] = serializeDate(
                 this.model.data.range.end.set({ hours: 19 }),
-                "datetime"
+                "datetime",
             );
         }
 
@@ -107,7 +110,7 @@ export class TimeOffCalendarController extends CalendarController {
                     onLeaveCancelled: onDialogClosed,
                     size: "md",
                 },
-                { onClose: () => resolve() }
+                { onClose: () => resolve() },
             );
         });
     }

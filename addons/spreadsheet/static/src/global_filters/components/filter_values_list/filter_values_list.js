@@ -32,7 +32,9 @@ export class FilterValuesList extends Component {
         this.orm = useService("orm");
         this.state = useState({
             filtersAndValues: this.globalFilters.map((globalFilter) => {
-                const value = this.props.model.getters.getGlobalFilterValue(globalFilter.id);
+                const value = this.props.model.getters.getGlobalFilterValue(
+                    globalFilter.id,
+                );
                 return {
                     globalFilter,
                     value: value ? { ...value } : getDefaultValue(globalFilter.type),
@@ -49,7 +51,7 @@ export class FilterValuesList extends Component {
     }
 
     setGlobalFilterValue(node, value) {
-        if (value == undefined && node.globalFilter.type !== "date") {
+        if (value == null && node.globalFilter.type !== "date") {
             // preserve the operator.
             node.value = {
                 ...node.value,
@@ -66,7 +68,10 @@ export class FilterValuesList extends Component {
 
     getOperators(filter) {
         const operators = getFilterTypeOperators(filter.type);
-        if (filter.type === "relation" && !this.searchableParentRelations[filter.modelName]) {
+        if (
+            filter.type === "relation" &&
+            !this.searchableParentRelations[filter.modelName]
+        ) {
             return operators.filter((op) => op !== "child_of");
         }
         return filter.type === "boolean" ? [undefined, ...operators] : operators;
@@ -98,9 +103,14 @@ export class FilterValuesList extends Component {
     }
 
     clearFilter(filterId) {
-        const node = this.state.filtersAndValues.find((node) => node.globalFilter.id === filterId);
+        const node = this.state.filtersAndValues.find(
+            (node) => node.globalFilter.id === filterId,
+        );
         if (node && node.value) {
-            const emptyValue = getEmptyFilterValue(node.globalFilter, node.value.operator);
+            const emptyValue = getEmptyFilterValue(
+                node.globalFilter,
+                node.value.operator,
+            );
             node.value =
                 typeof emptyValue === "object"
                     ? { ...emptyValue, operator: node.value.operator }
@@ -111,7 +121,9 @@ export class FilterValuesList extends Component {
     onConfirm() {
         for (const node of this.state.filtersAndValues) {
             const { globalFilter, value } = node;
-            const originalValue = this.props.model.getters.getGlobalFilterValue(globalFilter.id);
+            const originalValue = this.props.model.getters.getGlobalFilterValue(
+                globalFilter.id,
+            );
 
             if (deepEqual(originalValue, value)) {
                 continue;

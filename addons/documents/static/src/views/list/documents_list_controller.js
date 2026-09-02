@@ -29,7 +29,7 @@ export class DocumentsListController extends DocumentsControllerMixin(ListContro
 
         if (!this.documentService.userIsInternal) {
             this.archInfo.columns = this.archInfo.columns.filter(
-                (col) => !this.internalOnlyColumns.includes(col.name)
+                (col) => !this.internalOnlyColumns.includes(col.name),
             );
         }
 
@@ -40,7 +40,7 @@ export class DocumentsListController extends DocumentsControllerMixin(ListContro
                     getMenuProps: () => this.actionMenuProps,
                 });
             },
-            () => []
+            () => [],
         );
 
         onWillRender(() => this.openInitialPreview());
@@ -62,7 +62,7 @@ export class DocumentsListController extends DocumentsControllerMixin(ListContro
         return {
             getSelectedDocumentsElements: () =>
                 this.root?.el?.querySelectorAll(
-                    ".o_data_row.o_data_row_selected .o_list_record_selector"
+                    ".o_data_row.o_data_row_selected .o_list_record_selector",
                 ) || [],
             setPreviewStore: (previewStore) => {
                 this.documentStates.previewStore = previewStore;

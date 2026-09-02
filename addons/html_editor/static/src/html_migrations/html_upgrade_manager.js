@@ -46,8 +46,7 @@ export class HtmlUpgradeManager {
         }
         try {
             const upgradeSequence = VERSIONS.filter(
-                (subVersion) =>
-                    compareVersions(subVersion, version) > 0,
+                (subVersion) => compareVersions(subVersion, version) > 0,
             );
             this.upgradedValue = this.upgrade(upgradeSequence);
         } catch {

@@ -24,6 +24,7 @@ export const documentsCogMenuItemShare = {
         DocumentsCogMenuItem.isVisible(
             env,
             ({ folder, documentService }) =>
-                documentService.userIsInternal && documentService.isFolderSharable(folder)
+                documentService.userIsInternal &&
+                documentService.isFolderSharable(folder),
         ),
 };

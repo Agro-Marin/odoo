@@ -1,9 +1,6 @@
 /** @odoo-module native */
 import { SelfOrder } from "@pos_self_order/app/services/self_order_service";
-import {
-    PineLabs,
-    PineLabsError,
-} from "@pos_self_order_pine_labs/app/pine_labs";
+import { PineLabs, PineLabsError } from "@pos_self_order_pine_labs/app/pine_labs";
 
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
@@ -30,9 +27,7 @@ patch(SelfOrder.prototype, {
         const pineLabsPaymentMethods = pms.filter(
             (rec) => rec.use_payment_terminal === "pine_labs",
         );
-        return [
-            ...new Set([...filteredPaymentMethods, ...pineLabsPaymentMethods]),
-        ];
+        return [...new Set([...filteredPaymentMethods, ...pineLabsPaymentMethods])];
     },
 
     handlePineLabsError(error, type) {

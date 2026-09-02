@@ -138,7 +138,10 @@ function mockSpreadsheetDataController(_request, { res_model, res_id }) {
     };
 }
 
-onRpc("/spreadsheet/data/<string:res_model>/<int:res_id>", mockSpreadsheetDataController);
+onRpc(
+    "/spreadsheet/data/<string:res_model>/<int:res_id>",
+    mockSpreadsheetDataController,
+);
 
 export function defineSpreadsheetModels() {
     defineModels(SpreadsheetModels);
@@ -166,7 +169,7 @@ export class IrModel extends webModels.IrModel {
     display_name_for(models) {
         const records = this.env["ir.model"].search_read(
             [["model", "in", models]],
-            ["name", "model"]
+            ["name", "model"],
         );
         const result = [];
         for (const model of models) {
@@ -331,8 +334,20 @@ export class ResCountryState extends models.Model {
     display_name = fields.Char({ string: "Display Name" });
 
     _records = [
-        { id: 1, name: "California", code: "CA", country_id: 3, display_name: "California (US)" },
-        { id: 2, name: "New York", code: "NY", country_id: 3, display_name: "New York (US)" },
+        {
+            id: 1,
+            name: "California",
+            code: "CA",
+            country_id: 3,
+            display_name: "California (US)",
+        },
+        {
+            id: 2,
+            name: "New York",
+            code: "NY",
+            country_id: 3,
+            display_name: "New York (US)",
+        },
         { id: 3, name: "Texas", code: "TX", country_id: 3, display_name: "Texas (US)" },
     ];
 }
@@ -666,7 +681,7 @@ function checkRecordsValidity(modelName, records) {
         const currentUser = records.find((record) => record.id === serverUserId);
         if (!currentUser) {
             throw new Error(
-                `The current user (${serverUserId}) is not in the records. did you forget to set serverState.userId ?`
+                `The current user (${serverUserId}) is not in the records. did you forget to set serverState.userId ?`,
             );
         }
         if (!currentUser.active) {
@@ -674,7 +689,7 @@ function checkRecordsValidity(modelName, records) {
         }
         if (!currentUser.partner_id) {
             throw new Error(
-                `The current user (${serverUserId}) has no partner_id. It should be set to serverState.partnerId`
+                `The current user (${serverUserId}) has no partner_id. It should be set to serverState.partnerId`,
             );
         }
     }

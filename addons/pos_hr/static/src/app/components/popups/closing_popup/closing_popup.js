@@ -8,7 +8,7 @@ patch(ClosePosPopup.prototype, {
         }
         const cashier = this.pos.cashier;
         return (
-            (cashier._role == "manager" && cashier._user_role == "admin") ||
+            (cashier._role === "manager" && cashier._user_role === "admin") ||
             this.allowedDifference()
         );
     },

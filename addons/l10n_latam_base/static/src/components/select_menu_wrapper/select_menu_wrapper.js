@@ -15,7 +15,9 @@ export class SelectMenuWrapper extends Component {
             choices: [],
             value: this.props.el.value,
         });
-        this.state.choices = [...this.props.el.querySelectorAll("option")].filter((x) => x.value);
+        this.state.choices = [...this.props.el.querySelectorAll("option")].filter(
+            (x) => x.value,
+        );
         this.props.el.classList.add("d-none");
         useBus(this.props.el, "select", (ev) => this.onSelect(ev.detail.value));
     }

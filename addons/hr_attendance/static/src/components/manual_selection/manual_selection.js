@@ -42,7 +42,7 @@ export class KioskManualSelection extends Component {
         this.departmentName = _t("All departments");
         onWillStart(async () => {
             await this._fetchEmployeeData();
-        })
+        });
         this._onResize = async () => {
             this.state.limit = this.calculateLimit();
             await this._fetchEmployeeData();
@@ -55,16 +55,16 @@ export class KioskManualSelection extends Component {
         let employeeCardPerLine = 1;
         let fontSizeMultiplication = 1;
         let searchBarHeight = 0;
-        if (screen.width <= MEDIAS_BREAKPOINTS[SIZES.SM].maxWidth){
+        if (screen.width <= MEDIAS_BREAKPOINTS[SIZES.SM].maxWidth) {
             searchBarHeight += 38;
-        } else if(screen.width <= MEDIAS_BREAKPOINTS[SIZES.MD].maxWidth){
+        } else if (screen.width <= MEDIAS_BREAKPOINTS[SIZES.MD].maxWidth) {
             employeeCardPerLine = 2;
-        } else if(screen.width <= MEDIAS_BREAKPOINTS[SIZES.LG].maxWidth){
+        } else if (screen.width <= MEDIAS_BREAKPOINTS[SIZES.LG].maxWidth) {
             fontSizeMultiplication *= 1.25;
             employeeCardPerLine = 2;
-        } else if (screen.width <= MEDIAS_BREAKPOINTS[SIZES.XL].maxWidth){
+        } else if (screen.width <= MEDIAS_BREAKPOINTS[SIZES.XL].maxWidth) {
             fontSizeMultiplication *= 1.25;
-            if (screen.width < 1400){
+            if (screen.width < 1400) {
                 employeeCardPerLine = 3;
             } else {
                 employeeCardPerLine = 4;
@@ -90,7 +90,10 @@ export class KioskManualSelection extends Component {
     }
 
     async _fetchEmployeeData() {
-        const domain = Domain.and([this.state.departmentDomain, this.state.searchDomain]).toList();
+        const domain = Domain.and([
+            this.state.departmentDomain,
+            this.state.searchDomain,
+        ]).toList();
         const results = await rpc("/hr_attendance/employees_infos", {
             token: this.props.token,
             limit: this.state.limit,
@@ -101,17 +104,19 @@ export class KioskManualSelection extends Component {
         this.state.employeesData.count = results.length;
     }
 
-    async onDepartmentClick(departmentId = false){
+    async onDepartmentClick(departmentId = false) {
         if (this.env.isSmall) {
-            if (departmentId){
-                const selectedDepartment = this.props.departments.find((department) => department.id === departmentId);
+            if (departmentId) {
+                const selectedDepartment = this.props.departments.find(
+                    (department) => department.id === departmentId,
+                );
                 this.departmentName = selectedDepartment.name;
             } else {
                 this.departmentName = _t("All departments");
             }
         }
-        if (departmentId){
-            this.state.departmentDomain = [['department_id', '=', departmentId]];
+        if (departmentId) {
+            this.state.departmentDomain = [["department_id", "=", departmentId]];
         } else {
             this.state.departmentDomain = [];
         }
@@ -121,9 +126,9 @@ export class KioskManualSelection extends Component {
 
     async onSearchInput(ev) {
         const searchInput = ev.target.value;
-        if (searchInput.length){
-            this.state.searchDomain = [['name', 'ilike', searchInput]];
-        }else{
+        if (searchInput.length) {
+            this.state.searchDomain = [["name", "ilike", searchInput]];
+        } else {
             this.state.searchDomain = [];
         }
         this.state.offset = 0;

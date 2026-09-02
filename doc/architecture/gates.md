@@ -364,8 +364,8 @@ done right: it derives the tree and compares.
 
 ## The two count ratchets beyond the boundary gates
 
-**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns seventy-four tool
-counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_survey, pyfunclen, pyfunclen_addons, pyfunclen_mail, pyfunclen_crm, pyfunclen_survey, pyfunclen_tooling, py_x2many_count, py_x2many_count_addons, py_x2many_count_account, py_x2many_count_enterprise, py_x2many_count_agromarin, py_shadowed_member_addons, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsforcedrender, jsvacuous, jsduplication, prettier_scss, naming, naming_enterprise, naming_agromarin, fieldhooks, hookpurity, computectx, translations, mypy_tools, service_types_untyped, orderlineqty, orderlineqty_enterprise, unresolved_calls, unresolved_calls_enterprise, unresolved_calls_agromarin, bundle_double_eval, lint_docstring, lint_gettext_developer_error, lint_gettext_placeholders, lint_gettext_repr, lint_gettext_variable, lint_missing_gettext, lint_n_plus_one_query, lint_noqa_rationale, lint_raise_unlink_override, lint_sql_injection, lint_gettext_developer_error_enterprise, lint_missing_gettext_enterprise, lint_n_plus_one_query_enterprise, lint_noqa_rationale_enterprise, lint_raise_unlink_override_enterprise, lint_sql_injection_enterprise, lint_gettext_developer_error_agromarin, lint_gettext_placeholders_agromarin, lint_gettext_repr_agromarin, lint_gettext_variable_agromarin, lint_missing_gettext_agromarin, lint_n_plus_one_query_agromarin, lint_noqa_rationale_agromarin, lint_sql_injection_agromarin, lint_noqa_rationale_design-themes, lint_record_reference, orphandepends and suite_lane**
+**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns seventy-three tool
+counts into one-way contracts: **mypy, ruff, c901, c901_addons, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_survey, pyfunclen, pyfunclen_addons, pyfunclen_mail, pyfunclen_crm, pyfunclen_survey, pyfunclen_tooling, py_x2many_count, py_x2many_count_addons, py_x2many_count_account, py_x2many_count_enterprise, py_x2many_count_agromarin, py_shadowed_member_addons, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsforcedrender, jsvacuous, jsduplication, prettier_scss, naming, naming_enterprise, naming_agromarin, fieldhooks, hookpurity, computectx, translations, mypy_tools, service_types_untyped, orderlineqty, orderlineqty_enterprise, unresolved_calls, unresolved_calls_enterprise, unresolved_calls_agromarin, bundle_double_eval, lint_docstring, lint_gettext_developer_error, lint_gettext_placeholders, lint_gettext_repr, lint_gettext_variable, lint_missing_gettext, lint_n_plus_one_query, lint_noqa_rationale, lint_raise_unlink_override, lint_sql_injection, lint_gettext_developer_error_enterprise, lint_missing_gettext_enterprise, lint_n_plus_one_query_enterprise, lint_noqa_rationale_enterprise, lint_raise_unlink_override_enterprise, lint_sql_injection_enterprise, lint_gettext_developer_error_agromarin, lint_gettext_placeholders_agromarin, lint_gettext_repr_agromarin, lint_gettext_variable_agromarin, lint_missing_gettext_agromarin, lint_n_plus_one_query_agromarin, lint_noqa_rationale_agromarin, lint_sql_injection_agromarin, lint_noqa_rationale_design-themes, lint_record_reference, orphandepends and suite_lane**
 (floors in `tooling/ratchet/baselines/`, one JSON per gate). CI fails
 on any increase and — in the default `exact` mode — on an un-committed decrease,
 so every cleanup is locked in.
@@ -374,8 +374,8 @@ so every cleanup is locked in.
 `ratchet.py <gate> --count N` with no `baselines/<gate>.json` passes at 0 and
 fails on anything above it, in either mode, naming the file it did not find;
 `--update` is what opens a floor, and `--list` reads only the files, so it stays
-a list of debt rather than of every contract. Thirty-six of the counts the
-workflows hand to `ratchet.py` are held that way: **jsfunclen_stock, jsfunclen_product, pyfunclen_loyalty, pyfunclen_tests, py_x2many_count_mail, py_x2many_count_stock, py_x2many_count_project, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, py_hook_arity, py_hook_arity_addons, py_shadowed_member, py_shadowed_member_enterprise, py_shadowed_member_agromarin, py_shadowed_member_design-themes, jsserviceshape_account, jsserviceshape_stock, jseagerfixture, naming_design-themes, mypy_cli, mypy_tests, orderlineqty_agromarin, orderlineqty_design-themes, mypy_core_rest, mypy_upgrade_code, naming_core, py_count_as_boolean_tests, py_hook_arity_tests, py_x2many_count_tests and sql_in_placeholder_tests**.
+a list of debt rather than of every contract. Thirty-seven of the counts the
+workflows hand to `ratchet.py` are held that way: **eslint, jsfunclen_stock, jsfunclen_product, pyfunclen_loyalty, pyfunclen_tests, py_x2many_count_mail, py_x2many_count_stock, py_x2many_count_project, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, py_hook_arity, py_hook_arity_addons, py_shadowed_member, py_shadowed_member_enterprise, py_shadowed_member_agromarin, py_shadowed_member_design-themes, jsserviceshape_account, jsserviceshape_stock, jseagerfixture, naming_design-themes, mypy_cli, mypy_tests, orderlineqty_agromarin, orderlineqty_design-themes, mypy_core_rest, mypy_upgrade_code, naming_core, py_count_as_boolean_tests, py_hook_arity_tests, py_x2many_count_tests and sql_in_placeholder_tests**.
 Each was born at zero, so the file it once carried recorded no debt and no
 move — a contract wearing ratchet JSON, and `--list` reported it as a floor to
 drive down. `assert_ratchet` under `test_lint` has read an absent baseline as
@@ -435,9 +435,9 @@ statements of one rule, in three places, none of them general — the shape this
 document set exists to remove.
 
 No assertion backs this section: it constrains a *procedure*, not a count, and
-the honest gate would be re-measuring all ninety-five floors on a clean tree,
+the honest gate would be re-measuring every floor on a clean tree,
 which
-costs minutes for `mypy`, `eslint` and `tsc`. Recorded here so the next re-floor
+costs minutes for `mypy` and `tsc`. Recorded here so the next re-floor
 does not rediscover it.
 
 Two floors are split rather than aggregated, for one reason: an exact-match

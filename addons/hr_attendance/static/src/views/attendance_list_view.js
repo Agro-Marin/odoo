@@ -12,14 +12,15 @@ export class AttendanceListRenderer extends ListRenderer {
     };
 
     get showNoContentHelper() {
-        return super.showNoContentHelper && this.props.list.count < 6 ;
+        return super.showNoContentHelper && this.props.list.count < 6;
     }
-};
+}
 
 export class AttendanceListModel extends listView.Model {
-
     async load(params = {}) {
-        const activeDomainParam = params.domain?.some((index) => Array.isArray(index) && index[0] == "employee_id.active");
+        const activeDomainParam = params.domain?.some(
+            (index) => Array.isArray(index) && index[0] == "employee_id.active",
+        );
         if (!activeDomainParam) {
             params.domain?.push(["employee_id.active", "=", true]);
         }

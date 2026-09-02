@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { registry } from '@web/core/registry';
-import { Interaction } from '@web/public/interaction';
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class ExpressCheckout extends Interaction {
     static selector = 'form[name="o_payment_express_checkout_form"]';
@@ -8,7 +8,8 @@ export class ExpressCheckout extends Interaction {
     setup() {
         this.paymentContext = {};
         Object.assign(this.paymentContext, this.el.dataset);
-        this.paymentContext.shippingInfoRequired = !!this.paymentContext.shippingInfoRequired;
+        this.paymentContext.shippingInfoRequired =
+            !!this.paymentContext.shippingInfoRequired;
     }
 
     async willStart() {
@@ -20,11 +21,11 @@ export class ExpressCheckout extends Interaction {
 
     start() {
         // Monitor updates of the amount on eCommerce's cart pages.
-        this.env.bus.addEventListener('cart_amount_changed', (ev) =>
-            this._updateAmount(...ev.detail)
+        this.env.bus.addEventListener("cart_amount_changed", (ev) =>
+            this._updateAmount(...ev.detail),
         );
         // Monitor when the page is restored from the bfcache.
-        this.addListener(window, 'pageshow', this._onNavigationBack);
+        this.addListener(window, "pageshow", this._onNavigationBack);
     }
 
     /**
@@ -47,7 +48,7 @@ export class ExpressCheckout extends Interaction {
      */
     _getExpressCheckoutForm() {
         return document.querySelector(
-            'form[name="o_payment_express_checkout_form"] div[name="o_express_checkout_container"]'
+            'form[name="o_payment_express_checkout_form"] div[name="o_express_checkout_container"]',
         );
     }
 
@@ -60,7 +61,7 @@ export class ExpressCheckout extends Interaction {
      * @param {Object} providerData - The provider-specific data.
      * @return {void}
      */
-    async _prepareExpressCheckoutForm(providerData) {}
+    async _prepareExpressCheckoutForm() {}
 
     /**
      * Prepare the params for the RPC to the transaction route.
@@ -71,14 +72,14 @@ export class ExpressCheckout extends Interaction {
      */
     _prepareTransactionRouteParams(providerId) {
         return {
-            'provider_id': parseInt(providerId),
-            'payment_method_id': parseInt(this.paymentContext['paymentMethodUnknownId']),
-            'token_id': null,
-            'flow': 'direct',
-            'tokenization_requested': false,
-            'landing_route': this.paymentContext['landingRoute'],
-            'access_token': this.paymentContext['accessToken'],
-            'csrf_token': odoo.csrf_token,
+            provider_id: parseInt(providerId),
+            payment_method_id: parseInt(this.paymentContext["paymentMethodUnknownId"]),
+            token_id: null,
+            flow: "direct",
+            tokenization_requested: false,
+            landing_route: this.paymentContext["landingRoute"],
+            access_token: this.paymentContext["accessToken"],
+            csrf_token: odoo.csrf_token,
         };
     }
 
@@ -96,11 +97,12 @@ export class ExpressCheckout extends Interaction {
         this.paymentContext.amount = parseFloat(newAmount);
         this.paymentContext.minorAmount = parseInt(newMinorAmount);
         this._getExpressCheckoutForm()?.classList?.toggle(
-            'd-none', this.paymentContext.amount === 0
+            "d-none",
+            this.paymentContext.amount === 0,
         );
     }
 }
 
 registry
-    .category('public.interactions')
-    .add('payment.express_checkout', ExpressCheckout);
+    .category("public.interactions")
+    .add("payment.express_checkout", ExpressCheckout);

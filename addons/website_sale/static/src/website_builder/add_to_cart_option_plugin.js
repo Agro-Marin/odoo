@@ -151,4 +151,6 @@ export class AddToCartActionAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(AddToCartOptionPlugin.id, AddToCartOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(AddToCartOptionPlugin.id, AddToCartOptionPlugin);

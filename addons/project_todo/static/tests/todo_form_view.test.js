@@ -102,7 +102,8 @@ test("Check that todo_form view contains the TodoDoneCheckmark and remaining_day
     await contains(".o_data_cell").click();
     await animationFrame();
     expect(".o_field_remaining_days").toHaveCount(1, {
-        message: "The todo form view should have deadline field (o_field_remaining_days)",
+        message:
+            "The todo form view should have deadline field (o_field_remaining_days)",
     });
 });
 test.tags("desktop");
@@ -120,7 +121,8 @@ test("Check if opening form view from activity view does open with chatter visbl
             grouped_activities: {},
             activity_types: this.env["mail.activity.type"].map((type) => {
                 const templates = (type.mail_template_ids || []).map((template_id) => {
-                    const { id, name } = this.env["mail.template"].browse(template_id)[0];
+                    const { id, name } =
+                        this.env["mail.template"].browse(template_id)[0];
                     return { id, name };
                 });
                 return {

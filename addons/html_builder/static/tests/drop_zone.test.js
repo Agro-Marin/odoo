@@ -1,7 +1,7 @@
 import {
+    confirmAddSnippet,
     setupHTMLBuilder,
     waitForEndOfOperation,
-    confirmAddSnippet,
 } from "@html_builder/../tests/helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { contains } from "@web/../tests/web_test_helpers";
@@ -15,13 +15,16 @@ const dropzone = (hovered = false) => {
 
 test("wrapper element has the 'DRAG BUILDING BLOCKS HERE' message", async () => {
     const { contentEl } = await setupHTMLBuilder("");
-    expect(contentEl).toHaveAttribute("data-editor-message", "DRAG BUILDING BLOCKS HERE");
+    expect(contentEl).toHaveAttribute(
+        "data-editor-message",
+        "DRAG BUILDING BLOCKS HERE",
+    );
 });
 
 test("drop beside dropzone inserts the snippet", async () => {
     const { contentEl } = await setupHTMLBuilder();
     const { moveTo, drop } = await contains(
-        ".o-snippets-menu #snippet_groups .o_snippet_thumbnail"
+        ".o-snippets-menu #snippet_groups .o_snippet_thumbnail",
     ).drag();
     await moveTo(contentEl.ownerDocument.body);
     // The dropzone is not hovered, so not highlighted.
@@ -52,10 +55,12 @@ test("snippets cannot be dropped next to elements inside excluded parent", async
     await setupHTMLBuilder(
         `<div class="first-div"><h1>Title</h1><p>Paragraph</p></div>
         <div class="second-div"><h1>Title</h1><p>Paragraph</p></div>`,
-        { snippetContent, dropzoneSelectors }
+        { snippetContent, dropzoneSelectors },
     );
 
-    await contains(".o-snippets-menu .o_snippet_thumbnail[data-snippet='s_image']").drag();
+    await contains(
+        ".o-snippets-menu .o_snippet_thumbnail[data-snippet='s_image']",
+    ).drag();
     // Should have 3 dropzones in first-div (not excluded)
     expect(":iframe .first-div .oe_drop_zone").toHaveCount(3);
     // Should have no dropzones in second-div (excluded by excludeNearParent)

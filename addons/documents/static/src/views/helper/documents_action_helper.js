@@ -5,9 +5,7 @@ import { _t } from "@web/core/translation";
 
 export class DocumentsActionHelper extends Component {
     static template = "documents.DocumentsActionHelper";
-    static props = [
-        "noContentHelp",
-    ];
+    static props = ["noContentHelp"];
 
     setup() {
         this.orm = useService("orm");
@@ -32,7 +30,9 @@ export class DocumentsActionHelper extends Component {
     get noContentHelp() {
         if (
             !this.selectedFolderId ||
-            ["RECENT", "SHARED", "TRASH", "MY", "COMPANY"].includes(this.selectedFolderId)
+            ["RECENT", "SHARED", "TRASH", "MY", "COMPANY"].includes(
+                this.selectedFolderId,
+            )
         ) {
             const helpMessage = (() => {
                 switch (this.selectedFolderId) {
@@ -56,12 +56,14 @@ export class DocumentsActionHelper extends Component {
     async updateShareInformation() {
         this.state.mailTo = undefined;
         const filteredDomain = this.env.searchModel.domain.filter(
-            (leaf) => Array.isArray(leaf) && leaf.includes("folder_id")
+            (leaf) => Array.isArray(leaf) && leaf.includes("folder_id"),
         );
         if (filteredDomain.length !== 1 || typeof this.selectedFolderId !== "number") {
             return;
         }
-        const selectedFolder = this.env.searchModel.getFolderById(this.selectedFolderId);
+        const selectedFolder = this.env.searchModel.getFolderById(
+            this.selectedFolderId,
+        );
         if (
             !selectedFolder ||
             selectedFolder.user_permission === "none" ||

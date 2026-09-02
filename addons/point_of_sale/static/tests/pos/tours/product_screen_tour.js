@@ -32,7 +32,6 @@ import { registry } from "@web/core/registry";
 registry.category("web_tour.tours").add("ProductScreenTour", {
     steps: () =>
         [
-
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
             OfflineUtil.setOfflineMode(),

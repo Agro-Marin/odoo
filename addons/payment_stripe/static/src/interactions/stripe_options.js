@@ -9,11 +9,11 @@ export class StripeOptions {
      * @param {object} processingValues
      * @return {object}
      */
-    _prepareStripeOptions(processingValues) {
+    _prepareStripeOptions() {
         const locale = document.documentElement.lang;
         return {
-            'apiVersion': '2019-05-16',  // The API version of Stripe implemented in this module.
-            ...(locale ? { locale } : {}),  // Default to browser locale if not set.
+            apiVersion: "2019-05-16", // The API version of Stripe implemented in this module.
+            ...(locale ? { locale } : {}), // Default to browser locale if not set.
         };
-    };
+    }
 }

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { onWillStart, onWillUpdateProps,useState } from "@odoo/owl";
+import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { Cache } from "@web/core/utils/collections/cache";
@@ -26,8 +26,12 @@ export class TimeOffCalendarSidePanel extends CalendarSidePanel {
             if (isSameDay) {
                 return start.toLocaleString({ month: s, day: n, year: n });
             }
-            return start.toLocaleString({ month: s, day: n, year: n }) + " - " + end.toLocaleString({ month: s, day: n, year: n });
-        };;
+            return (
+                start.toLocaleString({ month: s, day: n, year: n }) +
+                " - " +
+                end.toLocaleString({ month: s, day: n, year: n })
+            );
+        };
         this.leaveState = useState({
             mandatoryDays: [],
             bankHolidays: [],
@@ -35,7 +39,7 @@ export class TimeOffCalendarSidePanel extends CalendarSidePanel {
 
         this._specialDaysCache = new Cache(
             (start, end) => this.fetchSpecialDays(start, end),
-            (start, end) => `${serializeDateTime(start)},${serializeDateTime(end)}`
+            (start, end) => `${serializeDateTime(start)},${serializeDateTime(end)}`,
         );
 
         onWillStart(this.updateSpecialDays);
@@ -52,7 +56,7 @@ export class TimeOffCalendarSidePanel extends CalendarSidePanel {
             [serializeDate(start, "datetime"), serializeDate(end, "datetime")],
             {
                 context: context,
-            }
+            },
         );
     }
 

@@ -23,4 +23,6 @@ export const hrApplicantStateSelectionField = {
     component: HrApplicantStateSelectionField,
 };
 
-registry.category("fields").add("hr_applicant_state_selection", hrApplicantStateSelectionField);
+registry
+    .category("fields")
+    .add("hr_applicant_state_selection", hrApplicantStateSelectionField);

@@ -1,6 +1,6 @@
-import { waitForDataLoaded } from "@spreadsheet/helpers/model";
 import { generateListDefinition } from "@spreadsheet/../tests/helpers/data";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
+import { waitForDataLoaded } from "@spreadsheet/helpers/model";
 
 /**
  * @typedef {import("@spreadsheet/o_spreadsheet/o_spreadsheet").Model} Model
@@ -23,7 +23,7 @@ export function insertListInSpreadsheet(model, params) {
         params.model,
         params.columns,
         params.actionXmlId,
-        params.orderBy
+        params.orderBy,
     );
     const [col, row] = params.position || [0, 0];
 

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, queryAll, queryOne } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { onRpc } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
@@ -34,10 +37,12 @@ test("dynamic snippet products loads items and displays them through template", 
         const json = JSON.parse(new TextDecoder().decode(await args.arrayBuffer()));
         expect(json.params.filter_id).toBe(3);
         expect(json.params.template_key).toBe(
-            "website_sale.dynamic_filter_template_product_product_products_item"
+            "website_sale.dynamic_filter_template_product_product_products_item",
         );
         expect(json.params.limit).toBe(16);
-        expect(json.params.search_domain).toEqual([["public_categ_ids", "child_of", 2]]);
+        expect(json.params.search_domain).toEqual([
+            ["public_categ_ids", "child_of", 2],
+        ]);
         return [
             `
             <div class="s_test_item" data-test-param="test">

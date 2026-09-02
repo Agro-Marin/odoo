@@ -1,8 +1,9 @@
 /** @odoo-module native */
 // @ts-check
 
-import { navigateTo } from "../actions/helpers.js";
 import { helpers } from "@odoo/o-spreadsheet";
+
+import { navigateTo } from "../actions/helpers.js";
 const { getNumberOfPivotFunctions } = helpers;
 
 /**
@@ -36,7 +37,7 @@ export const SEE_RECORDS_PIVOT = async (position, env, newWindow) => {
             domain,
             context,
         },
-        { viewType: "list", newWindow }
+        { viewType: "list", newWindow },
     );
 };
 
@@ -83,7 +84,10 @@ export function SET_FILTER_MATCHING_CONDITION(position, getters) {
     if (pivotCell.type === "EMPTY") {
         return false;
     }
-    const matchingFilters = getters.getFiltersMatchingPivotArgs(pivotId, pivotCell.domain);
+    const matchingFilters = getters.getFiltersMatchingPivotArgs(
+        pivotId,
+        pivotCell.domain,
+    );
     return matchingFilters.length > 0 && pivotCell.type === "HEADER";
 }
 

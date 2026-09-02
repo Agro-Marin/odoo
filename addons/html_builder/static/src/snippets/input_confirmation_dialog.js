@@ -19,6 +19,8 @@ export class InputConfirmationDialog extends ConfirmationDialog {
     }
 
     execButton(callback) {
-        return super.execButton((...args) => callback?.(...args, this.inputState.value));
+        return super.execButton((...args) =>
+            callback?.(...args, this.inputState.value),
+        );
     }
 }

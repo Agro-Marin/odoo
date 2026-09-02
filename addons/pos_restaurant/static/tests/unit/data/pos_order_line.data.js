@@ -1,5 +1,5 @@
-import { patch } from "@web/core/utils/patch";
 import { PosOrderLine } from "@point_of_sale/../tests/unit/data/pos_order_line.data";
+import { patch } from "@web/core/utils/patch";
 
 patch(PosOrderLine.prototype, {
     _load_pos_data_fields() {

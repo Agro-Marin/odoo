@@ -7,7 +7,9 @@ export class NextRankCard extends Interaction {
     static selector = ".o_wprofile_progress_circle";
 
     setup() {
-        const tooltip = Tooltip.getOrCreateInstance(this.el.querySelector('g[data-bs-toggle="tooltip"]'));
+        const tooltip = Tooltip.getOrCreateInstance(
+            this.el.querySelector('g[data-bs-toggle="tooltip"]'),
+        );
         this.registerCleanup(() => tooltip.dispose());
     }
 }

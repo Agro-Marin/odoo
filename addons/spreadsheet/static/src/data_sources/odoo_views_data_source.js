@@ -1,10 +1,11 @@
 /** @odoo-module native */
 // @ts-check
 
-import { LOADING_ERROR, LoadableDataSource, getFields } from "./data_source.js";
 import { Domain } from "@web/core/domain";
 import { user } from "@web/core/user";
 import { omit } from "@web/core/utils/collections/objects";
+
+import { getFields, LoadableDataSource, LOADING_ERROR } from "./data_source.js";
 
 /**
  * @typedef {import("@spreadsheet").OdooField} OdooField
@@ -38,7 +39,7 @@ export class OdooViewsDataSource extends LoadableDataSource {
         const userContext = user.context;
         this._initialSearchParams.context = omit(
             this._initialSearchParams.context || {},
-            ...Object.keys(userContext)
+            ...Object.keys(userContext),
         );
         /** @private */
         this._customDomain = this._initialSearchParams.domain;
@@ -59,7 +60,7 @@ export class OdooViewsDataSource extends LoadableDataSource {
         if (!this._metaData.fields) {
             this._metaData.fields = await getFields(
                 this.odooDataProvider.fieldService,
-                this._metaData.resModel
+                this._metaData.resModel,
             );
         }
         this._metaDataLoaded = true;
@@ -131,7 +132,10 @@ export class OdooViewsDataSource extends LoadableDataSource {
      * @param {string} domain
      */
     addDomain(domain) {
-        const newDomain = Domain.and([this._initialSearchParams.domain, domain]).toString();
+        const newDomain = Domain.and([
+            this._initialSearchParams.domain,
+            domain,
+        ]).toString();
         if (newDomain.toString() === new Domain(this._customDomain).toString()) {
             return;
         }

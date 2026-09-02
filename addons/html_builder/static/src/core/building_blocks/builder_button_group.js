@@ -1,10 +1,11 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+
 import {
     basicContainerBuilderComponentProps,
-    useVisibilityObserver,
     useApplyVisibility,
     useSelectableComponent,
+    useVisibilityObserver,
 } from "../utils.js";
 import { BuilderComponent } from "./builder_component.js";
 

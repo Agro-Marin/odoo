@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { patch } from '@web/core/utils/patch';
-import { Product } from '@sale/js/product/product';
+import { patch } from "@web/core/utils/patch";
+import { Product } from "@sale/js/product/product";
 
 patch(Product, {
     props: {

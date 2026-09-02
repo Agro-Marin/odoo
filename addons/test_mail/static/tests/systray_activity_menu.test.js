@@ -45,7 +45,11 @@ test("activity menu widget: activity menu with 2 models", async () => {
     const partnerId = pyEnv["res.partner"].create({});
     const activityIds = pyEnv["mail.test.activity"].create([{}, {}, {}, {}]);
     pyEnv["mail.activity"].create([
-        { res_id: partnerId, res_model: "res.partner", date_deadline: serializeDate(today()) },
+        {
+            res_id: partnerId,
+            res_model: "res.partner",
+            date_deadline: serializeDate(today()),
+        },
         {
             res_id: activityIds[0],
             res_model: "mail.test.activity",
@@ -116,7 +120,9 @@ test("activity menu widget: activity menu with 2 models", async () => {
     await contains(".o-mail-ActivityMenu", { count: 0 });
     await click(".o_menu_systray i[aria-label='Activities']");
     actionChecks.res_model = "mail.test.activity";
-    await click(".o-mail-ActivityMenu .o-mail-ActivityGroup", { text: "mail.test.activity" });
+    await click(".o-mail-ActivityMenu .o-mail-ActivityGroup", {
+        text: "mail.test.activity",
+    });
     await waitForSteps(["do_action:res.partner", "do_action:mail.test.activity"]);
 });
 

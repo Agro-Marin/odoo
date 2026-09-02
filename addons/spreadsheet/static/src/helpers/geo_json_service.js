@@ -23,9 +23,10 @@ export const geoJsonService = {
 
         async function getRegionAndFetchMapping(region) {
             const featurePromise = fetchJsonFromServer(
-                `/spreadsheet/static/topojson/${region}.topo.json`
+                `/spreadsheet/static/topojson/${region}.topo.json`,
             );
-            const mappingPromise = region === "usa" ? getUsaStatesMapping() : getCountriesMapping();
+            const mappingPromise =
+                region === "usa" ? getUsaStatesMapping() : getCountriesMapping();
             return Promise.all([featurePromise, mappingPromise]);
         }
 
@@ -37,7 +38,11 @@ export const geoJsonService = {
                 return usStatesMappingPromise;
             }
             usStatesMappingPromise = orm
-                .searchRead("res.country.state", [["country_id.code", "=", "US"]], ["name", "code"])
+                .searchRead(
+                    "res.country.state",
+                    [["country_id.code", "=", "US"]],
+                    ["name", "code"],
+                )
                 .then((usStates) => {
                     const mapping = {};
                     for (const state of usStates) {
@@ -125,8 +130,16 @@ export const geoJsonService = {
                     label: _t("North America"),
                     defaultProjection: "conicConformal",
                 },
-                { id: "usa", label: _t("United States"), defaultProjection: "albersUsa" },
-                { id: "south_america", label: _t("South America"), defaultProjection: "mercator" },
+                {
+                    id: "usa",
+                    label: _t("United States"),
+                    defaultProjection: "albersUsa",
+                },
+                {
+                    id: "south_america",
+                    label: _t("South America"),
+                    defaultProjection: "mercator",
+                },
             ],
             getTopoJson: async function (region) {
                 const [topoJson] = await getRegionAndFetchMapping(region);

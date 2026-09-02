@@ -18,12 +18,17 @@ export class ImageFilterOption extends BaseOptionComponent {
         this.state = useDomState(async (editingElement) => {
             const canUseGlFilter = isWebGLEnabled();
             const mimetype = await getMimetypeBeforeShape(editingElement);
-            const showFilter = await isImageSupportedForProcessing(editingElement, mimetype);
+            const showFilter = await isImageSupportedForProcessing(
+                editingElement,
+                mimetype,
+            );
             return {
                 isCustomFilter: editingElement.dataset.glFilter === "custom",
                 showFilter,
                 disableFilter: !canUseGlFilter,
-                tooltip: !canUseGlFilter ? _t("WebGL is not enabled on your browser.") : undefined,
+                tooltip: !canUseGlFilter
+                    ? _t("WebGL is not enabled on your browser.")
+                    : undefined,
             };
         });
     }

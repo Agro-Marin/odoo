@@ -1,5 +1,10 @@
 /** @odoo-module native */
-import { registries, constants, getCaretUpSvg, getCaretDownSvg } from "@odoo/o-spreadsheet";
+import {
+    constants,
+    getCaretDownSvg,
+    getCaretUpSvg,
+    registries,
+} from "@odoo/o-spreadsheet";
 
 const { iconsOnCellRegistry } = registries;
 const { GRID_ICON_EDGE_LENGTH, GRID_ICON_MARGIN } = constants;
@@ -19,7 +24,10 @@ iconsOnCellRegistry.add("list_dashboard_sorting", (getters, position) => {
         horizontalAlign: "right",
         size: GRID_ICON_EDGE_LENGTH,
         margin: GRID_ICON_MARGIN,
-        svg: sortDirection === "asc" ? getCaretUpSvg(cellStyle) : getCaretDownSvg(cellStyle),
+        svg:
+            sortDirection === "asc"
+                ? getCaretUpSvg(cellStyle)
+                : getCaretDownSvg(cellStyle),
         position,
         onClick: undefined, // click is managed by ClickableCellSortIcon
     };

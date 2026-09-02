@@ -24,13 +24,15 @@ registry.category("web_tour.tours").add("hr_leave_type_tour", {
             run: "click",
         },
         {
-            trigger: 'button[data-menu-xmlid="hr_holidays.menu_hr_holidays_management"]',
+            trigger:
+                'button[data-menu-xmlid="hr_holidays.menu_hr_holidays_management"]',
             content: "Open the management menu",
             tooltipPosition: "bottom",
             run: "click",
         },
         {
-            trigger: 'a[data-menu-xmlid="hr_holidays.menu_open_department_leave_approve"]',
+            trigger:
+                'a[data-menu-xmlid="hr_holidays.menu_open_department_leave_approve"]',
             content: "Choose Time Off from the menu",
             tooltipPosition: "right",
             run: "click",
@@ -57,7 +59,8 @@ registry.category("web_tour.tours").add("hr_leave_type_tour", {
         },
         {
             trigger: 'div[name="holiday_status_id"] input',
-            content: "Try to select leave_type_2 from the list. It shouldn't be present",
+            content:
+                "Try to select leave_type_2 from the list. It shouldn't be present",
             tooltipPosition: "bottom",
             run: `edit ${leaveType2}`,
         },

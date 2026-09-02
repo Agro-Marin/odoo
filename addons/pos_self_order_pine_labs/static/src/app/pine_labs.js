@@ -26,10 +26,7 @@ export class PineLabs {
         if (paymentRequestResponse) {
             await this.paymentPolling(this.savedOrder);
         }
-        this.removePaymentHandler([
-            "plutusTransactionReferenceID",
-            "paymentRefNo",
-        ]);
+        this.removePaymentHandler(["plutusTransactionReferenceID", "paymentRefNo"]);
     }
 
     async processPayment(order) {
@@ -44,9 +41,7 @@ export class PineLabs {
             );
             if (initialResponse) {
                 this.savedOrder = initialResponse.order[0];
-                return this.handlePineLabsResponse(
-                    initialResponse.payment_status,
-                );
+                return this.handlePineLabsResponse(initialResponse.payment_status);
             }
         } catch (error) {
             this.errorCallback(error);
@@ -78,10 +73,7 @@ export class PineLabs {
                 // Successfully cancelled the transaction
                 if (cancelResponse.notification) {
                     this.errorCallback(
-                        new PineLabsError(
-                            cancelResponse.notification,
-                            "warning",
-                        ),
+                        new PineLabsError(cancelResponse.notification, "warning"),
                     );
                     return true;
                 }
@@ -166,10 +158,7 @@ export class PineLabs {
     stopInactivePayment() {
         return new Promise(
             (resolve) =>
-                (this.inactivityTimeout = setTimeout(
-                    resolve,
-                    INACTIVITY_TIMEOUT,
-                )),
+                (this.inactivityTimeout = setTimeout(resolve, INACTIVITY_TIMEOUT)),
         );
     }
 

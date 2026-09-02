@@ -13,14 +13,14 @@ export class ApplicantLineMany2Many extends Many2ManyTagsField {
         this.orm = useService("orm");
     }
 
-    getTagProps(record){
+    getTagProps(record) {
         let applicant_name = record.data.display_name;
         let name = applicant_name;
         let job_name = record.data.job_id?.display_name;
-        if (job_name){
+        if (job_name) {
             name = `${job_name} - ${applicant_name}`;
         }
-        return {...super.getTagProps(record), text: name};
+        return { ...super.getTagProps(record), text: name };
     }
 }
 
@@ -30,7 +30,7 @@ export const applicantLineMany2Many = {
     relatedFields: (fieldInfo) => {
         return [
             ...many2ManyTagsField.relatedFields(fieldInfo),
-            { name: "job_id", type: "many2one"},
+            { name: "job_id", type: "many2one" },
         ];
     },
 };

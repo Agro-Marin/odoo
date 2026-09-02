@@ -2,7 +2,12 @@ import { defineHrModels } from "@hr/../tests/hr_test_helpers";
 import { start } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { waitFor } from "@odoo/hoot-dom";
-import { contains, makeMockServer, mountView, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    makeMockServer,
+    mountView,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 import { getOrigin } from "@web/core/utils/urls";
 
 describe.current.tags("desktop");
@@ -107,7 +112,7 @@ test("many2one in kanban view", async () => {
     await waitFor(".o_m2o_avatar");
     expect(".o_m2o_avatar > img:eq(0)").toHaveAttribute(
         "data-src",
-        `/web/image/hr.employee.public/${employeeId}/avatar_128`
+        `/web/image/hr.employee.public/${employeeId}/avatar_128`,
     );
 });
 
@@ -153,7 +158,7 @@ test("many2one with hr group widget in kanban view", async () => {
     await waitFor(".o_m2o_avatar");
     expect(".o_m2o_avatar > img:eq(0)").toHaveAttribute(
         "data-src",
-        `/web/image/hr.employee/${employeeId}/avatar_128`
+        `/web/image/hr.employee/${employeeId}/avatar_128`,
     );
 });
 
@@ -184,7 +189,7 @@ test("many2one with relation set in options", async () => {
     await waitFor(".o_m2o_avatar");
     expect(".o_m2o_avatar > img:eq(0)").toHaveAttribute(
         "data-src",
-        `/web/image/hr.employee.public/${employeeId}/avatar_128`
+        `/web/image/hr.employee.public/${employeeId}/avatar_128`,
     );
 });
 
@@ -254,10 +259,12 @@ test("many2one in form view", async () => {
     expect(".o_field_many2many_avatar_employee .o_tag").toHaveCount(2);
     expect(".o_field_many2many_avatar_employee .o_tag img:eq(0)").toHaveAttribute(
         "data-src",
-        `${getOrigin()}/web/image/hr.employee.public/${employeeId_1}/avatar_128`
+        `${getOrigin()}/web/image/hr.employee.public/${employeeId_1}/avatar_128`,
     );
 
-    await contains(".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(0)").click();
+    await contains(
+        ".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(0)",
+    ).click();
     await waitFor(".o_avatar_card");
     expect(".o_card_user_infos > span").toHaveText("Mario");
     expect(".o_card_user_infos > a").toHaveText("Mario@partner.com");
@@ -266,7 +273,9 @@ test("many2one in form view", async () => {
     await waitFor(".o-mail-ChatWindow");
     await waitFor(".o-mail-ChatWindow-header:contains('Mario')");
 
-    await contains(".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(1)").click();
+    await contains(
+        ".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(1)",
+    ).click();
     expect(".o_card_user_infos span").toHaveText("Luigi");
     expect(".o_avatar_card").toHaveCount(1);
     expect(".o_avatar_card_buttons button:eq(0)").toHaveText("Send message");
@@ -305,10 +314,14 @@ test("many2one with hr group widget in form view", async () => {
     expect(".o_field_many2many_avatar_employee .o_tag").toHaveCount(2);
     expect(".o_field_many2many_avatar_employee .o_tag img:eq(0)").toHaveAttribute(
         "data-src",
-        `${getOrigin()}/web/image/hr.employee/${employeeId_1}/avatar_128`
+        `${getOrigin()}/web/image/hr.employee/${employeeId_1}/avatar_128`,
     );
-    await contains(".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(0)").click();
-    await contains(".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(1)").click();
+    await contains(
+        ".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(0)",
+    ).click();
+    await contains(
+        ".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(1)",
+    ).click();
     expect.verifySteps([
         `read hr.employee ${employeeId_1}`,
         `read hr.employee ${employeeId_2}`,
@@ -348,7 +361,9 @@ test("many2one widget in list view", async () => {
         resModel: "m2x.avatar.employee",
         arch: `<list><field name="employee_ids" widget="many2many_avatar_employee"/></list>`,
     });
-    expect(".o_data_cell:first .o_field_many2many_avatar_employee > div > span").toHaveCount(2);
+    expect(
+        ".o_data_cell:first .o_field_many2many_avatar_employee > div > span",
+    ).toHaveCount(2);
 
     await contains(".o_data_cell .o_m2m_avatar:eq(0)").click();
     await waitFor(".o_avatar_card");
@@ -409,19 +424,19 @@ test("many2many in kanban view", async () => {
         </kanban>`,
     });
     expect(
-        ".o_kanban_record:first .o_field_many2many_avatar_employee img.o_m2m_avatar"
+        ".o_kanban_record:first .o_field_many2many_avatar_employee img.o_m2m_avatar",
     ).toHaveCount(2);
     expect(
-        ".o_kanban_record .o_field_many2many_avatar_employee img.o_m2m_avatar:eq(0)"
+        ".o_kanban_record .o_field_many2many_avatar_employee img.o_m2m_avatar:eq(0)",
     ).toHaveAttribute(
         "data-src",
-        `${getOrigin()}/web/image/hr.employee.public/${employeeId_2}/avatar_128`
+        `${getOrigin()}/web/image/hr.employee.public/${employeeId_2}/avatar_128`,
     );
     expect(
-        ".o_kanban_record .o_field_many2many_avatar_employee img.o_m2m_avatar:eq(1)"
+        ".o_kanban_record .o_field_many2many_avatar_employee img.o_m2m_avatar:eq(1)",
     ).toHaveAttribute(
         "data-src",
-        `${getOrigin()}/web/image/hr.employee.public/${employeeId_1}/avatar_128`
+        `${getOrigin()}/web/image/hr.employee.public/${employeeId_1}/avatar_128`,
     );
 
     await contains(".o_kanban_record img.o_m2m_avatar:eq(1)").click();
@@ -471,16 +486,20 @@ test("many2many: click on an employee not associated with a user", async () => {
     expect(".o_field_many2many_avatar_employee .o_tag").toHaveCount(2);
     expect(".o_field_many2many_avatar_employee .o_tag img:eq(0)").toHaveAttribute(
         "data-src",
-        `${getOrigin()}/web/image/hr.employee.public/${employeeId_1}/avatar_128`
+        `${getOrigin()}/web/image/hr.employee.public/${employeeId_1}/avatar_128`,
     );
 
-    await contains(".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(0)").click();
+    await contains(
+        ".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(0)",
+    ).click();
     await waitFor(".o_avatar_card");
     expect(".o_card_user_infos > span").toHaveText("Mario");
     expect(".o_card_user_infos > a").toHaveText("Mario@partner.com");
     expect(".o_avatar_card_buttons button:eq(0)").toHaveText("View Profile");
 
-    await contains(".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(1)").click();
+    await contains(
+        ".o_field_many2many_avatar_employee .o_tag .o_m2m_avatar:eq(1)",
+    ).click();
     expect(".o_card_user_infos span").toHaveText("Luigi");
     expect(".o_avatar_card").toHaveCount(1);
     expect(".o_avatar_card_buttons button:eq(0)").toHaveText("Send message");

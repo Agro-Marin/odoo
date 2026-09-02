@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+
 import { basicContainerBuilderComponentProps } from "../utils.js";
 import { SelectMany2X } from "./select_many2x.js";
 
@@ -21,6 +22,8 @@ export class BasicMany2Many extends Component {
         this.props.setSelection([...this.props.selection, entry]);
     }
     unselect(id) {
-        this.props.setSelection([...this.props.selection.filter((item) => item.id !== id)]);
+        this.props.setSelection([
+            ...this.props.selection.filter((item) => item.id !== id),
+        ]);
     }
 }

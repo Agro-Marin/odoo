@@ -17,9 +17,7 @@ export class PaymentMollie extends PaymentInterface {
             const originalPaymentId = this._findOriginalPaymentId(paymentLine);
             if (!originalPaymentId) {
                 this._showMollieError(
-                    _t(
-                        "You can only refund an order that was paid for with Mollie.",
-                    ),
+                    _t("You can only refund an order that was paid for with Mollie."),
                 );
                 return false;
             }
@@ -33,11 +31,10 @@ export class PaymentMollie extends PaymentInterface {
     async sendPaymentCancel(order, uuid) {
         const paymentLine = this.pos.getOrder().getPaymentlineByUuid(uuid);
         try {
-            await this.pos.data.call(
-                "pos.payment.method",
-                "mollie_cancel_payment",
-                [this.payment_method_id.id, paymentLine.transaction_id],
-            );
+            await this.pos.data.call("pos.payment.method", "mollie_cancel_payment", [
+                this.payment_method_id.id,
+                paymentLine.transaction_id,
+            ]);
             return true;
         } catch (error) {
             this._showMollieError(error);
@@ -97,9 +94,7 @@ export class PaymentMollie extends PaymentInterface {
             );
 
             if (!["queued", "pending"].includes(data.status)) {
-                this._showMollieError(
-                    _t("Failed to initiate refund: %s", data.status),
-                );
+                this._showMollieError(_t("Failed to initiate refund: %s", data.status));
                 return false;
             }
 
@@ -113,8 +108,7 @@ export class PaymentMollie extends PaymentInterface {
 
     _findOriginalPaymentId(refundPaymentLine) {
         const currentOrder = refundPaymentLine.pos_order_id;
-        const orderToRefund =
-            currentOrder.lines[0]?.refunded_orderline_id?.order_id;
+        const orderToRefund = currentOrder.lines[0]?.refunded_orderline_id?.order_id;
         if (!orderToRefund) {
             return null;
         }

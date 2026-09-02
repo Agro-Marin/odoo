@@ -1,9 +1,9 @@
 /** @odoo-module native */
 
-import { mount, reactive } from "/web/static/lib/owl/owl.es.js";
-
 import { Homepage } from "./Homepage.js";
 import Store from "./store.js";
+
+import { mount, reactive } from "/web/static/lib/owl/owl.es.js";
 
 function createStore() {
     return reactive(new Store());

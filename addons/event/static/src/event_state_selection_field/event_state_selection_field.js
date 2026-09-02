@@ -1,9 +1,11 @@
 /** @odoo-module native */
 import { formatSelection } from "@web/core/formatters";
 import { registry } from "@web/core/registry";
-import { StateSelectionField, stateSelectionField } from "@web/fields/selection/state_selection/state_selection_field";
+import {
+    StateSelectionField,
+    stateSelectionField,
+} from "@web/fields/selection/state_selection/state_selection_field";
 import { useService } from "@web/core/utils/hooks";
-
 
 /**
  * This widget is used to enhance the Event State Selection field UI.
@@ -30,7 +32,10 @@ export class EventStateSelection extends StateSelectionField {
     }
 
     get options() {
-        return ["normal", "done", "blocked", "cancel"].map((state) => [state, new Map(super.options).get(state)]);
+        return ["normal", "done", "blocked", "cancel"].map((state) => [
+            state,
+            new Map(super.options).get(state),
+        ]);
     }
 
     get label() {
@@ -52,9 +57,7 @@ export class EventStateSelection extends StateSelectionField {
 export const EventStateSelectionField = {
     ...stateSelectionField,
     component: EventStateSelection,
-    supportedOptions: [
-        ...stateSelectionField.supportedOptions
-    ]
-}
+    supportedOptions: [...stateSelectionField.supportedOptions],
+};
 
 registry.category("fields").add("event_state_selection", EventStateSelectionField);

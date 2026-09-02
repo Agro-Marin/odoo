@@ -29,7 +29,9 @@ export class KanbanMany2OneAvatarEmployeeField extends Component {
     }
 
     get displayName() {
-        return this.props.displayAvatarName && this.value ? this.value.display_name : "";
+        return this.props.displayAvatarName && this.value
+            ? this.value.display_name
+            : "";
     }
 
     get m2oProps() {
@@ -41,7 +43,10 @@ export class KanbanMany2OneAvatarEmployeeField extends Component {
     }
 
     get relation() {
-        return this.props.relation ?? (this.isHrUser ? "hr.employee" : "hr.employee.public");
+        return (
+            this.props.relation ??
+            (this.isHrUser ? "hr.employee" : "hr.employee.public")
+        );
     }
 
     get value() {
@@ -51,7 +56,10 @@ export class KanbanMany2OneAvatarEmployeeField extends Component {
 
 const fieldDescr = {
     ...buildM2OFieldDescription(KanbanMany2OneAvatarEmployeeField),
-    additionalClasses: ["o_field_many2one_avatar_kanban", "o_field_many2one_avatar_user"],
+    additionalClasses: [
+        "o_field_many2one_avatar_kanban",
+        "o_field_many2one_avatar_user",
+    ],
     extractProps(staticInfo, dynamicInfo) {
         return {
             ...extractM2OFieldProps(staticInfo, dynamicInfo),

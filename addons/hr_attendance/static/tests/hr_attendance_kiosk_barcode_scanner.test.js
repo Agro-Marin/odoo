@@ -2,7 +2,11 @@ import { expect, test } from "@odoo/hoot";
 import { waitFor } from "@odoo/hoot-dom";
 import { Deferred } from "@odoo/hoot-mock";
 import { KioskBarcodeScanner } from "@hr_attendance/components/kiosk_barcode/kiosk_barcode";
-import { contains, mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { defineMailModels, mockGetMedia } from "@mail/../tests/mail_test_helpers";
 import { uuid } from "@web/core/utils/format/strings";
 
@@ -10,7 +14,6 @@ defineMailModels();
 
 test.tags("desktop");
 test("KioskBarcodeScanner can be opened and closed", async () => {
-
     mockGetMedia();
     const isBarcodeScannerOpened = new Deferred();
     patchWithCleanup(KioskBarcodeScanner.prototype, {

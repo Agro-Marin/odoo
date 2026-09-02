@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { onWillStart, onWillUpdateProps,useState } from "@odoo/owl";
+import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { CalendarMobileFilterPanel } from "@web/views/calendar";
 
@@ -25,18 +25,17 @@ export class TimeOffCalendarMobileFilterPanel extends CalendarMobileFilterPanel 
             return;
         }
         const promises = [];
-        for (const section of this.props.model.filterSections){
-
+        for (const section of this.props.model.filterSections) {
             if (section.fieldName !== "holiday_status_id") {
                 continue;
             }
             promises.push(
-                this.orm.call("hr.leave.type", "get_allocation_data_request", [])
+                this.orm.call("hr.leave.type", "get_allocation_data_request", []),
             );
         }
         const filterData = {};
-        const [data,] = await Promise.all(promises);
-        if(!data){
+        const [data] = await Promise.all(promises);
+        if (!data) {
             return;
         }
         data.forEach((leave) => {
@@ -44,5 +43,4 @@ export class TimeOffCalendarMobileFilterPanel extends CalendarMobileFilterPanel 
         });
         this.leaveState.holidays = filterData;
     }
-
 }

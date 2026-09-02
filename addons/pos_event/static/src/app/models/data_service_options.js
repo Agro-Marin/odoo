@@ -16,8 +16,7 @@ patch(DataServiceOptions.prototype, {
                 key: "id",
                 condition: (record) =>
                     !record.registration_id ||
-                    record.registration_id?.pos_order_line_id?.order_id
-                        ?.finalized,
+                    record.registration_id?.pos_order_line_id?.order_id?.finalized,
             },
         };
     },

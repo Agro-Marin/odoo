@@ -5,7 +5,6 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useKEProxy } from "./ke_proxy_hook.js";
 import { Component } from "@odoo/owl";
 
-
 export class KEProxyDialog extends Component {
     static template = "l10n_ke_edi_tremol.KEProxyDialog";
     static components = { Dialog };
@@ -21,5 +20,5 @@ export class KEProxyDialog extends Component {
         this.sender = useKEProxy({ onAllSent: this.props.close });
         this.state = this.sender.state;
         this.sender.postInvoices(this.props.invoices);
-    };
+    }
 }

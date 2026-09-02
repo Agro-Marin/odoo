@@ -10,7 +10,11 @@ import { registry } from "@web/core/registry";
 async function downloadSpreadsheet(env, action) {
     let { name, data, stateUpdateMessages, xlsxData } = action.params;
     if (!xlsxData) {
-        const model = await createSpreadsheetModel({ env, data, revisions: stateUpdateMessages });
+        const model = await createSpreadsheetModel({
+            env,
+            data,
+            revisions: stateUpdateMessages,
+        });
         await waitForDataLoaded(model);
         xlsxData = model.exportXLSX();
     }
@@ -18,7 +22,9 @@ async function downloadSpreadsheet(env, action) {
         url: "/spreadsheet/xlsx",
         data: {
             zip_name: `${name}.xlsx`,
-            files: new Blob([JSON.stringify(xlsxData.files)], { type: "application/json" }),
+            files: new Blob([JSON.stringify(xlsxData.files)], {
+                type: "application/json",
+            }),
         },
     });
 }

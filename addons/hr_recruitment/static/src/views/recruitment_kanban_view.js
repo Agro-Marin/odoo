@@ -17,7 +17,7 @@ export class RecruitmentKanbanRenderer extends KanbanRenderer {
         if (active && record.data.application_count > 0) {
             this.dialog.add(ConfirmationDialog, {
                 body: _t(
-                    "This job position and all related applicants will be archived. Are you sure?"
+                    "This job position and all related applicants will be archived. Are you sure?",
                 ),
                 confirmLabel: _t("Archive"),
                 confirm: () => {

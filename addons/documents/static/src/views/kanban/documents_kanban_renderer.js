@@ -48,29 +48,33 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
                 });
                 const focusedRecord = this.setDefaultFocus();
                 this.root.el
-                    ?.querySelector(`.o_kanban_record[data-value-id="${focusedRecord?.resId}"]`)
+                    ?.querySelector(
+                        `.o_kanban_record[data-value-id="${focusedRecord?.resId}"]`,
+                    )
                     ?.focus();
             },
             {
                 category: "smart_action",
                 hotkey: "control+a",
                 isAvailable: () => this.props.list.records.length > 0,
-            }
+            },
         );
         useCommand(
             _t("Toggle favorite"),
             async () => {
                 if (this.selection.length) {
-                    await this.env.model.orm.call("documents.document", "action_toggle_user_favorite", [
-                        this.selection.map((record) => record.resId),
-                    ]);
+                    await this.env.model.orm.call(
+                        "documents.document",
+                        "action_toggle_user_favorite",
+                        [this.selection.map((record) => record.resId)],
+                    );
                     this.env.model.load();
                 }
             },
             {
                 category: "smart_action",
                 hotkey: "alt+t",
-            }
+            },
         );
 
         useDraggableDocuments({
@@ -89,7 +93,6 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
             },
         });
 
-
         useBus(this.documentService.bus, "DOCUMENT_ACTIVITY_CHANGED", ({ detail }) => {
             if (
                 this.props.list.selection.length === 1 &&
@@ -100,7 +103,7 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
         });
         onMounted(() => {
             if (this.isMobile && this.isRecentFolder) {
-                this.root.el.classList.add('o_documents_recent');
+                this.root.el.classList.add("o_documents_recent");
             }
         });
     }
@@ -141,7 +144,10 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
                 if ((oldIdx - folderCount) % cardsPerRow >= folderCount % cardsPerRow) {
                     newIdx = folderCount - 1;
                 } else {
-                    newIdx = folderCount - ((folderCount % cardsPerRow) - (oldIdx - folderCount) % cardsPerRow);
+                    newIdx =
+                        folderCount -
+                        ((folderCount % cardsPerRow) -
+                            ((oldIdx - folderCount) % cardsPerRow));
                 }
             }
         } else if (direction === "down") {
@@ -162,10 +168,16 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
         } else if (direction === "right") {
             newIdx += 1;
         }
-        if (newIdx >= 0 && newIdx < cards.length && cards[newIdx] instanceof HTMLElement) {
+        if (
+            newIdx >= 0 &&
+            newIdx < cards.length &&
+            cards[newIdx] instanceof HTMLElement
+        ) {
             const focusedCard = cards[newIdx];
             focusedCard.focus();
-            const record = this.props.list.records.find((e) => e.id === focusedCard.dataset.id);
+            const record = this.props.list.records.find(
+                (e) => e.id === focusedCard.dataset.id,
+            );
             if (record) {
                 this.documentService.focusRecord(record);
             }
@@ -178,8 +190,10 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
     }
 
     folderCount() {
-        return this.props.list.records
-            .reduce((count, record) => (record.data.type === 'folder' ? count + 1: count), 0);
+        return this.props.list.records.reduce(
+            (count, record) => (record.data.type === "folder" ? count + 1 : count),
+            0,
+        );
     }
 
     hasFolders() {
@@ -223,7 +237,8 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
         }
         const { records } = this.props.list;
         const documentIds = Array.from(
-            this.root.el?.querySelectorAll(".o_kanban_record:not(.o_kanban_ghost)") || []
+            this.root.el?.querySelectorAll(".o_kanban_record:not(.o_kanban_ghost)") ||
+                [],
         ).map((el) => el.dataset.id);
         const recordIndex = documentIds.indexOf(record.id);
         const lastCheckedRecordIndex = documentIds.indexOf(this.lastCheckedRecord.id);

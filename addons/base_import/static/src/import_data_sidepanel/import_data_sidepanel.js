@@ -25,7 +25,9 @@ export class ImportDataSidepanel extends Component {
         // name with an earlier dot, e.g. "2024.orders.csv", used to display
         // as just "2024", silently dropping ".orders" (t24068 tests-finding #10).
         const lastDot = this.props.filename.lastIndexOf(".");
-        return lastDot === -1 ? this.props.filename : this.props.filename.slice(0, lastDot);
+        return lastDot === -1
+            ? this.props.filename
+            : this.props.filename.slice(0, lastDot);
     }
 
     get fileExtension() {
@@ -40,7 +42,10 @@ export class ImportDataSidepanel extends Component {
     }
 
     setOptionValue(name, value) {
-        this.props.onOptionChanged(name, isNaN(parseFloat(value)) ? value : Number(value));
+        this.props.onOptionChanged(
+            name,
+            isNaN(parseFloat(value)) ? value : Number(value),
+        );
     }
 
     /**

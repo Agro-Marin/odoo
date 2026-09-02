@@ -49,7 +49,9 @@ export async function createDashboardActionWithData(data) {
     const [dashboard] = MockServer.env["spreadsheet.dashboard"];
     dashboard.spreadsheet_data = json;
     dashboard.json_data = json;
-    const { fixture, model } = await createSpreadsheetDashboard({ spreadsheetId: dashboard.id });
+    const { fixture, model } = await createSpreadsheetDashboard({
+        spreadsheetId: dashboard.id,
+    });
     await animationFrame();
     return { fixture, model };
 }

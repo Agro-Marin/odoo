@@ -13,12 +13,14 @@ registry.category("web_tour.tours").add("chatbot_redirect_to_portal", {
             run: "click",
         },
         {
-            trigger: ".o-livechat-root:shadow li button:contains(Go to the portal page)",
+            trigger:
+                ".o-livechat-root:shadow li button:contains(Go to the portal page)",
             run: "click",
             expectUnloadPage: true,
         },
         {
-            trigger: ".o-livechat-root:shadow .o-mail-Message:contains('Go to the portal page')",
+            trigger:
+                ".o-livechat-root:shadow .o-mail-Message:contains('Go to the portal page')",
         },
         { trigger: "#chatterRoot:shadow .o-mail-Chatter" },
         {

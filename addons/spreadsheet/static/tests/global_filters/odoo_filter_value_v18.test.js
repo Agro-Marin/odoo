@@ -1,23 +1,15 @@
 /** @ts-check */
-import { luxon } from "@web/core/l10n/luxon";
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
-import {
-    defineSpreadsheetModels,
-} from "@spreadsheet/../tests/helpers/data";
-import {
-    createModelWithDataSource,
-} from "@spreadsheet/../tests/helpers/model";
-
 import {
     addGlobalFilter,
     setCellContent,
     setGlobalFilterValue,
 } from "@spreadsheet/../tests/helpers/commands";
-import {
-    getCellValue,
-    getEvaluatedCell,
-} from "@spreadsheet/../tests/helpers/getters";
+import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
+import { getCellValue, getEvaluatedCell } from "@spreadsheet/../tests/helpers/getters";
+import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
+import { luxon } from "@web/core/l10n/luxon";
 
 describe.current.tags("headless");
 defineSpreadsheetModels();
@@ -28,7 +20,6 @@ const { DateTime } = luxon;
  * @typedef {import("@spreadsheet").GlobalFilter} GlobalFilter
  *
  */
-
 
 test("ODOO.FILTER.VALUE.V18 text filter", async function () {
     const { model } = await createModelWithDataSource();
@@ -201,7 +192,12 @@ test("ODOO.FILTER.VALUE.V18 relation filter", async function () {
                     2: "Raoul Grosbedon",
                 };
                 expect.step(`read_${resIds}`);
-                return { records: resIds.map((resId) => ({ id: resId, display_name: names[resId] })) };
+                return {
+                    records: resIds.map((resId) => ({
+                        id: resId,
+                        display_name: names[resId],
+                    })),
+                };
             }
         },
     });

@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { convertParamToObject } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
-import { BuilderAction } from "@html_builder/core/builder_action";
 
 export class CompositeActionPlugin extends Plugin {
     static id = "compositeAction";
@@ -31,7 +31,9 @@ export class CompositeAction extends BuilderAction {
             if (action.has("prepare")) {
                 const actionDescr = { actionId: actionDef.action };
                 if (actionDef.actionParam) {
-                    actionDescr.actionParam = convertParamToObject(actionDef.actionParam);
+                    actionDescr.actionParam = convertParamToObject(
+                        actionDef.actionParam,
+                    );
                 }
                 if (actionDef.actionValue || actionValue) {
                     actionDescr.actionValue = actionDef.actionValue || actionValue;
@@ -165,7 +167,13 @@ export class CompositeAction extends BuilderAction {
         }
     }
     _getActionDescription(action) {
-        const { action: actionId, actionParam, actionValue, value, loadResult } = action;
+        const {
+            action: actionId,
+            actionParam,
+            actionValue,
+            value,
+            loadResult,
+        } = action;
         const actionDescr = {};
         const forwardedSpecs = [
             "editingElement",

@@ -27,7 +27,7 @@
         </t>
         <script
             type="text/javascript"
-            src="/website_google_map/static/src/lib/markerclusterer.js" />
+            src="/website_google_map/static/lib/markerclusterer.js" />
         <script
             type="text/javascript"
             src="/website_google_map/static/src/js/website_google_map.js" />

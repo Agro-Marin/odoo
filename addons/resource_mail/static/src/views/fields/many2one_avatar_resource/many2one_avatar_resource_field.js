@@ -32,9 +32,10 @@ export const many2OneAvatarResourceField = {
     extractProps(staticInfo, dynamicInfo) {
         return {
             ...extractM2OFieldProps(staticInfo, dynamicInfo),
-            canOpen: "no_open" in staticInfo.options
-                ? !staticInfo.options.no_open
-                : staticInfo.viewType === "form",
+            canOpen:
+                "no_open" in staticInfo.options
+                    ? !staticInfo.options.no_open
+                    : staticInfo.viewType === "form",
         };
     },
     fieldDependencies: [
@@ -44,4 +45,6 @@ export const many2OneAvatarResourceField = {
     ],
 };
 
-registry.category("fields").add("many2one_avatar_resource", many2OneAvatarResourceField);
+registry
+    .category("fields")
+    .add("many2one_avatar_resource", many2OneAvatarResourceField);

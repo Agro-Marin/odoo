@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { onWillStart, useState } from "@odoo/owl";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
+import { onWillStart, useState } from "@odoo/owl";
 import { useDynamicSnippetOption } from "@website/builder/plugins/options/dynamic_snippet_hook";
 
 export class DynamicSnippetBlogPostsOption extends BaseOptionComponent {
@@ -9,7 +9,8 @@ export class DynamicSnippetBlogPostsOption extends BaseOptionComponent {
     static selector = ".s_dynamic_snippet_blog_posts";
     setup() {
         super.setup();
-        const { fetchBlogs, getModelNameFilter } = this.dependencies.dynamicSnippetBlogPostsOption;
+        const { fetchBlogs, getModelNameFilter } =
+            this.dependencies.dynamicSnippetBlogPostsOption;
         this.dynamicOptionParams = useDynamicSnippetOption(getModelNameFilter());
         this.blogState = useState({
             blogs: [],

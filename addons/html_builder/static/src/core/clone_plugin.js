@@ -55,7 +55,8 @@ export class ClonePlugin extends Plugin {
         }
         const buttons = [];
         this.overlayTarget = target;
-        const disabledReason = this.dependencies.builderOptions.getCloneDisabledReason(target);
+        const disabledReason =
+            this.dependencies.builderOptions.getCloneDisabledReason(target);
         buttons.push({
             class: "o_snippet_clone fa-regular fa-clone",
             title: _t("Duplicate"),
@@ -83,7 +84,7 @@ export class ClonePlugin extends Plugin {
      */
     async cloneElement(
         el,
-        { position = "afterend", scrollToClone = false, activateClone = true } = {}
+        { position = "afterend", scrollToClone = false, activateClone = true } = {},
     ) {
         this.dispatchTo("on_will_clone_handlers", { originalEl: el });
         const cloneEl = el.cloneNode(true);
@@ -112,10 +113,17 @@ export class ClonePlugin extends Plugin {
 export class CloneItemAction extends BuilderAction {
     static id = "addItem";
     static dependencies = ["clone", "history"];
-    async apply({ editingElement, params: { mainParam: itemSelector }, value: position }) {
+    async apply({
+        editingElement,
+        params: { mainParam: itemSelector },
+        value: position,
+    }) {
         const itemEl = editingElement.querySelector(itemSelector);
         if (itemEl) {
-            await this.dependencies.clone.cloneElement(itemEl, { position, scrollToClone: true });
+            await this.dependencies.clone.cloneElement(itemEl, {
+                position,
+                scrollToClone: true,
+            });
             this.dependencies.history.addStep();
         }
     }

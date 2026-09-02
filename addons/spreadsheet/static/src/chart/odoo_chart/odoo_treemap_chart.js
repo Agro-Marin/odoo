@@ -1,9 +1,12 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
-import { onOdooChartItemHover, onTreemapOdooChartItemClick } from "./odoo_chart_helpers.js";
+import {
+    onOdooChartItemHover,
+    onTreemapOdooChartItemClick,
+} from "./odoo_chart_helpers.js";
 
 const { chartRegistry } = registries;
 
@@ -44,7 +47,8 @@ chartRegistry.add("odoo_treemap", {
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooTreemapChart.validateChartDefinition(validator, definition),
-    transformDefinition: (definition) => OdooTreemapChart.transformDefinition(definition),
+    transformDefinition: (definition) =>
+        OdooTreemapChart.transformDefinition(definition),
     getChartDefinitionFromContextCreation: () =>
         OdooTreemapChart.getDefinitionFromContextCreation(),
     name: _t("Treemap"),

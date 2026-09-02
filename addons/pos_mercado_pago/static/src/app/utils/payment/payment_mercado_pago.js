@@ -60,7 +60,7 @@ export class PaymentMercadoPago extends PaymentInterface {
         this.payment_intent = {};
     }
 
-    async sendPaymentRequest(cid) {
+    async sendPaymentRequest() {
         await super.sendPaymentRequest(...arguments);
         const line = this.pos.getOrder().getSelectedPaymentline();
         try {
@@ -146,8 +146,7 @@ export class PaymentMercadoPago extends PaymentInterface {
         // it is an old webhook -> trash
         if ("id" in this.payment_intent) {
             // Call Mercado Pago to get the payment intent status
-            let last_status_payment_intent =
-                await this.getLastStatusPaymentIntent();
+            let last_status_payment_intent = await this.getLastStatusPaymentIntent();
             // Bad payment intent id, then it's an old webhook not related with the
             // current payment intent -> trash
             if (this.payment_intent.id == last_status_payment_intent.id) {
@@ -156,9 +155,7 @@ export class PaymentMercadoPago extends PaymentInterface {
                         last_status_payment_intent.state,
                     )
                 ) {
-                    return await handleFinishedPayment(
-                        last_status_payment_intent,
-                    );
+                    return await handleFinishedPayment(last_status_payment_intent);
                 }
                 // BUG Sometimes the Mercado Pago webhook return ON_TERMINAL
                 // instead of CANCELED/FINISHED when we requested a payment status
@@ -192,9 +189,7 @@ export class PaymentMercadoPago extends PaymentInterface {
                                 clearInterval(s);
                                 resolve(
                                     showMessageAndResolve(
-                                        _t(
-                                            "Payment status could not be confirmed",
-                                        ),
+                                        _t("Payment status could not be confirmed"),
                                         "error",
                                         false,
                                     ),

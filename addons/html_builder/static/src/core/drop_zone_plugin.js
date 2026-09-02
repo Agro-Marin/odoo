@@ -44,9 +44,14 @@ export class DropZonePlugin extends Plugin {
     resources = {
         savable_mutation_record_predicates: (record) => {
             if (record.type === "childList") {
-                const addedOrRemovedNode = (record.addedTrees[0] || record.removedTrees[0]).node;
+                const addedOrRemovedNode = (
+                    record.addedTrees[0] || record.removedTrees[0]
+                ).node;
                 // Do not record the addition/removal of the dropzones.
-                if (isElement(addedOrRemovedNode) && addedOrRemovedNode.matches(".oe_drop_zone")) {
+                if (
+                    isElement(addedOrRemovedNode) &&
+                    addedOrRemovedNode.matches(".oe_drop_zone")
+                ) {
                     return false;
                 }
             }
@@ -78,7 +83,7 @@ export class DropZonePlugin extends Plugin {
             return openModalEl;
         }
         const openDropdownEl = this.editable.querySelector(
-            ".o_editable.dropdown-menu.show, .dropdown-menu.show .o_editable.dropdown-menu"
+            ".o_editable.dropdown-menu.show, .dropdown-menu.show .o_editable.dropdown-menu",
         );
         if (openDropdownEl) {
             return openDropdownEl;
@@ -107,7 +112,8 @@ export class DropZonePlugin extends Plugin {
         const selectorExcludeAncestor = [];
         const selectorLockedWithin = [];
 
-        const editableAreaEls = this.dependencies.setup_editor_plugin.getEditableAreas();
+        const editableAreaEls =
+            this.dependencies.setup_editor_plugin.getEditableAreas();
         const rootEl = this.getDropRootElement();
         this.dropzoneSelectors.forEach((dropzoneSelector) => {
             const {
@@ -125,12 +131,14 @@ export class DropZonePlugin extends Plugin {
                         ...this.getSelectorSiblings(editableAreaEls, rootEl, {
                             selector: dropNear,
                             excludeParent: excludeNearParent,
-                        })
+                        }),
                     );
                 }
                 if (dropIn) {
                     selectorChildren.push(
-                        ...this.getSelectorChildren(editableAreaEls, rootEl, { selector: dropIn })
+                        ...this.getSelectorChildren(editableAreaEls, rootEl, {
+                            selector: dropIn,
+                        }),
                     );
                 }
                 if (dropLockWithin) {
@@ -154,8 +162,12 @@ export class DropZonePlugin extends Plugin {
         }
         if (selectorExcludeAncestor.length) {
             const excludeAncestor = selectorExcludeAncestor.join(",");
-            selectorSiblings = selectorSiblings.filter((el) => !el.closest(excludeAncestor));
-            selectorChildren = selectorChildren.filter((el) => !el.closest(excludeAncestor));
+            selectorSiblings = selectorSiblings.filter(
+                (el) => !el.closest(excludeAncestor),
+            );
+            selectorChildren = selectorChildren.filter(
+                (el) => !el.closest(excludeAncestor),
+            );
         }
 
         // Prevent dropping an element outside a given direct or indirect parent
@@ -189,11 +201,11 @@ export class DropZonePlugin extends Plugin {
             let sanitizedZoneEl;
             if (forbidSanitize === "form") {
                 sanitizedZoneEl = el.closest(
-                    '[data-oe-sanitize]:not([data-oe-sanitize="allow_form"]):not([data-oe-sanitize="no_block"])'
+                    '[data-oe-sanitize]:not([data-oe-sanitize="allow_form"]):not([data-oe-sanitize="no_block"])',
                 );
             } else if (forbidSanitize) {
                 sanitizedZoneEl = el.closest(
-                    '[data-oe-sanitize]:not([data-oe-sanitize="no_block"])'
+                    '[data-oe-sanitize]:not([data-oe-sanitize="no_block"])',
                 );
             }
             if (sanitizedZoneEl) {
@@ -216,7 +228,9 @@ export class DropZonePlugin extends Plugin {
                 }
                 return true;
             };
-            selectorSiblings = selectorSiblings.filter((el) => filterGrids(el.parentElement));
+            selectorSiblings = selectorSiblings.filter((el) =>
+                filterGrids(el.parentElement),
+            );
             selectorChildren = selectorChildren.filter((el) => filterGrids(el));
 
             // If specified, only filter out the grids.
@@ -303,7 +317,9 @@ export class DropZonePlugin extends Plugin {
             this.checkSelectors(el, rootEl) &&
             // Do not drop blocks into an image field.
             !el.closest("[data-oe-type=image]") &&
-            !el.matches('.o_not_editable :not([contenteditable="true"]), .o_not_editable');
+            !el.matches(
+                '.o_not_editable :not([contenteditable="true"]), .o_not_editable',
+            );
 
         const dropAreaEls = [];
         editableAreaEls.forEach((el) => {
@@ -359,10 +375,12 @@ export class DropZonePlugin extends Plugin {
             "oe_insert",
             "oe_sanitized_drop_zone",
             "text-center",
-            "text-uppercase"
+            "text-uppercase",
         );
         const messageEl = this.document.createElement("p");
-        messageEl.textContent = _t("For technical reasons, this block cannot be dropped here");
+        messageEl.textContent = _t(
+            "For technical reasons, this block cannot be dropped here",
+        );
         dropzoneEl.prepend(messageEl);
         return dropzoneEl;
     }
@@ -418,9 +436,11 @@ export class DropZonePlugin extends Plugin {
             }
             // Compute the parent content width and the element outer width.
             const parentPaddingX =
-                parseFloat(parentStyle.paddingLeft) + parseFloat(parentStyle.paddingRight);
+                parseFloat(parentStyle.paddingLeft) +
+                parseFloat(parentStyle.paddingRight);
             const parentBorderX =
-                parseFloat(parentStyle.borderLeft) + parseFloat(parentStyle.borderRight);
+                parseFloat(parentStyle.borderLeft) +
+                parseFloat(parentStyle.borderRight);
             const hookMarginX =
                 parseFloat(hookStyle.marginLeft) + parseFloat(hookStyle.marginRight);
 
@@ -470,12 +490,14 @@ export class DropZonePlugin extends Plugin {
      */
     activateDropzones(
         { selectorSiblings, selectorChildren, selectorSanitized, selectorGrids },
-        { toInsertInline, isContentInIframe = true } = {}
+        { toInsertInline, isContentInIframe = true } = {},
     ) {
         const isIgnored = (el) => el.matches(".o_we_no_overlay") || !isVisible(el);
         let hookEls = [];
         for (const parentEl of selectorChildren) {
-            const validChildrenEls = [...parentEl.children].filter((el) => !isIgnored(el));
+            const validChildrenEls = [...parentEl.children].filter(
+                (el) => !isIgnored(el),
+            );
             hookEls.push(...validChildrenEls);
             parentEl.prepend(this.createDropzone(parentEl));
         }
@@ -488,7 +510,11 @@ export class DropZonePlugin extends Plugin {
         // Inserting the normal dropzones.
         for (const hookEl of hookEls) {
             const parentEl = hookEl.parentElement;
-            const { vertical, style } = this.setDropzoneDirection(hookEl, parentEl, toInsertInline);
+            const { vertical, style } = this.setDropzoneDirection(
+                hookEl,
+                parentEl,
+                toInsertInline,
+            );
 
             let previousEl = hookEl.previousElementSibling;
             while (previousEl && isIgnored(previousEl)) {
@@ -542,7 +568,11 @@ export class DropZonePlugin extends Plugin {
             });
         }
 
-        return [...this.editable.querySelectorAll(".oe_drop_zone:not(.oe_sanitized_drop_zone)")];
+        return [
+            ...this.editable.querySelectorAll(
+                ".oe_drop_zone:not(.oe_sanitized_drop_zone)",
+            ),
+        ];
     }
 
     /**
@@ -553,7 +583,7 @@ export class DropZonePlugin extends Plugin {
             dropzoneEl.remove();
         });
         this.sanitizedZoneEls.forEach((sanitizedZoneEl) =>
-            sanitizedZoneEl.style.removeProperty("position")
+            sanitizedZoneEl.style.removeProperty("position"),
         );
         this.sanitizedZoneEls = [];
     }

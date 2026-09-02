@@ -11,7 +11,7 @@ registry
             const records = this.mockSearchRead(
                 "account.account",
                 [[["account_type", "=", accountType]], ["code"]],
-                {}
+                {},
             );
             return records.map((record) => record.code);
         });

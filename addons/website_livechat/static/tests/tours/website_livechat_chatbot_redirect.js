@@ -13,7 +13,8 @@ registry.category("web_tour.tours").add("website_livechat.chatbot_redirect", {
             run: "click",
         },
         {
-            trigger: ".o-livechat-root:shadow button:contains(Go to the #chatbot-redirect anchor)",
+            trigger:
+                ".o-livechat-root:shadow button:contains(Go to the #chatbot-redirect anchor)",
             run: "click",
         },
         {
@@ -23,7 +24,7 @@ registry.category("web_tour.tours").add("website_livechat.chatbot_redirect", {
                 const url = new URL(location.href);
                 if (url.pathname !== "/contactus" || url.hash !== "#chatbot-redirect") {
                     throw new Error(
-                        "Chatbot should have redirected to the #chatbot-redirect anchor."
+                        "Chatbot should have redirected to the #chatbot-redirect anchor.",
                     );
                 }
             },
@@ -33,13 +34,15 @@ registry.category("web_tour.tours").add("website_livechat.chatbot_redirect", {
             run: "click",
         },
         {
-            trigger: ".o-livechat-root:shadow button:contains(Go to the /chatbot-redirect page)",
+            trigger:
+                ".o-livechat-root:shadow button:contains(Go to the /chatbot-redirect page)",
             run: "click",
             expectUnloadPage: true,
         },
         {
             isActive: ["mobile"], //chatwindow is folded on mobile
-            trigger: ".o-livechat-root:shadow .o-mail-ChatBubble[name='Redirection Bot']",
+            trigger:
+                ".o-livechat-root:shadow .o-mail-ChatBubble[name='Redirection Bot']",
             run: "click",
         },
         {
@@ -52,7 +55,7 @@ registry.category("web_tour.tours").add("website_livechat.chatbot_redirect", {
                 const url = new URL(location.href);
                 if (url.pathname !== "/chatbot-redirect") {
                     throw new Error(
-                        "Chatbot should have redirected to the /chatbot-redirect page."
+                        "Chatbot should have redirected to the /chatbot-redirect page.",
                     );
                 }
             },

@@ -1,5 +1,5 @@
 import { setupHTMLBuilder } from "@html_builder/../tests/helpers";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, clear, click, fill, waitFor } from "@odoo/hoot-dom";
 import { contains } from "@web/../tests/web_test_helpers";
 
@@ -26,12 +26,16 @@ test("change rating score", async () => {
     expect(":iframe .s_rating .s_rating_active_icons i").toHaveCount(3);
     expect(":iframe .s_rating .s_rating_inactive_icons i").toHaveCount(2);
     await contains(":iframe .s_rating").click();
-    await contains(".options-container [data-action-id='activeIconsNumber'] input").click();
+    await contains(
+        ".options-container [data-action-id='activeIconsNumber'] input",
+    ).click();
     await clear();
     await fill("1");
     await animationFrame();
     expect(":iframe .s_rating .s_rating_active_icons i").toHaveCount(1);
-    await contains(".options-container [data-action-id='totalIconsNumber'] input").click();
+    await contains(
+        ".options-container [data-action-id='totalIconsNumber'] input",
+    ).click();
     await clear();
     await fill("4");
     await animationFrame();
@@ -55,7 +59,7 @@ test("change rating score", async () => {
                     &ZeroWidthSpace;
                 </i>
             </span>
-        </div>`
+        </div>`,
     );
 });
 test("Ensure order of operations when clicking very fast on two options", async () => {
@@ -69,12 +73,18 @@ test("Ensure order of operations when clicking very fast on two options", async 
     await animationFrame();
     expect(":iframe .s_rating_icons").not.toHaveClass("fa-2x");
     await contains(".modal-dialog .fa-glass").click();
-    expect(":iframe .s_rating").toHaveAttribute("data-active-custom-icon", "fa-solid fa-martini-glass-empty");
+    expect(":iframe .s_rating").toHaveAttribute(
+        "data-active-custom-icon",
+        "fa-solid fa-martini-glass-empty",
+    );
     expect("[data-label='Icon'] .dropdown-toggle").toHaveText("Custom");
     expect(":iframe .s_rating_icons").toHaveClass("fa-2x");
     await contains(".o-snippets-top-actions .fa-undo").click();
     expect("[data-label='Icon'] .dropdown-toggle").toHaveText("Custom");
-    expect(":iframe .s_rating").toHaveAttribute("data-active-custom-icon", "fa-solid fa-martini-glass-empty");
+    expect(":iframe .s_rating").toHaveAttribute(
+        "data-active-custom-icon",
+        "fa-solid fa-martini-glass-empty",
+    );
     expect(":iframe .s_rating_icons").not.toHaveClass("fa-2x");
     await contains(".o-snippets-top-actions .fa-undo").click();
     expect("[data-label='Icon'] .dropdown-toggle").toHaveText("Stars");

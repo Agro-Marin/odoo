@@ -24,9 +24,7 @@ patch(PosStore.prototype, {
                 }
 
                 for (const slot of ev.event_slot_ids) {
-                    const eventSlot = this.models["event.slot"].get(
-                        slot.slot_id,
-                    );
+                    const eventSlot = this.models["event.slot"].get(slot.slot_id);
                     if (eventSlot) {
                         eventSlot.seats_available = slot.seats_available;
                     }

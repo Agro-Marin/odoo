@@ -34,7 +34,8 @@ registry.category("web_tour.tours").add("website_event_pages_seo", {
             trigger: ":iframe head:has(title:text(Hello, world!)):not(:visible)",
         },
         {
-            content: "Check that the page title is adapted, inside and outside the iframe",
+            content:
+                "Check that the page title is adapted, inside and outside the iframe",
             trigger: "head:has(title:text(Hello, world!)):not(:visible)",
         },
     ],

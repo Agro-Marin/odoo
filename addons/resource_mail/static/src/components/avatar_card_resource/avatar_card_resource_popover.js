@@ -29,7 +29,12 @@ export class AvatarCardResourcePopover extends AvatarCardPopover {
     }
 
     async onWillStart() {
-        [this.record] = await this.orm.call(this.props.recordModel, 'get_avatar_card_data', [[this.props.id], this.fieldNames], {});
+        [this.record] = await this.orm.call(
+            this.props.recordModel,
+            "get_avatar_card_data",
+            [[this.props.id], this.fieldNames],
+            {},
+        );
         await Promise.all(this.loadAdditionalData());
     }
 
@@ -39,7 +44,15 @@ export class AvatarCardResourcePopover extends AvatarCardPopover {
     }
 
     get fieldNames() {
-        return ["email", "im_status", "name", "phone", "resource_type", "share", "user_id"];
+        return [
+            "email",
+            "im_status",
+            "name",
+            "phone",
+            "resource_type",
+            "share",
+            "user_id",
+        ];
     }
 
     get name() {

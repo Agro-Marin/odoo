@@ -44,11 +44,15 @@ export class RemovePlugin extends Plugin {
             getButtons: this.getActiveOverlayButtons.bind(this),
         }),
         empty_node_predicates: (el) => {
-            const systemNodeSelectors = this.getResource("system_node_selectors").join(",");
+            const systemNodeSelectors = this.getResource("system_node_selectors").join(
+                ",",
+            );
             return (
                 el.textContent.trim() === "" &&
                 (!systemNodeSelectors ||
-                    [...el.children].every((child) => closestElement(child, systemNodeSelectors)))
+                    [...el.children].every((child) =>
+                        closestElement(child, systemNodeSelectors),
+                    ))
             );
         },
     };
@@ -62,7 +66,9 @@ export class RemovePlugin extends Plugin {
             unremovableSelectors.push(unremovableSelector);
         }
         if (unremovableSelectors.length) {
-            unremovableNodePredicates.push((node) => node.matches(unremovableSelectors.join(", ")));
+            unremovableNodePredicates.push((node) =>
+                node.matches(unremovableSelectors.join(", ")),
+            );
         }
     }
 
@@ -74,7 +80,8 @@ export class RemovePlugin extends Plugin {
 
         const buttons = [];
         this.overlayTarget = target;
-        const disabledReason = this.dependencies.builderOptions.getRemoveDisabledReason(target);
+        const disabledReason =
+            this.dependencies.builderOptions.getRemoveDisabledReason(target);
         buttons.push({
             class: "oe_snippet_remove bg-danger fa-solid fa-trash-can",
             title: _t("Remove"),
@@ -88,7 +95,9 @@ export class RemovePlugin extends Plugin {
 
     isEmptyAndRemovable(el, optionsTargetEls) {
         return (
-            this.getResource("empty_node_predicates").some((predicate) => predicate(el)) &&
+            this.getResource("empty_node_predicates").some((predicate) =>
+                predicate(el),
+            ) &&
             !el.classList.contains("oe_structure") &&
             !el.parentElement.classList.contains("carousel-item") &&
             (!optionsTargetEls.includes(el) ||
@@ -110,7 +119,7 @@ export class RemovePlugin extends Plugin {
         }
         // Get the elements having options containers.
         const optionTargetEls = this.getOptionsContainersElements().filter((targetEl) =>
-            targetEl.contains(toRemoveEl)
+            targetEl.contains(toRemoveEl),
         );
         const nextTargetEl = this.removeCurrentTarget(toRemoveEl, optionTargetEls);
         this.dispatchTo("on_removed_handlers", { removedEl: toRemoveEl, nextTargetEl });
@@ -136,9 +145,12 @@ export class RemovePlugin extends Plugin {
         let parentEl = toRemoveEl.parentElement;
         const previousSiblingEl = this.dependencies.visibility.getVisibleSibling(
             toRemoveEl,
-            "prev"
+            "prev",
         );
-        const nextSiblingEl = this.dependencies.visibility.getVisibleSibling(toRemoveEl, "next");
+        const nextSiblingEl = this.dependencies.visibility.getVisibleSibling(
+            toRemoveEl,
+            "next",
+        );
         if (parentEl.matches(".o_editable:not(body)")) {
             // If we target the editable, we want to reset the selection to the
             // body. If the editable has options, we do not want to show them.
@@ -164,7 +176,11 @@ export class RemovePlugin extends Plugin {
         // Remove potential last empty text node from the parent.
         if (parentEl) {
             const firstChildEl = parentEl.firstChild;
-            if (firstChildEl && !firstChildEl.tagName && firstChildEl.textContent === " ") {
+            if (
+                firstChildEl &&
+                !firstChildEl.tagName &&
+                firstChildEl.textContent === " "
+            ) {
                 parentEl.removeChild(firstChildEl);
             }
         }
@@ -188,7 +204,7 @@ export class RemovePlugin extends Plugin {
 
             nextTargetEl = parentEl;
             optionsTargetEls = optionsTargetEls.filter((targetEl) =>
-                targetEl.contains(nextTargetEl)
+                targetEl.contains(nextTargetEl),
             );
             if (this.isEmptyAndRemovable(parentEl, optionsTargetEls)) {
                 nextTargetEl = this.removeCurrentTarget(parentEl, optionsTargetEls);
@@ -199,6 +215,8 @@ export class RemovePlugin extends Plugin {
     }
 
     getOptionsContainersElements() {
-        return this.dependencies.builderOptions.getContainers().map((option) => option.element);
+        return this.dependencies.builderOptions
+            .getContainers()
+            .map((option) => option.element);
     }
 }

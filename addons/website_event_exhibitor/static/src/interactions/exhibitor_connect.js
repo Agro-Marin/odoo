@@ -17,7 +17,8 @@ export class ExhibitorConnect extends Interaction {
         const eventIsOngoing = this.el.dataset.eventIsOngoing || false;
         const sponsorIsOngoing = this.el.dataset.sponsorIsOngoing || false;
         const userEventManager = this.el.dataset.userEventManager || false;
-        this.shouldOpenDialog = !userEventManager && !(eventIsOngoing && sponsorIsOngoing);
+        this.shouldOpenDialog =
+            !userEventManager && !(eventIsOngoing && sponsorIsOngoing);
     }
 
     onClick() {

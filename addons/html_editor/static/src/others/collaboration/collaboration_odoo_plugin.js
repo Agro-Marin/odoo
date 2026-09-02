@@ -106,9 +106,7 @@ export class CollaborationOdooPlugin extends Plugin {
         const resId = collaborationChannel.collaborationResId;
         const channelName = `editor_collaboration:${modelName}:${fieldName}:${resId}`;
 
-        if (
-            !(modelName && fieldName && resId)
-        ) {
+        if (!(modelName && fieldName && resId)) {
             return;
         }
 
@@ -139,8 +137,6 @@ export class CollaborationOdooPlugin extends Plugin {
         };
 
         this.startCollaborationTime = new Date().getTime();
-
-
 
         const loadPeerToPeer = async () => {
             if (!ICE_SERVERS) {

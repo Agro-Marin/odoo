@@ -35,7 +35,10 @@ export class HierarchyController extends Component {
     setup() {
         this.rootRef = useRef("root");
         const { parentFieldName, childFieldName } = this.props.archInfo;
-        const { activeFields, fields } = extractFieldsFromArchInfo(this.props.archInfo, this.props.fields);
+        const { activeFields, fields } = extractFieldsFromArchInfo(
+            this.props.archInfo,
+            this.props.fields,
+        );
         const additionalFields = [{ name: parentFieldName }];
         if (childFieldName) {
             additionalFields.push({ name: childFieldName });
@@ -51,13 +54,9 @@ export class HierarchyController extends Component {
             parentFieldName,
             childFieldName,
         });
-        useBus(
-            this.model.bus,
-            "update",
-            () => {
-                this.render(true);
-            }
-        );
+        useBus(this.model.bus, "update", () => {
+            this.render(true);
+        });
         useViewButtons(this.rootRef, {
             beforeExecuteAction: this.beforeExecuteActionButton.bind(this),
             afterExecuteAction: this.afterExecuteActionButton.bind(this),
@@ -82,7 +81,7 @@ export class HierarchyController extends Component {
         this.props.selectRecord(node.resId, { activeIds, newWindow });
     }
 
-    async beforeExecuteActionButton(clickParams) {}
+    async beforeExecuteActionButton() {}
 
-    async afterExecuteActionButton(clickParams) {}
+    async afterExecuteActionButton() {}
 }

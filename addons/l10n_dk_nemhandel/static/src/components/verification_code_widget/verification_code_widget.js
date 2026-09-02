@@ -26,7 +26,7 @@ class VerificationCodeWidget extends Component {
         }
         ev.preventDefault();
 
-        const pastedData = ev.clipboardData.getData('text').split('');
+        const pastedData = ev.clipboardData.getData("text").split("");
         const target = ev.target;
         for (let i = target.id; i < this.inputs.length; i++) {
             this.inputs[i].el.value = pastedData.shift() || null;
@@ -39,7 +39,11 @@ class VerificationCodeWidget extends Component {
     onKeyUp(ev) {
         if (ev.target.value.length === 1 && ev.target.id < 5) {
             ev.target.nextElementSibling.focus();
-        } else if (ev.key === "Backspace" && ev.target.value === "" && ev.target.id > 0) {
+        } else if (
+            ev.key === "Backspace" &&
+            ev.target.value === "" &&
+            ev.target.id > 0
+        ) {
             ev.target.previousElementSibling.focus();
         }
     }

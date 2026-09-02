@@ -37,7 +37,10 @@ export class CalendarFormController extends FormController {
         if (record.data.recurrency) {
             recurrenceUpdate = await this.askRecurrenceUpdatePolicy();
         }
-        if (rootValues.attendees_count == 1 && rootValues.user_id.id !== rootValues.partner_ids._currentIds[0]) {
+        if (
+            rootValues.attendees_count === 1 &&
+            rootValues.user_id.id !== rootValues.partner_ids._currentIds[0]
+        ) {
             await this._archiveRecord(record.resId, recurrenceUpdate);
         } else {
             // Send the answer the user just gave in the dialog. This branch used
@@ -45,24 +48,25 @@ export class CalendarFormController extends FormController {
             // the form -- so answering "All events" in the dialog while the radio
             // still read "This event" deleted a single occurrence. Fall back to
             // the field only when there was no dialog (a non-recurrent event).
-            await this.orm.call("calendar.event", "action_unlink_event", [
-                this.model.root.resId,
-                recurrenceUpdate || this.model.root.data.recurrence_update,
-            ])
-            .then((action) => {
-                if (action && action.context) {
-                    this.actionService.doAction(action);
-                } else {
-                    this.actionService.doAction({
-                        type: "ir.actions.act_window",
-                        name: "Meetings",
-                        res_model: "calendar.event",
-                        view_mode: "calendar",
-                        views: [[false, "calendar"]],
-                        target: "current",
-                    });
-                }
-            });
+            await this.orm
+                .call("calendar.event", "action_unlink_event", [
+                    this.model.root.resId,
+                    recurrenceUpdate || this.model.root.data.recurrence_update,
+                ])
+                .then((action) => {
+                    if (action && action.context) {
+                        this.actionService.doAction(action);
+                    } else {
+                        this.actionService.doAction({
+                            type: "ir.actions.act_window",
+                            name: "Meetings",
+                            res_model: "calendar.event",
+                            view_mode: "calendar",
+                            views: [[false, "calendar"]],
+                            target: "current",
+                        });
+                    }
+                });
         }
     }
 
@@ -74,7 +78,8 @@ export class CalendarFormController extends FormController {
      */
     async _archiveRecord(id, recurrenceUpdate) {
         await this.orm.call(this.model.root.resModel, "action_mass_archive", [
-            [id], recurrenceUpdate
+            [id],
+            recurrenceUpdate,
         ]);
         this.env.config.historyBack();
     }

@@ -354,8 +354,7 @@ test("should not zwnbsp-pad link with image", async () => {
 test("should remove zwnbsp from middle of the link", async () => {
     await testEditor({
         contentBefore: '<p><a href="#/">content</a></p>',
-        contentBeforeEdit:
-            '<p>\ufeff<a href="#/">\ufeffcontent\ufeff</a>\ufeff</p>',
+        contentBeforeEdit: '<p>\ufeff<a href="#/">\ufeffcontent\ufeff</a>\ufeff</p>',
         stepFunction: async (editor) => {
             setSelection({
                 anchorNode: editor.editable.querySelector("a"),
@@ -372,8 +371,7 @@ test("should remove zwnbsp from middle of the link", async () => {
 test("should remove zwnbsp from middle of the link (2)", async () => {
     await testEditor({
         contentBefore: '<p><a href="#/">content</a></p>',
-        contentBeforeEdit:
-            '<p>\ufeff<a href="#/">\ufeffcontent\ufeff</a>\ufeff</p>',
+        contentBeforeEdit: '<p>\ufeff<a href="#/">\ufeffcontent\ufeff</a>\ufeff</p>',
         stepFunction: async (editor) => {
             setSelection({
                 anchorNode: editor.editable.querySelector("a").firstChild,

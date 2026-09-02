@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
-import { onOdooChartItemClick,onOdooChartItemHover } from "./odoo_chart_helpers.js";
+import { onOdooChartItemClick, onOdooChartItemHover } from "./odoo_chart_helpers.js";
 
 const { chartRegistry } = registries;
 
@@ -50,12 +50,14 @@ export class OdooComboChart extends OdooChart {
 
 chartRegistry.add("odoo_combo", {
     match: (type) => type === "odoo_combo",
-    createChart: (definition, sheetId, getters) => new OdooComboChart(definition, sheetId, getters),
+    createChart: (definition, sheetId, getters) =>
+        new OdooComboChart(definition, sheetId, getters),
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooComboChart.validateChartDefinition(validator, definition),
     transformDefinition: (definition) => OdooComboChart.transformDefinition(definition),
-    getChartDefinitionFromContextCreation: () => OdooComboChart.getDefinitionFromContextCreation(),
+    getChartDefinitionFromContextCreation: () =>
+        OdooComboChart.getDefinitionFromContextCreation(),
     name: _t("Combo"),
 });
 

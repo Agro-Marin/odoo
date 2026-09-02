@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import configuratorTourUtils from '@sale/js/tours/product_configurator_tour_utils';
+import configuratorTourUtils from "@sale/js/tours/product_configurator_tour_utils";
 
 function assertProductOutOfStock(productName) {
     return [

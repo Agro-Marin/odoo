@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { ConnectionLostError, rpc, RPCError } from "@web/core/network";
-import { registry } from '@web/core/registry';
-import { Interaction } from '@web/public/interaction';
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class PaymentPostProcessing extends Interaction {
     static selector = 'div[name="o_payment_status"]';
@@ -21,7 +21,7 @@ export class PaymentPostProcessing extends Interaction {
             try {
                 // Fetch the post-processing values from the server.
                 const postProcessingValues = await this.waitFor(
-                    rpc('/payment/status/poll', { csrf_token: odoo.csrf_token })
+                    rpc("/payment/status/poll", { csrf_token: odoo.csrf_token }),
                 );
 
                 // Redirect the user to the landing route if the transaction reached a final state.
@@ -32,7 +32,8 @@ export class PaymentPostProcessing extends Interaction {
                     this.poll();
                 }
             } catch (error) {
-                const isRetryError = error instanceof RPCError && error.data.message === 'retry';
+                const isRetryError =
+                    error instanceof RPCError && error.data.message === "retry";
                 const isConnectionLostError = error instanceof ConnectionLostError;
                 if (isRetryError || isConnectionLostError) {
                     this.poll();
@@ -44,8 +45,8 @@ export class PaymentPostProcessing extends Interaction {
         }, this.timeout);
     }
 
-    static getFinalStates(providerCode) {
-        return new Set(['authorized', 'done', 'cancel', 'error']);
+    static getFinalStates() {
+        return new Set(["authorized", "done", "cancel", "error"]);
     }
 
     updateTimeout() {
@@ -62,5 +63,5 @@ export class PaymentPostProcessing extends Interaction {
 }
 
 registry
-    .category('public.interactions')
-    .add('payment.payment_post_processing', PaymentPostProcessing);
+    .category("public.interactions")
+    .add("payment.payment_post_processing", PaymentPostProcessing);

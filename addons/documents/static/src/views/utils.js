@@ -44,7 +44,7 @@ export function getCommonEmbeddedActions(documents) {
         documents[0].data.available_embedded_actions_ids?.records.map((rec) => [
             rec.resId,
             rec.data.display_name,
-        ]) || []
+        ]) || [],
     );
     for (const document of documents.slice(1)) {
         if (!embeddedActionsMap.size) {

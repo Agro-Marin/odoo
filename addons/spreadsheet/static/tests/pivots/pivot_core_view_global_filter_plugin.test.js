@@ -1,7 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
-
 import { addGlobalFilterWithoutReload } from "@spreadsheet/../tests/helpers/commands";
+import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { createSpreadsheetWithPivot } from "@spreadsheet/../tests/helpers/pivot";
 
 describe.current.tags("headless");
@@ -27,10 +26,12 @@ test("getFiltersMatchingPivotArgs should returns correct value for each filter",
             pivot: {
                 [pivotId]: { chain: "foo", type: "char" },
             },
-        }
+        },
     );
     const filters = model.getters.getFiltersMatchingPivotArgs(pivotId, [
         { field: "foo", type: "char", value: "hello" },
     ]);
-    expect(filters).toEqual([{ filterId: "1", value: { operator: "ilike", strings: ["hello"] } }]);
+    expect(filters).toEqual([
+        { filterId: "1", value: { operator: "ilike", strings: ["hello"] } },
+    ]);
 });

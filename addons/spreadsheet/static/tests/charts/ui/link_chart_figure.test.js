@@ -1,10 +1,13 @@
+import { beforeEach, expect, test } from "@odoo/hoot";
 import { click } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { expect, test, beforeEach } from "@odoo/hoot";
-import { getBasicData, defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { createBasicChart } from "@spreadsheet/../tests/helpers/commands";
-import { mountSpreadsheet } from "@spreadsheet/../tests/helpers/ui";
+import {
+    defineSpreadsheetModels,
+    getBasicData,
+} from "@spreadsheet/../tests/helpers/data";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
+import { mountSpreadsheet } from "@spreadsheet/../tests/helpers/ui";
 import { mockService, serverState } from "@web/../tests/web_test_helpers";
 
 defineSpreadsheetModels();
@@ -30,7 +33,9 @@ async function showChartMenu(fixture) {
 /** Click on external link of the first chart found in the page*/
 async function clickChartExternalLink(fixture) {
     await showChartMenu(fixture);
-    const chartMenuItem = fixture.querySelector(".o-figure-menu-item.o-chart-external-link");
+    const chartMenuItem = fixture.querySelector(
+        ".o-figure-menu-item.o-chart-external-link",
+    );
     await click(chartMenuItem);
     await animationFrame();
 }
@@ -98,7 +103,14 @@ beforeEach(() => {
         },
         "res.group": { records: [{ id: 10, name: "test group" }] },
         "res.users": {
-            records: [{ id: 1, active: true, partner_id: serverState.partnerId, name: "Raoul" }],
+            records: [
+                {
+                    id: 1,
+                    active: true,
+                    partner_id: serverState.partnerId,
+                    name: "Raoul",
+                },
+            ],
         },
         "ir.actions": { records: [{ id: 1 }] },
     };
@@ -166,7 +178,9 @@ test("icon external link isn't on the chart in dashboard mode", async function (
     expect(chartMenu.id).toBe(1, { message: "Odoo menu is linked to chart" });
     model.updateMode("dashboard");
     await animationFrame();
-    expect(".o-chart-external-link").toHaveCount(0, { message: "No link icon in dashboard" });
+    expect(".o-chart-external-link").toHaveCount(0, {
+        message: "No link icon in dashboard",
+    });
 });
 
 test("click on icon external link on chart redirect to the odoo menu", async function () {

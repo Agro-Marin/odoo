@@ -1,9 +1,7 @@
 /** @odoo-module native */
 import { OdooUIPlugin } from "@spreadsheet/plugins";
 
-
 export class PivotUIGlobalFilterPlugin extends OdooUIPlugin {
-
     constructor(config) {
         super(config);
         /** @type {string} */
@@ -24,7 +22,7 @@ export class PivotUIGlobalFilterPlugin extends OdooUIPlugin {
                 if (cell !== undefined && cell.content.startsWith("=PIVOT.HEADER(")) {
                     const filters = this._getFiltersMatchingPivot(
                         sheetId,
-                        cell.compiledFormula.tokens
+                        cell.compiledFormula.tokens,
                     );
                     this.dispatch("SET_MANY_GLOBAL_FILTER_VALUE", { filters });
                 }

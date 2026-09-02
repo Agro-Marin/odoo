@@ -132,14 +132,11 @@ export class PartnerList extends Component {
 
         const patternBase = isSearchWordNumber ? numberString : searchWord;
         const regex = new RegExp(
-            patternBase
-                .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-                .replace(/%/g, ".*"),
+            patternBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*"),
         );
 
         const availablePartners = searchWord
-            ?
-              partners.filter((p) => regex.test(normalize(p.searchString))).slice(0, 50)
+            ? partners.filter((p) => regex.test(normalize(p.searchString))).slice(0, 50)
             : partners
                   .slice(0, 1000)
                   .toSorted((a, b) =>

@@ -23,7 +23,8 @@ export class DocumentsManageVersions extends Component {
         this.documentService = useService("document.document");
         this.fileUploadService = useService("file_upload");
         this.fileInputRef = useRef("uploadFileInput");
-        this.formatDate = (d) => formatDate(deserializeDate(d), { format: "HH:mm DDD" });
+        this.formatDate = (d) =>
+            formatDate(deserializeDate(d), { format: "HH:mm DDD" });
 
         this.state = useState({
             documentName: "",
@@ -64,7 +65,10 @@ export class DocumentsManageVersions extends Component {
             documentName: documentData[0].name,
             userPermission: documentData[0].user_permission,
             accessToken: documentData[0].access_token,
-            versions: [documentData[0].attachment_id, ...documentData[0].previous_attachment_ids],
+            versions: [
+                documentData[0].attachment_id,
+                ...documentData[0].previous_attachment_ids,
+            ],
         });
     }
 
@@ -80,9 +84,13 @@ export class DocumentsManageVersions extends Component {
         if (!ev.target.files.length) {
             return;
         }
-        await this.documentService.uploadDocument(ev.target.files, this.state.accessToken, {
-            document_id: this.props.documentId,
-        });
+        await this.documentService.uploadDocument(
+            ev.target.files,
+            this.state.accessToken,
+            {
+                document_id: this.props.documentId,
+            },
+        );
         ev.target.value = "";
     }
 
@@ -107,10 +115,11 @@ export class DocumentsManageVersions extends Component {
             body: _t("Are you sure you want to delete this attachment?"),
             confirmLabel: _t("Delete"),
             confirm: async () => {
-                await this.orm.call("documents.document", "action_delete_from_history", [
-                    this.props.documentId,
-                    attachmentId,
-                ]);
+                await this.orm.call(
+                    "documents.document",
+                    "action_delete_from_history",
+                    [this.props.documentId, attachmentId],
+                );
                 await this.load();
                 this.documentService.reload();
             },

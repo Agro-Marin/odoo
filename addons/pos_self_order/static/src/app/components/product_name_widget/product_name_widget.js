@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+
 import { formatProductName } from "../../utils.js";
 import { ProductInfoPopup } from "../product_info_popup/product_info_popup.js";
 export class ProductNameWidget extends Component {

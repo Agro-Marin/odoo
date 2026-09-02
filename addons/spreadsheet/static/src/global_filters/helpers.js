@@ -107,12 +107,14 @@ export function dateFilterValueToString(value) {
             if (value.from && value.to) {
                 const interval = Interval.fromDateTimes(
                     DateTime.fromISO(value.from).startOf("day"),
-                    DateTime.fromISO(value.to).endOf("day")
+                    DateTime.fromISO(value.to).endOf("day"),
                 );
                 return interval.toLocaleString(DateTime.DATE_FULL);
             } else if (value.from) {
                 return _t("Since %(from)s", {
-                    from: DateTime.fromISO(value.from).toLocaleString(DateTime.DATE_FULL),
+                    from: DateTime.fromISO(value.from).toLocaleString(
+                        DateTime.DATE_FULL,
+                    ),
                 });
             } else if (value.to) {
                 return _t("Until %(to)s", {
@@ -139,7 +141,10 @@ export function checkFilterDefaultValueIsValid(filter, defaultValue) {
         case "date":
             return isDateFilterDefaultValueValid(defaultValue);
         default: {
-            const { validateDefaultValue } = getFilterBehavior(filter, defaultValue.operator);
+            const { validateDefaultValue } = getFilterBehavior(
+                filter,
+                defaultValue.operator,
+            );
             return validateDefaultValue(defaultValue);
         }
     }
@@ -167,11 +172,14 @@ const FILTERS_BEHAVIORS = {
             operators: ["ilike", "not ilike"],
             defaultValue: { strings: [] },
             validateValue: (filterValue) => isArrayOfStrings(filterValue.strings),
-            validateDefaultValue: (filterValue) => isArrayOfStrings(filterValue.strings),
+            validateDefaultValue: (filterValue) =>
+                isArrayOfStrings(filterValue.strings),
             getSearchBarFacetValues: (env, filter, filterValue) => filterValue.strings,
             toDomain(fieldPath, filterValue) {
                 return Domain.or(
-                    filterValue.strings.map((str) => [[fieldPath, filterValue.operator, str]])
+                    filterValue.strings.map((str) => [
+                        [fieldPath, filterValue.operator, str],
+                    ]),
                 );
             },
             toCellValue(getters, filter, filterValue) {
@@ -182,10 +190,13 @@ const FILTERS_BEHAVIORS = {
             operators: ["in", "not in"],
             defaultValue: { strings: [] },
             validateValue: (filterValue) => isArrayOfStrings(filterValue.strings),
-            validateDefaultValue: (filterValue) => isArrayOfStrings(filterValue.strings),
+            validateDefaultValue: (filterValue) =>
+                isArrayOfStrings(filterValue.strings),
             getSearchBarFacetValues: (env, filter, filterValue) => filterValue.strings,
             toDomain(fieldPath, filterValue) {
-                return new Domain([[fieldPath, filterValue.operator, filterValue.strings]]);
+                return new Domain([
+                    [fieldPath, filterValue.operator, filterValue.strings],
+                ]);
             },
             toCellValue(getters, filter, filterValue) {
                 return [[{ value: filterValue.strings.join(", ") }]];
@@ -195,11 +206,14 @@ const FILTERS_BEHAVIORS = {
             operators: ["starts with"],
             defaultValue: { strings: [] },
             validateValue: (filterValue) => isArrayOfStrings(filterValue.strings),
-            validateDefaultValue: (filterValue) => isArrayOfStrings(filterValue.strings),
+            validateDefaultValue: (filterValue) =>
+                isArrayOfStrings(filterValue.strings),
             getSearchBarFacetValues: (env, filter, filterValue) => filterValue.strings,
             toDomain(fieldPath, filterValue) {
                 return Domain.or(
-                    filterValue.strings.map((str) => [[fieldPath, "=ilike", `${str}%`]])
+                    filterValue.strings.map((str) => [
+                        [fieldPath, "=ilike", `${str}%`],
+                    ]),
                 );
             },
             toCellValue(getters, filter, filterValue) {
@@ -217,10 +231,12 @@ const FILTERS_BEHAVIORS = {
             async getSearchBarFacetValues(env, filter, filterValue) {
                 const values = await env.services.name.loadDisplayNames(
                     filter.modelName,
-                    filterValue.ids
+                    filterValue.ids,
                 );
                 return Object.values(values).map((value) =>
-                    typeof value === "string" ? value : _t("Inaccessible/missing record ID")
+                    typeof value === "string"
+                        ? value
+                        : _t("Inaccessible/missing record ID"),
                 );
             },
             toDomain(fieldPath, filterValue) {
@@ -234,11 +250,14 @@ const FILTERS_BEHAVIORS = {
             operators: ["ilike", "not ilike"],
             defaultValue: { strings: [] },
             validateValue: (filterValue) => isArrayOfStrings(filterValue.strings),
-            validateDefaultValue: (filterValue) => isArrayOfStrings(filterValue.strings),
+            validateDefaultValue: (filterValue) =>
+                isArrayOfStrings(filterValue.strings),
             getSearchBarFacetValues: (env, filter, filterValue) => filterValue.strings,
             toDomain(fieldPath, filterValue) {
                 return Domain.or(
-                    filterValue.strings.map((str) => [[fieldPath, filterValue.operator, str]])
+                    filterValue.strings.map((str) => [
+                        [fieldPath, filterValue.operator, str],
+                    ]),
                 );
             },
             toCellValue(getters, filter, filterValue) {
@@ -251,23 +270,29 @@ const FILTERS_BEHAVIORS = {
         {
             operators: ["in", "not in"],
             defaultValue: { selectionValues: [] },
-            validateValue: (filterValue) => isArrayOfStrings(filterValue.selectionValues),
-            validateDefaultValue: (filterValue) => isArrayOfStrings(filterValue.selectionValues),
+            validateValue: (filterValue) =>
+                isArrayOfStrings(filterValue.selectionValues),
+            validateDefaultValue: (filterValue) =>
+                isArrayOfStrings(filterValue.selectionValues),
             async getSearchBarFacetValues(env, filter, filterValue) {
                 const fields = await env.services.field.loadFields(filter.resModel);
                 const field = fields[filter.selectionField];
                 if (!field) {
                     throw new Error(
-                        `Field ${filter.selectionField} not found in model ${filter.resModel}`
+                        `Field ${filter.selectionField} not found in model ${filter.resModel}`,
                     );
                 }
                 return filterValue.selectionValues.map((value) => {
-                    const option = field.selection.find((option) => option[0] === value);
+                    const option = field.selection.find(
+                        (option) => option[0] === value,
+                    );
                     return option ? option[1] : value;
                 });
             },
             toDomain(fieldPath, filterValue) {
-                return new Domain([[fieldPath, filterValue.operator, filterValue.selectionValues]]);
+                return new Domain([
+                    [fieldPath, filterValue.operator, filterValue.selectionValues],
+                ]);
             },
             toCellValue(getters, filter, filterValue) {
                 return [[{ value: filterValue.selectionValues.join(", ") }]];
@@ -279,7 +304,8 @@ const FILTERS_BEHAVIORS = {
         {
             operators: ["=", "!=", ">", "<"],
             defaultValue: { targetValue: undefined },
-            validateValue: (filterValue) => isNumericFilterValueValid(filterValue.targetValue),
+            validateValue: (filterValue) =>
+                isNumericFilterValueValid(filterValue.targetValue),
             validateDefaultValue: (filterValue) =>
                 isNumericFilterValueValid(filterValue.targetValue),
             getSearchBarFacetValues: (env, filter, filterValue) => {
@@ -289,10 +315,15 @@ const FILTERS_BEHAVIORS = {
                 return [`${filterValue.targetValue}`];
             },
             toDomain(fieldPath, filterValue) {
-                return new Domain([[fieldPath, filterValue.operator, filterValue.targetValue]]);
+                return new Domain([
+                    [fieldPath, filterValue.operator, filterValue.targetValue],
+                ]);
             },
             toCellValue(getters, filter, filterValue) {
-                const value = filterValue.targetValue !== undefined ? filterValue.targetValue : "";
+                const value =
+                    filterValue.targetValue !== undefined
+                        ? filterValue.targetValue
+                        : "";
                 return [[{ value }]];
             },
         },
@@ -312,7 +343,9 @@ const FILTERS_BEHAVIORS = {
                 ) {
                     return [];
                 }
-                return [formatList([filterValue.minimumValue, filterValue.maximumValue])];
+                return [
+                    formatList([filterValue.minimumValue, filterValue.maximumValue]),
+                ];
             },
             toDomain(fieldPath, filterValue) {
                 return new Domain([
@@ -514,7 +547,7 @@ function getFixedPeriodFromTo(now, offset, value) {
 export function getRelativeDateFromTo(now, offset, period) {
     const startOfNextDay = now.plus({ days: 1 }).startOf("day");
     let to = now.endOf("day");
-    let from = to;
+    let from;
     switch (period) {
         case "today": {
             const offsetParam = { days: offset };
@@ -567,7 +600,10 @@ export function getRelativeDateFromTo(now, offset, period) {
         case "last_12_months": {
             const offsetParam = { months: 12 * offset };
             to = startOfNextDay.minus({ months: 1 }).endOf("month").plus(offsetParam);
-            from = startOfNextDay.minus({ months: 12 }).startOf("month").plus(offsetParam);
+            from = startOfNextDay
+                .minus({ months: 12 })
+                .startOf("month")
+                .plus(offsetParam);
             break;
         }
         default:
@@ -649,7 +685,11 @@ function getNextRelativeDateFilterValue(value) {
         case "last_7_days":
         case "last_30_days":
         case "last_90_days": {
-            const { from, to } = getRelativeDateFromTo(DateTime.local(), 1, value.period);
+            const { from, to } = getRelativeDateFromTo(
+                DateTime.local(),
+                1,
+                value.period,
+            );
             return {
                 type: "range",
                 from: from.toISODate(),
@@ -657,7 +697,11 @@ function getNextRelativeDateFilterValue(value) {
             };
         }
         case "last_12_months": {
-            const { from, to } = getRelativeDateFromTo(DateTime.local(), 1, value.period);
+            const { from, to } = getRelativeDateFromTo(
+                DateTime.local(),
+                1,
+                value.period,
+            );
             return {
                 type: "range",
                 from: from.startOf("month").toISODate(),
@@ -702,7 +746,11 @@ function getPreviousRelativeDateFilterValue(value) {
         case "last_7_days":
         case "last_30_days":
         case "last_90_days": {
-            const { from, to } = getRelativeDateFromTo(DateTime.local(), -1, value.period);
+            const { from, to } = getRelativeDateFromTo(
+                DateTime.local(),
+                -1,
+                value.period,
+            );
             return {
                 type: "range",
                 from: from.toISODate(),
@@ -710,7 +758,11 @@ function getPreviousRelativeDateFilterValue(value) {
             };
         }
         case "last_12_months": {
-            const { from, to } = getRelativeDateFromTo(DateTime.local(), -1, value.period);
+            const { from, to } = getRelativeDateFromTo(
+                DateTime.local(),
+                -1,
+                value.period,
+            );
             return {
                 type: "range",
                 from: from.startOf("month").toISODate(),
@@ -786,7 +838,11 @@ export function getPreviousRangeDateFilterValue(value) {
 export function getDateDomain(from, to, field, fieldType) {
     const serialize = fieldType === "date" ? serializeDate : serializeDateTime;
     if (from && to) {
-        return new Domain(["&", [field, ">=", serialize(from)], [field, "<=", serialize(to)]]);
+        return new Domain([
+            "&",
+            [field, ">=", serialize(from)],
+            [field, "<=", serialize(to)],
+        ]);
     }
     if (from) {
         return new Domain([[field, ">=", serialize(from)]]);
@@ -827,18 +883,21 @@ export function getDefaultValue(type) {
 
 function getFilterBehavior(filter, operator) {
     const entry = FILTERS_BEHAVIORS[filter.type].find((entry) =>
-        entry.operators.includes(operator)
+        entry.operators.includes(operator),
     );
     if (!entry) {
         throw new Error(
-            `No behavior found for filter type "${filter.type}" and operator "${operator}"`
+            `No behavior found for filter type "${filter.type}" and operator "${operator}"`,
         );
     }
     return entry;
 }
 
 export function getFilterValueDomain(filter, filterValue, fieldPath) {
-    return getFilterBehavior(filter, filterValue.operator).toDomain(fieldPath, filterValue);
+    return getFilterBehavior(filter, filterValue.operator).toDomain(
+        fieldPath,
+        filterValue,
+    );
 }
 
 export function getEmptyFilterValue(filter, operator) {
@@ -868,7 +927,7 @@ export function getFilterCellValue(getters, filter, filterValue) {
     return getFilterBehavior(filter, filterValue.operator).toCellValue(
         getters,
         filter,
-        filterValue
+        filterValue,
     );
 }
 
@@ -884,11 +943,10 @@ export async function getFacetInfo(env, filter, filterValue) {
             break;
         }
         default: {
-            values = await getFilterBehavior(filter, filterValue.operator).getSearchBarFacetValues(
-                env,
+            values = await getFilterBehavior(
                 filter,
-                filterValue
-            );
+                filterValue.operator,
+            ).getSearchBarFacetValues(env, filter, filterValue);
             break;
         }
     }

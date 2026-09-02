@@ -17,7 +17,7 @@ patch(TicketScreen.prototype, {
             return this.numberBuffer.reset();
         }
         const selectedOrderlineId = this.getSelectedOrderlineId();
-        const orderline = order.lines.find((line) => line.id == selectedOrderlineId);
+        const orderline = order.lines.find((line) => line.id === selectedOrderlineId);
         if (orderline && this._isEWalletGiftCard(orderline)) {
             this._showNotAllowedRefundNotification();
             return this.numberBuffer.reset();
@@ -26,7 +26,7 @@ patch(TicketScreen.prototype, {
     },
     _prepareAutoRefundOnOrder(order) {
         const selectedOrderlineId = this.getSelectedOrderlineId();
-        const orderline = order.lines.find((line) => line.id == selectedOrderlineId);
+        const orderline = order.lines.find((line) => line.id === selectedOrderlineId);
         if (this._isEWalletGiftCard(orderline)) {
             this._showNotAllowedRefundNotification();
             return false;

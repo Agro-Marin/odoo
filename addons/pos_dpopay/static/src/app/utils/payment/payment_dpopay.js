@@ -56,8 +56,7 @@ export class PaymentDPOPay extends PaymentInterface {
 
         if (paymentLine.transaction_id) {
             // Possible return values: true, false, null
-            const recoveryStatus =
-                await this._attemptTransactionRecovery(paymentLine);
+            const recoveryStatus = await this._attemptTransactionRecovery(paymentLine);
 
             //  null  → API call failed or could not retrieve transaction status
             if (isNull(recoveryStatus)) {
@@ -73,9 +72,7 @@ export class PaymentDPOPay extends PaymentInterface {
             ?.replace(" ", "")
             .replaceAll("-", "")
             .toUpperCase();
-        const referencePrefix = this.pos.config.name
-            .replace(/\s/g, "")
-            .slice(0, 4);
+        const referencePrefix = this.pos.config.name.replace(/\s/g, "").slice(0, 4);
         paymentLine.transaction_id =
             referencePrefix +
             "/" +
@@ -92,10 +89,7 @@ export class PaymentDPOPay extends PaymentInterface {
             sourceId: paymentLine.transaction_id,
         };
 
-        const response = await this._callDpoPayMakeRequest(
-            data,
-            "start-transaction",
-        );
+        const response = await this._callDpoPayMakeRequest(data, "start-transaction");
         return await this._makePaymentRequestHandler(response);
     }
 
@@ -140,10 +134,7 @@ export class PaymentDPOPay extends PaymentInterface {
                 return resolve(false);
             }
 
-            const response = await this._callDpoPayMakeRequest(
-                data,
-                "get-status",
-            );
+            const response = await this._callDpoPayMakeRequest(data, "get-status");
             return this._paymentStatusRequestHandler(
                 response,
                 dpopayFetchPaymentStatus,
@@ -158,28 +149,19 @@ export class PaymentDPOPay extends PaymentInterface {
     async _attemptTransactionRecovery(paymentLine) {
         const data = { sourceId: paymentLine.transaction_id };
 
-        const statusResponse = await this._callDpoPayMakeRequest(
-            data,
-            "get-status",
-        );
+        const statusResponse = await this._callDpoPayMakeRequest(data, "get-status");
         if (!statusResponse || statusResponse.errorMessage) {
             if (statusResponse.errorMessage === "Transaction not found") {
                 return false;
             }
-            this._handleError(
-                statusResponse,
-                _t("Failed to retrieve payment status."),
-            );
+            this._handleError(statusResponse, _t("Failed to retrieve payment status."));
             return null;
         }
         if (!statusResponse.success) {
             return false;
         }
 
-        const resultResponse = await this._callDpoPayMakeRequest(
-            data,
-            "get-result",
-        );
+        const resultResponse = await this._callDpoPayMakeRequest(data, "get-result");
         if (!resultResponse || resultResponse.errorMessage) {
             this._handleError(
                 resultResponse,
@@ -199,10 +181,7 @@ export class PaymentDPOPay extends PaymentInterface {
         const response = await this._callDpoPayMakeRequest({}, "get-status");
 
         if (!response || response.errorMessage) {
-            this._handleError(
-                response,
-                _t("Unable to reach DPO Pay terminal."),
-            );
+            this._handleError(response, _t("Unable to reach DPO Pay terminal."));
             return false;
         }
 
@@ -226,10 +205,7 @@ export class PaymentDPOPay extends PaymentInterface {
         }
 
         if (response.offline) {
-            this._handleError(
-                response,
-                _t("DPO Pay terminal is currently offline."),
-            );
+            this._handleError(response, _t("DPO Pay terminal is currently offline."));
             return resolve(false);
         }
 
@@ -266,12 +242,7 @@ export class PaymentDPOPay extends PaymentInterface {
             return resolve(response);
         }
 
-        this.pollingTimeout = setTimeout(
-            callBack,
-            POLLING_REQUEST_MS,
-            resolve,
-            reject,
-        );
+        this.pollingTimeout = setTimeout(callBack, POLLING_REQUEST_MS, resolve, reject);
     }
 
     async _saveTransactionResult(line, data) {
@@ -293,8 +264,7 @@ export class PaymentDPOPay extends PaymentInterface {
         };
 
         if (data.dataMap) {
-            updatedData.dpopay_transaction_ref =
-                data.dataMap["Transaction Ref"];
+            updatedData.dpopay_transaction_ref = data.dataMap["Transaction Ref"];
             updatedData.dpopay_mobile_money_phone =
                 data.dataMap["Phone Number"]?.slice(-4);
         }
@@ -304,10 +274,7 @@ export class PaymentDPOPay extends PaymentInterface {
     }
 
     async _cancelPaymentRequest(data) {
-        const response = await this._callDpoPayMakeRequest(
-            data,
-            "cancel-transaction",
-        );
+        const response = await this._callDpoPayMakeRequest(data, "cancel-transaction");
         return await this._paymentCancelRequestHandler(response);
     }
 
@@ -317,9 +284,7 @@ export class PaymentDPOPay extends PaymentInterface {
             return true;
         }
 
-        this._showAlert(
-            response?.errorMessage ?? _t("Failed to cancel payment."),
-        );
+        this._showAlert(response?.errorMessage ?? _t("Failed to cancel payment."));
         return !this.pollingInProgress;
     }
 
@@ -353,10 +318,7 @@ export class PaymentDPOPay extends PaymentInterface {
 
     _getPaymentDate(dateString, timeString) {
         return serializeDateTime(
-            DateTime.fromFormat(
-                `${dateString} ${timeString}`,
-                "dd/MM/yyyy HH:mm",
-            ),
+            DateTime.fromFormat(`${dateString} ${timeString}`, "dd/MM/yyyy HH:mm"),
         );
     }
 

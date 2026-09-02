@@ -8,8 +8,6 @@ patch(PosOrder.prototype, {
     },
     getLinesToCompute() {
         // Override to ensure orderline price of event tickets are not recomputed
-        return super
-            .getLinesToCompute()
-            .filter((line) => !line.event_ticket_id);
+        return super.getLinesToCompute().filter((line) => !line.event_ticket_id);
     },
 });

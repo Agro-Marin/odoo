@@ -2,10 +2,9 @@
 /** @ts-check */
 
 import { Component, useEffect } from "@odoo/owl";
-import { useChildRef } from "@web/core/utils/hooks";
-
-import { TagsList } from "@web/components/tags_list";
 import { AutoComplete } from "@web/components/autocomplete";
+import { TagsList } from "@web/components/tags_list";
+import { useChildRef } from "@web/core/utils/hooks";
 
 export class TextFilterValue extends Component {
     static template = "spreadsheet.TextFilterValue";
@@ -41,7 +40,7 @@ export class TextFilterValue extends Component {
                     this.inputRef.el.removeAttribute("maxlength");
                 }
             },
-            () => [this.props.options.length, this.inputRef.el]
+            () => [this.props.options.length, this.inputRef.el],
         );
     }
 
@@ -49,8 +48,8 @@ export class TextFilterValue extends Component {
         return this.props.value.map((value) => ({
             id: value,
             text:
-                this.props.options.find((option) => option.value === value)?.formattedValue ??
-                value,
+                this.props.options.find((option) => option.value === value)
+                    ?.formattedValue ?? value,
             onDelete: () => {
                 this.props.onValueChanged(this.props.value.filter((v) => v !== value));
             },
@@ -66,7 +65,10 @@ export class TextFilterValue extends Component {
                     .map((option) => ({
                         label: option.formattedValue,
                         onSelect: () =>
-                            this.props.onValueChanged([...this.props.value, option.value]),
+                            this.props.onValueChanged([
+                                ...this.props.value,
+                                option.value,
+                            ]),
                     })),
             },
         ];

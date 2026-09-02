@@ -1,7 +1,6 @@
 /** @odoo-module native */
-import { registry } from '@web/core/registry';
-
-import { ImageField, imageField } from '@web/fields/media/image/image_field';
+import { registry } from "@web/core/registry";
+import { ImageField, imageField } from "@web/fields/media/image/image_field";
 
 export class BackgroundImageField extends ImageField {
     static template = "hr.BackgroundImage";

@@ -32,4 +32,6 @@ class EventTrackPageOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(EventTrackPageOptionPlugin.id, EventTrackPageOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(EventTrackPageOptionPlugin.id, EventTrackPageOptionPlugin);

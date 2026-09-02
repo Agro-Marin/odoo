@@ -19,6 +19,7 @@ import {
 import { useBus } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
 import { useDebounced } from "@web/core/utils/timing";
+
 import { BuilderAction } from "./builder_action.js";
 
 /**
@@ -119,7 +120,10 @@ export function useBuilderComponent() {
         }
     });
     onWillDestroy(() => {
-        oldEnv.editorBus.removeEventListener("UPDATE_EDITING_ELEMENT", updateEditingElements);
+        oldEnv.editorBus.removeEventListener(
+            "UPDATE_EDITING_ELEMENT",
+            updateEditingElements,
+        );
     });
     newEnv.getEditingElements = () => editingElements;
     newEnv.getEditingElement = () => editingElements[0];
@@ -246,7 +250,9 @@ export function useGetItemValue() {
 export function useSelectableComponent(id, { onItemChange } = {}) {
     useBuilderComponent();
     const selectableItems = [];
-    const refreshCurrentItemDebounced = useDebounced(refreshCurrentItem, 0, { immediate: true });
+    const refreshCurrentItemDebounced = useDebounced(refreshCurrentItem, 0, {
+        immediate: true,
+    });
     const env = useEnv();
 
     const state = reactive({
@@ -345,7 +351,7 @@ export function useSelectableItemComponent(id, { getLabel = () => {} } = {}) {
                     toRaw(currentSelectedItem) === selectableItem ||
                     (id && currentSelectedItem?.id === id);
             },
-            [selectableState]
+            [selectableState],
         );
         env.selectableContext.refreshCurrentItem();
         onMounted(env.selectableContext.update);
@@ -369,7 +375,7 @@ export function useSelectableItemComponent(id, { getLabel = () => {} } = {}) {
                 getActions,
                 cleanSelectedItem: env.selectableContext?.cleanSelectedItem,
             },
-            { onReady }
+            { onReady },
         );
     }
 
@@ -409,8 +415,8 @@ function usePrepareAction(getAllActions) {
                         ...obj.descr,
                         actionParam: convertParamToObject(actionParam),
                         actionValue,
-                    })
-                )
+                    }),
+                ),
             );
             resolve();
         });
@@ -498,13 +504,15 @@ export function revertPreview(editor) {
 export function useClickableBuilderComponent() {
     useBuilderComponent();
     const comp = useComponent();
-    const { getAllActions, callOperation, isApplied } = getAllActionsAndOperations(comp);
+    const { getAllActions, callOperation, isApplied } =
+        getAllActionsAndOperations(comp);
     const getAction = comp.env.editor.shared.builderActions.getAction;
 
     const onReady = usePrepareAction(getAllActions);
     const { reload } = useReloadAction(getAllActions);
 
-    const applyOperation = comp.env.editor.shared.history.makePreviewableAsyncOperation(callApply);
+    const applyOperation =
+        comp.env.editor.shared.history.makePreviewableAsyncOperation(callApply);
     const inheritedActionIds =
         comp.props.inheritedActions || comp.env.weContext.inheritedActions || [];
 
@@ -582,7 +590,7 @@ export function useClickableBuilderComponent() {
                                 value: nextAction.actionValue,
                             };
                         },
-                    })
+                    }),
                 );
             }
         }
@@ -592,7 +600,10 @@ export function useClickableBuilderComponent() {
     async function callApply(applySpecs, isPreviewing) {
         await comp.env.selectableContext?.cleanSelectedItem(applySpecs, isPreviewing);
         const cleans = inheritedActionIds
-            .map((actionId) => comp.env.dependencyManager.get(actionId).cleanSelectedItem)
+            .map(
+                (actionId) =>
+                    comp.env.dependencyManager.get(actionId).cleanSelectedItem,
+            )
             .filter(Boolean);
         const cleanPromises = [];
         for (const clean of new Set(cleans)) {
@@ -614,7 +625,7 @@ export function useClickableBuilderComponent() {
                         loadResult: applySpec.loadOnClean ? applySpec.loadResult : null,
                         dependencyManager: comp.env.dependencyManager,
                         selectableContext: comp.env.selectableContext,
-                    })
+                    }),
                 );
             } else {
                 cleanOrApplyProms.push(
@@ -626,7 +637,7 @@ export function useClickableBuilderComponent() {
                         loadResult: applySpec.loadResult,
                         dependencyManager: comp.env.dependencyManager,
                         selectableContext: comp.env.selectableContext,
-                    })
+                    }),
                 );
             }
         }
@@ -640,7 +651,7 @@ export function useClickableBuilderComponent() {
                         getAction(a.actionId).getPriority?.({
                             params: a.actionParam,
                             value: a.actionValue,
-                        }) || 0
+                        }) || 0,
                 )
                 .find((x) => x !== 0) || 0
         );
@@ -665,7 +676,8 @@ function useOperationWithReload(callApply, reload) {
             if (!applyResults.includes(BuilderAction.cancelReload)) {
                 env.editor.shared.history.addStep();
                 await env.editor.shared.savePlugin.save();
-                const target = env.editor.shared.builderOptions.getReloadSelector(editingElement);
+                const target =
+                    env.editor.shared.builderOptions.getReloadSelector(editingElement);
                 const url = reload.getReloadUrl?.();
                 await env.editor.config.reloadEditor({ target, url });
             }
@@ -677,7 +689,10 @@ function useOperationWithReload(callApply, reload) {
 
 function getValueWithDefault(userInputValue, defaultValue, formatRawValue) {
     if (defaultValue !== undefined) {
-        if (!userInputValue || (typeof userInputValue === "string" && !userInputValue.trim())) {
+        if (
+            !userInputValue ||
+            (typeof userInputValue === "string" && !userInputValue.trim())
+        ) {
             return formatRawValue(defaultValue);
         }
     }
@@ -738,13 +753,14 @@ export function useInputBuilderComponent({
                     value: applySpec.actionValue,
                     loadResult: applySpec.loadResult,
                     dependencyManager: comp.env.dependencyManager,
-                })
+                }),
             );
         }
         return await Promise.all(proms);
     }
 
-    const applyOperation = comp.env.editor.shared.history.makePreviewableAsyncOperation(callApply);
+    const applyOperation =
+        comp.env.editor.shared.history.makePreviewableAsyncOperation(callApply);
     const operationWithReload = useOperationWithReload(callApply, reload);
     function getState(editingElement) {
         if (!isConnectedElement(editingElement)) {
@@ -752,7 +768,7 @@ export function useInputBuilderComponent({
             return {};
         }
         const actionWithGetValue = getAllActions().find(
-            ({ actionId }) => getAction(actionId).getValue
+            ({ actionId }) => getAction(actionId).getValue,
         );
         const { actionId, actionParam } = actionWithGetValue;
         try {
@@ -768,7 +784,11 @@ export function useInputBuilderComponent({
     }
 
     function commit(userInputValue) {
-        userInputValue = getValueWithDefault(userInputValue, defaultValue, formatRawValue);
+        userInputValue = getValueWithDefault(
+            userInputValue,
+            defaultValue,
+            formatRawValue,
+        );
         const rawValue = parseDisplayValue(userInputValue);
         if (reload) {
             callOperation(operationWithReload, {
@@ -787,7 +807,10 @@ export function useInputBuilderComponent({
                 },
             });
         }
-        if (rawValue === null || (rawValue === defaultValue && rawValue === state.value)) {
+        if (
+            rawValue === null ||
+            (rawValue === defaultValue && rawValue === state.value)
+        ) {
             state.value = rawValue;
         }
         // If the parsed value is not equivalent to the user input, we want to
@@ -799,7 +822,11 @@ export function useInputBuilderComponent({
     const shouldPreview = useHasPreview(getAllActions);
     function preview(userInputValue) {
         if (shouldPreview) {
-            userInputValue = getValueWithDefault(userInputValue, defaultValue, formatRawValue);
+            userInputValue = getValueWithDefault(
+                userInputValue,
+                defaultValue,
+                formatRawValue,
+            );
             callOperation(applyOperation.preview, {
                 preview: true,
                 userInputValue: parseDisplayValue(userInputValue),
@@ -819,7 +846,7 @@ export function useInputBuilderComponent({
                 type: "input",
                 getValue: () => state.value,
             },
-            { onReady }
+            { onReady },
         );
     }
 
@@ -845,7 +872,7 @@ export function useVisibilityObserver(contentName, callback) {
         const hasContent = [...contentRef.el.childNodes].some(
             (el) =>
                 (isTextNode(el) && el.textContent !== "") ||
-                (isElement(el) && !el.classList.contains("d-none"))
+                (isElement(el) && !el.classList.contains("d-none")),
         );
         callback(hasContent);
     };
@@ -867,7 +894,7 @@ export function useVisibilityObserver(contentName, callback) {
                 observer.disconnect();
             };
         },
-        () => [contentRef.el]
+        () => [contentRef.el],
     );
 }
 
@@ -907,7 +934,12 @@ export const clickableBuilderComponentProps = {
     inverseAction: { type: Boolean, optional: true },
 
     actionValue: {
-        type: [Boolean, String, Number, { type: Array, element: [Boolean, String, Number] }],
+        type: [
+            Boolean,
+            String,
+            Number,
+            { type: Array, element: [Boolean, String, Number] },
+        ],
         optional: true,
     },
 
@@ -976,7 +1008,8 @@ export function getAllActionsAndOperations(comp) {
     function getCustomAction() {
         const actionId = comp.props.action || comp.env.weContext.action;
         if (actionId) {
-            const actionParam = comp.props.actionParam ?? comp.env.weContext.actionParam;
+            const actionParam =
+                comp.props.actionParam ?? comp.env.weContext.actionParam;
             return {
                 actionId: actionId,
                 actionParam: convertParamToObject(actionParam),
@@ -998,7 +1031,7 @@ export function getAllActionsAndOperations(comp) {
                         comp.env.dependencyManager
                             // The dependency might not be loaded yet.
                             .get(actionId)
-                            ?.getActions?.() || []
+                            ?.getActions?.() || [],
                 )
                 .flat() || [];
         return actions.concat(inheritedActions || []);
@@ -1037,14 +1070,18 @@ export function getAllActionsAndOperations(comp) {
                                     value: applySpec.actionValue,
                                 });
                                 applySpec.loadResult = result;
-                            })
+                            }),
                         );
                     } catch (error) {
-                        handleBuilderActionError(error, comp.env.getEditingElement(), comp);
+                        handleBuilderActionError(
+                            error,
+                            comp.env.getEditingElement(),
+                            comp,
+                        );
                     }
                 },
                 ...params.operationParams,
-            }
+            },
         );
     }
     function isApplied() {
@@ -1099,7 +1136,11 @@ function _shouldClean(comp, hasClean, isApplied) {
 export function convertParamToObject(param) {
     if (param === undefined) {
         param = {};
-    } else if (param instanceof Array || param instanceof Function || !(param instanceof Object)) {
+    } else if (
+        param instanceof Array ||
+        param instanceof Function ||
+        !(param instanceof Object)
+    ) {
         param = {
             ["mainParam"]: param,
         };
@@ -1115,7 +1156,7 @@ export class BaseOptionComponent extends Component {
     setup() {
         /** @type {EditorContext} */
         const context = this.env.editor.shared.builderOptions.getBuilderOptionContext(
-            this.constructor
+            this.constructor,
         );
         /** @type { EditorContext['document'] } **/
         this.document = context.document;

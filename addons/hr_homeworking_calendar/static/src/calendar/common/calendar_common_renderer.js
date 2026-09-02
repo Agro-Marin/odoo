@@ -11,20 +11,20 @@ const { DateTime } = luxon;
 
 patch(AttendeeCalendarCommonRenderer.prototype, {
     setup() {
-        super.setup()
+        super.setup();
 
         onPatched(() => {
             this.fc.api.render();
         });
     },
-    get options(){
+    get options() {
         return {
             ...super.options,
-            eventOrder: function(event1, event2){
-                if (event1.extendedProps.worklocation){
+            eventOrder: function (event1, event2) {
+                if (event1.extendedProps.worklocation) {
                     return -1;
                 } else {
-                    if(event2.extendedProps.worklocation){
+                    if (event2.extendedProps.worklocation) {
                         return 1;
                     } else {
                         return event1.start < event2.start ? -1 : 1;
@@ -39,14 +39,16 @@ patch(AttendeeCalendarCommonRenderer.prototype, {
     handleWorkLocationClick(target, date) {
         let worklocations = this.props.model.worklocations[date.toISODate()];
         const worklocationSet = worklocations && Object.keys(worklocations).length > 0;
-        const actionElement = target.closest('.wl_action');
+        const actionElement = target.closest(".wl_action");
         if (!actionElement) {
             return;
         }
         const { location, id, create } = actionElement.dataset;
         if (worklocationSet && !create) {
             if (!worklocations.id) {
-                worklocations = worklocations[location] && worklocations[location].find(wl => wl.id == id);
+                worklocations =
+                    worklocations[location] &&
+                    worklocations[location].find((wl) => wl.id == id);
             }
             if (worklocations) {
                 return this.openPopover(target, worklocations);
@@ -55,7 +57,7 @@ patch(AttendeeCalendarCommonRenderer.prototype, {
         return this.props.openWorkLocationWizard(date);
     },
     onDayHeaderDidMount(info) {
-        if (this.props.model.scale === 'week' || this.props.model.scale === 'day') {
+        if (this.props.model.scale === "week" || this.props.model.scale === "day") {
             const date = DateTime.fromJSDate(info.date);
             const handler = (event) => {
                 if (event.target.closest(".o_worklocation_btn")) {
@@ -70,30 +72,32 @@ patch(AttendeeCalendarCommonRenderer.prototype, {
         }
     },
     onDayHeaderWillUnmount(info) {
-        if (this.props.model.scale === 'week' || this.props.model.scale === 'day') {
+        if (this.props.model.scale === "week" || this.props.model.scale === "day") {
             const date = DateTime.fromJSDate(info.date);
-            const customListener = {...this.customListeners}[date];
+            const customListener = { ...this.customListeners }[date];
             if (customListener) {
                 info.el.removeEventListener("click", customListener);
                 delete this.customListeners[date];
             }
         }
     },
-    onDayCellDidMount(info){
-        if (this.props.model.scale === 'month'){
+    onDayCellDidMount(info) {
+        if (this.props.model.scale === "month") {
             const box = info.el.querySelector(`.fc-daygrid-day-top`);
-            if (!box)
-                return;
-            const content = renderToString(this.constructor.ButtonWorklocationTemplate, this.headerTemplateProps(info.date));
+            if (!box) return;
+            const content = renderToString(
+                this.constructor.ButtonWorklocationTemplate,
+                this.headerTemplateProps(info.date),
+            );
             box.insertAdjacentHTML("beforeend", content);
         }
     },
-    onDateClick(info){
+    onDateClick(info) {
         if (info.jsEvent && info.jsEvent.target.closest(".o_worklocation_btn")) {
             const date = DateTime.fromJSDate(info.date);
             this.handleWorkLocationClick(info.jsEvent.target, date);
         } else {
-            super.onDateClick(...arguments)
+            super.onDateClick(...arguments);
         }
     },
     headerTemplateProps(date) {
@@ -104,43 +108,54 @@ patch(AttendeeCalendarCommonRenderer.prototype, {
         const multiCalendar = this.props.model.multiCalendar;
         const showLine = ["week", "month"].includes(this.props.model.scale);
         let worklocation = this.props.model.worklocations[parsedDate];
-        const workLocationSetForCurrentUser =
-            multiCalendar ?
-            Object.keys(worklocation).some(key => worklocation[key].some(wlItem => wlItem.userId === user.userId)
-            ) : worklocation?.userId === user.userId;
+        const workLocationSetForCurrentUser = multiCalendar
+            ? Object.keys(worklocation).some((key) =>
+                  worklocation[key].some((wlItem) => wlItem.userId === user.userId),
+              )
+            : worklocation?.userId === user.userId;
 
-        let displayedWorkLocation = worklocation ? (JSON.parse(JSON.stringify(worklocation))) : {};
+        let displayedWorkLocation = worklocation
+            ? JSON.parse(JSON.stringify(worklocation))
+            : {};
         if (multiCalendar && !this.props.model.data.userFilterActive) {
-            for (let wl in worklocation){
-                displayedWorkLocation[wl] = worklocation[wl].filter(wlItem => wlItem.userId !== user.userId);
+            for (let wl in worklocation) {
+                displayedWorkLocation[wl] = worklocation[wl].filter(
+                    (wlItem) => wlItem.userId !== user.userId,
+                );
             }
-            displayedWorkLocation = Object.fromEntries(Object.entries(displayedWorkLocation).filter(([_, wlItems]) => wlItems.length !== 0));
+            displayedWorkLocation = Object.fromEntries(
+                Object.entries(displayedWorkLocation).filter(
+                    ([, wlItems]) => wlItems.length !== 0,
+                ),
+            );
         }
 
         return {
             ...super.headerTemplateProps(date),
-            worklocation : displayedWorkLocation,
+            worklocation: displayedWorkLocation,
             workLocationSetForCurrentUser,
             multiCalendar,
             showLine,
             iconMap: {
-                "office": "fa-solid fa-building",
-                "home": "fa-solid fa-house",
+                office: "fa-solid fa-building",
+                home: "fa-solid fa-house",
             },
-        }
-    }
+        };
+    },
 });
-
 
 AttendeeCalendarRenderer.props = {
     ...AttendeeCalendarRenderer.props,
     openWorkLocationWizard: { type: Function, optional: true },
-}
+};
 AttendeeCalendarCommonRenderer.props = {
     ...AttendeeCalendarCommonRenderer.props,
-    openWorkLocationWizard: { type: Function, optional: true }
+    openWorkLocationWizard: { type: Function, optional: true },
 };
 
-AttendeeCalendarCommonRenderer.WorklocationTemplate = "hr_homeworking_calendar.CalendarCommonRenderer.worklocation";
-AttendeeCalendarCommonRenderer.ButtonWorklocationTemplate = "hr_homeworking_calendar.CalendarCommonRenderer.buttonWorklocation";
-AttendeeCalendarCommonRenderer.headerTemplate = "hr_homeworking_calendar.CalendarCommonRendererHeader";
+AttendeeCalendarCommonRenderer.WorklocationTemplate =
+    "hr_homeworking_calendar.CalendarCommonRenderer.worklocation";
+AttendeeCalendarCommonRenderer.ButtonWorklocationTemplate =
+    "hr_homeworking_calendar.CalendarCommonRenderer.buttonWorklocation";
+AttendeeCalendarCommonRenderer.headerTemplate =
+    "hr_homeworking_calendar.CalendarCommonRendererHeader";

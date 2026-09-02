@@ -13,7 +13,7 @@ export class CommonSkillsListRenderer extends ListRenderer {
     }
 
     get groupBy() {
-        return '';
+        return "";
     }
 
     get groupedList() {
@@ -26,7 +26,7 @@ export class CommonSkillsListRenderer extends ListRenderer {
             if (grouped[group.display_name] === undefined) {
                 grouped[group.display_name] = {
                     id: parseInt(group.id),
-                    name: group.display_name || _t('Other'),
+                    name: group.display_name || _t("Other"),
                     list: {
                         records: [],
                     },

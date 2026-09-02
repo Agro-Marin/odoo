@@ -20,4 +20,6 @@ export class BlogPostPageOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(BlogPostPageOptionPlugin.id, BlogPostPageOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(BlogPostPageOptionPlugin.id, BlogPostPageOptionPlugin);

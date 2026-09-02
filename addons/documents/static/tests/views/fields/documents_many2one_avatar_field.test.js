@@ -15,7 +15,12 @@ test("Document many2one avatar field in kanban", async () => {
     const otherUser = { id: 10, partner_id: 10, active: false };
     serverData["res.partner"] = [
         { id: myUser.partner_id, name: "myName", email: "me@example.com" },
-        { id: otherUser.partner_id, name: "otherName", email: "other@example.com", active: false },
+        {
+            id: otherUser.partner_id,
+            name: "otherName",
+            email: "other@example.com",
+            active: false,
+        },
     ];
     serverData["res.users"] = [...serverData["res.users"], otherUser];
     const folder = serverData["documents.document"][0];
@@ -55,7 +60,9 @@ test("Document many2one avatar field in kanban", async () => {
         ["res.partner", myDoc.partner_id],
     ]) {
         const base = makeTestClass(myDoc.id, model);
-        expect(`.${base} img[data-src="/web/image/${model}/${resId}/avatar_128"]`).toHaveCount(1);
+        expect(
+            `.${base} img[data-src="/web/image/${model}/${resId}/avatar_128"]`,
+        ).toHaveCount(1);
         expect(`.${base} div:contains(myName):last:not(.text-muted)`).toHaveCount(1);
         expect(`.${base} .text-muted:contains(me@example.com)`).toHaveCount(1);
         expect(`.${base} .badge:contains(You)`).toHaveCount(1);
@@ -65,7 +72,9 @@ test("Document many2one avatar field in kanban", async () => {
         ["res.partner", docOfOther.partner_id],
     ]) {
         const base = makeTestClass(docOfOther.id, model);
-        expect(`.${base} img[data-src="/web/image/${model}/${resId}/avatar_128"]`).toHaveCount(1);
+        expect(
+            `.${base} img[data-src="/web/image/${model}/${resId}/avatar_128"]`,
+        ).toHaveCount(1);
         expect(`.${base} .text-muted:contains(otherName):last`).toHaveCount(1);
         expect(`.${base} .text-muted:contains(other@example.com)`).toHaveCount(1);
         expect(`.${base} .badge:contains(You)`).toHaveCount(0);

@@ -19,7 +19,7 @@ registerWebsitePreviewTour(
             groupName: "Contact & Forms",
         }),
         ...clickOnSave(),
-    ]
+    ],
 );
 
 registry.category("web_tour.tours").add("donation_snippet_use", {
@@ -27,7 +27,8 @@ registry.category("web_tour.tours").add("donation_snippet_use", {
     steps: () => [
         // -- Testing the minimum amount --
         {
-            content: "Enter a custom amount smaller than the minimum, testing the minimum amount",
+            content:
+                "Enter a custom amount smaller than the minimum, testing the minimum amount",
             trigger: "#s_donation_amount_input",
             run: "edit 1",
         },
@@ -94,7 +95,8 @@ registry.category("web_tour.tours").add("donation_snippet_use", {
         },
         {
             content: "Verify whether the minimum value warning message is displayed",
-            trigger: "small#warning_min_message_id:contains('The minimum donation amount is $5.')",
+            trigger:
+                "small#warning_min_message_id:contains('The minimum donation amount is $5.')",
         },
         {
             content: "Verify other warning messages remain hidden",
@@ -128,9 +130,13 @@ registerWebsitePreviewTour(
             trigger: ":iframe .s_donation_donate_btn",
             run: "click",
         },
-        ...changeOptionInPopover("Donation Button", "Custom Amount", "[data-action-param='slider']"),
+        ...changeOptionInPopover(
+            "Donation Button",
+            "Custom Amount",
+            "[data-action-param='slider']",
+        ),
         ...clickOnSave(),
-    ]
+    ],
 );
 
 registry.category("web_tour.tours").add("donation_snippet_use_2", {

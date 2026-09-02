@@ -51,12 +51,16 @@ class WebsiteEventTrackLive extends Interaction {
 
     async onVideoEnded() {
         const divEl = document.createElement("div");
-        divEl.classList.add("owevent_track_suggestion_loading", "position-absolute", "w-100");
+        divEl.classList.add(
+            "owevent_track_suggestion_loading",
+            "position-absolute",
+            "w-100",
+        );
         this.insert(divEl, this.el);
         this.nextSuggestion = await this.waitFor(
             rpc("/event_track/get_track_suggestion", {
                 track_id: parseInt(this.el.dataset.trackId),
-            })
+            }),
         );
         this.showSuggestion();
     }
@@ -117,7 +121,7 @@ class WebsiteEventTrackLive extends Interaction {
             if (this.nextSuggestion) {
                 this.outro = this.renderAt(
                     "website_event_track_live.website_event_track_suggestion",
-                    this.nextSuggestion
+                    this.nextSuggestion,
                 );
             } else {
                 const data = this.el.dataset;
@@ -128,7 +132,7 @@ class WebsiteEventTrackLive extends Interaction {
                             name: data.trackName,
                             wesite_image_url: data.trackWebsiteImageUrl,
                         },
-                    }
+                    },
                 );
             }
             this.addListener(this.outro, "replay", this.onReplay.bind(this));

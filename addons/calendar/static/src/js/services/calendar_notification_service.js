@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { markup } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { ConnectionLostError, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { markup } from "@odoo/owl";
 
 // Floor for the re-poll delay, so a batch of already-overdue reminders
 // reschedules instead of hammering the route.
@@ -30,7 +30,9 @@ export const calendarNotificationService = {
 
             // Clear previously set timeouts and destroy currently displayed calendar notifications
             browser.clearTimeout(nextCalendarNotifTimeout);
-            Object.values(calendarNotifTimeouts).forEach((notif) => browser.clearTimeout(notif));
+            Object.values(calendarNotifTimeouts).forEach((notif) =>
+                browser.clearTimeout(notif),
+            );
             calendarNotifTimeouts = {};
 
             // For each notification, set a timeout to display it

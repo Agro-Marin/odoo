@@ -1,4 +1,3 @@
-import { luxon } from "@web/core/l10n/luxon";
 import { defineCalendarModels } from "@calendar/../tests/calendar_test_helpers";
 import {
     click,
@@ -10,6 +9,7 @@ import {
 import { test } from "@odoo/hoot";
 import { preloadFullCalendar, serverState } from "@web/../tests/web_test_helpers";
 import { serializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 
 const { DateTime } = luxon;
 

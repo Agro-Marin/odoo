@@ -12,7 +12,10 @@ defineSpreadsheetDashboardModels();
 
 test("can change granularity", async () => {
     const env = await makeSpreadsheetMockEnv();
-    const setupModel = new Model({}, { custom: { odooDataProvider: new OdooDataProvider(env) } });
+    const setupModel = new Model(
+        {},
+        { custom: { odooDataProvider: new OdooDataProvider(env) } },
+    );
     const chartId = insertChartInSpreadsheet(setupModel, "odoo_line", {
         metaData: {
             groupBy: ["date:month"],
@@ -24,10 +27,14 @@ test("can change granularity", async () => {
     const { model } = await createDashboardActionWithData(setupModel.exportData());
 
     expect("select.o-chart-dashboard-item").toHaveValue("month");
-    await contains("select.o-chart-dashboard-item", { visible: false }).select("quarter");
+    await contains("select.o-chart-dashboard-item", { visible: false }).select(
+        "quarter",
+    );
     expect(model.getters.getChartGranularity(chartId)).toEqual({
         fieldName: "date",
         granularity: "quarter",
     });
-    expect(model.getters.getChartDefinition(chartId).metaData.groupBy).toEqual(["date:quarter"]);
+    expect(model.getters.getChartDefinition(chartId).metaData.groupBy).toEqual([
+        "date:quarter",
+    ]);
 });

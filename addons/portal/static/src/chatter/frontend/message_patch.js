@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { Message } from "@mail/core/common/message";
-
 import { patch } from "@web/core/utils/patch";
 
 const PORTAL_AVATAR_SIZE = "50x50";
@@ -17,6 +16,8 @@ patch(Message.prototype, {
     },
 
     get shouldHideFromMessageListOnDelete() {
-        return this.env.inFrontendPortalChatter || super.shouldHideFromMessageListOnDelete;
+        return (
+            this.env.inFrontendPortalChatter || super.shouldHideFromMessageListOnDelete
+        );
     },
 });

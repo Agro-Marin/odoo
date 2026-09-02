@@ -23,7 +23,7 @@ async function _expectCreateAndEdit(rowN) {
     await click(`${taskField} input`);
     await animationFrame();
     return expect(
-        '.o_list_many2one[name=task_id] .dropdown ul li:contains(Create "NonExistingTask")'
+        '.o_list_many2one[name=task_id] .dropdown ul li:contains(Create "NonExistingTask")',
     );
 }
 
@@ -48,7 +48,8 @@ test("hr.timesheet (tree): the text of the task includes hours in the drop down 
         resModel: "account.analytic.line",
         type: "list",
     });
-    const taskField = ".o_list_table .o_data_row:first-of-type .o_list_many2one[name=task_id]";
+    const taskField =
+        ".o_list_table .o_data_row:first-of-type .o_list_many2one[name=task_id]";
     expect(taskField).toHaveText("Task 3");
     await click(taskField);
     await animationFrame();

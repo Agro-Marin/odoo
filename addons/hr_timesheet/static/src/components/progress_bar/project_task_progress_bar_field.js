@@ -22,5 +22,7 @@ export const projectTaskProgressBarField = {
     component: ProjectTaskProgressBarField,
 };
 
-registry.category("fields").add("project_task_progressbar", projectTaskProgressBarField);
+registry
+    .category("fields")
+    .add("project_task_progressbar", projectTaskProgressBarField);
 registry.category("formatters").add("project_task_progressbar", formatPercentage);

@@ -35,7 +35,7 @@ export class DocumentsCogMenu extends CogMenu {
     async _registryItems() {
         const items = documentsCogMenuRegistry.getEntries();
         const displayed = await Promise.all(
-            items.map(([, item]) => item.isDisplayed(this.env))
+            items.map(([, item]) => item.isDisplayed(this.env)),
         );
         return items
             .filter((_item, index) => displayed[index])

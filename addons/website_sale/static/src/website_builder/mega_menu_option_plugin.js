@@ -37,10 +37,10 @@ export class ToggleFetchEcomCategoriesAction extends BuilderAction {
     async load({ editingElement }) {
         const module = this.dependencies.megaMenuOptionPlugin.getTemplatePrefix(
             editingElement,
-            true
+            true,
         );
         const cls = [...editingElement.querySelector("section").classList].find((cls) =>
-            cls.startsWith("s_mega_menu_")
+            cls.startsWith("s_mega_menu_"),
         );
         const templateKey = `${module}${cls}`;
         await this.dependencies.customizeWebsite.loadTemplateKey(templateKey);
@@ -52,7 +52,7 @@ export class ToggleFetchEcomCategoriesAction extends BuilderAction {
                 editingElement,
                 params: { view: loadResult },
             },
-            true
+            true,
         );
     }
 }

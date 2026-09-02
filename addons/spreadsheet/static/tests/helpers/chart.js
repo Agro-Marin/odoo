@@ -1,5 +1,4 @@
 import { animationFrame } from "@odoo/hoot-mock";
-
 import * as spreadsheet from "@odoo/o-spreadsheet";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
 const uuidGenerator = new spreadsheet.helpers.UuidGenerator();

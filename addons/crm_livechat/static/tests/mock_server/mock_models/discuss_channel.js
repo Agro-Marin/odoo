@@ -11,13 +11,17 @@ const discussChannelPatch = {
 
         const leadName = body.substring("/lead".length).trim();
         const leadId = this.env["crm.lead"].create({ name: leadName });
-        this.env["bus.bus"]._sendone(serverState.partnerId, "discuss.channel/transient_message", {
-            body: `
+        this.env["bus.bus"]._sendone(
+            serverState.partnerId,
+            "discuss.channel/transient_message",
+            {
+                body: `
                     <span class="o_mail_notification">
                         Created a new lead: <a href="#" data-oe-model="crm.lead" data-oe-id="${leadId}">${leadName}</a>
                     </span>`,
-            channel_id: ids[0],
-        });
+                channel_id: ids[0],
+            },
+        );
         return true;
     },
 };

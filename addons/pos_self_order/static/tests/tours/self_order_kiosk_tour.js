@@ -1,11 +1,11 @@
-import { registry } from "@web/core/registry";
-import * as Utils from "@pos_self_order/../tests/tours/utils/common";
+import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
+import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
 import * as CartPage from "@pos_self_order/../tests/tours/utils/cart_page_util";
+import * as Utils from "@pos_self_order/../tests/tours/utils/common";
 import * as ConfirmationPage from "@pos_self_order/../tests/tours/utils/confirmation_page_util";
 import * as LandingPage from "@pos_self_order/../tests/tours/utils/landing_page_util";
 import * as ProductPage from "@pos_self_order/../tests/tours/utils/product_page_util";
-import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
-import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("self_kiosk_each_table_takeaway_in", {
     steps: () => [
@@ -237,7 +237,7 @@ registry.category("web_tour.tours").add("test_self_order_kiosk_product_availabil
         Utils.setProductAvailability("Office Combo", false),
         Utils.clickBtn("Order"),
         Dialog.bodyIs(
-            "It seems that Office Combo is no longer available. Please go back and edit your order."
+            "It seems that Office Combo is no longer available. Please go back and edit your order.",
         ),
         Dialog.confirm("OK"),
         // Add 'Combo Product 4' again and mark 'Combo Product 5' available, then unavailable after adding to cart
@@ -249,7 +249,7 @@ registry.category("web_tour.tours").add("test_self_order_kiosk_product_availabil
         Utils.setProductAvailability("Combo Product 5", false),
         Utils.clickBtn("Order"),
         Dialog.bodyIs(
-            "It seems that Combo Product 5 is no longer available. Please go back and edit your order."
+            "It seems that Combo Product 5 is no longer available. Please go back and edit your order.",
         ),
         Dialog.confirm("OK"),
         Utils.clickBtn("Order"),

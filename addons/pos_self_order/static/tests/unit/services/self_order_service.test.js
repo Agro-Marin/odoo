@@ -1,7 +1,8 @@
-import { test, describe, expect } from "@odoo/hoot";
-import { setupSelfPosEnv, getFilledSelfOrder, addComboProduct } from "../utils.js";
+import { describe, expect, test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
+
 import { definePosSelfModels } from "../data/generate_model_definitions.js";
+import { addComboProduct, getFilledSelfOrder, setupSelfPosEnv } from "../utils.js";
 
 definePosSelfModels();
 
@@ -31,12 +32,16 @@ describe("initProducts", () => {
         const models = store.models;
         const tipProductTmpl = models["product.template"].get(1);
 
-        expect(store.config._pos_special_products_ids.includes(tipProductTmpl.id)).toBe(true);
+        expect(store.config._pos_special_products_ids.includes(tipProductTmpl.id)).toBe(
+            true,
+        );
 
         models["product.template"].get(14).pos_categ_ids = [];
         store.initData();
         const UncategorisedProducts = store.productByCategIds["0"];
-        expect(UncategorisedProducts.find((p) => p.id === tipProductTmpl.id)).toBeEmpty();
+        expect(
+            UncategorisedProducts.find((p) => p.id === tipProductTmpl.id),
+        ).toBeEmpty();
 
         tipProductTmpl.pos_categ_ids = [1];
         store.initData();

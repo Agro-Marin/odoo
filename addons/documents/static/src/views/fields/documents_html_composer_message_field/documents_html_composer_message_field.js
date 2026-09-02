@@ -23,11 +23,10 @@ export class DocumentsHtmlComposerMessageField extends HtmlComposerMessageField 
      * @param {Array} response
      */
     formatLinks(response) {
-        const html = response
-            .map(
-                ({ display_name, access_url }) =>
-                    markup`<a href="${access_url}" target="_blank" class="d-block">${display_name}</a>`
-            )
+        const html = response.map(
+            ({ display_name, access_url }) =>
+                markup`<a href="${access_url}" target="_blank" class="d-block">${display_name}</a>`,
+        );
         const cleanHTML = markup(Array(html.length + 1).fill(""), ...html);
         const root = document.createElement("div");
         root.innerHTML = cleanHTML;

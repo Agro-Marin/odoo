@@ -278,7 +278,7 @@ patch(PosOrder.prototype, {
         const allRewards = productRewards.concat(otherRewards).concat(paymentRewards);
         const allRewardsMerged = [];
         allRewards.forEach((reward) => {
-            if (reward.reward.reward_type == "discount") {
+            if (reward.reward.reward_type === "discount") {
                 allRewardsMerged.push(reward);
             } else {
                 const reward_index = allRewardsMerged.findIndex(
@@ -368,7 +368,7 @@ patch(PosOrder.prototype, {
                     id: coupon_id,
                     points: 0,
                 });
-            let [won, spent, total] = [0, 0, 0];
+            let [won, spent] = [0, 0];
             const balance = loyaltyCard.points;
             won += points - this._getPointsCorrection(program);
             if (coupon_id !== 0) {
@@ -378,7 +378,7 @@ patch(PosOrder.prototype, {
                     }
                 }
             }
-            total = balance + won - spent;
+            const total = balance + won - spent;
             const name = program.portal_visible
                 ? program.portal_point_name
                 : _t("Points");
@@ -451,9 +451,9 @@ patch(PosOrder.prototype, {
         }
 
         // Check if the reward line is part of the rule
-        if (
-            !(rule.any_product || rule.validProductIds.has(line._reward_product_id?.id))
-        ) {
+        if (!(
+            rule.any_product || rule.validProductIds.has(line._reward_product_id?.id)
+        )) {
             return false;
         }
 
@@ -710,7 +710,7 @@ patch(PosOrder.prototype, {
                                         () => {
                                             if (
                                                 line._gift_barcode &&
-                                                line.getQuantity() == 1
+                                                line.getQuantity() === 1
                                             ) {
                                                 return {
                                                     points: pointsPerUnit,
@@ -777,7 +777,7 @@ patch(PosOrder.prototype, {
     _canGenerateRewards(couponProgram, orderTotalWithTax, orderTotalWithoutTax) {
         for (const rule of couponProgram.rule_ids) {
             const amountToCompare =
-                rule.minimum_amount_tax_mode == "incl"
+                rule.minimum_amount_tax_mode === "incl"
                     ? orderTotalWithTax
                     : orderTotalWithoutTax;
             if (rule.minimum_amount > amountToCompare) {
@@ -836,7 +836,7 @@ patch(PosOrder.prototype, {
             ) {
                 continue;
             }
-            if (program.trigger == "with_code") {
+            if (program.trigger === "with_code") {
                 // For coupon programs, the rules become conditions.
                 // Points to purchase rewards will only come from the scanned coupon.
                 if (!this._canGenerateRewards(program, totalWithTax, totalWithoutTax)) {
@@ -922,9 +922,9 @@ patch(PosOrder.prototype, {
             const globalDiscountLines = this._getGlobalDiscountLines();
             if (globalDiscountLines.length) {
                 const rewardId = globalDiscountLines[0].reward_id;
-                if (rewardId != reward.id && rewardId.discount >= reward.discount) {
+                if (rewardId !== reward.id && rewardId.discount >= reward.discount) {
                     return _t("A better global discount is already applied.");
-                } else if (rewardId != rewardId.id) {
+                } else if (rewardId !== rewardId.id) {
                     for (const line of globalDiscountLines) {
                         line.delete();
                     }
@@ -1145,7 +1145,7 @@ patch(PosOrder.prototype, {
                             applicableProductIds.has(product),
                     ) &&
                         lineReward.reward_type === "discount" &&
-                        lineReward.discount_mode != "percent")
+                        lineReward.discount_mode !== "percent")
                 ) {
                     linesToDiscount.push(line);
                 }
@@ -1357,7 +1357,7 @@ patch(PosOrder.prototype, {
                     .map((reward) => reward.id)
                     .includes(line.getProduct().id)
             ) {
-                if (this._get_reward_lines() == 0) {
+                if (this._get_reward_lines().length === 0) {
                     if (line.getProduct() === product) {
                         available += line.getQuantity();
                     }
@@ -1369,7 +1369,7 @@ patch(PosOrder.prototype, {
                     .map((reward) => reward.id)
                     .includes(line._reward_product_id?.id)
             ) {
-                if (line.reward_id.id == reward.id) {
+                if (line.reward_id.id === reward.id) {
                     remainingPoints += line.points_cost;
                     claimed += line.getQuantity();
                 } else {
@@ -1378,7 +1378,7 @@ patch(PosOrder.prototype, {
             }
         }
         let freeQty;
-        if (reward.program_id.trigger == "auto") {
+        if (reward.program_id.trigger === "auto") {
             if (
                 this._isRewardProductPartOfRules(reward, product) &&
                 reward.program_id.applies_on !== "future"
@@ -1433,7 +1433,7 @@ patch(PosOrder.prototype, {
                         reward.reward_product_qty,
                 );
             }
-        } else if (reward.program_id.trigger == "with_code") {
+        } else if (reward.program_id.trigger === "with_code") {
             freeQty = Math.floor(
                 (remainingPoints / reward.required_points) * reward.reward_product_qty,
             );
@@ -1441,7 +1441,7 @@ patch(PosOrder.prototype, {
         return Math.min(available, freeQty) - claimed;
     },
     _computePotentialFreeProductQty(reward, product, remainingPoints) {
-        if (reward.program_id.trigger == "auto") {
+        if (reward.program_id.trigger === "auto") {
             if (
                 this._isRewardProductPartOfRules(reward, product) &&
                 reward.program_id.applies_on !== "future"
@@ -1460,7 +1460,7 @@ patch(PosOrder.prototype, {
                         reward.reward_product_qty,
                 );
             }
-        } else if (reward.program_id.trigger == "with_code") {
+        } else if (reward.program_id.trigger === "with_code") {
             return Math.floor(
                 (remainingPoints / reward.required_points) * reward.reward_product_qty,
             );

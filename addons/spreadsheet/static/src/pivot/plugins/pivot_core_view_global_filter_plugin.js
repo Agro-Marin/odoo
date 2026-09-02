@@ -1,7 +1,8 @@
 /** @odoo-module native */
-import { Domain } from "@web/core/domain";
-import { NO_RECORD_AT_THIS_POSITION } from "../pivot_model.js";
 import { OdooCoreViewPlugin } from "@spreadsheet/plugins";
+import { Domain } from "@web/core/domain";
+
+import { NO_RECORD_AT_THIS_POSITION } from "../pivot_model.js";
 
 /**
  * @typedef {import("@spreadsheet").FieldMatching} FieldMatching
@@ -39,7 +40,9 @@ function pivotPeriodToFilterValue(timeRange, value) {
                 year,
             };
         case "month": {
-            const month = value.includes("/") ? Number.parseInt(value.split("/")[0]) : -1;
+            const month = value.includes("/")
+                ? Number.parseInt(value.split("/")[0])
+                : -1;
             if (month <= 0 || month > 12) {
                 return { type: "year", year };
             }
@@ -50,7 +53,9 @@ function pivotPeriodToFilterValue(timeRange, value) {
             };
         }
         case "quarter": {
-            const quarter = value.includes("/") ? Number.parseInt(value.split("/")[0]) : -1;
+            const quarter = value.includes("/")
+                ? Number.parseInt(value.split("/")[0])
+                : -1;
             if (quarter <= 0 || quarter > 4) {
                 return { type: "year", year };
             }
@@ -111,7 +116,7 @@ export class PivotCoreViewGlobalFilterPlugin extends OdooCoreViewPlugin {
                             "REMOVE_GLOBAL_FILTER",
                             "UPDATE_ODOO_PIVOT_DOMAIN",
                             "UPDATE_PIVOT",
-                        ].includes(command.type)
+                        ].includes(command.type),
                     )
                 ) {
                     this._addDomains();
@@ -154,8 +159,13 @@ export class PivotCoreViewGlobalFilterPlugin extends OdooCoreViewPlugin {
             if (type !== "ODOO") {
                 continue;
             }
-            const { field, granularity: time } = dataSource.parseGroupField(lastNode.field);
-            const pivotFieldMatching = this.getters.getPivotFieldMatching(pivotId, filter.id);
+            const { field, granularity: time } = dataSource.parseGroupField(
+                lastNode.field,
+            );
+            const pivotFieldMatching = this.getters.getPivotFieldMatching(
+                pivotId,
+                filter.id,
+            );
             if (pivotFieldMatching && pivotFieldMatching.chain === field.name) {
                 let value = dataSource.getLastPivotGroupValue(PivotDomain.slice(-1));
                 if (value === NO_RECORD_AT_THIS_POSITION) {
@@ -170,7 +180,10 @@ export class PivotCoreViewGlobalFilterPlugin extends OdooCoreViewPlugin {
                             if (value === "false") {
                                 transformedValue = undefined;
                             } else {
-                                transformedValue = pivotPeriodToFilterValue(time, value);
+                                transformedValue = pivotPeriodToFilterValue(
+                                    time,
+                                    value,
+                                );
                                 if (
                                     JSON.stringify(transformedValue) ===
                                     JSON.stringify(currentValue)
@@ -226,7 +239,7 @@ export class PivotCoreViewGlobalFilterPlugin extends OdooCoreViewPlugin {
         }
         const domainList = [];
         for (const [filterId, fieldMatch] of Object.entries(
-            this.getters.getPivotFieldMatch(pivotId)
+            this.getters.getPivotFieldMatch(pivotId),
         )) {
             domainList.push(this.getters.getGlobalFilterDomain(filterId, fieldMatch));
         }

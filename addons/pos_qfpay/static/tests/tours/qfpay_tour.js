@@ -29,9 +29,10 @@ patch(QFPay.prototype, {
                 out_trade_no: `${uuid}--${sessionId}--${paymentMethod.id}`,
             };
         } else if (endpoint === "cancel") {
-            const originalPayment = paymentLine.pos_order_id.refunded_order_id.payment_ids.find(
-                (l) => l.payment_method_id.id === paymentMethod.id
-            );
+            const originalPayment =
+                paymentLine.pos_order_id.refunded_order_id.payment_ids.find(
+                    (l) => l.payment_method_id.id === paymentMethod.id,
+                );
             expectedPayload = {
                 func_type: 1002,
                 orderId: originalPayment.transaction_id,
@@ -53,7 +54,7 @@ registry.category("web_tour.tours").add("qfpay_order_and_refund", {
         [
             // Refund have to be made on the same day before 23:00 HKT.
             Chrome.freezeDateTime(
-                DateTime.now().setZone("Asia/Hong_Kong").set({ hour: 12 }).toMillis()
+                DateTime.now().setZone("Asia/Hong_Kong").set({ hour: 12 }).toMillis(),
             ),
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
@@ -69,7 +70,12 @@ registry.category("web_tour.tours").add("qfpay_order_and_refund", {
                     const paymentLine = posmodel.getPendingPaymentLine("qfpay");
                     paymentUuid = paymentLine.uuid;
                     const paymentMethodId = paymentLine.payment_method_id.id;
-                    mockQFPayWebhook(paymentUuid, paymentMethodId, paymentLine.amount, false);
+                    mockQFPayWebhook(
+                        paymentUuid,
+                        paymentMethodId,
+                        paymentLine.amount,
+                        false,
+                    );
                 },
             },
             ReceiptScreen.isShown(),
@@ -88,7 +94,12 @@ registry.category("web_tour.tours").add("qfpay_order_and_refund", {
                 run: async function () {
                     const paymentLine = posmodel.getPendingPaymentLine("qfpay");
                     const paymentMethodId = paymentLine.payment_method_id.id;
-                    mockQFPayWebhook(paymentUuid, paymentMethodId, paymentLine.amount, true);
+                    mockQFPayWebhook(
+                        paymentUuid,
+                        paymentMethodId,
+                        paymentLine.amount,
+                        true,
+                    );
                 },
             },
             ReceiptScreen.isShown(),

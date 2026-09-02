@@ -7,13 +7,9 @@ import { patch } from "@web/core/utils/patch";
 patch(TicketScreen.prototype, {
     async addAdditionalRefundInfo(order, destinationOrder) {
         if (this.pos.company.l10n_es_tbai_is_enabled && order.account_move) {
-            const payload = await makeAwaitable(
-                this.dialog,
-                AddTbaiRefundReasonPopup,
-                {
-                    order: destinationOrder,
-                },
-            );
+            const payload = await makeAwaitable(this.dialog, AddTbaiRefundReasonPopup, {
+                order: destinationOrder,
+            });
             if (payload) {
                 destinationOrder.l10n_es_tbai_refund_reason =
                     payload.l10n_es_tbai_refund_reason;

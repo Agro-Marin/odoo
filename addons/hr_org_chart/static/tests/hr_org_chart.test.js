@@ -1,7 +1,13 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
-import { defineModels, fields, models, mountView, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    defineModels,
+    fields,
+    models,
+    mountView,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 
 class Employee extends models.Model {
     _name = "hr.employee";

@@ -1,15 +1,15 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
-
-import * as spreadsheet from "@odoo/o-spreadsheet";
-
-import { SEE_RECORDS_PIVOT, SEE_RECORDS_PIVOT_VISIBLE } from "./pivot_actions.js";
-import { PivotOdooCorePlugin } from "./plugins/pivot_odoo_core_plugin.js";
-import { PivotCoreViewGlobalFilterPlugin } from "./plugins/pivot_core_view_global_filter_plugin.js";
-import { PivotUIGlobalFilterPlugin } from "./plugins/pivot_ui_global_filter_plugin.js";
 // Import odoo_pivot to trigger the pivotRegistry.add("ODOO", ...) side effect,
 // required before PivotUIPlugin.setupPivot() looks up the "ODOO" pivot type.
 import "./odoo_pivot.js";
+
+import * as spreadsheet from "@odoo/o-spreadsheet";
+import { _t } from "@web/core/translation";
+
+import { SEE_RECORDS_PIVOT, SEE_RECORDS_PIVOT_VISIBLE } from "./pivot_actions.js";
+import { PivotCoreViewGlobalFilterPlugin } from "./plugins/pivot_core_view_global_filter_plugin.js";
+import { PivotOdooCorePlugin } from "./plugins/pivot_odoo_core_plugin.js";
+import { PivotUIGlobalFilterPlugin } from "./plugins/pivot_ui_global_filter_plugin.js";
 
 const { coreTypes, invalidateEvaluationCommands } = spreadsheet;
 
@@ -41,4 +41,8 @@ cellMenuRegistry.add("pivot_see_records", {
 
 inverseCommandRegistry.add("UPDATE_ODOO_PIVOT_DOMAIN", identity);
 
-export { PivotOdooCorePlugin, PivotCoreViewGlobalFilterPlugin, PivotUIGlobalFilterPlugin };
+export {
+    PivotCoreViewGlobalFilterPlugin,
+    PivotOdooCorePlugin,
+    PivotUIGlobalFilterPlugin,
+};

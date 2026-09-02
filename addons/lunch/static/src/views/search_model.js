@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
-import { Domain } from '@web/core/domain';
+import { Domain } from "@web/core/domain";
 import { rpc } from "@web/core/network";
-import { SearchModel } from '@web/search/search_model';
+import { SearchModel } from "@web/search/search_model";
 import { useState, onWillStart } from "@odoo/owl";
 const { DateTime } = luxon;
 
@@ -17,7 +17,7 @@ export class LunchSearchModel extends SearchModel {
         });
 
         onWillStart(async () => {
-            const locationId = await rpc('/lunch/user_location_get', {});
+            const locationId = await rpc("/lunch/user_location_get", {});
             this.updateLocationId(locationId);
         });
     }
@@ -53,10 +53,19 @@ export class LunchSearchModel extends SearchModel {
     updateDate(date) {
         this.lunchState.date = date;
         const weekday = this.lunchState.date.toJSDate().getDay();
-        const domain_key = ['available_on_sun', 'available_on_mon', 'available_on_tue', 'available_on_wed',
-        'available_on_thu', 'available_on_fri', 'available_on_sat'][weekday];
-        const filter = Object.values(this.searchItems).find(o => o['name'] === domain_key);
-        this.deactivateGroup(filter.groupId)
+        const domain_key = [
+            "available_on_sun",
+            "available_on_mon",
+            "available_on_tue",
+            "available_on_wed",
+            "available_on_thu",
+            "available_on_fri",
+            "available_on_sat",
+        ][weekday];
+        const filter = Object.values(this.searchItems).find(
+            (o) => o["name"] === domain_key,
+        );
+        this.deactivateGroup(filter.groupId);
         this.toggleSearchItem(filter.id);
         this._notify();
     }
@@ -69,7 +78,7 @@ export class LunchSearchModel extends SearchModel {
         }
         const result = Domain.and([
             domain,
-            [['is_available_at', '=', this.lunchState.locationId]]
+            [["is_available_at", "=", this.lunchState.locationId]],
         ]);
         return params.raw ? result : result.toList();
     }

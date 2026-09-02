@@ -43,4 +43,6 @@ class ImageSnippetOptionPlugin extends Plugin {
     }
 }
 
-registry.category("builder-plugins").add(ImageSnippetOptionPlugin.id, ImageSnippetOptionPlugin);
+registry
+    .category("builder-plugins")
+    .add(ImageSnippetOptionPlugin.id, ImageSnippetOptionPlugin);

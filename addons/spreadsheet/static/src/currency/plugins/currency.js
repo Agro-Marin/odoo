@@ -33,7 +33,7 @@ export class CurrencyPlugin extends OdooUIPlugin {
     get serverData() {
         if (!this._serverData) {
             throw new Error(
-                "'serverData' is not defined, please make sure a 'OdooDataProvider' instance is provided to the model."
+                "'serverData' is not defined, please make sure a 'OdooDataProvider' instance is provided to the model.",
             );
         }
         return this._serverData;
@@ -52,12 +52,16 @@ export class CurrencyPlugin extends OdooUIPlugin {
      * @returns {number|string}
      */
     getCurrencyRate(from, to, date, companyId) {
-        const data = this.serverData.batch.get("res.currency.rate", "get_rates_for_spreadsheet", {
-            from,
-            to,
-            date: date ? toServerDateString(date) : undefined,
-            company_id: companyId,
-        });
+        const data = this.serverData.batch.get(
+            "res.currency.rate",
+            "get_rates_for_spreadsheet",
+            {
+                from,
+                to,
+                date: date ? toServerDateString(date) : undefined,
+                company_id: companyId,
+            },
+        );
         const rate = data !== undefined ? data.rate : undefined;
         if (rate === false) {
             throw new EvaluationError(_t("Currency rate unavailable."));
@@ -92,7 +96,7 @@ export class CurrencyPlugin extends OdooUIPlugin {
         const currency = this.serverData.get(
             "res.currency",
             "get_company_currency_for_spreadsheet",
-            [companyId]
+            [companyId],
         );
         if (currency === false) {
             throw new EvaluationError(_t("Currency not available for this company."));

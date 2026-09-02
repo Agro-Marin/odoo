@@ -33,7 +33,9 @@ class MailGroupOptionPlugin extends Plugin {
         if (snippetEl.dataset.snippet !== "s_group") {
             return;
         }
-        const group = await this.services.orm.call("mail.group", "name_search", [""], { limit: 1 });
+        const group = await this.services.orm.call("mail.group", "name_search", [""], {
+            limit: 1,
+        });
         if (this.isDestroyed) {
             return;
         }
@@ -57,7 +59,7 @@ class MailGroupOptionPlugin extends Plugin {
                         name = confirmedValue;
                     },
                 },
-                { onClose: resolve }
+                { onClose: resolve },
             );
         });
         if (name) {
@@ -67,7 +69,7 @@ class MailGroupOptionPlugin extends Plugin {
 }
 
 export class MailGroupAction extends BuilderAction {
-    static id = "mailGroupAction"
+    static id = "mailGroupAction";
     static dependencies = ["builderActions"];
     apply({ editingElement, value }) {
         const { id } = JSON.parse(value);
@@ -108,4 +110,6 @@ export class CreateMailGroupAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(MailGroupOptionPlugin.id, MailGroupOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(MailGroupOptionPlugin.id, MailGroupOptionPlugin);

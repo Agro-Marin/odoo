@@ -8,10 +8,7 @@ export class DocumentsFileViewer extends Component {
     static components = {
         FileViewer,
     };
-    static props = [
-        "parentRoot",
-        "previewStore",
-    ];
+    static props = ["parentRoot", "previewStore"];
 
     setup() {
         this.documentService = useService("document.document");
@@ -36,7 +33,7 @@ export class DocumentsFileViewer extends Component {
                     iframe.removeEventListener("load", onLoad);
                 };
             },
-            () => [this.root.el && this.root.el.querySelector("iframe")]
+            () => [this.root.el && this.root.el.querySelector("iframe")],
         );
         useEffect(
             (el) => {
@@ -52,7 +49,7 @@ export class DocumentsFileViewer extends Component {
                     el.removeEventListener("scroll", scrollHandler);
                 };
             },
-            () => [this.parentRoot.el]
+            () => [this.parentRoot.el],
         );
     }
 

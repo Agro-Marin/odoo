@@ -51,7 +51,10 @@ export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
         super.onEventDidMount(...arguments);
         const record = this.props.model.records[event.id];
         if (record) {
-            if (this.env.searchModel?.context?.default_calendar_event_id === parseInt(event.id)) {
+            if (
+                this.env.searchModel?.context?.default_calendar_event_id ===
+                parseInt(event.id)
+            ) {
                 this.openPopover(el, record);
             }
         }

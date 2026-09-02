@@ -1,9 +1,8 @@
-import * as ProductScreenPos from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
-import * as ProductScreenResto from "@pos_restaurant/../tests/tours/utils/product_screen_util";
-
-import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
 import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
+import * as ProductScreenPos from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
 import * as FloorScreen from "@pos_restaurant/../tests/tours/utils/floor_screen_util";
+import * as ProductScreenResto from "@pos_restaurant/../tests/tours/utils/product_screen_util";
 import { registry } from "@web/core/registry";
 
 const ProductScreen = { ...ProductScreenPos, ...ProductScreenResto };

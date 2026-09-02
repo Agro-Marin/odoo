@@ -97,7 +97,7 @@ export class FilterValue extends Component {
             "The model (%(model)s) of this global filter is not valid (it may have been renamed/deleted).",
             {
                 model,
-            }
+            },
         );
     }
 

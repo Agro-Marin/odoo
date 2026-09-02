@@ -1,9 +1,13 @@
-import { describe, test, expect, beforeEach } from "@odoo/hoot";
-import { click, edit, queryAll, queryOne } from "@odoo/hoot-dom";
-import { mountView, onRpc, selectFieldDropdownItem } from "@web/../tests/web_test_helpers";
 import { defineHrHolidaysModels } from "@hr_holidays/../tests/hr_holidays_test_helpers";
 import { HrLeave } from "@hr_holidays/../tests/mock_server/mock_models/hr_leave";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { click, edit, queryAll, queryOne } from "@odoo/hoot-dom";
 import { mockTimeZone } from "@odoo/hoot-mock";
+import {
+    mountView,
+    onRpc,
+    selectFieldDropdownItem,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineHrHolidaysModels();
@@ -103,19 +107,39 @@ test("leave stats render correctly", async () => {
 
     const individualLeaves = queryOne(".o_leave_stats #o_leave_stats_employee");
     const DepartmentLeaves = queryOne(".o_leave_stats #o_leave_stats_department");
-    expect(queryAll("span:contains(Legal Leave)", { root: individualLeaves })).toHaveCount(1);
-    expect(queryAll("span:contains(2 days)", { root: individualLeaves })).toHaveCount(1);
-    expect(queryAll("span:contains(Unpaid Leave)", { root: individualLeaves })).toHaveCount(1);
-    expect(queryAll("span:contains(01:00 hours)", { root: individualLeaves })).toHaveCount(1);
+    expect(
+        queryAll("span:contains(Legal Leave)", { root: individualLeaves }),
+    ).toHaveCount(1);
+    expect(queryAll("span:contains(2 days)", { root: individualLeaves })).toHaveCount(
+        1,
+    );
+    expect(
+        queryAll("span:contains(Unpaid Leave)", { root: individualLeaves }),
+    ).toHaveCount(1);
+    expect(
+        queryAll("span:contains(01:00 hours)", { root: individualLeaves }),
+    ).toHaveCount(1);
 
-    expect(queryAll("span:contains(Richard)", { root: DepartmentLeaves })).toHaveCount(2);
-    expect(queryAll("span:contains(10/16/2016)", { root: DepartmentLeaves })).toHaveCount(1);
-    expect(queryAll("span:contains(02:00 hours)", { root: DepartmentLeaves })).toHaveCount(1);
-    expect(queryAll("span:contains(10/20/2016)", { root: DepartmentLeaves })).toHaveCount(1);
-    expect(queryAll("span:contains(10/25/2016)", { root: DepartmentLeaves })).toHaveCount(1);
+    expect(queryAll("span:contains(Richard)", { root: DepartmentLeaves })).toHaveCount(
+        2,
+    );
+    expect(
+        queryAll("span:contains(10/16/2016)", { root: DepartmentLeaves }),
+    ).toHaveCount(1);
+    expect(
+        queryAll("span:contains(02:00 hours)", { root: DepartmentLeaves }),
+    ).toHaveCount(1);
+    expect(
+        queryAll("span:contains(10/20/2016)", { root: DepartmentLeaves }),
+    ).toHaveCount(1);
+    expect(
+        queryAll("span:contains(10/25/2016)", { root: DepartmentLeaves }),
+    ).toHaveCount(1);
 
     expect(
-        queryAll("div.o_horizontal_separator:contains(R&D)", { root: DepartmentLeaves })
+        queryAll("div.o_horizontal_separator:contains(R&D)", {
+            root: DepartmentLeaves,
+        }),
     ).toHaveCount(1);
 });
 
@@ -128,8 +152,10 @@ test("leave stats reload when employee/department changes", async () => {
         ) {
             expect(
                 kwargs.domain.some(
-                    (x) => JSON.stringify(x) === JSON.stringify(["department_id", "=", 11])
-                )
+                    (x) =>
+                        JSON.stringify(x) ===
+                        JSON.stringify(["department_id", "=", 11]),
+                ),
             ).toBe(true);
         }
         if (
@@ -139,8 +165,9 @@ test("leave stats reload when employee/department changes", async () => {
         ) {
             expect(
                 kwargs.domain.some(
-                    (x) => JSON.stringify(x) === JSON.stringify(["employee_id", "=", 200])
-                )
+                    (x) =>
+                        JSON.stringify(x) === JSON.stringify(["employee_id", "=", 200]),
+                ),
             ).toBe(true);
         }
     });

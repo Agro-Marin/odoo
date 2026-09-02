@@ -8,7 +8,9 @@ export class RecruitmentFormController extends FormController {
         const result = super.archiveDialogProps;
         result.body =
             this.model.root.data.all_application_count > 0
-                ? _t("This job position and all related applicants will be archived. Are you sure?")
+                ? _t(
+                      "This job position and all related applicants will be archived. Are you sure?",
+                  )
                 : _t("Are you sure that you want to archive this job position?");
         return result;
     }

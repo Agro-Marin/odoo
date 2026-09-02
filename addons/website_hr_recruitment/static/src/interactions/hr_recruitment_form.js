@@ -9,9 +9,18 @@ export class HrRecruitmentForm extends Interaction {
     static selector = "#hr_recruitment_form";
     dynamicContent = {
         "#apply-btn": { "t-on-click": this.onApplyButtonClick },
-        "#recruitment1": { "t-on-focusout": (ev) => this.checkRedundant(ev.currentTarget, "name", this.warningMessageEl) },
-        "#recruitment2": { "t-on-focusout": (ev) => this.checkRedundant(ev.currentTarget, "email", this.warningMessageEl) },
-        "#recruitment3": { "t-on-focusout": (ev) => this.checkRedundant(ev.currentTarget, "phone", this.warningMessageEl) },
+        "#recruitment1": {
+            "t-on-focusout": (ev) =>
+                this.checkRedundant(ev.currentTarget, "name", this.warningMessageEl),
+        },
+        "#recruitment2": {
+            "t-on-focusout": (ev) =>
+                this.checkRedundant(ev.currentTarget, "email", this.warningMessageEl),
+        },
+        "#recruitment3": {
+            "t-on-focusout": (ev) =>
+                this.checkRedundant(ev.currentTarget, "phone", this.warningMessageEl),
+        },
         "#recruitment4": {
             "t-on-focusout": this.onLinkedinFocusOut,
             "t-att-required": () => this.isIncomplete,
@@ -30,10 +39,10 @@ export class HrRecruitmentForm extends Interaction {
     }
 
     /**
-    * @param {HTMLElement} targetEl
-    * @param {HTMLElement} messageContainerEl
-    * @param {string} message
-    */
+     * @param {HTMLElement} targetEl
+     * @param {HTMLElement} messageContainerEl
+     * @param {string} message
+     */
     showWarningMessage(targetEl, messageContainerEl, message) {
         targetEl.classList.add("border-warning");
         messageContainerEl.textContent = message;
@@ -41,9 +50,9 @@ export class HrRecruitmentForm extends Interaction {
     }
 
     /**
-    * @param {HTMLElement} targetEl
-    * @param {HTMLElement} messageContainerEl
-    */
+     * @param {HTMLElement} targetEl
+     * @param {HTMLElement} messageContainerEl
+     */
     hideWarningMessage(targetEl, messageContainerEl) {
         targetEl.classList.remove("border-warning");
         messageContainerEl.classList.add("d-none");
@@ -55,18 +64,25 @@ export class HrRecruitmentForm extends Interaction {
      * @param {HTMLElement} messageContainerEl
      * @param {boolean} [keepPreviousWarningMessage=false]
      */
-    async checkRedundant(targetEl, field, messageContainerEl, keepPreviousWarningMessage = false) {
+    async checkRedundant(
+        targetEl,
+        field,
+        messageContainerEl,
+        keepPreviousWarningMessage = false,
+    ) {
         const value = targetEl.value;
         if (!value) {
             this.hideWarningMessage(targetEl, messageContainerEl);
             return;
         }
         const job_id = document.querySelector("#recruitment7").value;
-        const data = await this.waitFor(rpc("/website_hr_recruitment/check_recent_application", {
-            field: field,
-            value: value,
-            job_id: job_id,
-        }));
+        const data = await this.waitFor(
+            rpc("/website_hr_recruitment/check_recent_application", {
+                field: field,
+                value: value,
+                job_id: job_id,
+            }),
+        );
 
         if (data.message) {
             this.showWarningMessage(targetEl, messageContainerEl, data.message);
@@ -76,22 +92,35 @@ export class HrRecruitmentForm extends Interaction {
     }
 
     onApplyButtonClick() {
-        const isEmptyLinkedin = !this.linkedinInputEl || this.linkedinInputEl.value.trim() === "";
+        const isEmptyLinkedin =
+            !this.linkedinInputEl || this.linkedinInputEl.value.trim() === "";
         const isEmptyResume = !this.resumeInputEl || !this.resumeInputEl.files.length;
         this.isIncomplete = isEmptyLinkedin && isEmptyResume;
     }
 
     onLinkedinFocusOut() {
         const linkedin = this.linkedinInputEl.value;
-        const linkedin_regex = /^(https?:\/\/)?([\w\.]*)linkedin\.com\/in\/(.*?)(\/.*)?$/;
+        const linkedin_regex =
+            /^(https?:\/\/)?([\w.]*)linkedin\.com\/in\/(.*?)(\/.*)?$/;
         const isLinkedinValid = !linkedin_regex.test(linkedin) && linkedin !== "";
         if (isLinkedinValid) {
-            const message = _t("The profile that you gave us doesn't seems like a linkedin profile");
-            this.showWarningMessage(this.linkedinInputEl, this.linkedinMessageEl, message);
+            const message = _t(
+                "The profile that you gave us doesn't seems like a linkedin profile",
+            );
+            this.showWarningMessage(
+                this.linkedinInputEl,
+                this.linkedinMessageEl,
+                message,
+            );
         } else {
             this.hideWarningMessage(this.linkedinInputEl, this.linkedinMessageEl);
         }
-        this.checkRedundant(this.linkedinInputEl, "linkedin", this.linkedinMessageEl, isLinkedinValid);
+        this.checkRedundant(
+            this.linkedinInputEl,
+            "linkedin",
+            this.linkedinMessageEl,
+            isLinkedinValid,
+        );
     }
 }
 

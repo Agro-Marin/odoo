@@ -127,10 +127,10 @@ export class FloorScreen extends Component {
         useExternalListener(window, "keydown", (ev) => {
             const overlayElements = document.querySelectorAll(".o-overlay-item");
             if (
-                overlayElements.length == 0 &&
+                overlayElements.length === 0 &&
                 ev.key === "Escape" &&
                 this.pos.isEditMode &&
-                this.state.selectedTableIds.length == 0 &&
+                this.state.selectedTableIds.length === 0 &&
                 !this.state.potentialLink
             ) {
                 this.pos.isEditMode = false;
@@ -467,9 +467,9 @@ export class FloorScreen extends Component {
             await this.pos.unsetTable();
         }
         // Set order to null when reaching the floor screen.
-        if (
-            !(this.pos.getOrder()?.isFilledDirectSale && !this.pos.getOrder().finalized)
-        ) {
+        if (!(
+            this.pos.getOrder()?.isFilledDirectSale && !this.pos.getOrder().finalized
+        )) {
             this.pos.setOrder(null);
         }
     }
@@ -890,7 +890,7 @@ export class FloorScreen extends Component {
     }
     async changeSeatsNum() {
         const selectedTables = this.selectedTables;
-        if (selectedTables.length == 0) {
+        if (selectedTables.length === 0) {
             return;
         }
         this.dialog.add(NumberPopup, {
@@ -1037,7 +1037,7 @@ export class FloorScreen extends Component {
                 for (const id of originalSelectedTableIds) {
                     //remove order not send to server
                     for (const order of this.pos.getOpenOrders()) {
-                        if (order.table_id == id) {
+                        if (order.table_id === id) {
                             this.pos.removeOrder(order, false);
                         }
                     }

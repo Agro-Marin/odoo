@@ -39,7 +39,7 @@ export class SendSMSButton extends Component {
                     }
                     this.props.record.load();
                 },
-            }
+            },
         );
     }
 }

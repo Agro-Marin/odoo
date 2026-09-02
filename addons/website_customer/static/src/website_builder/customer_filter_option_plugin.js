@@ -11,4 +11,6 @@ export class CustomerFilterOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(CustomerFilterOptionPlugin.id, CustomerFilterOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(CustomerFilterOptionPlugin.id, CustomerFilterOptionPlugin);

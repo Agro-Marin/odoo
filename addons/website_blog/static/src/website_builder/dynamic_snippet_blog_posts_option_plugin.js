@@ -1,11 +1,12 @@
 /** @odoo-module native */
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
 import {
     DYNAMIC_SNIPPET,
     setDatasetIfUndefined,
 } from "@website/builder/plugins/options/dynamic_snippet_option_plugin";
-import { Plugin } from "@html_editor/plugin";
-import { withSequence } from "@html_editor/utils/resource";
-import { registry } from "@web/core/registry";
+
 import { DynamicSnippetBlogPostsOption } from "./dynamic_snippet_blog_posts_option.js";
 
 /**
@@ -17,7 +18,7 @@ import { DynamicSnippetBlogPostsOption } from "./dynamic_snippet_blog_posts_opti
 class DynamicSnippetBlogPostsOptionPlugin extends Plugin {
     static id = "dynamicSnippetBlogPostsOption";
     static dependencies = ["dynamicSnippetOption"];
-    static shared = ["fetchBlogs","getModelNameFilter"];
+    static shared = ["fetchBlogs", "getModelNameFilter"];
     modelNameFilter = "blog.post";
     /** @type {import("plugins").WebsiteResources} */
     resources = {
@@ -35,7 +36,7 @@ class DynamicSnippetBlogPostsOptionPlugin extends Plugin {
             setDatasetIfUndefined(snippetEl, "filterByBlogId", -1);
             await this.dependencies.dynamicSnippetOption.setOptionsDefaultValues(
                 snippetEl,
-                this.modelNameFilter
+                this.modelNameFilter,
             );
         }
     }

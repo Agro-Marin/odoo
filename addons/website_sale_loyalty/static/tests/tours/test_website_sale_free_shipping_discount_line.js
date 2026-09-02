@@ -29,7 +29,6 @@ function selectDelivery(provider) {
     };
 }
 
-
 const webTours = registry.category("web_tour.tours");
 
 webTours.add("check_shipping_discount", {
@@ -48,7 +47,7 @@ webTours.add("check_shipping_discount", {
         },
         {
             content: "click on 'Add to Cart' button",
-            trigger: '#product_detail form #add_to_cart',
+            trigger: "#product_detail form #add_to_cart",
             run: "click",
         },
         goToCart({ quantity: 3 }),
@@ -62,7 +61,8 @@ webTours.add("check_shipping_discount", {
         ...assertRewardAmounts({ shipping: "- 6.00" }),
         {
             content: "pay with eWallet",
-            trigger: "form[name=claim_reward] button[name='o_loyalty_claim']:contains('Use')",
+            trigger:
+                "form[name=claim_reward] button[name='o_loyalty_claim']:contains('Use')",
             run: "click",
             expectUnloadPage: true,
         },
@@ -94,7 +94,8 @@ webTours.add("update_shipping_after_discount", {
         },
         {
             content: "Check pay with eWallet is applied",
-            trigger: ".o_cart_product [name=website_sale_cart_line_price]:contains(- 100.00)",
+            trigger:
+                ".o_cart_product [name=website_sale_cart_line_price]:contains(- 100.00)",
         },
         goToCheckout(),
         selectDelivery("delivery1"),
@@ -121,11 +122,12 @@ webTours.add("update_shipping_after_discount", {
         }),
         {
             content: "check discount code discount doesn't apply to shipping",
-            trigger: '[data-reward-type=discount] .oe_currency_value:text(- 50.00)',
+            trigger: "[data-reward-type=discount] .oe_currency_value:text(- 50.00)",
         },
         {
-            content: "check eWallet discount applies to shipping ($50 for Plumbus + $5 for delivery)",
-            trigger: '[data-reward-type=discount] .oe_currency_value:text(- 55.00)',
+            content:
+                "check eWallet discount applies to shipping ($50 for Plumbus + $5 for delivery)",
+            trigger: "[data-reward-type=discount] .oe_currency_value:text(- 55.00)",
         },
     ],
 });

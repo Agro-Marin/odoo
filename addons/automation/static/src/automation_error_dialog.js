@@ -16,11 +16,11 @@ export class AutomationErrorDialog extends RPCErrorDialog {
         this.orm = useService("orm");
     }
 
-    async disableAutomation(ev) {
+    async disableAutomation() {
         await this.orm.write("automation.rule", [this.automationId], { active: false });
         this.props.close();
     }
-    editAutomation(ev) {
+    editAutomation() {
         this.actionService.doAction({
             name: "Automation Rules",
             res_model: "automation.rule",

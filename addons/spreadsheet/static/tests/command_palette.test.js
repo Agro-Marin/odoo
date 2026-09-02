@@ -1,11 +1,11 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { mountSpreadsheet } from "@spreadsheet/../tests/helpers/ui";
-import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
-import { animationFrame } from "@odoo/hoot-mock";
 import { press } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
 import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
-import { WebClient } from "@web/webclient/webclient";
+import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
+import { mountSpreadsheet } from "@spreadsheet/../tests/helpers/ui";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { WebClient } from "@web/webclient/webclient";
 
 const serverData = /** @type {ServerData} */ ({});
 

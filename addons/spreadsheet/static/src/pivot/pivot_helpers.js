@@ -80,7 +80,9 @@ export function parseGroupField(allFields, groupFieldString) {
     if (isDateOrDatetimeField(field)) {
         granularity = granularity || "month";
     }
-    const dimensionWithGranularity = granularity ? `${fieldName}:${granularity}` : fieldName;
+    const dimensionWithGranularity = granularity
+        ? `${fieldName}:${granularity}`
+        : fieldName;
     return {
         isPositional,
         field,
@@ -98,7 +100,10 @@ export async function getRelationalFieldDefinition(resModel, fieldName, fieldSer
     return {
         ...modelsInfo.at(-1).fieldDefs[fieldName.split(".").at(-1)],
         string: names
-            .map((name, i) => modelsInfo[i].fieldDefs[name]?.string || _t("Unnamed Field"))
+            .map(
+                (name, i) =>
+                    modelsInfo[i].fieldDefs[name]?.string || _t("Unnamed Field"),
+            )
             .join(" > "),
         name: fieldName,
     };

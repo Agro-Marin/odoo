@@ -7,7 +7,7 @@ import { standardActionServiceProps } from "@web/webclient/actions";
 import { BarcodeScanner } from "@barcodes/components/barcode_scanner";
 
 export class BadgeScanner extends Component {
-    static template = "hr.BadgeScannerTemplate"
+    static template = "hr.BadgeScannerTemplate";
     static components = { BarcodeScanner };
     static props = {
         ...standardActionServiceProps,
@@ -18,7 +18,11 @@ export class BadgeScanner extends Component {
         this.actionService = useService("action");
         this.orm = useService("orm");
         onWillStart(async () => {
-            this.employee = await this.orm.read("hr.employee", [this.employeeId], ["name"]);
+            this.employee = await this.orm.read(
+                "hr.employee",
+                [this.employeeId],
+                ["name"],
+            );
         });
     }
 
@@ -35,15 +39,19 @@ export class BadgeScanner extends Component {
             });
             return;
         }
-        try{
-            await this.orm.write("hr.employee", [this.employee[0].id], { barcode: barcode })
-            this.env.config.historyBack();
-            this.notification.add((_t("Badge updated: ") + barcode), { type: "success" });
-        }
-        catch(error){
-            this.notification.add(_t("Failed to update badge: ") + error?.data?.message, {
-                type: "danger",
+        try {
+            await this.orm.write("hr.employee", [this.employee[0].id], {
+                barcode: barcode,
             });
+            this.env.config.historyBack();
+            this.notification.add(_t("Badge updated: ") + barcode, { type: "success" });
+        } catch (error) {
+            this.notification.add(
+                _t("Failed to update badge: ") + error?.data?.message,
+                {
+                    type: "danger",
+                },
+            );
         }
     }
 

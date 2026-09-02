@@ -305,21 +305,23 @@ registry.category("web_tour.tours").add("self_order_mobile_special_products_cate
     ],
 });
 
-registry.category("web_tour.tours").add("self_mobile_auto_table_selection_takeaway_in", {
-    steps: () => [
-        Utils.checkIsNoBtn("My Order"),
-        Utils.clickBtn("Order Now"),
-        LandingPage.selectLocation("Test-In"),
-        ProductPage.clickProduct("Coca-Cola"),
-        Utils.clickBtn("Checkout"),
-        CartPage.checkProduct("Coca-Cola", "2.53", "1"),
-        Utils.clickBtn("Order"),
-        CartPage.checkNoTableSelector(),
-        ConfirmationPage.isShown(),
-        Utils.clickBtn("Ok"),
-        Utils.checkIsNoBtn("Order Now"),
-    ],
-});
+registry
+    .category("web_tour.tours")
+    .add("self_mobile_auto_table_selection_takeaway_in", {
+        steps: () => [
+            Utils.checkIsNoBtn("My Order"),
+            Utils.clickBtn("Order Now"),
+            LandingPage.selectLocation("Test-In"),
+            ProductPage.clickProduct("Coca-Cola"),
+            Utils.clickBtn("Checkout"),
+            CartPage.checkProduct("Coca-Cola", "2.53", "1"),
+            Utils.clickBtn("Order"),
+            CartPage.checkNoTableSelector(),
+            ConfirmationPage.isShown(),
+            Utils.clickBtn("Ok"),
+            Utils.checkIsNoBtn("Order Now"),
+        ],
+    });
 
 registry.category("web_tour.tours").add("test_self_order_product_availability", {
     steps: () => [
@@ -338,7 +340,7 @@ registry.category("web_tour.tours").add("test_self_order_product_availability", 
         Utils.setProductAvailability("Office Combo", false),
         Utils.clickBtn("Order"),
         Dialog.bodyIs(
-            "It seems that Office Combo is no longer available. Please go back and edit your order."
+            "It seems that Office Combo is no longer available. Please go back and edit your order.",
         ),
         Dialog.confirm("OK"),
         // Add 'Combo Product 4' again and mark 'Combo Product 5' available, then unavailable after adding to cart
@@ -350,7 +352,7 @@ registry.category("web_tour.tours").add("test_self_order_product_availability", 
         Utils.setProductAvailability("Combo Product 5", false),
         Utils.clickBtn("Order"),
         Dialog.bodyIs(
-            "It seems that Combo Product 5 is no longer available. Please go back and edit your order."
+            "It seems that Combo Product 5 is no longer available. Please go back and edit your order.",
         ),
         Dialog.confirm("OK"),
         Utils.clickBtn("Order"),
@@ -387,7 +389,12 @@ const createPaidOrder = [
 
 registry.category("web_tour.tours").add("test_order_sequence_in_self", {
     steps: () =>
-        [...createPaidOrder, ...createPaidOrder, ...createPaidOrder, ...createPaidOrder].flat(),
+        [
+            ...createPaidOrder,
+            ...createPaidOrder,
+            ...createPaidOrder,
+            ...createPaidOrder,
+        ].flat(),
 });
 
 registry.category("web_tour.tours").add("test_sub_categories_products_displayed", {

@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { constants, coreTypes } from "@odoo/o-spreadsheet";
 import { OdooCorePlugin } from "@spreadsheet/plugins";
-import { coreTypes, constants } from "@odoo/o-spreadsheet";
 const { FIGURE_ID_SPLITTER } = constants;
 
 /** Plugin that link charts with Odoo menus. It can contain either the Id of the odoo menu, or its xml id. */

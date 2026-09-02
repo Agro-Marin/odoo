@@ -11,7 +11,9 @@ export class ProfileValidation extends Interaction {
         ".send_validation_email": {
             "t-on-click.prevent.withTarget": this.locked(this.onSendMailClick, true),
         },
-        ".validated_email_close": { "t-on-click": () => rpc("/profile/validate_email/close") },
+        ".validated_email_close": {
+            "t-on-click": () => rpc("/profile/validate_email/close"),
+        },
     };
 
     /**
@@ -19,9 +21,11 @@ export class ProfileValidation extends Interaction {
      * @param {HTMLElement} currentTargetEl
      */
     async onSendMailClick(ev, currentTargetEl) {
-        const data = await this.waitFor(rpc('/profile/send_validation_email', {
-            redirect_url: currentTargetEl.dataset["redirect_url"],
-        }));
+        const data = await this.waitFor(
+            rpc("/profile/send_validation_email", {
+                redirect_url: currentTargetEl.dataset["redirect_url"],
+            }),
+        );
         if (data) {
             redirect(currentTargetEl.dataset["redirect_url"]);
             return new Promise(() => {});

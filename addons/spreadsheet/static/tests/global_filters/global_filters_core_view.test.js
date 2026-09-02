@@ -1,12 +1,11 @@
 /** @ts-check */
 import { describe, expect, test } from "@odoo/hoot";
-
 import { Model } from "@odoo/o-spreadsheet";
-import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import {
     addGlobalFilterWithoutReload,
     setGlobalFilterValueWithoutReload,
 } from "@spreadsheet/../tests/helpers/commands";
+import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { RELATIVE_PERIODS } from "@spreadsheet/global_filters/helpers";
 
 describe.current.tags("headless");

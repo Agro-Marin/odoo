@@ -85,7 +85,7 @@ export function useDocumentView(helpers) {
     const _openAutomations = async ({ folderId, folderDisplayName }) => {
         const checkAutomationRule = await orm.call(
             "documents.document",
-            "check_automation_available"
+            "check_automation_available",
         );
         if (!checkAutomationRule) {
             const UpsellDialog = registry
@@ -98,20 +98,26 @@ export function useDocumentView(helpers) {
             }
             return notification.add(
                 _t("Install an automation app to build rules on this folder."),
-                { title: _t("Access to Automations"), type: "info" }
+                { title: _t("Access to Automations"), type: "info" },
             );
         }
-        const userHasAccessRight = await user.checkAccessRight("automation.rule", "create");
+        const userHasAccessRight = await user.checkAccessRight(
+            "automation.rule",
+            "create",
+        );
         if (!userHasAccessRight) {
-            return notification.add(_t("Contact your Administrator to get access if needed."), {
-                title: _t("Access to Automations"),
-                type: "info",
-            });
+            return notification.add(
+                _t("Contact your Administrator to get access if needed."),
+                {
+                    title: _t("Access to Automations"),
+                    type: "info",
+                },
+            );
         }
         const documentsModelId = await orm.search(
             "ir.model",
             [["model", "=", "documents.document"]],
-            { limit: 1 }
+            { limit: 1 },
         );
         return await action.doAction("automation.automation_act", {
             additionalContext: {
@@ -204,14 +210,20 @@ export function useDocumentView(helpers) {
             action.doAction("documents.action_folder_form", {
                 additionalContext: {
                     default_type: "folder",
-                    default_user_folder_id: currentFolder ? currentFolder.toString() : "MY",
-                    ...(currentFolder === "COMPANY" ? { default_access_internal: "edit" } : {}),
+                    default_user_folder_id: currentFolder
+                        ? currentFolder.toString()
+                        : "MY",
+                    ...(currentFolder === "COMPANY"
+                        ? { default_access_internal: "edit" }
+                        : {}),
                 },
                 fullscreen: env.isSmall,
                 onClose: async () => {
                     await env.searchModel._reloadSearchModel(true);
                     bus.trigger("documents-expand-folder", {
-                        folderId: [false, "COMPANY"].includes(currentFolder) ? "MY" : currentFolder,
+                        folderId: [false, "COMPANY"].includes(currentFolder)
+                            ? "MY"
+                            : currentFolder,
                     });
                 },
             });
@@ -266,10 +278,16 @@ function useDocumentsViewFilePreviewer({
                     }) => {
                         forceDelete = isForcingDelete;
                         if (documentIds && documentIds.length) {
-                            newDocumentIds = [...new Set(newDocumentIds.concat(documentIds))];
+                            newDocumentIds = [
+                                ...new Set(newDocumentIds.concat(documentIds)),
+                            ];
                         }
                         if (actionId) {
-                            await component.embeddedAction(documentIds, actionId, !exit);
+                            await component.embeddedAction(
+                                documentIds,
+                                actionId,
+                                !exit,
+                            );
                         }
                     },
                 },
@@ -285,12 +303,12 @@ function useDocumentsViewFilePreviewer({
                             }
                         }
                         for (const record of env.model.root.records.filter((r) =>
-                            newDocumentIds.includes(r.resId)
+                            newDocumentIds.includes(r.resId),
                         )) {
                             record.toggleSelection(true);
                         }
                     },
-                }
+                },
             );
         };
         if (isPdfSplit) {
@@ -325,7 +343,7 @@ function useDocumentsViewFilePreviewer({
             component.root?.el?.querySelector(".o_documents_view");
         documentsViewEl()?.classList.add("overflow-hidden");
         const selectedDocument = documentsRecords.find(
-            (rec) => rec.id === (mainDocument || documents[0]).resId
+            (rec) => rec.id === (mainDocument || documents[0]).resId,
         );
         documentService.documentList = {
             documents: documentsRecords || [],
@@ -336,7 +354,7 @@ function useDocumentsViewFilePreviewer({
                 if (elements.length) {
                     elements[0].focus();
                     const focusedDocument = documentService.documentList.documents.find(
-                        (d) => d.record.id === elements[0].dataset.id
+                        (d) => d.record.id === elements[0].dataset.id,
                     );
                     documentService.focusRecord(focusedDocument?.record || null);
                 }
@@ -430,7 +448,9 @@ function useDocumentsViewFileUpload() {
             return;
         }
         component.model.root.selection.forEach((el) => el.toggleSelection(false));
-        const newRecords = env.model.root.records.filter((r) => newDocumentIds.includes(r.resId));
+        const newRecords = env.model.root.records.filter((r) =>
+            newDocumentIds.includes(r.resId),
+        );
         newRecords.map((record) => record.toggleSelection(true));
         documentService.focusRecord(newRecords[0]);
     });
@@ -488,19 +508,21 @@ export function useEmbeddedAction() {
                 [actionId],
                 {
                     context,
-                }
+                },
             );
 
             if (result && typeof result === "object") {
                 if (Object.prototype.hasOwnProperty.call(result, "warning")) {
                     notification.add(
                         markup`<ul>${htmlJoin(
-                            result["warning"]["documents"].map((d) => markup`<li>${d}</li>`)
+                            result["warning"]["documents"].map(
+                                (d) => markup`<li>${d}</li>`,
+                            ),
                         )}</ul>`,
                         {
                             title: result["warning"]["title"],
                             type: "danger",
-                        }
+                        },
                     );
                     if (!preventReload) {
                         await env.model.load();

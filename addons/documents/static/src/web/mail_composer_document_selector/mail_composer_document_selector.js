@@ -14,7 +14,10 @@ export class MailComposerDocumentSelector extends Component {
 
     setup() {
         this.dialogService = useService("dialog");
-        this.operations = useX2ManyCrud(() => this.props.record.data["attachment_ids"], true);
+        this.operations = useX2ManyCrud(
+            () => this.props.record.data["attachment_ids"],
+            true,
+        );
     }
 
     saveRecordHandler = async (idArray) => {

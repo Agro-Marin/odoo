@@ -1,9 +1,8 @@
 /** @odoo-module native */
-import { patch } from '@web/core/utils/patch';
-import { PaymentButton } from '@payment/interactions/payment_button';
+import { patch } from "@web/core/utils/patch";
+import { PaymentButton } from "@payment/interactions/payment_button";
 
 patch(PaymentButton.prototype, {
-
     /**
      * Hide the disabled PayPal buttons and show the enabled ones.
      *
@@ -18,11 +17,13 @@ patch(PaymentButton.prototype, {
         }
 
         const paypalButtons = document.querySelectorAll(
-            '[id^="o_paypal_disabled_button"], [id^="o_paypal_enabled_button"]'
+            '[id^="o_paypal_disabled_button"], [id^="o_paypal_enabled_button"]',
         );
-        paypalButtons.forEach(button => {
-            const action = button.id.startsWith('o_paypal_disabled_button') ? 'add' : 'remove';
-            button.classList[action]('d-none');
+        paypalButtons.forEach((button) => {
+            const action = button.id.startsWith("o_paypal_disabled_button")
+                ? "add"
+                : "remove";
+            button.classList[action]("d-none");
         });
     },
 
@@ -40,11 +41,13 @@ patch(PaymentButton.prototype, {
         }
 
         const paypalButtons = document.querySelectorAll(
-            '[id^="o_paypal_disabled_button"], [id^="o_paypal_enabled_button"]'
+            '[id^="o_paypal_disabled_button"], [id^="o_paypal_enabled_button"]',
         );
-        paypalButtons.forEach(button => {
-            const action = button.id.startsWith('o_paypal_enabled_button') ? 'add' : 'remove';
-            button.classList[action]('d-none');
+        paypalButtons.forEach((button) => {
+            const action = button.id.startsWith("o_paypal_enabled_button")
+                ? "add"
+                : "remove";
+            button.classList[action]("d-none");
         });
     },
 
@@ -73,5 +76,4 @@ patch(PaymentButton.prototype, {
             super._show();
         }
     },
-
 });

@@ -1,11 +1,16 @@
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
-import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
 import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import * as PartnerList from "@point_of_sale/../tests/pos/tours/utils/partner_list_util";
+import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
 import { registry } from "@web/core/registry";
-import { checkSimplifiedInvoiceNumber, checkCompanyState, pay } from "./utils/receipt_util.js";
+
+import {
+    checkCompanyState,
+    checkSimplifiedInvoiceNumber,
+    pay,
+} from "./utils/receipt_util.js";
 
 const SIMPLIFIED_INVOICE_LIMIT = 1000;
 
@@ -64,7 +69,13 @@ registry.category("web_tour.tours").add("l10n_es_pos_settle_account_due", {
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
             ProductScreen.clickPartnerButton(),
-            PartnerList.settleCustomerAccount("Partner Test 1", "10.0", "TSJ/", "/00001", true),
+            PartnerList.settleCustomerAccount(
+                "Partner Test 1",
+                "10.0",
+                "TSJ/",
+                "/00001",
+                true,
+            ),
             ProductScreen.clickPayButton(),
             PaymentScreen.clickPaymentMethod("Bank"),
             PaymentScreen.clickValidate(),
@@ -76,17 +87,19 @@ registry.category("web_tour.tours").add("l10n_es_pos_settle_account_due", {
         ].flat(),
 });
 
-registry.category("web_tour.tours").add("test_simplified_invoice_not_override_set_pricelist", {
-    steps: () =>
-        [
-            Chrome.startPoS(),
-            Dialog.confirm("Open Register"),
-            ProductScreen.addOrderline("Desk Pad", "1"),
-            ProductScreen.clickPriceList("Test pricelist"),
-            ProductScreen.clickFiscalPosition("Original Tax"),
-            ProductScreen.clickPayButton(),
-            PaymentScreen.clickPaymentMethod("Cash"),
-            PaymentScreen.clickValidate(),
-            ReceiptScreen.isShown(),
-        ].flat(),
-});
+registry
+    .category("web_tour.tours")
+    .add("test_simplified_invoice_not_override_set_pricelist", {
+        steps: () =>
+            [
+                Chrome.startPoS(),
+                Dialog.confirm("Open Register"),
+                ProductScreen.addOrderline("Desk Pad", "1"),
+                ProductScreen.clickPriceList("Test pricelist"),
+                ProductScreen.clickFiscalPosition("Original Tax"),
+                ProductScreen.clickPayButton(),
+                PaymentScreen.clickPaymentMethod("Cash"),
+                PaymentScreen.clickValidate(),
+                ReceiptScreen.isShown(),
+            ].flat(),
+    });

@@ -124,7 +124,8 @@ export class BuilderList extends Component {
         if (!ev.currentTarget.dataset.id) {
             items.push(this.makeDefaultItem());
         } else {
-            const matchId = (el) => el.id.toString() === ev.currentTarget.dataset.id.toString();
+            const matchId = (el) =>
+                el.id.toString() === ev.currentTarget.dataset.id.toString();
             const elementToAdd = this.allRecords.find(matchId);
             if (!items.some(matchId)) {
                 items.push(elementToAdd);
@@ -185,7 +186,10 @@ export class BuilderList extends Component {
         const value = isCheckbox ? targetInputEl.checked : targetInputEl.value;
 
         const items = this.formatRawValue(this.state.value);
-        if (value === true && this.props.itemShape[propertyName] === "exclusive_boolean") {
+        if (
+            value === true &&
+            this.props.itemShape[propertyName] === "exclusive_boolean"
+        ) {
             for (const item of items) {
                 item[propertyName] = false;
             }

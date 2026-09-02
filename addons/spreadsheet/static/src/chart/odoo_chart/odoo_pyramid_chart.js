@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
-import { onOdooChartItemClick,onOdooChartItemHover } from "./odoo_chart_helpers.js";
+import { onOdooChartItemClick, onOdooChartItemHover } from "./odoo_chart_helpers.js";
 
 const { chartRegistry } = registries;
 
@@ -41,7 +41,8 @@ chartRegistry.add("odoo_pyramid", {
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooPyramidChart.validateChartDefinition(validator, definition),
-    transformDefinition: (definition) => OdooPyramidChart.transformDefinition(definition),
+    transformDefinition: (definition) =>
+        OdooPyramidChart.transformDefinition(definition),
     getChartDefinitionFromContextCreation: () =>
         OdooPyramidChart.getDefinitionFromContextCreation(),
     name: _t("Pyramid"),
@@ -66,7 +67,10 @@ function createOdooChartRuntime(chart, getters) {
 
     const chartData = {
         labels,
-        dataSetsValues: pyramidDatasets.map((ds) => ({ data: ds.data, label: ds.label })),
+        dataSetsValues: pyramidDatasets.map((ds) => ({
+            data: ds.data,
+            label: ds.label,
+        })),
         locale,
     };
 

@@ -22,7 +22,8 @@ function websiteCreateEventTourSteps() {
         },
         {
             trigger: '.modal-dialog .o_field_widget[name="name"] .o_input',
-            content: "Create a name for your new event and click Continue. e.g: Technical Training",
+            content:
+                "Create a name for your new event and click Continue. e.g: Technical Training",
             run: "edit Technical Training",
             tooltipPosition: "left",
         },
@@ -98,7 +99,9 @@ function websiteEditEventTourSteps() {
             content: "edit the short description of the event",
             trigger: ":iframe .opt_events_list_columns",
             run: function () {
-                const descriptionEl = this.anchor.querySelector("[itemprop='description']");
+                const descriptionEl = this.anchor.querySelector(
+                    "[itemprop='description']",
+                );
                 descriptionEl.textContent = "new short description";
                 const editor = editorsWeakMap.get(this.anchor.ownerDocument);
                 editor.shared.history.addStep();
@@ -107,7 +110,8 @@ function websiteEditEventTourSteps() {
         ...clickOnSave(),
         {
             content: "is short description updated?",
-            trigger: ":iframe .opt_events_list_columns small:contains('new short description')",
+            trigger:
+                ":iframe .opt_events_list_columns small:contains('new short description')",
         },
     ];
 }
@@ -117,5 +121,5 @@ registerWebsitePreviewTour(
     {
         url: "/",
     },
-    () => [...websiteCreateEventTourSteps(), ...websiteEditEventTourSteps()]
+    () => [...websiteCreateEventTourSteps(), ...websiteEditEventTourSteps()],
 );

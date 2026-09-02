@@ -68,7 +68,8 @@ registry.category("web_tour.tours").add("PayementScreenQRISFetchQR", {
             PaymentScreen.clickPaymentMethod("QRIS", true),
             {
                 isActive: ["body:has(.modal)"],
-                content: "close error modal: there is already an electronic payment in progress",
+                content:
+                    "close error modal: there is already an electronic payment in progress",
                 trigger: ".modal .btn:contains(ok)",
                 run: "click",
             },
@@ -94,7 +95,8 @@ registry.category("web_tour.tours").add("PayementScreenQRISChangeAmount", {
             PaymentScreen.clickPaymentMethod("QRIS", true, { amount: "2,000.00" }),
             {
                 isActive: ["body:has(.modal)"],
-                content: "close error modal: there is already an electronic payment in progress",
+                content:
+                    "close error modal: there is already an electronic payment in progress",
                 trigger: ".modal .btn:contains(ok)",
                 run: "click",
             },

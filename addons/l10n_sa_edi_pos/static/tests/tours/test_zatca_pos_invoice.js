@@ -15,7 +15,9 @@ registry.category("web_tour.tours").add("ZATCA_invoice_not_mandatory_if_settleme
                 trigger: "body",
                 run: () => {
                     posmodel.selectedOrder.is_settling_account = true;
-                    posmodel.navigate("PaymentScreen", { orderUuid: posmodel.selectedOrderUuid });
+                    posmodel.navigate("PaymentScreen", {
+                        orderUuid: posmodel.selectedOrderUuid,
+                    });
                 },
             },
             PaymentScreen.clickPartnerButton(),
@@ -34,7 +36,9 @@ registry.category("web_tour.tours").add("ZATCA_invoice_mandatory_if_not_settleme
                 trigger: "body",
                 run: () => {
                     posmodel.selectedOrder.is_settling_account = false;
-                    posmodel.navigate("PaymentScreen", { orderUuid: posmodel.selectedOrderUuid });
+                    posmodel.navigate("PaymentScreen", {
+                        orderUuid: posmodel.selectedOrderUuid,
+                    });
                 },
             },
             PaymentScreen.clickPartnerButton(),

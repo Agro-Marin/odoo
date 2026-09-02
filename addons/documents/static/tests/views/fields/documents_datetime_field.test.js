@@ -1,7 +1,13 @@
 import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { mockDate, mockTimeZone } from "@odoo/hoot-mock";
-import { contains, defineModels, fields, models, mountView } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineModels,
+    fields,
+    models,
+    mountView,
+} from "@web/../tests/web_test_helpers";
 
 class Partner extends models.Model {
     date = fields.Date({ string: "A date", searchable: true });
@@ -29,7 +35,7 @@ test("Document datetime in form", async () => {
         arch: '<form><field name="datetime" widget="documents_datetime"/></form>',
     });
     expect(
-        ".o_field_widget[name=datetime] div[title='A datetime']:contains(02/08/2017)"
+        ".o_field_widget[name=datetime] div[title='A datetime']:contains(02/08/2017)",
     ).toHaveCount(1);
     await contains(".o_field_widget[name=datetime] .fa-edit").click();
     await contains(".o_date_item_cell:contains(27)").click();
@@ -55,8 +61,12 @@ test("Document datetime and datetime bouton in form", async () => {
     await contains(".o_field_widget[name=datetime] .fa-times").click();
     expect(".o_field_documents_datetime[name=datetime]").toHaveCount(0);
     expect(".o_field_documents_datetime_btn[name=datetime]").toHaveCount(1);
-    expect(".o_field_documents_datetime_btn[name=datetime] button").toHaveClass("btn-primary");
-    expect(".o_field_documents_datetime_btn[name=datetime] i").toHaveClass("fa-calendar");
+    expect(".o_field_documents_datetime_btn[name=datetime] button").toHaveClass(
+        "btn-primary",
+    );
+    expect(".o_field_documents_datetime_btn[name=datetime] i").toHaveClass(
+        "fa-calendar",
+    );
 });
 
 test("Document datetime bouton options in form", async () => {
@@ -70,7 +80,13 @@ test("Document datetime bouton options in form", async () => {
                </form>`,
     });
     expect(".o_field_documents_datetime_btn[name=datetime] i").toHaveClass("fa-plus");
-    expect(".o_field_documents_datetime_btn[name=datetime] i").not.toHaveClass("fa-calendar");
-    expect(".o_field_documents_datetime_btn[name=datetime] button").toHaveClass("btn-secondary");
-    expect(".o_field_documents_datetime_btn[name=datetime] button").not.toHaveClass("btn-primary");
+    expect(".o_field_documents_datetime_btn[name=datetime] i").not.toHaveClass(
+        "fa-calendar",
+    );
+    expect(".o_field_documents_datetime_btn[name=datetime] button").toHaveClass(
+        "btn-secondary",
+    );
+    expect(".o_field_documents_datetime_btn[name=datetime] button").not.toHaveClass(
+        "btn-primary",
+    );
 });

@@ -31,6 +31,6 @@ export const documentsCogMenuItemShortcut = {
             ({ folder, documentService }) =>
                 documentService.isEditable(folder) &&
                 !folder.shortcut_document_id &&
-                typeof folder.folder_id === "number"
+                typeof folder.folder_id === "number",
         ),
 };

@@ -11,7 +11,12 @@ import {
     mailModels,
 } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, describe, expect, getFixture, test } from "@odoo/hoot";
-import { asyncStep, onRpc, waitForSteps, defineModels } from "@web/../tests/web_test_helpers";
+import {
+    asyncStep,
+    onRpc,
+    waitForSteps,
+    defineModels,
+} from "@web/../tests/web_test_helpers";
 import { analyticModels } from "@analytic/../tests/analytic_test_helpers";
 import { ProjectTask } from "@project/../tests/mock_server/mock_models/project_task";
 import { SaleOrderLine } from "@sale/../tests/mock_server/mock_models/sale_order_line";
@@ -74,7 +79,9 @@ test("Check whether so_line_field widget works as intended in list view", async 
     });
     await openListView("account.analytic.line");
     await click(".o_data_cell");
-    await insertText(".o_field_widget[name=so_line] input", "Sale Order Line 2", { replace: true });
+    await insertText(".o_field_widget[name=so_line] input", "Sale Order Line 2", {
+        replace: true,
+    });
     await contains(".ui-autocomplete");
     await click(target.querySelector(".ui-menu-item"));
     await click(target.querySelector(".o_searchview_input"));
@@ -90,7 +97,9 @@ test("Check whether so_line_field widget works as intended in sub-tree view of t
     });
     await openFormView("project.task");
     await click(".o_field_x2many_list_row_add a");
-    await insertText(".o_field_widget[name=so_line] input", "Sale Order Line 2", { replace: true });
+    await insertText(".o_field_widget[name=so_line] input", "Sale Order Line 2", {
+        replace: true,
+    });
     await contains(".ui-autocomplete");
     await click(target.querySelector(".ui-menu-item"));
     await click(".o_form_button_save");
@@ -99,12 +108,13 @@ test("Check whether so_line_field widget works as intended in sub-tree view of t
 
 test("Check placeholder string when no so_line linked", async () => {
     pyEnv["account.analytic.line"].create({ so_line: false });
-    pyEnv["account.analytic.line"]._fields.so_line["falsy_value_label"] = "Non-billable";
+    pyEnv["account.analytic.line"]._fields.so_line["falsy_value_label"] =
+        "Non-billable";
 
     await start();
     await openListView("account.analytic.line");
     expect(".o_field_so_line_field.o_field_empty").toHaveText("Non-billable", {
-        message: "Should display 'Non-billable' as placeholder for empty so_line field.",
+        message:
+            "Should display 'Non-billable' as placeholder for empty so_line field.",
     });
-
 });

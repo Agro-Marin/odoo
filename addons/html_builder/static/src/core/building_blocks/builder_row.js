@@ -4,6 +4,7 @@ import { localization } from "@web/core/l10n/localization";
 import { useTransition } from "@web/core/transition";
 import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
+
 import {
     basicContainerBuilderComponentProps,
     useApplyVisibility,
@@ -28,7 +29,11 @@ export class BuilderRow extends Component {
         disabled: { type: Boolean, optional: true },
         fullRowToggler: { type: Boolean, optional: true },
     };
-    static defaultProps = { expand: false, observeCollapseContent: false, fullRowToggler: false };
+    static defaultProps = {
+        expand: false,
+        observeCollapseContent: false,
+        fullRowToggler: false,
+    };
 
     setup() {
         useBuilderComponent();
@@ -87,7 +92,9 @@ export class BuilderRow extends Component {
                 switch (stage) {
                     case "enter-active": {
                         contentEl.style.height = contentEl.scrollHeight + "px";
-                        contentEl.addEventListener("transitionend", setHeightAuto, { once: true });
+                        contentEl.addEventListener("transitionend", setHeightAuto, {
+                            once: true,
+                        });
                         break;
                     }
                     case "leave": {
@@ -99,7 +106,7 @@ export class BuilderRow extends Component {
                     }
                 }
             },
-            () => [this.transition.stage]
+            () => [this.transition.stage],
         );
         this.tooltip = useService("tooltip");
 
@@ -107,7 +114,9 @@ export class BuilderRow extends Component {
     }
 
     getLevelClass() {
-        return this.props.level ? `hb-row-sublevel hb-row-sublevel-${this.props.level}` : "";
+        return this.props.level
+            ? `hb-row-sublevel hb-row-sublevel-${this.props.level}`
+            : "";
     }
 
     onRowContentClick() {
@@ -126,7 +135,8 @@ export class BuilderRow extends Component {
     }
 
     get collapseContentClass() {
-        const isNotVisible = this.props.observeCollapseContent && !this.transition.shouldMount;
+        const isNotVisible =
+            this.props.observeCollapseContent && !this.transition.shouldMount;
         return `${this.transition.className} ${isNotVisible ? "d-none" : ""}`;
     }
 
@@ -213,7 +223,8 @@ function applyLineOffset(rowEl, previousRowEl) {
         return;
     }
     const offset =
-        previousLabelEl.getBoundingClientRect().bottom - labelEl.getBoundingClientRect().top;
+        previousLabelEl.getBoundingClientRect().bottom -
+        labelEl.getBoundingClientRect().top;
     if (offset < 0) {
         labelEl.style.setProperty("--o-hb-row-sublevel-top", `${offset}px`);
     }
@@ -221,7 +232,7 @@ function applyLineOffset(rowEl, previousRowEl) {
 
 function getRowLevel(rowEl) {
     const sublevelClass = [...rowEl.classList].find((className) =>
-        className.startsWith("hb-row-sublevel-")
+        className.startsWith("hb-row-sublevel-"),
     );
     if (!sublevelClass) {
         return 0;

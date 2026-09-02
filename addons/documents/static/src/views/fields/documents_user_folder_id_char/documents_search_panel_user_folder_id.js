@@ -53,7 +53,7 @@ export class DocumentsSearchPanelUserFolderId extends Component {
                 "documents.document",
                 "search_panel_select_range",
                 ["user_folder_id"],
-                {}
+                {},
             );
             const values = result.values
                 .filter((v) => !this.constructor.excludedValues.includes(v.id))
@@ -105,7 +105,9 @@ export class DocumentsSearchPanelUserFolderId extends Component {
 
     onClickClear() {
         this.inputRef.el.value = "";
-        this.inputRef.el.dispatchEvent(new CustomEvent("change", { detail: { value: "" } }));
+        this.inputRef.el.dispatchEvent(
+            new CustomEvent("change", { detail: { value: "" } }),
+        );
     }
 
     /**
@@ -124,7 +126,7 @@ export class DocumentsSearchPanelUserFolderId extends Component {
                 Object.assign({}, value, {
                     parentId,
                     childrenIds: [],
-                })
+                }),
             );
         }
 

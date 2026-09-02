@@ -1,5 +1,5 @@
 /** @odoo-module native */
-const WISHLIST_PRODUCT_IDS_SESSION_NAME = 'wishlist_product_ids';
+const WISHLIST_PRODUCT_IDS_SESSION_NAME = "wishlist_product_ids";
 
 /**
  * Get the IDs of the products in the wishlist from the session.
@@ -7,7 +7,9 @@ const WISHLIST_PRODUCT_IDS_SESSION_NAME = 'wishlist_product_ids';
  * @return {Array<number>} The IDs of the products in the wishlist.
  */
 function getWishlistProductIds() {
-    return JSON.parse(sessionStorage.getItem(WISHLIST_PRODUCT_IDS_SESSION_NAME) || '[]');
+    return JSON.parse(
+        sessionStorage.getItem(WISHLIST_PRODUCT_IDS_SESSION_NAME) || "[]",
+    );
 }
 
 /**
@@ -17,7 +19,8 @@ function getWishlistProductIds() {
  */
 function setWishlistProductIds(productIds) {
     sessionStorage.setItem(
-        WISHLIST_PRODUCT_IDS_SESSION_NAME, JSON.stringify(Array.from(productIds))
+        WISHLIST_PRODUCT_IDS_SESSION_NAME,
+        JSON.stringify(Array.from(productIds)),
     );
 }
 
@@ -48,23 +51,24 @@ function removeWishlistProduct(productId) {
  */
 function updateWishlistNavBar() {
     const wishlistProductIds = getWishlistProductIds();
-    const wishButtons = document.querySelectorAll('.o_wsale_my_wish');
-    wishButtons.forEach(button => {
-        if (button.classList.contains('o_wsale_my_wish_hide_empty')) {
-            button.classList.toggle('d-none', !wishlistProductIds.length);
+    const wishButtons = document.querySelectorAll(".o_wsale_my_wish");
+    wishButtons.forEach((button) => {
+        if (button.classList.contains("o_wsale_my_wish_hide_empty")) {
+            button.classList.toggle("d-none", !wishlistProductIds.length);
         }
-        button.querySelector('.my_wish_quantity').textContent = `${wishlistProductIds.length}`;
+        button.querySelector(".my_wish_quantity").textContent =
+            `${wishlistProductIds.length}`;
     });
-    const wishlistQuantities = document.querySelectorAll('.my_wish_quantity');
-    wishlistQuantities.forEach(quantity => {
-        quantity.classList.toggle('d-none', !wishlistProductIds.length);
+    const wishlistQuantities = document.querySelectorAll(".my_wish_quantity");
+    wishlistQuantities.forEach((quantity) => {
+        quantity.classList.toggle("d-none", !wishlistProductIds.length);
     });
 }
 
 function updateWishlistView() {
     const wishlistProductIDs = getWishlistProductIds();
-    const wishlistEmptyEl = document.getElementById('empty-wishlist-message');
-    wishlistEmptyEl.classList.toggle('d-none', wishlistProductIDs.length > 0);
+    const wishlistEmptyEl = document.getElementById("empty-wishlist-message");
+    wishlistEmptyEl.classList.toggle("d-none", wishlistProductIDs.length > 0);
 }
 
 /**
@@ -75,7 +79,7 @@ function updateWishlistView() {
  */
 function updateDisabled(el, isDisabled) {
     el.disabled = isDisabled;
-    el.classList.toggle('disabled', isDisabled);
+    el.classList.toggle("disabled", isDisabled);
 }
 
 export default {

@@ -104,7 +104,7 @@ Thirteen of the floors, to fix the shape of the set:
      - ``py_typecheck.yml``
    * - ESLint
      - ``npx eslint . --format=json``
-     - all JS
+     - every JS/MJS the config does not ignore (vendored ``static/lib`` is) -- a **hard zero**
      - ``lint.yml``
    * - ``tsc``
      - ``npx tsc --project tsconfig.json --noEmit``

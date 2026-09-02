@@ -3,7 +3,7 @@ import { askRecurrenceUpdatePolicy } from "@calendar/views/ask_recurrence_update
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { ConfirmationDialog,deleteConfirmationMessage } from "@web/ui/dialog";
+import { ConfirmationDialog, deleteConfirmationMessage } from "@web/ui/dialog";
 import { CalendarModel } from "@web/views/calendar";
 
 export class AttendeeCalendarModel extends CalendarModel {
@@ -23,7 +23,9 @@ export class AttendeeCalendarModel extends CalendarModel {
         if (!this._loaded) {
             const [credentialStatus, syncStatus, defaultDuration] = await Promise.all([
                 rpc("/calendar/check_credentials"),
-                this.orm.call("res.users", "check_synchronization_status", [[user.userId]]),
+                this.orm.call("res.users", "check_synchronization_status", [
+                    [user.userId],
+                ]),
                 this.orm.call("calendar.event", "get_default_duration"),
             ]);
             this.syncStatus = syncStatus;
@@ -74,12 +76,19 @@ export class AttendeeCalendarModel extends CalendarModel {
      * @override
      */
     async loadFilterSection(fieldName, filterInfo, previousSection) {
-        const result = await super.loadFilterSection(fieldName, filterInfo, previousSection);
+        const result = await super.loadFilterSection(
+            fieldName,
+            filterInfo,
+            previousSection,
+        );
         if (result?.filters) {
             user.updateContext({
                 calendar_filters: {
-                    all: result?.filters?.find((f) => f.type == "all")?.active ?? false,
-                    user: result?.filters?.find((f) => f.type == "user")?.active ?? false,
+                    all:
+                        result?.filters?.find((f) => f.type === "all")?.active ?? false,
+                    user:
+                        result?.filters?.find((f) => f.type === "user")?.active ??
+                        false,
                 },
             });
         }
@@ -105,7 +114,9 @@ export class AttendeeCalendarModel extends CalendarModel {
         let attendeeIds = [];
         const eventIds = Object.keys(data.records).map((id) => Number.parseInt(id));
         if (attendeeFilters) {
-            const allFilter = attendeeFilters.filters.find((filter) => filter.type === "all");
+            const allFilter = attendeeFilters.filters.find(
+                (filter) => filter.type === "all",
+            );
             isEveryoneFilterActive = (allFilter && allFilter.active) || false;
             attendeeIds = attendeeFilters.filters
                 .filter((filter) => filter.type !== "all" && filter.value)
@@ -118,14 +129,17 @@ export class AttendeeCalendarModel extends CalendarModel {
         // Indexed once: the two loops below look a detail up per (record, attendee)
         // pair, which was a linear scan of the whole list every time.
         const attendeeByKey = new Map(
-            data.attendees.map((a) => [`${a.id},${a.event_id}`, a])
+            data.attendees.map((a) => [`${a.id},${a.event_id}`, a]),
         );
         const currentPartnerId = user.partnerId;
         if (!isEveryoneFilterActive && attendeeFilters) {
             const activeAttendeeIds = new Set(
                 attendeeFilters.filters
-                    .filter((filter) => filter.type !== "all" && filter.value && filter.active)
-                    .map((filter) => filter.value)
+                    .filter(
+                        (filter) =>
+                            filter.type !== "all" && filter.value && filter.active,
+                    )
+                    .map((filter) => filter.value),
             );
             // Duplicate records per attendee
             const newRecords = {};
@@ -154,7 +168,9 @@ export class AttendeeCalendarModel extends CalendarModel {
                         record.isCurrentPartner = attendeeInfo.id === currentPartnerId;
                         record.calendarAttendeeId = attendeeInfo.attendee_id;
                     }
-                    const recordId = duplicatedRecords ? duplicatedRecordIdx-- : record.id;
+                    const recordId = duplicatedRecords
+                        ? duplicatedRecordIdx--
+                        : record.id;
                     // Index in the records
                     record._recordId = recordId;
                     newRecords[recordId] = record;
@@ -166,7 +182,9 @@ export class AttendeeCalendarModel extends CalendarModel {
             for (const event of Object.values(data.records)) {
                 const eventData = event.rawRecord;
                 event.attendeeId = eventData.partner_id && eventData.partner_id[0];
-                const attendeeInfo = attendeeByKey.get(`${currentPartnerId},${event.id}`);
+                const attendeeInfo = attendeeByKey.get(
+                    `${currentPartnerId},${event.id}`,
+                );
                 if (attendeeInfo) {
                     event.isAlone = attendeeInfo.is_alone;
                     event.calendarAttendeeId = attendeeInfo.attendee_id;
@@ -212,7 +230,10 @@ export class AttendeeCalendarModel extends CalendarModel {
         if (!recurrenceUpdate) {
             await this.orm.call(this.resModel, "action_archive", [[id]]);
         } else {
-            await this.orm.call(this.resModel, "action_mass_archive", [[id], recurrenceUpdate]);
+            await this.orm.call(this.resModel, "action_mass_archive", [
+                [id],
+                recurrenceUpdate,
+            ]);
         }
         await this.load();
     }

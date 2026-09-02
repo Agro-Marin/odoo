@@ -22,15 +22,25 @@ export class ExpenseFormController extends FormController {
         ) {
             await record.save();
             return new Promise((resolve) => {
-                this.dialogService.add(ConfirmationDialog, {
-                    body: _t("An expense of same category, amount and date already exists."),
-                    confirm: async () => {
-                        await this.orm.call("hr.expense", "action_approve_duplicates", [record.resId]);
-                        resolve(true);
+                this.dialogService.add(
+                    ConfirmationDialog,
+                    {
+                        body: _t(
+                            "An expense of same category, amount and date already exists.",
+                        ),
+                        confirm: async () => {
+                            await this.orm.call(
+                                "hr.expense",
+                                "action_approve_duplicates",
+                                [record.resId],
+                            );
+                            resolve(true);
+                        },
                     },
-                }, {
-                    onClose: resolve.bind(null, false),
-                });
+                    {
+                        onClose: resolve.bind(null, false),
+                    },
+                );
             });
         }
         return super.beforeExecuteActionButton(...arguments);

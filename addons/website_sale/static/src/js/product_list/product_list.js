@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { ProductList } from '@sale/js/product_list/product_list';
+import { ProductList } from "@sale/js/product_list/product_list";
 import { _t } from "@web/core/translation";
-import { patch } from '@web/core/utils/patch';
+import { patch } from "@web/core/utils/patch";
 
 patch(ProductList.prototype, {
     setup() {

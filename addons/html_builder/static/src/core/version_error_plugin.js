@@ -33,7 +33,9 @@ export class VersionErrorPlugin extends Plugin {
             vjs: originalVjs,
         } = snippet.content.dataset;
         const { vcss: elVcss, vxml: elVxml, vjs: elVjs } = snippetEl.dataset;
-        return originalVcss === elVcss && originalVxml === elVxml && originalVjs === elVjs;
+        return (
+            originalVcss === elVcss && originalVxml === elVxml && originalVjs === elVjs
+        );
     }
 
     /**
@@ -49,13 +51,13 @@ export class VersionErrorPlugin extends Plugin {
             this.closeExistingNotification?.();
             this.closeExistingNotification = this.services.notification.add(
                 _t(
-                    "It might have caused problem during the editing. Please drag the new version from the snippet panel to update it."
+                    "It might have caused problem during the editing. Please drag the new version from the snippet panel to update it.",
                 ),
                 {
                     type: "warning",
                     title: _t("This snippet is outdated"),
                     sticky: true,
-                }
+                },
             );
             return true;
         }

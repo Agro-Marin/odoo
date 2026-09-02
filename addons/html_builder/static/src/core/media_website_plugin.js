@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { shouldEditableMediaBeEditable } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
-import { isProtected,MEDIA_SELECTOR } from "@html_editor/utils/dom_info";
+import { isProtected, MEDIA_SELECTOR } from "@html_editor/utils/dom_info";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { _t } from "@web/core/translation";
 import { Tooltip } from "@web/ui/tooltip";
@@ -98,7 +98,8 @@ export class MediaWebsitePlugin extends Plugin {
     async replaceMedia(mediaEl) {
         const sel = this.dependencies.selection.getEditableSelection();
         const editableEl =
-            closestElement(mediaEl || sel.startContainer, ".o_editable") || this.editable;
+            closestElement(mediaEl || sel.startContainer, ".o_editable") ||
+            this.editable;
         await this.dependencies.media.openMediaDialog({ node: mediaEl }, editableEl);
     }
 

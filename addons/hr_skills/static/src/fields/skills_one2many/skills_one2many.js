@@ -3,36 +3,41 @@ import { onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { useService } from '@web/core/utils/hooks';
+import { useService } from "@web/core/utils/hooks";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";
 
 import { CommonSkillsListRenderer } from "../../views/skills_list_renderer.js";
 
-
 export class SkillsListRenderer extends CommonSkillsListRenderer {
     static template = "hr_skills.SkillsListRenderer";
     setup() {
         super.setup();
-        this.orm = useService('orm');
+        this.orm = useService("orm");
         this.actionService = useService("action");
 
         onWillStart(async () => {
-            const res = await this.orm.searchCount('hr.skill.type', []);
+            const res = await this.orm.searchCount("hr.skill.type", []);
             this.anySkills = res > 0;
-            [this.user] = await this.orm.read("res.users", [user.userId], ["employee_ids"]);
+            [this.user] = await this.orm.read(
+                "res.users",
+                [user.userId],
+                ["employee_ids"],
+            );
             this.IsHrUser = await user.hasGroup("hr.group_hr_user");
-            this.userSubordinates = (await this.orm.searchRead(
-                "hr.employee",
-                [["id", "child_of", this.user.employee_ids]],
-                ["id"]
-            )).map((record) => record["id"]);
+            this.userSubordinates = (
+                await this.orm.searchRead(
+                    "hr.employee",
+                    [["id", "child_of", this.user.employee_ids]],
+                    ["id"],
+                )
+            ).map((record) => record["id"]);
         });
     }
 
     get groupBy() {
-        return 'skill_type_id';
+        return "skill_type_id";
     }
 
     async skillTypesAction() {
@@ -40,7 +45,8 @@ export class SkillsListRenderer extends CommonSkillsListRenderer {
     }
 
     async openSkillsReport() {
-        const id = this.env.model.root.data.id || this.env.model.root.data.employee_id.id;
+        const id =
+            this.env.model.root.data.id || this.env.model.root.data.employee_id.id;
         this.actionService.doAction({
             type: "ir.actions.act_window",
             name: _t("Skills Report"),
@@ -48,10 +54,10 @@ export class SkillsListRenderer extends CommonSkillsListRenderer {
             view_mode: "graph,list",
             views: [[false, "graph"]],
             context: {
-                'fill_temporal': false,
+                fill_temporal: false,
             },
             target: "current",
-            domain: [['employee_id', '=', id]],
+            domain: [["employee_id", "=", id]],
         });
     }
 
@@ -62,7 +68,9 @@ export class SkillsListRenderer extends CommonSkillsListRenderer {
     get SkillsRight() {
         let isSubordinate = false;
         if (this.env.model.root.data.employee_id) {
-            isSubordinate = this.userSubordinates.includes(this.env.model.root.data.employee_id.id);
+            isSubordinate = this.userSubordinates.includes(
+                this.env.model.root.data.employee_id.id,
+            );
         }
         return this.IsHrUser || isSubordinate;
     }
@@ -75,12 +83,12 @@ export class SkillsX2ManyField extends X2ManyField {
     };
     setup() {
         super.setup();
-        this.orm = useService('orm');
-        this.actionService = useService('action');
+        this.orm = useService("orm");
+        this.actionService = useService("action");
 
         const { saveAndLink, updateRecord } = useX2ManyCrud(
             () => this.list,
-            this.isMany2Many
+            this.isMany2Many,
         );
 
         const openRecord = useOpenX2ManyRecord({
@@ -95,22 +103,25 @@ export class SkillsX2ManyField extends X2ManyField {
 
         this._openRecord = (params) => {
             params.title = this.getWizardTitleName();
-            openRecord({...params});
+            openRecord({ ...params });
         };
     }
 
     getWizardTitleName() {
-        return _t("Update Skills")
+        return _t("Update Skills");
     }
 
     async onAdd({ context, editable } = {}) {
-        const employeeId = this.props.record.resModel === "res.users" ? this.props.record.data.employee_id.id : this.props.record.resId;
+        const employeeId =
+            this.props.record.resModel === "res.users"
+                ? this.props.record.data.employee_id.id
+                : this.props.record.resId;
         return super.onAdd({
             editable,
             context: {
                 ...context,
                 default_employee_id: employeeId,
-            }
+            },
         });
     }
 }

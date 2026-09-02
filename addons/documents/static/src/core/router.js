@@ -30,7 +30,7 @@ browser.addEventListener(
     },
     {
         capture: true,
-    }
+    },
 );
 
 patch(router, {

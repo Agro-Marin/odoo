@@ -34,10 +34,7 @@ export class PaymentRazorpay extends PaymentInterface {
 
     _callRazorpay(data, action) {
         return this.env.services.orm.silent
-            .call("pos.payment.method", action, [
-                [this.payment_method_id.id],
-                data,
-            ])
+            .call("pos.payment.method", action, [[this.payment_method_id.id], data])
             .catch(this._handleOdooConnectionFailure.bind(this));
     }
 
@@ -136,14 +133,12 @@ export class PaymentRazorpay extends PaymentInterface {
         });
     }
 
-    async _processRazorpay(cid) {
+    async _processRazorpay() {
         const order = this.pos.getOrder();
         const line = order.getSelectedPaymentline();
 
         if (line.amount < 0 && !order.isRefund) {
-            this._showError(
-                _t("Cannot process transactions with negative amount."),
-            );
+            this._showError(_t("Cannot process transactions with negative amount."));
             return Promise.resolve();
         }
 
@@ -151,9 +146,7 @@ export class PaymentRazorpay extends PaymentInterface {
             .replace(" ", "")
             .replaceAll("-", "")
             .toUpperCase();
-        const referencePrefix = this.pos.config.name
-            .replace(/\s/g, "")
-            .slice(0, 4);
+        const referencePrefix = this.pos.config.name.replace(/\s/g, "").slice(0, 4);
         line.payment_ref_no =
             referencePrefix +
             "/" +
@@ -181,8 +174,7 @@ export class PaymentRazorpay extends PaymentInterface {
             ) {
                 const refundedPaymentLine =
                     order.lines[0].refunded_orderline_id.order_id.payment_ids.find(
-                        (pi) =>
-                            pi.transaction_id === line.uiState.transaction_id,
+                        (pi) => pi.transaction_id === line.uiState.transaction_id,
                     );
                 if (Math.abs(line.amount) < refundedPaymentLine.amount) {
                     this._showError(
@@ -216,19 +208,17 @@ export class PaymentRazorpay extends PaymentInterface {
             } else {
                 return false;
             }
-            return this._callRazorpay(
-                data,
-                "razorpay_make_refund_request",
-            ).then((data) => this._razorpayHandleRefundResponse(data));
+            return this._callRazorpay(data, "razorpay_make_refund_request").then(
+                (data) => this._razorpayHandleRefundResponse(data),
+            );
         } else {
             const data = {
                 amount: line.amount,
                 referenceId: line.payment_ref_no,
             };
-            return this._callRazorpay(
-                data,
-                "razorpay_make_payment_request",
-            ).then((data) => this._razorpayHandleResponse(data));
+            return this._callRazorpay(data, "razorpay_make_payment_request").then(
+                (data) => this._razorpayHandleResponse(data),
+            );
         }
     }
 
@@ -336,7 +326,7 @@ export class PaymentRazorpay extends PaymentInterface {
         );
     }
 
-    _removePaymentHandler(payment_data) {
+    _removePaymentHandler() {
         clearTimeout(this.pollingTimeout);
         clearTimeout(this.inactivityTimeout);
         this.queued = this.payment_stopped = false;

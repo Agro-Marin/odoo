@@ -1,8 +1,9 @@
-import { test, expect } from "@odoo/hoot";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { expect, test } from "@odoo/hoot";
 import { PresetInfoPopup } from "@pos_self_order/app/components/preset_info_popup/preset_info_popup";
-import { setupSelfPosEnv, getFilledSelfOrder } from "../utils.js";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { definePosSelfModels } from "../data/generate_model_definitions.js";
+import { getFilledSelfOrder, setupSelfPosEnv } from "../utils.js";
 
 definePosSelfModels();
 
@@ -14,7 +15,9 @@ test("validSelection", async () => {
     const order = await getFilledSelfOrder(store);
     const preset = models["pos.preset"].get(10);
     order.preset_id = preset;
-    const comp = await mountWithCleanup(PresetInfoPopup, { props: { callback: () => {} } });
+    const comp = await mountWithCleanup(PresetInfoPopup, {
+        props: { callback: () => {} },
+    });
     // none
     preset.identification = "none";
     expect(Boolean(comp.validSelection)).toBe(true);

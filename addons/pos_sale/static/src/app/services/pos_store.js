@@ -77,9 +77,9 @@ patch(PosStore.prototype, {
         if (!selectedOption) {
             return;
         }
-        selectedOption == "settle"
+        selectedOption === "settle"
             ? await this.settleSO(sale_order, orderFiscalPos)
-            : await this.downPaymentSO(sale_order, selectedOption == "dpPercentage");
+            : await this.downPaymentSO(sale_order, selectedOption === "dpPercentage");
         this.selectOrderLine(this.getOrder(), this.getOrder().lines.at(-1));
     },
     async _getSaleOrder(id) {
@@ -103,9 +103,7 @@ patch(PosStore.prototype, {
             "read_converted",
             [sale_order.line_ids.map((l) => l.id)],
         );
-        const converted_lines_by_id = new Map(
-            converted_lines.map((l) => [l.id, l]),
-        );
+        const converted_lines_by_id = new Map(converted_lines.map((l) => [l.id, l]));
 
         for (const line of sale_order.line_ids) {
             if (line.display_type === "line_note") {
@@ -211,7 +209,7 @@ patch(PosStore.prototype, {
                     splitted_line.setUnitPrice(priceUnit);
                     splitted_line.setDiscount(line.discount);
                     remaining_quantity -= splitted_line.qty;
-                    if (splitted_line.product_id.tracking == "lot") {
+                    if (splitted_line.product_id.tracking === "lot") {
                         lot_splitted_lines.push(splitted_line);
                     }
                 }
@@ -219,7 +217,7 @@ patch(PosStore.prototype, {
 
             // Order line can only hold one lot, so we need to split the line if there are multiple lots
             if (
-                line.product_id.tracking == "lot" &&
+                line.product_id.tracking === "lot" &&
                 converted_line.lot_names.length > 0 &&
                 useLoadedLots
             ) {
@@ -239,7 +237,7 @@ patch(PosStore.prototype, {
                         total_lot_quantity += splitted_line.qty;
                         lot_remaining_quantity -= splitted_line.qty;
                     }
-                    if (lot_remaining_quantity > 0 && lot_splitted_lines.length == 0) {
+                    if (lot_remaining_quantity > 0 && lot_splitted_lines.length === 0) {
                         const splitted_line = this.models["pos.order.line"].create({
                             ...newLineValues,
                         });
@@ -256,7 +254,7 @@ patch(PosStore.prototype, {
                 }
                 if (
                     total_lot_quantity < newLineValues.qty &&
-                    lot_splitted_lines.length == 0
+                    lot_splitted_lines.length === 0
                 ) {
                     const splitted_line = this.models["pos.order.line"].create({
                         ...newLineValues,

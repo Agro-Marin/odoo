@@ -43,7 +43,7 @@ describe("replicate changes", () => {
                 <span data-oe-xpath="/t[1]/nav[1]/div[1]/div[1]/t[2]/ul[1]/li[2]/a[1]/span[1]" data-oe-model="blog.blog" data-oe-id="1" data-oe-field="name" data-oe-type="char" data-oe-expression="nav_blog.name">Travel</span>
             </div>
         `,
-            }
+            },
         );
         const editor = getEditor();
         queryOne(":iframe .test-1 b").append(" Abroad");
@@ -82,7 +82,7 @@ describe("replicate changes", () => {
         onRpc(
             "ir.qweb.field.contact",
             "get_record_to_html",
-            ({ args: [[id]] }) => `<span>The contact info of ${id}</span>`
+            ({ args: [[id]] }) => `<span>The contact info of ${id}</span>`,
         );
         await setupHTMLBuilder("", {
             headerContent: `

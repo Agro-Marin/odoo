@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
@@ -51,12 +51,14 @@ export class OdooLineChart extends OdooChart {
 
 chartRegistry.add("odoo_line", {
     match: (type) => type === "odoo_line",
-    createChart: (definition, sheetId, getters) => new OdooLineChart(definition, sheetId, getters),
+    createChart: (definition, sheetId, getters) =>
+        new OdooLineChart(definition, sheetId, getters),
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooLineChart.validateChartDefinition(validator, definition),
     transformDefinition: (definition) => OdooLineChart.transformDefinition(definition),
-    getChartDefinitionFromContextCreation: () => OdooLineChart.getDefinitionFromContextCreation(),
+    getChartDefinitionFromContextCreation: () =>
+        OdooLineChart.getDefinitionFromContextCreation(),
     name: _t("Line"),
 });
 
@@ -72,7 +74,13 @@ function createOdooChartRuntime(chart, getters) {
         const trend = definition.dataSets[index]?.trend;
         return !trend?.display
             ? undefined
-            : getTrendDatasetForLineChart(trend, dataset.data, labels, "category", locale);
+            : getTrendDatasetForLineChart(
+                  trend,
+                  dataset.data,
+                  labels,
+                  "category",
+                  locale,
+              );
     });
 
     const chartData = {

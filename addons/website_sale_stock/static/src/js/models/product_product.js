@@ -1,13 +1,13 @@
 /** @odoo-module native */
-import { patch } from '@web/core/utils/patch';
-import { ProductProduct } from '@sale/js/models/product_product';
+import { patch } from "@web/core/utils/patch";
+import { ProductProduct } from "@sale/js/models/product_product";
 
 patch(ProductProduct.prototype, {
     /**
      * @param {number} qty_free
      * @param args Super's parameter list.
      */
-    setup({qty_free, ...args}) {
+    setup({ qty_free, ...args }) {
         super.setup(args);
         this.qty_free = qty_free;
     },

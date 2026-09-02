@@ -1,54 +1,54 @@
 /** @odoo-module native */
 
-import { Component, xml } from "/web/static/lib/owl/owl.es.js";
-
 import useStore from "../../hooks/useStore.js";
 import { BootstrapDialog } from "./BootstrapDialog.js";
 
+import { Component, xml } from "/web/static/lib/owl/owl.es.js";
+
 export const DEVICE_ICONS = {
- camera: "fa-solid fa-camera",
- device: "fa-solid fa-plug",
- display: "fa-solid fa-desktop",
- fiscal_data_module: "fa-solid fa-dollar-sign",
- keyboard: "fa-regular fa-keyboard",
- payment: "fa-solid fa-credit-card",
- printer: "fa-solid fa-print",
- scale: "fa-solid fa-scale-balanced",
- scanner: "fa-solid fa-barcode",
- unsupported: "fa-solid fa-question",
+    camera: "fa-solid fa-camera",
+    device: "fa-solid fa-plug",
+    display: "fa-solid fa-desktop",
+    fiscal_data_module: "fa-solid fa-dollar-sign",
+    keyboard: "fa-regular fa-keyboard",
+    payment: "fa-solid fa-credit-card",
+    printer: "fa-solid fa-print",
+    scale: "fa-solid fa-scale-balanced",
+    scanner: "fa-solid fa-barcode",
+    unsupported: "fa-solid fa-question",
 };
 
 export const CONNECTION_ICONS = {
- hdmi: "fa-solid fa-desktop",
- direct: "fa-brands fa-usb",
- serial: "fa-brands fa-usb",
- network: "fa-solid fa-sitemap",
- bluetooth: "fa-brands fa-bluetooth",
+    hdmi: "fa-solid fa-desktop",
+    direct: "fa-brands fa-usb",
+    serial: "fa-brands fa-usb",
+    network: "fa-solid fa-sitemap",
+    bluetooth: "fa-brands fa-bluetooth",
 };
 
 export class DeviceDialog extends Component {
- static props = {};
- static components = { BootstrapDialog };
+    static props = {};
+    static components = { BootstrapDialog };
 
- setup() {
- this.store = useStore();
- this.icons = DEVICE_ICONS;
- this.connectionIcons = CONNECTION_ICONS;
- }
+    setup() {
+        this.store = useStore();
+        this.icons = DEVICE_ICONS;
+        this.connectionIcons = CONNECTION_ICONS;
+    }
 
- formatDeviceType(deviceType, numDevices) {
- const formattedDeviceType =
- deviceType[0].toUpperCase() + deviceType.replaceAll("_", " ").slice(1);
- return numDevices === 1 || deviceType === "unsupported"
- ? formattedDeviceType
- : `${formattedDeviceType}s`;
- }
+    formatDeviceType(deviceType, numDevices) {
+        const formattedDeviceType =
+            deviceType[0].toUpperCase() + deviceType.replaceAll("_", " ").slice(1);
+        return numDevices === 1 || deviceType === "unsupported"
+            ? formattedDeviceType
+            : `${formattedDeviceType}s`;
+    }
 
- get devices() {
- return this.store.base.devices;
- }
+    get devices() {
+        return this.store.base.devices;
+    }
 
- static template = xml`
+    static template = xml`
  <t t-translation="off">
  <BootstrapDialog identifier="'device-list'" btnName="'Show'" isLarge="true">
  <t t-set-slot="header">

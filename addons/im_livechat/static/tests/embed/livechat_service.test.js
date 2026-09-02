@@ -114,33 +114,26 @@ test("Only necessary requests are made when creating a new chat", async () => {
     await triggerHotkey("Enter");
     await contains(".o-mail-Message", { text: "Hello!" });
     const [threadId] = pyEnv["discuss.channel"].search([], { order: "id DESC" });
-    await waitStoreFetch(
-        [
-            "failures",
-            "systray_get_activities",
-            "init_messaging",
+    await waitStoreFetch(["failures", "systray_get_activities", "init_messaging"], {
+        stepsBefore: [
+            `/im_livechat/get_session - ${JSON.stringify({
+                channel_id: livechatChannelId,
+                previous_operator_id: operatorPartnerId,
+                persisted: true,
+            })}`,
+            `/mail/message/post - ${JSON.stringify({
+                post_data: {
+                    body: "Hello!",
+                    email_add_signature: true,
+                    message_type: "comment",
+                    subtype_xmlid: "mail.mt_comment",
+                },
+                thread_id: threadId,
+                thread_model: "discuss.channel",
+                context: { ...userContext(), temporary_id: 0.8200000000000001 },
+            })}`,
         ],
-        {
-            stepsBefore: [
-                `/im_livechat/get_session - ${JSON.stringify({
-                    channel_id: livechatChannelId,
-                    previous_operator_id: operatorPartnerId,
-                    persisted: true,
-                })}`,
-                `/mail/message/post - ${JSON.stringify({
-                    post_data: {
-                        body: "Hello!",
-                        email_add_signature: true,
-                        message_type: "comment",
-                        subtype_xmlid: "mail.mt_comment",
-                    },
-                    thread_id: threadId,
-                    thread_model: "discuss.channel",
-                    context: { ...userContext(), temporary_id: 0.8200000000000001 },
-                })}`,
-            ],
-        },
-    );
+    });
 });
 
 test("do not create new thread when operator answers to visitor", async () => {

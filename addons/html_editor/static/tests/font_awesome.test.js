@@ -204,7 +204,6 @@ describe("parse/render", () => {
             `<p><div><i class="fa-solid fa-pastafarianism" contenteditable="false">\u200b</i></div></p>`,
         );
     });
-
 });
 
 describe("deleteForward", () => {

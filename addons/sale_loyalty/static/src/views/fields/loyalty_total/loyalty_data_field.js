@@ -16,9 +16,9 @@ export class LoyaltyDataField extends Component {
 
     formatData() {
         const LoyaltyCardData = this.props.record.data[this.props.name];
-        this.LoyaltyCardData = Object.keys(LoyaltyCardData).length && toRaw(LoyaltyCardData);
+        this.LoyaltyCardData =
+            Object.keys(LoyaltyCardData).length && toRaw(LoyaltyCardData);
     }
-
 }
 
 export const loyaltyDataField = {

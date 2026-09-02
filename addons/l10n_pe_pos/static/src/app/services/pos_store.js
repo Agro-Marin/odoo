@@ -10,8 +10,7 @@ patch(PosStore.prototype, {
             this["res.city"] = this.data["res.city"];
             this["l10n_latam.identification.type"] =
                 this.data["l10n_latam.identification.type"];
-            this["l10n_pe.res.city.district"] =
-                this.data["l10n_pe.res.city.district"];
+            this["l10n_pe.res.city.district"] = this.data["l10n_pe.res.city.district"];
         }
     },
     isPeruvianCompany() {

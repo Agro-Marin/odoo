@@ -4,12 +4,18 @@ import {
     setupHTMLBuilder,
 } from "@html_builder/../tests/helpers";
 import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { xml } from "@odoo/owl";
-import { contains, defineModels, fields, models, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineModels,
+    fields,
+    models,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 import { delay } from "@web/core/utils/concurrency";
-import { BaseOptionComponent } from "@html_builder/core/utils";
 
 class Test extends models.Model {
     _name = "test";
@@ -40,10 +46,10 @@ test("many2many: find tag, select tag, unselect tag", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderMany2Many dataAttributeAction="'test'" model="'test'" limit="10"/>`;
-        }
+        },
     );
     const { getEditableContent } = await setupHTMLBuilder(
-        `<div class="test-options-target">b</div>`
+        `<div class="test-options-target">b</div>`,
     );
     const editableContent = getEditableContent();
 
@@ -60,7 +66,7 @@ test("many2many: find tag, select tag, unselect tag", async () => {
     expect("span.o-dropdown-item").toHaveCount(3);
     await contains("span.o-dropdown-item").click();
     expect(editableContent).toHaveInnerHTML(
-        `<div class="test-options-target" data-test="[{&quot;id&quot;:1,&quot;display_name&quot;:&quot;First&quot;,&quot;name&quot;:&quot;First&quot;}]">b</div>`
+        `<div class="test-options-target" data-test="[{&quot;id&quot;:1,&quot;display_name&quot;:&quot;First&quot;,&quot;name&quot;:&quot;First&quot;}]">b</div>`,
     );
     expect("table tr").toHaveCount(1);
 
@@ -70,14 +76,14 @@ test("many2many: find tag, select tag, unselect tag", async () => {
     expect("span.o-dropdown-item").toHaveCount(2);
     await contains("span.o-dropdown-item").click();
     expect(editableContent).toHaveInnerHTML(
-        `<div class="test-options-target" data-test="[{&quot;id&quot;:1,&quot;display_name&quot;:&quot;First&quot;,&quot;name&quot;:&quot;First&quot;},{&quot;id&quot;:2,&quot;display_name&quot;:&quot;Second&quot;,&quot;name&quot;:&quot;Second&quot;}]">b</div>`
+        `<div class="test-options-target" data-test="[{&quot;id&quot;:1,&quot;display_name&quot;:&quot;First&quot;,&quot;name&quot;:&quot;First&quot;},{&quot;id&quot;:2,&quot;display_name&quot;:&quot;Second&quot;,&quot;name&quot;:&quot;Second&quot;}]">b</div>`,
     );
     expect("table tr").toHaveCount(2);
 
     await contains("button.fa-minus").click();
     expect.verifySteps(["name_search", "name_search"]);
     expect(editableContent).toHaveInnerHTML(
-        `<div class="test-options-target" data-test="[{&quot;id&quot;:2,&quot;display_name&quot;:&quot;Second&quot;,&quot;name&quot;:&quot;Second&quot;}]">b</div>`
+        `<div class="test-options-target" data-test="[{&quot;id&quot;:2,&quot;display_name&quot;:&quot;Second&quot;,&quot;name&quot;:&quot;Second&quot;}]">b</div>`,
     );
     expect("table tr").toHaveCount(1);
     expect("table input").toHaveValue("Second");
@@ -112,10 +118,10 @@ test("many2many: async load", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderMany2Many action="'testAction'" model="'test'" limit="10"/>`;
-        }
+        },
     );
     const { getEditableContent } = await setupHTMLBuilder(
-        `<div class="test-options-target">b</div>`
+        `<div class="test-options-target">b</div>`,
     );
     const editableContent = getEditableContent();
 
@@ -132,6 +138,6 @@ test("many2many: async load", async () => {
     defWillLoad.resolve();
     await defDidApply;
     expect(editableContent).toHaveInnerHTML(
-        `<div class="test-options-target" data-test="[{&quot;id&quot;:1,&quot;display_name&quot;:&quot;First&quot;,&quot;name&quot;:&quot;First&quot;}]">b</div>`
+        `<div class="test-options-target" data-test="[{&quot;id&quot;:1,&quot;display_name&quot;:&quot;First&quot;,&quot;name&quot;:&quot;First&quot;}]">b</div>`,
     );
 });

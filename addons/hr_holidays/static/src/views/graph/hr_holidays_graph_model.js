@@ -21,14 +21,19 @@ export class HrHolidaysGraphModel extends GraphModel {
      * @returns {Object[]}
      */
     _getProcessedDataPoints() {
-        const {fields, groupBy, mode, order } = this.metaData;
-        this.allocation_label = fields['leave_type'].selection.find((selection) => selection[0] === 'allocation')[1]
-        this.timeoff_label = fields['leave_type'].selection.find((selection) => selection[0] === 'request')[1]
+        const { fields, groupBy, mode, order } = this.metaData;
+        this.allocation_label = fields["leave_type"].selection.find(
+            (selection) => selection[0] === "allocation",
+        )[1];
+        this.timeoff_label = fields["leave_type"].selection.find(
+            (selection) => selection[0] === "request",
+        )[1];
 
-        let processedDataPoints = [];
+        let processedDataPoints;
         if (mode === "bar") {
             processedDataPoints = this.dataPoints.filter(
-                (dataPoint) => dataPoint.labels[0] !== this._getDefaultFilterLabel(groupBy[0])
+                (dataPoint) =>
+                    dataPoint.labels[0] !== this._getDefaultFilterLabel(groupBy[0]),
             );
 
             if (order !== null && groupBy.length > 0) {
@@ -42,27 +47,39 @@ export class HrHolidaysGraphModel extends GraphModel {
                 }
 
                 const groups = Object.values(groupedDataPoints);
-                let datapointsWithAllocation = new Set( 
-                    groups.flat()
-                    .map(dataPoint => {
-                        if (dataPoint.labels[dataPoint.labels.length - 1] === this.allocation_label){
-                            return dataPoint.labels.slice(0, -1).join('/');
+                const datapointsWithAllocation = new Set(
+                    groups
+                        .flat()
+                        .map((dataPoint) => {
+                            if (
+                                dataPoint.labels[dataPoint.labels.length - 1] ===
+                                this.allocation_label
+                            ) {
+                                return dataPoint.labels.slice(0, -1).join("/");
+                            }
+                            return false;
+                        })
+                        .filter((label) => label !== false),
+                );
+
+                const groupTotal = (group) =>
+                    group.reduce((sum, dataPt) => {
+                        if (
+                            datapointsWithAllocation.has(
+                                dataPt.labels.slice(0, -1).join("/"),
+                            )
+                        ) {
+                            return sum + dataPt.value;
                         }
-                        return false;
-                    })
-                    .filter(label => label !== false)
-                )
+                        return sum;
+                    }, 0);
 
-                const groupTotal = (group) => group.reduce((sum, dataPt) => {
-                    if (datapointsWithAllocation.has(dataPt.labels.slice(0, -1).join('/'))){
-                        return sum + dataPt.value;
-                    }
-                    return sum;
-                }, 0);
-
-                processedDataPoints = sortBy(groups, groupTotal, order.toLowerCase()).flat();
-            } 
-            else {
+                processedDataPoints = sortBy(
+                    groups,
+                    groupTotal,
+                    order.toLowerCase(),
+                ).flat();
+            } else {
                 processedDataPoints = super._getProcessedDataPoints();
             }
             return processedDataPoints;

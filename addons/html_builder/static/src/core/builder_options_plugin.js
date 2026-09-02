@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { uniqueId } from "@web/core/utils/functions";
-import { isRemovable } from "./remove_plugin.js";
-import { isClonable } from "./clone_plugin.js";
+import { OptionsContainer } from "@html_builder/sidebar/option_container";
 import { getElementsWithOption, isElementInViewport } from "@html_builder/utils/utils";
 import { shouldEditableMediaBeEditable } from "@html_builder/utils/utils_css";
-import { OptionsContainer } from "@html_builder/sidebar/option_container";
+import { Plugin } from "@html_editor/plugin";
+import { uniqueId } from "@web/core/utils/functions";
+
+import { isClonable } from "./clone_plugin.js";
+import { isRemovable } from "./remove_plugin.js";
 
 /** @typedef {import("@html_builder/core/utils").BaseOptionComponent} BaseOptionComponent */
 /** @typedef {import("@odoo/owl").Component} Component */
@@ -120,8 +121,10 @@ export class BuilderOptionsPlugin extends Plugin {
     resources = {
         before_add_step_handlers: this.onWillAddStep.bind(this),
         step_added_handlers: this.onStepAdded.bind(this),
-        post_undo_handlers: (revertedStep) => this.restoreContainers(revertedStep, "undo"),
-        post_redo_handlers: (revertedStep) => this.restoreContainers(revertedStep, "redo"),
+        post_undo_handlers: (revertedStep) =>
+            this.restoreContainers(revertedStep, "undo"),
+        post_redo_handlers: (revertedStep) =>
+            this.restoreContainers(revertedStep, "redo"),
         clean_for_save_handlers: this.cleanForSave.bind(this),
         start_edition_handlers: () => {
             if (this.config.initialTarget) {
@@ -146,14 +149,14 @@ export class BuilderOptionsPlugin extends Plugin {
         }
 
         this.elementsToOptionsTitleComponents = withIds(
-            this.getResource("elements_to_options_title_components")
+            this.getResource("elements_to_options_title_components"),
         );
         // todo: remove that resource as we should be able to patch the class the normal way
         this.getResource("patch_builder_options").forEach((option) => {
             this.patchBuilderOptions(option);
         });
         this.builderHeaderMiddleButtons = withIds(
-            this.getResource("builder_header_middle_buttons")
+            this.getResource("builder_header_middle_buttons"),
         );
         this.builderContainerTitle = withIds(this.getResource("container_title"));
         // doing this manually instead of using addDomListener. This is because
@@ -212,7 +215,7 @@ export class BuilderOptionsPlugin extends Plugin {
     updateContainers(target, { forceUpdate = false } = {}) {
         if (this.dependencies.history.getIsCurrentStepModified()) {
             console.warn(
-                "Should not have any mutations in the current step when you update the container selection"
+                "Should not have any mutations in the current step when you update the container selection",
             );
         }
         if (this.dependencies.history.getIsPreviewing()) {
@@ -225,7 +228,9 @@ export class BuilderOptionsPlugin extends Plugin {
             this.target = target;
         }
         if (!this.target || !this.target.isConnected) {
-            const connectedContainers = this.lastContainers.filter((c) => c.element.isConnected);
+            const connectedContainers = this.lastContainers.filter(
+                (c) => c.element.isConnected,
+            );
             this.target = connectedContainers.at(-1)?.element;
         }
 
@@ -244,9 +249,13 @@ export class BuilderOptionsPlugin extends Plugin {
             const newIds = newContainers.map((c) => c.id);
             const areSameElements = newIds.every((id, i) => id === previousIds[i]);
             // Check if the overlay options status changed.
-            const previousOverlays = this.lastContainers.map((c) => c.hasOverlayOptions);
+            const previousOverlays = this.lastContainers.map(
+                (c) => c.hasOverlayOptions,
+            );
             const newOverlays = newContainers.map((c) => c.hasOverlayOptions);
-            const areSameOverlays = previousOverlays.every((check, i) => check === newOverlays[i]);
+            const areSameOverlays = previousOverlays.every(
+                (check, i) => check === newOverlays[i],
+            );
             if (areSameElements && areSameOverlays) {
                 const previousOptions = this.lastContainers.flatMap((c) => [
                     ...c.options,
@@ -260,7 +269,9 @@ export class BuilderOptionsPlugin extends Plugin {
                 ]);
                 const areSameOptions =
                     newOptions.length === previousOptions.length &&
-                    newOptions.every((option, i) => option.id === previousOptions[i].id);
+                    newOptions.every(
+                        (option, i) => option.id === previousOptions[i].id,
+                    );
                 if (areSameOptions) {
                     return;
                 }
@@ -268,7 +279,10 @@ export class BuilderOptionsPlugin extends Plugin {
         }
 
         this.lastContainers = newContainers;
-        this.dispatchTo("change_current_options_containers_listeners", this.lastContainers);
+        this.dispatchTo(
+            "change_current_options_containers_listeners",
+            this.lastContainers,
+        );
     }
 
     getTarget() {
@@ -278,7 +292,10 @@ export class BuilderOptionsPlugin extends Plugin {
     deactivateContainers() {
         this.target = null;
         this.lastContainers = [];
-        this.dispatchTo("change_current_options_containers_listeners", this.lastContainers);
+        this.dispatchTo(
+            "change_current_options_containers_listeners",
+            this.lastContainers,
+        );
     }
 
     computeContainers(target) {
@@ -290,7 +307,9 @@ export class BuilderOptionsPlugin extends Plugin {
                 if (!elements.length) {
                     continue;
                 }
-                elements = elements.filter((el) => checkElement(el, { exclude, editableOnly }));
+                elements = elements.filter((el) =>
+                    checkElement(el, { exclude, editableOnly }),
+                );
 
                 for (const element of elements) {
                     if (map.has(element)) {
@@ -303,10 +322,14 @@ export class BuilderOptionsPlugin extends Plugin {
             return map;
         };
         const elementToOptions = mapElementsToOptions(this.builderOptions);
-        const elementToHeaderMiddleButtons = mapElementsToOptions(this.builderHeaderMiddleButtons);
-        const elementToContainerTitle = mapElementsToOptions(this.builderContainerTitle);
+        const elementToHeaderMiddleButtons = mapElementsToOptions(
+            this.builderHeaderMiddleButtons,
+        );
+        const elementToContainerTitle = mapElementsToOptions(
+            this.builderContainerTitle,
+        );
         const elementToOptionTitleComponents = mapElementsToOptions(
-            this.elementsToOptionsTitleComponents
+            this.elementsToOptionsTitleComponents,
         );
 
         // Find the closest element with no options that should still have the
@@ -320,14 +343,17 @@ export class BuilderOptionsPlugin extends Plugin {
             element = element.parentElement;
         }
 
-        const previousElementToIdMap = new Map(this.lastContainers.map((c) => [c.element, c.id]));
+        const previousElementToIdMap = new Map(
+            this.lastContainers.map((c) => [c.element, c.id]),
+        );
         let containers = [...elementToOptions]
             .sort(([a], [b]) => (b.contains(a) ? 1 : -1))
             .map(([element, options]) => ({
                 id: previousElementToIdMap.get(element) || uniqueId(),
                 element,
                 options,
-                optionTitleComponents: elementToOptionTitleComponents.get(element) || [],
+                optionTitleComponents:
+                    elementToOptionTitleComponents.get(element) || [],
                 headerMiddleButtons: elementToHeaderMiddleButtons.get(element) || [],
                 containerTitle: elementToContainerTitle.get(element)
                     ? elementToContainerTitle.get(element)[0]
@@ -340,7 +366,9 @@ export class BuilderOptionsPlugin extends Plugin {
                 optionsContainerTopButtons: this.getOptionsContainerTopButtons(element),
             }));
         const lastValidContainerIdx = containers.findLastIndex((c) =>
-            this.getResource("no_parent_containers").some((selector) => c.element.matches(selector))
+            this.getResource("no_parent_containers").some((selector) =>
+                c.element.matches(selector),
+            ),
         );
         if (lastValidContainerIdx > 0) {
             containers = containers.slice(lastValidContainerIdx);
@@ -359,14 +387,17 @@ export class BuilderOptionsPlugin extends Plugin {
     hasOverlayOptions(el) {
         // An inner snippet alone in a column should not have overlay options.
         const parentEl = el.parentElement;
-        const isAloneInColumn = parentEl?.children.length === 1 && parentEl.matches(".row > div");
+        const isAloneInColumn =
+            parentEl?.children.length === 1 && parentEl.matches(".row > div");
         const isInnerSnippet = this.config.snippetModel.isInnerContent(el);
         const keepOptions = this.delegateTo("keep_overlay_options", el);
         if (isInnerSnippet && isAloneInColumn && !keepOptions) {
             return false;
         }
 
-        for (const { hasOption, editableOnly } of this.getResource("has_overlay_options")) {
+        for (const { hasOption, editableOnly } of this.getResource(
+            "has_overlay_options",
+        )) {
             if (checkElement(el, { editableOnly }) && hasOption(el)) {
                 return true;
             }
@@ -376,7 +407,9 @@ export class BuilderOptionsPlugin extends Plugin {
 
     getOptionsContainerTopButtons(el) {
         const buttons = [];
-        for (const getContainerButtons of this.getResource("get_options_container_top_buttons")) {
+        for (const getContainerButtons of this.getResource(
+            "get_options_container_top_buttons",
+        )) {
             buttons.push(...getContainerButtons(el));
             for (const button of buttons) {
                 const handler = button.handler;
@@ -481,13 +514,20 @@ export class BuilderOptionsPlugin extends Plugin {
     }
 
     patchBuilderOptions({ target_name, target_element, method, value }) {
-        if (!target_name || !target_element || !method || (!value && method !== "remove")) {
+        if (
+            !target_name ||
+            !target_element ||
+            !method ||
+            (!value && method !== "remove")
+        ) {
             throw new Error(
-                `Missing patch_builder_options required parameters: target_name, target_element, method, value`
+                `Missing patch_builder_options required parameters: target_name, target_element, method, value`,
             );
         }
 
-        const builderOption = this.builderOptions.find((option) => option.name === target_name);
+        const builderOption = this.builderOptions.find(
+            (option) => option.name === target_name,
+        );
         if (!builderOption) {
             throw new Error(`Builder option ${target_name} not found`);
         }
@@ -502,7 +542,7 @@ export class BuilderOptionsPlugin extends Plugin {
             case "add":
                 if (!builderOption[target_element]) {
                     throw new Error(
-                        `Builder option ${target_name} does not have ${target_element}`
+                        `Builder option ${target_name} does not have ${target_element}`,
                     );
                 }
                 builderOption[target_element] += `, ${value}`;
@@ -525,7 +565,9 @@ export class BuilderOptionsPlugin extends Plugin {
      *                   - `targetEl`: the target element of the option
      */
     findOption(el, optionName, allowParent = false) {
-        let containers = this.getContainers().filter((container) => container.element.contains(el));
+        let containers = this.getContainers().filter((container) =>
+            container.element.contains(el),
+        );
         containers.reverse();
         if (!allowParent) {
             containers = [containers[0]];
@@ -572,7 +614,7 @@ export class BuilderOptionsPlugin extends Plugin {
         const deps = [...(OptionComponent.dependencies || [])];
         this.builderOptionsDependencies.set(OptionComponent, deps);
         const childDeps = Object.values(OptionComponent.components || {}).flatMap(
-            this.getBuilderDependencies.bind(this)
+            this.getBuilderDependencies.bind(this),
         );
         deps.push(...childDeps);
         return deps;
@@ -598,7 +640,9 @@ function getClosestElements(element, selector) {
         return [];
     }
     const parent = element.closest(selector);
-    return parent ? [parent, ...getClosestElements(parent.parentElement, selector)] : [];
+    return parent
+        ? [parent, ...getClosestElements(parent.parentElement, selector)]
+        : [];
 }
 
 /**
@@ -628,7 +672,9 @@ export function checkElement(el, { editableOnly = true, exclude = "" }) {
     if (el.matches(".o_editable_media")) {
         return shouldEditableMediaBeEditable(el);
     }
-    return !el.matches('.o_not_editable:not(.s_social_media) :not([contenteditable="true"])');
+    return !el.matches(
+        '.o_not_editable:not(.s_social_media) :not([contenteditable="true"])',
+    );
 }
 
 function withIds(arr) {

@@ -1,8 +1,9 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
+
 import { Many2OneOption } from "./many2one_option.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
 
 export class Many2OneOptionPlugin extends Plugin {
     static id = "many2OneOption";
@@ -20,7 +21,7 @@ export class Many2OneOptionPlugin extends Plugin {
             ) {
                 targetEl.setAttribute(
                     "data-oe-many2one-id",
-                    sourceEl.getAttribute("data-oe-many2one-id")
+                    sourceEl.getAttribute("data-oe-many2one-id"),
                 );
             }
         },
@@ -35,10 +36,10 @@ export class Many2OneAction extends BuilderAction {
         const allContactOptions = new Set(
             this.editable
                 .querySelectorAll(
-                    `[data-oe-model="${oeModel}"][data-oe-id="${oeId}"][data-oe-field="${oeField}"][data-oe-type="contact"]`
+                    `[data-oe-model="${oeModel}"][data-oe-id="${oeId}"][data-oe-field="${oeField}"][data-oe-type="contact"]`,
                 )
                 .values()
-                .map((el) => el.dataset.oeContactOptions)
+                .map((el) => el.dataset.oeContactOptions),
         );
         return Object.fromEntries(
             await Promise.all(
@@ -50,10 +51,10 @@ export class Many2OneAction extends BuilderAction {
                             "ir.qweb.field.contact",
                             "get_record_to_html",
                             [[id]],
-                            { options: JSON.parse(contactOptions) }
+                            { options: JSON.parse(contactOptions) },
                         ),
-                    ])
-            )
+                    ]),
+            ),
         );
     }
     apply({ editingElement, value, loadResult }) {
@@ -65,14 +66,17 @@ export class Many2OneAction extends BuilderAction {
             (oeContactOptions === undefined
                 ? "[data-oe-contact-options]"
                 : `:not([data-oe-contact-options='${oeContactOptions}'])`);
-        for (const el of [...this.editable.querySelectorAll(selector), editingElement]) {
+        for (const el of [
+            ...this.editable.querySelectorAll(selector),
+            editingElement,
+        ]) {
             el.dataset.oeMany2oneId = id;
             if (el.dataset.oeType === "contact") {
                 el.replaceChildren(
                     ...new DOMParser().parseFromString(
                         loadResult[el.dataset.oeContactOptions],
-                        "text/html"
-                    ).body.childNodes
+                        "text/html",
+                    ).body.childNodes,
                 );
             } else {
                 el.textContent = name;

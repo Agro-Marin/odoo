@@ -1,8 +1,8 @@
 /** @odoo-module native */
 
-import { Component, xml } from "/web/static/lib/owl/owl.es.js";
-
 import useStore from "../hooks/useStore.js";
+
+import { Component, xml } from "/web/static/lib/owl/owl.es.js";
 
 export class IconButton extends Component {
     static props = {

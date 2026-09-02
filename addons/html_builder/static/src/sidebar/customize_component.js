@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Component } from "@odoo/owl";
-import { useOptionsSubEnv } from "@html_builder/utils/utils";
 import { Img } from "@html_builder/core/img";
+import { useOptionsSubEnv } from "@html_builder/utils/utils";
+import { Component } from "@odoo/owl";
 
 export class CustomizeComponent extends Component {
     static template = "html_builder.CustomizeComponent";

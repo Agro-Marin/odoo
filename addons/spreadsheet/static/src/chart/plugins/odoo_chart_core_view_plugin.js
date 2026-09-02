@@ -1,8 +1,12 @@
 /** @odoo-module native */
-import { Domain } from "@web/core/domain";
-import { ChartDataSource, chartTypeToDataSourceMode } from "../data_source/chart_data_source.js";
 import { OdooUIPlugin } from "@spreadsheet/plugins";
+import { Domain } from "@web/core/domain";
 import { deepEqual } from "@web/core/utils/collections/objects";
+
+import {
+    ChartDataSource,
+    chartTypeToDataSourceMode,
+} from "../data_source/chart_data_source.js";
 
 export class OdooChartCoreViewPlugin extends OdooUIPlugin {
     static getters = /** @type {const} */ (["getChartDataSource", "getOdooEnv"]);
@@ -36,7 +40,9 @@ export class OdooChartCoreViewPlugin extends OdooUIPlugin {
                         this.shouldChartUpdateReloadDataSource = true;
                     } else if (cmd.definition.type !== chart.type) {
                         const dataSource = this.getChartDataSource(cmd.chartId);
-                        dataSource.changeChartType(chartTypeToDataSourceMode(cmd.definition.type));
+                        dataSource.changeChartType(
+                            chartTypeToDataSourceMode(cmd.definition.type),
+                        );
                     }
                 }
                 break;
@@ -81,14 +87,14 @@ export class OdooChartCoreViewPlugin extends OdooUIPlugin {
                             "ADD_GLOBAL_FILTER",
                             "EDIT_GLOBAL_FILTER",
                             "REMOVE_GLOBAL_FILTER",
-                        ].includes(command.type)
+                        ].includes(command.type),
                     )
                 ) {
                     this._addDomains();
                 }
 
                 const domainEditionCommands = cmd.commands.filter(
-                    (cmd) => cmd.type === "UPDATE_CHART" || cmd.type === "CREATE_CHART"
+                    (cmd) => cmd.type === "UPDATE_CHART" || cmd.type === "CREATE_CHART",
                 );
                 for (const cmd of domainEditionCommands) {
                     if (!this.getters.getOdooChartIds().includes(cmd.chartId)) {
@@ -133,7 +139,7 @@ export class OdooChartCoreViewPlugin extends OdooUIPlugin {
     _addDomain(chartId) {
         const domainList = [];
         for (const [filterId, fieldMatch] of Object.entries(
-            this.getters.getChartFieldMatch(chartId)
+            this.getters.getChartFieldMatch(chartId),
         )) {
             domainList.push(this.getters.getGlobalFilterDomain(filterId, fieldMatch));
         }

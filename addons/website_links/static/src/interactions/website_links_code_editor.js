@@ -18,9 +18,15 @@ class WebsiteLinksCodeEditor extends Interaction {
             "t-on-click": this.onEditCodeClick,
             "t-att-class": () => ({ "d-none": this.editing }),
         },
-        ".o_website_links_edit_tools": { "t-att-class": () => ({ "d-none": !this.editing }) },
-        ".o_website_links_code_error": { "t-att-class": () => ({ "d-none": !this.error }) },
-        ".o_website_links_cancel_edit": { "t-on-click.prevent": this.onCancelEditClick },
+        ".o_website_links_edit_tools": {
+            "t-att-class": () => ({ "d-none": !this.editing }),
+        },
+        ".o_website_links_code_error": {
+            "t-att-class": () => ({ "d-none": !this.error }),
+        },
+        ".o_website_links_cancel_edit": {
+            "t-on-click.prevent": this.onCancelEditClick,
+        },
         "#edit-code-form": { "t-on-submit.prevent": this.onEditCodeFormSubmit },
         ".o_website_links_ok_edit": { "t-on-click.prevent": this.onEditCodeFormSubmit },
     };
@@ -65,7 +71,9 @@ class WebsiteLinksCodeEditor extends Interaction {
     }
 
     onCancelEditClick() {
-        this.codeEl.replaceChildren(this.codeEl.querySelector("#edit-code-form #init_code").value);
+        this.codeEl.replaceChildren(
+            this.codeEl.querySelector("#edit-code-form #init_code").value,
+        );
         this.editing = false;
         this.error = false;
     }
@@ -96,7 +104,7 @@ class WebsiteLinksCodeEditor extends Interaction {
                     rpc("/website_links/add_code", {
                         init_code: oldCode,
                         new_code: newCode,
-                    })
+                    }),
                 );
                 this.showNewCode(result[0].code);
             } catch {

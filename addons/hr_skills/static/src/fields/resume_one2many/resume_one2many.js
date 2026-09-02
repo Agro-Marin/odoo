@@ -5,7 +5,10 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
 import { CommonSkillsListRenderer } from "../../views/skills_list_renderer.js";
-import { SkillsX2ManyField, skillsX2ManyField } from "../skills_one2many/skills_one2many.js";
+import {
+    SkillsX2ManyField,
+    skillsX2ManyField,
+} from "../skills_one2many/skills_one2many.js";
 
 export class ResumeListRenderer extends CommonSkillsListRenderer {
     static template = "hr_skills.ResumeListRenderer";
@@ -44,11 +47,11 @@ export class ResumeListRenderer extends CommonSkillsListRenderer {
     _setLinksToOpenInNewTab() {
         const resumeLines = this.linkRef.el;
 
-        if (resumeLines){
-            const links = resumeLines.querySelectorAll('a');
+        if (resumeLines) {
+            const links = resumeLines.querySelectorAll("a");
 
-            links.forEach(link => {
-                link.setAttribute('target', '_blank');
+            links.forEach((link) => {
+                link.setAttribute("target", "_blank");
             });
         }
     }

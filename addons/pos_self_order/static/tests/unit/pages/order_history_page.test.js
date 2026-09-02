@@ -1,8 +1,9 @@
-import { test, expect } from "@odoo/hoot";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { expect, test } from "@odoo/hoot";
 import { OrdersHistoryPage } from "@pos_self_order/app/pages/order_history_page/order_history_page";
-import { setupSelfPosEnv, getFilledSelfOrder } from "../utils.js";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { definePosSelfModels } from "../data/generate_model_definitions.js";
+import { getFilledSelfOrder, setupSelfPosEnv } from "../utils.js";
 
 definePosSelfModels();
 

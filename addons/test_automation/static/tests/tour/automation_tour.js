@@ -61,7 +61,8 @@ registry.category("web_tour.tours").add("test_automation", {
         },
         {
             content: "Input field name",
-            trigger: ".o_model_field_selector_popover .o_model_field_selector_popover_search input",
+            trigger:
+                ".o_model_field_selector_popover .o_model_field_selector_popover_search input",
             run: "edit Job Position",
         },
         {
@@ -120,27 +121,29 @@ registry.category("web_tour.tours").add("test_automation_on_tag_added", {
                 // *which* triggers a model offers, not the order the selection
                 // happens to be declared in. Pinning the order made adding a
                 // trigger (this fork's "Manual trigger") a tour failure.
-                const options = [...this.anchor.querySelectorAll(".o_select_menu_item")].map(
-                        (el) => el.textContent
-                    );
+                const options = [
+                    ...this.anchor.querySelectorAll(".o_select_menu_item"),
+                ].map((el) => el.textContent);
 
                 assertEqual(
                     JSON.stringify([...options].sort()),
-                    JSON.stringify([
-                        "After creation",
-                        "After last update",
-                        "Based on date field",
-                        "Manual trigger",
-                        "On UI change",
-                        "On create",
-                        "On create and edit",
-                        "On deletion",
-                        "On webhook",
-                        "Priority is set to",
-                        "Stage is set to",
-                        "Tag is added",
-                        "User is set"
-                    ].sort())
+                    JSON.stringify(
+                        [
+                            "After creation",
+                            "After last update",
+                            "Based on date field",
+                            "Manual trigger",
+                            "On UI change",
+                            "On create",
+                            "On create and edit",
+                            "On deletion",
+                            "On webhook",
+                            "Priority is set to",
+                            "Stage is set to",
+                            "Tag is added",
+                            "User is set",
+                        ].sort(),
+                    ),
                 );
             },
         },
@@ -248,11 +251,11 @@ registry.category("web_tour.tours").add("test_automation_on_tag_added", {
             run() {
                 assertEqual(
                     this.anchor.querySelector(".o_automation_base_info").textContent,
-                    "Test ruletest_automation.projectTag is addedtest"
+                    "Test ruletest_automation.projectTag is addedtest",
                 );
                 assertEqual(
                     this.anchor.querySelector(".o_automation_actions").textContent,
-                    "Update test_automation.projectUpdate test_automation.project"
+                    "Update test_automation.projectUpdate test_automation.project",
                 );
             },
         },
@@ -270,19 +273,23 @@ registry.category("web_tour.tours").add("test_open_automation_from_grouped_kanba
             run: "click",
         },
         {
-            trigger: ".o_automation_kanban_view .o_control_panel button.o-kanban-button-new",
+            trigger:
+                ".o_automation_kanban_view .o_control_panel button.o-kanban-button-new",
             run: "click",
         },
         {
             trigger: ".o_form_view",
             run() {
                 assertEqual(
-                    this.anchor.querySelector(".o_field_widget[name='trigger'] input").value,
-                    "Tag is added"
+                    this.anchor.querySelector(".o_field_widget[name='trigger'] input")
+                        .value,
+                    "Tag is added",
                 );
                 assertEqual(
-                    this.anchor.querySelector(".o_field_widget[name='trg_field_ref'] input").value,
-                    "test tag"
+                    this.anchor.querySelector(
+                        ".o_field_widget[name='trg_field_ref'] input",
+                    ).value,
+                    "test tag",
                 );
             },
         },
@@ -314,7 +321,8 @@ registry.category("web_tour.tours").add("test_kanban_automation_view_time_trigge
             trigger: ".o_automation_kanban_view",
         },
         {
-            trigger: ".o_automation_base_info > div > div > span:nth-child(1):contains(1)",
+            trigger:
+                ".o_automation_base_info > div > div > span:nth-child(1):contains(1)",
         },
         {
             trigger: ".o_automation_base_info .text-lowercase:contains(hours)",
@@ -325,24 +333,27 @@ registry.category("web_tour.tours").add("test_kanban_automation_view_time_trigge
     ],
 });
 
-registry.category("web_tour.tours").add("test_kanban_automation_view_time_updated_trigger", {
-    steps: () => [
-        {
-            trigger: ".o_automation_kanban_view",
-        },
-        {
-            trigger: ".o_automation_base_info > div > div > span:nth-child(1):contains(1)",
-            async run() {
-                const lowercaseTexts = document.querySelectorAll(
-                    ".o_automation_base_info .text-lowercase"
-                );
-                assertEqual(lowercaseTexts.length, 2);
-                assertEqual(lowercaseTexts[0].innerText, "hours");
-                assertEqual(lowercaseTexts[1].innerText, "after last update");
+registry
+    .category("web_tour.tours")
+    .add("test_kanban_automation_view_time_updated_trigger", {
+        steps: () => [
+            {
+                trigger: ".o_automation_kanban_view",
             },
-        },
-    ],
-});
+            {
+                trigger:
+                    ".o_automation_base_info > div > div > span:nth-child(1):contains(1)",
+                async run() {
+                    const lowercaseTexts = document.querySelectorAll(
+                        ".o_automation_base_info .text-lowercase",
+                    );
+                    assertEqual(lowercaseTexts.length, 2);
+                    assertEqual(lowercaseTexts[0].innerText, "hours");
+                    assertEqual(lowercaseTexts[1].innerText, "after last update");
+                },
+            },
+        ],
+    });
 
 registry.category("web_tour.tours").add("test_kanban_automation_view_create_action", {
     steps: () => [
@@ -350,12 +361,16 @@ registry.category("web_tour.tours").add("test_kanban_automation_view_create_acti
             trigger: ".o_automation_kanban_view",
         },
         {
-            trigger: "div[name='action_server_ids']:contains(Create Contact with name NameX)",
+            trigger:
+                "div[name='action_server_ids']:contains(Create Contact with name NameX)",
             async run() {
                 // Font Awesome 6 class for the object_create action icon; this
                 // module's widget template moved off the FA4 names
                 // (fa-plus-square, fa-user-times, fa-clock-o, ...) wholesale.
-                assertEqual(document.querySelectorAll(".fa-solid.fa-square-plus").length, 1);
+                assertEqual(
+                    document.querySelectorAll(".fa-solid.fa-square-plus").length,
+                    1,
+                );
             },
         },
     ],
@@ -388,7 +403,7 @@ registry.category("web_tour.tours").add("test_form_view_resequence_actions", {
             async run() {
                 assertEqual(
                     this.anchor.innerText,
-                    "Update Active 0\nUpdate Active 1\nUpdate Active 2"
+                    "Update Active 0\nUpdate Active 1\nUpdate Active 2",
                 );
             },
         },
@@ -404,7 +419,7 @@ registry.category("web_tour.tours").add("test_form_view_resequence_actions", {
             async run() {
                 assertEqual(
                     this.anchor.innerText,
-                    "Update Active 2\nUpdate Active 0\nUpdate Active 1"
+                    "Update Active 2\nUpdate Active 0\nUpdate Active 1",
                 );
             },
         },
@@ -421,12 +436,13 @@ registry.category("web_tour.tours").add("test_form_view_resequence_actions", {
                     Array.from(allFields)
                         .map((el) => el.getAttribute("name"))
                         .includes("model_id"),
-                    false
+                    false,
                 );
             },
         },
         {
-            trigger: ".modal-content .o_form_renderer [name='state'] span[value*='followers']",
+            trigger:
+                ".modal-content .o_form_renderer [name='state'] span[value*='followers']",
             run: "click",
         },
         {
@@ -464,7 +480,7 @@ registry.category("web_tour.tours").add("test_form_view_model_id", {
                     Array.from(this.anchor.querySelectorAll(".o_select_menu_group"))
                         .map((el) => el.textContent)
                         .join(", "),
-                    "Values Updated, Timing Conditions, Custom, External"
+                    "Values Updated, Timing Conditions, Custom, External",
                 );
                 // Compare as a set, not an ordered list: the tour's contract is
                 // *which* triggers a model offers, not the order the selection
@@ -476,13 +492,21 @@ registry.category("web_tour.tours").add("test_form_view_model_id", {
                         .sort()
                         .join(", "),
                     [
-                        "User is set", "Based on date field", "After creation",
-                        "After last update", "On UI change", "On create",
-                        "On create and edit", "Manual trigger", "On deletion",
-                        "On webhook"
-                    ].sort().join(", ")
+                        "User is set",
+                        "Based on date field",
+                        "After creation",
+                        "After last update",
+                        "On UI change",
+                        "On create",
+                        "On create and edit",
+                        "Manual trigger",
+                        "On deletion",
+                        "On webhook",
+                    ]
+                        .sort()
+                        .join(", "),
                 );
-            }
+            },
         },
         {
             trigger: ".o_field_widget[name='model_id'] input",
@@ -503,7 +527,7 @@ registry.category("web_tour.tours").add("test_form_view_model_id", {
                     Array.from(this.anchor.querySelectorAll(".o_select_menu_group"))
                         .map((el) => el.textContent)
                         .join(", "),
-                    "Values Updated, Timing Conditions, Custom, External"
+                    "Values Updated, Timing Conditions, Custom, External",
                 );
                 // Compare as a set, not an ordered list: the tour's contract is
                 // *which* triggers a model offers, not the order the selection
@@ -515,14 +539,24 @@ registry.category("web_tour.tours").add("test_form_view_model_id", {
                         .sort()
                         .join(", "),
                     [
-                        "Stage is set to", "User is set", "Tag is added",
-                        "Priority is set to", "Based on date field", "After creation",
-                        "After last update", "On UI change", "On create",
-                        "On create and edit", "Manual trigger", "On deletion",
-                        "On webhook"
-                    ].sort().join(", ")
+                        "Stage is set to",
+                        "User is set",
+                        "Tag is added",
+                        "Priority is set to",
+                        "Based on date field",
+                        "After creation",
+                        "After last update",
+                        "On UI change",
+                        "On create",
+                        "On create and edit",
+                        "Manual trigger",
+                        "On deletion",
+                        "On webhook",
+                    ]
+                        .sort()
+                        .join(", "),
                 );
-            }
+            },
         },
         {
             trigger: ".o_form_button_cancel",
@@ -628,7 +662,7 @@ registry.category("web_tour.tours").add("test_form_view_mail_triggers", {
                     Array.from(this.anchor.querySelectorAll(".o_select_menu_group"))
                         .map((el) => el.textContent)
                         .join(", "),
-                    "Values Updated, Timing Conditions, Custom, External"
+                    "Values Updated, Timing Conditions, Custom, External",
                 );
             },
         },
@@ -651,9 +685,9 @@ registry.category("web_tour.tours").add("test_form_view_mail_triggers", {
                     Array.from(this.anchor.querySelectorAll(".o_select_menu_group "))
                         .map((el) => el.textContent)
                         .join(", "),
-                    "Values Updated, Email Events, Timing Conditions, Custom, External"
+                    "Values Updated, Email Events, Timing Conditions, Custom, External",
                 );
-            }
+            },
         },
         {
             trigger: "button.o_form_button_cancel",
@@ -717,8 +751,14 @@ registry.category("web_tour.tours").add("test_workflow_canvas", {
             trigger: ".o_workflow_canvas_paper svg",
             run() {
                 const paper = document.querySelector(".o_workflow_canvas_paper");
-                assertEqual(paper.querySelectorAll(".o_workflow_canvas_node").length, 3);
-                assertEqual(paper.querySelectorAll(".o_workflow_canvas_link").length, 2);
+                assertEqual(
+                    paper.querySelectorAll(".o_workflow_canvas_node").length,
+                    3,
+                );
+                assertEqual(
+                    paper.querySelectorAll(".o_workflow_canvas_link").length,
+                    2,
+                );
             },
         },
         {
@@ -728,11 +768,11 @@ registry.category("web_tour.tours").add("test_workflow_canvas", {
                 const paper = document.querySelector(".o_workflow_canvas_paper");
                 assertEqual(
                     paper.querySelectorAll(".o_workflow_canvas_on_success").length,
-                    1
+                    1,
                 );
                 assertEqual(
                     paper.querySelectorAll(".o_workflow_canvas_on_error").length,
-                    1
+                    1,
                 );
             },
         },
@@ -741,7 +781,9 @@ registry.category("web_tour.tours").add("test_workflow_canvas", {
             trigger: ".o_workflow_canvas_paper .joint-element",
             run() {
                 const positions = Array.from(
-                    document.querySelectorAll(".o_workflow_canvas_paper .joint-element")
+                    document.querySelectorAll(
+                        ".o_workflow_canvas_paper .joint-element",
+                    ),
                 ).map((el) => el.getAttribute("transform"));
                 assertEqual(positions.length, 3);
                 assertEqual(new Set(positions).size, 3);
@@ -760,7 +802,10 @@ registry.category("web_tour.tours").add("test_workflow_canvas", {
             trigger: ".o_workflow_canvas_paper svg",
             run() {
                 const paper = document.querySelector(".o_workflow_canvas_paper");
-                assertEqual(paper.querySelectorAll(".o_workflow_canvas_node").length, 3);
+                assertEqual(
+                    paper.querySelectorAll(".o_workflow_canvas_node").length,
+                    3,
+                );
             },
         },
         {
@@ -813,20 +858,20 @@ registry.category("web_tour.tours").add("test_workflow_canvas_edit", {
                 // .joint-type-standard-link double-counts every labelled edge.
                 assertEqual(
                     document.querySelectorAll(
-                        ".o_workflow_canvas_paper .o_workflow_canvas_link"
+                        ".o_workflow_canvas_paper .o_workflow_canvas_link",
                     ).length,
-                    1
+                    1,
                 );
                 assertEqual(
                     document.querySelectorAll(
-                        ".o_workflow_canvas_paper .o_workflow_canvas_node"
+                        ".o_workflow_canvas_paper .o_workflow_canvas_node",
                     ).length,
-                    3
+                    3,
                 );
                 // One canvas, not the old one with a new one stacked on it.
                 assertEqual(
                     document.querySelectorAll(".o_workflow_canvas_paper > div").length,
-                    1
+                    1,
                 );
             },
         },
@@ -846,9 +891,9 @@ registry.category("web_tour.tours").add("test_workflow_canvas_drag", {
             run() {
                 assertEqual(
                     document.querySelectorAll(
-                        ".o_workflow_canvas_paper .o_workflow_canvas_node"
+                        ".o_workflow_canvas_paper .o_workflow_canvas_node",
                     ).length,
-                    2
+                    2,
                 );
             },
         },
@@ -858,7 +903,7 @@ registry.category("web_tour.tours").add("test_workflow_canvas_drag", {
             run() {
                 window.__wfBefore = document
                     .querySelectorAll(
-                        ".o_workflow_canvas_paper .joint-type-standard-rectangle"
+                        ".o_workflow_canvas_paper .joint-type-standard-rectangle",
                     )[0]
                     .getAttribute("transform");
             },
@@ -870,7 +915,7 @@ registry.category("web_tour.tours").add("test_workflow_canvas_drag", {
             trigger: ".o_workflow_canvas_paper .o_workflow_canvas_node:first",
             async run(helpers) {
                 await helpers.drag_and_drop(
-                    ".o_workflow_canvas_paper .o_workflow_canvas_node:last"
+                    ".o_workflow_canvas_paper .o_workflow_canvas_node:last",
                 );
             },
         },
@@ -880,13 +925,11 @@ registry.category("web_tour.tours").add("test_workflow_canvas_drag", {
             run() {
                 const after = document
                     .querySelectorAll(
-                        ".o_workflow_canvas_paper .joint-type-standard-rectangle"
+                        ".o_workflow_canvas_paper .joint-type-standard-rectangle",
                     )[0]
                     .getAttribute("transform");
                 if (after === window.__wfBefore) {
-                    throw new Error(
-                        `the drag did not move the step: still ${after}`
-                    );
+                    throw new Error(`the drag did not move the step: still ${after}`);
                 }
             },
         },
@@ -916,7 +959,7 @@ registry.category("web_tour.tours").add("test_workflow_canvas_connect", {
                 ".joint-tool[data-tool-name='hover-connect']:last [joint-selector='track']",
             async run(helpers) {
                 await helpers.drag_and_drop(
-                    ".o_workflow_canvas_paper .o_workflow_canvas_node:first"
+                    ".o_workflow_canvas_paper .o_workflow_canvas_node:first",
                 );
             },
         },

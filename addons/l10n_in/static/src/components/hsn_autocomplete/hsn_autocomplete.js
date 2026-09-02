@@ -6,7 +6,8 @@ import { _t } from "@web/core/translation";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 import { useInputField } from "@web/fields/input_field_hook";
 
-const l10N_IN_HSN_SERVICE_URL = "https://services.gst.gov.in/commonservices/hsn/search/qsearch";
+const l10N_IN_HSN_SERVICE_URL =
+    "https://services.gst.gov.in/commonservices/hsn/search/qsearch";
 
 export class L10nInHsnAutoComplete extends CharField {
     static template = "l10n_in.hsnAutoComplete";
@@ -46,7 +47,7 @@ export class L10nInHsnAutoComplete extends CharField {
                     setTimeout(() => controller.abort(), 5000);
                     const res = await fetch(
                         `${l10N_IN_HSN_SERVICE_URL}?inputText=${value}&selectedType=${param.type}&category=${param.category}`,
-                        { signal }
+                        { signal },
                     );
                     if (!res.ok) {
                         throw new Error(res.statusText);
@@ -63,7 +64,7 @@ export class L10nInHsnAutoComplete extends CharField {
                             });
                         }
                     }
-                })
+                }),
             );
         } catch (e) {
             suggestions.push({

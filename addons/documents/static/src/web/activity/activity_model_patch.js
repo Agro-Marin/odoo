@@ -5,7 +5,7 @@ import { patch } from "@web/core/utils/patch";
 
 /** @type {import("models").Activity} */
 const activityPatch = {
-    async markAsDone(attachmentIds = []) {
+    async markAsDone() {
         await super.markAsDone(...arguments);
         if (this.chaining_type === "trigger") {
             this?.store?.env?.services["document.document"]?.reload();

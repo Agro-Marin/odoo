@@ -41,7 +41,9 @@ test("Open share with view user_permission", async function () {
     });
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsListView();
-    await contains(`.o_data_row:contains(${folder1Name}) .o_list_record_selector`).click();
+    await contains(
+        `.o_data_row:contains(${folder1Name}) .o_list_record_selector`,
+    ).click();
     await contains("button:contains(Share)").click();
 
     expect.verifySteps(["open_share"]);
@@ -68,7 +70,7 @@ test("Right panel shows and updates focused or container record only", async fun
         }
     });
     onRpc("ir.model", "display_name_for", ({ args }) =>
-        args[0].map((model) => ({ model, display_name: model }))
+        args[0].map((model) => ({ model, display_name: model })),
     );
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsListView();
@@ -105,7 +107,7 @@ test("Right panel shows and updates focused or container record only", async fun
 test("Document actions are hidden when focused record is not selected", async function () {
     onRpc("/documents/touch/<access_token>", () => ({}));
     onRpc("ir.model", "display_name_for", ({ args }) =>
-        args[0].map((model) => ({ model, display_name: model }))
+        args[0].map((model) => ({ model, display_name: model })),
     );
 
     const serverData = getDocumentsTestServerModelsData([
@@ -152,18 +154,25 @@ test("Required document name", async function () {
     ]);
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsListView();
-    const lr = (documentName, selector) => `.o_data_row:contains('${documentName}') ${selector}`;
+    const lr = (documentName, selector) =>
+        `.o_data_row:contains('${documentName}') ${selector}`;
     for (const documentName of ["Testing folder", "Testing file"]) {
         await contains(lr(documentName, ".o_list_record_selector")).click();
         await contains(lr(documentName, ".o_data_cell[name='name']")).click();
-        await expect(lr(documentName, ".o_data_cell[name='name'] input")).toHaveCount(1);
-        await expect(lr(documentName, ".o_data_cell[name='name'] input")).toHaveValue(documentName);
+        await expect(lr(documentName, ".o_data_cell[name='name'] input")).toHaveCount(
+            1,
+        );
+        await expect(lr(documentName, ".o_data_cell[name='name'] input")).toHaveValue(
+            documentName,
+        );
         await contains(lr(documentName, ".o_data_cell[name='name'] input")).edit("");
         await animationFrame();
         expect(".o_notification").toHaveCount(1);
         expect(".o_notification").toHaveText("Name cannot be empty.");
         await contains(".o_notification .o_notification_close").click();
-        await expect(lr(documentName, ".o_data_cell[name='name'] input")).toHaveValue(documentName);
+        await expect(lr(documentName, ".o_data_cell[name='name'] input")).toHaveValue(
+            documentName,
+        );
         await contains(".o_list_renderer").click();
         await contains(".o_list_button_discard").click();
         await animationFrame();
@@ -209,7 +218,9 @@ test("company_id field visibility for portal in multicompany", async function ()
         hasGroup: (group) => testUserGroups.includes(group),
     });
     const serverData = getDocumentsTestServerModelsData();
-    const currentUser = serverData["res.users"].find((u) => u.id === serverState.userId);
+    const currentUser = serverData["res.users"].find(
+        (u) => u.id === serverState.userId,
+    );
     Object.assign(currentUser, { group_ids: [], share: true });
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsListView({
@@ -265,7 +276,7 @@ test("file sharing via link with multiple subfolders", async function () {
     const serverData = getDocumentsTestServerModelsData([folder2, folder3, folder4]);
 
     const docEnv = await makeDocumentsMockEnv({ serverData });
-    const activateFolders = ({ args }) => {
+    const activateFolders = () => {
         folder2.active = accessFolder1;
         folder3.active = accessFolder2;
         if (addFolder4) {
@@ -283,12 +294,20 @@ test("file sharing via link with multiple subfolders", async function () {
     });
     await mountDocumentsListView();
 
-    await contains(`.o_search_panel_label[data-tooltip="Company"] .o_toggle_fold`).click();
-    expect(`.o_data_row .o_field_cell[name="name"]:contains("Folder 1")`).toHaveCount(1);
+    await contains(
+        `.o_search_panel_label[data-tooltip="Company"] .o_toggle_fold`,
+    ).click();
+    expect(`.o_data_row .o_field_cell[name="name"]:contains("Folder 1")`).toHaveCount(
+        1,
+    );
     await contains(`.o_data_row .o_field_cell .o_field_documents_type_icon`).click();
-    expect(`.o_data_row .o_field_cell[name="name"]:contains("Folder 2")`).toHaveCount(1);
+    expect(`.o_data_row .o_field_cell[name="name"]:contains("Folder 2")`).toHaveCount(
+        1,
+    );
     await contains(`.o_data_row .o_field_cell .o_field_documents_type_icon`).click();
-    expect(`.o_data_row .o_field_cell[name="name"]:contains("Folder 3")`).toHaveCount(1);
+    expect(`.o_data_row .o_field_cell[name="name"]:contains("Folder 3")`).toHaveCount(
+        1,
+    );
     await contains(`.o_data_row .o_field_cell .o_field_documents_type_icon`).click();
 
     expect.verifySteps(["touch 1", "touch 2"]);
@@ -297,7 +316,9 @@ test("file sharing via link with multiple subfolders", async function () {
     addFolder4 = true;
     await contains(`.o_search_panel_label_title:contains("Folder 2")`).click();
     expect(`.o_search_panel_label[data-tooltip="Folder 4"]`).toHaveCount(0);
-    expect(`.o_data_row .o_field_cell[name="name"]:contains("Folder 4")`).toHaveCount(1);
+    expect(`.o_data_row .o_field_cell[name="name"]:contains("Folder 4")`).toHaveCount(
+        1,
+    );
     await contains(`.o_data_row .o_field_cell .o_field_documents_type_icon`).click();
     expect(`.o_search_panel_label[data-tooltip="Folder 4"]`).toHaveCount(1);
     expect.verifySteps(["touch 2"]);
@@ -306,12 +327,17 @@ test("file sharing via link with multiple subfolders", async function () {
 test("Select all (Ctrl+A) in an empty folder does not crash", async function () {
     onRpc("/documents/touch/<access_token>", () => ({}));
     const serverData = getDocumentsTestServerModelsData([
-        makeDocumentRecordData(2, "Empty Folder", { type: "folder", user_permission: "edit" }),
+        makeDocumentRecordData(2, "Empty Folder", {
+            type: "folder",
+            user_permission: "edit",
+        }),
         makeDocumentRecordData(3, "In Folder 1", { folder_id: 1 }),
     ]);
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsListView();
-    await contains(`.o_search_panel_label[data-tooltip="Company"] .o_toggle_fold`).click();
+    await contains(
+        `.o_search_panel_label[data-tooltip="Company"] .o_toggle_fold`,
+    ).click();
 
     await contains(`.o_search_panel_label[data-tooltip="Folder 1"] div`).click();
     expect(".o_data_row").toHaveCount(1);

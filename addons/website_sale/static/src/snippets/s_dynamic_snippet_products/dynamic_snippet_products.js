@@ -11,7 +11,9 @@ export class DynamicSnippetProducts extends DynamicSnippetCarousel {
         if (productCategoryId && productCategoryId !== "all") {
             if (productCategoryId === "current") {
                 productCategoryId = undefined;
-                const productCategoryFieldEl = this.el.closest("body").querySelector("#product_details .product_category_id");
+                const productCategoryFieldEl = this.el
+                    .closest("body")
+                    .querySelector("#product_details .product_category_id");
                 if (productCategoryFieldEl) {
                     productCategoryId = parseInt(productCategoryFieldEl.value);
                 }
@@ -23,14 +25,24 @@ export class DynamicSnippetProducts extends DynamicSnippetCarousel {
                 }
                 if (!productCategoryId) {
                     // Try with categories from product, unfortunately the category hierarchy is not matched with this approach
-                    const productTemplateIdEl = this.el.closest("body").querySelector("#product_details .product_category_id");
+                    const productTemplateIdEl = this.el
+                        .closest("body")
+                        .querySelector("#product_details .product_category_id");
                     if (productTemplateIdEl) {
-                        searchDomain.push(["public_categ_ids.product_tmpl_ids", "=", parseInt(productTemplateIdEl.value)]);
+                        searchDomain.push([
+                            "public_categ_ids.product_tmpl_ids",
+                            "=",
+                            parseInt(productTemplateIdEl.value),
+                        ]);
                     }
                 }
             }
             if (productCategoryId) {
-                searchDomain.push(["public_categ_ids", "child_of", parseInt(productCategoryId)]);
+                searchDomain.push([
+                    "public_categ_ids",
+                    "child_of",
+                    parseInt(productCategoryId),
+                ]);
             }
         }
         return searchDomain;
@@ -41,7 +53,11 @@ export class DynamicSnippetProducts extends DynamicSnippetCarousel {
         let productTagIds = this.el.dataset.productTagIds;
         productTagIds = productTagIds ? JSON.parse(productTagIds) : [];
         if (productTagIds.length) {
-            searchDomain.push(["all_product_tag_ids", "in", productTagIds.map(productTag => productTag.id)]);
+            searchDomain.push([
+                "all_product_tag_ids",
+                "in",
+                productTagIds.map((productTag) => productTag.id),
+            ]);
         }
         return searchDomain;
     }
@@ -65,11 +81,15 @@ export class DynamicSnippetProducts extends DynamicSnippetCarousel {
                 if (nameDomain.length) {
                     nameDomain.unshift("|");
                 }
-                nameDomain.push(...[
-                    "|", "|", ["name", "ilike", productName],
-                    ["default_code", "=", productName],
-                    ["barcode", "=", productName],
-                ]);
+                nameDomain.push(
+                    ...[
+                        "|",
+                        "|",
+                        ["name", "ilike", productName],
+                        ["default_code", "=", productName],
+                        ["barcode", "=", productName],
+                    ],
+                );
             }
             searchDomain.push(...nameDomain);
         }
@@ -83,9 +103,13 @@ export class DynamicSnippetProducts extends DynamicSnippetCarousel {
      * @override
      */
     getRpcParameters() {
-        const productTemplateIdEl = document.body.querySelector("#product_details .product_template_id");
+        const productTemplateIdEl = document.body.querySelector(
+            "#product_details .product_template_id",
+        );
         return Object.assign(super.getRpcParameters(...arguments), {
-            productTemplateId: productTemplateIdEl ? productTemplateIdEl.value : undefined,
+            productTemplateId: productTemplateIdEl
+                ? productTemplateIdEl.value
+                : undefined,
         });
     }
 }

@@ -13,7 +13,8 @@ registry.category("web_tour.tours").add("blog_autocomplete_with_date", {
             expectUnloadPage: true,
         },
         {
-            trigger: '#o_wblog_posts_loop span:has(i.fa-calendar-o):has(a[href="/blog"])',
+            trigger:
+                '#o_wblog_posts_loop span:has(i.fa-calendar-o):has(a[href="/blog"])',
         },
         {
             content: "Enter search term",

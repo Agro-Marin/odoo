@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import {
-    navigateToOdooMenu,
     isChartJSMiddleClick,
+    navigateToOdooMenu,
 } from "@spreadsheet/chart/odoo_chart/odoo_chart_helpers";
 
 export const chartOdooMenuPlugin = {
@@ -19,6 +19,11 @@ export const chartOdooMenuPlugin = {
         ) {
             return;
         }
-        navigateToOdooMenu(menu, env.services.action, env.services.notification, middleClick);
+        navigateToOdooMenu(
+            menu,
+            env.services.action,
+            env.services.notification,
+            middleClick,
+        );
     },
 };

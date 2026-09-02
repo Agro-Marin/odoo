@@ -3,7 +3,10 @@ import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 
-import { getPdfThumbnail, getWebpThumbnail } from "./documents_client_thumbnail_service_utils.js";
+import {
+    getPdfThumbnail,
+    getWebpThumbnail,
+} from "./documents_client_thumbnail_service_utils.js";
 
 const THUMBNAIL_WIDTH = 200;
 const THUMBNAIL_HEIGHT = 140;
@@ -27,7 +30,7 @@ export const documentsClientThumbnailService = {
                 ({ thumbnail, isPdfValid, pdfEnabled } = await this._getPdfThumbnail(
                     record,
                     THUMBNAIL_WIDTH,
-                    THUMBNAIL_HEIGHT
+                    THUMBNAIL_HEIGHT,
                 ));
                 if (isPdfValid === false) {
                     thumbnail = false;
@@ -38,7 +41,7 @@ export const documentsClientThumbnailService = {
                     ({ thumbnail } = await getWebpThumbnail(
                         img,
                         THUMBNAIL_WIDTH,
-                        THUMBNAIL_HEIGHT
+                        THUMBNAIL_HEIGHT,
                     ));
                 } catch (error) {
                     if (error.status === 403) {
@@ -90,7 +93,7 @@ export const documentsClientThumbnailService = {
     },
     async _getLoadedImage(record) {
         const response = await fetch(
-            `/documents/content/${encodeURIComponent(record.data.access_token)}`
+            `/documents/content/${encodeURIComponent(record.data.access_token)}`,
         );
         if (!response.ok) {
             const error = new Error(`Thumbnail fetch failed (${response.status})`);
@@ -111,4 +114,6 @@ export const documentsClientThumbnailService = {
     },
 };
 
-registry.category("services").add("documents_client_thumbnail", documentsClientThumbnailService);
+registry
+    .category("services")
+    .add("documents_client_thumbnail", documentsClientThumbnailService);

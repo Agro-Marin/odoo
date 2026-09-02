@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
 import { ClassAction } from "@html_builder/core/core_builder_action_plugin";
 import { VerticalAlignmentOption } from "@html_builder/plugins/vertical_alignment_option";
-import { withSequence } from "@html_editor/utils/resource";
 import { VERTICAL_ALIGNMENT } from "@html_builder/utils/option_sequence";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
 
 export class VerticalAlignmentOptionPlugin extends Plugin {
     static id = "verticalAlignmentOption";

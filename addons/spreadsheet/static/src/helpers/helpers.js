@@ -49,7 +49,8 @@ function camelToSnakeKey(word) {
 export function camelToSnakeObject(obj) {
     const result = {};
     for (const [key, value] of Object.entries(obj)) {
-        const isPojo = typeof value === "object" && value !== null && value.constructor === Object;
+        const isPojo =
+            typeof value === "object" && value !== null && value.constructor === Object;
         result[camelToSnakeKey(key)] = isPojo ? camelToSnakeObject(value) : value;
     }
     return result;

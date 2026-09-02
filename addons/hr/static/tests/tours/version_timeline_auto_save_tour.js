@@ -37,7 +37,8 @@ registry.category("web_tour.tours").add("version_timeline_auto_save_tour", {
         },
         {
             content: "Open Create New Version",
-            trigger: ".o_field_widget[name='version_id'] > .o_arrow_button_wrapper > button",
+            trigger:
+                ".o_field_widget[name='version_id'] > .o_arrow_button_wrapper > button",
             run: "click",
         },
         {

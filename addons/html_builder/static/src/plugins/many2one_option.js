@@ -20,7 +20,7 @@ export class Many2OneOption extends BaseOptionComponent {
             const searchResult = await this.orm.searchRead(
                 "ir.model",
                 [["model", "=", this.model]],
-                ["name"]
+                ["name"],
             );
             this.label = searchResult[0]?.name;
         });

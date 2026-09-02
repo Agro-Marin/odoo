@@ -1,8 +1,9 @@
-import { describe, test, expect, click } from "@odoo/hoot";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { click, describe, expect, test } from "@odoo/hoot";
 import { ProductPage } from "@pos_self_order/app/pages/product_page/product_page";
-import { setupSelfPosEnv } from "../utils.js";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { definePosSelfModels } from "../data/generate_model_definitions.js";
+import { setupSelfPosEnv } from "../utils.js";
 
 definePosSelfModels();
 
@@ -10,7 +11,9 @@ test("changeQuantity and isProductAvailable", async () => {
     const store = await setupSelfPosEnv();
     const models = store.models;
     const product = models["product.template"].get(5);
-    const comp = await mountWithCleanup(ProductPage, { props: { productTemplate: product } });
+    const comp = await mountWithCleanup(ProductPage, {
+        props: { productTemplate: product },
+    });
 
     expect(comp.state.qty).toBe(1);
     expect(comp.isProductAvailable()).toBe(true);
@@ -28,7 +31,9 @@ test("getProductPrice", async () => {
     const store = await setupSelfPosEnv();
     const models = store.models;
     const product = models["product.template"].get(5);
-    const comp = await mountWithCleanup(ProductPage, { props: { productTemplate: product } });
+    const comp = await mountWithCleanup(ProductPage, {
+        props: { productTemplate: product },
+    });
 
     expect(comp.getProductPrice()).toBe(115);
     comp.state.qty = 4;
@@ -47,7 +52,9 @@ describe("getProductPrice with variants", () => {
         const models = store.models;
 
         const productTemplate = models["product.template"].get(19);
-        const comp = await mountWithCleanup(ProductPage, { props: { productTemplate } });
+        const comp = await mountWithCleanup(ProductPage, {
+            props: { productTemplate },
+        });
 
         expect(comp.getProductPrice()).toBe(10);
 
@@ -65,7 +72,9 @@ describe("getProductPrice with variants", () => {
         const models = store.models;
 
         const productTemplate = models["product.template"].get(20);
-        const comp = await mountWithCleanup(ProductPage, { props: { productTemplate } });
+        const comp = await mountWithCleanup(ProductPage, {
+            props: { productTemplate },
+        });
 
         expect(comp.getProductPrice()).toBe(200);
 
@@ -83,25 +92,31 @@ describe("getProductPrice with variants", () => {
         const models = store.models;
 
         const productTemplate = models["product.template"].get(21);
-        const comp = await mountWithCleanup(ProductPage, { props: { productTemplate } });
+        const comp = await mountWithCleanup(ProductPage, {
+            props: { productTemplate },
+        });
 
         expect(comp.getProductPrice()).toBe(100);
 
         // select Size S
-        await click("h2:contains(Size) + .self_order_attribute_selection div:nth-child(1) button");
+        await click(
+            "h2:contains(Size) + .self_order_attribute_selection div:nth-child(1) button",
+        );
         expect(comp.getProductPrice()).toBe(100);
         // select Size M (price_extra 5)
-        await click("h2:contains(Size) + .self_order_attribute_selection div:nth-child(2) button");
+        await click(
+            "h2:contains(Size) + .self_order_attribute_selection div:nth-child(2) button",
+        );
         expect(comp.getProductPrice()).toBe(105);
 
         // select Packaging Standard
         await click(
-            "h2:contains(Packaging) + .self_order_attribute_selection div:nth-child(1) button"
+            "h2:contains(Packaging) + .self_order_attribute_selection div:nth-child(1) button",
         );
         expect(comp.getProductPrice()).toBe(105);
         // select Packaging Gift (price_extra 10)
         await click(
-            "h2:contains(Packaging) + .self_order_attribute_selection div:nth-child(2) button"
+            "h2:contains(Packaging) + .self_order_attribute_selection div:nth-child(2) button",
         );
         expect(comp.getProductPrice()).toBe(115);
     });
@@ -111,7 +126,9 @@ test("isAddToCartEnabled", async () => {
     const store = await setupSelfPosEnv();
     const models = store.models;
     const product = models["product.template"].get(5);
-    const comp = await mountWithCleanup(ProductPage, { props: { productTemplate: product } });
+    const comp = await mountWithCleanup(ProductPage, {
+        props: { productTemplate: product },
+    });
 
     // Product unavailability
     product.self_order_available = false;

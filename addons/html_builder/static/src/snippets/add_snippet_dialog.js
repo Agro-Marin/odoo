@@ -1,5 +1,12 @@
 /** @odoo-module native */
-import { Component, onMounted, onWillRender, onWillUnmount, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    onMounted,
+    onWillRender,
+    onWillUnmount,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { loadBundle, loadCSS } from "@web/core/assets";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
@@ -56,7 +63,10 @@ export class AddSnippetDialog extends Component {
         let root;
         onMounted(async () => {
             const isFirefox = isBrowserFirefox();
-            if (isFirefox && !(this.iframeRef.el?.contentDocument.readyState === "complete")) {
+            if (
+                isFirefox &&
+                !(this.iframeRef.el?.contentDocument.readyState === "complete")
+            ) {
                 // Make sure empty preview iframe is loaded. This was necessary
                 // in Firefox < 148 as it created and parsed a new document.
                 // This event is never triggered on Chrome.
@@ -74,7 +84,10 @@ export class AddSnippetDialog extends Component {
             iframeDocument.body.parentElement.classList.add("o_add_snippets_preview");
             iframeDocument.body.style.setProperty("direction", localization.direction);
             iframeDocument.body.tabIndex = "-1";
-            iframeDocument.addEventListener("keydown", this.onIframeDocumentKeydown.bind(this));
+            iframeDocument.addEventListener(
+                "keydown",
+                this.onIframeDocumentKeydown.bind(this),
+            );
 
             root = this.__owl__.app.createRoot(SnippetViewer, {
                 props: this.snippetViewerProps,
@@ -86,8 +99,12 @@ export class AddSnippetDialog extends Component {
         });
 
         onWillRender(() => {
-            if (!this.props.snippetModel.hasCustomGroup && this.state.groupSelected === "custom") {
-                this.state.groupSelected = this.props.snippetModel.snippetGroups[0].groupName;
+            if (
+                !this.props.snippetModel.hasCustomGroup &&
+                this.state.groupSelected === "custom"
+            ) {
+                this.state.groupSelected =
+                    this.props.snippetModel.snippetGroups[0].groupName;
             }
         });
 
@@ -104,7 +121,7 @@ export class AddSnippetDialog extends Component {
     async insertStyle() {
         const loadCSSBundleFromEditor = (bundleName, loadOptions) => {
             const cssLinkEl = this.props.editor.document.head.querySelector(
-                `link[type="text/css"][href*="/${bundleName}."]`
+                `link[type="text/css"][href*="/${bundleName}."]`,
             );
             if (cssLinkEl) {
                 return loadCSS(cssLinkEl.getAttribute("href"), loadOptions);
@@ -115,12 +132,12 @@ export class AddSnippetDialog extends Component {
             iframe: this.iframeRef.el,
         });
         const editorPreviewAssetsBundles = this.props.editor.getResource(
-            "snippet_preview_dialog_bundles"
+            "snippet_preview_dialog_bundles",
         );
         const loadOptions = { targetDoc: this.iframeRef.el.contentDocument, js: false };
         await Promise.all([
             ...editorPreviewAssetsBundles.map((assetsBundle) =>
-                loadCSSBundleFromEditor(assetsBundle, loadOptions)
+                loadCSSBundleFromEditor(assetsBundle, loadOptions),
             ),
             loadBundle("html_builder.iframe_add_dialog", loadOptions),
         ]);
@@ -128,7 +145,7 @@ export class AddSnippetDialog extends Component {
 
     get snippetGroups() {
         return this.props.snippetModel.snippetGroups.filter(
-            (snippetGroup) => !snippetGroup.moduleId
+            (snippetGroup) => !snippetGroup.moduleId,
         );
     }
 
@@ -150,7 +167,9 @@ export class AddSnippetDialog extends Component {
         metaElement.setAttribute("name", "color-scheme");
         metaElement.content = scheme;
         iframeDocument.head.appendChild(metaElement);
-        iframeDocument.body.parentElement.classList.add("o_add_snippets_preview--" + scheme);
+        iframeDocument.body.parentElement.classList.add(
+            "o_add_snippets_preview--" + scheme,
+        );
     }
 
     /**
@@ -181,9 +200,13 @@ export class AddSnippetDialog extends Component {
         if (!["tab", "shift+tab"].includes(hotkey)) {
             return;
         }
-        const [, lastTabableElInIframe] = getFirstAndLastTabableElements(ev.currentTarget);
+        const [, lastTabableElInIframe] = getFirstAndLastTabableElements(
+            ev.currentTarget,
+        );
         if (hotkey === "tab" && lastTabableElInIframe === ev.target) {
-            const [firstTabableElInDialog] = getFirstAndLastTabableElements(this.modalRef.el);
+            const [firstTabableElInDialog] = getFirstAndLastTabableElements(
+                this.modalRef.el,
+            );
             firstTabableElInDialog.focus();
             ev.preventDefault();
             ev.stopPropagation();

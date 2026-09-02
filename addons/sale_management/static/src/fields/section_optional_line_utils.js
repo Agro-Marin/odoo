@@ -95,10 +95,7 @@ export function getRecordsToRecompute(renderer, record, targetId) {
         }
     } else if (!record.data.display_type) {
         // If a regular record is moved compute its own optional state
-        optionalStateMap.set(
-            record.id,
-            renderer.shouldCollapse(record, "is_optional"),
-        );
+        optionalStateMap.set(record.id, renderer.shouldCollapse(record, "is_optional"));
     }
 
     return optionalStateMap;

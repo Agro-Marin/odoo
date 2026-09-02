@@ -26,4 +26,6 @@ export const documentsListActionWidget = {
     component: DocumentsListActionWidget,
 };
 
-registry.category("view_widgets").add("documents_list_actions", documentsListActionWidget);
+registry
+    .category("view_widgets")
+    .add("documents_list_actions", documentsListActionWidget);

@@ -58,7 +58,7 @@ class WebsiteLinks extends Interaction {
         this.notificationEls = new Map();
         this.formNotificationEl = this.el.querySelector(".notification");
         this.listNotificationEl = this.el.querySelector(
-            ".o_website_links_recent_links_notification"
+            ".o_website_links_recent_links_notification",
         );
         this.listContainerEl = this.el.querySelector("#o_website_links_recent_links");
         this.getRecentLinks("newest");
@@ -127,21 +127,21 @@ class WebsiteLinks extends Interaction {
                     this.formNotificationEl,
                     "The URL is empty",
                     "alert-danger",
-                    "form-submit"
+                    "form-submit",
                 );
             } else if (result.error === "url_not_found") {
                 this.addNotification(
                     this.formNotificationEl,
                     "URL not found (404)",
                     "alert-danger",
-                    "form-submit"
+                    "form-submit",
                 );
             } else {
                 this.addNotification(
                     this.formNotificationEl,
                     "An error occurred while trying to generate your link. Try again later.",
                     "alert-danger",
-                    "form-submit"
+                    "form-submit",
                 );
             }
         } else {
@@ -150,7 +150,8 @@ class WebsiteLinks extends Interaction {
 
             this.el.querySelector("#generated_tracked_link").classList.remove("d-none");
             this.el.querySelector("#btn_shorten_url").classList.add("d-none");
-            this.el.querySelector(".copy-to-clipboard").dataset.clipboardText = link.short_url;
+            this.el.querySelector(".copy-to-clipboard").dataset.clipboardText =
+                link.short_url;
             this.el.querySelector("#short-url-host").textContent = link.short_url_host;
             this.el.querySelector("#o_website_links_code").textContent = link.code;
 
@@ -173,7 +174,7 @@ class WebsiteLinks extends Interaction {
                 rpc("/website_links/recent_links", {
                     filter,
                     limit: 20,
-                })
+                }),
             );
             links.reverse();
             for (const link of links) {
@@ -186,7 +187,7 @@ class WebsiteLinks extends Interaction {
                 this.listNotificationEl,
                 "Unable to get recent links.",
                 "alert-danger",
-                "get-recent-links"
+                "get-recent-links",
             );
         }
     }
@@ -197,7 +198,12 @@ class WebsiteLinks extends Interaction {
         }
         const hadLinks = this.linkEls.length > 0;
         this.linkEls.push(
-            ...this.renderAt("website_links.RecentLink", link, this.listContainerEl, "afterbegin")
+            ...this.renderAt(
+                "website_links.RecentLink",
+                link,
+                this.listContainerEl,
+                "afterbegin",
+            ),
         );
         this.urls.add(link.short_url);
         if (!hadLinks) {
@@ -219,7 +225,7 @@ class WebsiteLinks extends Interaction {
                 this.listNotificationEl,
                 "You don't have any recent links.",
                 "alert-info",
-                "no-links"
+                "no-links",
             );
         } else {
             this.removeNotification("no-links");
@@ -253,4 +259,6 @@ class WebsiteLinks extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("website_links.WebsiteLinks", WebsiteLinks);
+registry
+    .category("public.interactions")
+    .add("website_links.WebsiteLinks", WebsiteLinks);

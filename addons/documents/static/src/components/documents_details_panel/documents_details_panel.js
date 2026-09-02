@@ -13,7 +13,13 @@ import { DocumentsDetailsMany2ManyTagsField } from "@documents/views/fields/docu
 import { DocumentsDetailsMany2OneField } from "@documents/views/fields/documents_details_many2one/documents_details_many2one_field";
 import { DocumentsTypeIcon } from "@documents/views/fields/documents_type_icon/documents_type_icon";
 
-import { Component, onWillRender, onWillUpdateProps, reactive, useState } from "@odoo/owl";
+import {
+    Component,
+    onWillRender,
+    onWillUpdateProps,
+    reactive,
+    useState,
+} from "@odoo/owl";
 
 export class DocumentsDetailsPanel extends Component {
     static components = {
@@ -140,7 +146,7 @@ export class DocumentsDetailsPanel extends Component {
                             this.onRecordReset();
                         }
                     },
-                }
+                },
             );
         }
     }
@@ -153,7 +159,7 @@ export class DocumentsDetailsPanel extends Component {
         if (this.state.resModel) {
             await this.record.update(
                 { res_id: value[0], res_model: this.state.resModel },
-                { save: true }
+                { save: true },
             );
         }
     }
@@ -166,7 +172,9 @@ export class DocumentsDetailsPanel extends Component {
 function wrapAsDetailsPanelRecord(record) {
     return new Proxy(reactive(record), {
         get(target, prop, receiver) {
-            return prop === "isDetailsPanelRecord" || Reflect.get(target, prop, receiver);
+            return (
+                prop === "isDetailsPanelRecord" || Reflect.get(target, prop, receiver)
+            );
         },
     });
 }

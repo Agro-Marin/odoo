@@ -6,7 +6,9 @@ import { onWillRender, useEffect, useRef, useState } from "@odoo/owl";
 import { KanbanController } from "@web/views/kanban";
 import { Dropdown } from "@web/components/dropdown";
 
-export class DocumentsKanbanController extends DocumentsControllerMixin(KanbanController) {
+export class DocumentsKanbanController extends DocumentsControllerMixin(
+    KanbanController,
+) {
     static template = "documents.DocumentsKanbanView";
     static components = {
         ...KanbanController.components,
@@ -32,7 +34,7 @@ export class DocumentsKanbanController extends DocumentsControllerMixin(KanbanCo
                     getMenuProps: () => this.actionMenuProps,
                 });
             },
-            () => []
+            () => [],
         );
 
         onWillRender(() => this.openInitialPreview());
@@ -49,7 +51,8 @@ export class DocumentsKanbanController extends DocumentsControllerMixin(KanbanCo
     documentsViewHelpers() {
         return {
             getSelectedDocumentsElements: () =>
-                this.root?.el?.querySelectorAll(".o_kanban_record.o_record_selected") || [],
+                this.root?.el?.querySelectorAll(".o_kanban_record.o_record_selected") ||
+                [],
             setPreviewStore: (previewStore) => {
                 this.documentStates.previewStore = previewStore;
             },

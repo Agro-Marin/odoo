@@ -4,7 +4,7 @@ import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { _t } from "@web/core/translation";
-import {  NewsletterSubscribeCommonOptionBase } from "./newsletter_subscribe_common_option.js";
+import { NewsletterSubscribeCommonOptionBase } from "./newsletter_subscribe_common_option.js";
 import { getElementsWithOption, filterExtends } from "@html_builder/utils/utils";
 import { BuilderAction } from "@html_builder/core/builder_action";
 
@@ -30,7 +30,9 @@ class MailingListSubscribeOptionPlugin extends Plugin {
     async onSnippetDropped({ snippetEl }) {
         const newsLetterEls = [];
         for (const { selector, exclude, applyTo } of this.newsletterOptions) {
-            newsLetterEls.push(...getElementsWithOption(snippetEl, selector, exclude, applyTo));
+            newsLetterEls.push(
+                ...getElementsWithOption(snippetEl, selector, exclude, applyTo),
+            );
         }
         if (!newsLetterEls.length) {
             return;
@@ -40,19 +42,23 @@ class MailingListSubscribeOptionPlugin extends Plugin {
         if (!this.mailingLists.length) {
             let cancelDrop = false;
             await new Promise((resolve) => {
-                this.services.dialog.add(ConfirmationDialog, {
-                    body: _t(
-                        "No mailing list found, do you want to create a new one? This will save all your changes, are you sure you want to proceed?"
-                    ),
-                    confirm: async () => {
-                        // TODO properly save and redirect.
-                        await this.dependencies.savePlugin.save();
-                        window.location.href =
-                            "/odoo/action-mass_mailing.action_view_mass_mailing_lists";
+                this.services.dialog.add(
+                    ConfirmationDialog,
+                    {
+                        body: _t(
+                            "No mailing list found, do you want to create a new one? This will save all your changes, are you sure you want to proceed?",
+                        ),
+                        confirm: async () => {
+                            // TODO properly save and redirect.
+                            await this.dependencies.savePlugin.save();
+                            window.location.href =
+                                "/odoo/action-mass_mailing.action_view_mass_mailing_lists";
+                        },
+                        cancel: () => (cancelDrop = true),
                     },
-                    cancel: () => cancelDrop = true,
-                }, { onClose: resolve });
-            })
+                    { onClose: resolve },
+                );
+            });
             // Cancel the drop if the dialog was cancelled.
             if (cancelDrop) {
                 return true;
@@ -75,7 +81,7 @@ class MailingListSubscribeOptionPlugin extends Plugin {
                 "mailing.list",
                 "name_search",
                 ["", [["is_public", "=", true]]],
-                { context }
+                { context },
             );
             this.mailingLists = [];
             for (const entry of response) {
@@ -88,7 +94,9 @@ class MailingListSubscribeOptionPlugin extends Plugin {
     cleanForSave({ root }) {
         const newsLetterEls = [];
         for (const { selector, exclude, applyTo } of this.newsletterOptions) {
-            newsLetterEls.push(...getElementsWithOption(root, selector, exclude, applyTo));
+            newsLetterEls.push(
+                ...getElementsWithOption(root, selector, exclude, applyTo),
+            );
         }
         for (const newsLetterEl of newsLetterEls) {
             this.removePreview(newsLetterEl);
@@ -114,7 +122,9 @@ export class ToggleThanksMessageAction extends BuilderAction {
         this.setThanksMessageVisibility(editingElement, false);
     }
     isApplied({ editingElement }) {
-        return editingElement.querySelector(".js_subscribed_wrap")?.classList.contains("o_enable_preview");
+        return editingElement
+            .querySelector(".js_subscribed_wrap")
+            ?.classList.contains("o_enable_preview");
     }
     setThanksMessageVisibility(editingElement, isVisible) {
         const toSubscribeEl = editingElement.querySelector(".js_subscribe_wrap");

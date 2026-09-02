@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { useSpreadsheetNotificationStore } from "@spreadsheet/hooks";
-import { Spreadsheet, Model } from "@odoo/o-spreadsheet";
+import { Model, Spreadsheet } from "@odoo/o-spreadsheet";
 import { Component } from "@odoo/owl";
+import { useSpreadsheetNotificationStore } from "@spreadsheet/hooks";
 
 /**
  * Component wrapping the <Spreadsheet> component from o-spreadsheet

@@ -2,8 +2,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { setCellContent } from "@spreadsheet/../tests/helpers/commands";
 import { getCellValue, getEvaluatedCell } from "@spreadsheet/../tests/helpers/getters";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
-import { defineSpreadsheetAccountModels } from "@spreadsheet_account/../tests/accounting_test_data";
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
+import { defineSpreadsheetAccountModels } from "@spreadsheet_account/../tests/accounting_test_data";
 
 describe.current.tags("headless");
 defineSpreadsheetAccountModels();
@@ -40,11 +40,11 @@ test("with wrong date format", async () => {
     setCellContent(
         model,
         "A1",
-        `=ODOO.PARTNER.BALANCE("14, 16", "112", "This is not a valid date")`
+        `=ODOO.PARTNER.BALANCE("14, 16", "112", "This is not a valid date")`,
     );
     await waitForDataLoaded(model);
     expect(getEvaluatedCell(model, "A1").message).toBe(
-        '\'This is not a valid date\' is not a valid period. Supported formats are "21/12/2022", "Q1/2022", "12/2022", and "2022".'
+        '\'This is not a valid date\' is not a valid period. Supported formats are "21/12/2022", "Q1/2022", "12/2022", and "2022".',
     );
 });
 

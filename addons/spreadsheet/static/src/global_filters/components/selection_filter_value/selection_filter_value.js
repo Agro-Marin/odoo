@@ -2,10 +2,9 @@
 /** @ts-check */
 
 import { Component, onWillStart, onWillUpdateProps, useEffect } from "@odoo/owl";
-import { useChildRef, useService } from "@web/core/utils/hooks";
-
-import { TagsList } from "@web/components/tags_list";
 import { AutoComplete } from "@web/components/autocomplete";
+import { TagsList } from "@web/components/tags_list";
+import { useChildRef, useService } from "@web/core/utils/hooks";
 
 export class SelectionFilterValue extends Component {
     static template = "spreadsheet.SelectionFilterValue";
@@ -32,7 +31,7 @@ export class SelectionFilterValue extends Component {
                     this.inputRef.el.setAttribute("maxlength", 0);
                 }
             },
-            () => [this.inputRef.el]
+            () => [this.inputRef.el],
         );
         this.tags = [];
         this.sources = [];
@@ -45,7 +44,9 @@ export class SelectionFilterValue extends Component {
         const fields = await this.fields.loadFields(props.resModel);
         const field = fields[props.field];
         if (!field) {
-            throw new Error(`Field "${props.field}" not found in model "${props.resModel}"`);
+            throw new Error(
+                `Field "${props.field}" not found in model "${props.resModel}"`,
+            );
         }
         const selection = field.selection;
         this.tags = props.value.map((value) => ({

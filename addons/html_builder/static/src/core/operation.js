@@ -74,7 +74,7 @@ export class Operation {
             shouldInterceptClick = false,
             canTimeout = true,
             timeout = 10000,
-        } = {}
+        } = {},
     ) {
         this.cancelPrevious?.();
         let isCancel = false;
@@ -92,7 +92,9 @@ export class Operation {
                 });
             });
 
-        const cancelTimePromise = new Promise((resolve) => setTimeout(resolve, cancelTime));
+        const cancelTimePromise = new Promise((resolve) =>
+            setTimeout(resolve, cancelTime),
+        );
         const cancelLoadPromise = new Promise((resolve) => {
             cancelResolve = resolve;
         });
@@ -115,7 +117,7 @@ export class Operation {
             const removeLoadingElement = this.addLoadingElement(
                 withLoadingEffect,
                 loadingEffectDelay,
-                shouldInterceptClick
+                shouldInterceptClick,
             );
             const applyOperation = async () => {
                 const loadResult = await load();
@@ -168,7 +170,12 @@ export class Operation {
     addLoadingElement(withLoadingEffect, loadingEffectDelay, shouldInterceptClick) {
         const loadingScreenEl = document.createElement("div");
         loadingScreenEl.classList.add(
-            ...["o_loading_screen", "d-flex", "justify-content-center", "align-items-center"]
+            ...[
+                "o_loading_screen",
+                "d-flex",
+                "justify-content-center",
+                "align-items-center",
+            ],
         );
         const spinnerEl = document.createElement("img");
         spinnerEl.setAttribute("src", "/web/static/img/spin.svg");
@@ -179,7 +186,7 @@ export class Operation {
             const onClick = (ev) => {
                 const trueTargetEls = this.editableDocument.elementsFromPoint(
                     ev.clientX,
-                    ev.clientY
+                    ev.clientY,
                 );
                 this.next(() => {
                     for (const trueTargetEl of trueTargetEls) {
@@ -191,7 +198,8 @@ export class Operation {
                 });
             };
             this.editableDocument.addEventListener("click", onClick);
-            removeClickListener = () => this.editableDocument.removeEventListener("click", onClick);
+            removeClickListener = () =>
+                this.editableDocument.removeEventListener("click", onClick);
         }
 
         this.editableDocument.body.appendChild(loadingScreenEl);
@@ -201,7 +209,7 @@ export class Operation {
         if (withLoadingEffect) {
             loadingTimeout = setTimeout(
                 () => loadingScreenEl.classList.add("o_we_ui_loading"),
-                loadingEffectDelay
+                loadingEffectDelay,
             );
         }
 

@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { SelectionField, selectionField } from "@web/fields/selection/selection/selection_field";
+import {
+    SelectionField,
+    selectionField,
+} from "@web/fields/selection/selection/selection_field";
 import { UpgradeDialog } from "@web/views/settings/fields/upgrade_dialog";
 /**
  *  The upgrade selection field is intended to be used in config settings.

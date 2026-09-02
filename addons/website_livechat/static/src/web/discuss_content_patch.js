@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { DiscussContent } from "@mail/core/public_web/discuss_content";
-
 import { patch } from "@web/core/utils/patch";
 
 patch(DiscussContent.prototype, {

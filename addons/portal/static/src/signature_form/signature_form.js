@@ -4,12 +4,12 @@ import { NameAndSignature } from "@web/components/signature";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { addLoadingEffect } from '@web/core/utils/dom/ui';
+import { addLoadingEffect } from "@web/core/utils/dom/ui";
 import { redirect } from "@web/core/utils/urls";
 
 export class SignatureForm extends Component {
-    static template = "portal.SignatureForm"
-    static components = { NameAndSignature }
+    static template = "portal.SignatureForm";
+    static components = { NameAndSignature };
     static props = ["*"];
 
     setup() {
@@ -29,7 +29,8 @@ export class SignatureForm extends Component {
             fontColor: this.props.fontColor || "black",
         };
         if (this.props.signatureRatio) {
-            this.nameAndSignatureProps.displaySignatureRatio = this.props.signatureRatio;
+            this.nameAndSignatureProps.displaySignatureRatio =
+                this.props.signatureRatio;
         }
         if (this.props.signatureType) {
             this.nameAndSignatureProps.signatureType = this.props.signatureType;
@@ -43,27 +44,30 @@ export class SignatureForm extends Component {
             this.toggleSignatureFormVisibility();
         };
         onMounted(() => {
-            this.modalEl = this.rootRef.el.closest('.modal');
-            this.modalEl?.addEventListener('shown.bs.modal', this.onModalShown);
+            this.modalEl = this.rootRef.el.closest(".modal");
+            this.modalEl?.addEventListener("shown.bs.modal", this.onModalShown);
         });
         onWillUnmount(() => {
-            this.modalEl?.removeEventListener('shown.bs.modal', this.onModalShown);
+            this.modalEl?.removeEventListener("shown.bs.modal", this.onModalShown);
         });
     }
 
     toggleSignatureFormVisibility() {
-        this.rootRef.el?.classList.toggle('d-none', document.querySelector('.editor_enable'));
+        this.rootRef.el?.classList.toggle(
+            "d-none",
+            document.querySelector(".editor_enable"),
+        );
     }
 
     get sendLabel() {
         return this.props.sendLabel || _t("Accept & Sign");
     }
 
-     /**
-      * @returns {Promise}
-      */
+    /**
+     * @returns {Promise}
+     */
     async onClickSubmit() {
-        const button = this.rootRef.el.querySelector('.o_portal_sign_submit');
+        const button = this.rootRef.el.querySelector(".o_portal_sign_submit");
         const icon = button.removeChild(button.firstChild);
         const restoreBtnLoading = addLoadingEffect(button);
 

@@ -32,7 +32,7 @@ test("is empty with no figures", async () => {
     await createSpreadsheetDashboard();
     expect(".o_mobile_dashboard").toHaveCount(1);
     expect(".o_mobile_dashboard").toHaveText(
-        "Only chart figures are displayed in small screens but this dashboard doesn't contain any"
+        "Only chart figures are displayed in small screens but this dashboard doesn't contain any",
     );
 });
 
@@ -177,7 +177,9 @@ test("can switch dashboard", async () => {
     await createSpreadsheetDashboard();
     expect(".o_search_panel_current_selection").toHaveText("Dashboard CRM 1");
     await contains(".o_search_panel_current_selection").click();
-    const dashboardElements = queryAll("section header.list-group-item", { root: document.body });
+    const dashboardElements = queryAll("section header.list-group-item", {
+        root: document.body,
+    });
     expect(dashboardElements[0]).toHaveClass("active");
     expect(queryAllTexts(dashboardElements)).toEqual([
         "Dashboard CRM 1",

@@ -67,18 +67,18 @@ export class EventRegistrationPopup extends Component {
     }
 
     confirm() {
-        const requiredByRegistration = Object.values(
-            this.state.byRegistration,
-        ).some((data) => {
-            for (const [id, value] of Object.entries(data.questions)) {
-                if (this.isQuestionMissingMandatoryAnswer(id, value)) {
-                    return true;
+        const requiredByRegistration = Object.values(this.state.byRegistration).some(
+            (data) => {
+                for (const [id, value] of Object.entries(data.questions)) {
+                    if (this.isQuestionMissingMandatoryAnswer(id, value)) {
+                        return true;
+                    }
                 }
-            }
-        });
+            },
+        );
 
-        const requiredByOrder = Object.entries(this.state.byOrder).some(
-            ([id, value]) => this.isQuestionMissingMandatoryAnswer(id, value),
+        const requiredByOrder = Object.entries(this.state.byOrder).some(([id, value]) =>
+            this.isQuestionMissingMandatoryAnswer(id, value),
         );
 
         if (requiredByRegistration || requiredByOrder) {
@@ -89,17 +89,14 @@ export class EventRegistrationPopup extends Component {
             return;
         }
 
-        const registrationByTickets = this.state.byRegistration.reduce(
-            (acc, data) => {
-                if (!acc[data.ticket_id.id]) {
-                    acc[data.ticket_id.id] = [];
-                }
+        const registrationByTickets = this.state.byRegistration.reduce((acc, data) => {
+            if (!acc[data.ticket_id.id]) {
+                acc[data.ticket_id.id] = [];
+            }
 
-                acc[data.ticket_id.id].push(data.questions);
-                return acc;
-            },
-            {},
-        );
+            acc[data.ticket_id.id].push(data.questions);
+            return acc;
+        }, {});
 
         this.props.getPayload({
             byRegistration: registrationByTickets,

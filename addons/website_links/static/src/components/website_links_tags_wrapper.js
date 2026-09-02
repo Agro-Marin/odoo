@@ -22,10 +22,11 @@ export class WebsiteLinksTagsWrapper extends Component {
             value: undefined,
         });
         onWillStart(async () => {
-            this.canCreateLinkTracker = await this.orm.call(this.props.model, "has_access", [
-                [],
-                "create",
-            ]);
+            this.canCreateLinkTracker = await this.orm.call(
+                this.props.model,
+                "has_access",
+                [[], "create"],
+            );
             await this.loadChoice();
         });
     }
@@ -42,7 +43,7 @@ export class WebsiteLinksTagsWrapper extends Component {
         this.state.value = value;
     }
 
-    async onCreateOption(string, closeFn) {
+    async onCreateOption(string) {
         const record = await this.orm.call("mixin.utm", "get_or_create_record", [
             this.props.model,
             string,
@@ -80,8 +81,8 @@ export class WebsiteLinksTagsWrapper extends Component {
                     this.props.model,
                     // Exact match + results that start with the search
                     [["name", "=ilike", `${searchString}%`]],
-                    ...searchReadParams
-                )
+                    ...searchReadParams,
+                ),
             );
             proms.push(
                 this.orm.searchRead(
@@ -89,8 +90,8 @@ export class WebsiteLinksTagsWrapper extends Component {
                     // Results that contain the search but do not start
                     // with it
                     [["name", "=ilike", `%_${searchString}%`]],
-                    ...searchReadParams
-                )
+                    ...searchReadParams,
+                ),
             );
             // Keep last is there in case a RPC takes longer than
             // the debounce delay + next rpc delay for some reason.
@@ -108,9 +109,11 @@ export class WebsiteLinksTagsWrapper extends Component {
                     // ensure that we do not display "ending matches" if
                     // we may not have loaded all "starting matches".
                     if (startingMatches.length < limit) {
-                        const startingMatchesId = startingMatches.map((value) => value.id);
+                        const startingMatchesId = startingMatches.map(
+                            (value) => value.id,
+                        );
                         const extraEndingMatches = endingMatches.filter(
-                            (value) => !startingMatchesId.includes(value.id)
+                            (value) => !startingMatchesId.includes(value.id),
                         );
                         extraEndingMatches.map(formatChoice);
                         return startingMatches.concat(extraEndingMatches);

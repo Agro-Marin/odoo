@@ -1,6 +1,6 @@
 import { addBuilderOption, setupHTMLBuilder } from "@html_builder/../tests/helpers";
 import { BaseOptionComponent } from "@html_builder/core/utils";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { xml } from "@odoo/owl";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
 
@@ -19,9 +19,11 @@ test("clean for save of option with selector that matches an element on the page
             static cleanForSave() {
                 expect.step("clean for save option");
             }
-        }
+        },
     );
-    const { getEditor } = await setupHTMLBuilder(`<div class="test-options-target">a</div>`);
+    const { getEditor } = await setupHTMLBuilder(
+        `<div class="test-options-target">a</div>`,
+    );
     const editor = getEditor();
     await contains(":iframe .test-options-target").click();
     // Add an option to mark the document as 'dirty' and trigger a "clean for
@@ -45,7 +47,7 @@ test("clean for save of option with selector and exclude that matches an element
             cleanForSave = (_) => {
                 expect.step("clean for save option");
             };
-        }
+        },
     );
     addBuilderOption(
         class extends BaseOptionComponent {
@@ -55,9 +57,11 @@ test("clean for save of option with selector and exclude that matches an element
                         <BuilderButton classAction="'y'"/>
                     </BuilderButtonGroup>
                 `;
-        }
+        },
     );
-    const { getEditor } = await setupHTMLBuilder(`<div class="test-options-target">a</div>`);
+    const { getEditor } = await setupHTMLBuilder(
+        `<div class="test-options-target">a</div>`,
+    );
     const editor = getEditor();
     await contains(":iframe .test-options-target").click();
     // Add an option to mark the document as 'dirty' and trigger a "clean for

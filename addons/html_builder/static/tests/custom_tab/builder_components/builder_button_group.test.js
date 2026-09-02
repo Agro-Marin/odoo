@@ -5,6 +5,7 @@ import {
     waitForEndOfOperation,
 } from "@html_builder/../tests/helpers";
 import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
 import {
     describe,
     expect,
@@ -17,7 +18,6 @@ import {
 import { hover } from "@odoo/hoot-dom";
 import { xml } from "@odoo/owl";
 import { contains } from "@web/../tests/web_test_helpers";
-import { BaseOptionComponent } from "@html_builder/core/utils";
 
 describe.current.tags("desktop");
 
@@ -38,7 +38,7 @@ test("change the editingElement of sub widget through `applyTo` prop", async () 
                     <BuilderButtonGroup applyTo="'.a'">
                         <BuilderButton action="'customAction'"/>
                     </BuilderButtonGroup>`;
-        }
+        },
     );
     await setupHTMLBuilder(`
                 <div class="test-options-target">
@@ -67,7 +67,7 @@ test("should propagate actionParam in the context", async () => {
                     <BuilderButtonGroup actionParam="'myParam'">
                         <BuilderButton action="'customAction'"/>
                     </BuilderButtonGroup>`;
-        }
+        },
     );
     await setupHTMLBuilder(`
                 <div class="test-options-target">
@@ -94,7 +94,7 @@ test("prevent preview of all buttons", async () => {
                     <BuilderButtonGroup>
                         <BuilderButton action="'customAction4'"/>
                     </BuilderButtonGroup>`;
-        }
+        },
     );
     class CustomAction1 extends BuilderAction {
         static id = "customAction1";
@@ -147,7 +147,7 @@ test("hide/display base on applyTo", async () => {
         class extends BaseOptionComponent {
             static selector = ".parent-target";
             static template = xml`<BuilderButton applyTo="'.child-target'" classAction="'my-custom-class'"/>`;
-        }
+        },
     );
 
     addBuilderOption(
@@ -157,10 +157,12 @@ test("hide/display base on applyTo", async () => {
                 <BuilderButtonGroup applyTo="'.my-custom-class'">
                     <BuilderButton classAction="'test'">Test</BuilderButton>
                 </BuilderButtonGroup>`;
-        }
+        },
     );
 
-    await setupHTMLBuilder(`<div class="parent-target"><div class="child-target">b</div></div>`);
+    await setupHTMLBuilder(
+        `<div class="parent-target"><div class="child-target">b</div></div>`,
+    );
     await contains(":iframe .parent-target").click();
     expect(".options-container .btn-group").toHaveCount(0);
 
@@ -173,7 +175,7 @@ test("hide/display base on applyTo - 2", async () => {
         class extends BaseOptionComponent {
             static selector = ".parent-target";
             static template = xml`<BuilderButton applyTo="'.child-target'" classAction="'my-custom-class'"/>`;
-        }
+        },
     );
 
     addBuilderOption(
@@ -183,10 +185,12 @@ test("hide/display base on applyTo - 2", async () => {
                 <BuilderButtonGroup>
                     <BuilderButton applyTo="'.my-custom-class'" classAction="'test'">Test</BuilderButton>
                 </BuilderButtonGroup>`;
-        }
+        },
     );
 
-    await setupHTMLBuilder(`<div class="parent-target"><div class="child-target">b</div></div>`);
+    await setupHTMLBuilder(
+        `<div class="parent-target"><div class="child-target">b</div></div>`,
+    );
     await contains(":iframe .parent-target").click();
     expect(".options-container .btn-group").not.toBeVisible();
 
@@ -202,13 +206,17 @@ test("click on BuilderButton with empty value should remove styleAction", async 
             <BuilderButton styleAction="'width'" styleActionValue="''"/>
             <BuilderButton styleAction="'width'" styleActionValue="'25%'"/>
         </BuilderButtonGroup>`;
-        }
+        },
     );
-    const { contentEl } = await setupHTMLBuilder(`<p class="test-options-target">b</p>`);
+    const { contentEl } = await setupHTMLBuilder(
+        `<p class="test-options-target">b</p>`,
+    );
     await contains(":iframe .test-options-target").click();
-    await contains("[data-style-action='width'][data-style-action-value='25%']").click();
+    await contains(
+        "[data-style-action='width'][data-style-action-value='25%']",
+    ).click();
     expect(contentEl).toHaveInnerHTML(
-        `<p class="test-options-target" style="width: 25% !important;">b</p>`
+        `<p class="test-options-target" style="width: 25% !important;">b</p>`,
     );
 
     await contains("[data-style-action='width'][data-style-action-value='']").click();
@@ -224,7 +232,7 @@ test("button that matches with the highest priority should be active", async () 
                 <BuilderButton classAction="'a b'">a b</BuilderButton>
                 <BuilderButton classAction="'a b c'">a b c</BuilderButton>
         </BuilderButtonGroup>`;
-        }
+        },
     );
     await setupHTMLBuilder(`<div class="test-options-target a b">b</div>`);
     await contains(":iframe .test-options-target").click();
@@ -245,7 +253,7 @@ test("BuilderButton: no activation on preview", async () => {
                 <BuilderContext t-if="this.isActiveItem('b1')">
                 </BuilderContext>
             `;
-        }
+        },
     );
     addBuilderOption(
         class extends BaseOptionComponent {
@@ -256,7 +264,7 @@ test("BuilderButton: no activation on preview", async () => {
                     <BuilderSelectItem classAction="'s2'"/>
                 </BuilderSelect>
             `;
-        }
+        },
     );
     await setupHTMLBuilder(`<div class="test-options-target s1 b1">Homepage</div>`);
 
@@ -284,7 +292,8 @@ test("BuilderButton: no activation on preview", async () => {
     await press(["Esc"]);
     await waitForEndOfOperation();
     expect(builderButtonEl).not.toHaveClass("active", {
-        message: "Since we are still in preview, the button should NOT switch to active",
+        message:
+            "Since we are still in preview, the button should NOT switch to active",
     });
     expect(targetEl).toHaveClass("b2", {
         message: "It should still preview b2",

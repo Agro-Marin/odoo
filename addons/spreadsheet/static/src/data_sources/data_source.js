@@ -79,17 +79,21 @@ export class LoadableDataSource {
                         this._isModelValid = false;
                         this._loadError = Object.assign(
                             new EvaluationError(
-                                _t(`The model "%(model)s" does not exist.`, { model: e.message })
+                                _t(`The model "%(model)s" does not exist.`, {
+                                    model: e.message,
+                                }),
                             ),
                             {
                                 cause: e,
-                            }
+                            },
                         );
                         return;
                     }
                     this._loadError = Object.assign(
-                        new EvaluationError(e instanceof RPCError ? e.data.message : e.message),
-                        { cause: e }
+                        new EvaluationError(
+                            e instanceof RPCError ? e.data.message : e.message,
+                        ),
+                        { cause: e },
                     );
                 })
                 .finally(() => {
@@ -136,7 +140,10 @@ export class LoadableDataSource {
             if (throwOnError) {
                 throw this._loadError;
             }
-            return { value: CellErrorType.GenericError, message: this._loadError.message };
+            return {
+                value: CellErrorType.GenericError,
+                message: this._loadError.message,
+            };
         }
     }
 

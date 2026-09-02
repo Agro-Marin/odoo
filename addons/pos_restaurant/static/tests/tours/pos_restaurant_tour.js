@@ -1,30 +1,29 @@
-import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
-import * as ChromePos from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
-import * as ChromeRestaurant from "@pos_restaurant/../tests/tours/utils/chrome";
-
-import * as FloorScreen from "@pos_restaurant/../tests/tours/utils/floor_screen_util";
-import * as ProductScreenPos from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
-import * as ProductScreenResto from "@pos_restaurant/../tests/tours/utils/product_screen_util";
-import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
-import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
-import * as combo from "@point_of_sale/../tests/pos/tours/utils/combo_popup_util";
-import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
-import { registry } from "@web/core/registry";
-import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
-import { delay } from "@web/core/utils/concurrency";
-import * as TextInputPopup from "@point_of_sale/../tests/generic_helpers/text_input_popup_util";
-import * as PreparationReceipt from "@point_of_sale/../tests/pos/tours/utils/preparation_receipt_util";
 import * as NumberPopup from "@point_of_sale/../tests/generic_helpers/number_popup_util";
-import { checkPreparationTicketData } from "@point_of_sale/../tests/pos/tours/utils/preparation_receipt_util";
+import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
+import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
+import * as TextInputPopup from "@point_of_sale/../tests/generic_helpers/text_input_popup_util";
 import {
+    assertCurrentOrderDirty,
     negate,
     negateStep,
-    assertCurrentOrderDirty,
     refresh,
 } from "@point_of_sale/../tests/generic_helpers/utils";
+import * as ChromePos from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
+import * as combo from "@point_of_sale/../tests/pos/tours/utils/combo_popup_util";
+import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
 import * as FeedbackScreen from "@point_of_sale/../tests/pos/tours/utils/feedback_screen_util";
+import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
+import * as PreparationReceipt from "@point_of_sale/../tests/pos/tours/utils/preparation_receipt_util";
+import { checkPreparationTicketData } from "@point_of_sale/../tests/pos/tours/utils/preparation_receipt_util";
+import * as ProductScreenPos from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
+import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
+import * as ChromeRestaurant from "@pos_restaurant/../tests/tours/utils/chrome";
+import * as FloorScreen from "@pos_restaurant/../tests/tours/utils/floor_screen_util";
+import * as ProductScreenResto from "@pos_restaurant/../tests/tours/utils/product_screen_util";
+import { registry } from "@web/core/registry";
+import { delay } from "@web/core/utils/concurrency";
 
 const Chrome = { ...ChromePos, ...ChromeRestaurant };
 const ProductScreen = { ...ProductScreenPos, ...ProductScreenResto };
@@ -267,7 +266,8 @@ registry.category("web_tour.tours").add("test_pos_restaurant_course", {
             ProductScreen.clickCourseButton(),
             ProductScreen.selectCourseLine("Course 2"),
             {
-                content: "Wait atleast 1 sec so that courses have different fired_date timestamps",
+                content:
+                    "Wait atleast 1 sec so that courses have different fired_date timestamps",
                 trigger: "body",
                 run: async () => await delay(1000),
             },
@@ -430,24 +430,30 @@ registry.category("web_tour.tours").add("PreparationPrinterContent", {
             // Cutomer Note on orderline
             ProductScreen.addCustomerNote("Test customer note - orderline"),
             ProductScreen.totalAmountIs("10"),
-            checkPreparationTicketData([{ name: "Product Test", qty: 1, attribute: ["Value 1"] }], {
-                visibleInDom: [
-                    "10:00",
-                    "Value 1",
-                    "Guest: 5",
-                    "Eat in",
-                    "Test customer note - orderline",
-                ],
-                invisibleInDom: ["DUPLICATA!"],
-            }),
+            checkPreparationTicketData(
+                [{ name: "Product Test", qty: 1, attribute: ["Value 1"] }],
+                {
+                    visibleInDom: [
+                        "10:00",
+                        "Value 1",
+                        "Guest: 5",
+                        "Eat in",
+                        "Test customer note - orderline",
+                    ],
+                    invisibleInDom: ["DUPLICATA!"],
+                },
+            ),
             ProductScreen.clickOrderButton(),
             Chrome.closePrintingWarning(),
             FloorScreen.clickTable("5"),
             ProductScreen.clickLine("Product Test"),
             ProductScreen.addCustomerNote("Updated customer note - orderline"),
-            checkPreparationTicketData([{ name: "Product Test", qty: 1, attribute: ["Value 1"] }], {
-                visibleInDom: ["NOTE UPDATE", "Updated customer note - orderline"],
-            }),
+            checkPreparationTicketData(
+                [{ name: "Product Test", qty: 1, attribute: ["Value 1"] }],
+                {
+                    visibleInDom: ["NOTE UPDATE", "Updated customer note - orderline"],
+                },
+            ),
             Chrome.clickPlanButton(),
             FloorScreen.clickTable("2"),
             ProductScreen.clickDisplayedProduct("Water"),
@@ -491,7 +497,7 @@ registry.category("web_tour.tours").add("test_course_restaurant_preparation_tour
                 ],
                 {
                     visibleInDom: ["Course 1", "Course 2", "Course 3"],
-                }
+                },
             ),
             ProductScreen.clickOrderButton(),
             Dialog.bodyIs("Preparation Printer: The printer is not reachable."),
@@ -506,11 +512,14 @@ registry.category("web_tour.tours").add("test_course_restaurant_preparation_tour
             Dialog.confirm(),
             FloorScreen.clickTable("5"),
             ProductScreen.selectCourseLine("Course 3"),
-            checkPreparationTicketData([{ name: "Product Test", qty: 1, attribute: ["Value 1"] }], {
-                visibleInDom: ["Course 3"],
-                invisibleInDom: ["DUPLICATA!"],
-                fireCourse: true,
-            }),
+            checkPreparationTicketData(
+                [{ name: "Product Test", qty: 1, attribute: ["Value 1"] }],
+                {
+                    visibleInDom: ["Course 3"],
+                    invisibleInDom: ["DUPLICATA!"],
+                    fireCourse: true,
+                },
+            ),
             ProductScreen.fireCourseButton(),
         ].flat(),
 });
@@ -600,20 +609,22 @@ registry.category("web_tour.tours").add("FinishResidualOrder", {
         ].flat(),
 });
 
-registry.category("web_tour.tours").add("test_multiple_preparation_printer_different_categories", {
-    steps: () =>
-        [
-            Chrome.startPoS(),
-            Dialog.confirm("Open Register"),
-            FloorScreen.clickTable("5"),
-            ProductScreen.clickDisplayedProduct("Product 1"),
-            ProductScreen.clickDisplayedProduct("Product 2"),
-            ProductScreen.clickOrderButton(),
-            Dialog.bodyIs("Printer 1: The printer is not reachable."),
-            Dialog.bodyIs("Printer 2: The printer is not reachable."),
-            Dialog.confirm(),
-        ].flat(),
-});
+registry
+    .category("web_tour.tours")
+    .add("test_multiple_preparation_printer_different_categories", {
+        steps: () =>
+            [
+                Chrome.startPoS(),
+                Dialog.confirm("Open Register"),
+                FloorScreen.clickTable("5"),
+                ProductScreen.clickDisplayedProduct("Product 1"),
+                ProductScreen.clickDisplayedProduct("Product 2"),
+                ProductScreen.clickOrderButton(),
+                Dialog.bodyIs("Printer 1: The printer is not reachable."),
+                Dialog.bodyIs("Printer 2: The printer is not reachable."),
+                Dialog.confirm(),
+            ].flat(),
+    });
 registry.category("web_tour.tours").add("test_preset_delivery_restaurant", {
     steps: () =>
         [
@@ -797,9 +808,12 @@ registry
                         content: "Check the content of the preparation receipt",
                         trigger: "body",
                         run: async () => {
-                            const receipts = await PreparationReceipt.generatePreparationReceipts();
+                            const receipts =
+                                await PreparationReceipt.generatePreparationReceipts();
                             if (!receipts[0].innerHTML.includes("Coca-Cola")) {
-                                throw new Error("Coca-Cola not found in printed receipt");
+                                throw new Error(
+                                    "Coca-Cola not found in printed receipt",
+                                );
                             }
                             if (!receipts[0].innerHTML.includes("NEW")) {
                                 throw new Error("NEW not found in printed receipt");
@@ -818,9 +832,12 @@ registry
                         content: "Check the content of the preparation receipt",
                         trigger: "body",
                         run: async () => {
-                            const receipts = await PreparationReceipt.generatePreparationReceipts();
+                            const receipts =
+                                await PreparationReceipt.generatePreparationReceipts();
                             if (!receipts[0].innerHTML.includes("Coca-Cola")) {
-                                throw new Error("Coca-Cola not found in printed receipt");
+                                throw new Error(
+                                    "Coca-Cola not found in printed receipt",
+                                );
                             }
                             if (!receipts[0].innerHTML.includes("NEW")) {
                                 throw new Error("NEW not found in printed receipt");
@@ -836,7 +853,7 @@ registry
                     FeedbackScreen.clickScreen(),
                     FloorScreen.isShown(),
                 ].flat(),
-        }
+        },
     );
 
 registry
@@ -854,9 +871,12 @@ registry
                         content: "Check the content of the preparation receipt",
                         trigger: "body",
                         run: async () => {
-                            const receipts = await PreparationReceipt.generatePreparationReceipts();
+                            const receipts =
+                                await PreparationReceipt.generatePreparationReceipts();
                             if (!receipts[0].innerHTML.includes("Coca-Cola")) {
-                                throw new Error("Coca-Cola not found in printed receipt");
+                                throw new Error(
+                                    "Coca-Cola not found in printed receipt",
+                                );
                             }
                             if (!receipts[0].innerHTML.includes("NEW")) {
                                 throw new Error("NEW not found in printed receipt");
@@ -874,9 +894,12 @@ registry
                         content: "Check the content of the preparation receipt",
                         trigger: "body",
                         run: async () => {
-                            const receipts = await PreparationReceipt.generatePreparationReceipts();
+                            const receipts =
+                                await PreparationReceipt.generatePreparationReceipts();
                             if (!receipts[0].innerHTML.includes("Coca-Cola")) {
-                                throw new Error("Coca-Cola not found in printed receipt");
+                                throw new Error(
+                                    "Coca-Cola not found in printed receipt",
+                                );
                             }
                             if (!receipts[0].innerHTML.includes("NEW")) {
                                 throw new Error("NEW not found in printed receipt");
@@ -891,7 +914,7 @@ registry
                     ReceiptScreen.clickNextOrder(),
                     FloorScreen.isShown(),
                 ].flat(),
-        }
+        },
     );
 
 registry.category("web_tour.tours").add("test_transfering_orders", {
@@ -1202,7 +1225,9 @@ registry.category("web_tour.tours").add("test_combo_synchronisation", {
                         .lines.every((x) => x.course_id.name === "Course 2");
 
                     if (!onlyCourse2) {
-                        throw new Error("The entire combo must be transferred to Course 2.");
+                        throw new Error(
+                            "The entire combo must be transferred to Course 2.",
+                        );
                     }
                 },
             },

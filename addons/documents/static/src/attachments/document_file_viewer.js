@@ -23,7 +23,7 @@ export class FileViewer extends WebFileViewer {
                 } else if (this.state.file.isMimetypeTextual) {
                     await this.state.file.loadDocumentTextContent();
                 }
-            }
+            },
         );
         this.folderId = this.documentService.documentList?.folderId;
         this.rightPanelState = useState(this.documentService.rightPanelReactive);
@@ -59,11 +59,13 @@ export class FileViewer extends WebFileViewer {
 
     next() {
         super.next();
-        this.previewed.document = this.documentService.documentList.documents[this.state.index];
+        this.previewed.document =
+            this.documentService.documentList.documents[this.state.index];
     }
 
     previous() {
         super.previous();
-        this.previewed.document = this.documentService.documentList.documents[this.state.index];
+        this.previewed.document =
+            this.documentService.documentList.documents[this.state.index];
     }
 }

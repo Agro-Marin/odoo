@@ -10,9 +10,7 @@ patch(PaymentPage.prototype, {
         );
 
         if (paymentMethod.use_payment_terminal === "razorpay") {
-            await this.selfOrder.razorpay.startPayment(
-                this.selfOrder.currentOrder,
-            );
+            await this.selfOrder.razorpay.startPayment(this.selfOrder.currentOrder);
         } else {
             await super.startPayment(...arguments);
         }

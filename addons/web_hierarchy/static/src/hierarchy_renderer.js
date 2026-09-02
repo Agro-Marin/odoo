@@ -73,14 +73,20 @@ export class HierarchyRenderer extends Component {
             case "none":
                 return;
             case "bottom":
-                row = this.rendererRef.el.querySelector(":scope .o_hierarchy_row:last-child");
+                row = this.rendererRef.el.querySelector(
+                    ":scope .o_hierarchy_row:last-child",
+                );
                 break;
             case "up":
-                row = this.rendererRef.el.querySelector(":scope .o_hierarchy_row:first-child");
+                row = this.rendererRef.el.querySelector(
+                    ":scope .o_hierarchy_row:first-child",
+                );
                 break;
             default:
                 row = this.rendererRef.el
-                    .querySelector(`:scope .o_hierarchy_node[data-node-id="${this.scrollTarget}"]`)
+                    .querySelector(
+                        `:scope .o_hierarchy_node[data-node-id="${this.scrollTarget}"]`,
+                    )
                     ?.closest(".o_hierarchy_row");
         }
         this.scrollTarget = "none";
@@ -132,10 +138,12 @@ export class HierarchyRenderer extends Component {
                         parentResId = nodes[0].parentResId;
                         if (!nodes.every((node) => node.parentResId === parentResId)) {
                             this.notification.add(
-                                _t("Impossible to update the parent node of the dragged node because no parent has been found."),
+                                _t(
+                                    "Impossible to update the parent node of the dragged node because no parent has been found.",
+                                ),
                                 {
                                     type: "danger",
-                                }
+                                },
                             );
                             return;
                         }
@@ -143,6 +151,9 @@ export class HierarchyRenderer extends Component {
                 }
             }
         }
-        await this.props.model.updateParentNode(element.dataset.nodeId, { parentResId, parentNodeId });
+        await this.props.model.updateParentNode(element.dataset.nodeId, {
+            parentResId,
+            parentNodeId,
+        });
     }
 }

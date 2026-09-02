@@ -1,5 +1,5 @@
 import { setupHTMLBuilder } from "@html_builder/../tests/helpers";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, press } from "@odoo/hoot-dom";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
 
@@ -9,7 +9,7 @@ test("should prevent edition in many2one field", async () => {
     await setupHTMLBuilder(
         `<a data-oe-model="blog.post" data-oe-id="3" data-oe-field="blog_id" data-oe-type="many2one" data-oe-expression="blog_post.blog_id" data-oe-many2one-id="1" data-oe-many2one-model="blog.blog">
             Travel
-        </a>`
+        </a>`,
     );
     expect(":iframe a").toHaveProperty("isContentEditable", false);
 });
@@ -19,7 +19,8 @@ test("Preview changes of many2one option", async () => {
     onRpc(
         "ir.qweb.field.contact",
         "get_record_to_html",
-        ({ args: [[id]], kwargs }) => `<span>The ${kwargs.options.option} of ${id}</span>`
+        ({ args: [[id]], kwargs }) =>
+            `<span>The ${kwargs.options.option} of ${id}</span>`,
     );
 
     await setupHTMLBuilder(`
@@ -57,7 +58,8 @@ test("Many2OneOption: add null_text option in dropdown", async () => {
     onRpc(
         "ir.qweb.field.contact",
         "get_record_to_html",
-        ({ args: [[id]], kwargs }) => `<span>The ${kwargs.options.option} of ${id}</span>`
+        ({ args: [[id]], kwargs }) =>
+            `<span>The ${kwargs.options.option} of ${id}</span>`,
     );
     await setupHTMLBuilder(`
         <div class="many2oneoption_dropdown"

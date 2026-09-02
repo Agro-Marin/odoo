@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { BaseOptionComponent } from "@html_builder/core/utils";
 import { ANIMATE, before } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { BaseOptionComponent } from "@html_builder/core/utils";
 
 export class BadgeOption extends BaseOptionComponent {
     static template = "html_builder.BadgeOption";

@@ -10,8 +10,7 @@ patch(PaymentScreen.prototype, {
         onMounted(async () => {
             const pendingPaymentLine = this.currentOrder.payment_ids.find(
                 (paymentLine) =>
-                    paymentLine.payment_method_id.use_payment_terminal ===
-                        "razorpay" &&
+                    paymentLine.payment_method_id.use_payment_terminal === "razorpay" &&
                     !paymentLine.isDone() &&
                     paymentLine.getPaymentStatus() !== "pending",
             );
@@ -27,10 +26,7 @@ patch(PaymentScreen.prototype, {
         });
     },
     async addNewPaymentLine(paymentMethod) {
-        if (
-            paymentMethod.use_payment_terminal === "razorpay" &&
-            this.isRefundOrder
-        ) {
+        if (paymentMethod.use_payment_terminal === "razorpay" && this.isRefundOrder) {
             const refundedOrder =
                 this.currentOrder.lines[0]?.refunded_orderline_id?.order_id;
             if (!refundedOrder) {

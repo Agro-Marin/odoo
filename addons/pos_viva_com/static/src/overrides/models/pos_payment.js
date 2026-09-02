@@ -14,7 +14,6 @@ patch(PosPayment.prototype, {
 
     updateRefundPaymentLine(refundedPaymentLine) {
         super.updateRefundPaymentLine(refundedPaymentLine);
-        this.uiState.vivaComParentSessionId =
-            refundedPaymentLine?.viva_com_session_id;
+        this.uiState.vivaComParentSessionId = refundedPaymentLine?.viva_com_session_id;
     },
 });

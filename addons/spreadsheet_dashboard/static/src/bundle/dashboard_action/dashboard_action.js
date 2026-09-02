@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Registry } from "@odoo/o-spreadsheet";
-import { Component, onWillStart, useEffect,useState } from "@odoo/owl";
+import { Component, onWillStart, useEffect, useState } from "@odoo/owl";
 import { SpreadsheetComponent } from "@spreadsheet/actions/spreadsheet_component";
 import { SpreadsheetShareButton } from "@spreadsheet/components/share_button/share_button";
 import { useSpreadsheetPrint } from "@spreadsheet/hooks";
@@ -54,7 +54,7 @@ export class SpreadsheetDashboardAction extends Component {
         });
         useEffect(
             () => router.pushState({ dashboard_id: this.activeDashboardId }),
-            () => [this.activeDashboardId]
+            () => [this.activeDashboardId],
         );
         useEffect(
             () => {
@@ -68,7 +68,7 @@ export class SpreadsheetDashboardAction extends Component {
             () => {
                 const dashboard = this.loader.getActiveDashboard();
                 return [dashboard?.model, dashboard?.status];
-            }
+            },
         );
         useSetupAction({
             getLocalState: () => ({
@@ -151,19 +151,23 @@ export class SpreadsheetDashboardAction extends Component {
         const action = await this.env.services.orm.call(
             "spreadsheet.dashboard",
             "action_edit_dashboard",
-            [id]
+            [id],
         );
         this.actionService.doAction(action);
     }
 
     async shareSpreadsheet(data, excelExport) {
-        const url = await this.orm.call("spreadsheet.dashboard.share", "action_get_share_url", [
-            {
-                dashboard_id: this.activeDashboardId,
-                spreadsheet_data: JSON.stringify(data),
-                excel_files: excelExport.files,
-            },
-        ]);
+        const url = await this.orm.call(
+            "spreadsheet.dashboard.share",
+            "action_get_share_url",
+            [
+                {
+                    dashboard_id: this.activeDashboardId,
+                    spreadsheet_data: JSON.stringify(data),
+                    excel_files: excelExport.files,
+                },
+            ],
+        );
         return url;
     }
 
@@ -186,7 +190,7 @@ export class SpreadsheetDashboardAction extends Component {
         return this.getDashboardGroups().find(
             (group) =>
                 group.id !== "favorites" && // Skip the FAVORITES group
-                group.dashboards.some(({ data }) => data.id === this.activeDashboardId)
+                group.dashboards.some(({ data }) => data.id === this.activeDashboardId),
         )?.name;
     }
 }

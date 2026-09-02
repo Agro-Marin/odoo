@@ -238,14 +238,8 @@ const priorityRestoreStateRules = [
         { direction: DIRECTIONS.RIGHT, cType1: CTGROUPS.BR, cType2: CTGROUPS.BLOCK },
         { spaceVisibility: true, brVisibility: true },
     ],
-    [
-        { cType1: CTYPES.SPACE },
-        { spaceVisibility: false },
-    ],
-    [
-        { direction: DIRECTIONS.LEFT, cType1: CTGROUPS.BR },
-        { spaceVisibility: false },
-    ],
+    [{ cType1: CTYPES.SPACE }, { spaceVisibility: false }],
+    [{ direction: DIRECTIONS.LEFT, cType1: CTGROUPS.BR }, { spaceVisibility: false }],
     [
         { cType1: CTGROUPS.BLOCK, cType2: CTGROUPS.INLINE | CTGROUPS.BR },
         { spaceVisibility: false },

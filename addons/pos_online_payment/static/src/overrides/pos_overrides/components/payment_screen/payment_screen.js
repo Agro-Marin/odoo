@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
 import { serializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { patch } from "@web/core/utils/patch";
 patch(PaymentScreen.prototype, {
     async addNewPaymentLine(paymentMethod) {

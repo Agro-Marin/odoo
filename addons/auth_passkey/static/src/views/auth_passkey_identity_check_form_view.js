@@ -14,10 +14,12 @@ export class PassKeyIdentityCheckFormController extends FormController {
             this.model.root.data.auth_method == "webauthn"
         ) {
             const serverOptions = await rpc("/auth/passkey/start-auth");
-            const auth = await passkeyLib.startAuthentication(serverOptions).catch(e => console.log(e));
+            const auth = await passkeyLib
+                .startAuthentication(serverOptions)
+                .catch((e) => console.log(e));
             // In case the user cancelled the passkey browser check, just interrupt.
-            if(!auth) return false;
-            this.model.root.update({password: JSON.stringify(auth)});
+            if (!auth) return false;
+            this.model.root.update({ password: JSON.stringify(auth) });
         }
         return super.beforeExecuteActionButton(...arguments);
     }
@@ -28,4 +30,6 @@ export const PassKeyIdentityCheckFormView = {
     Controller: PassKeyIdentityCheckFormController,
 };
 
-registry.category("views").add("auth_passkey_identity_check_view_form", PassKeyIdentityCheckFormView);
+registry
+    .category("views")
+    .add("auth_passkey_identity_check_view_form", PassKeyIdentityCheckFormView);

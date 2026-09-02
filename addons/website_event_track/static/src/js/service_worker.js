@@ -1,6 +1,5 @@
 /** @odoo-module native */
-/* eslint-env serviceworker */
-/* eslint-disable no-restricted-globals */
+
 /* global idbKeyval */
 /**
  * `self` is typed `WorkerGlobalScope` by `lib.webworker` — the generic worker
@@ -29,7 +28,11 @@ const syncStore = new Store(`${PREFIX}-sync-db`, `${PREFIX}-sync-store`);
 const cacheStore = new Store(`${PREFIX}-cache-db`, `${PREFIX}-cache-store`);
 const offlineRoute = `${sw.registration.scope}/offline`;
 const scopeURL = new URL(sw.registration.scope);
-const cdnURL = CDN_URL ? (CDN_URL.startsWith("http") ? new URL(CDN_URL) : new URL(`http:${CDN_URL}`)) : undefined;
+const cdnURL = CDN_URL
+    ? CDN_URL.startsWith("http")
+        ? new URL(CDN_URL)
+        : new URL(`http:${CDN_URL}`)
+    : undefined;
 
 /**
  *
@@ -85,7 +88,8 @@ const isCacheFull = async () => {
  *
  * @return {Promise}
  */
-const fetchToCacheOfflinePage = () => caches.open(cacheName).then((cache) => cache.add(offlineRoute));
+const fetchToCacheOfflinePage = () =>
+    caches.open(cacheName).then((cache) => cache.add(offlineRoute));
 
 /**
  *
@@ -161,7 +165,8 @@ const uniqueRequestId = () => Math.floor(Math.random() * 1000 * 1000 * 1000);
  *
  * @returns {Response}
  */
-const buildEmptyResponse = () => new Response(JSON.stringify({ jsonrpc: "2.0", id: uniqueRequestId(), result: {} }));
+const buildEmptyResponse = () =>
+    new Response(JSON.stringify({ jsonrpc: "2.0", id: uniqueRequestId(), result: {} }));
 
 /**
  *
@@ -172,8 +177,13 @@ const buildEmptyResponse = () => new Response(JSON.stringify({ jsonrpc: "2.0", i
 const cacheRequest = async (request, response) => {
     // only attempts to cache local or cdn delivered urls
     const url = new URL(request.url);
-    if (url.hostname !== scopeURL.hostname && (!cdnURL || url.hostname !== cdnURL.hostname)) {
-        console.error(`ignoring cache for ${request.url} => ${url.hostname}, local: ${scopeURL.hostname}, cdn: ${cdnURL ? cdnURL.hostname : cdnURL}`);
+    if (
+        url.hostname !== scopeURL.hostname &&
+        (!cdnURL || url.hostname !== cdnURL.hostname)
+    ) {
+        console.error(
+            `ignoring cache for ${request.url} => ${url.hostname}, local: ${scopeURL.hostname}, cdn: ${cdnURL ? cdnURL.hostname : cdnURL}`,
+        );
         return;
     }
 
@@ -183,7 +193,9 @@ const cacheRequest = async (request, response) => {
     //    that are consuming cache space for no reason (namely due to padding MBs accounted for
     //    each opaque request)
     if (!response || !response.ok || response.type !== "basic") {
-        console.error(`ignoring cache for ${request.url} => ${response.type}, mode: ${request.mode}, cache: ${request.cache}`);
+        console.error(
+            `ignoring cache for ${request.url} => ${response.type}, mode: ${request.mode}, cache: ${request.cache}`,
+        );
         return;
     }
 
@@ -221,11 +233,15 @@ const isCachableRequest = (request) => isGET(request) || isCachableURL(request.u
  * @return {boolean}
  */
 const isOfflineDocumentRequest = (request, requestError) =>
-    request && requestError && requestError.message === 'Failed to fetch' && (
-        (isGET(request) && request.mode === 'navigate' && request.destination === 'document') ||
+    request &&
+    requestError &&
+    requestError.message === "Failed to fetch" &&
+    ((isGET(request) &&
+        request.mode === "navigate" &&
+        request.destination === "document") ||
         // request.mode = navigate isn't supported in all browsers => check for http header accept:text/html
-        (request.method === 'GET' && request.headers.get('accept').includes('text/html'))
-    );
+        (request.method === "GET" &&
+            request.headers.get("accept").includes("text/html")));
 
 /**
  *
@@ -262,7 +278,7 @@ const processFetchRequest = async (request, options) => {
     let response;
     try {
         if (options && options.disableTracking) {
-            response = await fetch(request, { headers: { 'X-Disable-Tracking': '1' } });
+            response = await fetch(request, { headers: { "X-Disable-Tracking": "1" } });
         } else {
             response = await fetch(request);
         }
@@ -275,18 +291,28 @@ const processFetchRequest = async (request, options) => {
                 console.warn("An error occurs when reading the cache request", err);
             }
         } else if (isSyncableURL(requestCopy.url)) {
-            const pendingRequests = (await get(pendingRequestsQueueName, syncStore)) || [];
+            const pendingRequests =
+                (await get(pendingRequestsQueueName, syncStore)) || [];
             const serializedRequest = await serializeRequest(requestCopy);
-            await set(pendingRequestsQueueName, [...pendingRequests, serializedRequest], syncStore);
+            await set(
+                pendingRequestsQueueName,
+                [...pendingRequests, serializedRequest],
+                syncStore,
+            );
             if (sw.registration.sync) {
-                await sw.registration.sync.register(pendingRequestsQueueName).catch((err) => {
-                    console.warn("Cannot use BackgroundSync", err);
-                    throw requestError;
-                });
+                await sw.registration.sync
+                    .register(pendingRequestsQueueName)
+                    .catch((err) => {
+                        console.warn("Cannot use BackgroundSync", err);
+                        throw requestError;
+                    });
             }
             return buildEmptyResponse();
         } else {
-            console.warn(`Offline ${requestCopy.method} request currently not supported`, requestCopy);
+            console.warn(
+                `Offline ${requestCopy.method} request currently not supported`,
+                requestCopy,
+            );
         }
 
         if (!response) {
@@ -353,17 +379,21 @@ const prefetchUrls = async (urls = []) => {
 const processMessage = (data) => {
     const { action } = data;
     switch (action) {
-        case "prefetch-pages":
+        case "prefetch-pages": {
             const { urls: pagesUrls } = data;
             // To prevent redirection cached by the browser (cf. 301 Permanently Moved) from breaking the offline cache
             // we also add alternative urls with the following rule:
             // * if original url has a trailing "/", adds url with striped trailing "/"
             // * if original url doesn't end with "/", adds url without the trailing "/"
-            const maybeRedirectedUrl = pagesUrls.map((url) => (url.endsWith("/") ? url.slice(0, -1) : url));
+            const maybeRedirectedUrl = pagesUrls.map((url) =>
+                url.endsWith("/") ? url.slice(0, -1) : url,
+            );
             return prefetchUrls([...pagesUrls, ...maybeRedirectedUrl]);
-        case "prefetch-assets":
+        }
+        case "prefetch-assets": {
             const { urls: assetsUrls } = data;
             return prefetchUrls(assetsUrls);
+        }
     }
     throw new Error(`Action '${action}' not found.`);
 };
@@ -384,6 +414,6 @@ sw.addEventListener("message", (event) => {
 });
 
 // Precache static resources here. Like offline page
-sw.addEventListener('install', (event) => {
+sw.addEventListener("install", (event) => {
     event.waitUntil(fetchToCacheOfflinePage());
 });

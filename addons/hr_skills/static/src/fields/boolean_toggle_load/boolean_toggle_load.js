@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { registry } from '@web/core/registry';
+import { registry } from "@web/core/registry";
 import {
     ListBooleanToggleField,
     listBooleanToggleField,
@@ -8,7 +8,10 @@ import {
 export class ListBooleanToggleLoadField extends ListBooleanToggleField {
     async onChange(newValue) {
         this.state.value = newValue;
-        const changes = { [this.props.name]: newValue, technical_is_new_default: newValue };
+        const changes = {
+            [this.props.name]: newValue,
+            technical_is_new_default: newValue,
+        };
         await this.props.record.update(changes, { save: this.props.autosave });
     }
 }

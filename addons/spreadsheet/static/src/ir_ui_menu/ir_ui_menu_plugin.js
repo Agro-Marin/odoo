@@ -16,7 +16,9 @@ export class IrMenuPlugin extends OdooCorePlugin {
     getIrMenu(menuId) {
         let menu = this.env.services.menu.getMenu(menuId);
         if (!menu) {
-            menu = this.env.services.menu.getAll().find((menu) => menu.xmlid === menuId);
+            menu = this.env.services.menu
+                .getAll()
+                .find((menu) => menu.xmlid === menuId);
         }
         return menu;
     }

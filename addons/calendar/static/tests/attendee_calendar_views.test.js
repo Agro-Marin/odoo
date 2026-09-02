@@ -2,6 +2,12 @@ import { defineCalendarModels } from "@calendar/../tests/calendar_test_helpers";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
 import {
+    changeScale,
+    clickEvent,
+    clickTimeSlot,
+    expandCalendarView,
+} from "@web/../tests/views/calendar/calendar_test_helpers";
+import {
     contains,
     makeMockServer,
     MockServer,
@@ -10,12 +16,6 @@ import {
     preloadFullCalendar,
     serverState,
 } from "@web/../tests/web_test_helpers";
-import {
-    changeScale,
-    clickEvent,
-    clickTimeSlot,
-    expandCalendarView,
-} from "@web/../tests/views/calendar/calendar_test_helpers";
 
 defineCalendarModels();
 preloadFullCalendar();
@@ -59,7 +59,10 @@ beforeEach(async () => {
     ]);
     serverData.partnerId_1 = partnerId_1;
     serverData.partnerId_2 = partnerId_2;
-    serverData.userId = pyEnv["res.users"].create({ name: "User 1", partner_id: partnerId_1 });
+    serverData.userId = pyEnv["res.users"].create({
+        name: "User 1",
+        partner_id: partnerId_1,
+    });
     serverData.attendeeIds = pyEnv["calendar.attendee"].create([
         { partner_id: serverState.partnerId },
         { partner_id: partnerId_1 },
@@ -95,7 +98,7 @@ test("Linked record rendering", async () => {
     onRpc("/calendar/check_credentials", () => ({}));
     const { id: modelId, display_name } = pyEnv["ir.model"].search_read(
         [["model", "=", "res.partner"]],
-        ["display_name"]
+        ["display_name"],
     )[0];
     const eventId = pyEnv["calendar.event"].create({
         user_id: serverData.userId,
@@ -103,7 +106,11 @@ test("Linked record rendering", async () => {
         start: "2016-12-11 09:00:00",
         stop: "2016-12-11 10:00:00",
         attendee_ids: serverData.attendeeIds,
-        partner_ids: [serverState.partnerId, serverData.partnerId_1, serverData.partnerId_2],
+        partner_ids: [
+            serverState.partnerId,
+            serverData.partnerId_1,
+            serverData.partnerId_2,
+        ],
         res_model_id: modelId,
     });
     await mountView({ type: "calendar", resModel: "calendar.event", arch });

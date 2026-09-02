@@ -5,7 +5,10 @@ registry.category("web_tour.tours").add("check_free_delivery", {
     url: "/shop",
     steps: () => [
         // Part 1: Check free delivery
-        ...tourUtils.addToCart({ productName: "Office Chair Black TEST", expectUnloadPage: true }),
+        ...tourUtils.addToCart({
+            productName: "Office Chair Black TEST",
+            expectUnloadPage: true,
+        }),
         tourUtils.goToCart({ quantity: 1 }),
         tourUtils.goToCheckout(),
         {
@@ -28,7 +31,8 @@ registry.category("web_tour.tours").add("check_free_delivery", {
         tourUtils.confirmOrder(),
         {
             content: "Select `Wire Transfer` payment method",
-            trigger: 'input[name="o_payment_radio"][data-payment-method-code="wire_transfer"]',
+            trigger:
+                'input[name="o_payment_radio"][data-payment-method-code="wire_transfer"]',
             run: "click",
         },
         ...tourUtils.pay({ expectUnloadPage: true, waitFinalizeYourPayment: true }),

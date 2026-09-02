@@ -70,7 +70,9 @@ describe("on connecting", () => {
 
     test("retrieves device settings", async () => {
         const gloryService = new GloryService(() => {});
-        gloryService.socketIo._respondToMessageWith("check credential", ["credential ok"]);
+        gloryService.socketIo._respondToMessageWith("check credential", [
+            "credential ok",
+        ]);
         gloryService.socketIo._respondToMessageWith("getFunctionSetting", [
             "sendFunctionSetting",
             mockSettings,
@@ -85,7 +87,9 @@ describe("on connecting", () => {
 
     test("sets date and time", async () => {
         const gloryService = new GloryService(() => {});
-        gloryService.socketIo._respondToMessageWith("check credential", ["credential ok"]);
+        gloryService.socketIo._respondToMessageWith("check credential", [
+            "credential ok",
+        ]);
         gloryService.socketIo._respondToMessageWith("getFunctionSetting", [
             "sendFunctionSetting",
             mockSettings,
@@ -99,18 +103,20 @@ describe("on connecting", () => {
 
     test("retrieves device status", async () => {
         const gloryService = new GloryService(() => {});
-        gloryService.socketIo._respondToMessageWith("check credential", ["credential ok"]);
+        gloryService.socketIo._respondToMessageWith("check credential", [
+            "credential ok",
+        ]);
         gloryService.socketIo._respondToMessageWith("getFunctionSetting", [
             "sendFunctionSetting",
             mockSettings,
         ]);
         gloryService.socketIo._respondToXmlMessageWith(
             "AdjustTimeRequest",
-            '<AdjustTimeResponse result="0"/>'
+            '<AdjustTimeResponse result="0"/>',
         );
         gloryService.socketIo._respondToXmlMessageWith(
             "StatusRequest",
-            '<StatusResponse result="0"><Code>0</Code></StatusResponse>'
+            '<StatusResponse result="0"><Code>0</Code></StatusResponse>',
         );
         gloryService.connect("mockIp");
 
@@ -122,22 +128,24 @@ describe("on connecting", () => {
 
     test("retrieves initial inventory", async () => {
         const gloryService = new GloryService(() => {});
-        gloryService.socketIo._respondToMessageWith("check credential", ["credential ok"]);
+        gloryService.socketIo._respondToMessageWith("check credential", [
+            "credential ok",
+        ]);
         gloryService.socketIo._respondToMessageWith("getFunctionSetting", [
             "sendFunctionSetting",
             mockSettings,
         ]);
         gloryService.socketIo._respondToXmlMessageWith(
             "AdjustTimeRequest",
-            '<AdjustTimeResponse result="0"/>'
+            '<AdjustTimeResponse result="0"/>',
         );
         gloryService.socketIo._respondToXmlMessageWith(
             "StatusRequest",
-            '<StatusResponse result="0"><Code>0</Code></StatusResponse>'
+            '<StatusResponse result="0"><Code>0</Code></StatusResponse>',
         );
         gloryService.socketIo._respondToXmlMessageWith(
             "InventoryRequest",
-            '<InventoryResponse result="0"><Cash type="4"><Denomination fv="10"><Piece>5</Piece><Status>1</Status></Denomination></Cash></InventoryResponse>'
+            '<InventoryResponse result="0"><Cash type="4"><Denomination fv="10"><Piece>5</Piece><Status>1</Status></Denomination></Cash></InventoryResponse>',
         );
         gloryService.connect("mockIp");
 

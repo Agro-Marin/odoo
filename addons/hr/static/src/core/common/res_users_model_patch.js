@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { patch } from "@web/core/utils/patch";
-import { fields } from "@mail/model/misc";
 import { ResUsers } from "@mail/core/common/res_users_model";
+import { fields } from "@mail/model/misc";
 import { user } from "@web/core/user";
+import { patch } from "@web/core/utils/patch";
 
 patch(ResUsers.prototype, {
     setup() {
@@ -14,7 +14,7 @@ patch(ResUsers.prototype, {
             compute() {
                 return (
                     this.employee_ids.find(
-                        (employee) => employee.company_id?.id === user.activeCompany.id
+                        (employee) => employee.company_id?.id === user.activeCompany.id,
                     ) || this.employee_ids[0]
                 );
             },

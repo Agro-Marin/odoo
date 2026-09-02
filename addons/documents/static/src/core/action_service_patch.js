@@ -9,9 +9,18 @@ patch(actionService, {
         const superSwitchView = superReturn.switchView.bind(superReturn);
 
         superReturn.switchView = async (viewType, props = {}, { newWindow } = {}) => {
-            if (!env.isSmall && superReturn.currentController?.action?.xml_id === "documents.document_action") {
-                const defaultViewType = browser.localStorage.getItem("documentsDefaultViewType");
-                if (["kanban", "list"].includes(viewType) && defaultViewType !== viewType) {
+            if (
+                !env.isSmall &&
+                superReturn.currentController?.action?.xml_id ===
+                    "documents.document_action"
+            ) {
+                const defaultViewType = browser.localStorage.getItem(
+                    "documentsDefaultViewType",
+                );
+                if (
+                    ["kanban", "list"].includes(viewType) &&
+                    defaultViewType !== viewType
+                ) {
                     browser.localStorage.setItem("documentsDefaultViewType", viewType);
                 }
             }

@@ -30,10 +30,7 @@ import { isHtmlContentSupported } from "./selection_plugin.js";
  */
 
 const CLIPBOARD_BLACKLISTS = {
-    unwrap: [
-        ".Apple-interchange-newline",
-        "DIV",
-    ],
+    unwrap: [".Apple-interchange-newline", "DIV"],
     remove: ["META", "STYLE", "SCRIPT"],
 };
 export const CLIPBOARD_WHITELISTS = {

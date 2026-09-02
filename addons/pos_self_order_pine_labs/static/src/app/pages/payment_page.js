@@ -9,9 +9,7 @@ patch(PaymentPage.prototype, {
         );
         if (paymentMethod.use_payment_terminal === "pine_labs") {
             this.selfOrder.paymentError = false;
-            await this.selfOrder.pineLabs.startPayment(
-                this.selfOrder.currentOrder,
-            );
+            await this.selfOrder.pineLabs.startPayment(this.selfOrder.currentOrder);
         } else {
             await super.startPayment(...arguments);
         }

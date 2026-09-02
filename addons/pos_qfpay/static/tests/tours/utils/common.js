@@ -1,6 +1,11 @@
 /* global posmodel */
 
-const response_from_qfpay_on_pos_payment_webhook = (uuid, sessionID, paymentMethodId, amount) => ({
+const response_from_qfpay_on_pos_payment_webhook = (
+    uuid,
+    sessionID,
+    paymentMethodId,
+    amount,
+) => ({
     cash_fee_type: "",
     exchange_rate: "",
     cancel: "0",
@@ -26,7 +31,12 @@ const response_from_qfpay_on_pos_payment_webhook = (uuid, sessionID, paymentMeth
     chnlsn: "2025085675626675",
 });
 
-const response_from_qfpay_on_pos_refund_webhook = (uuid, sessionID, paymentMethodId, amount) => ({
+const response_from_qfpay_on_pos_refund_webhook = (
+    uuid,
+    sessionID,
+    paymentMethodId,
+    amount,
+) => ({
     status: "1",
     sysdtm: "2025-08-26 17:51:34",
     txcurrcd: "HKD",
@@ -44,7 +54,12 @@ const response_from_qfpay_on_pos_refund_webhook = (uuid, sessionID, paymentMetho
 // Once request for payment/refund has been sent to the qfpay terminal
 // we wait to receive the notification from qfpay on the webhook
 // The simplest way to mock this notification is to send it ourselves.
-export async function mockQFPayWebhook(uuid, paymentMethodId, amount, isRefund = false) {
+export async function mockQFPayWebhook(
+    uuid,
+    paymentMethodId,
+    amount,
+    isRefund = false,
+) {
     const sessionId = posmodel.config.current_session_id.id;
     const resp = await fetch("/qfpay/notify", {
         method: "POST",
@@ -57,14 +72,14 @@ export async function mockQFPayWebhook(uuid, paymentMethodId, amount, isRefund =
                       uuid,
                       sessionId,
                       paymentMethodId,
-                      Math.trunc(amount * 100)
+                      Math.trunc(amount * 100),
                   )
                 : response_from_qfpay_on_pos_payment_webhook(
                       uuid,
                       sessionId,
                       paymentMethodId,
-                      Math.trunc(amount * 100)
-                  )
+                      Math.trunc(amount * 100),
+                  ),
         ),
     });
     if (!resp.ok) {

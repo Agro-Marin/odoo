@@ -98,7 +98,7 @@ export function increaseComboItemQty(productName, qty) {
                 content: `Increase the quantity of "${productName}" by clicking the "+" button.`,
                 trigger: `.item_qty_container button:eq(1)`,
                 run: "click",
-            }
+            },
         );
     }
 
@@ -111,7 +111,7 @@ export function setProductAvailability(productName, value) {
         trigger: "body",
         run: async function () {
             const product = posmodel.data.models["product.template"].find(
-                (p) => p.name === productName
+                (p) => p.name === productName,
             );
             if (!product) {
                 throw new Error(`Product '${productName}' not found.`);

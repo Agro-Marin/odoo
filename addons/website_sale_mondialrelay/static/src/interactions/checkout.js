@@ -1,14 +1,14 @@
 /** @odoo-module native */
-import { patch } from '@web/core/utils/patch';
+import { patch } from "@web/core/utils/patch";
 import { Tooltip, Modal } from "@web/libs/bootstrap";
-import { patchDynamicContent } from '@web/public/utils';
+import { patchDynamicContent } from "@web/public/utils";
 import { rpc } from "@web/core/network";
-import { Checkout } from '@website_sale/interactions/checkout';
+import { Checkout } from "@website_sale/interactions/checkout";
 
 // temporary for OnNoResultReturned bug
-import { registry } from '@web/core/registry';
-import { ThirdPartyScriptError } from '@web/core/errors/error_service';
-const errorHandlerRegistry = registry.category('error_handlers');
+import { registry } from "@web/core/registry";
+import { ThirdPartyScriptError } from "@web/core/errors/error_service";
+const errorHandlerRegistry = registry.category("error_handlers");
 
 function corsIgnoredErrorHandler(env, error) {
     if (error instanceof ThirdPartyScriptError) {
@@ -20,14 +20,19 @@ patch(Checkout.prototype, {
     setup() {
         super.setup();
         patchDynamicContent(this.dynamicContent, {
-            '#btn_confirm_relay': { 't-on-click': this.onClickBtnConfirmRelay.bind(this) },
+            "#btn_confirm_relay": {
+                "t-on-click": this.onClickBtnConfirmRelay.bind(this),
+            },
         });
         this.mondialRelayModal = undefined;
         this.useDeliveryAsBillingTooltip = undefined;
-        const useDeliveryAsBillingLabel = this.el.querySelector('#use_delivery_as_billing_label');
+        const useDeliveryAsBillingLabel = this.el.querySelector(
+            "#use_delivery_as_billing_label",
+        );
         if (useDeliveryAsBillingLabel) {
-            this.useDeliveryAsBillingTooltip = Tooltip
-                .getOrCreateInstance(useDeliveryAsBillingLabel);
+            this.useDeliveryAsBillingTooltip = Tooltip.getOrCreateInstance(
+                useDeliveryAsBillingLabel,
+            );
             this.registerCleanup(() => this.useDeliveryAsBillingTooltip.dispose());
         }
         this._adaptUseDeliveryAsBillingToggle();
@@ -45,17 +50,19 @@ patch(Checkout.prototype, {
         if (checkedRadio.dataset.isMondialrelay) {
             if (this.useDeliveryAsBillingToggle?.checked) {
                 // Uncheck the "use delivery as billing" toggle and show the billing address.
-                this.useDeliveryAsBillingToggle.dispatchEvent(new MouseEvent('click'));
+                this.useDeliveryAsBillingToggle.dispatchEvent(new MouseEvent("click"));
             }
             // Fetch delivery method data.
-            const result = await this.waitFor(this._setDeliveryMethod(checkedRadio.dataset.dmId));
+            const result = await this.waitFor(
+                this._setDeliveryMethod(checkedRadio.dataset.dmId),
+            );
             // Show the Mondial Relay modal.
             if (!this.mondialRelayModal) {
                 this._loadMondialRelayModal(result);
             } else {
-                this.mondialRelayModal.querySelector('#btn_confirm_relay').classList.toggle(
-                    'disabled', !result.mondial_relay.current
-                );
+                this.mondialRelayModal
+                    .querySelector("#btn_confirm_relay")
+                    .classList.toggle("disabled", !result.mondial_relay.current);
                 Modal.getOrCreateInstance(this.mondialRelayModal).show();
             }
         }
@@ -70,9 +77,12 @@ patch(Checkout.prototype, {
      */
     async changeAddress(ev) {
         const newAddress = ev.currentTarget;
-        if (newAddress.dataset.isMondialrelay && this.useDeliveryAsBillingToggle?.checked) {
+        if (
+            newAddress.dataset.isMondialrelay &&
+            this.useDeliveryAsBillingToggle?.checked
+        ) {
             // Uncheck the "use delivery as billing" toggle and show the billing address.
-            this.useDeliveryAsBillingToggle.dispatchEvent(new MouseEvent('click'));
+            this.useDeliveryAsBillingToggle.dispatchEvent(new MouseEvent("click"));
         }
         await this.waitFor(super.changeAddress(...arguments));
         this._adaptUseDeliveryAsBillingToggle();
@@ -87,12 +97,13 @@ patch(Checkout.prototype, {
      */
     _adaptUseDeliveryAsBillingToggle() {
         if (this.useDeliveryAsBillingToggle) {
-            const checkedRadio = document.querySelector('input[name="o_delivery_radio"]:checked');
-            const selectedDeliveryAddress = this._getSelectedAddress('delivery');
-            const requireSeparateBillingAddress = (
-                checkedRadio?.dataset.isMondialrelay
-                || selectedDeliveryAddress?.dataset.isMondialrelay
+            const checkedRadio = document.querySelector(
+                'input[name="o_delivery_radio"]:checked',
             );
+            const selectedDeliveryAddress = this._getSelectedAddress("delivery");
+            const requireSeparateBillingAddress =
+                checkedRadio?.dataset.isMondialrelay ||
+                selectedDeliveryAddress?.dataset.isMondialrelay;
             this.useDeliveryAsBillingToggle.disabled = requireSeparateBillingAddress;
             requireSeparateBillingAddress
                 ? this.useDeliveryAsBillingTooltip?.enable()
@@ -109,60 +120,73 @@ patch(Checkout.prototype, {
      */
     _loadMondialRelayModal(result) {
         // add modal to body and bind 'save' button
-        this.renderAt('website_sale_mondialrelay', {}, document.querySelector('body'));
-        this.mondialRelayModal = document.querySelector('#modal_mondialrelay');
-        this.mondialRelayModal.querySelector('#btn_confirm_relay').addEventListener(
-            'click', this.onClickBtnConfirmRelay.bind(this)
-        );
+        this.renderAt("website_sale_mondialrelay", {}, document.querySelector("body"));
+        this.mondialRelayModal = document.querySelector("#modal_mondialrelay");
+        this.mondialRelayModal
+            .querySelector("#btn_confirm_relay")
+            .addEventListener("click", this.onClickBtnConfirmRelay.bind(this));
 
         // load jQuery (required by MR plugin) then mondial relay script
-        const loadScript = (url) => new Promise((resolve) => {
-            const s = document.createElement('script');
-            s.src = url;
-            s.onload = resolve;
-            document.body.appendChild(s);
-        });
+        const loadScript = (url) =>
+            new Promise((resolve) => {
+                const s = document.createElement("script");
+                s.src = url;
+                s.onload = resolve;
+                document.body.appendChild(s);
+            });
         const jqueryPromise = window.jQuery
             ? Promise.resolve()
             : loadScript("/delivery_mondialrelay/static/lib/jquery.slim.min.js");
-        jqueryPromise.then(() => loadScript(
-            "https://widget.mondialrelay.com/parcelshop-picker/jquery.plugin.mondialrelay.parcelshoppicker.min.js"
-        )).then(() => {
-            // instanciate MondialRelay widget
-            const params = {
-                Target: "", // required but handled by OnParcelShopSelected
-                Brand: result.mondial_relay.brand,
-                ColLivMod: result.mondial_relay.col_liv_mod,
-                AllowedCountries: result.mondial_relay.allowed_countries,
-                Country: result.mondial_relay.partner_country_code,
-                PostCode: result.mondial_relay.partner_zip,
-                Responsive: true,
-                ShowResultsOnMap: true,
-                AutoSelect: result.mondial_relay.current,
-                OnParcelShopSelected: (RelaySelected) => {
-                    this.lastRelaySelected = RelaySelected;
-                    this.mondialRelayModal.querySelector('#btn_confirm_relay').classList.remove(
-                        'disabled'
-                    );
-                },
-                OnNoResultReturned: () => {
-                    // HACK while Mondial Relay fix his bug
-                    // disable corsErrorHandler for 10 seconds
-                    // If code postal not valid, it will crash with Cors Error:
-                    // Cannot read property 'on' of undefined at u.MR_FitBounds
-                    const randInt = Math.floor(Math.random() * 100);
-                    errorHandlerRegistry.add("corsIgnoredErrorHandler" + randInt, corsIgnoredErrorHandler, {sequence: 10});
-                    this.waitForTimeout(
-                        () => errorHandlerRegistry.remove("corsIgnoredErrorHandler" + randInt),
-                        10000,
-                    );
-                },
-            };
-            const zoneWidget = this.mondialRelayModal.querySelector('#o_zone_widget');
-            window.jQuery(zoneWidget).MR_ParcelShopPicker(params);
-            Modal.getOrCreateInstance(this.mondialRelayModal).show();
-            window.jQuery(zoneWidget).trigger("MR_RebindMap");
-        });
+        jqueryPromise
+            .then(() =>
+                loadScript(
+                    "https://widget.mondialrelay.com/parcelshop-picker/jquery.plugin.mondialrelay.parcelshoppicker.min.js",
+                ),
+            )
+            .then(() => {
+                // instanciate MondialRelay widget
+                const params = {
+                    Target: "", // required but handled by OnParcelShopSelected
+                    Brand: result.mondial_relay.brand,
+                    ColLivMod: result.mondial_relay.col_liv_mod,
+                    AllowedCountries: result.mondial_relay.allowed_countries,
+                    Country: result.mondial_relay.partner_country_code,
+                    PostCode: result.mondial_relay.partner_zip,
+                    Responsive: true,
+                    ShowResultsOnMap: true,
+                    AutoSelect: result.mondial_relay.current,
+                    OnParcelShopSelected: (RelaySelected) => {
+                        this.lastRelaySelected = RelaySelected;
+                        this.mondialRelayModal
+                            .querySelector("#btn_confirm_relay")
+                            .classList.remove("disabled");
+                    },
+                    OnNoResultReturned: () => {
+                        // HACK while Mondial Relay fix his bug
+                        // disable corsErrorHandler for 10 seconds
+                        // If code postal not valid, it will crash with Cors Error:
+                        // Cannot read property 'on' of undefined at u.MR_FitBounds
+                        const randInt = Math.floor(Math.random() * 100);
+                        errorHandlerRegistry.add(
+                            "corsIgnoredErrorHandler" + randInt,
+                            corsIgnoredErrorHandler,
+                            { sequence: 10 },
+                        );
+                        this.waitForTimeout(
+                            () =>
+                                errorHandlerRegistry.remove(
+                                    "corsIgnoredErrorHandler" + randInt,
+                                ),
+                            10000,
+                        );
+                    },
+                };
+                const zoneWidget =
+                    this.mondialRelayModal.querySelector("#o_zone_widget");
+                window.jQuery(zoneWidget).MR_ParcelShopPicker(params);
+                Modal.getOrCreateInstance(this.mondialRelayModal).show();
+                window.jQuery(zoneWidget).trigger("MR_RebindMap");
+            });
     },
 
     /**
@@ -170,9 +194,11 @@ patch(Checkout.prototype, {
      */
     async onClickBtnConfirmRelay() {
         if (!this.lastRelaySelected) return;
-        await this.waitFor(rpc('/website_sale_mondialrelay/update_shipping', {
-            ...this.lastRelaySelected,
-        }));
+        await this.waitFor(
+            rpc("/website_sale_mondialrelay/update_shipping", {
+                ...this.lastRelaySelected,
+            }),
+        );
         location.reload(); // Update the addresses.
     },
 });

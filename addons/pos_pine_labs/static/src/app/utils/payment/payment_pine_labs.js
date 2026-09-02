@@ -39,10 +39,7 @@ export class PaymentPineLabs extends PaymentInterface {
 
     _callPineLabs(data, action) {
         return this.pos.data
-            .call("pos.payment.method", action, [
-                [this.payment_method_id.id],
-                data,
-            ])
+            .call("pos.payment.method", action, [[this.payment_method_id.id], data])
             .catch((error) => {
                 const line = this.pendingPineLabsPaymentLine();
                 this.pos.paymentTerminalInProgress = false;
@@ -76,8 +73,7 @@ export class PaymentPineLabs extends PaymentInterface {
 
         line.setPaymentStatus("waitingCard");
         line.update({
-            pine_labs_plutus_transaction_ref:
-                response.plutusTransactionReferenceID,
+            pine_labs_plutus_transaction_ref: response.plutusTransactionReferenceID,
         });
         return await this._waitForPaymentToConfirm();
     }
@@ -96,8 +92,7 @@ export class PaymentPineLabs extends PaymentInterface {
             const status = response ? "retry" : "force_done";
             line.setPaymentStatus(status);
             this._showError(
-                response?.error ||
-                    _t("Pine Labs get payment status request failed"),
+                response?.error || _t("Pine Labs get payment status request failed"),
             );
             if (response) {
                 return resolve(false);
@@ -146,8 +141,7 @@ export class PaymentPineLabs extends PaymentInterface {
         const line = this.pendingPineLabsPaymentLine();
         if (!response || response?.error) {
             this._showError(
-                response?.error ||
-                    _t("Pine Labs payment cancellation request failed"),
+                response?.error || _t("Pine Labs payment cancellation request failed"),
             );
             return false;
         } else if (response.notification) {
@@ -170,8 +164,7 @@ export class PaymentPineLabs extends PaymentInterface {
     async _pineLabsCancel() {
         const paymentLine = this.pendingPineLabsPaymentLine();
         const data = {
-            plutusTransactionReferenceID:
-                paymentLine.pine_labs_plutus_transaction_ref,
+            plutusTransactionReferenceID: paymentLine.pine_labs_plutus_transaction_ref,
             amount: paymentLine.amount * 100, // We need to provide the amount in paisa since Pine Labs processes amounts in paisa.
         };
 
@@ -193,9 +186,7 @@ export class PaymentPineLabs extends PaymentInterface {
             (pi) => pi.payment_method_id.use_payment_terminal === "pine_labs",
         ).length;
         if (paymentLine.amount < 0) {
-            this._showError(
-                _t("Cannot process transactions with negative amount."),
-            );
+            this._showError(_t("Cannot process transactions with negative amount."));
             return false;
         }
 
@@ -203,9 +194,7 @@ export class PaymentPineLabs extends PaymentInterface {
             ?.replace(" ", "")
             .replaceAll("-", "")
             .toUpperCase();
-        const referencePrefix = this.pos.config.name
-            .replace(/\s/g, "")
-            .slice(0, 4);
+        const referencePrefix = this.pos.config.name.replace(/\s/g, "").slice(0, 4);
         paymentLine.update({
             payment_ref_no:
                 referencePrefix +
@@ -243,8 +232,7 @@ export class PaymentPineLabs extends PaymentInterface {
             return false;
         }
         const data = {
-            plutusTransactionReferenceID:
-                paymentLine.pine_labs_plutus_transaction_ref,
+            plutusTransactionReferenceID: paymentLine.pine_labs_plutus_transaction_ref,
         };
         this._stopPendingPayment().then(() => (this.payment_stopped = true));
         const pineLabsFetchPaymentStatus = async (resolve, reject) => {

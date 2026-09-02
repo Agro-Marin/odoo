@@ -4,9 +4,7 @@ import { useService } from "@web/core/utils/hooks";
 
 export class DocumentsDropZone extends Component {
     static template = "documents.DocumentsDropZone";
-    static props = [
-        "parentRoot",
-    ];
+    static props = ["parentRoot"];
 
     setup() {
         this.state = useState({
@@ -34,7 +32,7 @@ export class DocumentsDropZone extends Component {
                     el.removeEventListener("scroll", scrollHandler);
                 };
             },
-            () => [this.props.parentRoot.el]
+            () => [this.props.parentRoot.el],
         );
     }
 
@@ -43,11 +41,15 @@ export class DocumentsDropZone extends Component {
     }
 
     get canDrop() {
-        return this.documentService.canUploadInFolder(this.env.searchModel.getSelectedFolder());
+        return this.documentService.canUploadInFolder(
+            this.env.searchModel.getSelectedFolder(),
+        );
     }
 
     get rootDropOverClass() {
-        return this.canDrop ? "o_documents_drop_over" : "o_documents_drop_over_unauthorized";
+        return this.canDrop
+            ? "o_documents_drop_over"
+            : "o_documents_drop_over_unauthorized";
     }
 
     onDragOver(ev) {

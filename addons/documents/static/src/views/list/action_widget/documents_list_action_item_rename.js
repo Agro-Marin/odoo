@@ -11,7 +11,10 @@ export class DocumentsListActionItemRename extends DocumentsListActionItem {
     }
 
     get isVisible() {
-        return this.props.record.isActive && this.documentService.isEditable(this.props.record.data);
+        return (
+            this.props.record.isActive &&
+            this.documentService.isEditable(this.props.record.data)
+        );
     }
 
     async onActionClicked() {

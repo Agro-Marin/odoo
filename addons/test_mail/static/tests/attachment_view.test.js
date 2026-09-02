@@ -1,21 +1,21 @@
-import { defineTestMailModels } from "@test_mail/../tests/test_mail_test_helpers";
-import { beforeEach, describe, test, expect } from "@odoo/hoot";
-import { queryOne, waitUntil } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
 import {
     click,
     contains,
-    openFormView,
-    registerArchs,
-    start,
-    startServer,
-    patchUiSize,
-    SIZES,
     dragenterFiles,
     dropFiles,
+    openFormView,
+    patchUiSize,
+    registerArchs,
+    SIZES,
+    start,
+    startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { browser } from "@web/core/browser/browser";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { queryOne, waitUntil } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
+import { defineTestMailModels } from "@test_mail/../tests/test_mail_test_helpers";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 
 describe.current.tags("desktop");
 defineTestMailModels();
@@ -36,7 +36,7 @@ beforeEach(() => {
                 // This avoids duplicating the test script in the popoutWindow
                 const sanitizedContent = content.replace(
                     /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-                    ""
+                    "",
                 );
                 originalWrite.call(doc, sanitizedContent);
             };
@@ -135,19 +135,21 @@ test("Attachment view popout controls test", async () => {
 
 test("Chatter main attachment: can change from non-viewable to viewable", async () => {
     const pyEnv = await startServer();
-    const recordId = pyEnv['mail.test.simple.main.attachment'].create({});
-    const irAttachmentId = pyEnv['ir.attachment'].create({
-        mimetype: 'text/plain',
+    const recordId = pyEnv["mail.test.simple.main.attachment"].create({});
+    const irAttachmentId = pyEnv["ir.attachment"].create({
+        mimetype: "text/plain",
         name: "Blah.txt",
         res_id: recordId,
-        res_model: 'mail.test.simple.main.attachment',
+        res_model: "mail.test.simple.main.attachment",
     });
-    pyEnv['mail.message'].create({
+    pyEnv["mail.message"].create({
         attachment_ids: [irAttachmentId],
-        model: 'mail.test.simple.main.attachment',
+        model: "mail.test.simple.main.attachment",
         res_id: recordId,
     });
-    pyEnv['mail.test.simple.main.attachment'].write([recordId], {message_main_attachment_id : irAttachmentId});
+    pyEnv["mail.test.simple.main.attachment"].write([recordId], {
+        message_main_attachment_id: irAttachmentId,
+    });
 
     registerArchs({
         "mail.test.simple.main.attachment,false,form": `
@@ -164,7 +166,9 @@ test("Chatter main attachment: can change from non-viewable to viewable", async 
     await openFormView("mail.test.simple.main.attachment", recordId);
 
     // Add a PDF file
-    const pdfFile = new File([new Uint8Array(1)], "text.pdf", { type: "application/pdf" });
+    const pdfFile = new File([new Uint8Array(1)], "text.pdf", {
+        type: "application/pdf",
+    });
     // Gate on the chatter being ready before dragging onto it: until the
     // attachment uploader is wired the dragenter registers no dropzone at all,
     // and the drop below then has nothing to target. Same gate as mail's own

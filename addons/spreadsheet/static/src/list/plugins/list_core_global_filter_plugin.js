@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { CommandResult } from "../../o_spreadsheet/cancelled_reason.js";
 import { checkFilterFieldMatching } from "@spreadsheet/global_filters/helpers";
-import { deepCopy } from "@web/core/utils/collections/objects";
 import { OdooCorePlugin } from "@spreadsheet/plugins";
+import { deepCopy } from "@web/core/utils/collections/objects";
+
+import { CommandResult } from "../../o_spreadsheet/cancelled_reason.js";
 
 /**
  * @typedef GFLocalList
@@ -12,7 +13,10 @@ import { OdooCorePlugin } from "@spreadsheet/plugins";
  */
 
 export class ListCoreGlobalFilterPlugin extends OdooCorePlugin {
-    static getters = /** @type {const} */ (["getListFieldMatch", "getListFieldMatching"]);
+    static getters = /** @type {const} */ ([
+        "getListFieldMatch",
+        "getListFieldMatching",
+    ]);
     constructor(config) {
         super(config);
 
@@ -120,7 +124,7 @@ export class ListCoreGlobalFilterPlugin extends OdooCorePlugin {
         this.history.update(
             "fieldMatchings",
             id,
-            fieldMatching || this.getters.getFieldMatchingForModel(model)
+            fieldMatching || this.getters.getFieldMatchingForModel(model),
         );
     }
 

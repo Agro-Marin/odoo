@@ -10,14 +10,18 @@ patch(registry.category("web_tour.tours").get("crm_tour"), {
     steps() {
         const originalSteps = super.steps();
         const DragOppToWonStepIndex = originalSteps.findIndex(
-            (step) => step.id === "drag_opportunity_to_won_step"
+            (step) => step.id === "drag_opportunity_to_won_step",
         );
         originalSteps.splice(
             DragOppToWonStepIndex + 1,
             0,
             {
                 trigger: ".o_button_generate_leads",
-                content: markup(_t("Looking for more opportunities?<br>Try the <b>Lead Generation</b> tool.")),
+                content: markup(
+                    _t(
+                        "Looking for more opportunities?<br>Try the <b>Lead Generation</b> tool.",
+                    ),
+                ),
                 tooltipPosition: "bottom",
                 run: "click .o_button_generate_leads",
             },
@@ -40,7 +44,7 @@ patch(registry.category("web_tour.tours").get("crm_tour"), {
                 content: _t("Now, just let the magic happen!"),
                 tooltipPosition: "bottom",
                 run: "click",
-            }
+            },
         );
         return originalSteps;
     },

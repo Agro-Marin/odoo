@@ -5,7 +5,7 @@ import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 patch(PaymentPage.prototype, {
     async startPayment() {
-        let order = this.selfOrder.currentOrder;
+        let order;
         const pm = this.selectedPaymentMethod;
         const device = this.selfOrder.config.self_ordering_mode;
 

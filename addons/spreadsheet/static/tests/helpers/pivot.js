@@ -13,7 +13,10 @@ const { parseDimension, isDateOrDatetimeField } = helpers;
 
 function addEmptyGranularity(dimensions, fields) {
     return dimensions.map((dimension) => {
-        if (dimension.fieldName !== "id" && isDateOrDatetimeField(fields[dimension.fieldName])) {
+        if (
+            dimension.fieldName !== "id" &&
+            isDateOrDatetimeField(fields[dimension.fieldName])
+        ) {
             return {
                 granularity: "month",
                 ...dimension,
@@ -30,7 +33,9 @@ async function insertStaticPivot(model, pivotId, params) {
     }
     const [col, row] = params.anchor || [0, 0];
     await ds.load();
-    const { cols, rows, measures, fieldsType } = ds.getExpandedTableStructure().export();
+    const { cols, rows, measures, fieldsType } = ds
+        .getExpandedTableStructure()
+        .export();
     const table = {
         cols,
         rows,
@@ -87,11 +92,11 @@ export async function insertPivotInSpreadsheet(model, pivotId, params) {
         model: resModel,
         columns: addEmptyGranularity(
             archInfo.colGroupBys.map(parseDimension),
-            pyEnv[resModel]._fields
+            pyEnv[resModel]._fields,
         ),
         rows: addEmptyGranularity(
             archInfo.rowGroupBys.map(parseDimension),
-            pyEnv[resModel]._fields
+            pyEnv[resModel]._fields,
         ),
         name: "Partner Pivot",
     };
@@ -121,7 +126,10 @@ export async function createSpreadsheetWithPivot(params = {}) {
     });
     const arch = params.arch || getBasicPivotArch();
     const pivotId = "PIVOT#1";
-    await insertPivotInSpreadsheet(model, pivotId, { arch, pivotType: params.pivotType });
+    await insertPivotInSpreadsheet(model, pivotId, {
+        arch,
+        pivotType: params.pivotType,
+    });
     await waitForDataLoaded(model);
     return { model, env, pivotId };
 }

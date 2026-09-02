@@ -14,16 +14,18 @@ export class DonationSnippet extends Interaction {
     dynamicContent = {
         ".s_donation_btn": {
             "t-on-click.withTarget": this.onPrefilledClick,
-            "t-att-class": (el) => ({ "active": el === this.activeButtonEl }),
+            "t-att-class": (el) => ({ active: el === this.activeButtonEl }),
         },
         ".s_donation_donate_btn": {
             "t-on-click.withTarget": this.locked(this.onDonateClick, true),
-            "t-att-class": () => ({ "o_ready_to_donate": true }), // See TEST_01_DONATION_FIX
+            "t-att-class": () => ({ o_ready_to_donate: true }), // See TEST_01_DONATION_FIX
         },
         "#s_donation_range_slider": { "t-on-input": this.onRangeSliderInput },
         "#s_donation_amount_input": {
             "t-on-input": () => {
-                this.el.querySelector(".o_donation_custom_btn_warning")?.classList.add("d-none");
+                this.el
+                    .querySelector(".o_donation_custom_btn_warning")
+                    ?.classList.add("d-none");
             },
         },
     };
@@ -33,7 +35,7 @@ export class DonationSnippet extends Interaction {
         this.activeButtonEl = null;
         this.rangeSliderEl = this.el.querySelector("#s_donation_range_slider");
         this.defaultAmount = this.el.dataset.defaultAmount;
-        if (!!this.rangeSliderEl) {
+        if (this.rangeSliderEl) {
             this.rangeSliderEl.value = this.defaultAmount;
             this.setBubble();
         }
@@ -52,20 +54,31 @@ export class DonationSnippet extends Interaction {
     }
 
     start() {
-        const prefilledButtonEls = this.el.querySelectorAll(".s_donation_btn, .s_range_bubble");
+        const prefilledButtonEls = this.el.querySelectorAll(
+            ".s_donation_btn, .s_range_bubble",
+        );
         for (const prefilledButtonEl of prefilledButtonEls) {
             // Remove existing currency
             prefilledButtonEl.querySelector(".s_donation_currency")?.remove();
             const insertBefore = this.currency.position === "before";
             const currencyEl = document.createElement("span");
             currencyEl.innerText = this.currency.symbol;
-            currencyEl.classList.add("s_donation_currency", insertBefore ? "pe-1" : "ps-1");
-            this.insert(currencyEl, prefilledButtonEl, insertBefore ? "afterbegin" : "beforeend");
+            currencyEl.classList.add(
+                "s_donation_currency",
+                insertBefore ? "pe-1" : "ps-1",
+            );
+            this.insert(
+                currencyEl,
+                prefilledButtonEl,
+                insertBefore ? "afterbegin" : "beforeend",
+            );
         }
 
         const customButtonEl = this.el.querySelector("#s_donation_amount_input");
         if (customButtonEl) {
-            this.registerCleanup(() => { customButtonEl.style.maxWidth = "" });
+            this.registerCleanup(() => {
+                customButtonEl.style.maxWidth = "";
+            });
             const canvasEl = document.createElement("canvas");
             const context = canvasEl.getContext("2d");
             context.font = window.getComputedStyle(customButtonEl).font;
@@ -80,7 +93,7 @@ export class DonationSnippet extends Interaction {
         const min = this.rangeSliderEl.min || 0;
         const max = this.rangeSliderEl.max || 100;
         const newVal = Number(((val - min) * 100) / (max - min));
-        const tipOffsetLow = 8 - (newVal * 0.16); // the range thumb size is 16px*16px. The '8' and the '0.16' are related to that 16px (50% and 1% of 16px)
+        const tipOffsetLow = 8 - newVal * 0.16; // the range thumb size is 16px*16px. The '8' and the '0.16' are related to that 16px (50% and 1% of 16px)
 
         for (const child of bubbleEl.childNodes) {
             if (child.nodeType === 3) {
@@ -98,8 +111,13 @@ export class DonationSnippet extends Interaction {
     onPrefilledClick(ev, currentTargetEl) {
         this.activeButtonEl = currentTargetEl;
         const amountInputEl = this.el.querySelector("#s_donation_amount_input");
-        if (!currentTargetEl.classList.contains("s_donation_custom_btn") && amountInputEl) {
-            this.el.querySelector(".o_donation_custom_btn_warning")?.classList.add("d-none");
+        if (
+            !currentTargetEl.classList.contains("s_donation_custom_btn") &&
+            amountInputEl
+        ) {
+            this.el
+                .querySelector(".o_donation_custom_btn_warning")
+                ?.classList.add("d-none");
             amountInputEl.value = "";
         }
         if (this.rangeSliderEl) {
@@ -115,27 +133,32 @@ export class DonationSnippet extends Interaction {
     onDonateClick(ev, currentTargetEl) {
         this.el.querySelector(".alert-danger")?.remove();
         const donationButtonEls = this.el.querySelectorAll(".s_donation_btn");
-        let amount = this.activeButtonEl ? parseFloat(this.activeButtonEl.dataset.donationValue) : 0;
+        let amount = this.activeButtonEl
+            ? parseFloat(this.activeButtonEl.dataset.donationValue)
+            : 0;
         if (this.el.dataset.displayOptions && !amount) {
             if (this.rangeSliderEl) {
                 amount = parseFloat(this.rangeSliderEl.value);
             } else if (donationButtonEls.length) {
-                amount = parseFloat(this.el.querySelector("#s_donation_amount_input")?.value);
+                amount = parseFloat(
+                    this.el.querySelector("#s_donation_amount_input")?.value,
+                );
                 let errorMessage = "";
                 const minAmount = parseFloat(this.el.dataset.minimumAmount);
                 if (!amount) {
                     errorMessage = _t("Please select or enter an amount");
                 } else if (amount < minAmount) {
-                    errorMessage = _t(
-                        "The minimum donation amount is %(amount)s",
-                        {
-                            amount: formatCurrency(minAmount, this.currency.id),
-                        }
-                    );
+                    errorMessage = _t("The minimum donation amount is %(amount)s", {
+                        amount: formatCurrency(minAmount, this.currency.id),
+                    });
                 }
                 if (errorMessage) {
                     const pEl = document.createElement("p");
-                    pEl.classList.add("alert", "alert-danger", "o_donation_custom_btn_warning");
+                    pEl.classList.add(
+                        "alert",
+                        "alert-danger",
+                        "o_donation_custom_btn_warning",
+                    );
                     pEl.innerText = errorMessage;
                     this.insert(pEl, currentTargetEl, "beforebegin");
                     return;

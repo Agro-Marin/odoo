@@ -13,10 +13,10 @@ import {
     triggerHotkey,
     waitStoreFetch,
 } from "@mail/../tests/mail_test_helpers";
+import { mail_data } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, test } from "@odoo/hoot";
 import { defineTestMailModels } from "@test_mail/../tests/test_mail_test_helpers";
 import { MockServer, onRpc } from "@web/../tests/web_test_helpers";
-import { mail_data } from "@mail/../tests/mock_server/mail_mock_server";
 
 describe.current.tags("desktop");
 defineTestMailModels();
@@ -45,7 +45,11 @@ test("Send message button activation (access rights dependent)", async () => {
     listenStoreFetch("mixin.mail.thread", {
         async onRpc(request) {
             const { params } = await request.json();
-            if (params.fetch_params.some((fetchParam) => fetchParam[0] === "mixin.mail.thread")) {
+            if (
+                params.fetch_params.some(
+                    (fetchParam) => fetchParam[0] === "mixin.mail.thread",
+                )
+            ) {
                 const res = await mail_data.bind(MockServer.current)(request);
                 res["mixin.mail.thread"][0].hasWriteAccess = userAccess.hasWriteAccess;
                 res["mixin.mail.thread"][0].hasReadAccess = userAccess.hasReadAccess;
@@ -54,7 +58,9 @@ test("Send message button activation (access rights dependent)", async () => {
         },
     });
     await start();
-    const simpleId = pyEnv["mail.test.multi.company"].create({ name: "Test MC Simple" });
+    const simpleId = pyEnv["mail.test.multi.company"].create({
+        name: "Test MC Simple",
+    });
     const simpleMcId = pyEnv["mail.test.multi.company.read"].create({
         name: "Test MC Readonly with Activities",
     });
@@ -65,7 +71,7 @@ test("Send message button activation (access rights dependent)", async () => {
         model = null,
         resId = null,
         hasReadAccess = false,
-        hasWriteAccess = false
+        hasWriteAccess = false,
     ) {
         userAccess = { hasReadAccess, hasWriteAccess };
         await openFormView(model, resId);
@@ -73,18 +79,28 @@ test("Send message button activation (access rights dependent)", async () => {
             await waitStoreFetch("mixin.mail.thread");
         }
         if (enabled) {
-            await contains(".o-mail-Chatter-topbar button:enabled", { text: "Send message" });
-            await contains(".o-mail-Chatter-topbar button:enabled", { text: "Log note" });
+            await contains(".o-mail-Chatter-topbar button:enabled", {
+                text: "Send message",
+            });
+            await contains(".o-mail-Chatter-topbar button:enabled", {
+                text: "Log note",
+            });
             if (activities) {
-                await contains(".o-mail-Chatter-topbar button:enabled", { text: "Activity" });
-
+                await contains(".o-mail-Chatter-topbar button:enabled", {
+                    text: "Activity",
+                });
             }
         } else {
-            await contains(".o-mail-Chatter-topbar button:disabled", { text: "Send message" });
-            await contains(".o-mail-Chatter-topbar button:disabled", { text: "Log note" });
+            await contains(".o-mail-Chatter-topbar button:disabled", {
+                text: "Send message",
+            });
+            await contains(".o-mail-Chatter-topbar button:disabled", {
+                text: "Log note",
+            });
             if (activities) {
-                await contains(".o-mail-Chatter-topbar button:disabled", { text: "Activity" });
-
+                await contains(".o-mail-Chatter-topbar button:disabled", {
+                    text: "Activity",
+                });
             }
         }
     }
@@ -95,7 +111,7 @@ test("Send message button activation (access rights dependent)", async () => {
         "mail.test.multi.company",
         simpleId,
         true,
-        true
+        true,
     );
     await assertSendButton(
         true,
@@ -104,7 +120,7 @@ test("Send message button activation (access rights dependent)", async () => {
         "mail.test.multi.company.read",
         simpleId,
         true,
-        true
+        true,
     );
     await assertSendButton(
         false,
@@ -112,7 +128,7 @@ test("Send message button activation (access rights dependent)", async () => {
         "Record, no write access",
         "mail.test.multi.company",
         simpleId,
-        true
+        true,
     );
     await assertSendButton(
         true,
@@ -120,10 +136,22 @@ test("Send message button activation (access rights dependent)", async () => {
         "Record, read access but model accept post with read only access",
         "mail.test.multi.company.read",
         simpleMcId,
-        true
+        true,
     );
-    await assertSendButton(false, false, "Record, no rights", "mail.test.multi.company", simpleId);
-    await assertSendButton(false, true, "Record, no rights", "mail.test.multi.company.read", simpleMcId);
+    await assertSendButton(
+        false,
+        false,
+        "Record, no rights",
+        "mail.test.multi.company",
+        simpleId,
+    );
+    await assertSendButton(
+        false,
+        true,
+        "Record, no rights",
+        "mail.test.multi.company.read",
+        simpleMcId,
+    );
     // Note that rights have no impact on send button for draft record (chatter.isTemporary=true)
     await assertSendButton(true, false, "Draft record", "mail.test.multi.company");
     await assertSendButton(true, true, "Draft record", "mail.test.multi.company.read");

@@ -1,16 +1,17 @@
 /** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
 
-import { GlobalFiltersUIPlugin } from "./plugins/global_filters_ui_plugin.js";
 import { GlobalFiltersCorePlugin } from "./plugins/global_filters_core_plugin.js";
 import { GlobalFiltersCoreViewPlugin } from "./plugins/global_filters_core_view_plugin.js";
+import { GlobalFiltersUIPlugin } from "./plugins/global_filters_ui_plugin.js";
 const { inverseCommandRegistry } = spreadsheet.registries;
 
 function identity(cmd) {
     return [cmd];
 }
 
-const { coreTypes, invalidateEvaluationCommands, readonlyAllowedCommands } = spreadsheet;
+const { coreTypes, invalidateEvaluationCommands, readonlyAllowedCommands } =
+    spreadsheet;
 
 coreTypes.add("ADD_GLOBAL_FILTER");
 coreTypes.add("EDIT_GLOBAL_FILTER");

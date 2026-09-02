@@ -37,7 +37,7 @@ export class SoLineCreateButton extends Component {
                 const service_line_id = await rec.model.orm.call(
                     "sale.order",
                     "get_first_service_line",
-                    [rec.resId]
+                    [rec.resId],
                 );
                 record.update({ sale_line_id: { id: service_line_id[0] } });
             },

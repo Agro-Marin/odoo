@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
 import { getElementsWithOption } from "@html_builder/utils/utils";
+import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 
 /**
@@ -18,7 +18,8 @@ import { withSequence } from "@html_editor/utils/resource";
 
 const invisibleElementsSelector =
     ".o_snippet_invisible, .o_snippet_mobile_invisible, .o_snippet_desktop_invisible";
-const deviceInvisibleSelector = ".o_snippet_mobile_invisible, .o_snippet_desktop_invisible";
+const deviceInvisibleSelector =
+    ".o_snippet_mobile_invisible, .o_snippet_desktop_invisible";
 
 export class VisibilityPlugin extends Plugin {
     static id = "visibility";
@@ -31,12 +32,16 @@ export class VisibilityPlugin extends Plugin {
     ];
     /** @type {import("plugins").BuilderResources} */
     resources = {
-        on_mobile_preview_clicked: withSequence(10, this.onMobilePreviewClicked.bind(this)),
+        on_mobile_preview_clicked: withSequence(
+            10,
+            this.onMobilePreviewClicked.bind(this),
+        ),
         system_attributes: ["data-invisible"],
         system_classes: ["o_snippet_override_invisible"],
         clean_for_save_handlers: this.cleanForSaveVisibility.bind(this),
         on_snippet_dropped_handlers: this.onSnippetDropped.bind(this),
-        on_restore_containers_handlers: (newTargetEl) => this.makeTargetVisible(newTargetEl),
+        on_restore_containers_handlers: (newTargetEl) =>
+            this.makeTargetVisible(newTargetEl),
     };
 
     setup() {
@@ -45,15 +50,24 @@ export class VisibilityPlugin extends Plugin {
         // depending on if we are in mobile preview or not, so the DOM is
         // consistent.
         const isMobilePreview = this.config.isMobileView(this.editable);
-        this.editable.querySelectorAll(deviceInvisibleSelector).forEach((invisibleEl) => {
-            const isMobileHidden = invisibleEl.matches(".o_snippet_mobile_invisible");
-            const isDesktopHidden = invisibleEl.matches(".o_snippet_desktop_invisible");
-            if ((isMobileHidden && isMobilePreview) || (isDesktopHidden && !isMobilePreview)) {
-                invisibleEl.setAttribute("data-invisible", "1");
-            } else {
-                invisibleEl.removeAttribute("data-invisible");
-            }
-        });
+        this.editable
+            .querySelectorAll(deviceInvisibleSelector)
+            .forEach((invisibleEl) => {
+                const isMobileHidden = invisibleEl.matches(
+                    ".o_snippet_mobile_invisible",
+                );
+                const isDesktopHidden = invisibleEl.matches(
+                    ".o_snippet_desktop_invisible",
+                );
+                if (
+                    (isMobileHidden && isMobilePreview) ||
+                    (isDesktopHidden && !isMobilePreview)
+                ) {
+                    invisibleEl.setAttribute("data-invisible", "1");
+                } else {
+                    invisibleEl.removeAttribute("data-invisible");
+                }
+            });
     }
 
     getVisibleSibling(target, direction) {
@@ -63,13 +77,15 @@ export class VisibilityPlugin extends Plugin {
             (el) =>
                 !el.classList.contains("o_we_no_overlay") &&
                 window.getComputedStyle(el).display !== "none" &&
-                !el.closest(systemNodeSelectors)
+                !el.closest(systemNodeSelectors),
         );
         const targetMobileOrder = target.style.order;
         // On mobile, if the target has a mobile order (which is independent
         // from desktop), consider these orders instead of the DOM order.
         if (targetMobileOrder && this.config.isMobileView(target)) {
-            visibleSiblingEls.sort((a, b) => parseInt(a.style.order) - parseInt(b.style.order));
+            visibleSiblingEls.sort(
+                (a, b) => parseInt(a.style.order) - parseInt(b.style.order),
+            );
         }
         const targetIndex = visibleSiblingEls.indexOf(target);
         const siblingIndex = direction === "prev" ? targetIndex - 1 : targetIndex + 1;
@@ -112,15 +128,21 @@ export class VisibilityPlugin extends Plugin {
 
     onSnippetDropped({ snippetEl }) {
         // Show the invisible elements.
-        const invisibleEls = getElementsWithOption(snippetEl, invisibleElementsSelector);
+        const invisibleEls = getElementsWithOption(
+            snippetEl,
+            invisibleElementsSelector,
+        );
         for (const invisibleEl of invisibleEls) {
             this.toggleTargetVisibility(invisibleEl, true);
         }
     }
 
     onMobilePreviewClicked() {
-        const deviceInvisibleEls = this.editable.querySelectorAll(deviceInvisibleSelector);
-        const currentContainerTargetEl = this.dependencies["builderOptions"].getTarget();
+        const deviceInvisibleEls = this.editable.querySelectorAll(
+            deviceInvisibleSelector,
+        );
+        const currentContainerTargetEl =
+            this.dependencies["builderOptions"].getTarget();
         for (const deviceInvisibleEl of [...deviceInvisibleEls]) {
             deviceInvisibleEl.classList.remove("o_snippet_override_invisible");
             const show = !isTargetVisible(deviceInvisibleEl);
@@ -141,7 +163,12 @@ export class VisibilityPlugin extends Plugin {
      * clean_for_save handler.
      * @returns {Boolean}
      */
-    toggleTargetVisibility(editingEl, show, considerDeviceVisibility, isCleaning = false) {
+    toggleTargetVisibility(
+        editingEl,
+        show,
+        considerDeviceVisibility,
+        isCleaning = false,
+    ) {
         show = this.toggleVisibilityStatus(editingEl, show, considerDeviceVisibility);
         const resourceName = show ? "target_show" : "target_hide";
         this.dispatchTo(resourceName, editingEl);
@@ -178,10 +205,14 @@ export class VisibilityPlugin extends Plugin {
     toggleVisibilityStatus(editingEl, show, considerDeviceVisibility = false) {
         if (
             considerDeviceVisibility &&
-            editingEl.matches(".o_snippet_mobile_invisible, .o_snippet_desktop_invisible")
+            editingEl.matches(
+                ".o_snippet_mobile_invisible, .o_snippet_desktop_invisible",
+            )
         ) {
             const isMobilePreview = this.config.isMobileView(editingEl);
-            const isMobileHidden = editingEl.classList.contains("o_snippet_mobile_invisible");
+            const isMobileHidden = editingEl.classList.contains(
+                "o_snippet_mobile_invisible",
+            );
             show = isMobilePreview !== isMobileHidden;
         }
 

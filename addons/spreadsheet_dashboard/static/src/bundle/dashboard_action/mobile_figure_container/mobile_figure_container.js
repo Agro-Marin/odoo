@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
-
 import { Component, useSubEnv } from "@odoo/owl";
 const { registries, stores } = spreadsheet;
 const { figureRegistry } = registries;
@@ -34,7 +33,11 @@ export class MobileFigureContainer extends Component {
         for (let i = 0; i < sortedFigures.length; i++) {
             const figure = sortedFigures[i];
             const nextFigure = sortedFigures[i + 1];
-            if (this.isScorecard(figure) && nextFigure && this.isScorecard(nextFigure)) {
+            if (
+                this.isScorecard(figure) &&
+                nextFigure &&
+                this.isScorecard(nextFigure)
+            ) {
                 figureRows.push([figure, nextFigure]);
                 i++;
             } else if (this.isScorecard(figure)) {
@@ -61,8 +64,11 @@ export class MobileFigureContainer extends Component {
         if (figure.tag !== "chart") {
             return false;
         }
-        const chartId = this.props.spreadsheetModel.getters.getChartIdFromFigureId(figure.id);
-        const definition = this.props.spreadsheetModel.getters.getChartDefinition(chartId);
+        const chartId = this.props.spreadsheetModel.getters.getChartIdFromFigureId(
+            figure.id,
+        );
+        const definition =
+            this.props.spreadsheetModel.getters.getChartDefinition(chartId);
         return definition.type === "scorecard";
     }
 }

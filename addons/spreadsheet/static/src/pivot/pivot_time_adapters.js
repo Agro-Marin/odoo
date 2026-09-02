@@ -1,7 +1,7 @@
 /** @odoo-module native */
 // @ts-check
 
-import { constants, EvaluationError,helpers, registries } from "@odoo/o-spreadsheet";
+import { constants, EvaluationError, helpers, registries } from "@odoo/o-spreadsheet";
 import { deserializeDate } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
@@ -87,8 +87,8 @@ const odooWeekAdapter = {
             throw new EvaluationError(
                 _t(
                     "Week value must be a string in the format %(example)s, but received %(received_value)s instead.",
-                    { example, received_value: value }
-                )
+                    { example, received_value: value },
+                ),
             );
         }
         const [week, year] = toString(value).split("/");
@@ -125,11 +125,15 @@ const odooWeekAdapter = {
 const odooMonthAdapter = {
     normalizeServerValue(groupBy, field, readGroupResult) {
         const firstOfTheMonth = getGroupStartingDay(field, groupBy, readGroupResult);
-        const date = deserializeDate(firstOfTheMonth).reconfigure({ numberingSystem: "latn" });
+        const date = deserializeDate(firstOfTheMonth).reconfigure({
+            numberingSystem: "latn",
+        });
         return date.toFormat("MM/yyyy");
     },
     increment(normalizedValue, step) {
-        return DateTime.fromFormat(normalizedValue, "MM/yyyy", { numberingSystem: "latn" })
+        return DateTime.fromFormat(normalizedValue, "MM/yyyy", {
+            numberingSystem: "latn",
+        })
             .plus({ months: step })
             .toFormat("MM/yyyy");
     },
@@ -168,7 +172,10 @@ const odooQuarterAdapter = {
     },
     increment(normalizedValue, step) {
         const [quarter, year] = normalizedValue.split("/");
-        const date = DateTime.fromObject({ year: Number(year), month: Number(quarter) * 3 });
+        const date = DateTime.fromObject({
+            year: Number(year),
+            month: Number(quarter) * 3,
+        });
         const nextQuarter = date.plus({ quarters: step });
         return `${nextQuarter.quarter}/${nextQuarter.year}`;
     },
@@ -186,7 +193,8 @@ const odooYearAdapter = {
 
 const odooDayOfWeekAdapter = {
     normalizeServerValue(groupBy, field, readGroupResult, locale) {
-        const fromLocaleIsZero = (7 - locale.weekStart + Number(readGroupResult[groupBy])) % 7;
+        const fromLocaleIsZero =
+            (7 - locale.weekStart + Number(readGroupResult[groupBy])) % 7;
         return fromLocaleIsZero + 1; // 1-based
     },
     increment(normalizedValue, step) {
@@ -228,19 +236,28 @@ function falseHandlerDecorator(adapter) {
             if (readGroupResult[groupBy] === false) {
                 return false;
             }
-            return adapter.normalizeServerValue(groupBy, field, readGroupResult, locale);
+            return adapter.normalizeServerValue(
+                groupBy,
+                field,
+                readGroupResult,
+                locale,
+            );
         },
         increment(normalizedValue, step) {
             if (
                 normalizedValue === false ||
-                (typeof normalizedValue === "string" && normalizedValue.toLowerCase() === "false")
+                (typeof normalizedValue === "string" &&
+                    normalizedValue.toLowerCase() === "false")
             ) {
                 return false;
             }
             return adapter.increment(normalizedValue, step);
         },
         normalizeFunctionValue(value) {
-            if ((typeof value === "string" && value.toLowerCase() === "false") || value === false) {
+            if (
+                (typeof value === "string" && value.toLowerCase() === "false") ||
+                value === false
+            ) {
                 return false;
             }
             return adapter.normalizeFunctionValue(value);
@@ -248,7 +265,8 @@ function falseHandlerDecorator(adapter) {
         toValueAndFormat(normalizedValue, locale) {
             if (
                 normalizedValue === false ||
-                (typeof normalizedValue === "string" && normalizedValue.toLowerCase() === "false")
+                (typeof normalizedValue === "string" &&
+                    normalizedValue.toLowerCase() === "false")
             ) {
                 return { value: _t("None") };
             }
@@ -270,7 +288,7 @@ function extendSpreadsheetAdapter(granularity, adapter) {
         falseHandlerDecorator({
             ...originalAdapter,
             ...adapter,
-        })
+        }),
     );
 }
 

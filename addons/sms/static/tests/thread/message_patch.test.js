@@ -3,7 +3,7 @@ import {
     contains,
     openFormView,
     start,
-    startServer
+    startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
 import { defineSMSModels } from "@sms/../tests/sms_test_helpers";
@@ -46,7 +46,10 @@ test("Notification Error", async () => {
 
 const _prepareSmsNotification = async (notification_status) => {
     const pyEnv = await startServer();
-    const partnerId = pyEnv["res.partner"].create({ name: "Someone", partner_share: true });
+    const partnerId = pyEnv["res.partner"].create({
+        name: "Someone",
+        partner_share: true,
+    });
     const messageId = pyEnv["mail.message"].create({
         body: "not empty",
         message_type: "sms",

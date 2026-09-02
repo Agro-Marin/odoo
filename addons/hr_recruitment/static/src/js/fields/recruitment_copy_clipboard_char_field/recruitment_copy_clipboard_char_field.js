@@ -1,5 +1,8 @@
 /** @odoo-module native */
-import { CopyClipboardCharField, copyClipboardCharField } from "@web/fields/basic/copy_clipboard/copy_clipboard_field";
+import {
+    CopyClipboardCharField,
+    copyClipboardCharField,
+} from "@web/fields/basic/copy_clipboard/copy_clipboard_field";
 import { CharField } from "@web/fields/basic/char/char_field";
 import { GenerateContentAndCopyButton } from "../../buttons/generate_content_and_copy_button.js";
 import { useService } from "@web/core/utils/hooks";
@@ -22,16 +25,21 @@ class RecruitmentCopyClipboardCharField extends CopyClipboardCharField {
     }
 
     get fieldProps() {
-        return omit(super.fieldProps, "displayedValue", "contentGenerationFunctionName");
+        return omit(
+            super.fieldProps,
+            "displayedValue",
+            "contentGenerationFunctionName",
+        );
     }
 
     get contentGenerationFunction() {
-        if(this.props.contentGenerationFunctionName) {
-            return () => this.orm.call(
-                this.props.record._config.resModel,
-                this.props.contentGenerationFunctionName,
-                [this.props.record.resId],
-            );
+        if (this.props.contentGenerationFunctionName) {
+            return () =>
+                this.orm.call(
+                    this.props.record._config.resModel,
+                    this.props.contentGenerationFunctionName,
+                    [this.props.record.resId],
+                );
         }
         return null;
     }
@@ -49,4 +57,6 @@ export const recruitmentCopyClipboardCharField = {
         return props;
     },
 };
-registry.category("fields").add("RecruitmentCopyClipboardChar", recruitmentCopyClipboardCharField);
+registry
+    .category("fields")
+    .add("RecruitmentCopyClipboardChar", recruitmentCopyClipboardCharField);

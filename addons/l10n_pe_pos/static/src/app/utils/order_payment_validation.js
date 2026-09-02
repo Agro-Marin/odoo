@@ -4,7 +4,7 @@ import { AlertDialog } from "@web/ui/dialog";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 patch(OrderPaymentValidation.prototype, {
-    async isOrderValid(isForceValidate) {
+    async isOrderValid() {
         const res = await super.isOrderValid(...arguments);
         if (!this.pos.isPeruvianCompany() && res) {
             return res;

@@ -1,14 +1,15 @@
 /** @odoo-module native */
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+
 import {
     basicContainerBuilderComponentProps,
     getAllActionsAndOperations,
     useBuilderComponent,
     useDomState,
 } from "../utils.js";
-import { BuilderComponent } from "./builder_component.js";
 import { BasicMany2Many } from "./basic_many2many.js";
+import { BuilderComponent } from "./builder_component.js";
 
 export class BuilderMany2Many extends Component {
     static template = "html_builder.BuilderMany2Many";
@@ -28,16 +29,17 @@ export class BuilderMany2Many extends Component {
         this.fields = useService("field");
         const { getAllActions, callOperation } = getAllActionsAndOperations(this);
         this.callOperation = callOperation;
-        this.applyOperation = this.env.editor.shared.history.makePreviewableAsyncOperation(
-            this.callApply.bind(this)
-        );
+        this.applyOperation =
+            this.env.editor.shared.history.makePreviewableAsyncOperation(
+                this.callApply.bind(this),
+            );
         this.state = useState({
             searchModel: undefined,
         });
         this.domState = useDomState((el) => {
             const getAction = this.env.editor.shared.builderActions.getAction;
             const actionWithGetValue = getAllActions().find(
-                ({ actionId }) => getAction(actionId).getValue
+                ({ actionId }) => getAction(actionId).getValue,
             );
             const { actionId, actionParam } = actionWithGetValue;
             const actionValue = getAction(actionId).getValue({
@@ -78,7 +80,7 @@ export class BuilderMany2Many extends Component {
                     value: applySpec.actionValue,
                     loadResult: applySpec.loadResult,
                     dependencyManager: this.env.dependencyManager,
-                })
+                }),
             );
         }
         return proms;

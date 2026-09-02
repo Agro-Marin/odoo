@@ -1,9 +1,22 @@
 /** @odoo-module native */
-import { EDITOR_COLOR_CSS_VARIABLES, isColorCombinationName } from "@html_editor/utils/color";
+import {
+    EDITOR_COLOR_CSS_VARIABLES,
+    isColorCombinationName,
+} from "@html_editor/utils/color";
 import { selectElements } from "@html_editor/utils/dom_traversal";
-import { backgroundImageCssToParts, getBgImageURLFromURL } from "@html_editor/utils/image";
-import { normalizeCSSColor, isCSSColor, isColorGradient } from "@web/core/utils/format/colors";
-import { convertNumericToUnit, getCSSVariableValue } from "@html_editor/utils/formatting";
+import {
+    convertNumericToUnit,
+    getCSSVariableValue,
+} from "@html_editor/utils/formatting";
+import {
+    backgroundImageCssToParts,
+    getBgImageURLFromURL,
+} from "@html_editor/utils/image";
+import {
+    isColorGradient,
+    isCSSColor,
+    normalizeCSSColor,
+} from "@web/core/utils/format/colors";
 
 /**
  * window.getComputedStyle cannot work properly with CSS shortcuts (like
@@ -209,9 +222,10 @@ export function areCssValuesEqual(value1, value2, cssProp, htmlStyle) {
     }
     const numValue1 = data[0];
     // Zero values don't need unit conversion (0px === 0rem === 0em === 0)
-    const numValue2 = parseFloat(numValue1) === 0
-        ? getNumericAndUnit(value2)[0]
-        : convertValueToUnit(value2, data[1], htmlStyle);
+    const numValue2 =
+        parseFloat(numValue1) === 0
+            ? getNumericAndUnit(value2)[0]
+            : convertValueToUnit(value2, data[1], htmlStyle);
     return Math.abs(numValue1 - numValue2) < Number.EPSILON;
 }
 /**
@@ -353,7 +367,7 @@ export function forwardToThumbnail(imgEl) {
         if (carouselInnerEl && carouselItemEl) {
             const imageIndex = [...carouselInnerEl.children].indexOf(carouselItemEl);
             const miniatureEl = carouselEl.querySelector(
-                `.carousel-indicators [data-bs-slide-to="${imageIndex}"]`
+                `.carousel-indicators [data-bs-slide-to="${imageIndex}"]`,
             );
             if (miniatureEl && miniatureEl.style.backgroundImage) {
                 miniatureEl.style.backgroundImage = `url(${imgEl.getAttribute("src")})`;
@@ -408,7 +422,7 @@ export function applyNeededCss(
     cssProp,
     cssValue,
     computedStyle = el.ownerDocument.defaultView.getComputedStyle(el),
-    { force = false, allowImportant = true } = {}
+    { force = false, allowImportant = true } = {},
 ) {
     if (force) {
         el.style.setProperty(cssProp, cssValue, allowImportant ? "important" : "");
@@ -420,7 +434,7 @@ export function applyNeededCss(
             computedStyle.getPropertyValue(cssProp),
             cssValue,
             cssProp,
-            computedStyle
+            computedStyle,
         )
     ) {
         el.style.setProperty(cssProp, cssValue);
@@ -431,7 +445,7 @@ export function applyNeededCss(
                 computedStyle.getPropertyValue(cssProp),
                 cssValue,
                 cssProp,
-                computedStyle
+                computedStyle,
             )
         ) {
             el.style.setProperty(cssProp, cssValue, "important");
@@ -453,7 +467,11 @@ export function setBuilderCSSVariables(htmlStyle) {
         styles.push(`--hb-cp-${style}: ${value};`);
     }
     builderStylesheet.replaceSync(`html { ${styles.join(" ")} }`);
-    if (!window.top.document.adoptedStyleSheets.find((style) => style === builderStylesheet)) {
+    if (
+        !window.top.document.adoptedStyleSheets.find(
+            (style) => style === builderStylesheet,
+        )
+    ) {
         window.top.document.adoptedStyleSheets.push(builderStylesheet);
     }
 }
@@ -493,19 +511,21 @@ export function getAllUsedColors(el) {
     // Shapes & illustrations.
     const collectUrlColors = (urlString) => {
         const url = new URL(urlString, window.location);
-        for (const colorKey of [...url.searchParams.keys()].filter((key) => /c\d/.test(key))) {
+        for (const colorKey of [...url.searchParams.keys()].filter((key) =>
+            /c\d/.test(key),
+        )) {
             collectColor(url.searchParams.get(colorKey));
         }
     };
     for (const imgEl of selectElements(
         el,
-        'img[src^="/html_editor/shape/"], img[src^="/web_editor/shape/"]'
+        'img[src^="/html_editor/shape/"], img[src^="/web_editor/shape/"]',
     )) {
         collectUrlColors(imgEl.src);
     }
     for (const bgEl of selectElements(
         el,
-        `[style*="background-image: url(\\"/html_editor/shape/"], [style*="background-image: url(\\"/web_editor/shape/"]`
+        `[style*="background-image: url(\\"/html_editor/shape/"], [style*="background-image: url(\\"/web_editor/shape/"]`,
     )) {
         collectUrlColors(getBgImageURLFromEl(bgEl));
     }

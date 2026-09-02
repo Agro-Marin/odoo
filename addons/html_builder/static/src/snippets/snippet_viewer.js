@@ -45,7 +45,10 @@ export class SnippetViewer extends Component {
     getPrefixIcons(snippetContentEl) {
         /** @type {PrefixIconInfo[]} */
         const icons = [];
-        const styleProps = { style: "height: 1em", attrs: { fill: "var(--body-color)" } };
+        const styleProps = {
+            style: "height: 1em",
+            attrs: { fill: "var(--body-color)" },
+        };
         if (snippetContentEl.matches(".o_snippet_desktop_invisible")) {
             icons.push({
                 keyClass: "o_prefix_desktop_invisible",
@@ -124,7 +127,10 @@ export class SnippetViewer extends Component {
 
     onClick(snippet) {
         if (snippet.moduleId) {
-            this.props.snippetModel.installSnippetModule(snippet, this.props.installSnippetModule);
+            this.props.snippetModel.installSnippetModule(
+                snippet,
+                this.props.installSnippetModule,
+            );
         } else {
             this.props.selectSnippet(snippet);
         }
@@ -147,7 +153,7 @@ export class SnippetViewer extends Component {
 
     getSelectedSnippets() {
         const snippetStructures = this.props.snippetModel.snippetStructures.filter(
-            (snippet) => !snippet.isExcluded && !snippet.isDisabled
+            (snippet) => !snippet.isExcluded && !snippet.isDisabled,
         );
         if (this.previousSearch !== this.props.state.search) {
             this.previousSearch = this.props.state.search;
@@ -157,7 +163,10 @@ export class SnippetViewer extends Component {
         }
         const getClasses = (snippet) => {
             const classes = new Set();
-            const elements = [snippet.content, ...snippet.content.querySelectorAll("*")];
+            const elements = [
+                snippet.content,
+                ...snippet.content.querySelectorAll("*"),
+            ];
             for (const el of elements) {
                 for (const className of el.classList) {
                     if (className.startsWith("s_")) {
@@ -168,16 +177,20 @@ export class SnippetViewer extends Component {
             return Array.from(classes);
         };
         if (this.props.state.search) {
-            return fuzzyLookup(this.props.state.search, snippetStructures, (snippet) => [
-                snippet.title || "",
-                snippet.name || "",
-                ...(snippet.keyWords?.split(",") || ""),
-                ...getClasses(snippet),
-            ]);
+            return fuzzyLookup(
+                this.props.state.search,
+                snippetStructures,
+                (snippet) => [
+                    snippet.title || "",
+                    snippet.name || "",
+                    ...(snippet.keyWords?.split(",") || ""),
+                    ...getClasses(snippet),
+                ],
+            );
         }
 
         return snippetStructures.filter(
-            (snippet) => snippet.groupName === this.props.state.groupSelected
+            (snippet) => snippet.groupName === this.props.state.groupSelected,
         );
     }
 }

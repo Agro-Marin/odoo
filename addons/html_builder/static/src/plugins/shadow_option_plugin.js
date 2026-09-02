@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
+import { parseBoxShadow } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { parseBoxShadow } from "@html_builder/utils/utils_css";
 
 const shadowClass = "shadow";
 

@@ -12,7 +12,8 @@ import { registry } from "@web/core/registry";
  */
 
 export class fixNewsletterListClass extends Interaction {
-    static selector = ".s_newsletter_subscribe_form:not(.s_subscription_list), .s_newsletter_block";
+    static selector =
+        ".s_newsletter_subscribe_form:not(.s_subscription_list), .s_newsletter_block";
     dynamicContent = {
         _root: {
             "t-att-class": () => ({

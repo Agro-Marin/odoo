@@ -1,20 +1,18 @@
-import { luxon } from "@web/core/l10n/luxon";
-import { describe, test } from "@odoo/hoot";
-
-import {
-    startServer,
-    start,
-    click,
-    openFormView,
-    contains,
-    openDiscuss,
-    insertText,
-} from "@mail/../tests/mail_test_helpers";
-
 import { defineHrHolidaysModels } from "@hr_holidays/../tests/hr_holidays_test_helpers";
-import { Command, serverState } from "@web/../tests/web_test_helpers";
+import {
+    click,
+    contains,
+    insertText,
+    openDiscuss,
+    openFormView,
+    start,
+    startServer,
+} from "@mail/../tests/mail_test_helpers";
+import { describe, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
+import { Command, serverState } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 
 describe.current.tags("desktop");
 defineHrHolidaysModels();

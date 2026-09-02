@@ -23,7 +23,7 @@ export class SaveSnippetPlugin extends Plugin {
     resources = {
         get_options_container_top_buttons: withSequence(
             1,
-            this.getOptionsContainerTopButtons.bind(this)
+            this.getOptionsContainerTopButtons.bind(this),
         ),
     };
 
@@ -53,13 +53,17 @@ export class SaveSnippetPlugin extends Plugin {
      */
     async wrapWithBeforeAfterSaveHandlers(snippetEl, callback) {
         await Promise.all(
-            this.getResource("before_save_handlers").map((handler) => handler(snippetEl))
+            this.getResource("before_save_handlers").map((handler) =>
+                handler(snippetEl),
+            ),
         );
         let node;
         try {
             node = callback();
         } finally {
-            this.getResource("after_save_handlers").forEach((handler) => handler(snippetEl));
+            this.getResource("after_save_handlers").forEach((handler) =>
+                handler(snippetEl),
+            );
         }
         return node;
     }
@@ -72,13 +76,13 @@ export class SaveSnippetPlugin extends Plugin {
         const savedName = await this.config.saveSnippet(
             el,
             cleanForSaveHandlers,
-            this.wrapWithBeforeAfterSaveHandlers.bind(this)
+            this.wrapWithBeforeAfterSaveHandlers.bind(this),
         );
         this.dependencies.disableSnippets.disableUndroppableSnippets();
         if (savedName) {
             const message = _t(
                 "Saved as %s. Find it in your snippets.",
-                markup`<strong>${savedName}</strong>`
+                markup`<strong>${savedName}</strong>`,
             );
             this.services.notification.add(message, {
                 type: "success",

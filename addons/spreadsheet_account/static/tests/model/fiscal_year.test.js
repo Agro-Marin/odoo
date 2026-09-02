@@ -1,11 +1,11 @@
-import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
-import { describe, expect, test } from "@odoo/hoot";
-import { setCellContent } from "@spreadsheet/../tests/helpers/commands";
-import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
-import { getEvaluatedCell } from "@spreadsheet/../tests/helpers/getters";
 import "@spreadsheet_account/index";
 
+import { describe, expect, test } from "@odoo/hoot";
 import * as spreadsheet from "@odoo/o-spreadsheet";
+import { setCellContent } from "@spreadsheet/../tests/helpers/commands";
+import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
+import { getEvaluatedCell } from "@spreadsheet/../tests/helpers/getters";
+import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
 
 describe.current.tags("headless");
@@ -85,10 +85,10 @@ test("with a wrong company id", async () => {
     await waitForDataLoaded(model);
     expect.verifySteps(["get_fiscal_dates"]);
     expect(getEvaluatedCell(model, "A1").message).toBe(
-        "The company fiscal year could not be found."
+        "The company fiscal year could not be found.",
     );
     expect(getEvaluatedCell(model, "A2").message).toBe(
-        "The company fiscal year could not be found."
+        "The company fiscal year could not be found.",
     );
 });
 
@@ -97,10 +97,10 @@ test("with wrong input arguments", async () => {
     setCellContent(model, "A1", `=ODOO.FISCALYEAR.START("not a number")`);
     setCellContent(model, "A2", `=ODOO.FISCALYEAR.END("11/11/2020", "not a number")`);
     expect(getEvaluatedCell(model, "A1").message).toBe(
-        "The function ODOO.FISCALYEAR.START expects a number value, but 'not a number' is a string, and cannot be coerced to a number."
+        "The function ODOO.FISCALYEAR.START expects a number value, but 'not a number' is a string, and cannot be coerced to a number.",
     );
     expect(getEvaluatedCell(model, "A2").message).toBe(
-        "The function ODOO.FISCALYEAR.END expects a number value, but 'not a number' is a string, and cannot be coerced to a number."
+        "The function ODOO.FISCALYEAR.END expects a number value, but 'not a number' is a string, and cannot be coerced to a number.",
     );
 });
 
@@ -119,7 +119,9 @@ test("Date format is locale dependant", async () => {
     expect(getEvaluatedCell(model, "A1").format).toBe("m/d/yyyy");
     expect(getEvaluatedCell(model, "A2").format).toBe("m/d/yyyy");
 
-    model.dispatch("UPDATE_LOCALE", { locale: { ...DEFAULT_LOCALE, dateFormat: "d/m/yyyy" } });
+    model.dispatch("UPDATE_LOCALE", {
+        locale: { ...DEFAULT_LOCALE, dateFormat: "d/m/yyyy" },
+    });
 
     expect(getEvaluatedCell(model, "A1").format).toBe("d/m/yyyy");
     expect(getEvaluatedCell(model, "A2").format).toBe("d/m/yyyy");

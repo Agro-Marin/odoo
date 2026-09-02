@@ -17,7 +17,7 @@ const activityPatch = {
         const action = await this.store.env.services.orm.call(
             "mail.activity",
             "action_create_calendar_event",
-            [[this.id]]
+            [[this.id]],
         );
         this.store.env.services.action.doAction(action);
     },

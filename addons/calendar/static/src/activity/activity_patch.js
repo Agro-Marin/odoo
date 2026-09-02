@@ -18,7 +18,9 @@ patch(Activity.prototype, {
         if (this.props.activity.calendar_event_id) {
             const thread = this.thread;
             this.props.activity.remove();
-            await this.orm.call("mail.activity", "unlink_w_meeting", [[this.props.activity.id]]);
+            await this.orm.call("mail.activity", "unlink_w_meeting", [
+                [this.props.activity.id],
+            ]);
             this.props.onActivityChanged(thread);
         } else {
             super.unlink();

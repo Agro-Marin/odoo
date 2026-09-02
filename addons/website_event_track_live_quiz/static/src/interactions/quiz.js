@@ -22,7 +22,7 @@ patch(Quiz.prototype, {
         const suggestion = await this.waitFor(
             rpc("/event_track/get_track_suggestion", {
                 track_id: this.track.id,
-            })
+            }),
         );
         this.nextSuggestion = suggestion;
     },

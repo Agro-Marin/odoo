@@ -15,9 +15,11 @@ export class SnippetPlugin extends Plugin {
      * (e.g. via website configurator or template-generated pages and emails).
      */
     injectMissingSnippetNames() {
-        for (const snippetEl of this.editable.querySelectorAll("[data-snippet]:not([data-name])")) {
+        for (const snippetEl of this.editable.querySelectorAll(
+            "[data-snippet]:not([data-name])",
+        )) {
             const snippetInfo = this.config.snippetModel.getOriginalSnippet(
-                snippetEl.dataset.snippet
+                snippetEl.dataset.snippet,
             );
             if (snippetInfo?.title) {
                 snippetEl.dataset.name = snippetInfo.title;

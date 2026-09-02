@@ -1,5 +1,5 @@
 import { setupHTMLBuilder } from "@html_builder/../tests/helpers";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 
 describe.current.tags("desktop");
 
@@ -8,7 +8,7 @@ test("section with containers should not be contenteditable, but there container
         `<section><div class="container"><span class="inside">in</span></div></section>`,
         {
             headerContent: `<section><div class="container"><span class="outside">out</span></div></section>`,
-        }
+        },
     );
     expect(":iframe section:has(.inside)").toHaveProperty("isContentEditable", false);
     expect(":iframe .inside").toHaveProperty("isContentEditable", true);

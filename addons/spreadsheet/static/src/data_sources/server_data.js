@@ -2,7 +2,8 @@
 // @ts-check
 
 import { EvaluationError } from "@odoo/o-spreadsheet";
-import { LoadingDataError, isLoadingError } from "../o_spreadsheet/errors.js";
+
+import { isLoadingError, LoadingDataError } from "../o_spreadsheet/errors.js";
 
 /**
  * @param {T[]} array
@@ -10,7 +11,9 @@ import { LoadingDataError, isLoadingError } from "../o_spreadsheet/errors.js";
  * @template T
  */
 function removeDuplicates(array) {
-    return [...new Set(array.map((el) => JSON.stringify(el)))].map((el) => JSON.parse(el));
+    return [...new Set(array.map((el) => JSON.stringify(el)))].map((el) =>
+        JSON.parse(el),
+    );
 }
 
 export class Request {
@@ -54,7 +57,9 @@ class ListRequestBatch {
     }
 
     get payload() {
-        const payload = removeDuplicates(this.requests.map((request) => request.args).flat());
+        const payload = removeDuplicates(
+            this.requests.map((request) => request.args).flat(),
+        );
         return [payload];
     }
 
@@ -64,7 +69,7 @@ class ListRequestBatch {
     add(request) {
         if (request.resModel !== this.resModel || request.method !== this.method) {
             throw new Error(
-                `Request ${request.resModel}/${request.method} cannot be added to the batch ${this.resModel}/${this.method}`
+                `Request ${request.resModel}/${request.method} cannot be added to the batch ${this.resModel}/${this.method}`,
             );
         }
         this.requests.push(request);
@@ -106,7 +111,9 @@ export class ServerData {
      * @returns {{get: (resModel:string, method: string, args: unknown) => any}}
      */
     get batch() {
-        return { get: (resModel, method, args) => this._getBatchItem(resModel, method, args) };
+        return {
+            get: (resModel, method, args) => this._getBatchItem(resModel, method, args),
+        };
     }
 
     /**
@@ -144,8 +151,8 @@ export class ServerData {
                 .catch(
                     (error) =>
                         (this.cache[request.key] = new EvaluationError(
-                            error.data?.message || error.message
-                        ))
+                            error.data?.message || error.message,
+                        )),
                 );
             this.startLoadingCallback(promise);
             throw error;
@@ -208,7 +215,7 @@ export class ServerData {
             },
             failureCallback: (request, error) =>
                 (this.cache[request.key] = new EvaluationError(
-                    error.data?.message || error.message
+                    error.data?.message || error.message,
                 )),
         });
     }
@@ -227,7 +234,12 @@ export class BatchEndpoint {
      * @param {function} callbacks.failureCallback
      * @param {(promise: Promise<any>) => void} callbacks.whenDataStartLoading
      */
-    constructor(orm, resModel, method, { successCallback, failureCallback, whenDataStartLoading }) {
+    constructor(
+        orm,
+        resModel,
+        method,
+        { successCallback, failureCallback, whenDataStartLoading },
+    ) {
         this.orm = orm;
         this.resModel = resModel;
         this.method = method;
@@ -292,7 +304,7 @@ export class BatchEndpoint {
         const mergedResults = new Map();
         const { resModel, method } = batch;
         const singleRequestBatches = batch.requests.map(
-            (request) => new ListRequestBatch(resModel, method, [request])
+            (request) => new ListRequestBatch(resModel, method, [request]),
         );
         const proms = [];
         for (const batch of singleRequestBatches) {
@@ -300,7 +312,10 @@ export class BatchEndpoint {
             const prom = this.orm
                 .call(resModel, method, batch.payload)
                 .then((result) =>
-                    mergedResults.set(request, batch.splitResponse(result).get(request))
+                    mergedResults.set(
+                        request,
+                        batch.splitResponse(result).get(request),
+                    ),
                 )
                 .catch((error) => mergedResults.set(request, error));
             proms.push(prom);

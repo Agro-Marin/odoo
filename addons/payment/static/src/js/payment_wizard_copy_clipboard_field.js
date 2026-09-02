@@ -26,4 +26,7 @@ const paymentWizardCopyClipboardButtonField = {
 
 registry
     .category("fields")
-    .add("PaymentWizardCopyClipboardButtonField", paymentWizardCopyClipboardButtonField);
+    .add(
+        "PaymentWizardCopyClipboardButtonField",
+        paymentWizardCopyClipboardButtonField,
+    );

@@ -18,7 +18,7 @@ export function addDocument(documentParams) {
             ProductScreen.clickPartnerButton(),
             ProductScreen.clickCustomer("AAAAAA"),
             ProductScreen.clickPayButton(),
-        ]
+        ],
     );
     return steps;
 }
@@ -38,13 +38,15 @@ export function assertTaxTotals(baseAmount, taxAmount, totalAmount) {
     ];
 }
 
-registry.category("web_tour.tours").add("test_point_of_sale_custom_tax_with_extra_product_field", {
-    steps: () =>
-        [
-            Chrome.startPoS(),
-            Dialog.confirm("Open Register"),
+registry
+    .category("web_tour.tours")
+    .add("test_point_of_sale_custom_tax_with_extra_product_field", {
+        steps: () =>
+            [
+                Chrome.startPoS(),
+                Dialog.confirm("Open Register"),
 
-            ...addDocument([{ product: "product_1_1", quantity: "10" }]),
-            ...assertTaxTotals("2000.0", "42.0", "2,042.0"),
-        ].flat(),
-});
+                ...addDocument([{ product: "product_1_1", quantity: "10" }]),
+                ...assertTaxTotals("2000.0", "42.0", "2,042.0"),
+            ].flat(),
+    });

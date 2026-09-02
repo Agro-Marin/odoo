@@ -29,7 +29,7 @@ export class ChartDataSource extends OdooViewsDataSource {
             metaData,
             {
                 orm: this._orm,
-            }
+            },
         );
         await this._model.load(this._searchParams);
         this._hierarchicalData = undefined;
@@ -70,7 +70,9 @@ export class ChartDataSource extends OdooViewsDataSource {
 
         const dataPoints = this._model.dataPoints;
         const groupBy = this._metaData.groupBy;
-        const datasets = new Array(groupBy.length).fill().map(() => ({ data: [], domains: [] }));
+        const datasets = new Array(groupBy.length)
+            .fill()
+            .map(() => ({ data: [], domains: [] }));
         const labels = new Array();
         const domainMapping = {};
         for (const gb of groupBy) {
@@ -85,7 +87,9 @@ export class ChartDataSource extends OdooViewsDataSource {
                 const label = point.labels[i];
                 if (!domainMapping[groupBy[i]][label]) {
                     const gb = groupBy[i].split(":")[0];
-                    domainMapping[groupBy[i]][label] = point.domain.filter((d) => d[0] === gb);
+                    domainMapping[groupBy[i]][label] = point.domain.filter(
+                        (d) => d[0] === gb,
+                    );
                 }
             }
         }

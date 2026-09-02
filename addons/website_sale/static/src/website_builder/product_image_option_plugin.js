@@ -1,8 +1,6 @@
 /** @odoo-module native */
 import { REPLACE_MEDIA } from "@html_builder/utils/option_sequence";
-import {
-    ReplaceMediaOption,
-} from "@html_builder/plugins/image/replace_media_option";
+import { ReplaceMediaOption } from "@html_builder/plugins/image/replace_media_option";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { rpc } from "@web/core/network";
@@ -10,19 +8,16 @@ import { registry } from "@web/core/registry";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 
-
 export class ProductImageOption extends BaseOptionComponent {
     static template = "website_sale.ProductImageOption";
-    static selector =  `.o_wsale_product_images :is(${ReplaceMediaOption.selector})`;
+    static selector = `.o_wsale_product_images :is(${ReplaceMediaOption.selector})`;
     static exclude = ReplaceMediaOption.exclude;
 }
 
 export class ProductImageOptionPlugin extends Plugin {
     static id = "productImageOption";
     resources = {
-        builder_options: [
-            withSequence(REPLACE_MEDIA, ProductImageOption),
-        ],
+        builder_options: [withSequence(REPLACE_MEDIA, ProductImageOption)],
         builder_actions: {
             /*
              * Change sequence of product page images
@@ -45,8 +40,8 @@ export class ProductImageOptionPlugin extends Plugin {
 }
 
 /*
-* Change sequence of product page images
-*/
+ * Change sequence of product page images
+ */
 export class SetPositionAction extends BuilderAction {
     static id = "setPosition";
     setup() {
@@ -82,4 +77,6 @@ export class RemoveMediaAction extends BuilderAction {
     }
 }
 
-registry.category("website-plugins").add(ProductImageOptionPlugin.id, ProductImageOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(ProductImageOptionPlugin.id, ProductImageOptionPlugin);

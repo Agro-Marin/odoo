@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, xml } from "@odoo/owl";
+
 import { basicContainerBuilderComponentProps, useBuilderComponent } from "../utils.js";
 import { BuilderComponent } from "./builder_component.js";
 

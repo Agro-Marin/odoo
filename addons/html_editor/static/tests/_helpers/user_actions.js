@@ -163,7 +163,6 @@ export function deleteForward(editor) {
  * @param {boolean} [isMobileTest=false]
  */
 export function deleteBackward(editor, isMobileTest = false) {
-
     execCommand(editor, "deleteBackward");
 }
 

@@ -6,7 +6,9 @@ export class DonationForm extends Interaction {
     static selector = ".o_donation_payment_form";
     dynamicContent = {
         ".o_amount_input": { "t-on-focus": this.onFocusAmountInput },
-        "#donation_comment_checkbox": { "t-on-change.withTarget": this.onDonationCommentChange },
+        "#donation_comment_checkbox": {
+            "t-on-change.withTarget": this.onDonationCommentChange,
+        },
         "input[type='radio']": { "t-on-change": this.onSelectRadioButton },
         "#other_amount_value": { "t-on-input": this.onChangeAmountInput },
     };
@@ -14,7 +16,7 @@ export class DonationForm extends Interaction {
     /**
      * @param {Event} ev
      */
-    onFocusAmountInput(ev) {
+    onFocusAmountInput() {
         const otherAmountEl = this.el.querySelector("#other_amount");
         if (otherAmountEl) {
             otherAmountEl.checked = true;
@@ -26,8 +28,8 @@ export class DonationForm extends Interaction {
      */
     onDonationCommentChange(ev, currentTargetEl) {
         const checked = currentTargetEl.checked;
-        const donationCommentEl = this.el.querySelector('#donation_comment');
-        donationCommentEl.classList.toggle('d-none', !checked);
+        const donationCommentEl = this.el.querySelector("#donation_comment");
+        donationCommentEl.classList.toggle("d-none", !checked);
         if (!checked) {
             donationCommentEl.value = "";
         }
@@ -45,7 +47,10 @@ export class DonationForm extends Interaction {
         const warningMinMessageEl = this.el.querySelector("#warning_min_message_id");
         const value = parseFloat(inputEl.value);
         warningMessageEl.classList.toggle("d-none", value);
-        warningMinMessageEl.classList.toggle("d-none", value ? inputEl.min <= value : true);
+        warningMinMessageEl.classList.toggle(
+            "d-none",
+            value ? inputEl.min <= value : true,
+        );
     }
     /**
      * Handles the selection of donation amount options. If "Other Amount" is

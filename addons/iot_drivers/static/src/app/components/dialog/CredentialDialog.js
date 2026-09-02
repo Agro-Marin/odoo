@@ -1,10 +1,10 @@
 /** @odoo-module native */
 
-import { Component, toRaw, useState, xml } from "/web/static/lib/owl/owl.es.js";
-
 import useStore from "../../hooks/useStore.js";
 import { LoadingFullScreen } from "../LoadingFullScreen.js";
 import { BootstrapDialog } from "./BootstrapDialog.js";
+
+import { Component, toRaw, useState, xml } from "/web/static/lib/owl/owl.es.js";
 
 export class CredentialDialog extends Component {
     static props = {};

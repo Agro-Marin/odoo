@@ -22,7 +22,9 @@ export class DocumentsSecondaryListRenderer extends ListRenderer {
     static props = [...ListRenderer.props, "previewStore"];
 }
 
-export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecondaryListRenderer) {
+export class DocumentsListRenderer extends DocumentsRendererMixin(
+    DocumentsSecondaryListRenderer,
+) {
     static template = "documents.DocumentsListRenderer";
     static recordRowTemplate = "documents.DocumentsListRenderer.RecordRow";
     static components = Object.assign({}, ListRenderer.components, {
@@ -50,7 +52,7 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
                 const focusedRecord = this.setDefaultFocus();
                 this.root.el
                     ?.querySelector(
-                        `.o_data_row[data-value-id="${focusedRecord?.resId}"] .o_data_cell`
+                        `.o_data_row[data-value-id="${focusedRecord?.resId}"] .o_data_cell`,
                     )
                     ?.focus();
             },
@@ -58,7 +60,7 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
                 category: "smart_action",
                 hotkey: "control+a",
                 isAvailable: () => this.props.list.records.length > 0,
-            }
+            },
         );
 
         useDraggableDocuments({
@@ -105,7 +107,8 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
             return;
         }
         const row = ev.target.closest(".o_data_row");
-        const record = row && this.props.list.records.find((rec) => rec.id === row.dataset.id);
+        const record =
+            row && this.props.list.records.find((rec) => rec.id === row.dataset.id);
         if (!record) {
             return;
         }
@@ -143,7 +146,10 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
     }
 
     onGlobalClick(ev) {
-        if (ev.target.closest(".o_data_row") || !ev.target.closest(".o_list_renderer")) {
+        if (
+            ev.target.closest(".o_data_row") ||
+            !ev.target.closest(".o_list_renderer")
+        ) {
             return;
         }
         if (ev.target.closest(".o_documents_view thead")) {
@@ -167,7 +173,9 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
         const futureCell = super.findFocusFutureCell(cell, cellIsInGroupRow, direction);
         if (futureCell) {
             const dataPointId = futureCell.closest("tr").dataset.id;
-            const record = this.props.list.records.filter((x) => x.id === dataPointId)[0];
+            const record = this.props.list.records.filter(
+                (x) => x.id === dataPointId,
+            )[0];
             if (record) {
                 this.documentService.focusRecord(record);
             }

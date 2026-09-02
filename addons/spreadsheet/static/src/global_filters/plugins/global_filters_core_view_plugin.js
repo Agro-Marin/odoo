@@ -30,7 +30,8 @@ import { getFilterCellValue, getFilterValueDomain } from "../helpers.js";
 
 const { DateTime } = luxon;
 
-const { UuidGenerator, createEmptyExcelSheet, createEmptySheet, toXC, toNumber } = helpers;
+const { UuidGenerator, createEmptyExcelSheet, createEmptySheet, toXC, toNumber } =
+    helpers;
 const uuidGenerator = new UuidGenerator();
 
 export class GlobalFiltersCoreViewPlugin extends OdooCoreViewPlugin {
@@ -178,7 +179,7 @@ export class GlobalFiltersCoreViewPlugin extends OdooCoreViewPlugin {
         const filter = this.getGlobalFilterByName(filterName);
         if (!filter) {
             throw new EvaluationError(
-                _t(`Filter "%(filter_name)s" not found`, { filter_name: filterName })
+                _t(`Filter "%(filter_name)s" not found`, { filter_name: filterName }),
             );
         }
         switch (filter.type) {
@@ -213,7 +214,7 @@ export class GlobalFiltersCoreViewPlugin extends OdooCoreViewPlugin {
         ];
         const options = this.getTextFilterOptionsFromRanges(
             filter.rangesOfAllowedValues,
-            additionOptions
+            additionOptions,
         );
         return options;
     }
@@ -226,12 +227,14 @@ export class GlobalFiltersCoreViewPlugin extends OdooCoreViewPlugin {
      */
     getTextFilterOptionsFromRanges(ranges, additionalOptionValues = []) {
         const cells = ranges.flatMap((range) =>
-            this.getters.getEvaluatedCellsInZone(range.sheetId, range.zone)
+            this.getters.getEvaluatedCellsInZone(range.sheetId, range.zone),
         );
         const uniqueFormattedValues = new Set();
         const uniqueValues = new Set();
         const allowedValues = cells
-            .filter((cell) => !["empty", "error"].includes(cell.type) && cell.value !== "")
+            .filter(
+                (cell) => !["empty", "error"].includes(cell.type) && cell.value !== "",
+            )
             .map((cell) => ({
                 value: cell.value.toString(),
                 formattedValue: cell.formattedValue,
@@ -247,7 +250,11 @@ export class GlobalFiltersCoreViewPlugin extends OdooCoreViewPlugin {
         const additionalOptions = additionalOptionValues
             .map((value) => ({ value, formattedValue: value }))
             .filter((cell) => {
-                if (cell.value === undefined || cell.value === "" || uniqueValues.has(cell.value)) {
+                if (
+                    cell.value === undefined ||
+                    cell.value === "" ||
+                    uniqueValues.has(cell.value)
+                ) {
                     return false;
                 }
                 uniqueValues.add(cell.value);
@@ -301,7 +308,7 @@ export class GlobalFiltersCoreViewPlugin extends OdooCoreViewPlugin {
             .find(
                 (filter) =>
                     this.getters.dynamicTranslate(filter.label) ===
-                    this.getters.dynamicTranslate(label)
+                    this.getters.dynamicTranslate(label),
             );
     }
 
@@ -416,7 +423,10 @@ export class GlobalFiltersCoreViewPlugin extends OdooCoreViewPlugin {
                     if (cell.value === undefined) {
                         continue;
                     }
-                    const xc = toXC(Number(colIndex) + 1, Number(rowIndex) + filterRowIndex);
+                    const xc = toXC(
+                        Number(colIndex) + 1,
+                        Number(rowIndex) + filterRowIndex,
+                    );
                     cells[xc] = cell.value.toString();
                     if (cell.format) {
                         const formatId = getItemId(cell.format, data.formats);

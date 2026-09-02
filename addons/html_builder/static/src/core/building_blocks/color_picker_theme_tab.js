@@ -24,5 +24,5 @@ registry.category("color_picker_tabs").add(
         name: _t("Theme"),
         component: ColorPickerThemeTab,
     },
-    { sequence: 10 }
+    { sequence: 10 },
 );

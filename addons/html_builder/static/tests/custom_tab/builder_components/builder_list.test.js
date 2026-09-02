@@ -1,7 +1,7 @@
 import { addBuilderOption, setupHTMLBuilder } from "@html_builder/../tests/helpers";
 import { BuilderList } from "@html_builder/core/building_blocks/builder_list";
 import { BaseOptionComponent } from "@html_builder/core/utils";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { onError, xml } from "@odoo/owl";
 import { contains } from "@web/../tests/web_test_helpers";
 
@@ -25,7 +25,7 @@ test("writes a list of numbers to a data attribute", async () => {
                           itemShape="{ value: 'number', title: 'text' }"
                           default="${defaultValueStr}"
                       />`;
-        }
+        },
     );
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();
@@ -45,7 +45,7 @@ test("writes a list of numbers to a data attribute", async () => {
                 id: "a thing",
             },
             ...defaultValueWithIds([1, 2]),
-        ])
+        ]),
     );
 });
 
@@ -58,7 +58,7 @@ test("supports arbitrary number of text and number inputs on entries", async () 
                           itemShape="{ a: 'number', b: 'text', c: 'text', d: 'number' }"
                           default="{ a: '4', b: '3', c: '2', d: '1' }"
                       />`;
-        }
+        },
     );
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();
@@ -75,7 +75,7 @@ test("supports arbitrary number of text and number inputs on entries", async () 
                 d: "1",
                 _id: "0",
             },
-        ])
+        ]),
     );
 });
 
@@ -88,7 +88,7 @@ test("delete an item", async () => {
                           itemShape="{ value: 'number', title: 'text' }"
                           default="${defaultValueStr}"
                       />`;
-        }
+        },
     );
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();
@@ -96,10 +96,13 @@ test("delete an item", async () => {
     await contains(".we-bg-options-container .builder_list_add_item").click();
     expect(":iframe .test-options-target").toHaveAttribute(
         "data-list",
-        JSON.stringify(defaultValueWithIds([0]))
+        JSON.stringify(defaultValueWithIds([0])),
     );
     await contains(".we-bg-options-container .builder_list_remove_item").click();
-    expect(":iframe .test-options-target").toHaveAttribute("data-list", JSON.stringify([]));
+    expect(":iframe .test-options-target").toHaveAttribute(
+        "data-list",
+        JSON.stringify([]),
+    );
 });
 
 test("reorder items", async () => {
@@ -111,7 +114,7 @@ test("reorder items", async () => {
                           itemShape="{ value: 'number', title: 'text' }"
                           default="${defaultValueStr}"
                       />`;
-        }
+        },
     );
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();
@@ -122,12 +125,13 @@ test("reorder items", async () => {
     function expectOrder(ids) {
         expect(":iframe .test-options-target").toHaveAttribute(
             "data-list",
-            JSON.stringify(defaultValueWithIds(ids))
+            JSON.stringify(defaultValueWithIds(ids)),
         );
     }
     expectOrder([0, 1, 2]);
 
-    const rowSelector = (id) => `.we-bg-options-container .o_row_draggable[data-id="${id}"]`;
+    const rowSelector = (id) =>
+        `.we-bg-options-container .o_row_draggable[data-id="${id}"]`;
     const rowHandleSelector = (id) => `${rowSelector(id)} .o_handle_cell`;
 
     await contains(rowHandleSelector(0)).dragAndDrop(rowSelector(1));
@@ -163,7 +167,7 @@ async function testBuilderListFaultyProps(template) {
     addBuilderOption(
         class extends Test {
             static selector = ".test-options-target";
-        }
+        },
     );
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();
@@ -228,7 +232,7 @@ test("hides hiddenProperties from options", async () => {
                           default="{ a: '4', b: 'three', c: '2', d: 'one' }"
                           hiddenProperties="['b', 'c']"
                       />`;
-        }
+        },
     );
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();
@@ -257,7 +261,7 @@ test("hides hiddenProperties from options", async () => {
                 d: "one",
                 _id: "1",
             },
-        ])
+        ]),
     );
 });
 
@@ -282,7 +286,7 @@ test("do not lose id when adjusting 'selected'", async () => {
     addBuilderOption(
         class extends Test {
             static selector = ".test-options-target";
-        }
+        },
     );
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();
@@ -304,7 +308,7 @@ test("do not lose id when adjusting 'selected'", async () => {
                 display_name: "B",
                 _id: "1",
             },
-        ])
+        ]),
     );
 
     await contains(".we-bg-options-container .o-hb-checkbox input").click();
@@ -322,7 +326,7 @@ test("do not lose id when adjusting 'selected'", async () => {
                 display_name: "B",
                 _id: "1",
             },
-        ])
+        ]),
     );
 
     await contains(".we-bg-options-container .o-hb-checkbox input").click();
@@ -340,7 +344,7 @@ test("do not lose id when adjusting 'selected'", async () => {
                 display_name: "B",
                 _id: "1",
             },
-        ])
+        ]),
     );
 });
 
@@ -371,7 +375,7 @@ test("can add item with string and integer ids", async () => {
     addBuilderOption(
         class extends Test {
             static selector = ".test-options-target";
-        }
+        },
     );
     await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
     await contains(":iframe .test-options-target").click();

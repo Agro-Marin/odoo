@@ -1,14 +1,13 @@
 /** @odoo-module native */
-import { registry } from '@web/core/registry';
+import { registry } from "@web/core/registry";
 
 import { listView, ListRenderer, ListController } from "@web/views/list";
 
-import { LunchDashboard } from '../components/lunch_dashboard.js';
-import { LunchRendererMixin } from '../mixins/lunch_renderer_mixin.js';
+import { LunchDashboard } from "../components/lunch_dashboard.js";
+import { LunchRendererMixin } from "../mixins/lunch_renderer_mixin.js";
 
-import { LunchSearchModel } from './search_model.js';
-import { LunchSearchPanel } from './search_panel.js';
-
+import { LunchSearchModel } from "./search_model.js";
+import { LunchSearchPanel } from "./search_panel.js";
 
 export class LunchListRenderer extends LunchRendererMixin(ListRenderer) {
     static template = "lunch.ListRenderer";
@@ -25,7 +24,7 @@ export class LunchListRenderer extends LunchRendererMixin(ListRenderer) {
         }
     }
 
-    onCellClicked(record, column) {
+    onCellClicked(record) {
         this.openOrderLine(record.resId);
     }
 }
@@ -39,7 +38,7 @@ class LunchListController extends ListController {
     }
 }
 
-registry.category('views').add('lunch_list', {
+registry.category("views").add("lunch_list", {
     ...listView,
     Controller: LunchListController,
     Renderer: LunchListRenderer,

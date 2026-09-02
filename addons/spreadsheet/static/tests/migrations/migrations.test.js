@@ -1,5 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { load } from "@odoo/o-spreadsheet";
+
 import { defineSpreadsheetActions, defineSpreadsheetModels } from "../helpers/data.js";
 
 defineSpreadsheetModels();
@@ -56,7 +57,9 @@ test("Pivot 'day' arguments are migrated", () => {
     expect(migratedData.sheets[0].cells.A2).toBe(`=PIVOT.HEADER("1","12/11/2022")`);
     expect(migratedData.sheets[0].cells.A3).toBe(`=PIVOT.VALUE("1","07/21/2021")`);
     expect(migratedData.sheets[0].cells.A4).toBe(`=PIVOT.VALUE("1","test")`);
-    expect(migratedData.sheets[0].cells.A5).toBe(`=PIVOT.VALUE("1","07/21/2021")+"21/07/2021"`);
+    expect(migratedData.sheets[0].cells.A5).toBe(
+        `=PIVOT.VALUE("1","07/21/2021")+"21/07/2021"`,
+    );
     expect(migratedData.sheets[0].cells.A6).toBe(`=BAD_FORMULA(`);
 });
 
@@ -443,7 +446,9 @@ test("Pivot are migrated from 9 to 10", () => {
         type: "ODOO",
         name: "Name",
         model: "res.model",
-        measures: [{ id: "probability", fieldName: "probability", aggregator: undefined }],
+        measures: [
+            { id: "probability", fieldName: "probability", aggregator: undefined },
+        ],
         columns: [{ fieldName: "foo", granularity: undefined, order: undefined }],
         rows: [{ fieldName: "create_date", granularity: "month", order: undefined }],
         formulaId: "1",
@@ -495,10 +500,12 @@ test("Pivot formulas using pivot positions are migrated (11 to 12)", () => {
     };
     const migratedData = load(data);
     expect(migratedData.sheets[0].cells.A1).toBe(
-        `=-PIVOT.VALUE("1","balance","#account_id",12,"date:quarter","4/"&ODOO.FILTER.VALUE.V18("Year"))`
+        `=-PIVOT.VALUE("1","balance","#account_id",12,"date:quarter","4/"&ODOO.FILTER.VALUE.V18("Year"))`,
     );
     expect(migratedData.sheets[0].cells.A2).toBe(`=PIVOT.HEADER("1","#account_id",14)`);
-    expect(migratedData.sheets[0].cells.A3).toBe(`=ODOO.PIVOT.POSITION("1","account_id",14)`);
+    expect(migratedData.sheets[0].cells.A3).toBe(
+        `=ODOO.PIVOT.POSITION("1","account_id",14)`,
+    );
     expect(migratedData.sheets[0].cells.A4).toBe(`=ODOO.PIVOT.POSITION("1",14)`);
 });
 
@@ -510,22 +517,46 @@ test("Pivot sorted columns are migrated (12 to 13)", () => {
         pivots: {
             1: {
                 name: "test",
-                sortedColumn: { groupId: [[], []], measure: "testMeasure", order: "desc" },
+                sortedColumn: {
+                    groupId: [[], []],
+                    measure: "testMeasure",
+                    order: "desc",
+                },
                 columns: [],
                 rows: [],
-                measures: [{ id: "testMeasure:sum", fieldName: "testMeasure", aggregator: "sum" }],
+                measures: [
+                    {
+                        id: "testMeasure:sum",
+                        fieldName: "testMeasure",
+                        aggregator: "sum",
+                    },
+                ],
             },
             2: {
                 name: "test2",
-                sortedColumn: { groupId: [[], [1]], measure: "testMeasure", order: "desc" },
+                sortedColumn: {
+                    groupId: [[], [1]],
+                    measure: "testMeasure",
+                    order: "desc",
+                },
                 columns: [{ fieldName: "product_id" }],
                 rows: [],
-                measures: [{ id: "testMeasure:sum", fieldName: "testMeasure", aggregator: "sum" }],
+                measures: [
+                    {
+                        id: "testMeasure:sum",
+                        fieldName: "testMeasure",
+                        aggregator: "sum",
+                    },
+                ],
             },
             3: {
                 name: "test",
                 // sortedColumn is not in the measures
-                sortedColumn: { groupId: [[], []], measure: "testMeasure", order: "desc" },
+                sortedColumn: {
+                    groupId: [[], []],
+                    measure: "testMeasure",
+                    order: "desc",
+                },
                 columns: [],
                 rows: [],
                 measures: [],
@@ -626,7 +657,9 @@ test("text global filter default value is now an array of strings", () => {
         strings: ["foo"],
     });
     expect(migratedData.globalFilters[0].rangeOfAllowedValues).toBe(undefined);
-    expect(migratedData.globalFilters[0].rangesOfAllowedValues).toEqual(["Sheet1!A1:A2"]);
+    expect(migratedData.globalFilters[0].rangesOfAllowedValues).toEqual([
+        "Sheet1!A1:A2",
+    ]);
     expect(migratedData.globalFilters[1].defaultValue).toBe(undefined);
     expect(migratedData.globalFilters[1].rangeOfAllowedValues).toBe(undefined);
     expect(migratedData.globalFilters[1].rangesOfAllowedValues).toBe(undefined);
@@ -829,6 +862,6 @@ test("18.5.10: ODOO.FILTER.VALUE to ODOO.FILTER.VALUE.V18 in cells", () => {
     };
     const migratedData = load(data);
     expect(migratedData.sheets[0].cells.A1).toBe(
-        `=ODOO.FILTER.VALUE.V18("MyFilter")+ODOO.FILTER.VALUE.V18("AnotherFilter")`
+        `=ODOO.FILTER.VALUE.V18("MyFilter")+ODOO.FILTER.VALUE.V18("AnotherFilter")`,
     );
 });

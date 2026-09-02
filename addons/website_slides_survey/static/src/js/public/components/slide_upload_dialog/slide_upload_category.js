@@ -16,23 +16,28 @@ patch(SlideUploadCategory.prototype, {
                 fields: ["title"],
             });
 
-            this.state.choices.certifications = results.read_results.map((certification) => {
-                return { value: certification.id, label: certification.title };
-            });
+            this.state.choices.certifications = results.read_results.map(
+                (certification) => {
+                    return { value: certification.id, label: certification.title };
+                },
+            );
         });
     },
 
     get displayCertificationValue() {
         return this.state.choices.certificationId
             ? this.state.choices.certifications.find(
-                  (c) => c.value === this.state.choices.certificationId
+                  (c) => c.value === this.state.choices.certificationId,
               ).label
             : _t("Select a certification");
     },
 
     _formValidate() {
         const isFormValid = super._formValidate();
-        if (this.props.slideCategory === "certification" && !this.state.choices.certificationId) {
+        if (
+            this.props.slideCategory === "certification" &&
+            !this.state.choices.certificationId
+        ) {
             this.state.showCertificationRequiredError = true;
             return false;
         }
@@ -46,7 +51,7 @@ patch(SlideUploadCategory.prototype, {
     onCertificationSelect(value) {
         this.state.choices.certificationId = value;
         this.state.form.slideName = this.state.choices.certifications.find(
-            (c) => c.value === value
+            (c) => c.value === value,
         ).label;
         this.state.showCertificationRequiredError = false;
     },
@@ -60,14 +65,16 @@ patch(SlideUploadCategory.prototype, {
         if (this.state.choices.certifications.length > 0) {
             if (this._toCreate(this.state.choices.certificationId)) {
                 const certification = this.state.choices.certifications.find(
-                    (cert) => cert.value === this.state.choices.certificationId
+                    (cert) => cert.value === this.state.choices.certificationId,
                 );
                 result.survey = {
                     id: false,
                     title: certification.label,
                 };
             } else {
-                result.survey = { id: parseInt(this.state.choices.certificationId, 10) };
+                result.survey = {
+                    id: parseInt(this.state.choices.certificationId, 10),
+                };
             }
         }
 

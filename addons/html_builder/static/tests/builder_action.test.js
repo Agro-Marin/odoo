@@ -1,8 +1,8 @@
 import {
     addBuilderAction,
     addBuilderOption,
-    setupHTMLBuilder,
     addLegacyBuilderOption,
+    setupHTMLBuilder,
 } from "@html_builder/../tests/helpers";
 import { Builder } from "@html_builder/builder";
 import { BuilderAction } from "@html_builder/core/builder_action";
@@ -43,7 +43,7 @@ test("apply is called if clean is not defined", async () => {
         class extends BaseOptionComponent {
             static selector = ".s_test";
             static template = xml`<BuilderButton action="'testAction'">Click</BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`<section class="s_test">Test</section>`);
     await contains(":iframe .s_test").click();
@@ -75,7 +75,7 @@ test("custom action and shorthand action: clean actions are independent, apply i
         class extends BaseOptionComponent {
             static selector = ".s_test";
             static template = xml`<BuilderButton action="'testAction'" classAction="'custom-class'">Click</BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`<section class="s_test">Test</section>`);
     await contains(":iframe .s_test").click();
@@ -132,7 +132,7 @@ test("Data Attribute action works with non string values", async () => {
         class extends BaseOptionComponent {
             static selector = ".s_test";
             static template = xml`<BuilderButton dataAttributeAction="'customerOrderIds'" dataAttributeActionValue="[100, 200]">Click</BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`<section class="s_test">Test</section>`);
     await contains(":iframe .s_test").click();
@@ -174,9 +174,11 @@ describe("isPreviewing is passed to action's apply and clean", () => {
             class extends BaseOptionComponent {
                 static selector = ".test-options-target";
                 static template = xml`<BuilderButton action="'isPreviewing'" actionValue="true">Toggle</BuilderButton>`;
-            }
+            },
         );
-        await setupHTMLBuilder(`<section class="test-options-target">Homepage</section>`);
+        await setupHTMLBuilder(
+            `<section class="test-options-target">Homepage</section>`,
+        );
         await contains(":iframe .test-options-target").click();
 
         // apply
@@ -196,9 +198,11 @@ describe("isPreviewing is passed to action's apply and clean", () => {
             class extends BaseOptionComponent {
                 static selector = ".test-options-target";
                 static template = xml`<BuilderTextInput action="'isPreviewing'"/>`;
-            }
+            },
         );
-        await setupHTMLBuilder(`<section class="test-options-target">Homepage</section>`);
+        await setupHTMLBuilder(
+            `<section class="test-options-target">Homepage</section>`,
+        );
         await contains(":iframe .test-options-target").click();
 
         // apply
@@ -211,9 +215,11 @@ describe("isPreviewing is passed to action's apply and clean", () => {
             class extends BaseOptionComponent {
                 static selector = ".test-options-target";
                 static template = xml`<BuilderColorPicker action="'isPreviewing'"/>`;
-            }
+            },
         );
-        await setupHTMLBuilder(`<section class="test-options-target">Homepage</section>`);
+        await setupHTMLBuilder(
+            `<section class="test-options-target">Homepage</section>`,
+        );
         await contains(":iframe .test-options-target").click();
 
         // apply
@@ -245,9 +251,11 @@ describe("isPreviewing is passed to action's apply and clean", () => {
             class extends BaseOptionComponent {
                 static selector = ".test-options-target";
                 static template = xml`<BuilderMany2One action="'isPreviewing'" model="'test'" limit="10" allowUnselect="true"/>`;
-            }
+            },
         );
-        await setupHTMLBuilder(`<section class="test-options-target">Homepage</section>`);
+        await setupHTMLBuilder(
+            `<section class="test-options-target">Homepage</section>`,
+        );
         await contains(":iframe .test-options-target").click();
 
         // apply
@@ -313,7 +321,7 @@ test("reload action: apply, clean save and reload are called in the right order 
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton action="'testReload'">Click</BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`<section class="test-options-target">Test</section>`);
     await contains(":iframe .test-options-target").click();
@@ -353,7 +361,7 @@ test("shows notification when a BuilderAction.apply times out", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton action="'timeoutAction'"/>`;
-        }
+        },
     );
 
     await setupHTMLBuilder(`<div class="test-options-target">TEST</div>`);

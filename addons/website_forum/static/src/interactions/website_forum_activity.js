@@ -9,7 +9,7 @@ export class WebsiteProfileForumActivity extends Interaction {
             "t-on-click.withTarget": (ev, currentTargetEl) =>
                 this.selectTab(
                     currentTargetEl.getAttribute("href").split("_").at(-1),
-                    currentTargetEl.text
+                    currentTargetEl.text,
                 ),
         },
         ".o_wprofile_forum_activity_search_question": {
@@ -28,8 +28,8 @@ export class WebsiteProfileForumActivity extends Interaction {
         this.selectTab(
             activeTab,
             document.querySelector(
-                `#o_wprofile_forum_activity_filter li a[href='#o_wprofile_forum_activity_tab_${activeTab}']`
-            ).textContent
+                `#o_wprofile_forum_activity_filter li a[href='#o_wprofile_forum_activity_tab_${activeTab}']`,
+            ).textContent,
         );
     }
 

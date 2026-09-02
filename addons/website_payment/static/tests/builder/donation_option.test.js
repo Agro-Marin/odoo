@@ -26,10 +26,14 @@ test("display/hide donation options", async () => {
 test("display/hide prefilled options", async () => {
     await contains(":iframe .s_donation").click();
     expect(":iframe .s_donation_prefilled_buttons").not.toBeEmpty();
-    await contains("div:has(> span:contains('Pre-filled Options')) + div input").click();
+    await contains(
+        "div:has(> span:contains('Pre-filled Options')) + div input",
+    ).click();
     expect(":iframe .s_donation_prefilled_buttons").toHaveInnerHTML("");
     expect(":iframe .s_donation_range_slider_wrap").toBeVisible();
-    await contains("div:has(> span:contains('Pre-filled Options')) + div input").click();
+    await contains(
+        "div:has(> span:contains('Pre-filled Options')) + div input",
+    ).click();
     expect(":iframe .s_donation_prefilled_buttons").not.toBeEmpty();
 });
 

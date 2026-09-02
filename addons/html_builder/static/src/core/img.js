@@ -75,7 +75,11 @@ export class Img extends Component {
         });
         useEffect(
             (imgLoaded) => {
-                if (imgLoaded && this.isSvg(this.props.src) && this.svg.children.length) {
+                if (
+                    imgLoaded &&
+                    this.isSvg(this.props.src) &&
+                    this.svg.children.length
+                ) {
                     // We can't use t-out with markup because it is parsed as HTML,
                     // but SVG need to be parsed as XML for all features to work.
                     const children = [];
@@ -85,7 +89,7 @@ export class Img extends Component {
                     this.svgRef.el.replaceChildren(...children);
                 }
             },
-            () => [this.state.loaded]
+            () => [this.state.loaded],
         );
     }
 

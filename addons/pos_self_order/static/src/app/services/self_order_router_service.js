@@ -70,7 +70,7 @@ export class SelfOrderRouter extends SignalStore {
 
     // If the url isn't a valid URL, we assume it's a relative path
     customLink(link) {
-        let url = "";
+        let url;
 
         try {
             url = new URL(link.url);

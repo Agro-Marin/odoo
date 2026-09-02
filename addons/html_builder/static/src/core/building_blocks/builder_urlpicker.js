@@ -10,8 +10,8 @@ import {
     useInputBuilderComponent,
 } from "@html_builder/core/utils";
 import { Component } from "@odoo/owl";
-import { useChildRef } from "@web/core/utils/hooks";
 import { pick } from "@web/core/utils/collections/objects";
+import { useChildRef } from "@web/core/utils/hooks";
 
 export class BuilderUrlPicker extends Component {
     static template = "html_builder.BuilderUrlPicker";

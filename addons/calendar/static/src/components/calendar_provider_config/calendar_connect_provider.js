@@ -43,7 +43,7 @@ export class CalendarConnectProvider extends Component {
         await this.orm.call(
             this.props.record.resModel,
             "action_calendar_prepare_external_provider_sync",
-            [this.props.record.resId]
+            [this.props.record.resId],
         );
         // See google/microsoft_calendar for the origin of this shortened version
         const { restart_sync_method, sync_route } =
@@ -73,4 +73,6 @@ export class CalendarConnectProvider extends Component {
 const calendarConnectProvider = {
     component: CalendarConnectProvider,
 };
-registry.category("view_widgets").add("calendar_connect_provider", calendarConnectProvider);
+registry
+    .category("view_widgets")
+    .add("calendar_connect_provider", calendarConnectProvider);

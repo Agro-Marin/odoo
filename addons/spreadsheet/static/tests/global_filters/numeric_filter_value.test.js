@@ -1,15 +1,15 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { keyDown } from "@odoo/hoot-dom";
+import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
+import { NumericFilterValue } from "@spreadsheet/global_filters/components/numeric_filter_value/numeric_filter_value";
 import {
-    makeMockEnv,
     contains,
+    makeMockEnv,
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
-import { getTemplate } from "@web/core/templates";
-import { NumericFilterValue } from "@spreadsheet/global_filters/components/numeric_filter_value/numeric_filter_value";
 import { localization } from "@web/core/l10n/localization";
+import { getTemplate } from "@web/core/templates";
 
 describe.current.tags("desktop");
 defineSpreadsheetModels();

@@ -30,7 +30,7 @@ export class AttendeeCalendarController extends CalendarController {
             },
             {
                 additionalContext: this.props.context,
-            }
+            },
         );
     }
 
@@ -47,7 +47,7 @@ export class AttendeeCalendarController extends CalendarController {
                     ...this.props.context,
                     ...additionalContext,
                 },
-            }
+            },
         );
     }
 
@@ -82,19 +82,20 @@ export class AttendeeCalendarController extends CalendarController {
         ) {
             if (record.rawRecord.recurrency) {
                 this.openRecurringDeletionWizard(record);
-            } else if (record.rawRecord.attendees_count == 1) {
+            } else if (record.rawRecord.attendees_count === 1) {
                 super.deleteRecord(...arguments);
             } else {
                 // Non-recurrent by construction (the branch above took the
                 // recurrent case), so no policy to pass.
-                this.orm.call("calendar.event", "action_unlink_event", [record.id])
-                .then((action) => {
-                    if (action && action.context) {
-                        this.actionService.doAction(action);
-                    } else {
-                        location.reload();
-                    }
-                });
+                this.orm
+                    .call("calendar.event", "action_unlink_event", [record.id])
+                    .then((action) => {
+                        if (action && action.context) {
+                            this.actionService.doAction(action);
+                        } else {
+                            location.reload();
+                        }
+                    });
             }
         } else {
             // Decline event
@@ -114,7 +115,7 @@ export class AttendeeCalendarController extends CalendarController {
                 name: "Delete Recurring Event",
                 context: {
                     default_calendar_event_id: record.id,
-                    form_view_ref: 'calendar.calendar_popover_delete_view',
+                    form_view_ref: "calendar.calendar_popover_delete_view",
                 },
                 target: "new",
             },
@@ -122,7 +123,7 @@ export class AttendeeCalendarController extends CalendarController {
                 onClose: () => {
                     this.model.load();
                 },
-            }
+            },
         );
     }
 

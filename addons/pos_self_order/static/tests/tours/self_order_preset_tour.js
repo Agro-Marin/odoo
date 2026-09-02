@@ -1,8 +1,8 @@
-import { registry } from "@web/core/registry";
-import * as Utils from "@pos_self_order/../tests/tours/utils/common";
 import * as CartPage from "@pos_self_order/../tests/tours/utils/cart_page_util";
+import * as Utils from "@pos_self_order/../tests/tours/utils/common";
 import * as LandingPage from "@pos_self_order/../tests/tours/utils/landing_page_util";
 import * as ProductPage from "@pos_self_order/../tests/tours/utils/product_page_util";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("self_order_preset_dine_in_tour", {
     steps: () => [

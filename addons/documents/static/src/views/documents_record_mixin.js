@@ -116,7 +116,7 @@ export const DocumentsRecordMixin = (component) =>
             }
             return (
                 this.model.shortcutTargetRecords.find(
-                    (rec) => rec.resId === this.data.shortcut_document_id.id
+                    (rec) => rec.resId === this.data.shortcut_document_id.id,
                 ) || this
             );
         }
@@ -151,12 +151,15 @@ export const DocumentsRecordMixin = (component) =>
                         name: rec.data.display_name,
                     })) || [];
 
-                await this.model.env.documentsView.bus.trigger("documents-open-preview", {
-                    documents,
-                    mainDocument: this,
-                    isPdfSplit: false,
-                    embeddedActions,
-                });
+                await this.model.env.documentsView.bus.trigger(
+                    "documents-open-preview",
+                    {
+                        documents,
+                        mainDocument: this,
+                        isPdfSplit: false,
+                        embeddedActions,
+                    },
+                );
             } else if (this.isURL()) {
                 openDocumentUrl(this.data.url);
             }
@@ -197,6 +200,8 @@ export const DocumentsRecordMixin = (component) =>
             }
             searchModel.toggleCategoryValue(searchModel.folderCategory.id, folderId);
             this.model.originalSelection = [this.shortcutTarget.resId];
-            this.model.env.documentsView.bus.trigger("documents-expand-folder", { folderId });
+            this.model.env.documentsView.bus.trigger("documents-expand-folder", {
+                folderId,
+            });
         }
     };

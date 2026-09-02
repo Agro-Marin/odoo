@@ -42,11 +42,11 @@ patch(OrderPaymentValidation.prototype, {
                 }
                 if (!this.order.partner_id && this.order.to_invoice) {
                     const setPricelist =
-                        this.pos.config.pricelist_id?.id != this.order.pricelist_id?.id
+                        this.pos.config.pricelist_id?.id !== this.order.pricelist_id?.id
                             ? this.order.pricelist_id
                             : false;
                     const setFiscalPosition =
-                        this.pos.config.default_fiscal_position_id?.id !=
+                        this.pos.config.default_fiscal_position_id?.id !==
                         this.order.fiscal_position_id?.id
                             ? this.order.fiscal_position_id?.id
                             : false;

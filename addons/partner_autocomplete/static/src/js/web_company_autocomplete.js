@@ -8,7 +8,12 @@ export const companyAutocompleteService = {
 
     start(env, { orm }) {
         if (session.iap_company_enrich) {
-            orm.silent.call("res.company", "iap_enrich_auto", [user.activeCompany.id], {});
+            orm.silent.call(
+                "res.company",
+                "iap_enrich_auto",
+                [user.activeCompany.id],
+                {},
+            );
         }
     },
 };

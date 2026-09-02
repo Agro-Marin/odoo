@@ -1,7 +1,7 @@
 import { setupHTMLBuilder } from "@html_builder/../tests/helpers";
-import { expect, test, describe } from "@odoo/hoot";
-import { contains } from "@web/../tests/web_test_helpers";
+import { describe, expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
+import { contains } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 
@@ -9,7 +9,7 @@ test("selection should be were clicked, even when clicking away from popover", a
     const { getEditor } = await setupHTMLBuilder(
         `<section><div class="container">
             Apply color <i id="here">here</i>, then select <i id="there">there<i>.
-        </div></section>`
+        </div></section>`,
     );
     const editor = getEditor();
     const hereEl = queryOne(":iframe #here");
@@ -36,7 +36,7 @@ test("selection should be were clicked, even when clicking away from popover", a
                 focusOffset: 1,
             });
         },
-        { capture: true }
+        { capture: true },
     );
     await contains(thereEl).click();
     const selection = thereEl.ownerDocument.getSelection();

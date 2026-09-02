@@ -1,15 +1,17 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { getBgImageURLFromEl } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { BackgroundPositionOverlay } from "./background_position_overlay.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
 import { loadImage } from "@html_editor/utils/image_processing";
+import { registry } from "@web/core/registry";
+
+import { BackgroundPositionOverlay } from "./background_position_overlay.js";
 
 const getBgSizeValue = function ({ editingElement, params: { mainParam: styleName } }) {
     const backgroundSize = editingElement.style.backgroundSize;
     const bgWidthAndHeight = backgroundSize.split(/\s+/g);
-    const value = styleName === "width" ? bgWidthAndHeight[0] : bgWidthAndHeight[1] || "";
+    const value =
+        styleName === "width" ? bgWidthAndHeight[0] : bgWidthAndHeight[1] || "";
     return value === "auto" ? "" : value;
 };
 
@@ -29,15 +31,19 @@ class BackgroundPositionOptionPlugin extends Plugin {
 export class BackgroundTypeAction extends BuilderAction {
     static id = "backgroundType";
     apply({ editingElement, value }) {
-        editingElement.classList.toggle("o_bg_img_opt_repeat", value === "repeat-pattern");
+        editingElement.classList.toggle(
+            "o_bg_img_opt_repeat",
+            value === "repeat-pattern",
+        );
         editingElement.style.setProperty("background-position", "");
         editingElement.style.setProperty(
             "background-size",
-            value !== "repeat-pattern" ? "" : "100px"
+            value !== "repeat-pattern" ? "" : "100px",
         );
     }
     isApplied({ editingElement, value }) {
-        const hasElRepeatStyle = getComputedStyle(editingElement).backgroundRepeat === "repeat";
+        const hasElRepeatStyle =
+            getComputedStyle(editingElement).backgroundRepeat === "repeat";
         return value === "repeat-pattern" ? hasElRepeatStyle : !hasElRepeatStyle;
     }
 }
@@ -98,7 +104,7 @@ export class BackgroundPositionOverlayAction extends BuilderAction {
                         makeSavePoint: this.dependencies.history.makeSavePoint,
                     },
                 },
-                { onRemove }
+                { onRemove },
             );
         });
     }

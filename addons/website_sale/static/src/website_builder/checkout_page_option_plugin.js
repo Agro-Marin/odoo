@@ -40,4 +40,6 @@ export class SetExtraStepAction extends WebsiteConfigAction {
     }
 }
 
-registry.category("website-plugins").add(CheckoutPageOptionPlugin.id, CheckoutPageOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(CheckoutPageOptionPlugin.id, CheckoutPageOptionPlugin);

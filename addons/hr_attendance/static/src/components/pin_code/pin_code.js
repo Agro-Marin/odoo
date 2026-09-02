@@ -22,17 +22,20 @@ export class KioskPinCode extends Component {
         });
         this.lockPad = false;
         this.failedAttempts = 0;
-        this.checkedIn = this.props.employeeData.attendance_state === 'checked_in';
+        this.checkedIn = this.props.employeeData.attendance_state === "checked_in";
 
         const onKeyDown = async (ev) => {
-            const allowedKeys = [...Array(10).keys()].reduce((acc, value) => {
-                acc[value] = value;
-                return acc;
-            }, {
-                'Delete': 'C',
-                'Enter': 'OK',
-                'Backspace': null,
-            });
+            const allowedKeys = [...Array(10).keys()].reduce(
+                (acc, value) => {
+                    acc[value] = value;
+                    return acc;
+                },
+                {
+                    Delete: "C",
+                    Enter: "OK",
+                    Backspace: null,
+                },
+            );
             const key = ev.key;
 
             if (!Object.keys(allowedKeys).includes(key)) {
@@ -44,13 +47,15 @@ export class KioskPinCode extends Component {
 
             if (allowedKeys[key] !== null) {
                 await this.onClickPadButton(allowedKeys[key]);
+            } else {
+                this.state.codePin = this.state.codePin.substring(
+                    0,
+                    this.state.codePin.length - 1,
+                );
             }
-            else {
-                this.state.codePin = this.state.codePin.substring(0, this.state.codePin.length - 1);
-            }
-        }
-        onWillStart(() => browser.addEventListener('keydown', onKeyDown))
-        onWillDestroy(() => browser.removeEventListener('keydown', onKeyDown));
+        };
+        onWillStart(() => browser.addEventListener("keydown", onKeyDown));
+        onWillDestroy(() => browser.removeEventListener("keydown", onKeyDown));
     }
 
     async onClickPadButton(value) {
@@ -63,7 +68,7 @@ export class KioskPinCode extends Component {
             this.lockPad = true;
             const accepted = await this.props.onPinConfirm(
                 this.props.employeeData.id,
-                this.state.codePin
+                this.state.codePin,
             );
             this.state.codePin = "";
             // Only a rejected PIN slows the pad down. Counting every press made

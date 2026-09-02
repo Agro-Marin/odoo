@@ -1,9 +1,7 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-
-import { kanbanView, KanbanController } from "@web/views/kanban";
-
 import { useArchiveEmployee } from "@hr/views/archive_employee_hook";
+import { registry } from "@web/core/registry";
+import { KanbanController, kanbanView } from "@web/views/kanban";
 
 export class EmployeeKanbanController extends KanbanController {
     setup() {
@@ -17,7 +15,7 @@ export class EmployeeKanbanController extends KanbanController {
 
         menuItems.archive.callback = this.archiveEmployee.bind(
             this,
-            selectedRecords.map(({ resId }) => resId)
+            selectedRecords.map(({ resId }) => resId),
         );
         return menuItems;
     }

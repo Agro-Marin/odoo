@@ -5,7 +5,6 @@ import { DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
 import { user } from "@web/core/user";
 
-
 export class FetchInvoicesCogMenu extends Component {
     static template = "l10n_ro_edi.FetchInvoices";
     static props = {};
@@ -30,9 +29,13 @@ export const CogMenuItem = {
     Component: FetchInvoicesCogMenu,
     groupNumber: 20,
     isDisplayed: async ({ config, searchModel }) => {
-        const data = await searchModel.orm.read("res.company", [user.activeCompany.id], ["country_code"]);
+        const data = await searchModel.orm.read(
+            "res.company",
+            [user.activeCompany.id],
+            ["country_code"],
+        );
         return (
-            data[0]?.country_code === 'RO' &&
+            data[0]?.country_code === "RO" &&
             searchModel.resModel === "account.move" &&
             ["kanban", "list"].includes(config.viewType) &&
             config.actionType === "ir.actions.act_window"
@@ -40,4 +43,6 @@ export const CogMenuItem = {
     },
 };
 
-registry.category("cogMenu").add("l10n_ro_edi-fetch-invoices", CogMenuItem, { sequence: 10 });
+registry
+    .category("cogMenu")
+    .add("l10n_ro_edi-fetch-invoices", CogMenuItem, { sequence: 10 });

@@ -13,12 +13,17 @@ export class PasskeyLogin extends Interaction {
 
     async onClick() {
         const serverOptions = await this.waitFor(rpc("/auth/passkey/start-auth"));
-        const auth = await this.waitFor(passkeyLib.startAuthentication(serverOptions).catch(e => console.error(e)));
+        const auth = await this.waitFor(
+            passkeyLib
+                .startAuthentication(serverOptions)
+                .catch((e) => console.error(e)),
+        );
         if (!auth) {
             return false;
         }
         const form = document.querySelector("form.oe_login_form");
-        form.querySelector("input[name='webauthn_response']").value = JSON.stringify(auth);
+        form.querySelector("input[name='webauthn_response']").value =
+            JSON.stringify(auth);
         form.querySelector("input[name='type']").value = "webauthn";
         form.submit();
     }

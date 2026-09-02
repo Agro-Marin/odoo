@@ -11,7 +11,7 @@ export class TicketDetails extends Interaction {
     };
     dynamicContent = {
         _envBus: {
-            "t-on-websiteEvent.enableSubmit": () => this.buttonDisabled = false,
+            "t-on-websiteEvent.enableSubmit": () => (this.buttonDisabled = false),
         },
         "button[data-increment-type='minus']": {
             "t-on-click": (ev) => this.onClick(ev, -1),
@@ -24,23 +24,34 @@ export class TicketDetails extends Interaction {
         },
         ".a-submit": {
             "t-on-click.prevent.stop": this.onSubmitClick,
-            "t-att-disabled": () => this.moreTicketsOrderedThanExpected || this.noTicketsOrdered || this.buttonDisabled ? "disabled" : false,
+            "t-att-disabled": () =>
+                this.moreTicketsOrderedThanExpected ||
+                this.noTicketsOrdered ||
+                this.buttonDisabled
+                    ? "disabled"
+                    : false,
         },
     };
 
     get noTicketsOrdered() {
         return Boolean(
             !Array.from(this.el.querySelectorAll(".o_wevent_input_nb_tickets")).find(
-                (input) => Number.isNaN(parseInt(input.value)) ? false : parseInt(input.value) > 0
-            )
+                (input) =>
+                    Number.isNaN(parseInt(input.value))
+                        ? false
+                        : parseInt(input.value) > 0,
+            ),
         );
     }
 
     get moreTicketsOrderedThanExpected() {
         return Boolean(
             Array.from(this.el.querySelectorAll(".o_wevent_input_nb_tickets")).find(
-                (input) => Number.isNaN(parseInt(input.value)) ? true : input.max < parseInt(input.value)
-            )
+                (input) =>
+                    Number.isNaN(parseInt(input.value))
+                        ? true
+                        : input.max < parseInt(input.value),
+            ),
         );
     }
 
@@ -50,31 +61,42 @@ export class TicketDetails extends Interaction {
     async onInput(ev) {
         const inputComponent = ev.target;
         const maximumBound = inputComponent.max;
-        inputComponent.value = Math.min(inputComponent.value.replace(/[^0-9]/g, ''), maximumBound);
-        
-        const spinner_buttons = this.el.querySelectorAll(`button[data-input-name=${inputComponent.name}]`);
+        inputComponent.value = Math.min(
+            inputComponent.value.replace(/[^0-9]/g, ""),
+            maximumBound,
+        );
+
+        const spinner_buttons = this.el.querySelectorAll(
+            `button[data-input-name=${inputComponent.name}]`,
+        );
         spinner_buttons[0].disabled = parseInt(inputComponent.value) <= 0;
         spinner_buttons[1].disabled = parseInt(inputComponent.value) >= maximumBound;
 
         // Display/hide maximum ticket quantity if reached
-        this.el.querySelector(`p[name=${inputComponent.name}]`).hidden = parseInt(inputComponent.value) < maximumBound;
+        this.el.querySelector(`p[name=${inputComponent.name}]`).hidden =
+            parseInt(inputComponent.value) < maximumBound;
     }
 
     /**
      * @param {MouseEvent} ev
      */
     onClick(ev, incrementValue) {
-        const inputComponent = this.el.querySelector(`input[name=${ev.currentTarget.dataset.inputName}]`);
+        const inputComponent = this.el.querySelector(
+            `input[name=${ev.currentTarget.dataset.inputName}]`,
+        );
         const maximumBound = inputComponent.max;
         const inputValue = parseInt(inputComponent.value);
         if (0 <= inputValue && inputValue <= maximumBound) {
-            inputComponent.value = Math.max(0, Math.min(inputValue + incrementValue, maximumBound));
+            inputComponent.value = Math.max(
+                0,
+                Math.min(inputValue + incrementValue, maximumBound),
+            );
         } else {
             inputComponent.value = inputValue < 0 ? 0 : maximumBound;
         }
 
         // Triggers an input event to update the “Register” button accessibility
-        inputComponent.dispatchEvent(new Event("input"))
+        inputComponent.dispatchEvent(new Event("input"));
     }
 
     /**
@@ -83,12 +105,12 @@ export class TicketDetails extends Interaction {
     async onSubmitClick(ev) {
         const formEl = ev.currentTarget.closest("form");
         this.buttonDisabled = true;
-        const modal = await this.waitFor(rpc(
-            formEl.action,
-            Object.fromEntries(new FormData(formEl)),
-        ));
+        const modal = await this.waitFor(
+            rpc(formEl.action, Object.fromEntries(new FormData(formEl))),
+        );
 
-        const modalEl = new DOMParser().parseFromString(modal, "text/html").body.firstChild;
+        const modalEl = new DOMParser().parseFromString(modal, "text/html").body
+            .firstChild;
         this.insert(modalEl, document.body);
     }
 }

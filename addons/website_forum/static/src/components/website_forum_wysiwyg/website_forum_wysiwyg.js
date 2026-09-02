@@ -32,10 +32,16 @@ export class WebsiteForumWysiwyg extends Wysiwyg {
         const form = this.props.textareaEl.closest("form");
         // Prevent form submission behavior of buttons inside the form
         onMounted(() =>
-            form.querySelectorAll(".o-wysiwyg button").forEach((btn) => (btn.type = "button"))
+            form
+                .querySelectorAll(".o-wysiwyg button")
+                .forEach((btn) => (btn.type = "button")),
         );
         this.submitButton = form.querySelector("button[type=submit]");
-        useExternalListener(this.submitButton, "click", this.onSubmitButtonClick.bind(this));
+        useExternalListener(
+            this.submitButton,
+            "click",
+            this.onSubmitButtonClick.bind(this),
+        );
         this.readyToSubmit = false;
 
         const postReplyWrapper = form.closest("#post_reply");
@@ -46,12 +52,16 @@ export class WebsiteForumWysiwyg extends Wysiwyg {
             // On post reply, the discard button simply hides the editable.
             // Clear the selection to close any overlay dependent on an uncollapsed
             // selection (like the toolbar).
-            const discardButton = postReplyWrapper.querySelector(".o_wforum_discard_btn");
+            const discardButton = postReplyWrapper.querySelector(
+                ".o_wforum_discard_btn",
+            );
             useExternalListener(discardButton, "click", clearSelection);
 
             // Expanding to full view changes the editable's position.
             // Clear the selection to close overlays.
-            const toggleExpandButton = postReplyWrapper.querySelector(".o_wforum_expand_toggle");
+            const toggleExpandButton = postReplyWrapper.querySelector(
+                ".o_wforum_expand_toggle",
+            );
             useExternalListener(toggleExpandButton, "click", clearSelection);
         }
     }
@@ -63,7 +73,8 @@ export class WebsiteForumWysiwyg extends Wysiwyg {
             Plugins: this.props.fullEdit ? FULL_EDIT_PLUGINS : BASIC_PLUGINS,
             content: this.getTextAreaContent(),
             resources: {
-                start_edition_handlers: () => this.cleanImageClasses(this.editor.editable),
+                start_edition_handlers: () =>
+                    this.cleanImageClasses(this.editor.editable),
                 clean_for_save_handlers: ({ root }) => this.cleanImageClasses(root),
             },
             defaultLinkAttributes: { rel: "ugc noreferrer noopener", target: "_blank" },

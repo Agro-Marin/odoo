@@ -3,7 +3,10 @@ import { useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
-import { selectionField, SelectionField } from "@web/fields/selection/selection/selection_field";
+import {
+    selectionField,
+    SelectionField,
+} from "@web/fields/selection/selection/selection_field";
 import { TRIGGER_FILTERS } from "./utils.js";
 import { useService } from "@web/core/utils/hooks";
 
@@ -30,19 +33,34 @@ const OPT_GROUPS = [
     },
     {
         group: { sequence: 40, key: "custom", label: _t("Custom") },
-        triggers: ["on_create", "on_create_or_write", "on_unlink", "on_change", "on_hand"],
+        triggers: [
+            "on_create",
+            "on_create_or_write",
+            "on_unlink",
+            "on_change",
+            "on_hand",
+        ],
     },
     {
         group: { sequence: 50, key: "external", label: _t("External") },
         triggers: ["on_webhook"],
     },
     {
-        group: { sequence: 60, key: "deprecated", label: _t("Deprecated (do not use)") },
+        group: {
+            sequence: 60,
+            key: "deprecated",
+            label: _t("Deprecated (do not use)"),
+        },
         triggers: ["on_write"],
     },
 ];
 
-function computeDerivedOptions(options, fields, currentSelection, { excludeGroups = [] } = {}) {
+function computeDerivedOptions(
+    options,
+    fields,
+    currentSelection,
+    { excludeGroups = [] } = {},
+) {
     const derivedOptions = [];
     for (const [value, label] of options) {
         const entry = OPT_GROUPS.find((g) => g.triggers.includes(value));
@@ -88,7 +106,7 @@ export class TriggerSelectionField extends SelectionField {
                 relatedModelFields = await orm.searchRead(
                     "ir.model.fields",
                     [["model_id", "=", modelId]],
-                    ["field_description", "name", "ttype", "relation"]
+                    ["field_description", "name", "ttype", "relation"],
                 );
             }
 
@@ -96,12 +114,14 @@ export class TriggerSelectionField extends SelectionField {
                 fields[this.props.name].selection,
                 relatedModelFields,
                 data[this.props.name],
-                { excludeGroups: data.model_is_mail_thread ? [] : ["mail"] }
+                { excludeGroups: data.model_is_mail_thread ? [] : ["mail"] },
             );
 
             this.groupedOptions.length = 0;
             for (const option of derivedOptions) {
-                const group = this.groupedOptions.find((g) => g.key === option.group.key) ?? {
+                const group = this.groupedOptions.find(
+                    (g) => g.key === option.group.key,
+                ) ?? {
                     ...option.group,
                     choices: [],
                 };

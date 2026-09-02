@@ -25,7 +25,7 @@ class DynamicSnippetEventsOptionPlugin extends Plugin {
             setDatasetIfUndefined(snippetEl, "numberOfRecords", 3);
             await this.dependencies.dynamicSnippetOption.setOptionsDefaultValues(
                 snippetEl,
-                this.modelNameFilter
+                this.modelNameFilter,
             );
         }
     }

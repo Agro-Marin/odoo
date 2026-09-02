@@ -6,7 +6,7 @@ patch(PosOrder.prototype, {
         return this.company.country_id?.code === "CO";
     },
     waitForPushOrder() {
-        var result = super.waitForPushOrder(...arguments);
+        let result = super.waitForPushOrder(...arguments);
         result = Boolean(result || this.is_colombian_country());
         return result;
     },

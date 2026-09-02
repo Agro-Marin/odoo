@@ -8,55 +8,55 @@ import { AutoComplete } from "@web/components/autocomplete";
  * add-on, so it participates in navigation, aria state and Enter-to-select.
  */
 export class PartnerAutoComplete extends AutoComplete {
-  setup() {
-    super.setup();
-    this.shouldSearchWorldwide = false;
-  }
-
-  // Thread the worldwide flag to the (function) source loaders. The generic
-  // AutoComplete calls `options(request)`; partner sources read the 2nd arg.
-  loadOptions(options, request) {
-    if (typeof options === "function") {
-      return options(request, this.shouldSearchWorldwide);
+    setup() {
+        super.setup();
+        this.shouldSearchWorldwide = false;
     }
-    return options;
-  }
 
-  // The worldwide entry carries no onSelect (its behaviour lives in
-  // selectOption below), so force it selectable or navigate()/Enter skip it.
-  makeOption(option) {
-    const made = super.makeOption(option);
-    if (made.data?.isWorldwideAction) {
-      made.unselectable = false;
+    // Thread the worldwide flag to the (function) source loaders. The generic
+    // AutoComplete calls `options(request)`; partner sources read the 2nd arg.
+    loadOptions(options, request) {
+        if (typeof options === "function") {
+            return options(request, this.shouldSearchWorldwide);
+        }
+        return options;
     }
-    return made;
-  }
 
-  selectOption(option) {
-    if (option?.data?.isWorldwideAction) {
-      this.searchWorldwide();
-      return;
+    // The worldwide entry carries no onSelect (its behaviour lives in
+    // selectOption below), so force it selectable or navigate()/Enter skip it.
+    makeOption(option) {
+        const made = super.makeOption(option);
+        if (made.data?.isWorldwideAction) {
+            made.unselectable = false;
+        }
+        return made;
     }
-    super.selectOption(option);
-  }
 
-  searchWorldwide() {
-    this.shouldSearchWorldwide = true;
-    // Reopen so the sources reload with the worldwide scope. close()+open()
-    // (not cancel()) keeps the flag we just set.
-    this.close();
-    this.open(true);
-  }
+    selectOption(option) {
+        if (option?.data?.isWorldwideAction) {
+            this.searchWorldwide();
+            return;
+        }
+        super.selectOption(option);
+    }
 
-  // A genuine new keystroke starts a fresh, country-scoped search: the
-  // worldwide affordance is re-offered instead of staying latched on.
-  onInput() {
-    this.shouldSearchWorldwide = false;
-    return super.onInput();
-  }
+    searchWorldwide() {
+        this.shouldSearchWorldwide = true;
+        // Reopen so the sources reload with the worldwide scope. close()+open()
+        // (not cancel()) keeps the flag we just set.
+        this.close();
+        this.open(true);
+    }
 
-  cancel() {
-    this.shouldSearchWorldwide = false;
-    super.cancel();
-  }
+    // A genuine new keystroke starts a fresh, country-scoped search: the
+    // worldwide affordance is re-offered instead of staying latched on.
+    onInput() {
+        this.shouldSearchWorldwide = false;
+        return super.onInput();
+    }
+
+    cancel() {
+        this.shouldSearchWorldwide = false;
+        super.cancel();
+    }
 }

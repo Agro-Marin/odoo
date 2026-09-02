@@ -1,8 +1,23 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
-import { changeScale, toggleSectionFilter } from "@web/../tests/views/calendar/calendar_test_helpers";
-import { contains, defineActions, defineModels, fields, getService, models, mountView, mountWebClient, onRpc, serverState, switchView } from "@web/../tests/web_test_helpers";
+import {
+    changeScale,
+    toggleSectionFilter,
+} from "@web/../tests/views/calendar/calendar_test_helpers";
+import {
+    contains,
+    defineActions,
+    defineModels,
+    fields,
+    getService,
+    models,
+    mountView,
+    mountWebClient,
+    onRpc,
+    serverState,
+    switchView,
+} from "@web/../tests/web_test_helpers";
 
 class CalendarEvent extends models.Model {
     _name = "calendar.event";
@@ -35,7 +50,7 @@ class CalendarEvent extends models.Model {
                 <field name="partner_ids" write_model="calendar.filter" write_field="partner_id"/>
             </calendar>
         `,
-        list: `<list sample="1"/>`
+        list: `<list sample="1"/>`,
     };
 
     user_id = fields.Many2one({ relation: "users" });
@@ -68,9 +83,7 @@ class Partner extends models.Model {
 }
 
 class Users extends models.Model {
-    _records = [
-        { id: serverState.userId, name: "User 4", partner_id: 4 },
-    ];
+    _records = [{ id: serverState.userId, name: "User 4", partner_id: 4 }];
 
     name = fields.Char();
     partner_id = fields.Many2one({ relation: "partner" });
@@ -111,7 +124,7 @@ test(`sync google calendar`, async () => {
 
     await mountView({
         type: "calendar",
-        resModel: 'calendar.event',
+        resModel: "calendar.event",
         arch: `
             <calendar js_class="attendee_calendar" date_start="start" date_stop="stop" attendee="partner_ids" mode="month">
                 <field name="name"/>
@@ -124,7 +137,9 @@ test(`sync google calendar`, async () => {
     // select the partner filter
     await toggleSectionFilter("partner_ids");
     // sync_data was called a first time without filter, event from google calendar was created twice
-    expect(`.fc-event`).toHaveCount(4, { message: "should display 4 events on the month" });
+    expect(`.fc-event`).toHaveCount(4, {
+        message: "should display 4 events on the month",
+    });
     expect.verifySteps(["sync_data", "search_read"]);
 
     await contains(`.o_datetime_picker_header .o_next`).click();
@@ -136,7 +151,9 @@ test(`sync google calendar`, async () => {
 
     await contains(`.o_calendar_button_today`).click();
     expect.verifySteps(["sync_data", "search_read"]);
-    expect(`.fc-event`).toHaveCount(7, { message: "should now display 7 events on the month" });
+    expect(`.fc-event`).toHaveCount(7, {
+        message: "should now display 7 events on the month",
+    });
 });
 
 test(`component is destroyed while sync google calendar`, async () => {
@@ -146,7 +163,10 @@ test(`component is destroyed while sync google calendar`, async () => {
             name: "Partners",
             res_model: "calendar.event",
             type: "ir.actions.act_window",
-            views: [[false, "list"], [false, "calendar"]],
+            views: [
+                [false, "list"],
+                [false, "calendar"],
+            ],
         },
     ]);
 

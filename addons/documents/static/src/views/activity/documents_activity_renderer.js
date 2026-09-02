@@ -7,7 +7,9 @@ import { DocumentsFileViewer } from "@documents/views/helper/documents_file_view
 
 import { onWillUpdateProps, useRef } from "@odoo/owl";
 
-export class DocumentsActivityRenderer extends DocumentsRendererMixin(ActivityRenderer) {
+export class DocumentsActivityRenderer extends DocumentsRendererMixin(
+    ActivityRenderer,
+) {
     static props = {
         ...ActivityRenderer.props,
         previewStore: Object,

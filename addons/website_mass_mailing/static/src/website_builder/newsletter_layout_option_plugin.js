@@ -10,7 +10,8 @@ import { BaseOptionComponent } from "@html_builder/core/utils";
 export class NewsletterLayoutOption extends BaseOptionComponent {
     static template = "website_mass_mailing.NewsletterLayoutOption";
     static selector = ".s_newsletter_block";
-    static applyTo = ":scope > .container, :scope > .container-fluid, :scope > .o_container_small";
+    static applyTo =
+        ":scope > .container, :scope > .container-fluid, :scope > .o_container_small";
 }
 
 export class NewsletterLayoutOptionPlugin extends Plugin {
@@ -18,9 +19,11 @@ export class NewsletterLayoutOptionPlugin extends Plugin {
     static dependencies = ["builderActions"];
 
     resources = {
-        builder_options: [withSequence(before(NEWSLETTER_SELECT),NewsletterLayoutOption)],
+        builder_options: [
+            withSequence(before(NEWSLETTER_SELECT), NewsletterLayoutOption),
+        ],
         builder_actions: {
-            SelectNewsletterTemplateAction
+            SelectNewsletterTemplateAction,
         },
     };
 }
@@ -46,7 +49,7 @@ export class SelectNewsletterTemplateAction extends BuilderAction {
         parentEl.dataset.newsletterTemplate = action.params.attribute;
     }
     clean(action) {
-        return this.getAction("selectTemplate").clean(action)
+        return this.getAction("selectTemplate").clean(action);
     }
 }
 registry

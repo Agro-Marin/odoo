@@ -105,7 +105,7 @@ const strftimeToHumanFormat = memoize(function strftimeToHumanFormat(value) {
     // converted partially.
     return value.replace(
         /%(.)/g,
-        (match, directive) => STRFTIME_TO_HUMAN[directive] ?? match
+        (match, directive) => STRFTIME_TO_HUMAN[directive] ?? match,
     );
 });
 
@@ -181,14 +181,16 @@ export class BaseImportModel {
                 value: {},
             },
             maxSizePerBatch: {
-                help: _t("Defines how many megabytes can be imported in each batch import"),
+                help: _t(
+                    "Defines how many megabytes can be imported in each batch import",
+                ),
                 value: 10,
                 max: Math.round(maxUploadSize / 1024 / 1024),
                 min: 0,
             },
             delayAfterEachBatch: {
                 help: _t(
-                    "After each batch import, this delay is applied to avoid unthrottled calls"
+                    "After each batch import, this delay is applied to avoid unthrottled calls",
                 ),
                 value: 1,
                 min: 1,
@@ -205,7 +207,10 @@ export class BaseImportModel {
     //--------------------------------------------------------------------------
 
     get formattingOptions() {
-        return pick(this.importOptionsValues, ...Object.keys(this.formattingOptionsValues));
+        return pick(
+            this.importOptionsValues,
+            ...Object.keys(this.formattingOptionsValues),
+        );
     }
 
     /**
@@ -262,7 +267,7 @@ export class BaseImportModel {
                     message,
                 },
             },
-            { force: true }
+            { force: true },
         );
     }
 
@@ -279,7 +284,9 @@ export class BaseImportModel {
             this.orm.call(this.resModel, "get_import_templates", [], {
                 context: this.context,
             }),
-            this.orm.call("base_import.import", "create", [{ res_model: this.resModel }]),
+            this.orm.call("base_import.import", "create", [
+                { res_model: this.resModel },
+            ]),
         ]);
     }
 
@@ -291,7 +298,9 @@ export class BaseImportModel {
         const startRow = this.importOptions.skip;
         const importRes = {
             ids: [],
-            fields: this.columns.map((e) => Boolean(e.fieldInfo) && e.fieldInfo.fieldPath),
+            fields: this.columns.map(
+                (e) => Boolean(e.fieldInfo) && e.fieldInfo.fieldPath,
+            ),
             columns: this.columns.map((e) => e.name.trim().toLowerCase()),
             hasError: false,
         };
@@ -309,9 +318,10 @@ export class BaseImportModel {
             if (error) {
                 const errorData = error.data || {};
                 const message =
-                    (errorData.arguments && (errorData.arguments[1] || errorData.arguments[0])) ||
+                    (errorData.arguments &&
+                        (errorData.arguments[1] || errorData.arguments[0])) ||
                     _t(
-                        "An unknown issue occurred during import (possibly lost connection, data limit exceeded or memory limits exceeded). Please retry in case the issue is transient. If the issue still occurs, try to split the file rather than import it at once."
+                        "An unknown issue occurred during import (possibly lost connection, data limit exceeded or memory limits exceeded). Please retry in case the issue is transient. If the issue still occurs, try to split the file rather than import it at once.",
                     );
 
                 if (error.message) {
@@ -338,7 +348,7 @@ export class BaseImportModel {
                 this._addMessage("warning", [
                     _t(
                         "Click 'Resume' to proceed with the import, resuming at line %s.",
-                        importRes.nextrow + 1
+                        importRes.nextrow + 1,
                     ),
                     _t("You can test or reload your file before resuming the import."),
                 ]);
@@ -370,7 +380,9 @@ export class BaseImportModel {
 
         if (!res.error) {
             res.options.date_format = strftimeToHumanFormat(res.options.date_format);
-            res.options.datetime_format = strftimeToHumanFormat(res.options.datetime_format);
+            res.options.datetime_format = strftimeToHumanFormat(
+                res.options.datetime_format,
+            );
             this._onLoadSuccess(res);
         } else {
             this._onLoadError();
@@ -442,10 +454,8 @@ export class BaseImportModel {
             importRes.columns,
             this.formattedImportOptions,
         ];
-        const { ids, messages, nextrow, name, error, binary_filenames } = await this._callImport(
-            isTest,
-            importArgs
-        );
+        const { ids, messages, nextrow, name, error, binary_filenames } =
+            await this._callImport(isTest, importArgs);
 
         // Handle server errors
         if (error) {
@@ -486,7 +496,8 @@ export class BaseImportModel {
             const parameters = {
                 tracking_disable: importOptions.tracking_disable,
                 delayAfterEachBatch: this.binaryFilesParams.delayAfterEachBatch.value,
-                maxBatchSize: this.binaryFilesParams.maxSizePerBatch.value * 1024 * 1024,
+                maxBatchSize:
+                    this.binaryFilesParams.maxSizePerBatch.value * 1024 * 1024,
                 // BinaryFileManager._send reads these three off `parameters`,
                 // but nothing ever passed them, so the user's field options were
                 // silently dropped for the attachment upload pass.
@@ -522,7 +533,7 @@ export class BaseImportModel {
                 parameters,
                 this.context,
                 this.orm,
-                this.notificationService
+                this.notificationService,
             );
             for (let rowIndex = 0; rowIndex < ids.length; rowIndex++) {
                 const id = ids[rowIndex];
@@ -548,13 +559,18 @@ export class BaseImportModel {
 
     async _callImport(dryrun, args) {
         try {
-            const res = await this.orm.silent.call("base_import.import", "execute_import", args, {
-                dryrun,
-                context: {
-                    ...this.context,
-                    tracking_disable: this.importOptions.tracking_disable,
+            const res = await this.orm.silent.call(
+                "base_import.import",
+                "execute_import",
+                args,
+                {
+                    dryrun,
+                    context: {
+                        ...this.context,
+                        tracking_disable: this.importOptions.tracking_disable,
+                    },
                 },
-            });
+            );
             return res;
         } catch (error) {
             // This pattern isn't optimal but it is need to have
@@ -576,13 +592,15 @@ export class BaseImportModel {
             this._addMessage(sortedMessages[0].type, [sortedMessages[0].message]);
             delete sortedMessages[0];
         } else {
-            this._addMessage("danger", [_t("The file contains blocking errors (see below)")]);
+            this._addMessage("danger", [
+                _t("The file contains blocking errors (see below)"),
+            ]);
         }
 
         for (const [columnFieldId, errors] of Object.entries(sortedMessages)) {
             // Handle errors regarding specific colums.
             const column = this.columns.find(
-                (e) => e.fieldInfo && e.fieldInfo.fieldPath === columnFieldId
+                (e) => e.fieldInfo && e.fieldInfo.fieldPath === columnFieldId,
             );
             if (column) {
                 column.resultNames = name;
@@ -611,7 +629,10 @@ export class BaseImportModel {
 
     _groupErrorsByField(messages) {
         const groupedErrors = {};
-        const errorsByMessage = groupBy(this._sortErrors(messages), (f) => f.message || "0");
+        const errorsByMessage = groupBy(
+            this._sortErrors(messages),
+            (f) => f.message || "0",
+        );
         for (const [, errors] of Object.entries(errorsByMessage)) {
             // `message` (the group key, a string) never has a `.record` — the
             // old `if (!message.record)` guard was always true and gated
@@ -625,7 +646,9 @@ export class BaseImportModel {
             }
 
             errors[0].rows.to = errors[errors.length - 1].rows.to;
-            const fieldId = errors[0].field_path ? errors[0].field_path.join("/") : errors[0].field;
+            const fieldId = errors[0].field_path
+                ? errors[0].field_path.join("/")
+                : errors[0].field;
             if (groupedErrors[fieldId]) {
                 groupedErrors[fieldId].push(errors[0]);
             } else {
@@ -636,7 +659,9 @@ export class BaseImportModel {
     }
 
     _sortErrors(messages) {
-        return sortBy(messages, (e) => ["error", "warning", "info"].indexOf(e.priority));
+        return sortBy(messages, (e) =>
+            ["error", "warning", "info"].indexOf(e.priority),
+        );
     }
 
     /**
@@ -663,7 +688,7 @@ export class BaseImportModel {
         if (res.headers.length === 1) {
             this._addMessage("warning", [
                 _t(
-                    "A single column was found in the file, this often means the file separator is incorrect."
+                    "A single column was found in the file, this often means the file separator is incorrect.",
                 ),
             ]);
         }
@@ -695,7 +720,7 @@ export class BaseImportModel {
                     header,
                     index,
                     previews,
-                    previews[0]
+                    previews[0],
                 );
             });
         } else if (res.preview && res.preview.length >= 2) {
@@ -706,8 +731,8 @@ export class BaseImportModel {
                     this.importOptions.has_headers ? preview[0] : preview.join(", "),
                     index,
                     preview,
-                    preview[1]
-                )
+                    preview[1],
+                ),
             );
         }
         return [];
@@ -774,7 +799,9 @@ export class BaseImportModel {
                 if (field.name === "id") {
                     collection = fields.basic;
                 } else if (isRegular(field.fields)) {
-                    collection = hasType(types, field) ? fields.suggested : fields.additional;
+                    collection = hasType(types, field)
+                        ? fields.suggested
+                        : fields.additional;
                 } else {
                     collection = fields.relational;
                 }
@@ -819,14 +846,18 @@ export class BaseImportModel {
                 if (column.fieldInfo.type === "many2many") {
                     column.comments.push({
                         type: "info",
-                        content: _t("To import multiple values, separate them by a comma."),
+                        content: _t(
+                            "To import multiple values, separate them by a comma.",
+                        ),
                     });
                 }
 
                 // If multiple columns are mapped on the same field, inform
                 // the user that they will be concatenated.
                 const samefieldColumns = this.columns.filter(
-                    (col) => col.fieldInfo && col.fieldInfo.fieldPath === column.fieldInfo.fieldPath
+                    (col) =>
+                        col.fieldInfo &&
+                        col.fieldInfo.fieldPath === column.fieldInfo.fieldPath,
                 );
                 if (samefieldColumns.length >= 2) {
                     column.comments.push({
@@ -835,7 +866,11 @@ export class BaseImportModel {
                         fieldName: column.fieldInfo.string,
                     });
                 }
-            } else if (updatedColumn && column.id !== updatedColumn.id && updatedColumn.fieldInfo) {
+            } else if (
+                updatedColumn &&
+                column.id !== updatedColumn.id &&
+                updatedColumn.fieldInfo
+            ) {
                 // If column is mapped on an already mapped field, remove that field
                 // from the old column to keep it unique.
                 if (updatedColumn.fieldInfo.fieldPath === column.fieldInfo.fieldPath) {
@@ -894,7 +929,7 @@ export class BaseImportModel {
             },
             date_format: {
                 help: _t(
-                    "Use YYYY to represent the year, MM for the month and DD for the day. Include separators such as a dot, forward slash or dash. You can use a custom format in addition to the suggestions provided. Leave empty to let Odoo guess the format (recommended)"
+                    "Use YYYY to represent the year, MM for the month and DD for the day. Include separators such as a dot, forward slash or dash. You can use a custom format in addition to the suggestions provided. Leave empty to let Odoo guess the format (recommended)",
                 ),
                 label: _t("Date Format:"),
                 type: "input",
@@ -910,7 +945,7 @@ export class BaseImportModel {
             },
             datetime_format: {
                 help: _t(
-                    "Use HH for hours in a 24h system, use II in conjonction with 'p' for a 12h system. You can use a custom format in addition to the suggestions provided. Leave empty to let Odoo guess the format (recommended)"
+                    "Use HH for hours in a 24h system, use II in conjonction with 'p' for a 12h system. You can use a custom format in addition to the suggestions provided. Leave empty to let Odoo guess the format (recommended)",
                 ),
                 label: _t("Datetime Format:"),
                 type: "input",

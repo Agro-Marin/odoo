@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, markup, onMounted, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+
 import {
     clickableBuilderComponentProps,
     useActionInfo,
@@ -24,7 +25,9 @@ export class BuilderSelectItem extends Component {
 
     setup() {
         if (!this.env.selectableContext) {
-            throw new Error("BuilderSelectItem must be used inside a BuilderSelect component.");
+            throw new Error(
+                "BuilderSelectItem must be used inside a BuilderSelect component.",
+            );
         }
         this.info = useActionInfo();
         const item = useRef("item");
@@ -34,7 +37,11 @@ export class BuilderSelectItem extends Component {
             // some cases. We fallback on a previously set value to circumvent
             // the problem, but it should be investigated.
 
-            label = this.props.label || (item.el ? markup(item.el.innerHTML) : "") || label || "";
+            label =
+                this.props.label ||
+                (item.el ? markup(item.el.innerHTML) : "") ||
+                label ||
+                "";
             return label;
         };
 

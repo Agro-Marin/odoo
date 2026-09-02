@@ -21,15 +21,20 @@ export function dropRejectionReason({
     getFolderAndParents,
 }) {
     if (!targetFolder || ["RECENT", "SHARED"].includes(targetFolder.id)) {
-        return _t("You can't create shortcuts in nor move documents to this special folder.");
+        return _t(
+            "You can't create shortcuts in nor move documents to this special folder.",
+        );
     }
     if (draggedRecords.nonMovableRecordIds.length && targetFolder.id === "TRASH") {
-        return _t("There is at least one document you cannot move to trash in your selection.");
+        return _t(
+            "There is at least one document you cannot move to trash in your selection.",
+        );
     }
     const canWrite =
         targetFolder.id === "COMPANY"
             ? targetFolder.user_permission === "edit" || userIsDocumentManager
-            : typeof targetFolder.id !== "number" || targetFolder.user_permission === "edit";
+            : typeof targetFolder.id !== "number" ||
+              targetFolder.user_permission === "edit";
     if (!canWrite) {
         return _t("You don't have the rights to write in this folder.");
     }
@@ -63,14 +68,24 @@ export const useDraggableDocuments = makeDraggableHook({
         ctx.isInvalidTarget = false;
     },
 
-    onDragStart({ ctx, callHandler, addClass, addCleanup, addStyle, addListener, removeClass }) {
+    onDragStart({
+        ctx,
+        callHandler,
+        addClass,
+        addCleanup,
+        addStyle,
+        addListener,
+        removeClass,
+    }) {
         const { current, model, ref, targetSelector } = ctx;
         const { element } = current;
         addClass(ref.el, "o_documents_dragging");
         removeClass(element, DRAGGED_CLASS);
         const searchPanelEl = document.querySelector(".o_documents_search_panel");
         const currentElementId = parseInt(element.dataset.valueId);
-        const currentRecord = model.root.records.find((r) => r.data.id === currentElementId);
+        const currentRecord = model.root.records.find(
+            (r) => r.data.id === currentElementId,
+        );
         if (!currentRecord) {
             return;
         }
@@ -86,19 +101,22 @@ export const useDraggableDocuments = makeDraggableHook({
 
         const recordData = currentRecord.data;
         current.dragMessageText = recordData.display_name;
-        current.dragMessage = this._createDnDElement(recordData, model.root.selection.length);
+        current.dragMessage = this._createDnDElement(
+            recordData,
+            model.root.selection.length,
+        );
         ref.el.append(current.dragMessage);
 
         const allElements = ref.el.classList.contains("o_kanban_renderer")
             ? ref.el.querySelectorAll(".o_kanban_record:not(.o_kanban_ghost)")
             : ref.el.querySelectorAll(".o_data_row");
         ctx.selectedElements = Array.from(allElements).filter((el) =>
-            ctx.draggedRecords.all.includes(parseInt(el.dataset.valueId))
+            ctx.draggedRecords.all.includes(parseInt(el.dataset.valueId)),
         );
         for (const selectedEl of ctx.selectedElements) {
             const sourceRect = selectedEl.getBoundingClientRect();
             const sourceName = model.root.records.find(
-                (r) => r.data.id === parseInt(selectedEl.dataset.valueId)
+                (r) => r.data.id === parseInt(selectedEl.dataset.valueId),
             ).data.name;
             ctx.initialPositions.push({
                 initialTop: sourceRect.top,
@@ -140,7 +158,7 @@ export const useDraggableDocuments = makeDraggableHook({
             ) {
                 const valueEl = ev.target.closest(".o_search_panel_category_value");
                 const targetFolder = model.env.searchModel.getFolderById(
-                    toFolderValueId(valueEl.dataset.valueId)
+                    toFolderValueId(valueEl.dataset.valueId),
                 );
                 this._checkTargetValidity(
                     ctx,
@@ -148,13 +166,15 @@ export const useDraggableDocuments = makeDraggableHook({
                     model,
                     current.dragMessage,
                     current.dragMessageText,
-                    true
+                    true,
                 );
                 if (!ev.ctrlKey) {
                     ref.el.classList.remove("o_documents_dnd_shortcut");
                 }
 
-                const allSelected = searchPanelEl.querySelectorAll(":scope .o_drag_over_selector");
+                const allSelected = searchPanelEl.querySelectorAll(
+                    ":scope .o_drag_over_selector",
+                );
                 for (const selected of allSelected) {
                     selected.classList.remove("o_drag_over_selector");
                 }
@@ -177,7 +197,9 @@ export const useDraggableDocuments = makeDraggableHook({
                 ctx.isInvalidTarget = false;
                 this._resetDragMessage(current.dragMessage, current.dragMessageText);
             }
-            const allSelected = searchPanelEl.querySelectorAll(":scope .o_drag_over_selector");
+            const allSelected = searchPanelEl.querySelectorAll(
+                ":scope .o_drag_over_selector",
+            );
             for (const selected of allSelected) {
                 selected.classList.remove("o_drag_over_selector");
             }
@@ -185,14 +207,14 @@ export const useDraggableDocuments = makeDraggableHook({
 
         const onTargetFolderPointerEnter = (ev) => {
             const targetFolder = model.env.searchModel.getFolderById(
-                toFolderValueId(ev.currentTarget.dataset.valueId)
+                toFolderValueId(ev.currentTarget.dataset.valueId),
             );
             this._checkTargetValidity(
                 ctx,
                 targetFolder,
                 model,
                 current.dragMessage,
-                current.dragMessageText
+                current.dragMessageText,
             );
 
             callHandler("onTargetPointerEnter", {
@@ -256,14 +278,16 @@ export const useDraggableDocuments = makeDraggableHook({
         if (targetElement.dataset.valueId === "TRASH") {
             if (
                 ctx.draggedRecords.movableRecordIds.length &&
-                (await model.documentService.moveToTrash(ctx.draggedRecords.movableRecordIds))
+                (await model.documentService.moveToTrash(
+                    ctx.draggedRecords.movableRecordIds,
+                ))
             ) {
                 model.env.services.notification.add(
                     _t(
                         "%s document(s) sent to trash.",
-                        ctx.draggedRecords.movableRecordIds.length
+                        ctx.draggedRecords.movableRecordIds.length,
                     ),
-                    { type: "success" }
+                    { type: "success" },
                 );
             }
             await model.env.searchModel._reloadSearchModel(true);
@@ -300,7 +324,7 @@ export const useDraggableDocuments = makeDraggableHook({
                     record.data.access_via_link !== targetFolder.access_via_link ||
                     (targetFolder.access_via_link !== "none" &&
                         record.data.is_access_via_link_hidden !==
-                            targetFolder.is_access_via_link_hidden)
+                            targetFolder.is_access_via_link_hidden),
             )
         ) {
             expectedAccessRightsChanges = true;
@@ -310,7 +334,7 @@ export const useDraggableDocuments = makeDraggableHook({
             ctx.draggedRecords,
             targetFolder,
             ref.el.classList.contains("o_documents_dnd_shortcut"),
-            expectedAccessRightsChanges
+            expectedAccessRightsChanges,
         );
 
         await model.load();
@@ -320,12 +344,14 @@ export const useDraggableDocuments = makeDraggableHook({
 
     _getMovableRecords(model) {
         return model.root.selection.filter(
-            (record) => !record.data.lock_uid && record.data.user_permission === "edit"
+            (record) => !record.data.lock_uid && record.data.user_permission === "edit",
         );
     },
 
     _setDraggedRecords(ctx, model) {
-        const movableRecordIds = this._getMovableRecords(model).map((record) => record.data.id);
+        const movableRecordIds = this._getMovableRecords(model).map(
+            (record) => record.data.id,
+        );
         const nonMovableRecordIds = model.root.selection
             .filter((record) => !movableRecordIds.includes(record.data.id))
             .map((record) => record.data.id);
@@ -363,11 +389,19 @@ export const useDraggableDocuments = makeDraggableHook({
             draggedRecords: ctx.draggedRecords,
             targetFolder,
             userIsDocumentManager: model.documentService.userIsDocumentManager,
-            getFolderAndParents: (folder) => model.env.searchModel.getFolderAndParents(folder),
+            getFolderAndParents: (folder) =>
+                model.env.searchModel.getFolderAndParents(folder),
         });
     },
 
-    _checkTargetValidity(ctx, targetFolder, model, dragMessage, dragMessageText, reset = false) {
+    _checkTargetValidity(
+        ctx,
+        targetFolder,
+        model,
+        dragMessage,
+        dragMessageText,
+        reset = false,
+    ) {
         const errorMessage = this._dropRejectionReason(ctx, targetFolder, model);
         ctx.isInvalidTarget = Boolean(errorMessage);
         if (errorMessage) {
@@ -386,7 +420,8 @@ export const useDraggableDocuments = makeDraggableHook({
     _resetDragMessage(dragMessage, dragMessageText) {
         dragMessage.classList.remove("alert", "alert-warning");
         dragMessage.classList.add("o_documents_dnd_info");
-        dragMessage.querySelector(".o_documents_dnd_text").textContent = dragMessageText;
+        dragMessage.querySelector(".o_documents_dnd_text").textContent =
+            dragMessageText;
     },
 
     _updateDragInfoPosition(ctx, addStyle) {

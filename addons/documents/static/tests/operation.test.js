@@ -58,13 +58,17 @@ onRpc("action_confirm", () => ({}));
 
 test("Duplicate a document in a Newly made folder", async function () {
     const serverData = getDocumentsTestServerModelsData([
-        makeDocumentRecordData(2, "Duplicate Test Doc", { owner_id: serverState.userId }),
+        makeDocumentRecordData(2, "Duplicate Test Doc", {
+            owner_id: serverState.userId,
+        }),
     ]);
     await makeDocumentsMockEnv({ serverData });
     await mountWithCleanup(WebClient);
     await getService("action").doAction(1);
 
-    await contains(".o_kanban_record:contains('Duplicate Test Doc') .o_record_selector").click();
+    await contains(
+        ".o_kanban_record:contains('Duplicate Test Doc') .o_record_selector",
+    ).click();
     await contains(".o_dropdown_title").click();
     await contains(".o-dropdown-item .fa-copy").click();
     await animationFrame();
@@ -83,13 +87,18 @@ test("Duplicate a document in a Newly made folder", async function () {
     await contains(".o_widget_documents_operation_confirmation .btn-primary").click();
 
     await waitFor(".o_notification");
-    expect(".o_notification_content").toHaveText("Done. Document created in New Folder!");
+    expect(".o_notification_content").toHaveText(
+        "Done. Document created in New Folder!",
+    );
 });
 
 test('Internal users can always move to "My Drive"', async function () {
     const serverData = getDocumentsTestServerModelsData([
         makeDocumentRecordData(2, "Request", { owner_id: serverState.userId }),
-        makeDocumentRecordData(3, "Folder 2", { owner_id: serverState.userId, type: "folder" }),
+        makeDocumentRecordData(3, "Folder 2", {
+            owner_id: serverState.userId,
+            type: "folder",
+        }),
     ]);
     serverData["documents.document"][0].user_permission = "view";
     await makeDocumentsMockEnv({ serverData });
@@ -106,7 +115,9 @@ test('Internal users can always move to "My Drive"', async function () {
 
     await contains(".modal-content li div span:contains('Folder 1')").click();
     await animationFrame();
-    expect(".btn-primary:contains('Insufficient access to Folder 1')").toHaveAttribute("disabled");
+    expect(".btn-primary:contains('Insufficient access to Folder 1')").toHaveAttribute(
+        "disabled",
+    );
     expect(".btn-secondary:contains('Create a folder in Folder 1')").toHaveCount(0);
 
     await contains(".modal-content li div span:contains('Folder 2')").click();
@@ -117,7 +128,10 @@ test('Internal users can always move to "My Drive"', async function () {
 
 test("Portal user without edit folder has no Move button", async function () {
     const serverData = getDocumentsTestServerModelsData([
-        makeDocumentRecordData(2, "Request", { folder_id: 1, owner_id: serverState.userId }),
+        makeDocumentRecordData(2, "Request", {
+            folder_id: 1,
+            owner_id: serverState.userId,
+        }),
     ]);
     serverData["documents.document"][0].user_permission = "view";
     patchWithCleanup(user, {

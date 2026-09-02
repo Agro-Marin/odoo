@@ -31,7 +31,7 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
         if (this.isEventEditable) {
             const stateSelections = await this.env.services.orm.call(
                 this.props.model.resModel,
-                "get_state_selections"
+                "get_state_selections",
             );
             this.statusColors = {
                 accepted: "text-success",
@@ -67,8 +67,9 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
 
     get displayAttendeeAnswerChoice() {
         return (
-            this.props.record.rawRecord.partner_ids.some((partner) => partner !== user.partnerId) &&
-            this.props.record.isCurrentPartner
+            this.props.record.rawRecord.partner_ids.some(
+                (partner) => partner !== user.partnerId,
+            ) && this.props.record.isCurrentPartner
         );
     }
 
@@ -81,9 +82,11 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
     }
 
     async onClickOpenRecord() {
-        const action = await this.orm.call("calendar.event", "action_view_calendar_event", [
-            this.props.record.id,
-        ]);
+        const action = await this.orm.call(
+            "calendar.event",
+            "action_view_calendar_event",
+            [this.props.record.id],
+        );
         this.actionService.doAction(action);
     }
 
@@ -91,7 +94,9 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
      * @override
      */
     get isEventDeletable() {
-        return super.isEventDeletable && this.isEventEditable && !this.isEventArchivable;
+        return (
+            super.isEventDeletable && this.isEventEditable && !this.isEventArchivable
+        );
     }
 
     /**
@@ -124,11 +129,11 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
                 return this.props.close();
             }
         }
-        await this.env.services.orm.call(this.props.model.resModel, "change_attendee_status", [
-            [record.id],
-            selectedStatus,
-            recurrenceUpdate,
-        ]);
+        await this.env.services.orm.call(
+            this.props.model.resModel,
+            "change_attendee_status",
+            [[record.id], selectedStatus, recurrenceUpdate],
+        );
         await this.props.model.load();
         this.props.close();
     }

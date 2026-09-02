@@ -41,7 +41,10 @@ registry.category("web_tour.tours").add("test_dblclick_event_from_calendar", {
         {
             trigger: "input#schedule_end_0",
             async run({ edit, anchor }) {
-                const value = luxon.DateTime.fromFormat(anchor.value, "MM/dd/yyyy hh:mm:ss a")
+                const value = luxon.DateTime.fromFormat(
+                    anchor.value,
+                    "MM/dd/yyyy hh:mm:ss a",
+                )
                     .plus({ hours: 1 })
                     .toFormat("MM/dd/yyyy hh:mm:ss a");
                 await edit(value);
@@ -71,8 +74,8 @@ registry.category("web_tour.tours").add("test_drag_and_drop_event_in_calendar", 
             run: "click",
         },
         {
-            content: 'Wait for monthly view to load',
-            trigger: '.fc-dayGridMonth-view',
+            content: "Wait for monthly view to load",
+            trigger: ".fc-dayGridMonth-view",
         },
         {
             content: "Move event to 15th of the month",

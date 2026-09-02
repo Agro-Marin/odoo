@@ -26,9 +26,7 @@ export class Razorpay {
         if (response?.error) {
             this.payment_stopped
                 ? this.errorCallback(
-                      new RazorpayError(
-                          "Transaction canceled due to inactivity",
-                      ),
+                      new RazorpayError("Transaction canceled due to inactivity"),
                   )
                 : this.errorCallback(new RazorpayError(response.error));
             this.removePaymentHandler(["p2pRequestId"]);
@@ -82,9 +80,7 @@ export class Razorpay {
             );
             if (initial_response) {
                 this.savedOrder = initial_response.order[0];
-                return this.handleRazorpayResponse(
-                    initial_response.payment_status,
-                );
+                return this.handleRazorpayResponse(initial_response.payment_status);
             }
         } catch (error) {
             this.errorCallback(error);
@@ -134,10 +130,7 @@ export class Razorpay {
                 } else {
                     // clearing previous timeout before setting a new one
                     clearTimeout(this.pollTimeout);
-                    this.pollTimeout = setTimeout(
-                        fetchPaymentStatus,
-                        REQUEST_TIMEOUT,
-                    );
+                    this.pollTimeout = setTimeout(fetchPaymentStatus, REQUEST_TIMEOUT);
                 }
             } catch (error) {
                 this.errorCallback(error);

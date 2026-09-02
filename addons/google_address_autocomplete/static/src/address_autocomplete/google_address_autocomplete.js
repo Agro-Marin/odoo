@@ -10,45 +10,46 @@ import { useInputField } from "@web/fields/input_field_hook";
 const standardAddressFields = {
     street: {
         label: _t("Street field"),
-        type: ["char"]
+        type: ["char"],
     },
     street2: {
         label: _t("Additional street field"),
-        type: ["char"]
+        type: ["char"],
     },
     city: {
         label: _t("City field"),
-        type: ["char"]
+        type: ["char"],
     },
     state_id: {
         label: _t("State field"),
-        type: ["char", "many2one"]
+        type: ["char", "many2one"],
     },
     zip: {
         label: _t("Zip field"),
-        type: ["char"]
+        type: ["char"],
     },
     country_id: {
         label: _t("Country field"),
-        type: ["char", "many2one"]
-    }
-}
+        type: ["char", "many2one"],
+    },
+};
 
 export class AddressAutoComplete extends CharField {
     static template = "google_address_autocomplete.AddressAutoCompleteTemplate";
     static components = { AutoComplete, ...CharField.components };
 
-    static props = {...CharField.props,
+    static props = {
+        ...CharField.props,
         addressFieldMap: {
             type: Object,
             optional: true,
-        }
-    }
+        },
+    };
 
     static defaultProps = {
         ...CharField.defaultProps,
         addressFieldMap: {},
-    }
+    };
 
     setup() {
         super.setup();
@@ -67,10 +68,11 @@ export class AddressAutoComplete extends CharField {
                     // Keep in sync with MINIMAL_INPUT_SIZE in
                     // controllers/google_address_autocomplete.py.
                     if (request.length > 5) {
-                        const suggestions = await googlePlacesSession.getAddressPropositions({
-                            partial_address: request,
-                            use_employees_key: true,
-                        });
+                        const suggestions =
+                            await googlePlacesSession.getAddressPropositions({
+                                partial_address: request,
+                                use_employees_key: true,
+                            });
                         suggestions.results = suggestions.results.map((result) => ({
                             label: result.formatted_address,
                             onSelect: () => this.selectAddressProposition(result),
@@ -147,11 +149,11 @@ export const addressAutoComplete = {
             return {
                 label: data.label,
                 placeholder: fname,
-                type : "field",
+                type: "field",
                 name: fname,
                 availableTypes: data.type,
-            }
-        })
+            };
+        }),
     ],
     extractProps: (fieldInfo, dynamicInfo) => {
         const { options } = fieldInfo;
@@ -165,6 +167,6 @@ export const addressAutoComplete = {
         });
         props.addressFieldMap = addressFieldMap;
         return props;
-    }
+    },
 };
 registry.category("fields").add("google_address_autocomplete", addressAutoComplete);

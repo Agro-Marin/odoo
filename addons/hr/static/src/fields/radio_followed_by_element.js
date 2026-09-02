@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import {onMounted,onWillUnmount} from "@odoo/owl";
+import { onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { RadioField, radioField } from "@web/fields/selection/radio/radio_field";
@@ -16,10 +16,10 @@ export class RadioFollowedByElement extends RadioField {
         onMounted(() => {
             this.moveElement();
             this.observer = new MutationObserver((mutations) => {
-                const addedLinkedNode = [...mutations].map(mutation =>
-                    [...mutation.addedNodes].map(node => node.id))
+                const addedLinkedNode = [...mutations]
+                    .map((mutation) => [...mutation.addedNodes].map((node) => node.id))
                     .flat()
-                    .some(id => Object.values(this.props.links).includes(id));
+                    .some((id) => Object.values(this.props.links).includes(id));
                 if (addedLinkedNode) {
                     this.moveElement();
                 }
@@ -45,7 +45,11 @@ export class RadioFollowedByElement extends RadioField {
         for (const [key, value] of Object.entries(this.props.links)) {
             const option = document.getElementById(`${this.id}_${key}`);
             const elementToAppend = document.getElementById(value);
-            if (!option || !elementToAppend || elementToAppend.parentElement === option.parentElement) {
+            if (
+                !option ||
+                !elementToAppend ||
+                elementToAppend.parentElement === option.parentElement
+            ) {
                 continue;
             }
             option.parentElement.appendChild(elementToAppend);
@@ -69,7 +73,7 @@ export const radioFollowedByElement = {
             name: "observe",
             type: "String",
             help: _t("An element name parent of the radio to observe updates"),
-        }
+        },
     ],
     extractProps({ options }, dynamicInfo) {
         return {

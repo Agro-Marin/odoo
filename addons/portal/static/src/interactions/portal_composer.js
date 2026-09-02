@@ -16,10 +16,16 @@ export class PortalComposer extends Interaction {
             "t-on-click": this.onAttachmentButtonClick,
         },
         ".o_portal_chatter_attachment_delete": {
-            "t-on-click.prevent.stop.withTarget": this.locked(this.onAttachmentDeleteClick, true),
+            "t-on-click.prevent.stop.withTarget": this.locked(
+                this.onAttachmentDeleteClick,
+                true,
+            ),
         },
         ".o_portal_chatter_composer_btn": {
-            "t-on-click.prevent.withTarget": this.locked(this.onSubmitButtonClick, true),
+            "t-on-click.prevent.withTarget": this.locked(
+                this.onSubmitButtonClick,
+                true,
+            ),
         },
     };
 
@@ -42,21 +48,24 @@ export class PortalComposer extends Interaction {
                 res_id: false,
                 send_button_label: _t("Send"),
             },
-            options || {}
+            options || {},
         );
     }
 
     setup() {
-        this.options = this.env.portalComposerOptions || PortalComposer.prepareOptions({});
+        this.options =
+            this.env.portalComposerOptions || PortalComposer.prepareOptions({});
         this.attachments = [];
-        this.attachmentButtonEl = this.el.querySelector(".o_portal_chatter_attachment_btn");
+        this.attachmentButtonEl = this.el.querySelector(
+            ".o_portal_chatter_attachment_btn",
+        );
         this.fileInputEl = this.el.querySelector(".o_portal_chatter_file_input");
         this.sendButtonEl = this.el.querySelector(".o_portal_chatter_composer_btn");
         this.attachmentsEl = this.el.querySelector(
-            ".o_portal_chatter_composer_input .o_portal_chatter_attachments"
+            ".o_portal_chatter_composer_input .o_portal_chatter_attachments",
         );
         this.inputTextareaEl = this.el.querySelector(
-            '.o_portal_chatter_composer_input textarea[name="message"]'
+            '.o_portal_chatter_composer_input textarea[name="message"]',
         );
     }
 
@@ -77,10 +86,10 @@ export class PortalComposer extends Interaction {
     async onAttachmentDeleteClick(ev, currentTargetEl) {
         const attachmentId = parseInt(
             currentTargetEl.closest(".o_portal_chatter_attachment").dataset.id,
-            10
+            10,
         );
         const attachment = this.attachments.find(
-            (attachment) => attachment.id === attachmentId
+            (attachment) => attachment.id === attachmentId,
         );
         if (!attachment) {
             return;
@@ -93,18 +102,17 @@ export class PortalComposer extends Interaction {
                 rpc("/portal/attachment/remove", {
                     attachment_id: attachmentId,
                     access_token: accessToken,
-                })
+                }),
             );
             this.attachments = this.attachments.filter(
-                (attachment) => attachment.id !== attachmentId
+                (attachment) => attachment.id !== attachmentId,
             );
             this.updateAttachments();
         } catch (error) {
             if (error instanceof RPCError) {
-                this.services.notification.add(
-                    _t("Could not remove the attachment."),
-                    { type: "warning" }
-                );
+                this.services.notification.add(_t("Could not remove the attachment."), {
+                    type: "warning",
+                });
             } else {
                 throw error;
             }
@@ -128,8 +136,8 @@ export class PortalComposer extends Interaction {
         try {
             await this.waitFor(
                 Promise.all(
-                    [...this.fileInputEl.files].map((file) => this._uploadOne(file))
-                )
+                    [...this.fileInputEl.files].map((file) => this._uploadOne(file)),
+                ),
             );
         } finally {
             this.fileInputEl.value = null;
@@ -146,7 +154,7 @@ export class PortalComposer extends Interaction {
             const res = await this.waitFor(post("/mail/attachment/upload", data));
             const attachmentId = res.data["attachment_id"];
             const attachment = res.data["store_data"]["ir.attachment"].find(
-                (att) => att.id === attachmentId
+                (att) => att.id === attachmentId,
             );
             attachment.state = "pending";
             this.attachments.push(attachment);
@@ -155,7 +163,7 @@ export class PortalComposer extends Interaction {
             if (error instanceof RPCError) {
                 this.services.notification.add(
                     _t("Could not save file %s", markup`<strong>${file.name}</strong>`),
-                    { type: "warning", sticky: true }
+                    { type: "warning", sticky: true },
                 );
             }
         }
@@ -194,7 +202,7 @@ export class PortalComposer extends Interaction {
     onSubmitCheckContent() {
         if (!this.inputTextareaEl.value.trim() && !this.attachments.length) {
             return _t(
-                "Some fields are required. Please make sure to write a message or attach a document"
+                "Some fields are required. Please make sure to write a message or attach a document",
             );
         }
     }
@@ -207,7 +215,7 @@ export class PortalComposer extends Interaction {
                 attachments: this.attachments,
                 showDelete: true,
             },
-            this.attachmentsEl
+            this.attachmentsEl,
         );
     }
 

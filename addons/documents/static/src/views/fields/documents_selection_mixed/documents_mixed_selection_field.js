@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { SelectionField, selectionField } from "@web/fields/selection/selection/selection_field";
+import {
+    SelectionField,
+    selectionField,
+} from "@web/fields/selection/selection/selection_field";
 
 const WRITE_VALUE_PREFIX = "write_";
 
@@ -24,11 +27,11 @@ export class DocumentsMixedSelectionField extends SelectionField {
      */
     get options() {
         return super.options.filter(
-            ([code, __]) =>
+            ([code]) =>
                 code === this.originalValue ||
                 (code.startsWith(WRITE_VALUE_PREFIX) &&
                     code !== `${WRITE_VALUE_PREFIX}${this.originalValue}` &&
-                    (code !== `${WRITE_VALUE_PREFIX}none` || !this.props.excludeNone))
+                    (code !== `${WRITE_VALUE_PREFIX}none` || !this.props.excludeNone)),
         );
     }
 }
@@ -43,4 +46,6 @@ export const documentsMixedSelectionField = {
     },
 };
 
-registry.category("fields").add("documents_mixed_selection", documentsMixedSelectionField);
+registry
+    .category("fields")
+    .add("documents_mixed_selection", documentsMixedSelectionField);

@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { CalendarRenderer } from "@web/views/calendar";
 
-import { TimeOffDashboard } from '../../dashboard/time_off_dashboard.js';
-import { TimeOffCalendarCommonRenderer } from './common/calendar_common_renderer.js';
-import { TimeOffCalendarYearRenderer } from './year/calendar_year_renderer.js';
+import { TimeOffDashboard } from "../../dashboard/time_off_dashboard.js";
+import { TimeOffCalendarCommonRenderer } from "./common/calendar_common_renderer.js";
+import { TimeOffCalendarYearRenderer } from "./year/calendar_year_renderer.js";
 
 export class TimeOffCalendarRenderer extends CalendarRenderer {
     static template = "hr_holidays.CalendarRenderer";

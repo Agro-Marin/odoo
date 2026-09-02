@@ -28,20 +28,20 @@ export class SetupEditorPlugin extends Plugin {
 
     setup() {
         const welcomeMessageEl = this.editable.querySelector(
-            "#wrap .o_homepage_editor_welcome_message"
+            "#wrap .o_homepage_editor_welcome_message",
         );
         welcomeMessageEl?.remove();
         this.dispatchTo("before_setup_editor_handlers");
         let editableEls = this.getEditableElements(
-            this.getResource("o_editable_selectors").join(", ")
+            this.getResource("o_editable_selectors").join(", "),
         )
             .filter((el) => !el.matches("link, script"))
             .filter((el) => !el.hasAttribute("data-oe-readonly"))
             .filter(
                 (el) =>
                     !el.matches(
-                        'img[data-oe-field="arch"], br[data-oe-field="arch"], input[data-oe-field="arch"]'
-                    )
+                        'img[data-oe-field="arch"], br[data-oe-field="arch"], input[data-oe-field="arch"]',
+                    ),
             )
             .filter((el) => !el.classList.contains("oe_snippet_editor"))
             .filter((el) => !el.matches("hr, br, input, textarea"))
@@ -54,7 +54,9 @@ export class SetupEditorPlugin extends Plugin {
 
         // Add automatic editor message on the editables where we can drag and
         // drop elements.
-        editableEls = this.getEditableElements('.oe_structure.oe_empty, [data-oe-type="html"]');
+        editableEls = this.getEditableElements(
+            '.oe_structure.oe_empty, [data-oe-type="html"]',
+        );
         editableEls.forEach((el) => {
             if (!el.hasAttribute("data-editor-message")) {
                 el.setAttribute("data-editor-message-default", true);

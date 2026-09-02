@@ -10,10 +10,18 @@ const customPlugins = {
     history: ForumHistoryPlugin,
 };
 
-export const FULL_EDIT_PLUGINS = MAIN_PLUGINS.filter((P) => !removedPlugins.has(P.id)).map(
-    (P) => customPlugins[P.id] || P
+export const FULL_EDIT_PLUGINS = MAIN_PLUGINS.filter(
+    (P) => !removedPlugins.has(P.id),
+).map((P) => customPlugins[P.id] || P);
+
+const fullEditOnlyPlugins = new Set([
+    "link",
+    "linkPaste",
+    "mediaUrlPaste",
+    "imageCrop",
+    "media",
+]);
+
+export const BASIC_PLUGINS = FULL_EDIT_PLUGINS.filter(
+    (P) => !fullEditOnlyPlugins.has(P.id),
 );
-
-const fullEditOnlyPlugins = new Set(["link", "linkPaste", "mediaUrlPaste", "imageCrop", "media"]);
-
-export const BASIC_PLUGINS = FULL_EDIT_PLUGINS.filter((P) => !fullEditOnlyPlugins.has(P.id));

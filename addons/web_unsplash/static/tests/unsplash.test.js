@@ -42,7 +42,7 @@ test("Unsplash is inserted in the Media Dialog", async () => {
             ],
         };
     });
-    onRpc("/web_unsplash/attachment/add", (args) => [
+    onRpc("/web_unsplash/attachment/add", () => [
         { ...imageRecord, description: "unsplash_image" },
     ]);
     const env = await makeMockEnv();

@@ -8,26 +8,66 @@ export const backgroundShapesDefinition = {
             connections: {
                 label: _t("Connections"),
                 shapes: {
-                    "html_builder/Connections/01": { selectLabel: _t("Connections 01") },
-                    "html_builder/Connections/02": { selectLabel: _t("Connections 02") },
-                    "html_builder/Connections/03": { selectLabel: _t("Connections 03") },
-                    "html_builder/Connections/04": { selectLabel: _t("Connections 04") },
-                    "html_builder/Connections/05": { selectLabel: _t("Connections 05") },
-                    "html_builder/Connections/06": { selectLabel: _t("Connections 06") },
-                    "html_builder/Connections/07": { selectLabel: _t("Connections 07") },
-                    "html_builder/Connections/08": { selectLabel: _t("Connections 08") },
-                    "html_builder/Connections/09": { selectLabel: _t("Connections 09") },
-                    "html_builder/Connections/10": { selectLabel: _t("Connections 10") },
-                    "html_builder/Connections/11": { selectLabel: _t("Connections 11") },
-                    "html_builder/Connections/12": { selectLabel: _t("Connections 12") },
-                    "html_builder/Connections/13": { selectLabel: _t("Connections 13") },
-                    "html_builder/Connections/14": { selectLabel: _t("Connections 14") },
-                    "html_builder/Connections/15": { selectLabel: _t("Connections 15") },
-                    "html_builder/Connections/16": { selectLabel: _t("Connections 16") },
-                    "html_builder/Connections/17": { selectLabel: _t("Connections 17") },
-                    "html_builder/Connections/18": { selectLabel: _t("Connections 18") },
-                    "html_builder/Connections/19": { selectLabel: _t("Connections 19") },
-                    "html_builder/Connections/20": { selectLabel: _t("Connections 20") },
+                    "html_builder/Connections/01": {
+                        selectLabel: _t("Connections 01"),
+                    },
+                    "html_builder/Connections/02": {
+                        selectLabel: _t("Connections 02"),
+                    },
+                    "html_builder/Connections/03": {
+                        selectLabel: _t("Connections 03"),
+                    },
+                    "html_builder/Connections/04": {
+                        selectLabel: _t("Connections 04"),
+                    },
+                    "html_builder/Connections/05": {
+                        selectLabel: _t("Connections 05"),
+                    },
+                    "html_builder/Connections/06": {
+                        selectLabel: _t("Connections 06"),
+                    },
+                    "html_builder/Connections/07": {
+                        selectLabel: _t("Connections 07"),
+                    },
+                    "html_builder/Connections/08": {
+                        selectLabel: _t("Connections 08"),
+                    },
+                    "html_builder/Connections/09": {
+                        selectLabel: _t("Connections 09"),
+                    },
+                    "html_builder/Connections/10": {
+                        selectLabel: _t("Connections 10"),
+                    },
+                    "html_builder/Connections/11": {
+                        selectLabel: _t("Connections 11"),
+                    },
+                    "html_builder/Connections/12": {
+                        selectLabel: _t("Connections 12"),
+                    },
+                    "html_builder/Connections/13": {
+                        selectLabel: _t("Connections 13"),
+                    },
+                    "html_builder/Connections/14": {
+                        selectLabel: _t("Connections 14"),
+                    },
+                    "html_builder/Connections/15": {
+                        selectLabel: _t("Connections 15"),
+                    },
+                    "html_builder/Connections/16": {
+                        selectLabel: _t("Connections 16"),
+                    },
+                    "html_builder/Connections/17": {
+                        selectLabel: _t("Connections 17"),
+                    },
+                    "html_builder/Connections/18": {
+                        selectLabel: _t("Connections 18"),
+                    },
+                    "html_builder/Connections/19": {
+                        selectLabel: _t("Connections 19"),
+                    },
+                    "html_builder/Connections/20": {
+                        selectLabel: _t("Connections 20"),
+                    },
                 },
             },
             containers: {
@@ -76,7 +116,10 @@ export const backgroundShapesDefinition = {
                     "html_builder/Angular/07": { selectLabel: _t("Angular 07") },
                     "html_builder/Angular/08": { selectLabel: _t("Angular 08") },
                     "html_builder/Angular/09": { selectLabel: _t("Angular 09") },
-                    "html_builder/Floats/07": { selectLabel: _t("Angular 10"), animated: true },
+                    "html_builder/Floats/07": {
+                        selectLabel: _t("Angular 10"),
+                        animated: true,
+                    },
                 },
             },
             blobs: {
@@ -90,14 +133,26 @@ export const backgroundShapesDefinition = {
                     "html_builder/Blobs/17": { selectLabel: _t("Blob 06") },
                     "html_builder/Blobs/15": { selectLabel: _t("Blob 07") },
                     "html_builder/Blobs/18": { selectLabel: _t("Blob 08") },
-                    "html_builder/Blobs/01_001": { selectLabel: _t("Blob 09"), animated: true },
+                    "html_builder/Blobs/01_001": {
+                        selectLabel: _t("Blob 09"),
+                        animated: true,
+                    },
                     "html_builder/Blobs/16": { selectLabel: _t("Blob 10") },
                     "html_builder/Blobs/04_001": { selectLabel: _t("Blob 11") },
                     "html_builder/Blobs/10_002": { selectLabel: _t("Blob 12") },
                     "html_builder/Blobs/13": { selectLabel: _t("Blob 13") },
-                    "html_builder/Floats/03": { selectLabel: _t("Blob 14"), animated: true },
-                    "html_builder/Floats/04": { selectLabel: _t("Blob 15"), animated: true },
-                    "html_builder/Floats/06": { selectLabel: _t("Blob 16"), animated: true },
+                    "html_builder/Floats/03": {
+                        selectLabel: _t("Blob 14"),
+                        animated: true,
+                    },
+                    "html_builder/Floats/04": {
+                        selectLabel: _t("Blob 15"),
+                        animated: true,
+                    },
+                    "html_builder/Floats/06": {
+                        selectLabel: _t("Blob 16"),
+                        animated: true,
+                    },
                 },
             },
         },
@@ -118,10 +173,19 @@ export const backgroundShapesDefinition = {
                     "html_builder/Airy/11_001": { selectLabel: _t("Airy 08") },
                     "html_builder/Airy/16": { selectLabel: _t("Airy 09") },
                     "html_builder/Airy/17": { selectLabel: _t("Airy 10") },
-                    "html_builder/Airy/12_002": { selectLabel: _t("Airy 11"), animated: true },
-                    "html_builder/Airy/13_002": { selectLabel: _t("Airy 12"), animated: true },
+                    "html_builder/Airy/12_002": {
+                        selectLabel: _t("Airy 11"),
+                        animated: true,
+                    },
+                    "html_builder/Airy/13_002": {
+                        selectLabel: _t("Airy 12"),
+                        animated: true,
+                    },
                     "html_builder/Airy/14_001": { selectLabel: _t("Airy 13") },
-                    "html_builder/Airy/15": { selectLabel: _t("Airy 14"), animated: true },
+                    "html_builder/Airy/15": {
+                        selectLabel: _t("Airy 14"),
+                        animated: true,
+                    },
                 },
             },
             grids: {
@@ -150,7 +214,10 @@ export const backgroundShapesDefinition = {
                     "html_builder/Patterns/03": { selectLabel: _t("Pattern 03") },
                     "html_builder/Patterns/04": { selectLabel: _t("Pattern 04") },
                     "html_builder/Patterns/05": { selectLabel: _t("Pattern 05") },
-                    "html_builder/Floats/12": { selectLabel: _t("Pattern 06"), animated: true },
+                    "html_builder/Floats/12": {
+                        selectLabel: _t("Pattern 06"),
+                        animated: true,
+                    },
                 },
             },
             blurry: {
@@ -170,9 +237,18 @@ export const backgroundShapesDefinition = {
                 shapes: {
                     "html_builder/Wavy/03": { selectLabel: _t("Wavy 01") },
                     "html_builder/Wavy/10": { selectLabel: _t("Wavy 02") },
-                    "html_builder/Wavy/24": { selectLabel: _t("Wavy 03"), animated: true },
-                    "html_builder/Wavy/26": { selectLabel: _t("Wavy 04"), animated: true },
-                    "html_builder/Wavy/27": { selectLabel: _t("Wavy 05"), animated: true },
+                    "html_builder/Wavy/24": {
+                        selectLabel: _t("Wavy 03"),
+                        animated: true,
+                    },
+                    "html_builder/Wavy/26": {
+                        selectLabel: _t("Wavy 04"),
+                        animated: true,
+                    },
+                    "html_builder/Wavy/27": {
+                        selectLabel: _t("Wavy 05"),
+                        animated: true,
+                    },
                     "html_builder/Wavy/04": { selectLabel: _t("Wavy 06") },
                     "html_builder/Wavy/11_001": { selectLabel: _t("Wavy 07") },
                     "html_builder/Wavy/18": { selectLabel: _t("Wavy 08") },
@@ -188,16 +264,34 @@ export const backgroundShapesDefinition = {
                 label: _t("Block & Rainy"),
                 shapes: {
                     "html_builder/Blocks/02_001": { selectLabel: _t("Blocks 01") },
-                    "html_builder/Rainy/01_001": { selectLabel: _t("Rainy 01"), animated: true },
+                    "html_builder/Rainy/01_001": {
+                        selectLabel: _t("Rainy 01"),
+                        animated: true,
+                    },
                     "html_builder/Blocks/01_001": { selectLabel: _t("Blocks 02") },
-                    "html_builder/Rainy/02_001": { selectLabel: _t("Rainy 02"), animated: true },
+                    "html_builder/Rainy/02_001": {
+                        selectLabel: _t("Rainy 02"),
+                        animated: true,
+                    },
                     "html_builder/Rainy/06": { selectLabel: _t("Rainy 03") },
                     "html_builder/Blocks/04": { selectLabel: _t("Blocks 03") },
                     "html_builder/Rainy/07": { selectLabel: _t("Rainy 04") },
-                    "html_builder/Rainy/10": { selectLabel: _t("Rainy 05"), animated: true },
-                    "html_builder/Floats/10": { selectLabel: _t("Rainy 06"), animated: true },
-                    "html_builder/Floats/11": { selectLabel: _t("Rainy 07"), animated: true },
-                    "html_builder/Rainy/08_001": { selectLabel: _t("Rainy 08"), animated: true },
+                    "html_builder/Rainy/10": {
+                        selectLabel: _t("Rainy 05"),
+                        animated: true,
+                    },
+                    "html_builder/Floats/10": {
+                        selectLabel: _t("Rainy 06"),
+                        animated: true,
+                    },
+                    "html_builder/Floats/11": {
+                        selectLabel: _t("Rainy 07"),
+                        animated: true,
+                    },
+                    "html_builder/Rainy/08_001": {
+                        selectLabel: _t("Rainy 08"),
+                        animated: true,
+                    },
                     "html_builder/Rainy/09_001": { selectLabel: _t("Rainy 09") },
                 },
             },

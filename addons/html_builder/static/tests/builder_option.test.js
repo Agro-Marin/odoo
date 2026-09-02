@@ -1,13 +1,13 @@
 import {
-    addBuilderPlugin,
-    addBuilderOption,
     addBuilderAction,
+    addBuilderOption,
+    addBuilderPlugin,
     setupHTMLBuilder,
 } from "@html_builder/../tests/helpers";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, queryOne } from "@odoo/hoot-dom";
 import { xml } from "@odoo/owl";
 import { contains } from "@web/../tests/web_test_helpers";
@@ -27,7 +27,7 @@ test("Undo/Redo correctly restores the stored container target", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton action="'customAction'">Test</BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`
         <div data-name="Target 1" class="test-options-target target1">
@@ -64,7 +64,7 @@ test("Undo/Redo multiple actions always restores the action container target", a
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton action="'customAction'">Test</BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`
         <div data-name="Target 1" class="test-options-target target1">
@@ -104,7 +104,9 @@ test("Undo/Redo an action that activates another target restores the old one on 
             static id = "customAction";
             apply({ editingElement }) {
                 editingElement.classList.add("test");
-                editor.shared.builderOptions.setNextTarget(editingElement.nextElementSibling);
+                editor.shared.builderOptions.setNextTarget(
+                    editingElement.nextElementSibling,
+                );
             }
         },
     });
@@ -112,7 +114,7 @@ test("Undo/Redo an action that activates another target restores the old one on 
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton action="'customAction'">Test</BuilderButton>`;
-        }
+        },
     );
     const { getEditor } = await setupHTMLBuilder(`
         <div data-name="Target 1" class="test-options-target target1">
@@ -151,7 +153,7 @@ test("Undo/Redo an action that deactivates the containers restores the old one o
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton action="'customAction'">Test</BuilderButton>`;
-        }
+        },
     );
     const { getEditor } = await setupHTMLBuilder(`
         <div data-name="Target 1" class="test-options-target target1">
@@ -192,13 +194,13 @@ test("Containers fallback to a valid ancestor if the target disappears and resto
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton action="'targetAction'">Test</BuilderButton>`;
-        }
+        },
     );
     addBuilderOption(
         class extends BaseOptionComponent {
             static selector = ".test-ancestor";
             static template = xml`<BuilderButton action="'ancestorAction'">Ancestor selected</BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`
         <div data-name="Ancestor" class="test-ancestor">
@@ -228,7 +230,7 @@ test("Do not activate/update containers if the element clicked is excluded", asy
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton classAction="'test'">Test</BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`
         <div data-name="Target 1" class="test-options-target target1 o_we_no_overlay">
@@ -261,19 +263,19 @@ test("Do not show parent container for no_parent_containers targets", async () =
         class extends BaseOptionComponent {
             static selector = ".test-parent-target";
             static template = xml`<BuilderButton classAction="'test'">Test</BuilderButton>`;
-        }
+        },
     );
     addBuilderOption(
         class extends BaseOptionComponent {
             static selector = ".test-child-target";
             static template = xml`<BuilderButton classAction="'test'">Test</BuilderButton>`;
-        }
+        },
     );
     addBuilderOption(
         class extends BaseOptionComponent {
             static selector = ".test-grand-child-target";
             static template = xml`<BuilderButton classAction="'test'">Test</BuilderButton>`;
-        }
+        },
     );
     await setupHTMLBuilder(`
         <div data-name="Parent" class="test-parent-target">
@@ -294,7 +296,10 @@ test("Do not show parent container for no_parent_containers targets", async () =
     await contains(":iframe .test-grand-child-target").click();
     expect(".options-container").toHaveCount(2);
     expect(".options-container:eq(0)").toHaveAttribute("data-container-title", "Child");
-    expect(".options-container:eq(1)").toHaveAttribute("data-container-title", "Grand-child");
+    expect(".options-container:eq(1)").toHaveAttribute(
+        "data-container-title",
+        "Grand-child",
+    );
     // Make sure the parent's options still appear for itself.
     await contains(":iframe .test-parent-target").click();
     expect(".options-container").toHaveCount(1);
@@ -317,7 +322,7 @@ test("Update containers if they changed", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderButton classAction="'test'">Test</BuilderButton>`;
-        }
+        },
     );
     const { getEditor } = await setupHTMLBuilder(`
         <div data-name="Target" class="test-options-target target1">

@@ -3,7 +3,13 @@ import { BaseOptionComponent } from "@html_builder/core/utils";
 import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime, animationFrame } from "@odoo/hoot-mock";
 import { reactive, xml } from "@odoo/owl";
-import { contains, defineModels, fields, models, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineModels,
+    fields,
+    models,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 import { delay } from "@web/core/utils/concurrency";
 
 class Test extends models.Model {
@@ -156,7 +162,7 @@ test("basic many2many: search with uncreated records", async () => {
                 { id: 1, name: "First" },
                 { id: 2, name: "Second" },
                 { id: "new-3", name: "Third" },
-            ]
+            ];
         }
         setSelection() {
             // Not used but necessary for the component

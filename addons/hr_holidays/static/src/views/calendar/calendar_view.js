@@ -1,25 +1,35 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
-import { registry } from '@web/core/registry';
+import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { calendarView } from "@web/views/calendar";
 
-import { TimeOffCalendarController, TimeOffReportCalendarController } from './calendar_controller.js';
-import { TimeOffCalendarModel } from './calendar_model.js';
-import { TimeOffCalendarRenderer, TimeOffDashboardCalendarRenderer } from './calendar_renderer.js';
+import {
+    TimeOffCalendarController,
+    TimeOffReportCalendarController,
+} from "./calendar_controller.js";
+import { TimeOffCalendarModel } from "./calendar_model.js";
+import {
+    TimeOffCalendarRenderer,
+    TimeOffDashboardCalendarRenderer,
+} from "./calendar_renderer.js";
 
 class TimeOffCalendarControllerHrLeave extends TimeOffCalendarController {
     setup() {
         super.setup();
         this.actionService = useService("action");
         onWillStart(async () => {
-            this.canCreateGroupTimeOff = await user.hasGroup("hr_holidays.group_hr_holidays_responsible");
+            this.canCreateGroupTimeOff = await user.hasGroup(
+                "hr_holidays.group_hr_holidays_responsible",
+            );
         });
     }
 
     async onNewGroupTimeOff() {
-        await this.actionService.doAction("hr_holidays.action_hr_leave_generate_multi_wizard");
+        await this.actionService.doAction(
+            "hr_holidays.action_hr_leave_generate_multi_wizard",
+        );
     }
 }
 
@@ -29,21 +39,23 @@ const TimeOffCalendarView = {
     Controller: TimeOffCalendarController,
     Renderer: TimeOffCalendarRenderer,
     Model: TimeOffCalendarModel,
-}
+};
 
 const TimeOffCalendarHrLeaveView = {
     ...TimeOffCalendarView,
     Controller: TimeOffCalendarControllerHrLeave,
     buttonTemplate: "hr_holidays.CalendarView.Buttons",
-}
+};
 
-registry.category('views').add('time_off_calendar', TimeOffCalendarView);
-registry.category('views').add('time_off_calendar_hr_leave', TimeOffCalendarHrLeaveView);
-registry.category('views').add('time_off_calendar_dashboard', {
+registry.category("views").add("time_off_calendar", TimeOffCalendarView);
+registry
+    .category("views")
+    .add("time_off_calendar_hr_leave", TimeOffCalendarHrLeaveView);
+registry.category("views").add("time_off_calendar_dashboard", {
     ...TimeOffCalendarView,
     Renderer: TimeOffDashboardCalendarRenderer,
 });
-registry.category('views').add('time_off_report_calendar', {
+registry.category("views").add("time_off_report_calendar", {
     ...TimeOffCalendarView,
     Controller: TimeOffReportCalendarController,
-})
+});

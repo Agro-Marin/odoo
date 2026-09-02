@@ -1,12 +1,22 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { HrPresenceStatus, hrPresenceStatus } from "../hr_presence_status/hr_presence_status.js";
+
+import {
+    HrPresenceStatus,
+    hrPresenceStatus,
+} from "../hr_presence_status/hr_presence_status.js";
 
 export class HrPresenceStatusPill extends HrPresenceStatus {
     static template = "hr.HrPresenceStatusPill";
 
     get classNames() {
-        const classNames = ["fw-bold", "text-center", "btn", "rounded-pill", "cursor-default"];
+        const classNames = [
+            "fw-bold",
+            "text-center",
+            "btn",
+            "rounded-pill",
+            "cursor-default",
+        ];
         classNames.push(this.color);
         return classNames.join(" ");
     }

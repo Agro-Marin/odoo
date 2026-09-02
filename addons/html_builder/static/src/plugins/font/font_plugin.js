@@ -37,9 +37,21 @@ export class BuilderFontPlugin extends Plugin {
         ],
         font_items: [
             ...[
-                { name: _t("Header 1 Display 2"), tagName: "h1", extraClass: "display-2" },
-                { name: _t("Header 1 Display 3"), tagName: "h1", extraClass: "display-3" },
-                { name: _t("Header 1 Display 4"), tagName: "h1", extraClass: "display-4" },
+                {
+                    name: _t("Header 1 Display 2"),
+                    tagName: "h1",
+                    extraClass: "display-2",
+                },
+                {
+                    name: _t("Header 1 Display 3"),
+                    tagName: "h1",
+                    extraClass: "display-3",
+                },
+                {
+                    name: _t("Header 1 Display 4"),
+                    tagName: "h1",
+                    extraClass: "display-4",
+                },
             ].map((item) => withSequence(15, item)),
             withSequence(43, { name: _t("Light"), tagName: "p", extraClass: "lead" }),
             withSequence(46, { name: _t("Small"), tagName: "p", extraClass: "small" }),
@@ -74,14 +86,22 @@ export class BuilderFontPlugin extends Plugin {
         const nbFonts = parseInt(getCSSVariableValue("number-of-fonts", style));
         // User fonts served by google server.
         const googleFontsProperty = getCSSVariableValue("google-fonts", style);
-        let googleFonts = googleFontsProperty ? googleFontsProperty.split(/\s*,\s*/g) : [];
+        let googleFonts = googleFontsProperty
+            ? googleFontsProperty.split(/\s*,\s*/g)
+            : [];
         googleFonts = googleFonts.map((font) => font.substring(1, font.length - 1)); // Unquote
         // Local user fonts.
-        const googleLocalFontsProperty = getCSSVariableValue("google-local-fonts", style);
+        const googleLocalFontsProperty = getCSSVariableValue(
+            "google-local-fonts",
+            style,
+        );
         const googleLocalFonts = googleLocalFontsProperty
             ? googleLocalFontsProperty.slice(1, -1).split(/\s*,\s*/g)
             : [];
-        const uploadedLocalFontsProperty = getCSSVariableValue("uploaded-local-fonts", style);
+        const uploadedLocalFontsProperty = getCSSVariableValue(
+            "uploaded-local-fonts",
+            style,
+        );
         const uploadedLocalFonts = uploadedLocalFontsProperty
             ? uploadedLocalFontsProperty.slice(1, -1).split(/\s*,\s*/g)
             : [];
@@ -89,7 +109,9 @@ export class BuilderFontPlugin extends Plugin {
         // font to prioritize the local font. The remote one will never be
         // displayed or loaded as long as the local one exists.
         googleFonts = googleFonts.filter((font) => {
-            const localFonts = googleLocalFonts.map((localFont) => localFont.split(":")[0]);
+            const localFonts = googleLocalFonts.map(
+                (localFont) => localFont.split(":")[0],
+            );
             return localFonts.indexOf(`'${font}'`) === -1;
         });
         const allFonts = [];
@@ -97,7 +119,7 @@ export class BuilderFontPlugin extends Plugin {
         const fontsToLoad = [];
         for (const font of googleFonts) {
             const fontURL = `https://fonts.googleapis.com/css?family=${encodeURIComponent(
-                font
+                font,
             ).replace(/%20/g, "+")}:300,300i,400,400i,700,700i`;
             fontsToLoad.push(fontURL);
         }
@@ -110,8 +132,10 @@ export class BuilderFontPlugin extends Plugin {
 
         const _fonts = [];
         const themeFontsNb =
-            nbFonts - (googleLocalFonts.length + googleFonts.length + uploadedLocalFonts.length);
-        const localFontsOffset = nbFonts - googleLocalFonts.length - uploadedLocalFonts.length;
+            nbFonts -
+            (googleLocalFonts.length + googleFonts.length + uploadedLocalFonts.length);
+        const localFontsOffset =
+            nbFonts - googleLocalFonts.length - uploadedLocalFonts.length;
         const uploadedFontsOffset = nbFonts - uploadedLocalFonts.length;
 
         for (let fontNb = 0; fontNb < nbFonts; fontNb++) {

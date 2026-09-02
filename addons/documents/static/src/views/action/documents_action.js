@@ -25,26 +25,28 @@ export class DocumentsAction extends Component {
             actionMenuProps: null,
         });
         this.ui = useState(useService("ui"));
-        useEffect(() => {
-            if (this.documentService.getSelectionActions) {
-                const selectionActions = this.documentService.getSelectionActions();
-                this.state.topbarActions = Object.values(
-                    selectionActions.getTopbarActions()
-                ).sort((a, b) => b.groupNumber - a.groupNumber);
-                if (this.props.isPreview) {
-                    const actionMenuProps = selectionActions.getMenuProps();
-                    actionMenuProps.items.action = actionMenuProps.items.action.filter(
-                        this.isPreviewAction
-                    );
-                    this.state.actionMenuProps = actionMenuProps;
+        useEffect(
+            () => {
+                if (this.documentService.getSelectionActions) {
+                    const selectionActions = this.documentService.getSelectionActions();
+                    this.state.topbarActions = Object.values(
+                        selectionActions.getTopbarActions(),
+                    ).sort((a, b) => b.groupNumber - a.groupNumber);
+                    if (this.props.isPreview) {
+                        const actionMenuProps = selectionActions.getMenuProps();
+                        actionMenuProps.items.action =
+                            actionMenuProps.items.action.filter(this.isPreviewAction);
+                        this.state.actionMenuProps = actionMenuProps;
+                    }
                 }
-            }
-        }, () => [this.props.targetRecords, this.ui.isSmall]);
+            },
+            () => [this.props.targetRecords, this.ui.isSmall],
+        );
     }
 
     get topbarActions() {
         return this.state.topbarActions.filter(
-            (action) => !action.isAvailable || action.isAvailable()
+            (action) => !action.isAvailable || action.isAvailable(),
         );
     }
 

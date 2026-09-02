@@ -3,8 +3,16 @@ import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
 
 const FIELDS = [
-    'unit_amount', 'effective_hours', 'allocated_hours', 'remaining_hours', 'total_hours_spent', 'subtask_effective_hours',
-    'overtime', 'number_hours', 'difference', 'timesheet_unit_amount'
+    "unit_amount",
+    "effective_hours",
+    "allocated_hours",
+    "remaining_hours",
+    "total_hours_spent",
+    "subtask_effective_hours",
+    "overtime",
+    "number_hours",
+    "difference",
+    "timesheet_unit_amount",
 ];
 
 export function patchGraphModel(Model) {
@@ -20,6 +28,6 @@ export function patchGraphModel(Model) {
                 }
             }
             return super._getProcessedDataPoints(...arguments);
-        }
+        },
     });
 }

@@ -47,7 +47,8 @@ registry.category("web_tour.tours").add("hr_skills_type_tour", {
             run: "edit Beginner",
         },
         {
-            trigger: "div[name=skill_level_ids] div[name=default_level] input[type='checkbox']",
+            trigger:
+                "div[name=skill_level_ids] div[name=default_level] input[type='checkbox']",
             run: "click",
         },
         {
@@ -59,7 +60,8 @@ registry.category("web_tour.tours").add("hr_skills_type_tour", {
             run: "edit Intermediate",
         },
         {
-            trigger: "tr:nth-child(2).o_selected_row [name=default_level] input[type='checkbox']",
+            trigger:
+                "tr:nth-child(2).o_selected_row [name=default_level] input[type='checkbox']",
             run: "click",
         },
         {
@@ -71,7 +73,8 @@ registry.category("web_tour.tours").add("hr_skills_type_tour", {
             run: "edit Expert",
         },
         {
-            trigger: "tr:nth-child(3).o_selected_row [name=default_level] input[type='checkbox']",
+            trigger:
+                "tr:nth-child(3).o_selected_row [name=default_level] input[type='checkbox']",
             run: "click",
         },
         {

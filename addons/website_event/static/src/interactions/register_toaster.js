@@ -11,7 +11,7 @@ export class RegisterToaster extends Interaction {
         if (message && message.length) {
             this.services.notification.add(message, {
                 title: _t("Register"),
-                type: 'info',
+                type: "info",
             });
         }
     }

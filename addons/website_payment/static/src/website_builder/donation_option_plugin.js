@@ -21,9 +21,7 @@ export class DonationOptionPlugin extends Plugin {
     static id = "donationOption";
 
     resources = {
-        builder_options: [
-            withSequence(SNIPPET_SPECIFIC, DonationOption),
-        ],
+        builder_options: [withSequence(SNIPPET_SPECIFIC, DonationOption)],
         builder_actions: {
             ToggleDisplayOptionsAction,
             TogglePrefilledOptionsAction,
@@ -47,12 +45,14 @@ export class BaseDonationAction extends BuilderAction {
                 return savedOptions;
             } else {
                 const options = [];
-                const amounts = JSON.parse(editingElement.dataset.donationAmounts || "[]");
+                const amounts = JSON.parse(
+                    editingElement.dataset.donationAmounts || "[]",
+                );
                 const descriptionEls = editingElement.querySelectorAll(
-                    "#s_donation_description_inputs input"
+                    "#s_donation_description_inputs input",
                 );
                 const descriptions = Array.from(descriptionEls).map(
-                    (descriptionEl) => descriptionEl.value
+                    (descriptionEl) => descriptionEl.value,
                 );
                 for (let i = 0; i < amounts.length; i++) {
                     options.push({
@@ -85,7 +85,8 @@ export class BaseDonationAction extends BuilderAction {
         const formEl = editingElement.querySelector(".s_donation_form");
         const donateButtonEl = editingElement.querySelector(".s_donation_donate_btn");
         const prefilledOptions = editingElement.dataset.prefilledOptions;
-        const showDescriptions = prefilledOptions && editingElement.dataset.descriptions;
+        const showDescriptions =
+            prefilledOptions && editingElement.dataset.descriptions;
 
         // Slider
         const layout = editingElement.dataset.customAmount;
@@ -103,15 +104,18 @@ export class BaseDonationAction extends BuilderAction {
 
         // Hidden inputs for descriptions translation
         const descriptionInputContainerEl = editingElement.querySelector(
-            "#s_donation_description_inputs"
+            "#s_donation_description_inputs",
         );
         descriptionInputContainerEl.textContent = "";
         if (showDescriptions) {
             descriptionInputContainerEl.insertBefore(
-                renderToFragment("website_payment.donation.descriptionTranslationInputs", {
-                    descriptions: options.map((option) => option.description),
-                }),
-                null
+                renderToFragment(
+                    "website_payment.donation.descriptionTranslationInputs",
+                    {
+                        descriptions: options.map((option) => option.description),
+                    },
+                ),
+                null,
             );
         }
 
@@ -133,9 +137,12 @@ export class BaseDonationAction extends BuilderAction {
                     prefilled_buttons: prefilledOptions ? options : [],
                     custom_input: layout === "freeAmount",
                     minimum_amount: editingElement.dataset.minimumAmount,
-                }
+                },
             );
-            formEl.insertBefore(prefilledButtonsEl, descriptionInputContainerEl.nextSibling);
+            formEl.insertBefore(
+                prefilledButtonsEl,
+                descriptionInputContainerEl.nextSibling,
+            );
         }
     }
 }

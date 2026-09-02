@@ -1,7 +1,17 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
-import { defineActions, defineModels, fields, getService, models, mountWebClient, onRpc, serverState, switchView } from "@web/../tests/web_test_helpers";
+import {
+    defineActions,
+    defineModels,
+    fields,
+    getService,
+    models,
+    mountWebClient,
+    onRpc,
+    serverState,
+    switchView,
+} from "@web/../tests/web_test_helpers";
 
 class CalendarEvent extends models.Model {
     _name = "calendar.event";
@@ -34,7 +44,7 @@ class CalendarEvent extends models.Model {
                 <field name="partner_ids" write_model="calendar.filter" write_field="partner_id"/>
             </calendar>
         `,
-        list: `<list sample="1"/>`
+        list: `<list sample="1"/>`,
     };
 
     user_id = fields.Many2one({ relation: "users" });
@@ -67,9 +77,7 @@ class Partner extends models.Model {
 }
 
 class Users extends models.Model {
-    _records = [
-        { id: serverState.userId, name: "User 4", partner_id: 4 },
-    ];
+    _records = [{ id: serverState.userId, name: "User 4", partner_id: 4 }];
 
     name = fields.Char();
     partner_id = fields.Many2one({ relation: "partner" });
@@ -80,8 +88,12 @@ defineModels([CalendarEvent, CalendarFilter, Partner, Users]);
 defineMailModels();
 
 onRpc("/calendar/check_credentials", async () => ({ microsoft_calendar: true }));
-onRpc("/microsoft_calendar/sync_data", () => ({ status: "no_new_event_from_microsoft" }));
-onRpc("check_synchronization_status", async () => ({ microsoft_calendar: "sync_active" }));
+onRpc("/microsoft_calendar/sync_data", () => ({
+    status: "no_new_event_from_microsoft",
+}));
+onRpc("check_synchronization_status", async () => ({
+    microsoft_calendar: "sync_active",
+}));
 onRpc("get_attendee_detail", () => []);
 onRpc("get_default_duration", () => 3.25);
 
@@ -96,7 +108,10 @@ test(`component is destroyed while sync microsoft calendar`, async () => {
             name: "Partners",
             res_model: "calendar.event",
             type: "ir.actions.act_window",
-            views: [[false, "list"], [false, "calendar"]],
+            views: [
+                [false, "list"],
+                [false, "calendar"],
+            ],
         },
     ]);
 

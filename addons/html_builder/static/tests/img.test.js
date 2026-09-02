@@ -1,7 +1,7 @@
 import { Img } from "@html_builder/core/img";
 import { ImgGroup } from "@html_builder/core/img_group";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-dom";
 import { Component, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";

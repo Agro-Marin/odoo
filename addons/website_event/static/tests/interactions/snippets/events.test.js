@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { queryAll } from "@odoo/hoot-dom";
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 import { onRpc } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
@@ -16,7 +19,9 @@ class TestItem extends Interaction {
 
 setupInteractionWhiteList(["website_event.events", "website_event.test_events_item"]);
 beforeEach(() => {
-    registry.category("public.interactions").add("website_event.test_events_item", TestItem);
+    registry
+        .category("public.interactions")
+        .add("website_event.test_events_item", TestItem);
 });
 
 describe.current.tags("interaction_dev");
@@ -26,7 +31,7 @@ test("dynamic snippet loads items and displays them through template", async () 
         const json = JSON.parse(new TextDecoder().decode(await args.arrayBuffer()));
         expect(json.params.filter_id).toBe(1);
         expect(json.params.template_key).toBe(
-            "website_event.dynamic_filter_template_event_event_picture"
+            "website_event.dynamic_filter_template_event_event_picture",
         );
         expect(json.params.limit).toBe(3);
         expect(json.params.search_domain).toEqual([["tag_ids", "in", [5]]]);

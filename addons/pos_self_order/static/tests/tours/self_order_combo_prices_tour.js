@@ -1,9 +1,9 @@
 /* global posmodel */
 
-import { registry } from "@web/core/registry";
 import * as Utils from "@pos_self_order/../tests/tours/utils/common";
-import * as ProductPage from "@pos_self_order/../tests/tours/utils/product_page_util";
 import * as ConfirmationPage from "@pos_self_order/../tests/tours/utils/confirmation_page_util";
+import * as ProductPage from "@pos_self_order/../tests/tours/utils/product_page_util";
+import { registry } from "@web/core/registry";
 
 const checkPricesInCombo = {
     trigger: "body",
@@ -17,14 +17,14 @@ const checkPricesInCombo = {
 
         if (orderTotal !== orderTotalAfterSync) {
             throw new Error(
-                `The total price changed after sync: before=${orderTotal}, after=${orderTotalAfterSync}`
+                `The total price changed after sync: before=${orderTotal}, after=${orderTotalAfterSync}`,
             );
         }
 
         for (let i = 0; i < allUnitPrices.length; i++) {
             if (allUnitPrices[i] !== allUnitPricesAfterSync[i]) {
                 throw new Error(
-                    `The unit price of line ${i} changed after sync: before=${allUnitPrices[i]}, after=${allUnitPricesAfterSync[i]}`
+                    `The unit price of line ${i} changed after sync: before=${allUnitPrices[i]}, after=${allUnitPricesAfterSync[i]}`,
                 );
             }
         }

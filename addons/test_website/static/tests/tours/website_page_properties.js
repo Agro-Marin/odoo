@@ -28,7 +28,7 @@ const clickOnSaveButtonStep = [
     {
         content: "Wait",
         trigger: "body:not(.modal-open)",
-    }
+    },
 ];
 
 const openCreatePageDialog = [
@@ -79,8 +79,7 @@ function checkIsTemplate(isTemplate, pageTitle = undefined) {
                       content: `Verify custom templates section is empty`,
                       trigger: `.o_website_page_templates_pane:not(:has(.o_page_template))`,
                   },
-              ]
-        ),
+              ]),
         {
             content: "Exit dialog",
             trigger: ".modal-header .btn-close",
@@ -90,7 +89,7 @@ function checkIsTemplate(isTemplate, pageTitle = undefined) {
             content: "Exit new content backdrop",
             trigger: "body",
             run: "press escape",
-        }
+        },
     ];
 }
 
@@ -215,12 +214,12 @@ function testWebsitePageProperties() {
         {
             content: "Open redirect type popup",
             trigger: "#redirect_type_0",
-            run: "click"
+            run: "click",
         },
         {
             content: "Set redirect type to temporary",
             trigger: ".o-dropdown-item[data-choice-index='1']",
-            run: "click"
+            run: "click",
         },
         {
             // TODO: this needs to be tested
@@ -321,7 +320,8 @@ function testWebsitePageProperties() {
         assertPathName("/new-page", "body"),
         {
             content: "Verify is indexed",
-            trigger: ':iframe head:hidden:not(:has(meta[name="robots"][content="noindex"]))',
+            trigger:
+                ':iframe head:hidden:not(:has(meta[name="robots"][content="noindex"]))',
         },
         ...checkIsTemplate(false),
     );

@@ -1,11 +1,13 @@
-import { contains, openDiscuss, start, startServer } from "@mail/../tests/mail_test_helpers";
-
+import {
+    contains,
+    openDiscuss,
+    start,
+    startServer,
+} from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
-
 import { Command, serverState } from "@web/../tests/web_test_helpers";
-import { url } from "@web/core/utils/urls";
 import { deserializeDateTime } from "@web/core/l10n/dates";
-
+import { url } from "@web/core/utils/urls";
 import { defineWebsiteLivechatModels } from "@website_livechat/../tests/website_livechat_test_helpers";
 
 describe.current.tags("desktop");
@@ -31,7 +33,7 @@ test("Discuss header shows visitor avatar", async () => {
         `.o-mail-DiscussContent-header img[data-src='${url(
             `/web/image/mail.guest/${guestId}/avatar_128?unique=${
                 deserializeDateTime(guest.write_date).ts
-            }`
-        )}']`
+            }`,
+        )}']`,
     );
 });

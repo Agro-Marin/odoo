@@ -58,12 +58,12 @@ export class OperationPlugin extends Plugin {
 
         this.services.notification.add(
             _t(
-                "A technical issue occurred in the builder, you should save or discard your changes."
+                "A technical issue occurred in the builder, you should save or discard your changes.",
             ),
             {
                 type: "danger",
                 sticky: true,
-            }
+            },
         );
     }
 
@@ -75,9 +75,12 @@ export class OperationPlugin extends Plugin {
 export function useOperation() {
     const comp = useComponent();
     return (apply, ...args) => {
-        comp.env.editor.shared.operation.next(async (...args) => {
-            await apply(...args);
-            comp.env.editor.shared.history.addStep();
-        }, ...args);
+        comp.env.editor.shared.operation.next(
+            async (...args) => {
+                await apply(...args);
+                comp.env.editor.shared.history.addStep();
+            },
+            ...args,
+        );
     };
 }

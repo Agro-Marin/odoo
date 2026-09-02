@@ -18,7 +18,7 @@ describe("classAction", () => {
                         <BuilderButton classAction="'x'"/>
                     </BuilderButtonGroup>
                 `;
-            }
+            },
         );
         await setupHTMLBuilder(`<div class="test-options-target x">a</div>`);
         await contains(":iframe .test-options-target").click();
@@ -39,7 +39,7 @@ describe("classAction", () => {
                         <BuilderButton classAction="'x y z'"/>
                     </BuilderButtonGroup>
                 `;
-            }
+            },
         );
         await setupHTMLBuilder(`<div class="test-options-target x">b</div>`);
         await contains(":iframe .test-options-target").click();
@@ -69,7 +69,7 @@ describe("classAction", () => {
                         <BuilderButton classAction="'y'"/>
                     </BuilderButtonGroup>
                 `;
-            }
+            },
         );
         await setupHTMLBuilder(`<div class="test-options-target">a</div>`);
         await contains(":iframe .test-options-target").click();
@@ -95,9 +95,11 @@ describe("styleAction", () => {
                     <BuilderNumberInput styleAction="'width'" unit="'px'"
                     />
                 `;
-            }
+            },
         );
-        await setupHTMLBuilder(`<div class="test-options-target" style="width: 10px;">a</div>`);
+        await setupHTMLBuilder(
+            `<div class="test-options-target" style="width: 10px;">a</div>`,
+        );
         await contains(":iframe .test-options-target").click();
         expect("input").toHaveValue("10");
         expect(".options-container").toBeDisplayed();
@@ -108,7 +110,10 @@ describe("styleAction", () => {
         await fill("1");
         expect("input").toHaveValue("101");
         expect(":iframe .test-options-target").toHaveStyle({ width: "101px" });
-        expect(":iframe .test-options-target").toHaveAttribute("style", "width: 101px;"); // no !important
+        expect(":iframe .test-options-target").toHaveAttribute(
+            "style",
+            "width: 101px;",
+        ); // no !important
 
         await contains("input").edit("");
         expect(":iframe .test-options-target").toHaveAttribute("style", "width: 0px;");
@@ -121,7 +126,7 @@ describe("styleAction", () => {
                     <BuilderNumberInput styleAction="{ mainParam: 'border-width', extraClass: 'border' }" unit="'px'" min="0" composable="true"
                     />
                 `;
-            }
+            },
         );
         await setupHTMLBuilder(`<div class="test-options-target border">a</div>`, {
             styleContent: ".border { border: solid; border-width: 1px !important; }",
@@ -136,7 +141,7 @@ describe("styleAction", () => {
         expect("input").toHaveValue("12");
         expect(":iframe .test-options-target").toHaveAttribute(
             "style",
-            "border-width: 12px !important;"
+            "border-width: 12px !important;",
         );
         expect(":iframe .test-options-target").toHaveClass("border");
 
@@ -156,7 +161,7 @@ describe("styleAction", () => {
                     <BuilderNumberInput styleAction="{ mainParam: 'border-width', extraClass: 'border' }" unit="'px'" min="0" composable="true"
                     />
                 `;
-            }
+            },
         );
         await setupHTMLBuilder(`<div class="test-options-target">a</div>`, {
             styleContent: ".border { border: solid; border-width: 1px !important; }",
@@ -169,56 +174,56 @@ describe("styleAction", () => {
         await contains("input").edit("10");
         expect(":iframe .test-options-target").toHaveAttribute(
             "style",
-            "border-width: 10px !important;"
+            "border-width: 10px !important;",
         );
         expect(":iframe .test-options-target").toHaveClass("border");
 
         await contains("input").edit("10 20");
         expect(":iframe .test-options-target").toHaveAttribute(
             "style",
-            "border-width: 10px 20px !important;"
+            "border-width: 10px 20px !important;",
         );
         expect(":iframe .test-options-target").toHaveClass("border");
 
         await contains("input").edit("10 20 30");
         expect(":iframe .test-options-target").toHaveAttribute(
             "style",
-            "border-width: 10px 20px 30px !important;"
+            "border-width: 10px 20px 30px !important;",
         );
         expect(":iframe .test-options-target").toHaveClass("border");
 
         await contains("input").edit("10 20 30 40");
         expect(":iframe .test-options-target").toHaveAttribute(
             "style",
-            "border-width: 10px 20px 30px 40px !important;"
+            "border-width: 10px 20px 30px 40px !important;",
         );
         expect(":iframe .test-options-target").toHaveClass("border");
 
         await contains("input").edit("10 1");
         expect(":iframe .test-options-target").toHaveAttribute(
             "style",
-            "border-bottom-width: 10px !important; border-top-width: 10px !important;"
+            "border-bottom-width: 10px !important; border-top-width: 10px !important;",
         );
         expect(":iframe .test-options-target").toHaveClass("border");
 
         await contains("input").edit("1 10");
         expect(":iframe .test-options-target").toHaveAttribute(
             "style",
-            "border-left-width: 10px !important; border-right-width: 10px !important;"
+            "border-left-width: 10px !important; border-right-width: 10px !important;",
         );
         expect(":iframe .test-options-target").toHaveClass("border");
 
         await contains("input").edit("1 10 10");
         expect(":iframe .test-options-target").toHaveAttribute(
             "style",
-            "border-left-width: 10px !important; border-bottom-width: 10px !important; border-right-width: 10px !important;"
+            "border-left-width: 10px !important; border-bottom-width: 10px !important; border-right-width: 10px !important;",
         );
         expect(":iframe .test-options-target").toHaveClass("border");
 
         await contains("input").edit("1 1 1 10");
         expect(":iframe .test-options-target").toHaveAttribute(
             "style",
-            "border-left-width: 10px !important;"
+            "border-left-width: 10px !important;",
         );
         expect(":iframe .test-options-target").toHaveClass("border");
     });
@@ -233,7 +238,7 @@ describe("styleAction", () => {
                         <BuilderButton styleActionValue="'50%'">50%</BuilderButton>
                     </BuilderButtonGroup>
                 `;
-            }
+            },
         );
         await setupHTMLBuilder(`<div class="test-options-target x">a</div>`);
         await contains(":iframe .test-options-target").click();
@@ -242,13 +247,13 @@ describe("styleAction", () => {
         expect("[data-style-action-value='']").toHaveClass("active");
         expect("[data-style-action-value='50%']").not.toHaveClass("active");
         expect(":iframe .test-options-target").toHaveOuterHTML(
-            `<div class="test-options-target x"> a </div>`
+            `<div class="test-options-target x"> a </div>`,
         );
 
         await contains("[data-style-action-value='50%']").click();
 
         expect(":iframe .test-options-target").toHaveOuterHTML(
-            `<div class="test-options-target x" style="width: 50% !important;"> a </div>`
+            `<div class="test-options-target x" style="width: 50% !important;"> a </div>`,
         );
         expect("[data-style-action-value='']").not.toHaveClass("active");
         expect("[data-style-action-value='50%']").toHaveClass("active");

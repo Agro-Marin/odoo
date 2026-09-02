@@ -1,14 +1,16 @@
 /** @odoo-module native */
 
-import { loadImageInfo } from "@html_editor/utils/image_processing";
 import { getFetchedMimetype } from "@html_editor/utils/image";
+import { loadImageInfo } from "@html_editor/utils/image_processing";
 
 export async function getMimetypeBeforeShape(imageEl) {
     const data = imageEl.dataset;
     const { formatMimetype, mimetypeBeforeConversion } = data.mimetypeBeforeConversion
         ? data
         : await loadImageInfo(imageEl);
-    return formatMimetype || mimetypeBeforeConversion || getFetchedMimetype(imageEl, data);
+    return (
+        formatMimetype || mimetypeBeforeConversion || getFetchedMimetype(imageEl, data)
+    );
 }
 
 /**

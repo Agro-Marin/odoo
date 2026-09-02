@@ -6,7 +6,8 @@ registry.category("web_tour.tours").add("event_buy_tickets", {
     steps: () => [
         {
             content: "Go to the `Events` page",
-            trigger: 'a[href*="/event"]:contains("Conference for Architects TEST"):first',
+            trigger:
+                'a[href*="/event"]:contains("Conference for Architects TEST"):first',
             run: "click",
             expectUnloadPage: true,
         },
@@ -16,7 +17,8 @@ registry.category("web_tour.tours").add("event_buy_tickets", {
             run: "click",
         },
         {
-            trigger: '#wrap:not(:has(a[href*="/event"]:contains("Conference for Architects")))',
+            trigger:
+                '#wrap:not(:has(a[href*="/event"]:contains("Conference for Architects")))',
         },
         {
             content: "Try reaching maximum `Standard` ticket orderable",
@@ -30,7 +32,7 @@ registry.category("web_tour.tours").add("event_buy_tickets", {
         {
             content: "Reset to 0",
             trigger: ".modal input:eq(1)",
-            run: "edit 0"
+            run: "edit 0",
         },
         {
             content: "Add 1 unit of `Standard` ticket type thanks to the spinner",
@@ -44,7 +46,8 @@ registry.category("web_tour.tours").add("event_buy_tickets", {
         },
         {
             // The input number should be changed to min(limit per order, seats available) (11 < 12 < 2002)
-            trigger: "div.o_wevent_ticket_selector:contains('VIP'):contains('11') input.form-control",
+            trigger:
+                "div.o_wevent_ticket_selector:contains('VIP'):contains('11') input.form-control",
         },
         {
             content: "Edit 2 units of `VIP` ticket type",
@@ -101,7 +104,8 @@ registry.category("web_tour.tours").add("event_buy_tickets", {
                 ".modal#modal_attendees_registration input[name*='1-name'], .modal#modal_attendees_registration input[name*='2-name'], .modal#modal_attendees_registration input[name*='3-name']",
         },
         {
-            trigger: "input[name*='1-name'], input[name*='2-name'], input[name*='3-name']",
+            trigger:
+                "input[name*='1-name'], input[name*='2-name'], input[name*='3-name']",
         },
         {
             content: "Validate attendees details",
@@ -117,6 +121,9 @@ registry.category("web_tour.tours").add("event_buy_tickets", {
         ...wsTourUtils.assertCartAmounts({
             untaxed: "4,000.00",
         }),
-        ...wsTourUtils.payWithTransfer({ expectUnloadPage: true, waitFinalizeYourPayment: true }),
+        ...wsTourUtils.payWithTransfer({
+            expectUnloadPage: true,
+            waitFinalizeYourPayment: true,
+        }),
     ],
 });

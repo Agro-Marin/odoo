@@ -42,15 +42,10 @@ export class PaymentQFpay extends PaymentInterface {
                 );
                 return false;
             }
-            if (
-                this._isCreditCardPayment &&
-                originalPayment.amount !== -line.amount
-            ) {
+            if (this._isCreditCardPayment && originalPayment.amount !== -line.amount) {
                 this._showError(
                     new QFPayError(
-                        _t(
-                            "Credit card payments refund must be for the full amount.",
-                        ),
+                        _t("Credit card payments refund must be for the full amount."),
                     ),
                 );
                 return false;
@@ -126,7 +121,7 @@ export class PaymentQFpay extends PaymentInterface {
     async handleQFPayStatusResponse(data) {
         const response = data.response;
         const line = this.pendingQFpayline;
-        let lineMismatch = false;
+        let lineMismatch;
         if (response.notify_type === "refund") {
             lineMismatch =
                 !line ||

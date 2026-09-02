@@ -7,7 +7,12 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { defineSMSModels } from "@sms/../tests/sms_test_helpers";
-import { asyncStep, mockService, serverState, waitForSteps } from "@web/../tests/web_test_helpers";
+import {
+    asyncStep,
+    mockService,
+    serverState,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineSMSModels();
@@ -80,14 +85,20 @@ test("notifications grouped by notification_type", async () => {
         contains: [
             [".o-mail-NotificationItem-name", { text: "Email Failure: Contact" }],
             [".o-mail-NotificationItem-counter", { text: "2" }],
-            [".o-mail-NotificationItem-text", { text: "An error occurred when sending an email" }],
+            [
+                ".o-mail-NotificationItem-text",
+                { text: "An error occurred when sending an email" },
+            ],
         ],
     });
     await contains(":nth-child(2 of .o-mail-NotificationItem)", {
         contains: [
             [".o-mail-NotificationItem-name", { text: "SMS Failure: Contact" }],
             [".o-mail-NotificationItem-counter", { text: "2" }],
-            [".o-mail-NotificationItem-text", { text: "An error occurred when sending an SMS" }],
+            [
+                ".o-mail-NotificationItem-text",
+                { text: "An error occurred when sending an SMS" },
+            ],
         ],
     });
 });

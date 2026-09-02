@@ -7,6 +7,6 @@ patch(SearchBar.prototype, {
      * @override
      */
     getFieldsNames() {
-        return [...super.getFieldsNames(), 'partner_name'];
+        return [...super.getFieldsNames(), "partner_name"];
     },
 });

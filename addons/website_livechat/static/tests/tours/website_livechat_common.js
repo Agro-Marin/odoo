@@ -88,7 +88,8 @@ export const emailTranscript = [
     },
     {
         content: "Check conversation is sent",
-        trigger: ".o-livechat-root:shadow .form-text:contains(The conversation was sent)",
+        trigger:
+            ".o-livechat-root:shadow .form-text:contains(The conversation was sent)",
         run: "click",
     },
 ];
@@ -96,7 +97,8 @@ export const emailTranscript = [
 export const downloadTranscript = [
     {
         content: "Download transcript",
-        trigger: ".o-livechat-root:shadow .btn[title='Download a copy of this conversation']",
+        trigger:
+            ".o-livechat-root:shadow .btn[title='Download a copy of this conversation']",
         run: "click",
     },
 ];

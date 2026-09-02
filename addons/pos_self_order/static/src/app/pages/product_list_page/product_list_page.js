@@ -12,6 +12,7 @@ import { OrderWidget } from "@pos_self_order/app/components/order_widget/order_w
 import { ProductNameWidget } from "@pos_self_order/app/components/product_name_widget/product_name_widget";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { useService } from "@web/core/utils/hooks";
+
 import { useCategoryScrollSpy } from "../../utils/category_scrollspy_hook.js";
 import { scrollItemIntoViewX } from "../../utils/scroll.js";
 import { useDraggableScroll } from "../../utils/scroll_dnd_hook.js";

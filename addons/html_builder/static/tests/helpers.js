@@ -11,7 +11,14 @@ import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { after, queryFirst } from "@odoo/hoot";
-import { animationFrame, waitForNone, queryOne, waitFor, advanceTime, tick } from "@odoo/hoot-dom";
+import {
+    advanceTime,
+    animationFrame,
+    queryOne,
+    tick,
+    waitFor,
+    waitForNone,
+} from "@odoo/hoot-dom";
 import { Component, onMounted, useRef, useState, useSubEnv, xml } from "@odoo/owl";
 import {
     contains,
@@ -25,8 +32,8 @@ import {
 import { loadBundle } from "@web/core/assets";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
-import { uniqueId } from "@web/core/utils/functions";
 import { delay } from "@web/core/utils/concurrency";
+import { uniqueId } from "@web/core/utils/functions";
 
 export function patchWithCleanupImg() {
     const defaultImg =
@@ -43,7 +50,8 @@ export function patchWithCleanupImg() {
 }
 
 export function getSnippetView(snippets) {
-    const { snippet_groups, snippet_custom, snippet_structure, snippet_content } = snippets;
+    const { snippet_groups, snippet_custom, snippet_structure, snippet_content } =
+        snippets;
     return `
     <snippets id="snippet_groups" string="Categories">
         ${(snippet_groups || []).join("")}
@@ -201,7 +209,7 @@ export async function setupHTMLBuilder(
         dropzoneSelectors,
         snippets,
         styleContent,
-    } = {}
+    } = {},
 ) {
     defineMailModels();
     defineModels([IrUiView]);
@@ -287,7 +295,7 @@ export async function setupHTMLBuilder(
             super.setup();
             _resolve();
             editableContent = this.getEditableElements(
-                '.oe_structure.oe_empty, [data-oe-type="html"]'
+                '.oe_structure.oe_empty, [data-oe-type="html"]',
             )[0];
         },
     });
@@ -473,7 +481,7 @@ export async function modifyText(editor, editableContent) {
  */
 export function getBasicSection(
     content,
-    { name, snippet = "s_test", additionalClassOnRoot = "" } = {}
+    { name, snippet = "s_test", additionalClassOnRoot = "" } = {},
 ) {
     let classes = snippet;
     if (additionalClassOnRoot) {
@@ -482,11 +490,14 @@ export function getBasicSection(
     return unformat(
         `<section class="${classes}" data-snippet="${snippet}" ${
             name ? `data-name="${name}"` : ""
-        }><div class="test_a">${content}</div></section>`
+        }><div class="test_a">${content}</div></section>`,
     );
 }
 
-export function createTestSnippets({ snippets: snippetConfigs = [], withName = false }) {
+export function createTestSnippets({
+    snippets: snippetConfigs = [],
+    withName = false,
+}) {
     return snippetConfigs.map((snippetConfig) => {
         const {
             name,
@@ -561,7 +572,7 @@ export async function setupHTMLBuilderWithDummySnippet(content) {
                 '<div name="A" data-oe-thumbnail="a.svg" data-oe-snippet-id="123" data-o-snippet-group="a"><section data-snippet="s_snippet_group"></section></div>',
             ],
             snippet_structure: snippetsDescription.map((snippetDesc) =>
-                getSnippetStructure(snippetDesc)
+                getSnippetStructure(snippetDesc),
             ),
         },
     };

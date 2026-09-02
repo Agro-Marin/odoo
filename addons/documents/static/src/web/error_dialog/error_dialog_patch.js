@@ -35,9 +35,12 @@ patch(ErrorDialog.prototype, {
                     this.state.tracebackUrl = response[0];
                     setTimeout(async () => {
                         await browser.navigator.clipboard.writeText(response[0]);
-                        this.notification.add(_t("The document URL has been copied to your clipboard."), {
-                            type: "success"
-                        });
+                        this.notification.add(
+                            _t("The document URL has been copied to your clipboard."),
+                            {
+                                type: "success",
+                            },
+                        );
                     });
                 }
             }
@@ -53,9 +56,9 @@ patch(ErrorDialog.prototype, {
                     }`,
                 ],
                 `${this.constructor.title} - ${luxon.DateTime.local().toFormat(
-                    "yyyy-MM-dd HH:mm:ss"
+                    "yyyy-MM-dd HH:mm:ss",
                 )}.txt`,
-                { type: "text/plain" }
+                { type: "text/plain" },
             );
             const markPayload = (formData) => formData.append(TRACEBACK_MARKER, "1");
             this.fileUpload.upload("/documents/upload_traceback", [file], {

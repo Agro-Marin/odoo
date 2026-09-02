@@ -4,17 +4,21 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { components } from "@odoo/o-spreadsheet";
 import { insertChartInSpreadsheet } from "@spreadsheet/../tests/helpers/chart";
 import {
-    createBasicChart,
-    createScorecardChart,
-    createGaugeChart,
     addChartFigureToCarousel,
+    createBasicChart,
     createCarousel,
+    createGaugeChart,
+    createScorecardChart,
 } from "@spreadsheet/../tests/helpers/commands";
 import { getBasicData } from "@spreadsheet/../tests/helpers/data";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
 import { mountSpreadsheet } from "@spreadsheet/../tests/helpers/ui";
 import { defineSpreadsheetDashboardModels } from "@spreadsheet_dashboard/../tests/helpers/data";
-import { contains, mockService, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    mockService,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 
 defineSpreadsheetDashboardModels();
 
@@ -50,7 +54,9 @@ beforeEach(() => {
     serverData.models = {
         ...getBasicData(),
         "ir.ui.menu": {
-            records: [{ id: 2, name: "test menu 2", action: "action2", group_ids: [10] }],
+            records: [
+                { id: 2, name: "test menu 2", action: "action2", group_ids: [10] },
+            ],
         },
         "res.group": { records: [{ id: 10, name: "test group" }] },
     };
@@ -119,7 +125,10 @@ test("Click on chart element in dashboard mode do not redirect twice", async fun
         x: canvasRect.left + canvasRect.width / 2,
         y: canvasRect.top + canvasRect.height / 2,
     };
-    await click(".o-chart-container canvas", { position: canvasCenter, relative: true });
+    await click(".o-chart-container canvas", {
+        position: canvasCenter,
+        relative: true,
+    });
     await animationFrame();
     expect.verifySteps(["chartElementRedirect"]);
 
@@ -138,7 +147,10 @@ test("Clicking on a scorecard or gauge redirects to the linked menu id", async f
     await mountSpreadsheet(model);
     createScorecardChart(model, "scorecardId");
     createGaugeChart(model, "gaugeId");
-    model.dispatch("LINK_ODOO_MENU_TO_CHART", { chartId: "scorecardId", odooMenuId: 2 });
+    model.dispatch("LINK_ODOO_MENU_TO_CHART", {
+        chartId: "scorecardId",
+        odooMenuId: 2,
+    });
     model.dispatch("LINK_ODOO_MENU_TO_CHART", { chartId: "gaugeId", odooMenuId: 2 });
     await animationFrame();
 

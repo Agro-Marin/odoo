@@ -24,7 +24,7 @@ export function useArchiveEmployee() {
                 onClose: async () => {
                     await component.model.load();
                 },
-            }
+            },
         );
     };
 }

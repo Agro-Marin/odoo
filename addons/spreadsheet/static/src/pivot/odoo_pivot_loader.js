@@ -1,7 +1,7 @@
 /** @odoo-module native */
 //@ts-check
 
-import { CellErrorType,EvaluationError } from "@odoo/o-spreadsheet";
+import { CellErrorType, EvaluationError } from "@odoo/o-spreadsheet";
 import {
     getFields,
     LOADING_ERROR,
@@ -70,17 +70,21 @@ export class OdooPivotLoader {
                         this._isModelValid = false;
                         this.loadError = Object.assign(
                             new EvaluationError(
-                                _t(`The model "%(model)s" does not exist.`, { model: e.message })
+                                _t(`The model "%(model)s" does not exist.`, {
+                                    model: e.message,
+                                }),
                             ),
                             {
                                 cause: e,
-                            }
+                            },
                         );
                         return;
                     }
                     this.loadError = Object.assign(
-                        new EvaluationError(e instanceof RPCError ? e.data.message : e.message),
-                        { cause: e }
+                        new EvaluationError(
+                            e instanceof RPCError ? e.data.message : e.message,
+                        ),
+                        { cause: e },
                     );
                 })
                 .finally(() => {
@@ -134,7 +138,10 @@ export class OdooPivotLoader {
             if (throwOnError) {
                 throw this.loadError;
             }
-            return { value: CellErrorType.GenericError, message: this.loadError.message };
+            return {
+                value: CellErrorType.GenericError,
+                message: this.loadError.message,
+            };
         }
     }
 }

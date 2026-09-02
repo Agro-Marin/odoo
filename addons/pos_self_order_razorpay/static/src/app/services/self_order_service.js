@@ -36,9 +36,8 @@ patch(SelfOrder.prototype, {
     },
 
     handleErrorNotification(error, type = "danger") {
-        let errorMessage = "";
         if (error instanceof RazorpayError) {
-            errorMessage = `Razorpay POS: ${error.message}`;
+            const errorMessage = `Razorpay POS: ${error.message}`;
             this.notification.add(errorMessage, {
                 type: type,
             });

@@ -30,7 +30,7 @@ patch(SelfOrder.prototype, {
         this.handleErrorNotification(error);
     },
     handleErrorNotification(error) {
-        let message = "";
+        let message;
 
         if (error.code) {
             message = `Error: ${error.code}`;

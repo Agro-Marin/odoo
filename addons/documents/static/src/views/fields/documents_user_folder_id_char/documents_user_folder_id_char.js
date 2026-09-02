@@ -42,4 +42,6 @@ export const documentsUserFolderIdCharField = {
     }),
 };
 
-registry.category("fields").add("documents_user_folder_id_char", documentsUserFolderIdCharField);
+registry
+    .category("fields")
+    .add("documents_user_folder_id_char", documentsUserFolderIdCharField);

@@ -1,8 +1,10 @@
 import { describe, expect, test } from "@odoo/hoot";
+import * as spreadsheet from "@odoo/o-spreadsheet";
 import { setCellContent } from "@spreadsheet/../tests/helpers/commands";
 import { getCellValue, getEvaluatedCell } from "@spreadsheet/../tests/helpers/getters";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
 import { camelToSnakeObject } from "@spreadsheet/helpers/helpers";
+import { waitForDataLoaded } from "@spreadsheet/helpers/model";
 import {
     defineSpreadsheetAccountModels,
     getAccountingData,
@@ -10,9 +12,6 @@ import {
 import { parseAccountingDate } from "@spreadsheet_account/accounting_functions";
 import { makeServerError } from "@web/../tests/web_test_helpers";
 import { sprintf } from "@web/core/utils/format/strings";
-
-import * as spreadsheet from "@odoo/o-spreadsheet";
-import { waitForDataLoaded } from "@spreadsheet/helpers/model";
 
 describe.current.tags("headless");
 defineSpreadsheetAccountModels();
@@ -94,7 +93,9 @@ test("Functions with a wrong company id is correctly in error", async () => {
     });
     setCellContent(model, "A1", `=ODOO.CREDIT("100", "2022", 0, 123456)`);
     await waitForDataLoaded(model);
-    expect(getEvaluatedCell(model, "A1").message).toBe("Currency not available for this company.");
+    expect(getEvaluatedCell(model, "A1").message).toBe(
+        "Currency not available for this company.",
+    );
 });
 
 test("formula with invalid date", async () => {
@@ -111,7 +112,9 @@ test("formula with invalid date", async () => {
     expect(getEvaluatedCell(model, "A1").message).toBe("0 is not a valid year.");
     expect(getEvaluatedCell(model, "A2").message).toBe("0 is not a valid year.");
     expect(getEvaluatedCell(model, "A3").message).toBe("-1 is not a valid year.");
-    expect(getEvaluatedCell(model, "A4").message).toBe(sprintf(errorMessage, "not a valid period"));
+    expect(getEvaluatedCell(model, "A4").message).toBe(
+        sprintf(errorMessage, "not a valid period"),
+    );
     expect(getEvaluatedCell(model, "A5").value).toBe(0);
     expect(getEvaluatedCell(model, "A6").message).toBe("1899 is not a valid year.");
     expect(getEvaluatedCell(model, "A7").message).toBe("1899 is not a valid year.");

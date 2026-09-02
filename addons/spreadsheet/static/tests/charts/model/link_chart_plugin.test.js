@@ -1,10 +1,9 @@
 import { describe, expect, test } from "@odoo/hoot";
+import { Model } from "@odoo/o-spreadsheet";
 import { createSpreadsheetWithChart } from "@spreadsheet/../tests/helpers/chart";
 import { createBasicChart } from "@spreadsheet/../tests/helpers/commands";
 import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
-
-import { Model } from "@odoo/o-spreadsheet";
 
 const chartId = "uuid1";
 
@@ -72,7 +71,7 @@ test("Links of Odoo charts are duplicated when duplicating a sheet", async funct
     });
     const newChartId = model.getters.getChartIds(secondSheetId)[0];
     expect(model.getters.getChartOdooMenu(newChartId)).toEqual(
-        model.getters.getChartOdooMenu(chartId)
+        model.getters.getChartOdooMenu(chartId),
     );
 });
 
@@ -93,6 +92,6 @@ test("Links of standard charts are duplicated when duplicating a sheet", async f
     });
     const newChartId = model.getters.getChartIds(secondSheetId)[0];
     expect(model.getters.getChartOdooMenu(newChartId)).toEqual(
-        model.getters.getChartOdooMenu(chartId)
+        model.getters.getChartOdooMenu(chartId),
     );
 });

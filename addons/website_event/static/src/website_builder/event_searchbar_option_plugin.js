@@ -34,4 +34,6 @@ class EventSearchbarOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(EventSearchbarOptionPlugin.id, EventSearchbarOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(EventSearchbarOptionPlugin.id, EventSearchbarOptionPlugin);

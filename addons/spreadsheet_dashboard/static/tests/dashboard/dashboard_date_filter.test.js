@@ -1,7 +1,11 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { makeMockEnv, contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { DashboardDateFilter } from "@spreadsheet_dashboard/bundle/dashboard_action/dashboard_date_filter/dashboard_date_filter";
+import {
+    contains,
+    makeMockEnv,
+    mountWithCleanup,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineSpreadsheetModels();

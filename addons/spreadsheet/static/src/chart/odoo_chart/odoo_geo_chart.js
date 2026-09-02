@@ -1,9 +1,12 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
-import { onGeoOdooChartItemClick,onGeoOdooChartItemHover } from "./odoo_chart_helpers.js";
+import {
+    onGeoOdooChartItemClick,
+    onGeoOdooChartItemHover,
+} from "./odoo_chart_helpers.js";
 
 const { chartRegistry } = registries;
 
@@ -36,12 +39,14 @@ export class OdooGeoChart extends OdooChart {
 
 chartRegistry.add("odoo_geo", {
     match: (type) => type === "odoo_geo",
-    createChart: (definition, sheetId, getters) => new OdooGeoChart(definition, sheetId, getters),
+    createChart: (definition, sheetId, getters) =>
+        new OdooGeoChart(definition, sheetId, getters),
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooGeoChart.validateChartDefinition(validator, definition),
     transformDefinition: (definition) => OdooGeoChart.transformDefinition(definition),
-    getChartDefinitionFromContextCreation: () => OdooGeoChart.getDefinitionFromContextCreation(),
+    getChartDefinitionFromContextCreation: () =>
+        OdooGeoChart.getDefinitionFromContextCreation(),
     name: _t("Geo"),
 });
 

@@ -2,7 +2,7 @@
 import { patch } from "@web/core/utils/patch";
 import { BarcodeParser } from "@barcodes/js/barcode_parser";
 import { _t } from "@web/core/translation";
-export class GS1BarcodeError extends Error {};
+export class GS1BarcodeError extends Error {}
 
 export const FNC1_CHAR = String.fromCharCode(29);
 
@@ -21,11 +21,12 @@ patch(BarcodeParser, {
 });
 
 patch(BarcodeParser.prototype, {
-    setup(attributes) {
+    setup() {
         super.setup(...arguments);
         // Use the nomenclature's separaor regex, else use an impossible one.
-        const nomenclatureSeparator = this.nomenclature && this.nomenclature.gs1_separator_fnc1;
-        this.gs1SeparatorRegex = new RegExp(nomenclatureSeparator || '.^', 'g');
+        const nomenclatureSeparator =
+            this.nomenclature && this.nomenclature.gs1_separator_fnc1;
+        this.gs1SeparatorRegex = new RegExp(nomenclatureSeparator || ".^", "g");
     },
 
     /**
@@ -48,7 +49,7 @@ patch(BarcodeParser.prototype, {
         const year = century * 100 + parseInt(gs1Date.slice(0, 2));
         const date = new Date(year, parseInt(gs1Date.slice(2, 4) - 1));
 
-        if (gs1Date.slice(-2) === '00'){
+        if (gs1Date.slice(-2) === "00") {
             // Day is not mandatory, when not set -> last day of the month
             date.setDate(new Date(year, parseInt(gs1Date.slice(2, 4)), 0).getDate());
         } else {
@@ -71,27 +72,32 @@ patch(BarcodeParser.prototype, {
             string_value: match[2],
             code: match[2],
             base_code: match[2],
-            type: rule.type
+            type: rule.type,
         };
-        if (rule.gs1_content_type === 'measure'){
+        if (rule.gs1_content_type === "measure") {
             let decimalPosition = 0; // Decimal position begin at the end, 0 means no decimal
-            if (rule.gs1_decimal_usage){
+            if (rule.gs1_decimal_usage) {
                 decimalPosition = parseInt(match[1][match[1].length - 1]);
             }
             if (decimalPosition > 0) {
                 const integral = match[2].slice(0, match[2].length - decimalPosition);
                 const decimal = match[2].slice(match[2].length - decimalPosition);
-                result.value = parseFloat( integral + "." + decimal);
+                result.value = parseFloat(integral + "." + decimal);
             } else {
                 result.value = parseInt(match[2]);
             }
-        } else if (rule.gs1_content_type === 'identifier'){
-            if (parseInt(match[2][match[2].length - 1]) !== this.get_barcode_check_digit("0".repeat(18 - match[2].length) + match[2])){
+        } else if (rule.gs1_content_type === "identifier") {
+            if (
+                parseInt(match[2][match[2].length - 1]) !==
+                this.get_barcode_check_digit(
+                    "0".repeat(18 - match[2].length) + match[2],
+                )
+            ) {
                 return null;
             }
             result.value = match[2];
-        } else if (rule.gs1_content_type === 'date'){
-            if (match[2].length !== 6){
+        } else if (rule.gs1_content_type === "date") {
+            if (match[2].length !== 6) {
                 return null;
             }
             result.value = this.gs1_date_to_date(match[2]);
@@ -109,7 +115,9 @@ patch(BarcodeParser.prototype, {
      */
     gs1_decompose_extended(barcode) {
         const results = [];
-        const rules = this.nomenclature.rules.filter(rule => rule.encoding === 'gs1-128');
+        const rules = this.nomenclature.rules.filter(
+            (rule) => rule.encoding === "gs1-128",
+        );
         const separatorReg = `(?:${FNC1_CHAR}+)?`;
         barcode = this._convertGS1Separators(barcode);
         barcode = this.cleanBarcode(barcode);
@@ -132,7 +140,9 @@ patch(BarcodeParser.prototype, {
                 }
             }
             if (barcodeLength === barcode.length) {
-                throw new GS1BarcodeError(_t("This barcode can't be partially or fully parsed."));
+                throw new GS1BarcodeError(
+                    _t("This barcode can't be partially or fully parsed."),
+                );
             }
         }
 

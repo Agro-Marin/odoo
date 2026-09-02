@@ -1595,14 +1595,14 @@ export const accountTaxHelpers = {
 
         const taxed_non_deductible_lines = base_lines.filter(
             (base_line) =>
-                base_line.special_type === "non_deductible" &&
-                base_line.tax_ids.length,
+                base_line.special_type === "non_deductible" && base_line.tax_ids.length,
         );
         if (taxed_non_deductible_lines.length) {
-            const non_deductible_aggregated_values = this.aggregate_base_lines_tax_details(
-                taxed_non_deductible_lines,
-                tax_group_grouping_function,
-            );
+            const non_deductible_aggregated_values =
+                this.aggregate_base_lines_tax_details(
+                    taxed_non_deductible_lines,
+                    tax_group_grouping_function,
+                );
             const non_deductible_values_per_grouping_key =
                 this.aggregate_base_lines_aggregated_values(
                     non_deductible_aggregated_values,

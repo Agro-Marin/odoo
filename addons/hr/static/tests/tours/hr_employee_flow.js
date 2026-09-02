@@ -21,7 +21,8 @@ registry.category("web_tour.tours").add("hr_employee_tour", {
             run: "click",
         },
         {
-            trigger: ".o-mail-ChatWindow .o-mail-ChatWindow-header:contains('Johnny H.')",
+            trigger:
+                ".o-mail-ChatWindow .o-mail-ChatWindow-header:contains('Johnny H.')",
         },
         {
             content: "Open user account menu",

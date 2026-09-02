@@ -31,11 +31,8 @@ export class GloryAdminButtons extends Component {
 
         useEffect(
             () => {
-                const {
-                    glory_websocket_address,
-                    glory_username,
-                    glory_password,
-                } = this.props.record.data;
+                const { glory_websocket_address, glory_username, glory_password } =
+                    this.props.record.data;
                 if (glory_websocket_address) {
                     this.gloryService.connect(
                         glory_websocket_address,

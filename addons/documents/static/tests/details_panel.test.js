@@ -1,4 +1,9 @@
-import { contains, defineModels, mountView, onRpc, serverState } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    mountView,
+    onRpc,
+    serverState,
+} from "@web/../tests/web_test_helpers";
 import { omit } from "@web/core/utils/collections/objects";
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -6,7 +11,6 @@ import { waitFor, waitForNone } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 
 import {
-    DocumentsModels,
     getDocumentsTestServerModelsData,
     makeDocumentRecordData,
 } from "@documents/../tests/helpers/data";
@@ -20,7 +24,7 @@ import { getEnrichedSearchArch } from "@documents/../tests/helpers/views/search"
 
 const archWithTags = basicDocumentsKanbanArch.replace(
     '<field name="name"/>',
-     `
+    `
         <field name="name"/>
         <field name="tag_ids" class="d-block text-wrap" widget="many2many_tags" options="{'color_field': 'color'}"/>
         <field name="alias_domain_id"/>
@@ -28,7 +32,7 @@ const archWithTags = basicDocumentsKanbanArch.replace(
         <field name="alias_tag_ids" class="d-block text-wrap" widget="many2many_tags" options="{'color_field': 'color'}"/>
         <field name="create_activity_type_id"/>
         <field name="mail_alias_domain_count"/>
-    `
+    `,
 );
 
 /**
@@ -54,14 +58,20 @@ describe.current.tags("desktop");
 defineDocumentsModels();
 
 onRpc("ir.model", "display_name_for", ({ args }) =>
-    args[0].map((model) => ({ model, display_name: model }))
+    args[0].map((model) => ({ model, display_name: model })),
 );
 onRpc("/documents/touch/<access_token>", () => ({}));
 
 test("Details panel rendering for editors", async () => {
     const serverData = getDocumentsTestServerModelsData([
-        makeDocumentRecordData(2, "Testing tags", { folder_id: 1, ...binaryTestedValues }),
-        makeDocumentRecordData(3, "Testing container", { folder_id: 1, ...folderTestedValues }),
+        makeDocumentRecordData(2, "Testing tags", {
+            folder_id: 1,
+            ...binaryTestedValues,
+        }),
+        makeDocumentRecordData(3, "Testing container", {
+            folder_id: 1,
+            ...folderTestedValues,
+        }),
     ]);
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView({ arch: archWithTags });
@@ -79,7 +89,9 @@ test("Details panel rendering for editors", async () => {
 
     await contains(".o_kanban_record:contains('Testing container')").click();
     expect(dp(".o_documents_details_panel_name input")).toHaveCount(1);
-    expect(dp(".o_documents_details_panel_name input")).toHaveValue("Testing container");
+    expect(dp(".o_documents_details_panel_name input")).toHaveValue(
+        "Testing container",
+    );
     expect(dp("input[placeholder='No activity']")).toHaveValue("Email");
     expect(dp("input[placeholder='Activity assigned to']")).toHaveCount(1);
 
@@ -116,7 +128,9 @@ test("Details panel rendering for viewers - m2o/m2m values", async () => {
     expect(dp("span:contains('Mitchell Admin')")).toHaveCount(1);
 
     await contains(".o_kanban_record:contains('Testing container')").click();
-    await waitFor(dp(".o_documents_details_panel_name span:contains('Testing Container')"));
+    await waitFor(
+        dp(".o_documents_details_panel_name span:contains('Testing Container')"),
+    );
     expect(dp(".o_field_tags input")).toHaveCount(0);
     expect(dp(".o_field_tags span:contains('Colorless')")).toHaveCount(1);
     expect(dp(".o_field_tags span:contains('Colorful')")).toHaveCount(1);
@@ -127,7 +141,10 @@ test("Details panel rendering for viewers - m2o/m2m values", async () => {
 
 test("Details panel rendering for viewers - m2o/m2m pseudo-placeholders", async () => {
     const serverData = getDocumentsTestServerModelsData([
-        makeDocumentRecordData(2, "Testing tags", { folder_id: 1, user_permission: "view" }),
+        makeDocumentRecordData(2, "Testing tags", {
+            folder_id: 1,
+            user_permission: "view",
+        }),
         makeDocumentRecordData(3, "Testing container", {
             folder_id: 1,
             ...omit(folderTestedValues, "alias_tag_ids"),
@@ -141,15 +158,21 @@ test("Details panel rendering for viewers - m2o/m2m pseudo-placeholders", async 
     await animationFrame();
 
     await waitFor(dp(".o_documents_details_panel_name span:contains('Testing Tags')"));
-    expect(dp(".o_field_tags span.o_documents_details_panel_placeholder")).toHaveText("No tags");
-    await waitFor(dp("span.o_documents_details_panel_placeholder:contains('No owner')"));
+    expect(dp(".o_field_tags span.o_documents_details_panel_placeholder")).toHaveText(
+        "No tags",
+    );
+    await waitFor(
+        dp("span.o_documents_details_panel_placeholder:contains('No owner')"),
+    );
 
     await contains(".o_kanban_record:contains('Testing container')").click();
-    await waitFor(dp(".o_documents_details_panel_name span:contains('Testing Container')"));
+    await waitFor(
+        dp(".o_documents_details_panel_name span:contains('Testing Container')"),
+    );
     await waitFor(dp("div:contains('alias@odoo.com')"));
     await waitFor(dp("span:contains('No activity')"));
     expect(dp(".o_field_tags span.o_documents_details_panel_placeholder")).toHaveText(
-        "No alias tags"
+        "No alias tags",
     );
 });
 
@@ -161,11 +184,7 @@ test("Details panel required document name", async () => {
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView({ arch: archWithTags });
     await contains(".o_control_panel_navigation .o_documents_info_toggle").click();
-    for (const documentName of [
-        "Folder 1",
-        "Testing folder",
-        "Testing file",
-    ]) {
+    for (const documentName of ["Folder 1", "Testing folder", "Testing file"]) {
         await contains(`.o_kanban_record:contains('${documentName}')`).click();
         await animationFrame();
         expect(dp(".o_documents_details_panel_name input")).toHaveCount(1);
@@ -183,7 +202,9 @@ test("Details panel root folder placeholders", async () => {
     const serverData = getDocumentsTestServerModelsData([
         makeDocumentRecordData(2, "In COMPANY"),
         makeDocumentRecordData(3, "In MY DRIVE", { owner_id: serverState.userId }),
-        makeDocumentRecordData(4, "In SHARED WITH ME", { owner_id: serverState.odoobotId }),
+        makeDocumentRecordData(4, "In SHARED WITH ME", {
+            owner_id: serverState.odoobotId,
+        }),
         makeDocumentRecordData(5, "In COMPANY (readonly)", { user_permission: "view" }),
     ]);
     await makeDocumentsMockEnv({ serverData });
@@ -201,17 +222,23 @@ test("Details panel root folder placeholders", async () => {
         expect(dp(".fa-folder + .o_field_many2one input")).toHaveAttribute(
             "placeholder",
             rootPlaceholder,
-            { message: "Document should have correct root folder placeholder (editors)." }
+            {
+                message:
+                    "Document should have correct root folder placeholder (editors).",
+            },
         );
     }
     await contains(".o_kanban_record:contains('In COMPANY (readonly)')").click();
     await animationFrame();
     expect(dp(".o_documents_details_panel_name span")).toHaveCount(1);
-    expect(dp(".o_documents_details_panel_name span")).toHaveText("In COMPANY (readonly)");
-    expect(dp(".fa-folder + .o_field_many2one .o_documents_details_panel_placeholder")).toHaveText(
-        "Company",
-        { message: "Document should have correct root folder placeholder (viewers)." }
+    expect(dp(".o_documents_details_panel_name span")).toHaveText(
+        "In COMPANY (readonly)",
     );
+    expect(
+        dp(".fa-folder + .o_field_many2one .o_documents_details_panel_placeholder"),
+    ).toHaveText("Company", {
+        message: "Document should have correct root folder placeholder (viewers).",
+    });
 });
 
 test("Details panel should be updated when clearing a selection", async function () {
@@ -237,7 +264,7 @@ test("Details panel changes to folders are immediately saved and visible in the 
     await mountDocumentsKanbanView({ arch: archWithTags });
     await contains(".o_control_panel_navigation .o_documents_info_toggle").click();
     await contains(
-        "li.o_search_panel_category_value:contains('COMPANY') button.o_toggle_fold"
+        "li.o_search_panel_category_value:contains('COMPANY') button.o_toggle_fold",
     ).click();
     let counter = 0;
     onRpc("search_panel_select_range", () => {
@@ -249,14 +276,14 @@ test("Details panel changes to folders are immediately saved and visible in the 
         expect(dp(".o_documents_details_panel_name input")).toHaveValue("Folder 1");
         expect("span.o_search_panel_label_title:contains('Folder 1')").toHaveCount(1);
         await contains(dp(".o_documents_details_panel_name input")).edit(
-            `Folder Renamed from ${from}`
+            `Folder Renamed from ${from}`,
         );
         await animationFrame();
         expect(dp(".o_documents_details_panel_name input")).toHaveValue(
-            `Folder Renamed from ${from}`
+            `Folder Renamed from ${from}`,
         );
         expect(
-            `span.o_search_panel_label_title:contains('Folder Renamed from ${from}')`
+            `span.o_search_panel_label_title:contains('Folder Renamed from ${from}')`,
         ).toHaveCount(1);
         await contains(dp(".o_documents_details_panel_name input")).edit("Folder 1");
         await animationFrame();
@@ -311,13 +338,15 @@ test("Details panel rendering", async function () {
     });
     await contains(`.o_data_row td[name="id"]:contains(2)`).click();
     await contains(".o_control_panel_navigation .o_documents_info_toggle").click();
-    expect(dp(".o_documents_details_panel_name input")).toHaveValue("Testing container");
+    expect(dp(".o_documents_details_panel_name input")).toHaveValue(
+        "Testing container",
+    );
     expect(dp(".fa-envelope + div .o_field_char input")).toHaveValue("alias");
 });
 
 test("Add from document from log a note", async () => {
     onRpc("ir.model", "display_name_for", ({ args }) =>
-        args[0].map((model) => ({ model, display_name: model }))
+        args[0].map((model) => ({ model, display_name: model })),
     );
     onRpc("documents.document", "add_documents_attachment", ({ args }) => {
         expect(args).toEqual([[12], "mail.compose.message", 0]);
@@ -357,27 +386,44 @@ test("Add from document from log a note", async () => {
 
     await contains(".o_kanban_record:contains('File 1')").click();
     await contains(".o_control_panel_navigation .o_documents_info_toggle").click();
-    await waitFor(".o_document_chatter_container button.o-mail-Chatter-logNote:not(:disabled)");
+    await waitFor(
+        ".o_document_chatter_container button.o-mail-Chatter-logNote:not(:disabled)",
+    );
 
-    await contains(".o_document_chatter_container button.o-mail-Chatter-logNote").click();
-    await contains(".o_document_chatter_container button[title='Add from Documents']").click();
     await contains(
-        ".o_select_create_dialog_content .o_search_panel_label_title:contains('Company')"
+        ".o_document_chatter_container button.o-mail-Chatter-logNote",
     ).click();
     await contains(
-        ".o_select_create_dialog_content .o_search_panel_label_title:contains('Folder 2')"
+        ".o_document_chatter_container button[title='Add from Documents']",
     ).click();
-    await contains(".o_select_create_dialog_content .o_data_row .o-checkbox input").click();
-    await contains(".o_select_create_dialog_content button:contains('Add from Documents')").click();
+    await contains(
+        ".o_select_create_dialog_content .o_search_panel_label_title:contains('Company')",
+    ).click();
+    await contains(
+        ".o_select_create_dialog_content .o_search_panel_label_title:contains('Folder 2')",
+    ).click();
+    await contains(
+        ".o_select_create_dialog_content .o_data_row .o-checkbox input",
+    ).click();
+    await contains(
+        ".o_select_create_dialog_content button:contains('Add from Documents')",
+    ).click();
 
-    expect(".o-mail-Composer .o-mail-Attachment-hoverImageText:contains('File 2')").toHaveCount(1);
-    expect(".o-mail-Chatter-topbar .o-mail-Chatter-attachFiles:contains('1')").toHaveCount(0);
+    expect(
+        ".o-mail-Composer .o-mail-Attachment-hoverImageText:contains('File 2')",
+    ).toHaveCount(1);
+    expect(
+        ".o-mail-Chatter-topbar .o-mail-Chatter-attachFiles:contains('1')",
+    ).toHaveCount(0);
     await expect.waitForSteps(["add_documents_attachment"]);
 });
 
 test("Details panel move to the root removes the document from the current folder", async () => {
     const serverData = getDocumentsTestServerModelsData([
-        makeDocumentRecordData(2, "Folder 2", { type: "folder", user_permission: "edit" }),
+        makeDocumentRecordData(2, "Folder 2", {
+            type: "folder",
+            user_permission: "edit",
+        }),
         makeDocumentRecordData(3, "Moved to root", { folder_id: 1 }),
         makeDocumentRecordData(4, "Moved to Folder 2", { folder_id: 1 }),
     ]);
@@ -387,14 +433,18 @@ test("Details panel move to the root removes the document from the current folde
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView({ arch: archWithTags });
     await contains(".o_control_panel_navigation .o_documents_info_toggle").click();
-    await contains(`.o_search_panel_label[data-tooltip="Company"] .o_toggle_fold`).click();
+    await contains(
+        `.o_search_panel_label[data-tooltip="Company"] .o_toggle_fold`,
+    ).click();
     await contains(`.o_search_panel_label[data-tooltip="Folder 1"] div`).click();
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(2);
 
     await contains(".o_kanban_record:contains('Moved to Folder 2')").click();
     await animationFrame();
     await contains(dp(".fa-folder + .o_field_many2one input")).click();
-    await contains(dp(".fa-folder + .o_field_many2one .dropdown-menu li:contains('Folder 2')")).click();
+    await contains(
+        dp(".fa-folder + .o_field_many2one .dropdown-menu li:contains('Folder 2')"),
+    ).click();
     await animationFrame();
     expect.verifySteps([`web_save [[4],{"folder_id":2}]`]);
     expect(".o_kanban_record:contains('Moved to Folder 2')").toHaveCount(0);
@@ -402,7 +452,9 @@ test("Details panel move to the root removes the document from the current folde
 
     await contains(".o_kanban_record:contains('Moved to root')").click();
     await animationFrame();
-    await contains(dp(".fa-folder + .o_field_many2one input")).edit("", { confirm: "blur" });
+    await contains(dp(".fa-folder + .o_field_many2one input")).edit("", {
+        confirm: "blur",
+    });
     await animationFrame();
     expect.verifySteps([`web_save [[3],{"folder_id":false}]`]);
     expect(".o_kanban_record:contains('Moved to root')").toHaveCount(0);

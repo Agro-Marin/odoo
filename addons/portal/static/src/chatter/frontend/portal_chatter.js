@@ -1,9 +1,8 @@
 /** @odoo-module native */
 import { Chatter } from "@mail/chatter/web_portal/chatter";
-
-import { OverlayContainer } from "@web/ui/overlay/overlay_container";
-import { Component, xml, useSubEnv, onWillDestroy } from "@odoo/owl";
+import { Component, onWillDestroy, useSubEnv, xml } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { OverlayContainer } from "@web/ui/overlay/overlay_container";
 
 export class PortalChatter extends Component {
     static template = xml`
@@ -21,9 +20,15 @@ export class PortalChatter extends Component {
         this.overlayService = useService("overlay");
         this.store = useService("mail.store");
         this._onReloadChatterContent = (ev) => this._reloadChatterContent(ev.detail);
-        this.env.bus.addEventListener("reload_chatter_content", this._onReloadChatterContent);
+        this.env.bus.addEventListener(
+            "reload_chatter_content",
+            this._onReloadChatterContent,
+        );
         onWillDestroy(() =>
-            this.env.bus.removeEventListener("reload_chatter_content", this._onReloadChatterContent)
+            this.env.bus.removeEventListener(
+                "reload_chatter_content",
+                this._onReloadChatterContent,
+            ),
         );
     }
 

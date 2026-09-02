@@ -1,5 +1,5 @@
-import { patch } from "@web/core/utils/patch";
 import { PosSession } from "@point_of_sale/../tests/unit/data/pos_session.data";
+import { patch } from "@web/core/utils/patch";
 
 // Loading system of self order is in pos.session in hoot tests. This is
 // to avoid code duplication with point_of_sale tests.

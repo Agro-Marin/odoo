@@ -8,7 +8,13 @@ import { BaseOptionComponent, useGetItemValue } from "@html_builder/core/utils";
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { xml } from "@odoo/owl";
-import { contains, defineModels, fields, models, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineModels,
+    fields,
+    models,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 
 class Test extends models.Model {
     _name = "test";
@@ -55,10 +61,10 @@ test("many2one: async load", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderMany2One action="'testAction'" model="'test'" limit="10"/>`;
-        }
+        },
     );
     const { getEditableContent } = await setupHTMLBuilder(
-        `<div class="test-options-target">b</div>`
+        `<div class="test-options-target">b</div>`,
     );
     const editableContent = getEditableContent();
 
@@ -75,7 +81,7 @@ test("many2one: async load", async () => {
     defWillLoad.resolve();
     await defDidApply;
     expect(editableContent).toHaveInnerHTML(
-        `<div class="test-options-target" data-test="{&quot;id&quot;:1,&quot;display_name&quot;:&quot;First&quot;,&quot;name&quot;:&quot;First&quot;}">b</div>`
+        `<div class="test-options-target" data-test="{&quot;id&quot;:1,&quot;display_name&quot;:&quot;First&quot;,&quot;name&quot;:&quot;First&quot;}">b</div>`,
     );
 });
 
@@ -151,7 +157,7 @@ test("BuilderMany2One: add null_text option in website builder dropdown", async 
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderMany2One action="'testAction'" model="'test'" limit="10" nullText="'Remote'"/>`;
-        }
+        },
     );
     const { getEditableContent } = await setupHTMLBuilder(`
         <div class="test-options-target">b</div>

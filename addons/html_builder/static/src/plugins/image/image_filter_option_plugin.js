@@ -44,9 +44,15 @@ export class SetCustomFilterAction extends BuilderAction {
     static dependencies = ["imagePostProcess"];
     getValue({ editingElement, params: { mainParam: filterProperty } }) {
         const filterOptions = JSON.parse(editingElement.dataset.filterOptions || "{}");
-        return filterOptions[filterProperty] || defaultImageFilterOptions[filterProperty];
+        return (
+            filterOptions[filterProperty] || defaultImageFilterOptions[filterProperty]
+        );
     }
-    isApplied({ editingElement, params: { mainParam: filterProperty }, value: filterValue }) {
+    isApplied({
+        editingElement,
+        params: { mainParam: filterProperty },
+        value: filterValue,
+    }) {
         const filterOptions = JSON.parse(editingElement.dataset.filterOptions || "{}");
         return (
             filterValue ===
@@ -71,4 +77,6 @@ export class SetCustomFilterAction extends BuilderAction {
     }
 }
 
-registry.category("builder-plugins").add(ImageFilterOptionPlugin.id, ImageFilterOptionPlugin);
+registry
+    .category("builder-plugins")
+    .add(ImageFilterOptionPlugin.id, ImageFilterOptionPlugin);

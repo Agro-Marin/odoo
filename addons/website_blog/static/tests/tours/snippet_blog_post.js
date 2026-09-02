@@ -19,15 +19,24 @@ registerWebsitePreviewTour(
             groupName: "Blogs",
         }),
         ...clickOnSnippet(".s_dynamic_snippet_blog_posts"),
-        ...changeOptionInPopover("Blog Post", "Fetched Elements", "[data-action-param='3']"),
+        ...changeOptionInPopover(
+            "Blog Post",
+            "Fetched Elements",
+            "[data-action-param='3']",
+        ),
         {
             content: "Check if the cover image option is not visible",
-            trigger: "[data-container-title='Blog Post']:not(:has([data-label='Cover Image']))",
+            trigger:
+                "[data-container-title='Blog Post']:not(:has([data-label='Cover Image']))",
         },
-        ...changeOptionInPopover("Blog Post", "Fetched Elements", "[data-action-param='1']"),
+        ...changeOptionInPopover(
+            "Blog Post",
+            "Fetched Elements",
+            "[data-action-param='1']",
+        ),
         {
             content: "Check if the cover image option is visible",
             trigger: "[data-container-title='Blog Post'] [data-label='Cover Image']",
         },
-    ]
+    ],
 );

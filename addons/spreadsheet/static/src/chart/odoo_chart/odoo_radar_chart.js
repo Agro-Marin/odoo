@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
-import { onOdooChartItemClick,onOdooChartItemHover } from "./odoo_chart_helpers.js";
+import { onOdooChartItemClick, onOdooChartItemHover } from "./odoo_chart_helpers.js";
 
 const { chartRegistry } = registries;
 
@@ -36,12 +36,14 @@ export class OdooRadarChart extends OdooChart {
 
 chartRegistry.add("odoo_radar", {
     match: (type) => type === "odoo_radar",
-    createChart: (definition, sheetId, getters) => new OdooRadarChart(definition, sheetId, getters),
+    createChart: (definition, sheetId, getters) =>
+        new OdooRadarChart(definition, sheetId, getters),
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooRadarChart.validateChartDefinition(validator, definition),
     transformDefinition: (definition) => OdooRadarChart.transformDefinition(definition),
-    getChartDefinitionFromContextCreation: () => OdooRadarChart.getDefinitionFromContextCreation(),
+    getChartDefinitionFromContextCreation: () =>
+        OdooRadarChart.getDefinitionFromContextCreation(),
     name: _t("Radar"),
 });
 

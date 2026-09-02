@@ -8,7 +8,7 @@ import { generatePdfThumbnail } from "@mail/utils/common/pdf_thumbnail";
 export async function getPdfThumbnail(record, width, height) {
     return generatePdfThumbnail(
         `/documents/content/pdf_first_page/${encodeURIComponent(record.data.access_token)}`,
-        { height, width }
+        { height, width },
     );
 }
 
@@ -25,6 +25,8 @@ export async function getWebpThumbnail(img, width, height) {
     canvas.width = scaledWidth;
     canvas.height = scaledHeight;
     canvas.getContext("2d").drawImage(img, 0, 0, scaledWidth, scaledHeight);
-    const thumbnail = canvas.toDataURL("image/jpeg").replace("data:image/jpeg;base64,", "");
+    const thumbnail = canvas
+        .toDataURL("image/jpeg")
+        .replace("data:image/jpeg;base64,", "");
     return { thumbnail };
 }

@@ -46,7 +46,7 @@ cellMenuRegistry.add(
             return SEE_RECORD_LIST_VISIBLE(position, env.model.getters);
         },
         icon: "o-spreadsheet-Icon.SEE_RECORDS",
-    })
+    }),
 );
 
 inverseCommandRegistry

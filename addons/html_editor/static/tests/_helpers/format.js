@@ -2,16 +2,14 @@ const OPENING_TAG_REGEX = /<\s*([^\s/>]+)([^>]*?)(\/?)>/g;
 const ATTRIBUTES_REGEX = /([^\s=]+)(=(?:"[^"]*"|'[^']*'))?/g;
 
 export function unformat(html) {
-    return (
-        html
-            .replace(OPENING_TAG_REGEX, (match, tag, attrs, selfClosing) => {
-                const attributes = attrs.match(ATTRIBUTES_REGEX);
-                return `<${tag}${attributes ? " " + attributes.join(" ") : ""}${selfClosing}>`;
-            })
-            .replace(/>[^\S\uFEFF]+/g, ">")
-            .replace(/[^\S\uFEFF]+</g, "<")
-            .trim()
-    );
+    return html
+        .replace(OPENING_TAG_REGEX, (match, tag, attrs, selfClosing) => {
+            const attributes = attrs.match(ATTRIBUTES_REGEX);
+            return `<${tag}${attributes ? " " + attributes.join(" ") : ""}${selfClosing}>`;
+        })
+        .replace(/>[^\S\uFEFF]+/g, ">")
+        .replace(/[^\S\uFEFF]+</g, "<")
+        .trim();
 }
 
 /**

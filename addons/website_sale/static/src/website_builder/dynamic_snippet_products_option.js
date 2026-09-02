@@ -9,11 +9,14 @@ export class DynamicSnippetProductsOption extends BaseOptionComponent {
     static selector = ".s_dynamic_snippet_products";
     setup() {
         super.setup();
-        const { fetchCategories, getModelNameFilter } = this.dependencies.dynamicSnippetProductsOption;
-        const contextualFilterDomain = getContextualFilterDomain(this.env.editor.editable);
+        const { fetchCategories, getModelNameFilter } =
+            this.dependencies.dynamicSnippetProductsOption;
+        const contextualFilterDomain = getContextualFilterDomain(
+            this.env.editor.editable,
+        );
         this.dynamicOptionParams = useDynamicSnippetOption(
             getModelNameFilter(),
-            contextualFilterDomain
+            contextualFilterDomain,
         );
         this.state = useState({
             categories: [],

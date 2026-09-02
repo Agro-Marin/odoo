@@ -29,7 +29,9 @@ export class BuilderFontFamilyPicker extends Component {
         this.fonts = [];
         onWillStart(async () => {
             const fontsData = await this.env.editor.shared.builderFont.getFontsData();
-            this.fonts = fontsData._fonts.slice().sort((a, b) => a.string.localeCompare(b.string));
+            this.fonts = fontsData._fonts
+                .slice()
+                .sort((a, b) => a.string.localeCompare(b.string));
         });
     }
     forwardProps(fontValue) {
@@ -47,7 +49,7 @@ export class BuilderFontFamilyPicker extends Component {
         const save = await new Promise((resolve) => {
             this.env.services.dialog.add(ConfirmationDialog, {
                 body: _t(
-                    "Deleting a font requires a reload of the page. This will save all your changes and reload the page, are you sure you want to proceed?"
+                    "Deleting a font requires a reload of the page. This will save all your changes and reload the page, are you sure you want to proceed?",
                 ),
                 confirm: () => resolve(true),
                 cancel: () => resolve(false),

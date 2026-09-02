@@ -31,10 +31,7 @@ export class PaymentVivaCom extends PaymentInterface {
 
     _call_viva_com(data, action, paymentLine) {
         return this.env.services.orm.silent
-            .call("pos.payment.method", action, [
-                [this.payment_method_id.id],
-                data,
-            ])
+            .call("pos.payment.method", action, [[this.payment_method_id.id], data])
             .catch(this._handleOdooConnectionFailure.bind(this, paymentLine));
     }
 
@@ -81,8 +78,7 @@ export class PaymentVivaCom extends PaymentInterface {
             cashRegisterId: this.pos.getCashier().name,
             amount: roundPrecision(Math.abs(line.amount * 100)),
             currencyCode: this.pos.currency.iso_numeric.toString(),
-            merchantReference:
-                line.uiState.vivaSessionId + "/" + this.pos.session.id,
+            merchantReference: line.uiState.vivaSessionId + "/" + this.pos.session.id,
             customerTrns: customerTrns,
             preauth: false,
             maxInstalments: 0,
@@ -106,16 +102,14 @@ export class PaymentVivaCom extends PaymentInterface {
             sessionId: line.uiState.vivaSessionId,
             cashRegisterId: this.pos.getCashier().name,
         };
-        return this._call_viva_com(
-            data,
-            "viva_com_send_payment_cancel",
-            line,
-        ).then((data) => {
-            if (data.error) {
-                this._show_error(data.error);
-            }
-            return true;
-        });
+        return this._call_viva_com(data, "viva_com_send_payment_cancel", line).then(
+            (data) => {
+                if (data.error) {
+                    this._show_error(data.error);
+                }
+                return true;
+            },
+        );
     }
 
     /**
@@ -132,9 +126,7 @@ export class PaymentVivaCom extends PaymentInterface {
         if (isPaymentSuccessful) {
             this.handleSuccessResponse(paymentLine, notification);
         } else {
-            this._show_error(
-                _t("Message from Viva.com: %s", notification.error),
-            );
+            this._show_error(_t("Message from Viva.com: %s", notification.error));
         }
 
         // when starting to wait for the payment response we create a promise

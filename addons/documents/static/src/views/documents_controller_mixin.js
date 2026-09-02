@@ -27,7 +27,7 @@ export const DocumentsControllerMixin = (component) =>
             }
             const initData = this.documentService.initData;
             const doc = this.model.root.records.find(
-                (record) => record.data.id === this.firstLoadSelectId
+                (record) => record.data.id === this.firstLoadSelectId,
             );
             if (doc) {
                 this.firstLoadSelectId = false;
@@ -108,7 +108,7 @@ export const DocumentsControllerMixin = (component) =>
                         callback: () => this.model.onDoAction(e.id),
                         groupNumber: 0,
                     },
-                ])
+                ]),
             );
         }
 
@@ -141,12 +141,16 @@ export const DocumentsControllerMixin = (component) =>
             const userIsInternal = this.documentService.userIsInternal;
             const singleSelection = selectionCount === 1 && this.targetRecords[0];
             const isInTrash = this.env.searchModel.getSelectedFolderId() === "TRASH";
-            const editMode = this.targetRecords.every((r) => r.data.user_permission === "edit");
+            const editMode = this.targetRecords.every(
+                (r) => r.data.user_permission === "edit",
+            );
             const someActive = this.targetRecords.some((r) => r.data.active);
             const someArchived = this.targetRecords.some((r) => !r.data.active);
             const someUnlocked = this.targetRecords.some((r) => !r.data.lock_uid);
             const menuItems = super.getStaticActionMenuItems();
-            const topBarActions = this.env.isSmall ? this.getTopBarActionMenuItems() : {};
+            const topBarActions = this.env.isSmall
+                ? this.getTopBarActionMenuItems()
+                : {};
             return {
                 ...omit(menuItems, "archive", "delete", "duplicate", "unarchive"),
                 ...topBarActions,
@@ -159,7 +163,8 @@ export const DocumentsControllerMixin = (component) =>
                     groupNumber: 1,
                 },
                 trash: {
-                    isAvailable: () => userIsInternal && editMode && someActive && someUnlocked,
+                    isAvailable: () =>
+                        userIsInternal && editMode && someActive && someUnlocked,
                     sequence: 55,
                     description: _t("Move to Trash"),
                     icon: "fa-solid fa-trash-can",
@@ -183,7 +188,8 @@ export const DocumentsControllerMixin = (component) =>
                     groupNumber: 1,
                 },
                 rename: {
-                    isAvailable: () => editMode && singleSelection && someUnlocked && !isInTrash,
+                    isAvailable: () =>
+                        editMode && singleSelection && someUnlocked && !isInTrash,
                     sequence: 70,
                     description: _t("Rename"),
                     icon: "fa-regular fa-pen-to-square",
@@ -192,7 +198,8 @@ export const DocumentsControllerMixin = (component) =>
                 },
                 details: {
                     isAvailable: () =>
-                        userIsInternal && !this.env.searchModel.context.documents_view_secondary,
+                        userIsInternal &&
+                        !this.env.searchModel.context.documents_view_secondary,
                     sequence: 75,
                     description: _t("Info & tags"),
                     icon: "fa-solid fa-circle-info",
@@ -231,7 +238,9 @@ export const DocumentsControllerMixin = (component) =>
                         !isInTrash &&
                         editMode,
                     sequence: 90,
-                    description: singleSelection?.data?.lock_uid ? _t("Unlock") : _t("Lock"),
+                    description: singleSelection?.data?.lock_uid
+                        ? _t("Unlock")
+                        : _t("Lock"),
                     icon: "fa-solid fa-lock",
                     callback: () => this.model.onToggleLock(),
                     groupNumber: 2,
@@ -250,7 +259,7 @@ export const DocumentsControllerMixin = (component) =>
                         selectionCount &&
                         editMode &&
                         this.targetRecords.every(
-                            (record) => record.isPdf() && !record.data.lock_uid
+                            (record) => record.isPdf() && !record.data.lock_uid,
                         ) &&
                         !isInTrash,
                     sequence: 100,
@@ -267,7 +276,9 @@ export const DocumentsControllerMixin = (component) =>
             const focusing = !!this.rightPanelState.focusedRecord;
             const focusedSelected =
                 focusing &&
-                !!this.targetRecords.find((r) => r.id === this.rightPanelState.focusedRecord.id);
+                !!this.targetRecords.find(
+                    (r) => r.id === this.rightPanelState.focusedRecord.id,
+                );
             return !previewing && (!focusing || focusedSelected);
         }
     };

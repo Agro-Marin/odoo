@@ -1,11 +1,11 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
 import { before, WIDTH } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { fonts } from "@html_editor/utils/fonts";
-import { registry } from "@web/core/registry";
 import { withSequence } from "@html_editor/utils/resource";
-import { BuilderAction } from "@html_builder/core/builder_action";
-import { BaseOptionComponent } from "@html_builder/core/utils";
+import { registry } from "@web/core/registry";
 
 class AlertOptionPlugin extends Plugin {
     static id = "alertOption";

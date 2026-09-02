@@ -13,7 +13,7 @@ VariantMixin._getUnavailableQty = async function (combination) {
     const unavailableQty = await oldGetUnavailableQty.apply(this, arguments);
     const kitUnavailableQty = await rpc(
         "/website_sale_mrp/get_unavailable_qty_from_kits",
-        combination
+        combination,
     );
     return unavailableQty + kitUnavailableQty;
 };

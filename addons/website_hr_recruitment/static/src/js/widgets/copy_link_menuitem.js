@@ -15,13 +15,15 @@ export class CopyButtonJob extends CopyButton {
     }
 
     showTooltip() {
-        this.notification.add(_t("The job link has been copied to the clipboard."), { type: 'success', });
+        this.notification.add(_t("The job link has been copied to the clipboard."), {
+            type: "success",
+        });
     }
 }
 export class CopyClipboardCharField extends Component {
     static components = { CopyButtonJob };
     static template = "website_hr_recruitment.CopyJobLinkButton";
-    static props = { ...standardFieldProps }
+    static props = { ...standardFieldProps };
 
     setup() {
         this.copyText = _t("Share Job");
@@ -33,4 +35,6 @@ export const copyClipboardJobLinkButton = {
     component: CopyClipboardCharField,
 };
 
-registry.category("fields").add("CopyClipboardJobLinkButton", copyClipboardJobLinkButton);
+registry
+    .category("fields")
+    .add("CopyClipboardJobLinkButton", copyClipboardJobLinkButton);

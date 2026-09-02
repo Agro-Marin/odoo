@@ -1,7 +1,7 @@
 import {
-    SpreadsheetModels,
     defineSpreadsheetModels,
     getBasicData,
+    SpreadsheetModels,
 } from "@spreadsheet/../tests/helpers/data";
 import { fields, models } from "@web/../tests/web_test_helpers";
 
@@ -32,7 +32,7 @@ export class AccountAccount extends models.Model {
         const data = accountTypes.map((accountType) => {
             const records = this.env["account.account"].search_read(
                 [["account_type", "=", accountType]],
-                ["code"]
+                ["code"],
             );
             return records.map((record) => record.code);
         });

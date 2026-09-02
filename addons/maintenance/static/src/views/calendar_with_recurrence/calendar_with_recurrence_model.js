@@ -14,13 +14,23 @@ export class CalendarWithRecurrenceModel extends CalendarModel {
                 id: recordsCounter,
             };
             recordsCounter++;
-            if (rawRecord.recurring_maintenance && !rawRecord.done && !rawRecord.archive) {
+            if (
+                rawRecord.recurring_maintenance &&
+                !rawRecord.done &&
+                !rawRecord.archive
+            ) {
                 let { start, end } = data.range;
-                if (rawRecord.repeat_type == 'until') {
-                    end = luxon.DateTime.min(end, deserializeDateTime(rawRecord.repeat_until)).endOf('day');
+                if (rawRecord.repeat_type == "until") {
+                    end = luxon.DateTime.min(
+                        end,
+                        deserializeDateTime(rawRecord.repeat_until),
+                    ).endOf("day");
                 }
                 const duration = rawRecord.duration || 1;
-                const [unit, interval] = [rawRecord.repeat_unit + "s", rawRecord.repeat_interval]
+                const [unit, interval] = [
+                    rawRecord.repeat_unit + "s",
+                    rawRecord.repeat_interval,
+                ];
                 let date = deserializeDateTime(rawRecord.schedule_date);
                 date = this._getNextDate(date, unit, interval);
                 let counter = 1;
@@ -28,7 +38,8 @@ export class CalendarWithRecurrenceModel extends CalendarModel {
                     if (date > start) {
                         const endDate = date.plus({ hours: duration });
                         const rawRecordCopy = { ...rawRecord };
-                        rawRecordCopy.display_name = rawRecord.display_name + " (+" + counter + ")";
+                        rawRecordCopy.display_name =
+                            rawRecord.display_name + " (+" + counter + ")";
                         rawRecordCopy.schedule_date = serializeDateTime(date);
                         rawRecordCopy.schedule_end = serializeDateTime(endDate);
                         records[recordsCounter] = {

@@ -5,7 +5,6 @@ import { WithLazyGetterTrap } from "../../lazy_getter.js";
 import { Base } from "../models/related_models/index.js";
 import { RAW_SYMBOL } from "../models/related_models/utils.js";
 
-
 export function init() {
     const formatters = [
         baseObjectFormatter(),

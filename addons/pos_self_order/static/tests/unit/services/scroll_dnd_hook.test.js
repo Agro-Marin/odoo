@@ -1,9 +1,10 @@
-import { test, describe, expect } from "@odoo/hoot";
-import { useDraggableScroll } from "@pos_self_order/app/utils/scroll_dnd_hook";
+import { describe, expect, test } from "@odoo/hoot";
 import { Component, useRef, xml } from "@odoo/owl";
+import { useDraggableScroll } from "@pos_self_order/app/utils/scroll_dnd_hook";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupSelfPosEnv } from "../utils.js";
+
 import { definePosSelfModels } from "../data/generate_model_definitions.js";
+import { setupSelfPosEnv } from "../utils.js";
 
 definePosSelfModels();
 
@@ -28,7 +29,7 @@ const setupComponent = async () => {
                 bubbles: true,
                 clientX: clientX,
                 ...opts,
-            })
+            }),
         );
     };
     return { comp, scrollEl, dispatchEvent };

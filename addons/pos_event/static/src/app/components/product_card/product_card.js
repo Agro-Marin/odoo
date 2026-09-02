@@ -39,10 +39,7 @@ patch(ProductCard.prototype, {
             return -1;
         }
         return (
-            eventTickets.reduce(
-                (acc, ticket) => acc + ticket.seats_available,
-                0,
-            ) || -1
+            eventTickets.reduce((acc, ticket) => acc + ticket.seats_available, 0) || -1
         );
     },
 });

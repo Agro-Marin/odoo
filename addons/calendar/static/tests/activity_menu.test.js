@@ -47,7 +47,9 @@ test("activity menu widget:today meetings", async () => {
     // mocked.
     mockDate("2018-04-20 06:00:00", 0);
     const pyEnv = await startServer();
-    const attendeeId = pyEnv["calendar.attendee"].create({ partner_id: serverState.partnerId });
+    const attendeeId = pyEnv["calendar.attendee"].create({
+        partner_id: serverState.partnerId,
+    });
     pyEnv["calendar.event"].create([
         {
             res_model: "calendar.event",
@@ -72,7 +74,9 @@ test("activity menu widget:today meetings", async () => {
     await start();
     await contains(".o_menu_systray i[aria-label='Activities']");
     await click(".o_menu_systray i[aria-label='Activities']");
-    await contains(".o-mail-ActivityGroup div[name='activityTitle']", { text: "Today's Meetings" });
+    await contains(".o-mail-ActivityGroup div[name='activityTitle']", {
+        text: "Today's Meetings",
+    });
     await contains(".o-mail-ActivityGroup .o-calendar-meeting", { count: 2 });
     await contains(".o-calendar-meeting span.fw-bold", { text: "meeting1" });
     await contains(".o-calendar-meeting span:not(.fw-bold)", { text: "meeting2" });

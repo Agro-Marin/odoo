@@ -30,7 +30,7 @@ export class ImageShapeOption extends BaseOptionComponent {
             const mimetype = await getMimetypeBeforeShape(editingElement);
             const isImgSupportedForProcessing = await isImageSupportedForProcessing(
                 editingElement,
-                mimetype
+                mimetype,
             );
             return {
                 hasShape: !!shape && !this.imageShapeOption.isTechnicalShape(shape),
@@ -40,7 +40,8 @@ export class ImageShapeOption extends BaseOptionComponent {
                 showImageShape2: this.isShapeVisible(editingElement, 2),
                 showImageShape3: this.isShapeVisible(editingElement, 3),
                 showImageShape4: this.isShapeVisible(editingElement, 4),
-                showImageShapeTransform: this.imageShapeOption.isTransformableShape(shape),
+                showImageShapeTransform:
+                    this.imageShapeOption.isTransformableShape(shape),
                 showImageShapeAnimation: this.imageShapeOption.isAnimableShape(shape),
                 togglableRatio:
                     this.imageShapeOption.isTogglableRatioShape(shape) &&
@@ -92,7 +93,7 @@ export class ImageShapeOption extends BaseOptionComponent {
                 buttonWrapperClassName: "o-hb-img-shape-btn",
                 selectorTitle: _t("Shapes"),
                 shapeGroups: this.getFilteredGroups(),
-            }
+            },
         );
     }
 }

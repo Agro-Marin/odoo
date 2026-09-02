@@ -7,7 +7,12 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { defineSnailmailModels } from "@snailmail/../tests/snailmail_test_helpers";
-import { asyncStep, mockService, serverState, waitForSteps } from "@web/../tests/web_test_helpers";
+import {
+    asyncStep,
+    mockService,
+    serverState,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineSnailmailModels();
@@ -79,7 +84,10 @@ test("notifications grouped by notification_type", async () => {
         contains: [
             [".o-mail-NotificationItem-name", { text: "Email Failure: Contact" }],
             [".o-mail-NotificationItem-counter", { text: "2" }],
-            [".o-mail-NotificationItem-text", { text: "An error occurred when sending an email" }],
+            [
+                ".o-mail-NotificationItem-text",
+                { text: "An error occurred when sending an email" },
+            ],
         ],
     });
     await contains(":nth-child(2 of .o-mail-NotificationItem)", {
@@ -132,12 +140,12 @@ test("grouped notifications by document model", async (assert) => {
                     [false, "kanban"],
                     [false, "list"],
                     [false, "form"],
-                ])
+                ]),
             );
             expect(action.target).toBe("current");
             expect(action.res_model).toBe("res.partner");
             expect(JSON.stringify(action.domain)).toBe(
-                JSON.stringify([["message_ids.snailmail_error", "=", true]])
+                JSON.stringify([["message_ids.snailmail_error", "=", true]]),
             );
         },
     });

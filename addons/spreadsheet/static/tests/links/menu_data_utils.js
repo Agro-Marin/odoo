@@ -56,17 +56,30 @@ export function getMenuServerData() {
             fields: {
                 name: { string: "Name", type: "char" },
                 action: { string: "Action", type: "char" },
-                group_ids: { string: "Groups", type: "many2many", relation: "res.group" },
+                group_ids: {
+                    string: "Groups",
+                    type: "many2many",
+                    relation: "res.group",
+                },
             },
             records: [
                 { id: 11, name: "menu with xmlid", action: "action1", group_ids: [10] },
-                { id: 12, name: "menu without xmlid", action: "action1", group_ids: [10] },
+                {
+                    id: 12,
+                    name: "menu without xmlid",
+                    action: "action1",
+                    group_ids: [10],
+                },
             ],
         },
         "res.users": {
             fields: {
                 name: { string: "Name", type: "char" },
-                group_ids: { string: "Groups", type: "many2many", relation: "res.group" },
+                group_ids: {
+                    string: "Groups",
+                    type: "many2many",
+                    relation: "res.group",
+                },
             },
             records: [
                 {

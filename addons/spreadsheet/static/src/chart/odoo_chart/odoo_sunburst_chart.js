@@ -1,9 +1,12 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
-import { onOdooChartItemHover, onSunburstOdooChartItemClick } from "./odoo_chart_helpers.js";
+import {
+    onOdooChartItemHover,
+    onSunburstOdooChartItemClick,
+} from "./odoo_chart_helpers.js";
 
 const { chartRegistry } = registries;
 
@@ -44,7 +47,8 @@ chartRegistry.add("odoo_sunburst", {
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooSunburstChart.validateChartDefinition(validator, definition),
-    transformDefinition: (definition) => OdooSunburstChart.transformDefinition(definition),
+    transformDefinition: (definition) =>
+        OdooSunburstChart.transformDefinition(definition),
     getChartDefinitionFromContextCreation: () =>
         OdooSunburstChart.getDefinitionFromContextCreation(),
     name: _t("Sunburst"),
@@ -71,7 +75,10 @@ function createOdooChartRuntime(chart, getters) {
         },
         options: {
             ...CHART_COMMON_OPTIONS,
-            cutout: chart.pieHolePercentage === undefined ? "25%" : `${chart.pieHolePercentage}%`,
+            cutout:
+                chart.pieHolePercentage === undefined
+                    ? "25%"
+                    : `${chart.pieHolePercentage}%`,
             layout: getChartLayout(definition, chartData),
             plugins: {
                 title: getChartTitle(definition, getters),

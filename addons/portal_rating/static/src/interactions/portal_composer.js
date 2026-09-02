@@ -25,14 +25,17 @@ patch(PortalComposer, {
         }
 
         // default options
-        return Object.assign({
-            "rate_with_void_content": false,
-            "default_message": false,
-            "default_message_id": false,
-            "default_rating_value": 4.0,
-            "force_submit_url": false,
-            "reloadRatingPopupComposer": (data) => { },
-        }, options);
+        return Object.assign(
+            {
+                rate_with_void_content: false,
+                default_message: false,
+                default_message_id: false,
+                default_rating_value: 4.0,
+                force_submit_url: false,
+                reloadRatingPopupComposer: () => {},
+            },
+            options,
+        );
     },
 });
 
@@ -108,21 +111,25 @@ patch(PortalComposer.prototype, {
                 token: this.options.token,
             };
         }
-        const res = super.prepareMessageData(...arguments)
+        const res = super.prepareMessageData(...arguments);
         res.message_id = this.options.default_message_id;
         res.post_data.rating_value = this.ratingInputEl.value;
         return res;
     },
 
     onClickStar(ev, oldFn, currentTargetEl) {
-        const index = [...currentTargetEl.parentElement.children].indexOf(currentTargetEl);
+        const index = [...currentTargetEl.parentElement.children].indexOf(
+            currentTargetEl,
+        );
         this.starValue = index + 1;
         this.userClick = true;
         this.ratingInputEl.value = this.starValue;
     },
 
     onMoveStar(ev, oldFn, currentTargetEl) {
-        const index = [...currentTargetEl.parentElement.children].indexOf(currentTargetEl);
+        const index = [...currentTargetEl.parentElement.children].indexOf(
+            currentTargetEl,
+        );
         this.starValue = index + 1;
     },
 
@@ -136,7 +143,7 @@ patch(PortalComposer.prototype, {
     /**
      * @override
      */
-    async onSubmitButtonClick(ev) {
+    async onSubmitButtonClick() {
         const result = await super.onSubmitButtonClick(...arguments);
         const modalEl = this.el.closest("#ratingpopupcomposer");
         this.addListener(modalEl, "hidden.bs.modal.noUpdate", () => {
@@ -148,11 +155,13 @@ patch(PortalComposer.prototype, {
     /**
      * @override
      */
-    onSubmitCheckContent(ev) {
+    onSubmitCheckContent() {
         if (this.options.rate_with_void_content) {
             // TODO verify comparison
             if (this.ratingInputEl.value === "0") {
-                return _t("The rating is required. Please make sure to select one before sending your review.")
+                return _t(
+                    "The rating is required. Please make sure to select one before sending your review.",
+                );
             }
             return false;
         }

@@ -16,4 +16,6 @@ export const DocumentsWithAccessX2ManyField = {
     ],
 };
 
-registry.category("fields").add("documents_with_access_2many", DocumentsWithAccessX2ManyField);
+registry
+    .category("fields")
+    .add("documents_with_access_2many", DocumentsWithAccessX2ManyField);

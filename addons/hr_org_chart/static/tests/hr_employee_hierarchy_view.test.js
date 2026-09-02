@@ -1,6 +1,12 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
-import { contains, defineModels, fields, models, mountView } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineModels,
+    fields,
+    models,
+    mountView,
+} from "@web/../tests/web_test_helpers";
 
 class Employee extends models.Model {
     _name = "hr.employee";
@@ -64,7 +70,9 @@ test("load hierarchy view", async () => {
     expect(".o_hierarchy_view").toHaveCount(1);
     expect(".o_hierarchy_button_add").toHaveCount(1);
     expect(".o_hierarchy_view .o_hierarchy_renderer").toHaveCount(1);
-    expect(".o_hierarchy_view .o_hierarchy_renderer > .o_hierarchy_container").toHaveCount(1);
+    expect(
+        ".o_hierarchy_view .o_hierarchy_renderer > .o_hierarchy_container",
+    ).toHaveCount(1);
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_separator").toHaveCount(1);
     expect(".o_hierarchy_line_part").toHaveCount(2);
@@ -111,9 +119,9 @@ test("display the avatar of the parent when there is more than one node in the s
 });
 
 test("hierarchy with a self manager employee", async () => {
-    Employee._records = [{ id: 1, name: "Albert", parent_id: 1, child_ids: [1] }]
+    Employee._records = [{ id: 1, name: "Albert", parent_id: 1, child_ids: [1] }];
     await mountView({
-        context:{
+        context: {
             hierarchy_res_id: 1,
         },
         type: "hierarchy",
@@ -128,15 +136,15 @@ test("hierarchy with a self manager employee", async () => {
     expect(".o_hierarchy_node").toHaveCount(1);
 });
 
-test("hierarchy with a cycle", async () =>{
+test("hierarchy with a cycle", async () => {
     Employee._records = [
-                { id: 1, name: "Albert", parent_id: 4, child_ids: [2, 3] },
-                { id: 2, name: "Georges", parent_id: 1, child_ids: [] },
-                { id: 3, name: "Josephine", parent_id: 1, child_ids: [4] },
-                { id: 4, name: "Louis", parent_id: 3, child_ids: [1] },
-            ]
+        { id: 1, name: "Albert", parent_id: 4, child_ids: [2, 3] },
+        { id: 2, name: "Georges", parent_id: 1, child_ids: [] },
+        { id: 3, name: "Josephine", parent_id: 1, child_ids: [4] },
+        { id: 4, name: "Louis", parent_id: 3, child_ids: [1] },
+    ];
     await mountView({
-        context:{
+        context: {
             hierarchy_res_id: 1,
         },
         type: "hierarchy",
@@ -147,11 +155,17 @@ test("hierarchy with a cycle", async () =>{
     expect(".o_hierarchy_node").toHaveCount(5);
     expect(".o_hierarchy_row:nth-of-type(8) .o_hierarchy_node").toHaveCount(1);
     expect(".o_hierarchy_row:nth-of-type(8) .o_hierarchy_node_button").toHaveCount(0);
-    expect(".o_hierarchy_row:nth-of-type(1) .o_hierarchy_node_content").toHaveText("Albert\nLouis");
+    expect(".o_hierarchy_row:nth-of-type(1) .o_hierarchy_node_content").toHaveText(
+        "Albert\nLouis",
+    );
     await contains(".o_hierarchy_row:nth-of-type(1) .btn-secondary").click();
     await contains(".o_hierarchy_row:nth-of-type(1) .btn-primary").click();
     await contains(".o_hierarchy_row:nth-of-type(3) .btn-primary").click();
     await contains(".o_hierarchy_row:nth-of-type(6) .btn-primary").click();
-    expect(".o_hierarchy_row:nth-of-type(1) .o_hierarchy_node_content").toHaveText("Albert\nLouis");
-    expect(".o_hierarchy_row:nth-of-type(8) .o_hierarchy_node_content").toHaveText("Albert\nLouis");
+    expect(".o_hierarchy_row:nth-of-type(1) .o_hierarchy_node_content").toHaveText(
+        "Albert\nLouis",
+    );
+    expect(".o_hierarchy_row:nth-of-type(8) .o_hierarchy_node_content").toHaveText(
+        "Albert\nLouis",
+    );
 });

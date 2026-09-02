@@ -25,7 +25,10 @@ export function clickButton(name) {
 export function orderlineHas(name, totalQuantity, splitQuantity) {
     return Order.hasLine({
         productName: name,
-        quantity: splitQuantity != 0 ? `${splitQuantity} / ${totalQuantity}` : totalQuantity,
+        quantity:
+            Number(splitQuantity) !== 0
+                ? `${splitQuantity} / ${totalQuantity}`
+                : totalQuantity,
     });
 }
 export function subtotalIs(amount) {

@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
-import { onOdooChartItemClick,onOdooChartItemHover } from "./odoo_chart_helpers.js";
+import { onOdooChartItemClick, onOdooChartItemHover } from "./odoo_chart_helpers.js";
 
 const { chartRegistry } = registries;
 
@@ -41,8 +41,10 @@ chartRegistry.add("odoo_funnel", {
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooFunnelChart.validateChartDefinition(validator, definition),
-    transformDefinition: (definition) => OdooFunnelChart.transformDefinition(definition),
-    getChartDefinitionFromContextCreation: () => OdooFunnelChart.getDefinitionFromContextCreation(),
+    transformDefinition: (definition) =>
+        OdooFunnelChart.transformDefinition(definition),
+    getChartDefinitionFromContextCreation: () =>
+        OdooFunnelChart.getDefinitionFromContextCreation(),
     name: _t("Funnel"),
 });
 

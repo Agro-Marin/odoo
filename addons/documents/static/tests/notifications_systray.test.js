@@ -1,13 +1,11 @@
 import {
     contains,
     defineActions,
-    defineModels,
     getService,
     mountWithCleanup,
     serverState,
-    webModels,
 } from "@web/../tests/web_test_helpers";
-import { click, mailModels } from "@mail/../tests/mail_test_helpers";
+import { click } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test, waitFor } from "@odoo/hoot";
 import { defineDocumentsModels } from "./documents_test_helpers.js";
 import { DocumentsModels, getDocumentsTestServerModelsData } from "./helpers/data.js";
@@ -80,9 +78,9 @@ const openNotificationToDocument = async () => {
     await click(".o-mail-DiscussSystray-class .fa-comments");
     await click(".o-mail-NotificationItem");
     await waitFor('.o_search_panel_category_value header.active:contains("All")');
-    expect(".o_kanban_record.o_record_selected:contains('Test Doc With Notification')").toHaveCount(
-        1
-    );
+    expect(
+        ".o_kanban_record.o_record_selected:contains('Test Doc With Notification')",
+    ).toHaveCount(1);
 };
 
 test("Systray Open switches to All and selects the document", async function () {

@@ -19,6 +19,6 @@ export class DocumentsListActionItemShare extends DocumentsListActionItem {
     }
 
     async onActionClicked() {
-        await this.documentService.openSharingDialog([this.props.record.data.id])
+        await this.documentService.openSharingDialog([this.props.record.data.id]);
     }
 }

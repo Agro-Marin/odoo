@@ -28,13 +28,16 @@ class WishlistPageOptionPlugin extends Plugin {
             selector: ".o_wishlist_table",
             getData(el) {
                 const productOptClasses = Array.from(el.classList).filter((className) =>
-                    className.startsWith("o_wsale_products_opt_")
+                    className.startsWith("o_wsale_products_opt_"),
                 );
                 return {
-                    wishlist_grid_columns: parseInt(el.dataset.wishlistGridColumns) || 5,
-                    wishlist_mobile_columns: parseInt(el.dataset.wishlistMobileColumns) || 2,
+                    wishlist_grid_columns:
+                        parseInt(el.dataset.wishlistGridColumns) || 5,
+                    wishlist_mobile_columns:
+                        parseInt(el.dataset.wishlistMobileColumns) || 2,
                     wishlist_gap:
-                        el.style.getPropertyValue("--o-wsale-wishlist-grid-gap") || "16px",
+                        el.style.getPropertyValue("--o-wsale-wishlist-grid-gap") ||
+                        "16px",
                     wishlist_opt_products_design_classes: productOptClasses.join(" "),
                 };
             },

@@ -20,9 +20,11 @@ export function selectTable(table) {
             trigger: `.self_order_popup_table select`,
             run: (helpers) => {
                 // The default select (run: select 3) doesn't work here
-                const options = document.querySelectorAll(".self_order_popup_table option");
+                const options = document.querySelectorAll(
+                    ".self_order_popup_table option",
+                );
                 const targetOption = Array.from(options).find((option) =>
-                    option.textContent.includes(table)
+                    option.textContent.includes(table),
                 );
                 const optionValue = targetOption.value;
                 helpers.anchor.value = optionValue;

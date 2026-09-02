@@ -44,9 +44,7 @@ export class EventConfiguratorPopup extends Component {
                 "Select tickets for %(event)s (%(seats)s seats available%(suffix)s)",
                 {
                     event: event.name,
-                    seats: this.slotId
-                        ? this.slotAvailability
-                        : event.seats_available,
+                    seats: this.slotId ? this.slotAvailability : event.seats_available,
                     suffix: this.slotId ? _t(" for this slot") : "",
                 },
             );
@@ -59,18 +57,15 @@ export class EventConfiguratorPopup extends Component {
         }
         const ticketAvailability =
             this.props.availabilityPerTicket[ticket.id][this.slotId];
-        const existingUnsyncRegistration = this.pos.models[
-            "event.registration"
-        ].filter((r) => !r.isSynced && r.event_slot_id.id === this.slotId);
+        const existingUnsyncRegistration = this.pos.models["event.registration"].filter(
+            (r) => !r.isSynced && r.event_slot_id.id === this.slotId,
+        );
         if (ticketAvailability === "unlimited") {
             return ticket.event_id.seats_limited
                 ? ticket.event_id.seats_available
                 : "unlimited";
         }
-        return Math.max(
-            ticketAvailability - existingUnsyncRegistration.length,
-            0,
-        );
+        return Math.max(ticketAvailability - existingUnsyncRegistration.length, 0);
     }
     confirm() {
         const data = [];
@@ -111,8 +106,7 @@ export class EventConfiguratorPopup extends Component {
         const dateTimeNow = DateTime.now();
 
         const eventSaleEnd =
-            !ticket.end_sale_datetime ||
-            ticket.end_sale_datetime.ts > dateTimeNow.ts;
+            !ticket.end_sale_datetime || ticket.end_sale_datetime.ts > dateTimeNow.ts;
         const eventSaleStart =
             !ticket.start_sale_datetime ||
             ticket.start_sale_datetime.ts < dateTimeNow.ts;

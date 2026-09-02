@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { CommandResult } from "../../o_spreadsheet/cancelled_reason.js";
 import { helpers } from "@odoo/o-spreadsheet";
+import { OdooCorePlugin } from "@spreadsheet/plugins";
 import { Domain } from "@web/core/domain";
 import { deepCopy } from "@web/core/utils/collections/objects";
-import { OdooCorePlugin } from "@spreadsheet/plugins";
+
+import { CommandResult } from "../../o_spreadsheet/cancelled_reason.js";
 
 const { getMaxObjectId } = helpers;
 
@@ -96,7 +97,8 @@ export class ListCorePlugin extends OdooCorePlugin {
             case "DUPLICATE_ODOO_LIST": {
                 const { listId, newListId, duplicatedListName } = cmd;
                 const duplicatedList = deepCopy(this.lists[listId].definition);
-                duplicatedList.name = duplicatedListName ?? duplicatedList.name + " (copy)";
+                duplicatedList.name =
+                    duplicatedListName ?? duplicatedList.name + " (copy)";
                 this._addList(newListId, duplicatedList);
                 this.history.update("nextId", parseInt(newListId, 10) + 1);
                 break;
@@ -108,7 +110,13 @@ export class ListCorePlugin extends OdooCorePlugin {
                 break;
             }
             case "RENAME_ODOO_LIST": {
-                this.history.update("lists", cmd.listId, "definition", "name", cmd.name);
+                this.history.update(
+                    "lists",
+                    cmd.listId,
+                    "definition",
+                    "name",
+                    cmd.name,
+                );
                 break;
             }
             case "REMOVE_ODOO_LIST": {
@@ -124,7 +132,7 @@ export class ListCorePlugin extends OdooCorePlugin {
                     "definition",
                     "searchParams",
                     "domain",
-                    cmd.domain
+                    cmd.domain,
                 );
                 break;
             }
@@ -250,7 +258,7 @@ export class ListCorePlugin extends OdooCorePlugin {
     }
 
     _insertValues(sheetId, anchor, id, columns, linesNumber) {
-        let col = anchor[0];
+        let col;
         let row = anchor[1] + 1;
         for (let i = 1; i <= linesNumber; i++) {
             col = anchor[0];

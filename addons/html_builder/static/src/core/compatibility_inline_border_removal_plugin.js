@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { withSequence } from "@html_editor/utils/resource";
 import { CSS_SHORTHANDS } from "@html_builder/utils/utils_css";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
 
 /**
  * Compatibility plugin to handle border-width and border-radius inline style
@@ -18,7 +18,10 @@ export class CompatibilityInlineBorderRemovalPlugin extends Plugin {
     static id = "compatibilityInlineBorderRemoval";
     /** @type {import("plugins").BuilderResources} */
     resources = {
-        apply_custom_css_style: withSequence(20, this.removeInlineBorderIfNecessary.bind(this)),
+        apply_custom_css_style: withSequence(
+            20,
+            this.removeInlineBorderIfNecessary.bind(this),
+        ),
     };
 
     // The border-width/radius calculation using --box-border-width/radius
@@ -28,9 +31,13 @@ export class CompatibilityInlineBorderRemovalPlugin extends Plugin {
     removeInlineBorderIfNecessary({ editingElement, params }) {
         const newStyleBeingEdited = NEW_STYLES.find(
             (style) =>
-                params.mainParam === style || CSS_SHORTHANDS[style].includes(params.mainParam)
+                params.mainParam === style ||
+                CSS_SHORTHANDS[style].includes(params.mainParam),
         );
-        if (newStyleBeingEdited && OLD_STYLES.some((style) => editingElement.style[style])) {
+        if (
+            newStyleBeingEdited &&
+            OLD_STYLES.some((style) => editingElement.style[style])
+        ) {
             // Remove all old inline styles related to border-width/radius as
             // the new CSS rules + variables rely on both being right, i.e. not
             // messed up by any inline style...
@@ -62,4 +69,7 @@ export class CompatibilityInlineBorderRemovalPlugin extends Plugin {
 
 registry
     .category("builder-plugins")
-    .add(CompatibilityInlineBorderRemovalPlugin.id, CompatibilityInlineBorderRemovalPlugin);
+    .add(
+        CompatibilityInlineBorderRemovalPlugin.id,
+        CompatibilityInlineBorderRemovalPlugin,
+    );

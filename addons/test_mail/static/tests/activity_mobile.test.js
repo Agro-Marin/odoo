@@ -1,6 +1,6 @@
+import { openView, start, startServer } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { defineTestMailModels } from "@test_mail/../tests/test_mail_test_helpers";
-import { openView, start, startServer } from "@mail/../tests/mail_test_helpers";
 
 describe.current.tags("mobile");
 defineTestMailModels();

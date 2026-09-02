@@ -1,8 +1,13 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { makeGloryHeader, parseGloryXml, serializeGloryXml } from "@pos_glory_cash/utils/glory_xml";
+import {
+    makeGloryHeader,
+    parseGloryXml,
+    serializeGloryXml,
+} from "@pos_glory_cash/utils/glory_xml";
 
 const TEST_XML = '<MockElement mockattribute="mock value">Mock Content</MockElement>';
-const TEST_XML_WITH_CHILD = "<MockElement><ChildElement>Child Content</ChildElement></MockElement>";
+const TEST_XML_WITH_CHILD =
+    "<MockElement><ChildElement>Child Content</ChildElement></MockElement>";
 const TEST_XML_WITH_CONTROL_CHARS = `\x04${TEST_XML}\0`;
 
 describe("parse glory xml", () => {

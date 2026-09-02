@@ -31,7 +31,8 @@ registry.category("web_tour.tours").add("event_question_answers_rule_creation_to
             run: "edit event_question_answer_rule",
         },
         {
-            content: "Save the rule creation form with pre-filled data, except for the name.",
+            content:
+                "Save the rule creation form with pre-filled data, except for the name.",
             trigger: '.modal:contains("Event lead rule") .o_form_button_save',
             run: "click",
         },

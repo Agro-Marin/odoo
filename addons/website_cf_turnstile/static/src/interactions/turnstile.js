@@ -8,15 +8,18 @@ export class TurnStile {
     constructor(action) {
         const cf = new URLSearchParams(window.location.search).get("cf");
         const mode = cf == "show" ? "always" : "interaction-only";
-        const turnstileContainer = renderToElement("website_cf_turnstile.turnstile_container", {
-            action: action,
-            appearance: mode,
-            beforeInteractiveGlobalCallback: "turnstileBecomeVisible",
-            errorGlobalCallback: "throwTurnstileErrorCode",
-            executeGlobalCallback: "turnstileSuccess",
-            sitekey: session.turnstile_site_key,
-            style: "display: none;",
-        });
+        const turnstileContainer = renderToElement(
+            "website_cf_turnstile.turnstile_container",
+            {
+                action: action,
+                appearance: mode,
+                beforeInteractiveGlobalCallback: "turnstileBecomeVisible",
+                errorGlobalCallback: "throwTurnstileErrorCode",
+                executeGlobalCallback: "turnstileSuccess",
+                sitekey: session.turnstile_site_key,
+                style: "display: none;",
+            },
+        );
 
         // Rethrow the error, or we only will catch a "Script error" without any info
         // because of the script api.js originating from a different domain.
@@ -27,7 +30,9 @@ export class TurnStile {
         };
         // `this` is bound to the turnstile widget calling the callback
         globalThis.turnstileSuccess = function () {
-            const form = this.wrapper.closest("form") || this.wrapper.parentElement.parentElement;
+            const form =
+                this.wrapper.closest("form") ||
+                this.wrapper.parentElement.parentElement;
             const buttons = form.querySelectorAll(".cf_form_disabled");
             for (const button of buttons) {
                 button.classList.remove("disabled", "cf_form_disabled");
@@ -46,14 +51,19 @@ export class TurnStile {
         // if render=explicit is not set in the script url.
         // For subsequent insertion of turnstile containers, we need to call turnstile.render on the container
         // see `render`.
-        const turnstileScript = renderToElement("website_cf_turnstile.turnstile_remote_script", {
-            remoteScriptUrl: !window.turnstile?.render ? TurnStile.turnstileURL : "",
-        });
+        const turnstileScript = renderToElement(
+            "website_cf_turnstile.turnstile_remote_script",
+            {
+                remoteScriptUrl: !window.turnstile?.render
+                    ? TurnStile.turnstileURL
+                    : "",
+            },
+        );
 
         // avoid autosubmit from password manager
         const inputValidation = document.createElement("input");
-        inputValidation.style = 'display: none;';
-        inputValidation.className = 'turnstile_captcha_valid';
+        inputValidation.style = "display: none;";
+        inputValidation.className = "turnstile_captcha_valid";
         inputValidation.required = true;
 
         this.turnstileEl = turnstileContainer;
@@ -69,11 +79,11 @@ export class TurnStile {
      */
     static clean(el) {
         const submitButtons = el.querySelectorAll(".cf_form_disabled");
-        submitButtons.forEach(button => {
+        submitButtons.forEach((button) => {
             button.classList.remove("disabled", "cf_form_disabled");
         });
         const turnstileEls = el.querySelectorAll(".s_turnstile");
-        turnstileEls.forEach(element => element.remove());
+        turnstileEls.forEach((element) => element.remove());
     }
 
     static disableSubmit(submitButton) {

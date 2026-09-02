@@ -1,6 +1,6 @@
-import * as SelectionPopup from "@point_of_sale/../tests/generic_helpers/selection_popup_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
 import * as NumberPopup from "@point_of_sale/../tests/generic_helpers/number_popup_util";
+import * as SelectionPopup from "@point_of_sale/../tests/generic_helpers/selection_popup_util";
 import { negate } from "@point_of_sale/../tests/generic_helpers/utils";
 
 export function clickLoginButton() {
@@ -59,7 +59,11 @@ export function login(name, pin) {
     return res.concat(enterPin(pin));
 }
 export function enterPin(pin) {
-    return [...NumberPopup.enterValue(pin), ...NumberPopup.isShown("••••"), Dialog.confirm()];
+    return [
+        ...NumberPopup.enterValue(pin),
+        ...NumberPopup.isShown("••••"),
+        Dialog.confirm(),
+    ];
 }
 export function clickLockButton() {
     return {

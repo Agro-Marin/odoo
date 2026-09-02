@@ -30,7 +30,11 @@ export const DocumentsModelMixin = (component) =>
          */
         async load(params = {}) {
             const selection = this.root?.selection;
-            if (this.originalSelection === undefined && selection && selection.length > 0) {
+            if (
+                this.originalSelection === undefined &&
+                selection &&
+                selection.length > 0
+            ) {
                 this.originalSelection = selection.map((rec) => rec.resId);
             }
             const nextParams =
@@ -78,10 +82,13 @@ export const DocumentsModelMixin = (component) =>
             if (this.root.groups) {
                 size = this.root.groups.reduce(
                     (size, group) => size + group.aggregates.file_size,
-                    0
+                    0,
                 );
             } else if (this.root.records) {
-                size = this.root.records.reduce((size, rec) => size + rec.data.file_size, 0);
+                size = this.root.records.reduce(
+                    (size, rec) => size + rec.data.file_size,
+                    0,
+                );
             }
             size /= 1000 * 1000;
             this.fileSize = Math.round(size * 100) / 100;
@@ -89,7 +96,7 @@ export const DocumentsModelMixin = (component) =>
 
         async _loadShortcutTargetRecords() {
             const shortcuts = this.root.records.filter(
-                (record) => !!record.data.shortcut_document_id
+                (record) => !!record.data.shortcut_document_id,
             );
             if (!shortcuts.length) {
                 return [];
@@ -124,7 +131,7 @@ export const DocumentsModelMixin = (component) =>
                     mode,
                 },
                 data,
-                { manuallyAdded: !data.id }
+                { manuallyAdded: !data.id },
             );
         }
 
@@ -136,7 +143,10 @@ export const DocumentsModelMixin = (component) =>
         }
 
         get isDomainSelected() {
-            return this.root.isDomainSelected && !this.documentService.rightPanelReactive.previewedDocument;
+            return (
+                this.root.isDomainSelected &&
+                !this.documentService.rightPanelReactive.previewedDocument
+            );
         }
 
         getResIds(extraDomain) {
@@ -182,7 +192,8 @@ export const DocumentsModelMixin = (component) =>
                     r.owner_id?.id === user.userId &&
                     ["binary", "url"].includes(r.type) &&
                     typeof r.folder_id?.id === "number" &&
-                    this.env.searchModel.getFolderById(r.folder_id.id).user_permission === "edit"
+                    this.env.searchModel.getFolderById(r.folder_id.id)
+                        .user_permission === "edit",
             );
         }
 
@@ -206,7 +217,7 @@ export const DocumentsModelMixin = (component) =>
                       await this.orm.read(
                           "documents.document",
                           await this.getResIds(),
-                          ["access_url"]
+                          ["access_url"],
                       )
                   ).map((d) => d.access_url)
                 : this.targetRecords.map((d) => d.data.access_url);
@@ -230,18 +241,22 @@ export const DocumentsModelMixin = (component) =>
                     title: _t("Warning"),
                     body: _t(
                         "This document is locked by %s.\nAre you sure you want to unlock it?",
-                        record.data.lock_uid.display_name
+                        record.data.lock_uid.display_name,
                     ),
                     confirmLabel: _t("Unlock"),
                     confirm: async () => {
-                        await this.orm.call("documents.document", "toggle_lock", [record.data.id]);
+                        await this.orm.call("documents.document", "toggle_lock", [
+                            record.data.id,
+                        ]);
                         await this._notifyChange();
                     },
                     cancelLabel: _t("Discard"),
                     cancel: () => {},
                 });
             } else {
-                await this.orm.call("documents.document", "toggle_lock", [record.data.id]);
+                await this.orm.call("documents.document", "toggle_lock", [
+                    record.data.id,
+                ]);
                 await this._notifyChange();
             }
         }
@@ -279,10 +294,10 @@ export const DocumentsModelMixin = (component) =>
                     body:
                         this.root.isDomainSelected || this.root.selection.length > 1
                             ? _t(
-                                  "Are you sure you want to permanently erase the selected documents?"
+                                  "Are you sure you want to permanently erase the selected documents?",
                               )
                             : _t(
-                                  "Are you sure you want to permanently erase the selected document?"
+                                  "Are you sure you want to permanently erase the selected document?",
                               ),
                     confirmLabel: _t("Delete permanently"),
                     cancelLabel: _t("Discard"),
@@ -308,7 +323,9 @@ export const DocumentsModelMixin = (component) =>
         }
 
         async onArchive() {
-            const records = this.targetRecords.filter((r) => r.data.active && !r.data.lock_uid);
+            const records = this.targetRecords.filter(
+                (r) => r.data.active && !r.data.lock_uid,
+            );
             const recordIds = this.isDomainSelected
                 ? await this.getResIds([["lock_uid", "=", false]])
                 : records.map((rec) => rec.data.id);
@@ -332,7 +349,9 @@ export const DocumentsModelMixin = (component) =>
         }
 
         async onManageVersions() {
-            await this.documentService.openDialogManageVersions(this.targetRecords[0].data.id);
+            await this.documentService.openDialogManageVersions(
+                this.targetRecords[0].data.id,
+            );
         }
 
         async onRestore() {
@@ -400,7 +419,7 @@ export const DocumentsModelMixin = (component) =>
                 "documents.document",
                 "action_execute_embedded_action",
                 [actionId],
-                { context }
+                { context },
             );
             if (action) {
                 await this.action.doAction(action, {
@@ -432,11 +451,14 @@ export const DocumentsModelMixin = (component) =>
             }
         }
         async _loadDocumentToRestore(config, data) {
-            const documentIdToRestore = this.documentService.getOnceDocumentIdToRestore();
+            const documentIdToRestore =
+                this.documentService.getOnceDocumentIdToRestore();
             if (!documentIdToRestore) {
                 return;
             }
-            const idxToRestore = data.records.findIndex((r) => r.id === documentIdToRestore);
+            const idxToRestore = data.records.findIndex(
+                (r) => r.id === documentIdToRestore,
+            );
             if (idxToRestore !== -1) {
                 const recordToRestore = data.records.splice(idxToRestore, 1)[0];
                 data.records.splice(0, 0, recordToRestore);

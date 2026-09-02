@@ -1,11 +1,11 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { click, queryAll, queryFirst } from "@odoo/hoot-dom";
-import { createDashboardActionWithData } from "@spreadsheet_dashboard/../tests/helpers/dashboard_action";
-import { defineSpreadsheetDashboardModels } from "@spreadsheet_dashboard/../tests/helpers/data";
+import { animationFrame } from "@odoo/hoot-mock";
 import { Partner } from "@spreadsheet/../tests/helpers/data";
 import { getCellIcons } from "@spreadsheet/../tests/helpers/getters";
+import { createDashboardActionWithData } from "@spreadsheet_dashboard/../tests/helpers/dashboard_action";
+import { defineSpreadsheetDashboardModels } from "@spreadsheet_dashboard/../tests/helpers/data";
 import { fields } from "@web/../tests/web_test_helpers";
-import { animationFrame } from "@odoo/hoot-mock";
 
 describe.current.tags("desktop");
 defineSpreadsheetDashboardModels();
@@ -100,14 +100,22 @@ test("list sorting clickable cell", async () => {
     expect(".o-dashboard-clickable-cell .fa-sort").toHaveCount(1);
 
     await click(queryFirst(".o-dashboard-clickable-cell .sorting-icon"));
-    expect(model.getters.getListDefinition(1).orderBy).toEqual([{ name: "foo", asc: true }]);
+    expect(model.getters.getListDefinition(1).orderBy).toEqual([
+        { name: "foo", asc: true },
+    ]);
     await animationFrame();
-    expect(getCellIcons(model, "A1")).toMatchObject([{ type: "list_dashboard_sorting_asc" }]);
+    expect(getCellIcons(model, "A1")).toMatchObject([
+        { type: "list_dashboard_sorting_asc" },
+    ]);
 
     await click(queryFirst(".o-dashboard-clickable-cell"));
-    expect(model.getters.getListDefinition(1).orderBy).toEqual([{ name: "foo", asc: false }]);
+    expect(model.getters.getListDefinition(1).orderBy).toEqual([
+        { name: "foo", asc: false },
+    ]);
     await animationFrame();
-    expect(getCellIcons(model, "A1")).toMatchObject([{ type: "list_dashboard_sorting_desc" }]);
+    expect(getCellIcons(model, "A1")).toMatchObject([
+        { type: "list_dashboard_sorting_desc" },
+    ]);
 
     await click(queryFirst(".o-dashboard-clickable-cell"));
     expect(getCellIcons(model, "A1")).toHaveLength(0);
@@ -139,7 +147,9 @@ test("list sort multiple fields", async () => {
     const { model } = await createDashboardActionWithData(data);
 
     await click(queryAll(".o-dashboard-clickable-cell")[0]);
-    expect(model.getters.getListDefinition(1).orderBy).toEqual([{ name: "foo", asc: true }]);
+    expect(model.getters.getListDefinition(1).orderBy).toEqual([
+        { name: "foo", asc: true },
+    ]);
     await animationFrame();
 
     await click(queryAll(".o-dashboard-clickable-cell")[1]);

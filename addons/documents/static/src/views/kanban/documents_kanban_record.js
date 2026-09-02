@@ -23,7 +23,10 @@ export class DocumentsKanbanRecord extends KanbanRecord {
         const { bus, uploads } = useService("file_upload");
         this.documentUploads = uploads;
         useBus(bus, "FILE_UPLOAD_ADDED", (ev) => {
-            if (Number(ev.detail.upload.data.get("document_id")) === this.props.record.resId) {
+            if (
+                Number(ev.detail.upload.data.get("document_id")) ===
+                this.props.record.resId
+            ) {
                 this.render(true);
             }
         });
@@ -36,14 +39,18 @@ export class DocumentsKanbanRecord extends KanbanRecord {
             () => {
                 this.fetchDocumentsEmailContent();
             },
-            () => [this.props.record?.data.attachment_id?.id]
+            () => [this.props.record?.data.attachment_id?.id],
         );
 
-        useBus(this.documentService.bus, "DOCUMENT_CHATTER_ACTIVITY_CHANGED", ({ detail }) => {
-            if (this.props.record.data.id === detail.recordId) {
-                this.props.record.load();
-            }
-        });
+        useBus(
+            this.documentService.bus,
+            "DOCUMENT_CHATTER_ACTIVITY_CHANGED",
+            ({ detail }) => {
+                if (this.props.record.data.id === detail.recordId) {
+                    this.props.record.load();
+                }
+            },
+        );
     }
 
     /**
@@ -73,7 +80,11 @@ export class DocumentsKanbanRecord extends KanbanRecord {
         const context = super.renderingContext;
         context.encodeURIComponent = encodeURIComponent;
 
-        if ([false, "TRASH", "RECENT"].includes(this.env.searchModel.getSelectedFolderId())) {
+        if (
+            [false, "TRASH", "RECENT"].includes(
+                this.env.searchModel.getSelectedFolderId(),
+            )
+        ) {
             context.inFolder =
                 this.props.record.data.folder_id?.display_name ||
                 {
@@ -89,7 +100,7 @@ export class DocumentsKanbanRecord extends KanbanRecord {
     getFileUpload() {
         return Object.values(this.documentUploads).find(
             (upload) =>
-                Number(upload.data.get("document_id")) === this.props.record.resId
+                Number(upload.data.get("document_id")) === this.props.record.resId,
         );
     }
 
@@ -101,7 +112,8 @@ export class DocumentsKanbanRecord extends KanbanRecord {
             return;
         }
         const selectionLength = this.props.getSelection().length;
-        const isSelectionModeActive = selectionLength === 1 ? ev.shiftKey : selectionLength > 1;
+        const isSelectionModeActive =
+            selectionLength === 1 ? ev.shiftKey : selectionLength > 1;
         const selectionKeyActive = ev.altKey || ev.ctrlKey;
         if (
             ev.target.closest("div[name='document_preview']") &&

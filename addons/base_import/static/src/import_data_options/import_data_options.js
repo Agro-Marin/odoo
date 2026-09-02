@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, onWillStart,useState } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 
 export class ImportDataOptions extends Component {
@@ -14,14 +14,15 @@ export class ImportDataOptions extends Component {
         this.state = useState({
             options: [],
         });
-        this.currentModel = this.props.fieldInfo.comodel_name || this.props.fieldInfo.model_name;
+        this.currentModel =
+            this.props.fieldInfo.comodel_name || this.props.fieldInfo.model_name;
         onWillStart(async () => {
             this.state.options = await this.loadOptions();
         });
     }
     get isVisible() {
         return ["many2one", "many2many", "selection", "boolean"].includes(
-            this.props.fieldInfo.type
+            this.props.fieldInfo.type,
         );
     }
     async loadOptions() {
@@ -32,7 +33,9 @@ export class ImportDataOptions extends Component {
             !this.props.fieldInfo.required &&
                 options.push(["import_skip_records", _t("Skip record")]);
         }
-        if (["many2one", "many2many", "selection"].includes(this.props.fieldInfo.type)) {
+        if (
+            ["many2one", "many2many", "selection"].includes(this.props.fieldInfo.type)
+        ) {
             if (!this.props.fieldInfo.required) {
                 options.push(["import_set_empty_fields", _t("Set value as empty")]);
                 options.push(["import_skip_records", _t("Skip record")]);
@@ -63,7 +66,7 @@ export class ImportDataOptions extends Component {
             this.props.onOptionChanged(
                 ev.target.value,
                 ev.target.value,
-                this.props.fieldInfo.fieldPath
+                this.props.fieldInfo.fieldPath,
             );
         } else {
             const value = {
@@ -71,7 +74,11 @@ export class ImportDataOptions extends Component {
                 field_model: this.currentModel,
                 field_type: this.props.fieldInfo.type,
             };
-            this.props.onOptionChanged("fallback_values", value, this.props.fieldInfo.fieldPath);
+            this.props.onOptionChanged(
+                "fallback_values",
+                value,
+                this.props.fieldInfo.fieldPath,
+            );
         }
     }
 }

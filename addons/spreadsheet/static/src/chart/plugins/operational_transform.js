@@ -14,7 +14,7 @@ otRegistry.addTransformation(
             return undefined;
         }
         return toTransform;
-    }
+    },
 );
 
 inverseCommandRegistry.add("LINK_ODOO_MENU_TO_CHART", identity);

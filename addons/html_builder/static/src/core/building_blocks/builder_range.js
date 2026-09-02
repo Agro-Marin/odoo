@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, useRef } from "@odoo/owl";
+
 import {
     basicContainerBuilderComponentProps,
     useActionInfo,
@@ -106,7 +107,9 @@ export class BuilderRange extends Component {
 
     get className() {
         const baseClasses = "p-0 border-0";
-        return this.props.min > this.props.max ? `${baseClasses} o_we_inverted_range` : baseClasses;
+        return this.props.min > this.props.max
+            ? `${baseClasses} o_we_inverted_range`
+            : baseClasses;
     }
 
     get min() {

@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { useRef, useState } from "@odoo/owl";
 import { ImgGroup } from "@html_builder/core/img_group";
 import { BaseOptionComponent } from "@html_builder/core/utils";
-import { useThrottleForAnimation } from "@web/core/utils/timing";
-import { getShapeURL } from "../image/image_helpers.js";
+import { useRef, useState } from "@odoo/owl";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useAutofocus } from "@web/core/utils/hooks";
+import { useThrottleForAnimation } from "@web/core/utils/timing";
+
+import { getShapeURL } from "../image/image_helpers.js";
 
 export class ShapeSelector extends BaseOptionComponent {
     static template = "html_builder.shapeSelector";
@@ -30,14 +31,18 @@ export class ShapeSelector extends BaseOptionComponent {
         useAutofocus({ refName: "backButton" });
     }
     getShapeUrl(shapePath) {
-        return this.props.getShapeUrl ? this.props.getShapeUrl(shapePath) : getShapeURL(shapePath);
+        return this.props.getShapeUrl
+            ? this.props.getShapeUrl(shapePath)
+            : getShapeURL(shapePath);
     }
     getShapeClass(shapePath) {
         return `o_${shapePath.replaceAll("/", "_")}`;
     }
     scrollToShapes(id) {
         const container = this.rootRef.el;
-        const selectedElement = container?.querySelector(`[data-shape-group-id="${id}"]`);
+        const selectedElement = container?.querySelector(
+            `[data-shape-group-id="${id}"]`,
+        );
         if (container && selectedElement) {
             container.scrollTop = selectedElement.offsetTop - container.offsetTop;
         }
@@ -53,13 +58,20 @@ export class ShapeSelector extends BaseOptionComponent {
         const anchorEls = this.tabsRef.el.querySelectorAll(".o-hb-select-pager-tab");
         for (const anchorEl of anchorEls) {
             const groupId = anchorEl.dataset.groupId;
-            const sectionEl = this.rootRef.el.querySelector(`[data-shape-group-id="${groupId}"]`);
+            const sectionEl = this.rootRef.el.querySelector(
+                `[data-shape-group-id="${groupId}"]`,
+            );
             const nextSectionEl = sectionEl.nextElementSibling;
 
-            const sectionTop = sectionEl.getBoundingClientRect().top - pagerContainerRect.top;
+            const sectionTop =
+                sectionEl.getBoundingClientRect().top - pagerContainerRect.top;
             const nextSectionTop =
-                nextSectionEl && nextSectionEl.getBoundingClientRect().top - pagerContainerRect.top;
-            if (sectionTop < threshold && (!nextSectionEl || nextSectionTop > threshold)) {
+                nextSectionEl &&
+                nextSectionEl.getBoundingClientRect().top - pagerContainerRect.top;
+            if (
+                sectionTop < threshold &&
+                (!nextSectionEl || nextSectionTop > threshold)
+            ) {
                 this.state.activeGroup = groupId;
             }
         }

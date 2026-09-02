@@ -118,13 +118,11 @@ export function parseVerificationInfo(xmlResponse) {
 
     const notesRequireVerify = allInfos.some(
         (info) =>
-            info.getAttribute("devid") === "1" &&
-            info.getAttribute("val") === "1",
+            info.getAttribute("devid") === "1" && info.getAttribute("val") === "1",
     );
     const coinsRequireVerify = allInfos.some(
         (info) =>
-            info.getAttribute("devid") === "2" &&
-            info.getAttribute("val") === "1",
+            info.getAttribute("devid") === "2" && info.getAttribute("val") === "1",
     );
 
     if (notesRequireVerify && coinsRequireVerify) {

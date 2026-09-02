@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { useArchiveEmployee } from "@hr/views/archive_employee_hook";
 import { registry } from "@web/core/registry";
-import { FormController,formView } from "@web/views/form";
+import { FormController, formView } from "@web/views/form";
 
 export class EmployeeFormController extends FormController {
     setup() {
@@ -11,7 +11,9 @@ export class EmployeeFormController extends FormController {
 
     getStaticActionMenuItems() {
         const menuItems = super.getStaticActionMenuItems();
-        menuItems.archive.callback = this.archiveEmployee.bind(this, [this.model.root.resId]);
+        menuItems.archive.callback = this.archiveEmployee.bind(this, [
+            this.model.root.resId,
+        ]);
         return menuItems;
     }
 }

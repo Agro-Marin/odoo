@@ -9,7 +9,7 @@ export class MailGroup extends Interaction {
     static selector = ".o_mail_group";
     dynamicContent = {
         _root: {
-            "t-att-class": () => ({ "o_has_error": this.inError }),
+            "t-att-class": () => ({ o_has_error: this.inError }),
         },
         ".form-control, .form-select": {
             "t-att-class": () => ({ "is-invalid": this.inError }),
@@ -31,12 +31,12 @@ export class MailGroup extends Interaction {
         this.membersCountEl = this.el.querySelector(".o_mg_members_count");
         this.mailGroupId = this.el.dataset.id;
         this.isMember = this.el.dataset.isMember || false;
-        const searchParams = (new URL(document.location.href)).searchParams;
+        const searchParams = new URL(document.location.href).searchParams;
         this.token = searchParams.get("token");
         this.forceUnsubscribe = searchParams.has("unsubscribe");
     }
 
-    _displayAlert(textContent, classes){
+    _displayAlert(textContent, classes) {
         const alert = document.createElement("div");
         alert.setAttribute("class", `o_mg_alert alert ${classes}`);
         alert.setAttribute("role", "alert");
@@ -53,18 +53,24 @@ export class MailGroup extends Interaction {
         }
         this.inError = false;
 
-        const action = (this.isMember || this.forceUnsubscribe) ? "unsubscribe" : "subscribe";
-        const response = await this.waitFor(rpc("/group/" + action, {
-            "group_id": this.mailGroupId,
-            "email": email,
-            "token": this.token,
-        }));
+        const action =
+            this.isMember || this.forceUnsubscribe ? "unsubscribe" : "subscribe";
+        const response = await this.waitFor(
+            rpc("/group/" + action, {
+                group_id: this.mailGroupId,
+                email: email,
+                token: this.token,
+            }),
+        );
 
         this.el.querySelector(".o_mg_alert")?.remove();
 
         if (this.membersCountEl && ["added", "removed"].includes(response)) {
             const membersCount = parseInt(this.membersCountEl.textContent) || 0;
-            this.membersCountEl.textContent = Math.max(response === "added" ? membersCount + 1 : membersCount - 1, 0);
+            this.membersCountEl.textContent = Math.max(
+                response === "added" ? membersCount + 1 : membersCount - 1,
+                0,
+            );
         }
 
         if (response === "added") {
@@ -72,10 +78,16 @@ export class MailGroup extends Interaction {
         } else if (response === "removed") {
             this.isMember = false;
         } else if (response === "email_sent") {
-            this._displayAlert(_t("An email with instructions has been sent."), "alert-success");
+            this._displayAlert(
+                _t("An email with instructions has been sent."),
+                "alert-success",
+            );
         } else if (response === "is_already_member") {
             this.isMember = true;
-            this._displayAlert(_t("This email is already subscribed."), "alert-warning");
+            this._displayAlert(
+                _t("This email is already subscribed."),
+                "alert-warning",
+            );
         } else if (response === "is_not_member") {
             if (!this.forceUnsubscribe) {
                 this.isMember = false;
@@ -85,6 +97,4 @@ export class MailGroup extends Interaction {
     }
 }
 
-registry
-    .category("public.interactions")
-    .add("mail_group.mail_group", MailGroup);
+registry.category("public.interactions").add("mail_group.mail_group", MailGroup);

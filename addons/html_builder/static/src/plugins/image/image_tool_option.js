@@ -1,12 +1,13 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
-import { ImageShapeOption } from "@html_builder/plugins/image/image_shape_option";
 import { ImageFilterOption } from "@html_builder/plugins/image/image_filter_option";
 import { ImageFormatOption } from "@html_builder/plugins/image/image_format_option";
-import { ImageTransformOption } from "./image_transform_option.js";
-import { dynamicSVGSelector } from "../utils.js";
+import { ImageShapeOption } from "@html_builder/plugins/image/image_shape_option";
 import { getMimetypeBeforeShape } from "@html_builder/utils/image";
 import { isImageSupportedForProcessing } from "@html_editor/main/media/image_post_process_plugin";
+
+import { dynamicSVGSelector } from "../utils.js";
+import { ImageTransformOption } from "./image_transform_option.js";
 
 export class ImageToolOption extends BaseOptionComponent {
     static template = "html_builder.ImageToolOption";
@@ -23,11 +24,15 @@ export class ImageToolOption extends BaseOptionComponent {
         super.setup();
         this.state = useDomState(async (editingElement) => {
             const mimetype = await getMimetypeBeforeShape(editingElement);
-            const showCropTool = await isImageSupportedForProcessing(editingElement, mimetype);
+            const showCropTool = await isImageSupportedForProcessing(
+                editingElement,
+                mimetype,
+            );
             return {
                 isImageAnimated: editingElement.classList.contains("o_animate"),
                 isDynamicSVG: editingElement.matches(dynamicSVGSelector),
-                isImageBinaryField: editingElement.parentElement.matches("[data-oe-type=image]"),
+                isImageBinaryField:
+                    editingElement.parentElement.matches("[data-oe-type=image]"),
                 showCropTool,
             };
         });

@@ -21,11 +21,20 @@ export class CouponToaster extends Interaction {
         }
 
         if (this.el.classList.contains("coupon-info-message")) {
-            this.services.notification.add(message, Object.assign({ type: "success" }, options));
+            this.services.notification.add(
+                message,
+                Object.assign({ type: "success" }, options),
+            );
         } else if (this.el.classList.contains("coupon-error-message")) {
-            this.services.notification.add(message, Object.assign({ type: "danger" }, options));
+            this.services.notification.add(
+                message,
+                Object.assign({ type: "danger" }, options),
+            );
         } else if (this.el.classList.contains("coupon-warning-message")) {
-            this.services.notification.add(message, Object.assign({ type: "warning" }, options));
+            this.services.notification.add(
+                message,
+                Object.assign({ type: "warning" }, options),
+            );
         }
     }
 }

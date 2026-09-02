@@ -27,6 +27,6 @@ export const documentsCogMenuItemAutomations = {
     isDisplayed: (env) =>
         env.model.documentService.userIsDocumentUser &&
         DocumentsCogMenuItem.isVisible(env, ({ folder, documentService }) =>
-            documentService.isEditable(folder)
+            documentService.isEditable(folder),
         ),
 };

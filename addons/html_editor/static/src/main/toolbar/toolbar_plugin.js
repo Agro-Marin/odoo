@@ -440,8 +440,7 @@ export class ToolbarPlugin extends Plugin {
         const compact = this.getButtonsForNamespace("compact").filter(isAvailable);
         const expanded = this.getButtonsForNamespace("expanded").filter(isAvailable);
         const shouldDisplayCompactToolbar =
-            expanded.length >= MIN_SIZE_FOR_COMPACT &&
-            expanded.length > compact.length;
+            expanded.length >= MIN_SIZE_FOR_COMPACT && expanded.length > compact.length;
         if (shouldDisplayCompactToolbar) {
             return new Set(compact);
         }

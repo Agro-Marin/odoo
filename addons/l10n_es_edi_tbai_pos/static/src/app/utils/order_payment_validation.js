@@ -4,7 +4,7 @@ import { qrCodeSrc } from "@point_of_sale/utils";
 
 import { patch } from "@web/core/utils/patch";
 patch(OrderPaymentValidation.prototype, {
-    async beforePostPushOrderResolve(order, order_server_ids) {
+    async beforePostPushOrderResolve(order) {
         if (this.pos.company.l10n_es_tbai_is_enabled) {
             const l10n_es_pos_tbai_qrurl = await this.pos.data.call(
                 "pos.order",

@@ -1,8 +1,8 @@
 import {
-    addBuilderOption,
     addBuilderAction,
-    setupHTMLBuilder,
+    addBuilderOption,
     getSnippetStructure,
+    setupHTMLBuilder,
 } from "@html_builder/../tests/helpers";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { ClassAction } from "@html_builder/core/core_builder_action_plugin";
@@ -10,7 +10,15 @@ import { Operation } from "@html_builder/core/operation";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { HistoryPlugin } from "@html_editor/core/history_plugin";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
-import { advanceTime, animationFrame, Deferred, delay, hover, press, tick } from "@odoo/hoot-dom";
+import {
+    advanceTime,
+    animationFrame,
+    Deferred,
+    delay,
+    hover,
+    press,
+    tick,
+} from "@odoo/hoot-dom";
 import { xml } from "@odoo/owl";
 import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
 
@@ -139,7 +147,7 @@ describe("Block editable", () => {
             class extends BaseOptionComponent {
                 static selector = ".test-options-target";
                 static template = xml`<BuilderButton action="'customAction'"/>`;
-            }
+            },
         );
         await setupHTMLBuilder(`<div class="test-options-target">TEST</div>`, {
             loadIframeBundles: true,
@@ -204,12 +212,14 @@ describe("Async operations", () => {
                         </BuilderSelect>
                     </BuilderRow>
                 `;
-            }
+            },
         );
 
         await setupHTMLBuilder(`<div class="test-options-target">TEST</div>`);
         await contains(":iframe .test-options-target").click();
-        await contains(".options-container [data-label='Type'] .btn-secondary ").click();
+        await contains(
+            ".options-container [data-label='Type'] .btn-secondary ",
+        ).click();
         await hover(".popover [data-action-value='first']");
         await hover(".popover [data-action-value='second']");
         await advanceTime(applyDelay + 50);
@@ -229,7 +239,9 @@ describe("Async operations", () => {
                 static id = "customAction";
                 async apply({ editingElement }) {
                     let color =
-                        getComputedStyle(editingElement).getPropertyValue("background-color");
+                        getComputedStyle(editingElement).getPropertyValue(
+                            "background-color",
+                        );
                     if (color === "rgb(255, 0, 0)") {
                         color = "red";
                         await new Promise((resolve) => setTimeout(resolve, applyDelay));
@@ -247,7 +259,7 @@ describe("Async operations", () => {
                 static template = xml`<BuilderRow>
                     <BuilderColorPicker enabledTabs="['solid']" styleAction="'background-color'" action="'customAction'"/>
                 </BuilderRow>`;
-            }
+            },
         );
 
         await setupHTMLBuilder(`<div class="test-options-target">TEST</div>`);
@@ -286,14 +298,14 @@ describe("Operation that will fail", () => {
                 static template = xml`
                     <BuilderButton action="'testAction'"/>
                     <BuilderButton classAction="'test'"/>`;
-            }
+            },
         );
         await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
         await contains(":iframe .test-options-target").click();
         await contains("[data-action-id='testAction']").hover();
         await contains("[data-class-action='test']").click();
         expect(":iframe .test-options-target").toHaveOuterHTML(
-            '<div class="test-options-target test">b</div>'
+            '<div class="test-options-target test">b</div>',
         );
         expect.verifyErrors(["This action should crash"]);
     });
@@ -316,14 +328,14 @@ describe("Operation that will fail", () => {
                 static template = xml`
                     <BuilderButton action="'testAction'"/>
                     <BuilderButton classAction="'test'"/>`;
-            }
+            },
         );
         await setupHTMLBuilder(`<div class="test-options-target">b</div>`);
         await contains(":iframe .test-options-target").click();
         await contains("[data-action-id='testAction']").click();
         await contains("[data-class-action='test']").click();
         expect(":iframe .test-options-target").toHaveOuterHTML(
-            '<div class="test-options-target test">b</div>'
+            '<div class="test-options-target test">b</div>',
         );
         // preview + commit
         expect.verifyErrors(["This action should crash", "This action should crash"]);
@@ -360,7 +372,7 @@ describe("Operations failing on outdated snippets", () => {
             class extends BaseOptionComponent {
                 static selector = ".s_title";
                 static template = xml`<BuilderButton action="'testAction'"/>`;
-            }
+            },
         );
         await setupHTMLBuilder(
             `<section class="s_title" data-snippet="s_title" data-name="Title">
@@ -371,7 +383,7 @@ describe("Operations failing on outdated snippets", () => {
             </section>`,
             {
                 snippets: UPDATED_SNIPPET,
-            }
+            },
         );
 
         // Interacting with an outdated snippet. We test that only one
@@ -384,7 +396,7 @@ describe("Operations failing on outdated snippets", () => {
         await contains("[data-action-id='testAction']").click();
         expect(".o_notification .o_notification_bar.bg-warning").toHaveCount(1);
         expect(".o_notification_content").toHaveText(
-            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it."
+            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it.",
         );
         expect.verifyErrors([]);
 
@@ -415,7 +427,7 @@ describe("Operations failing on outdated snippets", () => {
             class extends BaseOptionComponent {
                 static selector = ".s_title";
                 static template = xml`<BuilderButton action="'testAction'"/>`;
-            }
+            },
         );
         await setupHTMLBuilder(
             `<section class="s_title" data-snippet="s_title" data-name="Title">
@@ -426,7 +438,7 @@ describe("Operations failing on outdated snippets", () => {
             </section>`,
             {
                 snippets: UPDATED_SNIPPET,
-            }
+            },
         );
 
         // Interacting with an outdated snippet. We test that only one
@@ -439,7 +451,7 @@ describe("Operations failing on outdated snippets", () => {
         await contains("[data-action-id='testAction']").click();
         expect(".o_notification .o_notification_bar.bg-warning").toHaveCount(1);
         expect(".o_notification_content").toHaveText(
-            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it."
+            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it.",
         );
         expect.verifyErrors([]);
 
@@ -473,7 +485,7 @@ describe("Operations failing on outdated snippets", () => {
             class extends BaseOptionComponent {
                 static selector = ".s_title";
                 static template = xml`<BuilderButton action="'testAction'"/>`;
-            }
+            },
         );
         await setupHTMLBuilder(
             `<section class="s_title applied" data-snippet="s_title" data-name="Title">
@@ -484,7 +496,7 @@ describe("Operations failing on outdated snippets", () => {
             </section>`,
             {
                 snippets: UPDATED_SNIPPET,
-            }
+            },
         );
 
         // Interacting with an outdated snippet. We test that only one
@@ -497,7 +509,7 @@ describe("Operations failing on outdated snippets", () => {
         await contains("[data-action-id='testAction']").click();
         expect(".o_notification .o_notification_bar.bg-warning").toHaveCount(1);
         expect(".o_notification_content").toHaveText(
-            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it."
+            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it.",
         );
         expect.verifyErrors([]);
 
@@ -524,7 +536,7 @@ describe("Operations failing on outdated snippets", () => {
             class extends BaseOptionComponent {
                 static selector = ".s_title";
                 static template = xml`<BuilderNumberInput action="'testAction'"/>`;
-            }
+            },
         );
 
         await setupHTMLBuilder(
@@ -533,14 +545,14 @@ describe("Operations failing on outdated snippets", () => {
             </section>`,
             {
                 snippets: UPDATED_SNIPPET,
-            }
+            },
         );
 
         // Interacting with an outdated snippet. Notification is shown
         await contains(":iframe .s_title h1:contains('Old')").click();
         expect(".o_notification .o_notification_bar.bg-warning").toHaveCount(1);
         expect(".o_notification_content").toHaveText(
-            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it."
+            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it.",
         );
         expect.verifyErrors([]);
     });
@@ -559,7 +571,7 @@ describe("Operations failing on outdated snippets", () => {
             class extends BaseOptionComponent {
                 static selector = ".s_title";
                 static template = xml`<BuilderButton action="'testAction'"/>`;
-            }
+            },
         );
 
         await setupHTMLBuilder(
@@ -568,14 +580,14 @@ describe("Operations failing on outdated snippets", () => {
             </section>`,
             {
                 snippets: UPDATED_SNIPPET,
-            }
+            },
         );
 
         // Interacting with an outdated snippet. Notification is shown
         await contains(":iframe .s_title h1:contains('Old')").click();
         expect(".o_notification .o_notification_bar.bg-warning").toHaveCount(1);
         expect(".o_notification_content").toHaveText(
-            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it."
+            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it.",
         );
         expect.verifyErrors([]);
     });
@@ -599,7 +611,7 @@ describe("Operations failing on outdated snippets", () => {
                         <BuilderButton actionParam="'class1'">1</BuilderButton>
                         <BuilderButton actionParam="'class2'">2</BuilderButton>
                     </BuilderButtonGroup>`;
-            }
+            },
         );
 
         await setupHTMLBuilder(
@@ -611,7 +623,7 @@ describe("Operations failing on outdated snippets", () => {
             </section>`,
             {
                 snippets: UPDATED_SNIPPET,
-            }
+            },
         );
 
         // Interacting with an outdated snippet. Notification is shown
@@ -620,7 +632,7 @@ describe("Operations failing on outdated snippets", () => {
         await animationFrame();
         expect(".o_notification .o_notification_bar.bg-warning").toHaveCount(1);
         expect(".o_notification_content").toHaveText(
-            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it."
+            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it.",
         );
 
         // Close the notification and try to interact with an up-to-date snippet
@@ -648,7 +660,7 @@ describe("Operations failing on outdated snippets", () => {
                 static selector = ".s_title";
                 static template = xml`
                     <BuilderButton action="'testAction'">A</BuilderButton>`;
-            }
+            },
         );
 
         await setupHTMLBuilder(
@@ -657,14 +669,14 @@ describe("Operations failing on outdated snippets", () => {
             </section>`,
             {
                 snippets: UPDATED_SNIPPET,
-            }
+            },
         );
 
         await contains(":iframe .s_title").click();
         await contains("[data-action-id='testAction']").click();
         expect(".o_notification .o_notification_bar.bg-warning").toHaveCount(1);
         expect(".o_notification_content").toHaveText(
-            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it."
+            "This snippet is outdated. It might have caused problem during the editing. Please drag the new version from the snippet panel to update it.",
         );
     });
 });

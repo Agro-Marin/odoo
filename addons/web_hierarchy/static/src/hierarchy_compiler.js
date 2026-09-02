@@ -38,7 +38,7 @@ export class HierarchyCompiler extends KanbanCompiler {
                 ...params,
                 recordExpr: "__record__",
             },
-            evalInvisible
+            evalInvisible,
         );
     }
 }

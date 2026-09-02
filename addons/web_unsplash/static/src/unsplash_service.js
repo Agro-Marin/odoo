@@ -75,7 +75,9 @@ export const unsplashService = {
                 const to = offset + pageSize;
                 // Use orientation in the cache key to not show images in cache
                 // when using the same query word but changing the orientation
-                let cachedData = orientation ? _cache[query + orientation] : _cache[query];
+                let cachedData = orientation
+                    ? _cache[query + orientation]
+                    : _cache[query];
 
                 if (
                     cachedData &&

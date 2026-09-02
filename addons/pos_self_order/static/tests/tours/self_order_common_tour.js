@@ -1,7 +1,7 @@
-import { registry } from "@web/core/registry";
 import * as Utils from "@pos_self_order/../tests/tours/utils/common";
 import * as LandingPage from "@pos_self_order/../tests/tours/utils/landing_page_util";
 import * as ProductPage from "@pos_self_order/../tests/tours/utils/product_page_util";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("self_order_is_close", {
     steps: () => [
@@ -23,7 +23,10 @@ registry.category("web_tour.tours").add("self_order_is_open_consultation", {
 });
 
 registry.category("web_tour.tours").add("self_order_landing_page_carousel", {
-    steps: () => [Utils.checkIsNoBtn("My Order"), LandingPage.checkCarouselAutoPlaying()],
+    steps: () => [
+        Utils.checkIsNoBtn("My Order"),
+        LandingPage.checkCarouselAutoPlaying(),
+    ],
 });
 
 registry.category("web_tour.tours").add("self_order_pos_closed", {
@@ -41,7 +44,7 @@ registry.category("web_tour.tours").add("self_order_pos_closed", {
                 { name: "Size", value: "M" },
                 { name: "Fabric", value: "Leather" },
             ],
-            false
+            false,
         ),
         Utils.checkIsNoBtn("Add to cart"),
         ProductPage.clickDiscard(),
@@ -65,7 +68,7 @@ registry.category("web_tour.tours").add("self_order_pos_closed", {
                     attributes: [],
                 },
             ],
-            false
+            false,
         ),
         Utils.checkIsNoBtn("Add to cart"),
     ],
@@ -88,7 +91,7 @@ registry.category("web_tour.tours").add("kiosk_order_pos_closed", {
                 { name: "Size", value: "M" },
                 { name: "Fabric", value: "Leather" },
             ],
-            false
+            false,
         ),
         Utils.checkIsNoBtn("Add to cart"),
         ProductPage.clickDiscard(),
@@ -113,7 +116,7 @@ registry.category("web_tour.tours").add("kiosk_order_pos_closed", {
                     attributes: [],
                 },
             ],
-            false
+            false,
         ),
         Utils.checkIsNoBtn("Add to cart"),
     ],

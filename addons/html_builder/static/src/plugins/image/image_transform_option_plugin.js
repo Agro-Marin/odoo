@@ -1,8 +1,8 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { ImageTransformation } from "@html_editor/main/media/image_transformation";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { ImageTransformation } from "@html_editor/main/media/image_transformation";
-import { BuilderAction } from "@html_builder/core/builder_action";
 import { Deferred } from "@web/core/utils/concurrency";
 
 export class ImageTransformOptionPlugin extends Plugin {
@@ -56,4 +56,6 @@ class ResetTransformImageAction extends BuilderAction {
     }
 }
 
-registry.category("builder-plugins").add(ImageTransformOptionPlugin.id, ImageTransformOptionPlugin);
+registry
+    .category("builder-plugins")
+    .add(ImageTransformOptionPlugin.id, ImageTransformOptionPlugin);

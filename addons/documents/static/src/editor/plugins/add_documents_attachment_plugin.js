@@ -41,7 +41,8 @@ export class AddDocumentsAttachmentPlugin extends Plugin {
             chatterParams: {
                 isPlugin: true,
                 isNewRecord: !this.config.getRecordInfo().resId,
-                addDocumentsAttachment: this.addDocumentsAttachmentFromPlugin.bind(this),
+                addDocumentsAttachment:
+                    this.addDocumentsAttachmentFromPlugin.bind(this),
                 pasteDocumentsLink: this.pasteDocumentsLinkFromPlugin.bind(this),
             },
         });
@@ -54,17 +55,20 @@ export class AddDocumentsAttachmentPlugin extends Plugin {
             const resModel = recordInfo.resModel;
             const rawResId = recordInfo.resId;
             const resId =
-                resModel === "ir.ui.view" || !rawResId ? false : parseInt(rawResId) || false;
+                resModel === "ir.ui.view" || !rawResId
+                    ? false
+                    : parseInt(rawResId) || false;
             const attachmentRecords = await this.services.orm.call(
                 "documents.document",
                 "add_documents_attachment",
-                [resIds, resModel, resId, resModel === "ir.ui.view"]
+                [resIds, resModel, resId, resModel === "ir.ui.view"],
             );
             processedAttachments = await this._processAttachments(attachmentRecords);
         } catch (error) {
             this.services.notification.add(
-                _t("Failed to add document(s): ") + (error.data?.message || error.toString()),
-                { type: "danger" }
+                _t("Failed to add document(s): ") +
+                    (error.data?.message || error.toString()),
+                { type: "danger" },
             );
             closeDialog();
             return;
@@ -91,8 +95,9 @@ export class AddDocumentsAttachmentPlugin extends Plugin {
             ]);
         } catch (error) {
             this.services.notification.add(
-                _t("Failed to paste link(s): ") + (error.data?.message || error.toString()),
-                { type: "danger" }
+                _t("Failed to paste link(s): ") +
+                    (error.data?.message || error.toString()),
+                { type: "danger" },
             );
             closeDialog();
             return;

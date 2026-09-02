@@ -9,7 +9,9 @@ patch(ActivityMenu.prototype, {
      */
     async executeActivityAction(group, domain, views, context, newWindow) {
         if (group.model === "documents.document") {
-            const action = await this.env.services.action.loadAction("documents.document_action");
+            const action = await this.env.services.action.loadAction(
+                "documents.document_action",
+            );
 
             action.domain = domain;
 

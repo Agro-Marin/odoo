@@ -5,7 +5,10 @@ import { ProductPageOption } from "./product_page_option.js";
 import { rpc } from "@web/core/network";
 import { isImageCorsProtected } from "@html_editor/utils/image";
 import { TABS } from "@html_editor/main/media/media_dialog/media_dialog";
-import { WebsiteConfigAction, PreviewableWebsiteConfigAction } from "@website/builder/plugins/customize_website_plugin";
+import {
+    WebsiteConfigAction,
+    PreviewableWebsiteConfigAction,
+} from "@website/builder/plugins/customize_website_plugin";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import wSaleUtils from "@website_sale/js/website_sale_utils";
 
@@ -38,9 +41,9 @@ class ProductPageOptionPlugin extends Plugin {
             if (
                 // TODO the "placeholder" feature should be reviewed, this is
                 // not a valid HTML attribute.
-                el.getAttribute("placeholder")
-                && el.hasAttribute("data-oe-zws-empty-inline")
-                && /^[\s\u200b]*$/.test(el.textContent)
+                el.getAttribute("placeholder") &&
+                el.hasAttribute("data-oe-zws-empty-inline") &&
+                /^[\s\u200b]*$/.test(el.textContent)
             ) {
                 el.textContent = el.getAttribute("placeholder");
             }
@@ -71,9 +74,9 @@ class ProductPageOptionPlugin extends Plugin {
         },
         patch_builder_options: [
             {
-                target_name: 'ProductsRibbonOption',
-                target_element: 'selector',
-                method: 'add',
+                target_name: "ProductsRibbonOption",
+                target_element: "selector",
+                method: "add",
                 value: ProductPageOption.selector,
             },
         ],
@@ -82,10 +85,16 @@ class ProductPageOptionPlugin extends Plugin {
     setup() {
         const mainEl = this.document.querySelector(ProductPageOption.selector);
         if (mainEl) {
-            const productProduct = mainEl.querySelector('[data-oe-model="product.product"]');
-            const productTemplate = mainEl.querySelector('[data-oe-model="product.template"]');
+            const productProduct = mainEl.querySelector(
+                '[data-oe-model="product.product"]',
+            );
+            const productTemplate = mainEl.querySelector(
+                '[data-oe-model="product.template"]',
+            );
             this.productProductID = productProduct ? productProduct.dataset.oeId : null;
-            this.productTemplateID = productTemplate ? productTemplate.dataset.oeId : null;
+            this.productTemplateID = productTemplate
+                ? productTemplate.dataset.oeId
+                : null;
             this.model = "product.template";
             if (this.productProductID) {
                 this.model = "product.product";
@@ -102,8 +111,9 @@ class ProductPageOptionPlugin extends Plugin {
         if (!this.productPageCarousel) {
             return;
         }
-        const targetWindow = this.productPageCarousel.ownerDocument.defaultView || window;
-        const resizeEvent = new Event('resize');
+        const targetWindow =
+            this.productPageCarousel.ownerDocument.defaultView || window;
+        const resizeEvent = new Event("resize");
         targetWindow.dispatchEvent(resizeEvent);
     }
 }
@@ -127,7 +137,9 @@ export class BasePreviewableProductPageAction extends PreviewableWebsiteConfigAc
 
     async makeRpcCall(value) {
         if (this.constructor.rpcParameterName) {
-            await rpc("/shop/config/website", { [this.constructor.rpcParameterName]: value });
+            await rpc("/shop/config/website", {
+                [this.constructor.rpcParameterName]: value,
+            });
         }
     }
 }
@@ -169,7 +181,11 @@ export class ProductPageImageRoundnessAction extends BasePreviewableProductPageA
 
 export class ProductPageImageLayoutAction extends WebsiteConfigAction {
     static id = "productPageImageLayout";
-    static dependencies = [...super.dependencies, "customizeWebsite", "productPageOption"];
+    static dependencies = [
+        ...super.dependencies,
+        "customizeWebsite",
+        "productPageOption",
+    ];
     isApplied({ editingElement: productDetailMainEl, value }) {
         return productDetailMainEl.dataset.image_layout === value;
     }
@@ -187,10 +203,16 @@ export class BaseProductPageAction extends BuilderAction {
         this.reload = {};
         const mainEl = this.document.querySelector(ProductPageOption.selector);
         if (mainEl) {
-            const productProduct = mainEl.querySelector('[data-oe-model="product.product"]');
-            const productTemplate = mainEl.querySelector('[data-oe-model="product.template"]');
+            const productProduct = mainEl.querySelector(
+                '[data-oe-model="product.product"]',
+            );
+            const productTemplate = mainEl.querySelector(
+                '[data-oe-model="product.template"]',
+            );
             this.productProductID = productProduct ? productProduct.dataset.oeId : null;
-            this.productTemplateID = productTemplate ? productTemplate.dataset.oeId : null;
+            this.productTemplateID = productTemplate
+                ? productTemplate.dataset.oeId
+                : null;
             this.model = "product.template";
             if (this.productProductID) {
                 this.model = "product.product";
@@ -214,7 +236,10 @@ export class BaseProductPageAction extends BuilderAction {
                     if (["image/gif", "image/svg+xml"].includes(attachment.mimetype)) {
                         continue;
                     }
-                    await this.convertAttachmentToWebp(attachment, extraImageEls[index]);
+                    await this.convertAttachmentToWebp(
+                        attachment,
+                        extraImageEls[index],
+                    );
                 }
             }
         }
@@ -240,7 +265,9 @@ export class BaseProductPageAction extends BuilderAction {
         imgEl.src = imageEl.src;
         await new Promise((resolve) => imgEl.addEventListener("load", resolve));
         const originalSize = Math.max(imgEl.width, imgEl.height);
-        const smallerSizes = [1920, 1024, 512, 256, 128].filter((size) => size < originalSize);
+        const smallerSizes = [1920, 1024, 512, 256, 128].filter(
+            (size) => size < originalSize,
+        );
         const extension = attachment.name.match(/\.(jpe?|pn)g$/i)?.[0] ?? ".jpeg";
         const webpName = attachment.name.replace(extension, ".webp");
         const format = extension.substr(1).toLowerCase().replace(/^jpg$/, "jpeg");
@@ -263,20 +290,24 @@ export class BaseProductPageAction extends BuilderAction {
                 0,
                 0,
                 canvas.width,
-                canvas.height
+                canvas.height,
             );
-            const [resizedId] = await this.services.orm.call("ir.attachment", "create_unique", [
+            const [resizedId] = await this.services.orm.call(
+                "ir.attachment",
+                "create_unique",
                 [
-                    {
-                        name: webpName,
-                        description: size === originalSize ? "" : `resize: ${size}`,
-                        datas: canvas.toDataURL("image/webp").split(",")[1],
-                        res_id: referenceId,
-                        res_model: "ir.attachment",
-                        mimetype: "image/webp",
-                    },
+                    [
+                        {
+                            name: webpName,
+                            description: size === originalSize ? "" : `resize: ${size}`,
+                            datas: canvas.toDataURL("image/webp").split(",")[1],
+                            res_id: referenceId,
+                            res_model: "ir.attachment",
+                            mimetype: "image/webp",
+                        },
+                    ],
                 ],
-            ]);
+            );
             if (size === originalSize) {
                 attachment.original_id = attachment.id;
                 attachment.id = resizedId;
@@ -327,7 +358,7 @@ export class ProductReplaceMainImageAction extends BaseProductPageAction {
     apply({ editingElement: productDetailMainEl }) {
         // Emulate click on the main image of the carousel.
         const image = productDetailMainEl.querySelector(
-            `[data-oe-model="${this.model}"][data-oe-field=image_1920] img`
+            `[data-oe-model="${this.model}"][data-oe-field=image_1920] img`,
         );
         this.dependencies.media.openMediaDialog({
             multiImages: false,
@@ -344,13 +375,19 @@ export class ProductReplaceMainImageAction extends BaseProductPageAction {
                 const canvas = document.createElement("canvas");
                 canvas.width = parseInt(imgEl.width * ratio);
                 canvas.height = parseInt(imgEl.height * ratio);
-                const ctx = canvas.getContext("2d")
+                const ctx = canvas.getContext("2d");
                 ctx.fillStyle = "transparent";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(imgEl, 0, 0);
                 image.src = canvas.toDataURL("image/webp");
-                const { model, productProductID: productID, productTemplateID: templateID } = this;
-                const resID = parseInt(model === "product.product" ? productID : templateID);
+                const {
+                    model,
+                    productProductID: productID,
+                    productTemplateID: templateID,
+                } = this;
+                const resID = parseInt(
+                    model === "product.product" ? productID : templateID,
+                );
                 this.services.orm.write(model, [resID], {
                     image_1920: image.src.split(",")[1],
                 });
@@ -371,7 +408,7 @@ export class ProductAddExtraImageAction extends BaseProductPageAction {
         if (this.model === "product.template") {
             this.services.notification.add(
                 'Pictures will be added to the main image. Use "Instant" attributes to set pictures on each variants',
-                { type: "info" }
+                { type: "info" },
             );
         }
         await new Promise((resolve) => {
@@ -402,8 +439,10 @@ export class ProductRemoveAllExtraImagesAction extends BaseProductPageAction {
             product_product_id: this.productProductID,
             product_template_id: this.productTemplateID,
             combination_ids: this.getSelectedVariantValues(el),
-        })
+        });
     }
 }
 
-registry.category("website-plugins").add(ProductPageOptionPlugin.id, ProductPageOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(ProductPageOptionPlugin.id, ProductPageOptionPlugin);

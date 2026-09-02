@@ -1,10 +1,8 @@
 /** @odoo-module native */
-import { useSubEnv } from '@odoo/owl';
-import {
-    ProductConfiguratorDialog
-} from '@sale/js/product_configurator_dialog/product_configurator_dialog';
-import { _t } from '@web/core/translation';
-import { patch } from '@web/core/utils/patch';
+import { useSubEnv } from "@odoo/owl";
+import { ProductConfiguratorDialog } from "@sale/js/product_configurator_dialog/product_configurator_dialog";
+import { _t } from "@web/core/translation";
+import { patch } from "@web/core/utils/patch";
 
 patch(ProductConfiguratorDialog, {
     props: {
@@ -26,16 +24,19 @@ patch(ProductConfiguratorDialog.prototype, {
         super.setup(...arguments);
 
         if (this.props.isFrontend) {
-            this.getValuesUrl = '/website_sale/product_configurator/get_values';
-            this.createProductUrl = '/website_sale/product_configurator/create_product';
-            this.updateCombinationUrl = '/website_sale/product_configurator/update_combination';
-            this.getOptionalProductsUrl = '/website_sale/product_configurator/get_optional_products';
+            this.getValuesUrl = "/website_sale/product_configurator/get_values";
+            this.createProductUrl = "/website_sale/product_configurator/create_product";
+            this.updateCombinationUrl =
+                "/website_sale/product_configurator/update_combination";
+            this.getOptionalProductsUrl =
+                "/website_sale/product_configurator/get_optional_products";
             this.title = _t("Configure");
         }
 
         useSubEnv({
             isFrontend: this.props.isFrontend,
-            isMainProductConfigurable: this.props.options?.isMainProductConfigurable ?? true,
+            isMainProductConfigurable:
+                this.props.options?.isMainProductConfigurable ?? true,
         });
     },
 
@@ -45,7 +46,7 @@ patch(ProductConfiguratorDialog.prototype, {
      * @return {Boolean} - Whether all selected products can be sold.
      */
     canBeSold() {
-        return this.state.products.every(p => p.can_be_sold);
+        return this.state.products.every((p) => p.can_be_sold);
     },
 
     /**
@@ -67,5 +68,4 @@ patch(ProductConfiguratorDialog.prototype, {
         }
         return super.totalMessage(...arguments);
     },
-
 });

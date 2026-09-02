@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+
 import {
     HrPresenceStatusPill,
     hrPresenceStatusPill,
@@ -12,4 +13,6 @@ export const hrPresenceStatusPrivatePill = {
     component: HrPresenceStatusPrivatePill,
 };
 
-registry.category("fields").add("form.hr_presence_status_private", hrPresenceStatusPrivatePill);
+registry
+    .category("fields")
+    .add("form.hr_presence_status_private", hrPresenceStatusPrivatePill);

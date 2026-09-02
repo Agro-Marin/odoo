@@ -1,6 +1,6 @@
 import {
-    contains,
     click,
+    contains,
     insertText,
     openFormView,
     registerArchs,
@@ -40,7 +40,9 @@ beforeEach(() => mockTimeZone(0));
 
 test("basic rendering of tracking value (float type)", async () => {
     const pyEnv = await startServer();
-    const mailTestTrackAllId1 = pyEnv["mail.test.track.all"].create({ float_field: 12.3 });
+    const mailTestTrackAllId1 = pyEnv["mail.test.track.all"].create({
+        float_field: 12.3,
+    });
     await start();
     registerArchs(archs);
     await openFormView("mail.test.track.all", mailTestTrackAllId1);
@@ -79,7 +81,9 @@ test("rendering of tracked field of type float: from 0 to non-0", async () => {
     registerArchs(archs);
     await openFormView("mail.test.track.all", mailTestTrackAllId1);
     await insertText("div[name=float_field] input", "1.01", { replace: true });
-    await insertText("div[name=float_field_with_digits] input", "1.0001", { replace: true });
+    await insertText("div[name=float_field_with_digits] input", "1.0001", {
+        replace: true,
+    });
     await click(".o_form_button_save");
     await contains(".o-mail-Message-tracking", { count: 2 });
     const [increasedPrecisionLine, defaultPrecisionLine] =
@@ -89,9 +93,18 @@ test("rendering of tracked field of type float: from 0 to non-0", async () => {
         [increasedPrecisionLine, ["0.00000000", "1.00010000", "(Float)"]],
     ];
     for (const [targetLine, [oldText, newText, fieldName]] of expectedText) {
-        await contains(".o-mail-Message-trackingOld", { target: targetLine, text: oldText });
-        await contains(".o-mail-Message-trackingNew", { target: targetLine, text: newText });
-        await contains(".o-mail-Message-trackingField", { target: targetLine, text: fieldName });
+        await contains(".o-mail-Message-trackingOld", {
+            target: targetLine,
+            text: oldText,
+        });
+        await contains(".o-mail-Message-trackingNew", {
+            target: targetLine,
+            text: newText,
+        });
+        await contains(".o-mail-Message-trackingField", {
+            target: targetLine,
+            text: fieldName,
+        });
     }
 });
 
@@ -247,7 +260,9 @@ test("rendering of tracked field of type datetime: from no date and time to a se
     await click("div[name=datetime_field] input");
     await click(".o_datetime_button", { text: "14" });
     await click(".o_form_button_save");
-    await contains(".o-mail-Message-tracking", { text: "None12/14/2018 12:00:00(Datetime)" });
+    await contains(".o-mail-Message-tracking", {
+        text: "None12/14/2018 12:00:00(Datetime)",
+    });
     const [savedRecord] = pyEnv["mail.test.track.all"].search_read([
         ["id", "=", mailTestTrackAllId1],
     ]);
@@ -266,7 +281,9 @@ test("rendering of tracked field of type datetime: from a set date and time to n
     await click("div[name=datetime_field] button");
     await insertText("div[name=datetime_field] input", "", { replace: true });
     await click(".o_form_button_save");
-    await contains(".o-mail-Message-tracking", { text: "12/14/2018 16:42:28None(Datetime)" });
+    await contains(".o-mail-Message-tracking", {
+        text: "12/14/2018 16:42:28None(Datetime)",
+    });
 });
 
 test("rendering of tracked field of type text: from some text to empty", async () => {
@@ -341,7 +358,9 @@ test("rendering of tracked field of type many2one: from no related record to hav
     registerArchs(archs);
     await openFormView("mail.test.track.all", mailTestTrackAllId1);
     await click("[name=many2one_field_id] input");
-    await click("[name=many2one_field_id] .o-autocomplete--dropdown-item", { text: "Marc" });
+    await click("[name=many2one_field_id] .o-autocomplete--dropdown-item", {
+        text: "Marc",
+    });
     await click(".o_form_button_save");
     await contains(".o-mail-Message-tracking", { text: "NoneMarc(Many2one)" });
 });
@@ -358,7 +377,9 @@ test("Search message with filter in chatter", async () => {
     registerArchs(archs);
     await openFormView("mail.test.track.all", mailTestTrackAllId);
     await click("[name=many2one_field_id] input");
-    await click("[name=many2one_field_id] .o-autocomplete--dropdown-item", { text: "Hermit" });
+    await click("[name=many2one_field_id] .o-autocomplete--dropdown-item", {
+        text: "Hermit",
+    });
     await click(".o_form_button_save");
     // Search message with filter
     await click("[title='Search Messages']");

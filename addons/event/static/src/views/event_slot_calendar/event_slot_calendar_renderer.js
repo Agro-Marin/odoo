@@ -14,7 +14,8 @@ export class EventSlotCalendarCommonRenderer extends CalendarCommonRenderer {
 
     setup() {
         super.setup(...arguments);
-        this.rangeStartDate = this.props.model.meta.context.event_calendar_range_start_date;
+        this.rangeStartDate =
+            this.props.model.meta.context.event_calendar_range_start_date;
         this.rangeEndDate = this.props.model.meta.context.event_calendar_range_end_date;
     }
 
@@ -38,14 +39,14 @@ export class EventSlotCalendarCommonRenderer extends CalendarCommonRenderer {
      * Slots cannot be created over multiple days on mobile.
      * On desktop, using the multi create feature which doesn't consider this value.
      */
-    isSelectionAllowed(event) {
+    isSelectionAllowed() {
         return false;
     }
 
     /**
      * @override
      * Prevent click on disabled dates in mobile.
-    */
+     */
     onDateClick(info) {
         if (info.dayEl.classList.contains("o_calendar_disabled")) {
             return;

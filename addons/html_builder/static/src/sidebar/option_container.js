@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { BorderConfigurator } from "../plugins/border_configurator_option.js";
-import { ShadowOption } from "../plugins/shadow_option.js";
+import { isClonable } from "@html_builder/core/clone_plugin";
+import { isRemovable } from "@html_builder/core/remove_plugin";
 import { getSnippetName, useOptionsSubEnv } from "@html_builder/utils/utils";
 import { onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
+
 import { useOperation } from "../core/operation_plugin.js";
 import {
     BaseOptionComponent,
@@ -13,12 +14,18 @@ import {
     useGetItemValue,
     useVisibilityObserver,
 } from "../core/utils.js";
-import { isRemovable } from "@html_builder/core/remove_plugin";
-import { isClonable } from "@html_builder/core/clone_plugin";
+import { BorderConfigurator } from "../plugins/border_configurator_option.js";
+import { ShadowOption } from "../plugins/shadow_option.js";
 
 export class OptionsContainer extends BaseOptionComponent {
     static template = "html_builder.OptionsContainer";
-    static dependencies = ["builderOptions", "overlayButtons", "builderOverlay", "remove", "clone"];
+    static dependencies = [
+        "builderOptions",
+        "overlayButtons",
+        "builderOverlay",
+        "remove",
+        "clone",
+    ];
     static components = {
         BorderConfigurator,
         ShadowOption,
@@ -54,7 +61,9 @@ export class OptionsContainer extends BaseOptionComponent {
         this.domState = useDomState((editingElement) => ({
             isRemovable: isRemovable(editingElement),
             removeDisabledReason:
-                this.dependencies.builderOptions.getRemoveDisabledReason(editingElement),
+                this.dependencies.builderOptions.getRemoveDisabledReason(
+                    editingElement,
+                ),
             isClonable: isClonable(editingElement),
             cloneDisabledReason:
                 this.dependencies.builderOptions.getCloneDisabledReason(editingElement),
@@ -76,7 +85,7 @@ export class OptionsContainer extends BaseOptionComponent {
             proms.push(
                 user.hasGroup(group).then((result) => {
                     this.hasGroup[group] = result;
-                })
+                }),
             );
         }
         await Promise.all(proms);

@@ -13,7 +13,7 @@ export class FleetFormController extends FormController {
         menuItems.archive.callback = () => {
             const dialogProps = {
                 body: _t(
-                    "Every service and contract of this vehicle will be considered as archived. Are you sure that you want to archive this record?"
+                    "Every service and contract of this vehicle will be considered as archived. Are you sure that you want to archive this record?",
                 ),
                 confirm: () => this.model.root.archive(),
                 cancel: () => {},

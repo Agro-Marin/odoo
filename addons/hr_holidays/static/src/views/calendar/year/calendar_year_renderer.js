@@ -30,7 +30,7 @@ export class TimeOffCalendarYearRenderer extends CalendarYearRenderer {
 
     async onDateClick(info) {
         const is_mandatory_day = [...info.dayEl.classList].some((elClass) =>
-            elClass.startsWith("hr_mandatory_day_")
+            elClass.startsWith("hr_mandatory_day_"),
         );
         this.mandatoryDayPopover.close();
         if (is_mandatory_day && !this.env.isSmall) {
@@ -40,27 +40,40 @@ export class TimeOffCalendarYearRenderer extends CalendarYearRenderer {
             const mandatory_days_data = await this.orm.call(
                 "hr.employee",
                 "get_mandatory_days_data",
-                [date, date]
+                [date, date],
             );
             mandatory_days_data.forEach((mandatory_day_data) => {
-                mandatory_day_data["start"] = luxon.DateTime.fromISO(mandatory_day_data["start"]);
-                mandatory_day_data["end"] = luxon.DateTime.fromISO(mandatory_day_data["end"]);
+                mandatory_day_data["start"] = luxon.DateTime.fromISO(
+                    mandatory_day_data["start"],
+                );
+                mandatory_day_data["end"] = luxon.DateTime.fromISO(
+                    mandatory_day_data["end"],
+                );
             });
             const records = Object.values(this.props.model.records).filter((r) =>
-                luxon.Interval.fromDateTimes(r.start.startOf("day"), r.end.endOf("day")).contains(
-                    date
-                )
+                luxon.Interval.fromDateTimes(
+                    r.start.startOf("day"),
+                    r.end.endOf("day"),
+                ).contains(date),
             );
             const props = this.getPopoverProps(date, records);
             props["records"] = mandatory_days_data.concat(props["records"]);
-            this.mandatoryDayPopover.open(target, props, "o_cw_popover_holidays o_cw_popover");
+            this.mandatoryDayPopover.open(
+                target,
+                props,
+                "o_cw_popover_holidays o_cw_popover",
+            );
         } else {
             super.onDateClick(info);
         }
     }
 
     openPopover(target, date, records) {
-        this.popover.open(target, this.getPopoverProps(date, records), "o_cw_popover_holidays o_cw_popover");
+        this.popover.open(
+            target,
+            this.getPopoverProps(date, records),
+            "o_cw_popover_holidays o_cw_popover",
+        );
     }
 
     getDayCellClassNames(info) {
@@ -72,10 +85,16 @@ export class TimeOffCalendarYearRenderer extends CalendarYearRenderer {
         const classesToAdd = super.eventClassNames(...arguments);
         const record = this.props.model.records[event.id];
         if (record && record.requestDateFromPeriod && record.sameDay) {
-            if (record.requestDateFromPeriod === "am" && record.requestDateToPeriod === "am") {
-                classesToAdd.push("o_event_half_left")
-            } else if (record.requestDateFromPeriod === "pm" && record.requestDateToPeriod === "pm") {
-                classesToAdd.push("o_event_half_right")
+            if (
+                record.requestDateFromPeriod === "am" &&
+                record.requestDateToPeriod === "am"
+            ) {
+                classesToAdd.push("o_event_half_left");
+            } else if (
+                record.requestDateFromPeriod === "pm" &&
+                record.requestDateToPeriod === "pm"
+            ) {
+                classesToAdd.push("o_event_half_right");
             }
         }
         if (record?.rawRecord?.request_unit_hours && record.sameDay) {

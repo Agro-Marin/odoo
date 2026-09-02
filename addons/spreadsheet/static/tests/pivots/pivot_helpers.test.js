@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
-
-import { getFirstListFunction, getNumberOfListFormulas } from "@spreadsheet/list/list_helpers";
-import { constants, tokenize, helpers } from "@odoo/o-spreadsheet";
+import { constants, helpers, tokenize } from "@odoo/o-spreadsheet";
+import {
+    getFirstListFunction,
+    getNumberOfListFormulas,
+} from "@spreadsheet/list/list_helpers";
 import { allowTranslations } from "@web/../tests/web_test_helpers";
 const {
     getFirstPivotFunction,
@@ -144,9 +146,12 @@ describe("toNormalizedPivotValue", () => {
             // falls back on regular date parsing:
             expect(toNormalizedPivotValue(dimension, "5/2020")).toBe("2/2020");
             expect(toNormalizedPivotValue(dimension, "01/01/2020")).toBe("1/2020");
-            expect(toNormalizedPivotValue(dimension, toNumber("01/01/2020", DEFAULT_LOCALE))).toBe(
-                "1/2020"
-            );
+            expect(
+                toNormalizedPivotValue(
+                    dimension,
+                    toNumber("01/01/2020", DEFAULT_LOCALE),
+                ),
+            ).toBe("1/2020");
             expect(() => toNormalizedPivotValue(dimension, "hello")).toThrow();
 
             dimension.granularity = "year";
@@ -176,7 +181,13 @@ describe("toNormalizedPivotValue", () => {
     });
 
     test("parse values of numeric fields", () => {
-        for (const fieldType of ["float", "integer", "monetary", "many2one", "many2many"]) {
+        for (const fieldType of [
+            "float",
+            "integer",
+            "monetary",
+            "many2one",
+            "many2many",
+        ]) {
             const dimension = {
                 type: fieldType,
                 displayName: "A field",
@@ -235,7 +246,9 @@ describe("pivot time adapters formatted value", () => {
 
     test("Week adapter", () => {
         const adapter = pivotTimeAdapter("week");
-        expect(adapter.toValueAndFormat("5/2024", DEFAULT_LOCALE)).toEqual({ value: "W5 2024" });
+        expect(adapter.toValueAndFormat("5/2024", DEFAULT_LOCALE)).toEqual({
+            value: "W5 2024",
+        });
         expect(adapter.toValueAndFormat("51/2020", DEFAULT_LOCALE)).toEqual({
             value: "W51 2020",
         });
@@ -255,8 +268,12 @@ describe("pivot time adapters formatted value", () => {
 
     test("Quarter adapter", () => {
         const adapter = pivotTimeAdapter("quarter");
-        expect(adapter.toValueAndFormat("1/2022", DEFAULT_LOCALE)).toEqual({ value: "Q1 2022" });
-        expect(adapter.toValueAndFormat("3/1998", DEFAULT_LOCALE)).toEqual({ value: "Q3 1998" });
+        expect(adapter.toValueAndFormat("1/2022", DEFAULT_LOCALE)).toEqual({
+            value: "Q1 2022",
+        });
+        expect(adapter.toValueAndFormat("3/1998", DEFAULT_LOCALE)).toEqual({
+            value: "Q3 1998",
+        });
     });
 
     test("Year adapter", () => {

@@ -1,10 +1,10 @@
-import { registry } from "@web/core/registry";
-import * as Utils from "@pos_self_order/../tests/tours/utils/common";
+import { negateStep } from "@point_of_sale/../tests/generic_helpers/utils";
 import * as CartPage from "@pos_self_order/../tests/tours/utils/cart_page_util";
+import * as Utils from "@pos_self_order/../tests/tours/utils/common";
+import * as ConfirmationPage from "@pos_self_order/../tests/tours/utils/confirmation_page_util";
 import * as LandingPage from "@pos_self_order/../tests/tours/utils/landing_page_util";
 import * as ProductPage from "@pos_self_order/../tests/tours/utils/product_page_util";
-import * as ConfirmationPage from "@pos_self_order/../tests/tours/utils/confirmation_page_util";
-import { negateStep } from "@point_of_sale/../tests/generic_helpers/utils";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("self_mobile_online_payment_meal_table", {
     steps: () => [

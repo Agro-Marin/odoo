@@ -19,7 +19,8 @@ registerWebsitePreviewTour(
     },
     () => [
         {
-            content: "Drag the Intro snippet group and drop it in #oe_structure_test_website_page.",
+            content:
+                "Drag the Intro snippet group and drop it in #oe_structure_test_website_page.",
             trigger:
                 ".o_block_tab:not(.o_we_ongoing_insertion) #snippet_groups .o_snippet[name='Intro'] .o_snippet_thumbnail .o_snippet_thumbnail_area",
             // id starting by 'oe_structure..' will actually create an inherited view
@@ -48,7 +49,7 @@ registerWebsitePreviewTour(
             run() {
                 ace.edit(document.querySelector("#resource-editor div"))
                     .getSession()
-                    .insert({row: 4, column: 1}, '<t t-field="not.exist"/>\n');
+                    .insert({ row: 4, column: 1 }, '<t t-field="not.exist"/>\n');
             },
         },
         {
@@ -60,7 +61,7 @@ registerWebsitePreviewTour(
             run: "click",
         },
         BROKEN_STEP,
-    ]
+    ],
 );
 
 registerWebsitePreviewTour(
@@ -74,7 +75,8 @@ registerWebsitePreviewTour(
             trigger: ":iframe p:text(Test Page View)",
         },
         {
-            content: "check that the inherited COW view is still there (created during edit mode)",
+            content:
+                "check that the inherited COW view is still there (created during edit mode)",
             trigger: ":iframe #oe_structure_test_website_page .s_cover",
         },
         //4. Now break the inherited view created when dropping a snippet
@@ -104,7 +106,7 @@ registerWebsitePreviewTour(
             run() {
                 ace.edit(document.querySelector("#resource-editor div"))
                     .getSession()
-                    .insert({row: 4, column: 1}, '<t t-field="not.exist"/>\n');
+                    .insert({ row: 4, column: 1 }, '<t t-field="not.exist"/>\n');
             },
         },
         {
@@ -113,5 +115,5 @@ registerWebsitePreviewTour(
             run: "click",
         },
         BROKEN_STEP,
-    ]
+    ],
 );

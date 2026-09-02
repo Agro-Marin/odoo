@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from '@web/public/interaction';
-import { registry } from '@web/core/registry';
+import { Interaction } from "@web/public/interaction";
+import { registry } from "@web/core/registry";
 
 export class ProductVariantPreview extends Interaction {
     static selector = "#o_wsale_products_grid";
@@ -27,7 +27,7 @@ export class ProductVariantPreview extends Interaction {
      */
     _resetDisplay(attributePreviewer) {
         for (const child of attributePreviewer.children) {
-            child.classList.add('d-none');
+            child.classList.add("d-none");
         }
     }
 
@@ -41,14 +41,13 @@ export class ProductVariantPreview extends Interaction {
      * @returns {void}
      */
     _showHiddenPTAVsElement(
-        attributePreviewerValues, currentPTAV, remainingSpace, displayedPTAVCount
+        attributePreviewerValues,
+        currentPTAV,
+        remainingSpace,
+        displayedPTAVCount,
     ) {
-        const {
-            ptavCount,
-            offsetWidthPTAVS,
-            hiddenCountSpan,
-            hiddenCountSpanWidth,
-        } = attributePreviewerValues;
+        const { ptavCount, offsetWidthPTAVS, hiddenCountSpan, hiddenCountSpanWidth } =
+            attributePreviewerValues;
         while (currentPTAV && hiddenCountSpanWidth >= remainingSpace) {
             currentPTAV.classList.add("d-none");
             displayedPTAVCount--;
@@ -69,12 +68,13 @@ export class ProductVariantPreview extends Interaction {
      * @returns {void}
      */
     _updateVariantPreview(attributePreviewer, attributePreviewerValues) {
-        const { containerWidth, ptavs, ptavCount, offsetWidthPTAVS } = attributePreviewerValues;
+        const { containerWidth, ptavs, ptavCount, offsetWidthPTAVS } =
+            attributePreviewerValues;
         this._resetDisplay(attributePreviewer);
         let usedWidth = 0;
         let displayedPTAVCount = 0;
         for (const ptav of ptavs) {
-            ptav.classList.remove('d-none');
+            ptav.classList.remove("d-none");
             usedWidth += offsetWidthPTAVS.get(ptav) + this.margin;
             displayedPTAVCount++;
             const remainingSpace = containerWidth - usedWidth;
@@ -82,7 +82,10 @@ export class ProductVariantPreview extends Interaction {
             const hasHiddenPtavs = isLastPTAV && ptavCount > displayedPTAVCount;
             if (usedWidth >= containerWidth || hasHiddenPtavs) {
                 this._showHiddenPTAVsElement(
-                    attributePreviewerValues, ptav, remainingSpace, displayedPTAVCount,
+                    attributePreviewerValues,
+                    ptav,
+                    remainingSpace,
+                    displayedPTAVCount,
                 );
                 break;
             }
@@ -100,33 +103,36 @@ export class ProductVariantPreview extends Interaction {
      * rendering cycle, preventing redundant or frequent recalculations (trigger by offsetWidth).
      */
     updateVariantPreview() {
-        const attributePreviewers = this.el.querySelectorAll(".o_wsale_attribute_previewer");
+        const attributePreviewers = this.el.querySelectorAll(
+            ".o_wsale_attribute_previewer",
+        );
         const updateAllVariantPreview = this.bindDeferred(() => {
             const attributePreviewerValues = new Map();
 
             // Initiate the values needed for each attribute previewer.
             for (const attributePreviewer of attributePreviewers) {
                 this._resetDisplay(attributePreviewer);
-                const ptavs = attributePreviewer.querySelectorAll(".o_product_variant_preview");
+                const ptavs = attributePreviewer.querySelectorAll(
+                    ".o_product_variant_preview",
+                );
                 // Set the hiddenCountSpan to the maximum number of ptavs there is to assume
                 // the worst case space it needs.
                 const hiddenCountSpan = attributePreviewer.querySelector(
-                    "span[name='hidden_ptavs_count']");
-                const ptavCount = ptavs.length + Number(
-                    attributePreviewer.dataset.hiddenPtavCount ?? 0);
+                    "span[name='hidden_ptavs_count']",
+                );
+                const ptavCount =
+                    ptavs.length +
+                    Number(attributePreviewer.dataset.hiddenPtavCount ?? 0);
                 hiddenCountSpan.firstElementChild.textContent = `+${ptavCount}`;
                 hiddenCountSpan.classList.remove("d-none");
-                attributePreviewerValues.set(
-                    attributePreviewer,
-                    {
-                        containerWidth: attributePreviewer.offsetWidth,
-                        ptavs,
-                        hiddenCountSpan,
-                        ptavCount,
-                        offsetWidthPTAVS: new Map(),
-                        hiddenCountSpanWidth: 0,
-                    },
-                );
+                attributePreviewerValues.set(attributePreviewer, {
+                    containerWidth: attributePreviewer.offsetWidth,
+                    ptavs,
+                    hiddenCountSpan,
+                    ptavCount,
+                    offsetWidthPTAVS: new Map(),
+                    hiddenCountSpanWidth: 0,
+                });
             }
 
             // Display all hidden elements to get the correct width.
@@ -144,14 +150,14 @@ export class ProductVariantPreview extends Interaction {
                 for (const ptav of currentValues.ptavs) {
                     currentValues.offsetWidthPTAVS.set(ptav, ptav.offsetWidth);
                 }
-                currentValues.hiddenCountSpanWidth = (
-                    currentValues.hiddenCountSpan.offsetWidth + this.margin * 2
-                );
+                currentValues.hiddenCountSpanWidth =
+                    currentValues.hiddenCountSpan.offsetWidth + this.margin * 2;
             }
 
             for (const attributePreviewer of attributePreviewers) {
                 this._updateVariantPreview(
-                    attributePreviewer, attributePreviewerValues.get(attributePreviewer)
+                    attributePreviewer,
+                    attributePreviewerValues.get(attributePreviewer),
                 );
             }
         });
@@ -160,8 +166,8 @@ export class ProductVariantPreview extends Interaction {
 }
 
 registry
-    .category('public.interactions')
-    .add('website_sale.product_variant_preview', ProductVariantPreview);
+    .category("public.interactions")
+    .add("website_sale.product_variant_preview", ProductVariantPreview);
 
 registry
     .category("public.interactions.edit")

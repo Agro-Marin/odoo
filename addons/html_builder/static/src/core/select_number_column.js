@@ -15,11 +15,11 @@ export class SelectNumberColumn extends BaseOptionComponent {
                     areColsCustomized(
                         columnEls,
                         this.env.editor.config.isMobileView(editingElement),
-                        this.env.editor.config.mobileBreakpoint
+                        this.env.editor.config.mobileBreakpoint,
                     ),
                 canHaveZeroColumns: editingElement.matches(".s_allow_columns"),
                 hasFixedColumnCount: !!editingElement.querySelector(
-                    ":scope > .row.s_nb_column_fixed"
+                    ":scope > .row.s_nb_column_fixed",
                 ),
             };
         });

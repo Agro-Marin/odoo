@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
+
 import { BlogPostTagsOption } from "./blog_post_tags_option.js";
 
 class BlogPostTagsOptionPlugin extends Plugin {
@@ -11,4 +12,6 @@ class BlogPostTagsOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(BlogPostTagsOptionPlugin.id, BlogPostTagsOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(BlogPostTagsOptionPlugin.id, BlogPostTagsOptionPlugin);

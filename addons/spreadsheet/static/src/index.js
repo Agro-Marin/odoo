@@ -26,7 +26,11 @@ import {
     GlobalFiltersCoreViewPlugin,
     GlobalFiltersUIPlugin,
 } from "@spreadsheet/global_filters/index";
-import { ListCorePlugin, ListCoreViewPlugin, ListUIPlugin } from "@spreadsheet/list/index"; // pivot depends on filter for its getters
+import {
+    ListCorePlugin,
+    ListCoreViewPlugin,
+    ListUIPlugin,
+} from "@spreadsheet/list/index"; // pivot depends on filter for its getters
 import {
     PivotCoreViewGlobalFilterPlugin,
     PivotOdooCorePlugin,
@@ -50,7 +54,7 @@ globalFieldMatchingRegistry.add("pivot", {
             .filter(
                 (id) =>
                     getters.getPivotCoreDefinition(id).type === "ODOO" &&
-                    getters.getPivotFieldMatch(id)
+                    getters.getPivotFieldMatch(id),
             ),
     getDisplayName: (getters, pivotId) => getters.getPivotName(pivotId),
     getTag: (getters, pivotId) =>
@@ -68,17 +72,22 @@ globalFieldMatchingRegistry.add("pivot", {
             .filter((pivot) => pivot.type === "ODOO")
             .map((pivot) => pivot.loadMetadata()),
     getFields: (getters, pivotId) => getters.getPivot(pivotId).getFields(),
-    getActionXmlId: (getters, pivotId) => getters.getPivotCoreDefinition(pivotId).actionXmlId,
+    getActionXmlId: (getters, pivotId) =>
+        getters.getPivotCoreDefinition(pivotId).actionXmlId,
 });
 
 globalFieldMatchingRegistry.add("list", {
-    getIds: (getters) => getters.getListIds().filter((id) => getters.getListFieldMatch(id)),
+    getIds: (getters) =>
+        getters.getListIds().filter((id) => getters.getListFieldMatch(id)),
     getDisplayName: (getters, listId) => getters.getListName(listId),
     getTag: (getters, listId) => _t(`List #%(list_id)s`, { list_id: listId }),
-    getFieldMatching: (getters, listId, filterId) => getters.getListFieldMatching(listId, filterId),
+    getFieldMatching: (getters, listId, filterId) =>
+        getters.getListFieldMatching(listId, filterId),
     getModel: (getters, listId) => getters.getListDefinition(listId).model,
     waitForReady: (getters) =>
-        getters.getListIds().map((listId) => getters.getListDataSource(listId).loadMetadata()),
+        getters
+            .getListIds()
+            .map((listId) => getters.getListDataSource(listId).loadMetadata()),
     getFields: (getters, listId) => getters.getListDataSource(listId).getFields(),
     getActionXmlId: (getters, listId) => getters.getListDefinition(listId).actionXmlId,
 });
@@ -99,7 +108,8 @@ globalFieldMatchingRegistry.add("chart", {
             .getOdooChartIds()
             .map((chartId) => getters.getChartDataSource(chartId).loadMetadata()),
     getFields: (getters, chartId) => getters.getChartDataSource(chartId).getFields(),
-    getActionXmlId: (getters, chartId) => getters.getChartDefinition(chartId).actionXmlId,
+    getActionXmlId: (getters, chartId) =>
+        getters.getChartDefinition(chartId).actionXmlId,
 });
 
 corePluginRegistry.add("OdooGlobalFiltersCorePlugin", GlobalFiltersCorePlugin);
@@ -110,10 +120,13 @@ corePluginRegistry.add("OdooListCoreGlobalFilterPlugin", ListCoreGlobalFilterPlu
 corePluginRegistry.add("odooChartCorePlugin", OdooChartCorePlugin);
 corePluginRegistry.add("chartOdooMenuPlugin", ChartOdooMenuPlugin);
 
-coreViewsPluginRegistry.add("OdooGlobalFiltersCoreViewPlugin", GlobalFiltersCoreViewPlugin);
+coreViewsPluginRegistry.add(
+    "OdooGlobalFiltersCoreViewPlugin",
+    GlobalFiltersCoreViewPlugin,
+);
 coreViewsPluginRegistry.add(
     "OdooPivotGlobalFiltersCoreViewPlugin",
-    PivotCoreViewGlobalFilterPlugin
+    PivotCoreViewGlobalFilterPlugin,
 );
 coreViewsPluginRegistry.add("OdooListCoreViewPlugin", ListCoreViewPlugin);
 coreViewsPluginRegistry.add("OdooChartCoreViewPlugin", OdooChartCoreViewPlugin);

@@ -1,5 +1,4 @@
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
-
 import { Command, serverState } from "@web/../tests/web_test_helpers";
 import { websiteModels } from "@website/../tests/helpers";
 
@@ -22,9 +21,13 @@ export class WebsiteVisitor extends websiteModels.WebsiteVisitor {
         const visitors = this.browse(ids);
         for (const visitor of visitors) {
             const operator = this.env.user;
-            const country = visitor.country_id ? ResCountry.browse(visitor.country_id) : undefined;
+            const country = visitor.country_id
+                ? ResCountry.browse(visitor.country_id)
+                : undefined;
             const visitor_name = `Visitor #${visitor.id}${country ? ` (${country.name})` : ""}`;
-            const membersToAdd = [Command.create({ partner_id: serverState.partnerId })];
+            const membersToAdd = [
+                Command.create({ partner_id: serverState.partnerId }),
+            ];
             if (visitor.partner_id) {
                 membersToAdd.push(Command.create({ partner_id: visitor.partner_id }));
             }
@@ -33,7 +36,9 @@ export class WebsiteVisitor extends websiteModels.WebsiteVisitor {
                 channel_type: "livechat",
                 livechat_operator_id: serverState.partnerId,
                 name: `${visitor_name}, ${
-                    operator.livechat_username ? operator.livechat_username : operator.name
+                    operator.livechat_username
+                        ? operator.livechat_username
+                        : operator.name
                 }`,
             });
             if (!visitor.partner_id) {
@@ -50,7 +55,7 @@ export class WebsiteVisitor extends websiteModels.WebsiteVisitor {
                 "mail.record/insert",
                 new mailDataHelpers.Store(channel)
                     .add(channel, { open_chat_window: true })
-                    .get_result()
+                    .get_result(),
             );
         }
     }

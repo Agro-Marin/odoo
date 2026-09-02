@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
+
 import { useActionInfo } from "../utils.js";
 
 // Props given to the builder input components that are then passed to the
@@ -36,7 +37,9 @@ export class BuilderTextInputBase extends Component {
         this.state = useState({ value: this.props.value });
         onWillUpdateProps((nextProps) => {
             if ("value" in nextProps) {
-                this.state.value = this.isEditing ? this.inputRef.el.value : nextProps.value;
+                this.state.value = this.isEditing
+                    ? this.inputRef.el.value
+                    : nextProps.value;
             }
         });
     }

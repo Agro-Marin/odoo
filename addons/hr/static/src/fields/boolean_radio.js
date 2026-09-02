@@ -29,21 +29,29 @@ export class BooleanRadio extends RadioField {
     }
 
     get items() {
-        if (this.type === "boolean") return [["true", ""], ["false", ""]];
+        if (this.type === "boolean") {
+            return [
+                ["true", ""],
+                ["false", ""],
+            ];
+        }
         return super.items;
     }
 
     get value() {
-        if (this.type === "boolean") return this.props.record.data[this.props.name].toString();
+        if (this.type === "boolean") {
+            return this.props.record.data[this.props.name].toString();
+        }
         return super.value;
     }
 
     /** @param {any} value */
     onChange(value) {
-        if (this.type === "boolean") this.props.record.update({ [this.props.name]: value[0] === "true" });
+        if (this.type === "boolean") {
+            this.props.record.update({ [this.props.name]: value[0] === "true" });
+        }
         super.onChange();
     }
-
 }
 
 export const booleanRadio = {

@@ -4,7 +4,10 @@ import { POPUP } from "@website/builder/plugins/options/popup_option_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { NewsletterSubscribeCommonOption, NewsletterSubscribeCommonPopupOption } from "./newsletter_subscribe_common_option.js";
+import {
+    NewsletterSubscribeCommonOption,
+    NewsletterSubscribeCommonPopupOption,
+} from "./newsletter_subscribe_common_option.js";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 
 export const NEWSLETTER_SELECT = before(POPUP);
@@ -35,4 +38,7 @@ class NewsletterSubscribeCommonOptionPlugin extends Plugin {
 
 registry
     .category("website-plugins")
-    .add(NewsletterSubscribeCommonOptionPlugin.id, NewsletterSubscribeCommonOptionPlugin);
+    .add(
+        NewsletterSubscribeCommonOptionPlugin.id,
+        NewsletterSubscribeCommonOptionPlugin,
+    );

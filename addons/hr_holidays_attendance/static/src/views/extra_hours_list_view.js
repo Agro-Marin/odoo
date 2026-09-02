@@ -18,9 +18,12 @@ export class ExtraHoursSummary extends Component {
             remainingExtraHours: 0,
         });
 
-        useEffect(() => {
-            this.updateOvertimeData();
-        }, () => [this.env.searchModel.domain]);
+        useEffect(
+            () => {
+                this.updateOvertimeData();
+            },
+            () => [this.env.searchModel.domain],
+        );
     }
 
     get shouldDisplay() {
@@ -32,11 +35,25 @@ export class ExtraHoursSummary extends Component {
             return;
         }
         const employeeId = this.env.searchModel.context.employee_id;
-        const overtime_data = (await this.orm.call("hr.employee", "get_overtime_data_by_employee", [employeeId]))[employeeId];
-        this.state.totalExtraHours = this.floatTime(overtime_data['compensable_overtime'] + overtime_data['not_compensable_overtime']);
-        this.state.compensableExtraHours = this.floatTime(overtime_data['compensable_overtime']);
-        this.state.totalOvertimeAdjustment = this.floatTime(overtime_data['compensable_overtime'] - overtime_data['unspent_compensable_overtime']);
-        this.state.remainingExtraHours = this.floatTime(overtime_data['unspent_compensable_overtime']);
+        const overtime_data = (
+            await this.orm.call("hr.employee", "get_overtime_data_by_employee", [
+                employeeId,
+            ])
+        )[employeeId];
+        this.state.totalExtraHours = this.floatTime(
+            overtime_data["compensable_overtime"] +
+                overtime_data["not_compensable_overtime"],
+        );
+        this.state.compensableExtraHours = this.floatTime(
+            overtime_data["compensable_overtime"],
+        );
+        this.state.totalOvertimeAdjustment = this.floatTime(
+            overtime_data["compensable_overtime"] -
+                overtime_data["unspent_compensable_overtime"],
+        );
+        this.state.remainingExtraHours = this.floatTime(
+            overtime_data["unspent_compensable_overtime"],
+        );
     }
 }
 
@@ -44,13 +61,13 @@ export class ExtraHoursListRenderer extends ListRenderer {
     static template = "hr_attendance.ExtraHoursListRenderer";
     static components = {
         ...ListRenderer.components,
-        ExtraHoursSummary
+        ExtraHoursSummary,
     };
-};
+}
 
 export const extraHoursListView = {
     ...listView,
-    Renderer: ExtraHoursListRenderer
+    Renderer: ExtraHoursListRenderer,
 };
 
 registry.category("views").add("extra_hours_list_view", extraHoursListView);

@@ -5,7 +5,10 @@ registry.category("web_tour.tours").add("shop_sale_ewallet", {
     url: "/shop",
     steps: () => [
         // Add a $50 gift card to the order
-        ...wsTourUtils.addToCart({ productName: "TEST - Gift Card", expectUnloadPage: true }),
+        ...wsTourUtils.addToCart({
+            productName: "TEST - Gift Card",
+            expectUnloadPage: true,
+        }),
         wsTourUtils.goToCart(),
         {
             trigger: 'button[name="o_loyalty_claim"]:contains("Use")',
@@ -14,7 +17,9 @@ registry.category("web_tour.tours").add("shop_sale_ewallet", {
                 if (rewards.length === 1) {
                     await helpers.click();
                 } else {
-                    console.error(`Expected 1 claimable reward, got: ${rewards.length}`);
+                    console.error(
+                        `Expected 1 claimable reward, got: ${rewards.length}`,
+                    );
                 }
             },
             expectUnloadPage: true,
@@ -32,7 +37,7 @@ registry.category("web_tour.tours").add("shop_sale_ewallet", {
             expectUnloadPage: true,
         },
         {
-            trigger: 'div h3:contains("Thank you for your order.")'
+            trigger: 'div h3:contains("Thank you for your order.")',
         },
         {
             trigger: 'a[href="/shop/cart"]',
@@ -40,7 +45,7 @@ registry.category("web_tour.tours").add("shop_sale_ewallet", {
                 const cartQuantity = document.querySelector(".my_cart_quantity");
                 if (cartQuantity.textContent !== "0") {
                     console.error(
-                        "cart should be empty and reset after an order is paid using ewallet"
+                        "cart should be empty and reset after an order is paid using ewallet",
                     );
                 }
             },

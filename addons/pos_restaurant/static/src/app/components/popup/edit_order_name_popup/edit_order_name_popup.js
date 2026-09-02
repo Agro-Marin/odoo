@@ -22,7 +22,7 @@ export class EditOrderNamePopup extends TextInputPopup {
     get items() {
         return this.pos
             .getOpenOrders()
-            .filter((o) => !o.table_id && o.uuid != this.currentOrder.uuid)
+            .filter((o) => !o.table_id && o.uuid !== this.currentOrder.uuid)
             .toSorted((a, b) => a.getName().localeCompare(b.getName()));
     }
 }

@@ -15,7 +15,12 @@ export const hierarchyView = {
     searchMenuTypes: ["filter"],
 
     props: (genericProps, view) => {
-        const { ArchParser, Model, Renderer, buttonTemplate: viewButtonTemplate } = view;
+        const {
+            ArchParser,
+            Model,
+            Renderer,
+            buttonTemplate: viewButtonTemplate,
+        } = view;
         const { arch, relatedModels, resModel, buttonTemplate } = genericProps;
         return {
             ...genericProps,
@@ -24,7 +29,7 @@ export const hierarchyView = {
             Model,
             Renderer,
         };
-    }
-}
+    },
+};
 
 registry.category("views").add("hierarchy", hierarchyView);

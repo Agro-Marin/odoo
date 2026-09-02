@@ -21,7 +21,7 @@ export function getNbColumns(columnEls, isMobile, mobileBreakpoint) {
     const colRegex = new RegExp(`(?:^|\\s+)col-${resolutionModifier}(\\d{1,2})(?!\\S)`);
     const colSize = parseInt(columnEls[0].className.match(colRegex)?.[1] || 12);
     const offsetSize = getFirstItem(columnEls, isMobile).classList.contains(
-        `offset-${resolutionModifier}1`
+        `offset-${resolutionModifier}1`,
     )
         ? 1
         : 0;
@@ -38,7 +38,10 @@ export const getRow = (el) => el.querySelector(":scope > .row");
  * @returns {HTMLElement} first HTMLElement in order
  */
 export function getFirstItem(columnEls, isMobile) {
-    return (isMobile && [...columnEls].find((el) => el.style.order === "0")) || columnEls[0];
+    return (
+        (isMobile && [...columnEls].find((el) => el.style.order === "0")) ||
+        columnEls[0]
+    );
 }
 /**
  * Adds mobile order and the reset class for large screens.
@@ -90,14 +93,17 @@ export function areColsCustomized(columnEls, isMobile, mobileBreakpoint) {
     //       the 1st item
     // Any other case is custom.
     const allColsSizesEqual = [...columnEls].every(
-        (columnEl) => parseInt(columnEl.className.match(colRegex)?.[1] || 12) === colSize
+        (columnEl) =>
+            parseInt(columnEl.className.match(colRegex)?.[1] || 12) === colSize,
     );
     if (!allColsSizesEqual) {
         return true;
     }
-    const offsetRegex = new RegExp(`(?:^|\\s+)offset-${resolutionModifier}[1-9][0-1]?(?!\\S)`);
+    const offsetRegex = new RegExp(
+        `(?:^|\\s+)offset-${resolutionModifier}[1-9][0-1]?(?!\\S)`,
+    );
     const nbOffsets = [...columnEls].filter((columnEl) =>
-        columnEl.className.match(offsetRegex)
+        columnEl.className.match(offsetRegex),
     ).length;
     if (nbOffsets === 0) {
         return false;
@@ -105,7 +111,9 @@ export function areColsCustomized(columnEls, isMobile, mobileBreakpoint) {
     if (
         nbOffsets === 1 &&
         colSize === 2 &&
-        getFirstItem(columnEls, isMobile).className.match(`offset-${resolutionModifier}1`)
+        getFirstItem(columnEls, isMobile).className.match(
+            `offset-${resolutionModifier}1`,
+        )
     ) {
         return false;
     }

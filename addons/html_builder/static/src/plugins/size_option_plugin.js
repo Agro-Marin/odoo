@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { after, BLOCK_ALIGN } from "@html_builder/utils/option_sequence";
-import { withSequence } from "@html_editor/utils/resource";
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { after, BLOCK_ALIGN } from "@html_builder/utils/option_sequence";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
 
 export class SizeOption extends BaseOptionComponent {
     static template = "html_builder.SizeOption";

@@ -8,7 +8,8 @@ import { _t } from "@web/core/translation";
 
 import { AnchorDialog } from "./anchor_dialog.js";
 
-const anchorSelector = ":not(p).oe_structure > *, :not(p)[data-oe-type=html] > *, .accordion-item";
+const anchorSelector =
+    ":not(p).oe_structure > *, :not(p)[data-oe-type=html] > *, .accordion-item";
 const anchorExclude =
     ".modal *, .oe_structure .oe_structure *, [data-oe-type=html] .oe_structure *, .s_popup";
 
@@ -38,7 +39,7 @@ export class AnchorPlugin extends Plugin {
         on_cloned_handlers: this.onCloned.bind(this),
         get_options_container_top_buttons: withSequence(
             0,
-            this.getOptionsContainerTopButtons.bind(this)
+            this.getOptionsContainerTopButtons.bind(this),
         ),
     };
 
@@ -80,7 +81,8 @@ export class AnchorPlugin extends Plugin {
 
     createAnchor(element) {
         const titleEls = element.querySelectorAll(TITLE_SELECTOR);
-        const title = titleEls.length > 0 ? titleEls[0].innerText : element.dataset.name;
+        const title =
+            titleEls.length > 0 ? titleEls[0].innerText : element.dataset.name;
         const anchorName = this.formatAnchor(title);
 
         let n = "";
@@ -115,7 +117,7 @@ export class AnchorPlugin extends Plugin {
                 anchor_link: anchorLink,
                 br: markup`<br>`,
                 close_span: markup`</span>`,
-            }
+            },
         );
         const closeNotification = this.services.notification.add(message, {
             type: "success",
@@ -129,7 +131,8 @@ export class AnchorPlugin extends Plugin {
                         this.services.dialog.add(AnchorDialog, {
                             currentAnchorName: decodeURIComponent(element.id),
                             renameAnchor: async (anchorName) => {
-                                const alreadyExists = !!this.document.getElementById(anchorName);
+                                const alreadyExists =
+                                    !!this.document.getElementById(anchorName);
                                 if (alreadyExists) {
                                     return false;
                                 }

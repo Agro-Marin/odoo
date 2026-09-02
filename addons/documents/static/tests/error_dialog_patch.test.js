@@ -112,7 +112,7 @@ test("an unrelated upload does not hijack the traceback link", async () => {
             subType: "Odoo Client Error",
             message: "Message",
             errorName: "client error",
-        })
+        }),
     );
     await animationFrame();
     expect.verifyErrors(["Message"]);

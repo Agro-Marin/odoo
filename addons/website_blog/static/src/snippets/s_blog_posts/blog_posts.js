@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { DynamicSnippet } from "@website/snippets/s_dynamic_snippet/dynamic_snippet";
 import { registry } from "@web/core/registry";
+import { DynamicSnippet } from "@website/snippets/s_dynamic_snippet/dynamic_snippet";
 
 export class BlogPosts extends DynamicSnippet {
     static selector = ".s_dynamic_snippet_blog_posts";

@@ -7,7 +7,10 @@ import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { StatusBarField,statusBarField } from "@web/fields/display/statusbar/statusbar_field";
+import {
+    StatusBarField,
+    statusBarField,
+} from "@web/fields/display/statusbar/statusbar_field";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { getFieldDomain } from "@web/model/relational_model";
 
@@ -40,13 +43,13 @@ export class VersionsTimeline extends StatusBarField {
                 ]).toList();
                 if (domain.length && value) {
                     domain = Domain.or([[["id", "=", value.id]], domain]).toList(
-                        record.evalContext
+                        record.evalContext,
                     );
                 }
                 return orm.searchRead(
                     relation,
                     domain,
-                    fieldNames.filter((fName) => fName in record.fields)
+                    fieldNames.filter((fName) => fName in record.fields),
                 );
             });
         }
@@ -66,7 +69,7 @@ export class VersionsTimeline extends StatusBarField {
 
     displayContractLines() {
         return ["contract_type_id", "contract_date_start", "contract_date_end"].every(
-            (fieldName) => fieldName in this.props.record.fields
+            (fieldName) => fieldName in this.props.record.fields,
         );
     }
 
@@ -117,8 +120,11 @@ export class VersionsTimeline extends StatusBarField {
             const itemSpecialData = dataById.get(item.value) || {};
             const contractDateStart = itemSpecialData.contract_date_start;
             let contractDateEnd = itemSpecialData.contract_date_end;
-            contractDateEnd = contractDateEnd ? format(contractDateEnd) : _t("Indefinite");
-            const contractType = itemSpecialData.contract_type_id?.[1] ?? _t("Contract");
+            contractDateEnd = contractDateEnd
+                ? format(contractDateEnd)
+                : _t("Indefinite");
+            const contractType =
+                itemSpecialData.contract_type_id?.[1] ?? _t("Contract");
             const toolTip = contractDateStart
                 ? `${contractType}: ${format(contractDateStart)} - ${contractDateEnd}`
                 : _t("No contract");

@@ -1,5 +1,5 @@
-import * as Utils from "@pos_self_order/../tests/tours/utils/common";
 import { negateStep } from "@point_of_sale/../tests/generic_helpers/utils";
+import * as Utils from "@pos_self_order/../tests/tours/utils/common";
 
 export function clickProduct(productName) {
     return {
@@ -123,9 +123,9 @@ export function verifyIsCheckedAttribute(attribute, values = []) {
         content: `Select value for attribute ${attribute}`,
         trigger: `div h2:contains("${attribute}")`,
         run: () => {
-            const attributesValues = Array.from(document.querySelectorAll("div h2")).find((el) =>
-                el.textContent.includes(attribute)
-            );
+            const attributesValues = Array.from(
+                document.querySelectorAll("div h2"),
+            ).find((el) => el.textContent.includes(attribute));
             if (!attributesValues) {
                 throw Error(`${attribute} not found.`);
             }
@@ -137,14 +137,14 @@ export function verifyIsCheckedAttribute(attribute, values = []) {
             const selectedButtons = rowDiv.querySelectorAll(".border-primary");
             // Extract text content of selected buttons
             const selectedValues = Array.from(selectedButtons).map((btn) =>
-                btn.querySelector("span")?.textContent.trim()
+                btn.querySelector("span")?.textContent.trim(),
             );
 
             // Check if all expected values are selected
             for (const val of values) {
                 if (!selectedValues.includes(val)) {
                     throw new Error(
-                        `Expected value "${val}" for attribute "${attribute}" is not selected.`
+                        `Expected value "${val}" for attribute "${attribute}" is not selected.`,
                     );
                 }
             }
@@ -153,8 +153,8 @@ export function verifyIsCheckedAttribute(attribute, values = []) {
             if (selectedValues.length !== values.length) {
                 throw new Error(
                     `Mismatch in selected values for attribute "${attribute}". Expected: ${values.join(
-                        ", "
-                    )}, Found: ${selectedValues.join(", ")}`
+                        ", ",
+                    )}, Found: ${selectedValues.join(", ")}`,
                 );
             }
         },

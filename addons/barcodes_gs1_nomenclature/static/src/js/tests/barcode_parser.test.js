@@ -242,12 +242,16 @@ test("Test Alternative GS1 Separator (fnc1)", async () => {
     // (21)12345(15)090101(16)100101
     const code128 = "2112345#1509010116100101";
     expect(() => {
-        barcodeNomenclature.gs1_decompose_extended(barcodeService.cleanBarcode(code128));
+        barcodeNomenclature.gs1_decompose_extended(
+            barcodeService.cleanBarcode(code128),
+        );
     }).toThrow();
 
     // Reload the nomenclature but this time using '#' as separator.
     barcodeNomenclature = buildBarcodeParser({ gs1_separator_fnc1: "#" });
-    const res = barcodeNomenclature.gs1_decompose_extended(barcodeService.cleanBarcode(code128));
+    const res = barcodeNomenclature.gs1_decompose_extended(
+        barcodeService.cleanBarcode(code128),
+    );
     expect(res.length).toBe(3);
     expect(res[0].ai).toBe("21");
     expect(res[0].value).toBe("12345");

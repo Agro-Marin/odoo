@@ -1,13 +1,12 @@
 import { describe, expect, test } from "@odoo/hoot";
+import { setCellContent, updatePivot } from "@spreadsheet/../tests/helpers/commands";
 import {
     defineSpreadsheetActions,
     defineSpreadsheetModels,
 } from "@spreadsheet/../tests/helpers/data";
-
-import { setCellContent, updatePivot } from "@spreadsheet/../tests/helpers/commands";
 import { getCellValue, getEvaluatedCell } from "@spreadsheet/../tests/helpers/getters";
-import { createSpreadsheetWithPivot } from "@spreadsheet/../tests/helpers/pivot";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
+import { createSpreadsheetWithPivot } from "@spreadsheet/../tests/helpers/pivot";
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
 
 describe.current.tags("headless");
@@ -46,7 +45,11 @@ test("Can have positional args in pivot headers formula", async function () {
     setCellContent(model, "H3", `=PIVOT.HEADER(1,"#foo",3)`);
     setCellContent(model, "H4", `=PIVOT.HEADER(1,"#foo",4)`);
     setCellContent(model, "H5", `=PIVOT.HEADER(1,"#foo",5)`);
-    setCellContent(model, "H6", `=PIVOT.HEADER(1,"#foo",5, "measure", "probability:avg")`);
+    setCellContent(
+        model,
+        "H6",
+        `=PIVOT.HEADER(1,"#foo",5, "measure", "probability:avg")`,
+    );
     expect(getCellValue(model, "H1")).toBe(1);
     expect(getCellValue(model, "H2")).toBe(2);
     expect(getCellValue(model, "H3")).toBe(12);
@@ -58,7 +61,11 @@ test("Can have positional args in pivot headers formula", async function () {
     setCellContent(model, "I1", `=PIVOT.HEADER(1,"#bar",1)`);
     setCellContent(model, "I2", `=PIVOT.HEADER(1,"#bar",2)`);
     setCellContent(model, "I3", `=PIVOT.HEADER(1,"#bar",3)`);
-    setCellContent(model, "I4", `=PIVOT.HEADER(1,"#bar",3, "measure", "probability:avg")`);
+    setCellContent(
+        model,
+        "I4",
+        `=PIVOT.HEADER(1,"#bar",3, "measure", "probability:avg")`,
+    );
     expect(getCellValue(model, "I1")).toBe("No");
     expect(getCellValue(model, "I2")).toBe("Yes");
     expect(getCellValue(model, "I3")).toBe("");
@@ -91,12 +98,12 @@ test("pivot positional with two levels of group bys in rows", async () => {
     setCellContent(
         model,
         "H1",
-        `=PIVOT.VALUE(1,"probability:avg","#bar",1,"#product_id",1,"#foo",2)`
+        `=PIVOT.VALUE(1,"probability:avg","#bar",1,"#product_id",1,"#foo",2)`,
     );
     setCellContent(
         model,
         "H2",
-        `=PIVOT.VALUE(1,"probability:avg","#bar",1,"#product_id",2,"#foo",2)`
+        `=PIVOT.VALUE(1,"probability:avg","#bar",1,"#product_id",2,"#foo",2)`,
     );
     expect(getCellValue(model, "H1")).toBe(15);
     expect(getCellValue(model, "H2")).toBe("");
@@ -107,7 +114,7 @@ test("Positional argument without a number should crash", async () => {
     setCellContent(model, "A10", `=PIVOT.HEADER(1,"#bar","this is not a number")`);
     expect(getCellValue(model, "A10")).toBe("#ERROR");
     expect(getEvaluatedCell(model, "A10").message).toBe(
-        "The function PIVOT.HEADER expects a number value, but 'this is not a number' is a string, and cannot be coerced to a number."
+        "The function PIVOT.HEADER expects a number value, but 'this is not a number' is a string, and cannot be coerced to a number.",
     );
 });
 
@@ -119,7 +126,13 @@ test("sort first pivot column (ascending)", async () => {
                 columns: [{ fieldName: "foo" }],
                 rows: [{ fieldName: "bar" }],
                 domain: [],
-                measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+                measures: [
+                    {
+                        id: "probability:sum",
+                        fieldName: "probability",
+                        aggregator: "sum",
+                    },
+                ],
                 model: "partner",
                 sortedColumn: {
                     domain: [{ field: "foo", type: "integer", value: 1 }],
@@ -157,7 +170,13 @@ test("sort first pivot column (descending)", async () => {
                 columns: [{ fieldName: "foo" }],
                 rows: [{ fieldName: "bar" }],
                 domain: [],
-                measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+                measures: [
+                    {
+                        id: "probability:sum",
+                        fieldName: "probability",
+                        aggregator: "sum",
+                    },
+                ],
                 model: "partner",
                 sortedColumn: {
                     domain: [{ field: "foo", type: "integer", value: 1 }],
@@ -194,7 +213,13 @@ test("sort second pivot column (ascending)", async () => {
                 type: "ODOO",
                 columns: [{ fieldName: "foo" }],
                 domain: [],
-                measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+                measures: [
+                    {
+                        id: "probability:sum",
+                        fieldName: "probability",
+                        aggregator: "sum",
+                    },
+                ],
                 model: "partner",
                 rows: [{ fieldName: "bar" }],
                 name: "Partners by Foo",
@@ -233,7 +258,13 @@ test("sort second pivot column (descending)", async () => {
                 type: "ODOO",
                 columns: [{ fieldName: "foo" }],
                 domain: [],
-                measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+                measures: [
+                    {
+                        id: "probability:sum",
+                        fieldName: "probability",
+                        aggregator: "sum",
+                    },
+                ],
                 model: "partner",
                 rows: [{ fieldName: "bar" }],
                 name: "Partners by Foo",
@@ -274,7 +305,11 @@ test("sort second pivot measure (ascending)", async () => {
                 columns: [],
                 domain: [],
                 measures: [
-                    { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+                    {
+                        id: "probability:sum",
+                        fieldName: "probability",
+                        aggregator: "sum",
+                    },
                     { id: "foo:sum", fieldName: "foo", aggregator: "sum" },
                 ],
                 model: "partner",
@@ -310,7 +345,11 @@ test("sort second pivot measure (descending)", async () => {
                 columns: [],
                 domain: [],
                 measures: [
-                    { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+                    {
+                        id: "probability:sum",
+                        fieldName: "probability",
+                        aggregator: "sum",
+                    },
                     { id: "foo:sum", fieldName: "foo", aggregator: "sum" },
                 ],
                 model: "partner",

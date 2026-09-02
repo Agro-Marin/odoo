@@ -1,9 +1,12 @@
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { mountWithCleanup, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
-
 import { SignatureForm } from "@portal/signature_form/signature_form";
+import {
+    mountWithCleanup,
+    onRpc,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 
 const SIGN_URL = "/portal/test/sign";
 

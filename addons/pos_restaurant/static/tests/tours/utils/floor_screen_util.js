@@ -1,7 +1,13 @@
 import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
 import { negate } from "@point_of_sale/../tests/generic_helpers/utils";
 
-export function table({ name, withClass = "", withoutClass, run = () => {}, numOfSeats }) {
+export function table({
+    name,
+    withClass = "",
+    withoutClass,
+    run = () => {},
+    numOfSeats,
+}) {
     let trigger = `.floor-map .table${withClass}`;
     if (withoutClass) {
         trigger += `:not(${withoutClass})`;
@@ -24,7 +30,9 @@ export const ctrlClickTable = (name) =>
         run: (helpers, trigger) => {
             helpers
                 .queryOne(trigger)
-                .dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true }));
+                .dispatchEvent(
+                    new MouseEvent("click", { bubbles: true, ctrlKey: true }),
+                );
         },
     });
 export function clickFloor(name) {
@@ -172,7 +180,7 @@ export function linkTables(child, parent) {
                         position: "center",
                         relative: true,
                     },
-                ]
+                ],
             );
         },
     };

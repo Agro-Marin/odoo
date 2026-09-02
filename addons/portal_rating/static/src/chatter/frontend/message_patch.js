@@ -26,7 +26,7 @@ patch(Message.prototype, {
         this.state.editRating = !this.state.editRating;
         if (this.state.editRating) {
             const messageContent = convertBrToLineBreak(
-                this.props.message.rating_id.publisher_comment
+                this.props.message.rating_id.publisher_comment,
             );
             this.props.message.composer = {
                 message: this.props.message,

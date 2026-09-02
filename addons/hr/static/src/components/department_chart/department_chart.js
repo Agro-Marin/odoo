@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component,onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
+import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets";
@@ -26,9 +26,11 @@ export class DepartmentChart extends Component {
     }
 
     async fetchHierarchy(departmentId) {
-        this.state.hierarchy = await this.orm.call("hr.department", "get_department_hierarchy", [
-            departmentId,
-        ]);
+        this.state.hierarchy = await this.orm.call(
+            "hr.department",
+            "get_department_hierarchy",
+            [departmentId],
+        );
     }
 
     async openDepartmentEmployees(departmentId) {
@@ -36,7 +38,7 @@ export class DepartmentChart extends Component {
             this.props.record.resModel,
             "action_employee_from_department",
             [departmentId],
-            {}
+            {},
         );
         this.action.doAction(dialogAction);
     }

@@ -1,6 +1,6 @@
-import { luxon } from "@web/core/l10n/luxon";
-import { Domain } from "@web/core/domain";
 import { expect } from "@odoo/hoot";
+import { Domain } from "@web/core/domain";
+import { luxon } from "@web/core/l10n/luxon";
 
 const { DateTime } = luxon;
 

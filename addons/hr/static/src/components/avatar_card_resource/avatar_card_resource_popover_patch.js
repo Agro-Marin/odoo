@@ -1,14 +1,14 @@
 /** @odoo-module native */
-import { patch } from "@web/core/utils/patch";
 import { AvatarCardResourcePopover } from "@resource_mail/components/avatar_card_resource/avatar_card_resource_popover";
-import { useService } from "@web/core/utils/hooks";
 import { TagsList } from "@web/components/tags_list";
+import { useService } from "@web/core/utils/hooks";
+import { patch } from "@web/core/utils/patch";
 
 const patchAvatarCardResourcePopover = {
     setup() {
         super.setup();
-        (this.userInfoTemplate = "hr.avatarCardResourceInfos"),
-            (this.actionService = useService("action"));
+        ((this.userInfoTemplate = "hr.avatarCardResourceInfos"),
+            (this.actionService = useService("action")));
     },
     get fieldNames() {
         return [

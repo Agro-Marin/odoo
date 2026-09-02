@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, tick } from "@odoo/hoot-dom";
 import { defineStyle } from "@web/../tests/web_test_helpers";
-import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
+import {
+    setupInteractionWhiteList,
+    startInteractions,
+} from "@web/../tests/public/helpers";
 
 setupInteractionWhiteList("website.popup");
 describe.current.tags("interaction_dev");
@@ -37,7 +40,7 @@ function getTemplate(disabled = false) {
 }
 
 describe("mail popup", () => {
-    beforeEach(() => defineStyle(/* css */`* { transition: none !important; }`));
+    beforeEach(() => defineStyle(/* css */ `* { transition: none !important; }`));
     test("popup is shown if user is not subscribed (mail input not disabled)", async () => {
         const { core } = await startInteractions(getTemplate());
         expect(core.interactions).toHaveLength(1);

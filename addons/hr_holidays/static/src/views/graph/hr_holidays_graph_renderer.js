@@ -5,94 +5,118 @@ import { _t } from "@web/core/translation";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { GraphRenderer } from "@web/views/graph";
 
-
-
 export class HrHolidaysGraphRenderer extends GraphRenderer {
-    delimiter = ' / ';
+    delimiter = " / ";
 
     getBarChartData() {
-
-        let data = super.getBarChartData();
+        const data = super.getBarChartData();
         for (let index = 0; index < data.datasets.length; ++index) {
             const dataset = data.datasets[index];
-            if (dataset.label.split(this.delimiter).includes(this.model.allocation_label)){
+            if (
+                dataset.label
+                    .split(this.delimiter)
+                    .includes(this.model.allocation_label)
+            ) {
                 dataset.stack = this.model.allocation_label;
-            }
-            else if (dataset.label.split(this.delimiter).includes(this.model.timeoff_label)){
+            } else if (
+                dataset.label.split(this.delimiter).includes(this.model.timeoff_label)
+            ) {
                 dataset.stack = this.model.timeoff_label;
             }
         }
 
-        if (!(data.datasets.every(dataset => dataset.stack === this.model.allocation_label)
-            || data.datasets.every(dataset => dataset.stack === this.model.timeoff_label))){
-            let balanceDatasets = this._computeBalanceDatasets(data);
+        if (!(
+            data.datasets.every(
+                (dataset) => dataset.stack === this.model.allocation_label,
+            ) ||
+            data.datasets.every((dataset) => dataset.stack === this.model.timeoff_label)
+        )) {
+            const balanceDatasets = this._computeBalanceDatasets(data);
             data.datasets.push(...balanceDatasets);
         }
 
-        for (let dataset of data.datasets.filter(dataset => dataset.stack === this.model.timeoff_label)){
-            dataset.data = dataset.data.map(datapoint => -datapoint);
+        for (const dataset of data.datasets.filter(
+            (dataset) => dataset.stack === this.model.timeoff_label,
+        )) {
+            dataset.data = dataset.data.map((datapoint) => -datapoint);
         }
         return data;
     }
 
     _computeBalanceDatasets(data) {
-        this.balance_label = _t('Balance')
-        const datasetsByLabel = groupBy(data.datasets, 
-            (dataset) => dataset.label.split(this.delimiter)
-            .map(labelPart => labelPart === this.model.allocation_label || labelPart === this.model.timeoff_label ? this.balance_label : labelPart)
-            .join(this.delimiter)
+        this.balance_label = _t("Balance");
+        const datasetsByLabel = groupBy(data.datasets, (dataset) =>
+            dataset.label
+                .split(this.delimiter)
+                .map((labelPart) =>
+                    labelPart === this.model.allocation_label ||
+                    labelPart === this.model.timeoff_label
+                        ? this.balance_label
+                        : labelPart,
+                )
+                .join(this.delimiter),
         );
         this.datasets_offset = data.datasets.length;
-        this.datasets_length = this.datasets_offset + Object.keys(datasetsByLabel).length;
-        const balanceDatasets = Object.entries(datasetsByLabel).map(([label, datasets], index) =>
-            this._initializeBalanceDatasetFrom(datasets, label, index)
+        this.datasets_length =
+            this.datasets_offset + Object.keys(datasetsByLabel).length;
+        const balanceDatasets = Object.entries(datasetsByLabel).map(
+            ([label, datasets], index) =>
+                this._initializeBalanceDatasetFrom(datasets, label, index),
         );
         return balanceDatasets;
     }
 
-    _initializeBalanceDatasetFrom(datasets, label, index){
-        let dataset = datasets[0];
+    _initializeBalanceDatasetFrom(datasets, label, index) {
+        const dataset = datasets[0];
 
         const dataset_index = this.datasets_offset + index;
         const backgroundColor = getColor(dataset_index, this.datasets_length);
 
-        let balanceDataset = {
-            'trueLabels': dataset.trueLabels,
-            'stack': this.balance_label,
-            'label': label,
-            'backgroundColor': backgroundColor,
-            'borderRadius': dataset.borderRadius,
-            'cumulatedStart': dataset.cumulatedStart,
+        const balanceDataset = {
+            trueLabels: dataset.trueLabels,
+            stack: this.balance_label,
+            label: label,
+            backgroundColor: backgroundColor,
+            borderRadius: dataset.borderRadius,
+            cumulatedStart: dataset.cumulatedStart,
         };
- 
-        balanceDataset.domains = dataset.domains.map(domain => 
-            domain.map(condition => 
-                condition.includes('leave_type')
-                ? ['leave_type', 'in', ['allocation', 'request']]
-                : condition
-            )
-        ); 
 
-        balanceDataset.identifiers = new Set([...dataset.identifiers].map(identifier => 
-                JSON.stringify( 
-                    JSON.parse(identifier)
-                    .filter(identifierObject => !identifierObject.hasOwnProperty('leave_type'))
-                )
-            )
+        balanceDataset.domains = dataset.domains.map((domain) =>
+            domain.map((condition) =>
+                condition.includes("leave_type")
+                    ? ["leave_type", "in", ["allocation", "request"]]
+                    : condition,
+            ),
+        );
+
+        balanceDataset.identifiers = new Set(
+            [...dataset.identifiers].map((identifier) =>
+                JSON.stringify(
+                    JSON.parse(identifier).filter(
+                        (identifierObject) =>
+                            !Object.hasOwn(identifierObject, "leave_type"),
+                    ),
+                ),
+            ),
         );
 
         balanceDataset.data = new Array(balanceDataset.trueLabels.length).fill(0);
-        const allocation_datasets = datasets.filter(dataset => dataset.stack === this.model.allocation_label)
-        for (let allocation_dataset of allocation_datasets){
-            for (let i = 0; i < allocation_dataset.data.length; i++){
+        const allocation_datasets = datasets.filter(
+            (dataset) => dataset.stack === this.model.allocation_label,
+        );
+        for (const allocation_dataset of allocation_datasets) {
+            for (let i = 0; i < allocation_dataset.data.length; i++) {
                 balanceDataset.data[i] += allocation_dataset.data[i];
             }
         }
-        const timeoff_datasets = datasets.filter(dataset => dataset.stack === this.model.timeoff_label)
-        for (let timeoff_dataset of timeoff_datasets){
-            for (let i = 0; i < timeoff_dataset.data.length; i++){
-                if (balanceDataset.data[i] != 0)
+        const timeoff_datasets = datasets.filter(
+            (dataset) => dataset.stack === this.model.timeoff_label,
+        );
+        for (const timeoff_dataset of timeoff_datasets) {
+            for (let i = 0; i < timeoff_dataset.data.length; i++) {
+                if (balanceDataset.data[i] !== 0) {
                     balanceDataset.data[i] += timeoff_dataset.data[i];
+                }
             }
         }
         return balanceDataset;

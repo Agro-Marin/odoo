@@ -670,7 +670,6 @@ describe("Selection collapsed", () => {
                 });
             });
             describe("after checked item", () => {
-
                 test("should add two list items at the end of a checklist with a class", async () => {
                     await testEditor({
                         contentBefore:

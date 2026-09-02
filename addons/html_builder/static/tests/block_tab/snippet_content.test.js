@@ -1,6 +1,6 @@
 import {
-    setupHTMLBuilder,
     getDragHelper,
+    setupHTMLBuilder,
     waitForEndOfOperation,
 } from "@html_builder/../tests/helpers";
 import { BuilderOptionsPlugin } from "@html_builder/core/builder_options_plugin";
@@ -43,9 +43,12 @@ test("Display inner content snippet", async () => {
     });
     const snippetInnerContentSelector = ".o-snippets-menu #snippet_content .o_snippet";
     expect(snippetInnerContentSelector).toHaveCount(2);
-    expect(queryAllTexts(snippetInnerContentSelector)).toEqual(["Button A", "Button B"]);
+    expect(queryAllTexts(snippetInnerContentSelector)).toEqual([
+        "Button A",
+        "Button B",
+    ]);
     const thumbnailImgUrls = queryAll(
-        `${snippetInnerContentSelector} .o_snippet_thumbnail_img`
+        `${snippetInnerContentSelector} .o_snippet_thumbnail_img`,
     ).map((thumbnail) => thumbnail.style.backgroundImage);
     expect(thumbnailImgUrls).toEqual(['url("buttonA.svg")', 'url("buttonB.svg")']);
 });
@@ -59,7 +62,7 @@ test("Drag & drop inner content block", async () => {
     expect(".o-website-builder_sidebar .fa-undo").not.toBeEnabled();
 
     const { moveTo, drop } = await contains(
-        ".o-website-builder_sidebar [name='Button A'] .o_snippet_thumbnail"
+        ".o-website-builder_sidebar [name='Button A'] .o_snippet_thumbnail",
     ).drag();
     expect(":iframe .oe_drop_zone:nth-child(1)").toHaveCount(1);
     expect(":iframe .oe_drop_zone:nth-child(3)").toHaveCount(1);
@@ -74,7 +77,7 @@ test("Drag & drop inner content block", async () => {
     await waitForEndOfOperation();
 
     expect(contentEl).toHaveInnerHTML(
-        `<div>\ufeff<a class="btn btn-primary" href="#" data-snippet="s_button" data-name="Button A">\ufeffButton A\ufeff</a>\ufeff<p>Text</p></div>`
+        `<div>\ufeff<a class="btn btn-primary" href="#" data-snippet="s_button" data-name="Button A">\ufeffButton A\ufeff</a>\ufeff<p>Text</p></div>`,
     );
     expect(".o-website-builder_sidebar .fa-undo").toBeEnabled();
 });
@@ -90,14 +93,14 @@ test("Drag & drop inner content block + undo/redo", async () => {
 
     await click(".o-website-builder_sidebar .fa-undo");
     const { moveTo, drop } = await contains(
-        ".o-website-builder_sidebar [name='Button A'] .o_snippet_thumbnail"
+        ".o-website-builder_sidebar [name='Button A'] .o_snippet_thumbnail",
     ).drag();
     await moveTo(":iframe .oe_drop_zone");
     await drop(getDragHelper());
     await waitForEndOfOperation();
 
     expect(contentEl).toHaveInnerHTML(
-        `<div>\ufeff<a class="btn btn-primary" href="#" data-snippet="s_button" data-name="Button A">\ufeffButton A\ufeff</a>\ufeff<p>Text</p></div>`
+        `<div>\ufeff<a class="btn btn-primary" href="#" data-snippet="s_button" data-name="Button A">\ufeffButton A\ufeff</a>\ufeff<p>Text</p></div>`,
     );
     expect(".o-website-builder_sidebar .fa-undo").toBeEnabled();
     expect(".o-website-builder_sidebar .fa-arrow-rotate-right").not.toBeEnabled();
@@ -117,7 +120,7 @@ test("Drag inner content and drop it outside of a dropzone", async () => {
     expect(contentEl).toHaveInnerHTML(`<div><p>Text</p></div>`);
 
     const { moveTo, drop } = await contains(
-        ".o-website-builder_sidebar [name='Button A'] .o_snippet_thumbnail"
+        ".o-website-builder_sidebar [name='Button A'] .o_snippet_thumbnail",
     ).drag();
     expect(":iframe .oe_drop_zone:nth-child(1)").toHaveCount(1);
     expect(":iframe .oe_drop_zone:nth-child(3)").toHaveCount(1);
@@ -148,7 +151,9 @@ test("click just after drop is redispatched in next operation", async () => {
                 await originalFn();
                 nextDef.resolve();
             };
-            expect.step(`next${args[0]?.shouldInterceptClick ? " should intercept" : ""}`);
+            expect.step(
+                `next${args[0]?.shouldInterceptClick ? " should intercept" : ""}`,
+            );
             const res = super.next(fn, ...args);
             return res;
         },
@@ -176,7 +181,9 @@ test("click just after drop is redispatched in next operation", async () => {
 
     // TODO: the next lines replicate website's `insertCategorySnippet` helper.
     // It should be moved to html_builder.
-    await contains(".o-snippets-menu #snippet_groups .o_snippet_thumbnail_area").click();
+    await contains(
+        ".o-snippets-menu #snippet_groups .o_snippet_thumbnail_area",
+    ).click();
     await animationFrame();
     await loadBundle("html_builder.iframe_add_dialog", {
         targetDoc: queryOne("iframe.o_add_snippet_iframe").contentDocument,
@@ -184,7 +191,7 @@ test("click just after drop is redispatched in next operation", async () => {
     });
     await waitFor(".o_add_snippet_dialog iframe.show.o_add_snippet_iframe");
     await contains(
-        ".o_add_snippet_dialog .o_add_snippet_iframe:iframe .o_snippet_preview_wrap"
+        ".o_add_snippet_dialog .o_add_snippet_iframe:iframe .o_snippet_preview_wrap",
     ).click();
     await animationFrame();
     expect.verifySteps(["next should intercept"]); // On snippet selected

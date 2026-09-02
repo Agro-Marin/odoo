@@ -57,12 +57,16 @@ export class CustomIconAction extends BuilderAction {
             };
             const onClose = this.dependencies.media.openMediaDialog(
                 mediaDialogParams,
-                this.editable
+                this.editable,
             );
             onClose.then(resolve);
         });
     }
-    apply({ editingElement, loadResult: savedIconEl, params: { mainParam: customParam } }) {
+    apply({
+        editingElement,
+        loadResult: savedIconEl,
+        params: { mainParam: customParam },
+    }) {
         if (!savedIconEl) {
             return;
         }
@@ -73,9 +77,13 @@ export class CustomIconAction extends BuilderAction {
         const iconEls = isCustomActive ? activeIconEls : inactiveIconEls;
         iconEls.forEach((iconEl) => (iconEl.className = customClass));
         const faClassActiveCustomIcons =
-            activeIconEls.length > 0 ? activeIconEls[0].getAttribute("class") : customClass;
+            activeIconEls.length > 0
+                ? activeIconEls[0].getAttribute("class")
+                : customClass;
         const faClassInactiveCustomIcons =
-            inactiveIconEls.length > 0 ? inactiveIconEls[0].getAttribute("class") : customClass;
+            inactiveIconEls.length > 0
+                ? inactiveIconEls[0].getAttribute("class")
+                : customClass;
         editingElement.dataset.activeCustomIcon = faClassActiveCustomIcons;
         editingElement.dataset.inactiveCustomIcon = faClassInactiveCustomIcons;
         editingElement.dataset.icon = "custom";
@@ -147,11 +155,19 @@ function getInactiveIcons(editingElement) {
 function renderIcons(editingElement) {
     const iconType = getIconType(editingElement);
     const faClassActiveIcons =
-        iconType === "custom" ? getActiveCustomIcons(editingElement) : `fa-solid ${iconType}`;
+        iconType === "custom"
+            ? getActiveCustomIcons(editingElement)
+            : `fa-solid ${iconType}`;
     const faClassInactiveIcons =
-        iconType === "custom" ? getInactiveCustomIcons(editingElement) : `fa-regular ${iconType}`;
+        iconType === "custom"
+            ? getInactiveCustomIcons(editingElement)
+            : `fa-regular ${iconType}`;
     const activeIconEls = getActiveIcons(editingElement);
     const inactiveIconEls = getInactiveIcons(editingElement);
-    activeIconEls.forEach((activeIconEl) => (activeIconEl.className = faClassActiveIcons));
-    inactiveIconEls.forEach((inactiveIconEl) => (inactiveIconEl.className = faClassInactiveIcons));
+    activeIconEls.forEach(
+        (activeIconEl) => (activeIconEl.className = faClassActiveIcons),
+    );
+    inactiveIconEls.forEach(
+        (inactiveIconEl) => (inactiveIconEl.className = faClassInactiveIcons),
+    );
 }

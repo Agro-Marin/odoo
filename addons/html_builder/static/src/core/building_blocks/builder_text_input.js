@@ -1,13 +1,17 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { pick } from "@web/core/utils/collections/objects";
-import { BuilderTextInputBase, textInputBasePassthroughProps } from "./builder_text_input_base.js";
+
 import {
     basicContainerBuilderComponentProps,
-    useInputBuilderComponent,
     useBuilderComponent,
+    useInputBuilderComponent,
 } from "../utils.js";
 import { BuilderComponent } from "./builder_component.js";
+import {
+    BuilderTextInputBase,
+    textInputBasePassthroughProps,
+} from "./builder_text_input_base.js";
 
 export class BuilderTextInput extends Component {
     static template = "html_builder.BuilderTextInput";

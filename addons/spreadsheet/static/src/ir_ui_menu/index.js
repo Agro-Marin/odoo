@@ -25,8 +25,11 @@ errorTypes.add(LINK_ERROR);
 class BadOdooLinkError extends EvaluationError {
     constructor(menuId) {
         super(
-            _t("Menu %s not found. You may not have the required access rights.", menuId),
-            LINK_ERROR
+            _t(
+                "Menu %s not found. You may not have the required access rights.",
+                menuId,
+            ),
+            LINK_ERROR,
         );
     }
 }
@@ -35,7 +38,9 @@ export const spreadsheetLinkMenuCellService = {
     dependencies: ["menu"],
     start(env) {
         function _getIrMenuByXmlId(xmlId) {
-            const menu = env.services.menu.getAll().find((menu) => menu.xmlid === xmlId);
+            const menu = env.services.menu
+                .getAll()
+                .find((menu) => menu.xmlid === xmlId);
             if (!menu) {
                 throw new BadOdooLinkError(xmlId);
             }
@@ -123,7 +128,7 @@ export const spreadsheetLinkMenuCellService = {
                             domain: action.domain,
                             context: action.context,
                         },
-                        { viewType, newWindow }
+                        { viewType, newWindow },
                     );
                 },
             });
@@ -132,4 +137,6 @@ export const spreadsheetLinkMenuCellService = {
     },
 };
 
-registry.category("services").add("spreadsheetLinkMenuCell", spreadsheetLinkMenuCellService);
+registry
+    .category("services")
+    .add("spreadsheetLinkMenuCell", spreadsheetLinkMenuCellService);

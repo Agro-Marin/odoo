@@ -85,7 +85,7 @@ export class SkillMatchGaugeField extends GaugeField {
                     tooltip: {
                         displayColors: false,
                         callbacks: {
-                            title: (tooltipItem) => false,
+                            title: () => false,
                             label: (tooltipItem) =>
                                 tooltipItem.dataIndex === 0 &&
                                 _t("This score reflects skills and degree match"),

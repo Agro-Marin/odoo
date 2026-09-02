@@ -2,9 +2,8 @@
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import {_t} from "@web/core/translation";
+import { _t } from "@web/core/translation";
 import { standardActionServiceProps } from "@web/webclient/actions";
-
 
 class WhatIsPeppol extends Component {
     static props = { ...standardActionServiceProps };
@@ -16,10 +15,13 @@ class WhatIsPeppol extends Component {
     }
 
     closeButtonLabel() {
-        if (this.props.action.context.action_on_activate.res_model === "peppol.registration") {
-            return _t("Activate")
+        if (
+            this.props.action.context.action_on_activate.res_model ===
+            "peppol.registration"
+        ) {
+            return _t("Activate");
         } else {
-            return _t("Got it !")
+            return _t("Got it !");
         }
     }
 

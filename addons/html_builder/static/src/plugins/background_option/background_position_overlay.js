@@ -30,12 +30,14 @@ export class BackgroundPositionOverlay extends Component {
 
         this.iframe = this.props.editable.ownerDocument.defaultView.frameElement;
         this.builderOverlayContainerEl = document.querySelector(
-            "[data-oe-local-overlay-id='builder-overlay-container']"
+            "[data-oe-local-overlay-id='builder-overlay-container']",
         );
         // If there is a Scroll Effect, a span.s_parallax_bg inside the section
         // contains the background. Otherwise it's the section itself.
         // And targetContainerEl should always be the section.
-        this.targetContainerEl = this.props.editingElement.classList.contains("s_parallax_bg")
+        this.targetContainerEl = this.props.editingElement.classList.contains(
+            "s_parallax_bg",
+        )
             ? this.props.editingElement.parentElement
             : this.props.editingElement;
 
@@ -47,8 +49,16 @@ export class BackgroundPositionOverlay extends Component {
         useExternalListener(document, "pointerdown", this.discard.bind(this));
 
         useExternalListener(window, "resize", this._dimensionOverlay);
-        useExternalListener(this.iframe.contentWindow, "resize", this._dimensionOverlay);
-        useExternalListener(this.iframe.contentWindow, "scroll", this._dimensionOverlay);
+        useExternalListener(
+            this.iframe.contentWindow,
+            "resize",
+            this._dimensionOverlay,
+        );
+        useExternalListener(
+            this.iframe.contentWindow,
+            "scroll",
+            this._dimensionOverlay,
+        );
 
         onWillStart(async () => {
             const position = getComputedStyle(this.props.editingElement)
@@ -68,7 +78,8 @@ export class BackgroundPositionOverlay extends Component {
             const rect = this.targetContainerEl.getBoundingClientRect();
             const isEditingElEntirelyVisible =
                 rect.top >= 0 &&
-                rect.bottom <= this.targetContainerEl.ownerDocument.defaultView.innerHeight;
+                rect.bottom <=
+                    this.targetContainerEl.ownerDocument.defaultView.innerHeight;
             if (!isEditingElEntirelyVisible) {
                 await scrollTo(this.targetContainerEl, { extraOffset: 50 });
             }
@@ -131,7 +142,7 @@ export class BackgroundPositionOverlay extends Component {
                 this.backgroundOverlayRef.el.classList.remove("o_we_grabbing");
                 documentEl.removeEventListener("mousemove", onDragBackgroundMove);
             },
-            { once: true }
+            { once: true },
         );
     }
 
@@ -143,8 +154,14 @@ export class BackgroundPositionOverlay extends Component {
         ev.preventDefault();
 
         const delta = this.getBackgroundDelta();
-        this.currentPosition.left = clamp(this.currentPosition.left + ev.movementX, [0, delta.x]);
-        this.currentPosition.top = clamp(this.currentPosition.top + ev.movementY, [0, delta.y]);
+        this.currentPosition.left = clamp(this.currentPosition.left + ev.movementX, [
+            0,
+            delta.x,
+        ]);
+        this.currentPosition.top = clamp(this.currentPosition.top + ev.movementY, [
+            0,
+            delta.y,
+        ]);
 
         const percentPosition = {
             left: (this.currentPosition.left / delta.x) * 100,
@@ -179,7 +196,7 @@ export class BackgroundPositionOverlay extends Component {
             scale * targetContainerRect.x,
             scale * targetContainerRect.y,
             scale * targetContainerRect.width,
-            scale * targetContainerRect.height
+            scale * targetContainerRect.height,
         );
 
         // Make a cut-out in the overlay mask to highlight the editing element.
@@ -209,10 +226,20 @@ export class BackgroundPositionOverlay extends Component {
             left: `${scaledRect.left}px`,
             top: `${scaledRect.top}px`,
         });
-        const overlayButtonsEl = this.overlayContentRef.el.querySelector(".o_we_overlay_buttons");
+        const overlayButtonsEl = this.overlayContentRef.el.querySelector(
+            ".o_we_overlay_buttons",
+        );
         overlayButtonsEl.style.top = `${Math.max(0, -scaledRect.top)}px`;
-        this.bgDraggerRef.el.style.setProperty("width", `${scaledRect.width}px`, "important");
-        this.bgDraggerRef.el.style.setProperty("height", `${scaledRect.height}px`, "important");
+        this.bgDraggerRef.el.style.setProperty(
+            "width",
+            `${scaledRect.width}px`,
+            "important",
+        );
+        this.bgDraggerRef.el.style.setProperty(
+            "height",
+            `${scaledRect.height}px`,
+            "important",
+        );
 
         // Refresh tooltip position after overlay reposition
         if (this.tooltip) {
@@ -258,7 +285,7 @@ export class BackgroundPositionOverlay extends Component {
         if (editingElStyle.backgroundSize === "cover") {
             const renderRatio = Math.max(
                 bgRect.width / naturalWidth,
-                bgRect.height / naturalHeight
+                bgRect.height / naturalHeight,
             );
 
             return {

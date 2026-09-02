@@ -128,12 +128,22 @@ export class OdooChartCorePlugin extends OdooCorePlugin {
         for (const sheet of data.sheets) {
             if (sheet.figures) {
                 for (const figure of sheet.figures) {
-                    if (figure.tag === "chart" && figure.data.type.startsWith("odoo_")) {
-                        this._addOdooChart(figure.data.chartId, figure.data.fieldMatching ?? {});
+                    if (
+                        figure.tag === "chart" &&
+                        figure.data.type.startsWith("odoo_")
+                    ) {
+                        this._addOdooChart(
+                            figure.data.chartId,
+                            figure.data.fieldMatching ?? {},
+                        );
                     } else if (figure.tag === "carousel") {
                         for (const chartId in figure.data.chartDefinitions) {
                             const fieldMatching = figure.data.fieldMatching ?? {};
-                            if (figure.data.chartDefinitions[chartId].type.startsWith("odoo_")) {
+                            if (
+                                figure.data.chartDefinitions[chartId].type.startsWith(
+                                    "odoo_",
+                                )
+                            ) {
                                 this._addOdooChart(chartId, fieldMatching[chartId]);
                             }
                         }
@@ -151,20 +161,26 @@ export class OdooChartCorePlugin extends OdooCorePlugin {
         for (const sheet of data.sheets) {
             if (sheet.figures) {
                 for (const figure of sheet.figures) {
-                    if (figure.tag === "chart" && figure.data.type.startsWith("odoo_")) {
-                        figure.data.fieldMatching = this.getChartFieldMatch(figure.data.chartId);
+                    if (
+                        figure.tag === "chart" &&
+                        figure.data.type.startsWith("odoo_")
+                    ) {
+                        figure.data.fieldMatching = this.getChartFieldMatch(
+                            figure.data.chartId,
+                        );
                         figure.data.searchParams.domain = new Domain(
-                            figure.data.searchParams.domain
+                            figure.data.searchParams.domain,
                         ).toJson();
                     } else if (figure.tag === "carousel") {
                         figure.data.fieldMatching = {};
                         for (const chartId in figure.data.chartDefinitions) {
-                            const chartDefinition = figure.data.chartDefinitions[chartId];
+                            const chartDefinition =
+                                figure.data.chartDefinitions[chartId];
                             if (chartDefinition.type.startsWith("odoo_")) {
                                 figure.data.fieldMatching[chartId] =
                                     this.getChartFieldMatch(chartId);
                                 chartDefinition.searchParams.domain = new Domain(
-                                    chartDefinition.searchParams.domain
+                                    chartDefinition.searchParams.domain,
                                 ).toJson();
                             }
                         }
@@ -204,7 +220,13 @@ export class OdooChartCorePlugin extends OdooCorePlugin {
     _onFilterDeletion(filterId) {
         const charts = { ...this.charts };
         for (const chartId in charts) {
-            this.history.update("charts", chartId, "fieldMatching", filterId, undefined);
+            this.history.update(
+                "charts",
+                chartId,
+                "fieldMatching",
+                filterId,
+                undefined,
+            );
         }
     }
 
@@ -216,7 +238,8 @@ export class OdooChartCorePlugin extends OdooCorePlugin {
         const model = this.getters.getChartDefinition(chartId).metaData.resModel;
         this.history.update("charts", chartId, {
             chartId,
-            fieldMatching: fieldMatching || this.getters.getFieldMatchingForModel(model),
+            fieldMatching:
+                fieldMatching || this.getters.getFieldMatchingForModel(model),
         });
     }
 }

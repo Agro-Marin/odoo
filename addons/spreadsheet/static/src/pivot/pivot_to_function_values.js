@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { registries, helpers, constants } from "@odoo/o-spreadsheet";
+import { constants, helpers, registries } from "@odoo/o-spreadsheet";
 
 const { DEFAULT_LOCALE } = constants;
 const { pivotToFunctionValueRegistry } = registries;
@@ -13,7 +13,10 @@ const { toString, toNumber } = helpers;
 const toFunctionValueDateTime = pivotToFunctionValueRegistry.get("date");
 
 function isFalseValue(value) {
-    return value === false || (typeof value === "string" && value.toLowerCase() === "false");
+    return (
+        value === false ||
+        (typeof value === "string" && value.toLowerCase() === "false")
+    );
 }
 
 function _toDate(value, granularity) {

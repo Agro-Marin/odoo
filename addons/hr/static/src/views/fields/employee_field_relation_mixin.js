@@ -20,7 +20,9 @@ export function EmployeeFieldRelationMixin(fieldClass) {
             onWillStart(async () => {
                 this.isHrUser = await user.hasGroup("hr.group_hr_user");
             });
-            this.avatarCard = usePopover(AvatarCardEmployeePopover, { closeOnClickAway: true });
+            this.avatarCard = usePopover(AvatarCardEmployeePopover, {
+                closeOnClickAway: true,
+            });
         }
 
         get relation() {

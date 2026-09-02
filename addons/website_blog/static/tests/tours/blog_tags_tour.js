@@ -1,10 +1,10 @@
+import { stepUtils } from "@web_tour/tour_utils";
 import {
     clickOnEditAndWaitEditMode,
     clickOnSave,
     clickOnSnippet,
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
-import { stepUtils } from "@web_tour/tour_utils";
 
 /**
  * Makes sure that blog tags can be created and removed.
@@ -51,7 +51,8 @@ registerWebsitePreviewTour(
         ...clickOnSnippet("#o_wblog_post_top .o_wblog_post_page_cover"),
         {
             content: "Remove tag",
-            trigger: "[data-label='Tags'] table tr:has(input[data-name='testtag']) button.fa-minus",
+            trigger:
+                "[data-label='Tags'] table tr:has(input[data-name='testtag']) button.fa-minus",
             run: "click",
         },
         {
@@ -61,7 +62,8 @@ registerWebsitePreviewTour(
         ...clickOnSave(),
         {
             content: "Verify tag does not appear in blog post anymore",
-            trigger: ":iframe #o_wblog_post_content div:has(.badge):not(:contains('testtag'))",
+            trigger:
+                ":iframe #o_wblog_post_content div:has(.badge):not(:contains('testtag'))",
         },
         {
             trigger: ":iframe .o_wblog_post_title:contains(post test)",
@@ -83,5 +85,5 @@ registerWebsitePreviewTour(
             content: "Verify we are still on the backend",
             trigger: ":iframe span:contains(adventure) i.fa-tag",
         },
-    ]
+    ],
 );

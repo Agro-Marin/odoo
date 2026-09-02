@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class PortalSearchPanel extends Interaction {
     static selector = ".o_portal_search_panel";
@@ -56,4 +56,6 @@ export class PortalSearchPanel extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("portal.portal_search_panel", PortalSearchPanel);
+registry
+    .category("public.interactions")
+    .add("portal.portal_search_panel", PortalSearchPanel);

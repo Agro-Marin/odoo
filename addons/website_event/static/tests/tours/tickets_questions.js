@@ -32,7 +32,8 @@ registry.category("web_tour.tours").add("test_tickets_questions", {
         },
         {
             // The input number should automatically be changed to the limit per order (22 < 28)
-            trigger: 'div.o_wevent_ticket_selector:contains("Free"):contains("22") input.form-control',
+            trigger:
+                'div.o_wevent_ticket_selector:contains("Free"):contains("22") input.form-control',
         },
         {
             content: "Edit 2 'Free' tickets to buy",
@@ -41,21 +42,25 @@ registry.category("web_tour.tours").add("test_tickets_questions", {
         },
         {
             content: "Try adding 150 'Other' tickets",
-            trigger: 'div.o_wevent_ticket_selector:contains("Other") input.form-control',
+            trigger:
+                'div.o_wevent_ticket_selector:contains("Other") input.form-control',
             run: "edit 150",
         },
         {
             // The input number should automatically be changed to the event limit (28 < 150)
-            trigger: 'div.o_wevent_ticket_selector:contains("Other"):contains("28") input.form-control',
+            trigger:
+                'div.o_wevent_ticket_selector:contains("Other"):contains("28") input.form-control',
         },
         {
             content: "Remove 'Other' tickets",
-            trigger: 'div.o_wevent_ticket_selector:contains("Other") input.form-control',
+            trigger:
+                'div.o_wevent_ticket_selector:contains("Other") input.form-control',
             run: "edit 0",
         },
         {
             content: "Check '-' spinner button is disabled when no ticket selected",
-            trigger: 'div.o_wevent_ticket_selector:contains("Other") button[data-increment-type="minus"]:disabled',
+            trigger:
+                'div.o_wevent_ticket_selector:contains("Other") button[data-increment-type="minus"]:disabled',
         },
         {
             content: "Click on Register (to fill tickets data) button",
@@ -67,7 +72,8 @@ registry.category("web_tour.tours").add("test_tickets_questions", {
             trigger: ".modal.modal_shown.show form[id=attendee_registration]",
         },
         {
-            trigger: 'div.o_wevent_registration_question_global select[name*="0-simple_choice"]',
+            trigger:
+                'div.o_wevent_registration_question_global select[name*="0-simple_choice"]',
             run: "selectByLabel A friend",
         },
         {
@@ -83,11 +89,13 @@ registry.category("web_tour.tours").add("test_tickets_questions", {
             run: "edit +32499123456",
         },
         {
-            trigger: 'div:contains("Ticket #1").modal-body select[name*="1-simple_choice"]',
+            trigger:
+                'div:contains("Ticket #1").modal-body select[name*="1-simple_choice"]',
             run: "selectByLabel Vegetarian",
         },
         {
-            trigger: 'div:contains("Ticket #1").modal-body textarea[name*="1-text_box"]',
+            trigger:
+                'div:contains("Ticket #1").modal-body textarea[name*="1-text_box"]',
             run: "edit Fish and Nuts",
         },
         {
@@ -103,7 +111,8 @@ registry.category("web_tour.tours").add("test_tickets_questions", {
             run: "edit My Company",
         },
         {
-            trigger: 'div:contains("Ticket #2").modal-body select[name*="2-simple_choice"]',
+            trigger:
+                'div:contains("Ticket #2").modal-body select[name*="2-simple_choice"]',
             run: "selectByLabel Pastafarian",
         },
         {

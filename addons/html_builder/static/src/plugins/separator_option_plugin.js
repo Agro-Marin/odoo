@@ -2,6 +2,7 @@
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
+
 import { BorderConfigurator } from "./border_configurator_option.js";
 
 class SeparatorOptionPlugin extends Plugin {
@@ -24,4 +25,6 @@ export class SeparatorOption extends BaseOptionComponent {
     static applyTo = "hr";
     static components = { BorderConfigurator };
 }
-registry.category("builder-plugins").add(SeparatorOptionPlugin.id, SeparatorOptionPlugin);
+registry
+    .category("builder-plugins")
+    .add(SeparatorOptionPlugin.id, SeparatorOptionPlugin);

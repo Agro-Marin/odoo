@@ -1,14 +1,14 @@
 /** @odoo-module native */
-import { Interaction } from '@web/public/interaction';
-import { registry } from '@web/core/registry';
+import { Interaction } from "@web/public/interaction";
+import { registry } from "@web/core/registry";
 
 export class ProductTileSecondaryImage extends Interaction {
-    static selector = '.oe_product_image_link_has_secondary';
+    static selector = ".oe_product_image_link_has_secondary";
     dynamicContent = {
         _root: {
-            "t-att-class": () => ({ "o_product_tile_scrolled": this.isSecondImgInView }),
+            "t-att-class": () => ({ o_product_tile_scrolled: this.isSecondImgInView }),
             "t-on-scroll": (ev) => this.onScroll(ev),
-        }
+        },
     };
 
     setup() {
@@ -25,4 +25,7 @@ export class ProductTileSecondaryImage extends Interaction {
 
 registry
     .category("public.interactions")
-    .add("website.website_sale_product_tile_secondary_image", ProductTileSecondaryImage);
+    .add(
+        "website.website_sale_product_tile_secondary_image",
+        ProductTileSecondaryImage,
+    );

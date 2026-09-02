@@ -73,7 +73,7 @@ export class ImportAction extends Component {
                 // silently rejecting valid .xls/.xlsm/.ods drops that the
                 // button accepted fine (t24068 F6-frontend).
                 const isValidFile = ImportAction.ACCEPTED_FILE_EXTENSIONS.some((ext) =>
-                    file.name.toLowerCase().endsWith(ext)
+                    file.name.toLowerCase().endsWith(ext),
                 );
                 if (!isValidFile) {
                     this.notification.add(this.invalidFileMessage, { type: "danger" });
@@ -133,7 +133,7 @@ export class ImportAction extends Component {
         // model to import into and bounces straight back out.
         const urlStack = this.props.action.params?.actionStack ?? [];
         const selfIndex = urlStack.findIndex(
-            (entry) => entry?.action === ImportAction.path
+            (entry) => entry?.action === ImportAction.path,
         );
         const preceding = selfIndex === -1 ? urlStack : urlStack.slice(0, selfIndex);
         for (let i = preceding.length - 1; i >= 0; i--) {
@@ -236,7 +236,9 @@ export class ImportAction extends Component {
     }
 
     get totalSteps() {
-        return this.isBatched ? Math.ceil(this.totalToImport / this.importOptions.limit) : 1;
+        return this.isBatched
+            ? Math.ceil(this.totalToImport / this.importOptions.limit)
+            : 1;
     }
 
     get importOptions() {
@@ -326,12 +328,12 @@ export class ImportAction extends Component {
 
         this.model.block(message, blockComponent);
 
-        let res = { ids: [] };
+        let res;
         try {
             const data = await this.model.executeImport(
                 isTest,
                 this.totalSteps,
-                this.state.importProgress
+                this.state.importProgress,
             );
             res = data.res;
         } finally {
@@ -348,9 +350,12 @@ export class ImportAction extends Component {
                 if (res.hasError) {
                     return;
                 }
-                this.notification.add(_t("%s records successfully imported", res.ids.length), {
-                    type: "success",
-                });
+                this.notification.add(
+                    _t("%s records successfully imported", res.ids.length),
+                    {
+                        type: "success",
+                    },
+                );
                 if (!this.state.isPaused) {
                     this.openRecords(res.ids);
                 }

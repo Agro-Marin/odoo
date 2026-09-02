@@ -1,9 +1,10 @@
 /** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { getFirstListFunction } from "../list_helpers.js";
-import { Domain } from "@web/core/domain";
-import { ListDataSource } from "../list_data_source.js";
 import { OdooCoreViewPlugin } from "@spreadsheet/plugins";
+import { Domain } from "@web/core/domain";
+
+import { ListDataSource } from "../list_data_source.js";
+import { getFirstListFunction } from "../list_helpers.js";
 
 const { astToFormula } = spreadsheet;
 const { isEvaluationError } = spreadsheet.helpers;
@@ -78,7 +79,10 @@ export class ListCoreViewPlugin extends OdooCoreViewPlugin {
             case "UPDATE_ODOO_LIST_DOMAIN": {
                 const listDefinition = this.getters.getListModelDefinition(cmd.listId);
                 const dataSourceId = this._getListDataSourceId(cmd.listId);
-                this.lists[dataSourceId] = new ListDataSource(this.custom, listDefinition);
+                this.lists[dataSourceId] = new ListDataSource(
+                    this.custom,
+                    listDefinition,
+                );
                 this._addDomain(cmd.listId);
                 break;
             }
@@ -97,7 +101,7 @@ export class ListCoreViewPlugin extends OdooCoreViewPlugin {
                             "ADD_GLOBAL_FILTER",
                             "EDIT_GLOBAL_FILTER",
                             "REMOVE_GLOBAL_FILTER",
-                        ].includes(command.type)
+                        ].includes(command.type),
                     )
                 ) {
                     this._addDomains();
@@ -107,16 +111,21 @@ export class ListCoreViewPlugin extends OdooCoreViewPlugin {
                     (cmd) =>
                         cmd.type === "UPDATE_ODOO_LIST_DOMAIN" ||
                         cmd.type === "UPDATE_ODOO_LIST" ||
-                        cmd.type === "INSERT_ODOO_LIST"
+                        cmd.type === "INSERT_ODOO_LIST",
                 );
                 for (const cmd of updateCommands) {
                     if (!this.getters.isExistingList(cmd.listId)) {
                         continue;
                     }
 
-                    const listDefinition = this.getters.getListModelDefinition(cmd.listId);
+                    const listDefinition = this.getters.getListModelDefinition(
+                        cmd.listId,
+                    );
                     const dataSourceId = this._getListDataSourceId(cmd.listId);
-                    this.lists[dataSourceId] = new ListDataSource(this.custom, listDefinition);
+                    this.lists[dataSourceId] = new ListDataSource(
+                        this.custom,
+                        listDefinition,
+                    );
                     this._addDomain(cmd.listId);
                 }
                 break;
@@ -132,7 +141,10 @@ export class ListCoreViewPlugin extends OdooCoreViewPlugin {
         const dataSourceId = this._getListDataSourceId(listId);
         definition = definition || this.getters.getListModelDefinition(listId);
         if (!(dataSourceId in this.lists)) {
-            this.lists[dataSourceId] = new ListDataSource(this.custom, { ...definition, limit });
+            this.lists[dataSourceId] = new ListDataSource(this.custom, {
+                ...definition,
+                limit,
+            });
         }
     }
 
@@ -147,7 +159,7 @@ export class ListCoreViewPlugin extends OdooCoreViewPlugin {
     _addDomain(listId) {
         const domainList = [];
         for (const [filterId, fieldMatch] of Object.entries(
-            this.getters.getListFieldMatch(listId)
+            this.getters.getListFieldMatch(listId),
         )) {
             domainList.push(this.getters.getGlobalFilterDomain(filterId, fieldMatch));
         }
@@ -218,7 +230,12 @@ export class ListCoreViewPlugin extends OdooCoreViewPlugin {
             case "float":
                 return "#,##0.00";
             case "monetary": {
-                const currency = this.getListCurrency(listId, position, path, field.currency_field);
+                const currency = this.getListCurrency(
+                    listId,
+                    position,
+                    path,
+                    field.currency_field,
+                );
                 if (!currency) {
                     return "#,##0.00";
                 }
@@ -280,7 +297,9 @@ export class ListCoreViewPlugin extends OdooCoreViewPlugin {
         if (!cell?.isFormula) {
             return undefined;
         }
-        const { functionName, args } = getFirstListFunction(cell.compiledFormula.tokens);
+        const { functionName, args } = getFirstListFunction(
+            cell.compiledFormula.tokens,
+        );
         const fieldArg = functionName === "ODOO.LIST.HEADER" ? args[1] : args[2];
         const dataSource = this.getters.getListDataSource(listId);
         if (!fieldArg || !dataSource.isValid()) {

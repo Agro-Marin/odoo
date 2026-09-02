@@ -75,7 +75,9 @@ test("Product page options", async () => {
         </main>`);
 
     onRpc("/website/theme_customize_data", () => expect.step("theme_customize_data"));
-    onRpc("/website/theme_customize_data_get", () => expect.step("theme_customize_data_get"));
+    onRpc("/website/theme_customize_data_get", () =>
+        expect.step("theme_customize_data_get"),
+    );
     onRpc("/shop/config/website", () => expect.step("config"));
     onRpc("ir.ui.view", "save", () => {
         expect.step("save");
@@ -101,7 +103,11 @@ test("Product page options", async () => {
         expect.step("get_image_info");
         return {
             attachment: { id: 1 },
-            original: { id: 1, image_src: "/web/image/hoot.png", mimetype: "image/png" },
+            original: {
+                id: 1,
+                image_src: "/web/image/hoot.png",
+                mimetype: "image/png",
+            },
         };
     });
     onRpc("/web/image/hoot.png", () => {
@@ -112,14 +118,22 @@ test("Product page options", async () => {
     await contains(":iframe .o_wsale_product_page").click();
     await contains("[data-action-id=productReplaceMainImage]").click();
     await contains(".o_select_media_dialog .o_existing_attachment_cell button").click();
-    await expect.waitForSteps(["theme_customize_data_get", "get_image_info", "product_write"]);
+    await expect.waitForSteps([
+        "theme_customize_data_get",
+        "get_image_info",
+        "product_write",
+    ]);
     await waitForNone(".o_select_media_dialog");
 
-    expect(":iframe #product_detail_main img[src^='data:image/webp;base64,']").toHaveCount(1);
+    expect(
+        ":iframe #product_detail_main img[src^='data:image/webp;base64,']",
+    ).toHaveCount(1);
     expect(":iframe img").toHaveCount(2);
     await contains("button#o_wsale_image_width").click();
     // Avoid selecting the first option to prevent the image layout option from disappearing
-    await contains("[data-action-id=productPageImageWidth][data-action-value='50_pc']").click();
+    await contains(
+        "[data-action-id=productPageImageWidth][data-action-value='50_pc']",
+    ).click();
     await waitSidebarUpdated();
     await expect.waitForSteps(["config"]);
 

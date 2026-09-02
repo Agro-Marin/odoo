@@ -1,10 +1,16 @@
 import { addBuilderOption, setupHTMLBuilder } from "@html_builder/../tests/helpers";
+import { BaseOptionComponent } from "@html_builder/core/utils";
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { xml } from "@odoo/owl";
-import { contains, defineModels, fields, models, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineModels,
+    fields,
+    models,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 import { delay } from "@web/core/utils/concurrency";
-import { BaseOptionComponent } from "@html_builder/core/utils";
 
 class Test extends models.Model {
     _name = "test";
@@ -48,10 +54,10 @@ test("model many2many: find tag, select tag, unselect tag", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<ModelMany2Many baseModel="'test.base'" m2oField="'rel'" recordId="1"/>`;
-        }
+        },
     );
     const { getEditor } = await setupHTMLBuilder(
-        `<div class="test-options-target" data-res-model="test.base" data-res-id="1">b</div>`
+        `<div class="test-options-target" data-res-model="test.base" data-res-id="1">b</div>`,
     );
 
     await contains(":iframe .test-options-target").click();
@@ -70,7 +76,9 @@ test("model many2many: find tag, select tag, unselect tag", async () => {
     await animationFrame();
     expect("span.o-dropdown-item").toHaveCount(3);
     await contains("span.o-dropdown-item").click();
-    expect(modelEdit.get("rel")).toEqual([{ id: 1, name: "First", display_name: "First" }]);
+    expect(modelEdit.get("rel")).toEqual([
+        { id: 1, name: "First", display_name: "First" },
+    ]);
     expect("table tr").toHaveCount(1);
 
     await contains(".btn.o-dropdown").click();
@@ -85,7 +93,9 @@ test("model many2many: find tag, select tag, unselect tag", async () => {
     expect("table tr").toHaveCount(2);
 
     await contains("button.fa-minus").click();
-    expect(modelEdit.get("rel")).toEqual([{ id: 2, name: "Second", display_name: "Second" }]);
+    expect(modelEdit.get("rel")).toEqual([
+        { id: 2, name: "Second", display_name: "Second" },
+    ]);
     expect("table tr").toHaveCount(1);
     expect("table input").toHaveValue("Second");
 

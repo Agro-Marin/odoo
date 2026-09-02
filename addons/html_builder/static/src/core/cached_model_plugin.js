@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { Cache } from "@web/core/utils/collections/cache";
+
 import { ModelEdit } from "./cached_model_utils.js";
 
 /**
@@ -21,15 +22,17 @@ export class CachedModelPlugin extends Plugin {
     setup() {
         this.ormReadCache = new Cache(
             ({ model, ids, fields }) => this.services.orm.read(model, ids, fields),
-            JSON.stringify
+            JSON.stringify,
         );
         this.ormSearchReadCache = new Cache(
-            ({ model, domain, fields }) => this.services.orm.searchRead(model, domain, fields),
-            JSON.stringify
+            ({ model, domain, fields }) =>
+                this.services.orm.searchRead(model, domain, fields),
+            JSON.stringify,
         );
         this.modelEditCache = new Cache(
-            ({ model, recordId }) => new ModelEdit(this.dependencies.history, model, recordId),
-            JSON.stringify
+            ({ model, recordId }) =>
+                new ModelEdit(this.dependencies.history, model, recordId),
+            JSON.stringify,
         );
     }
     destroy() {
@@ -63,7 +66,9 @@ export class CachedModelPlugin extends Plugin {
                     const proms = value
                         .filter((value) => typeof value.id === "string")
                         .map((value) =>
-                            this.services.orm.create(value.model, [{ name: value.name }])
+                            this.services.orm.create(value.model, [
+                                { name: value.name },
+                            ]),
                         );
                     const createdIDs = (await Promise.all(proms)).flat();
                     const ids = value

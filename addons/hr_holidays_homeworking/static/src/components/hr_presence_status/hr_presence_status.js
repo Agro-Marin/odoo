@@ -14,7 +14,10 @@ const patchHrPresenceStatus = () => ({
         } else if (this.location) {
             let color = "text-muted";
             if (this.props.record.data.hr_presence_state !== "out_of_working_hour") {
-                color = this.props.record.data.hr_presence_state === "present" ?  "text-success" : "o_icon_employee_absent";
+                color =
+                    this.props.record.data.hr_presence_state === "present"
+                        ? "text-success"
+                        : "o_icon_employee_absent";
             }
             return color;
         }
@@ -39,22 +42,19 @@ const patchHrPresenceStatus = () => ({
 
     get label() {
         if (this.value?.includes("holiday")) {
-            return _t("%(label)s, back on %(date)s",
-                {
-                    label: this.value !== false
-                        ? this.options.find(([value, label]) => value === this.value)[1]
+            return _t("%(label)s, back on %(date)s", {
+                label:
+                    this.value !== false
+                        ? this.options.find(([value]) => value === this.value)[1]
                         : "",
-                    date: this.props.record.data['leave_date_to'].toLocaleString(
-                        {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                        }
-                    )
-                }
-            )
+                date: this.props.record.data["leave_date_to"].toLocaleString({
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                }),
+            });
         } else if (this.location) {
-            return this.props.record.data.work_location_name || _t("Unspecified")
+            return this.props.record.data.work_location_name || _t("Unspecified");
         }
         return super.label;
     },
@@ -69,8 +69,7 @@ const patchHrPresenceStatusPill = () => ({
             return this.value === "presence_holiday_present"
                 ? "btn-outline-success"
                 : "btn-outline-warning";
-        }
-        else if (this.location) {
+        } else if (this.location) {
             let color = "btn-outline-secondary text-muted";
             if (this.props.record.data.hr_presence_state !== "out_of_working_hour") {
                 color =
@@ -90,20 +89,16 @@ patch(HrPresenceStatusPrivatePill.prototype, patchHrPresenceStatusPill());
 const patchHrPresenceStatusPrivate = () => ({
     get label() {
         return this.props.record.data.current_leave_id
-            ? _t("%(label)s, back on %(date)s",
-                {
-                    label: this.props.record.data.current_leave_id.display_name,
-                    date: this.props.record.data['leave_date_to'].toLocaleString(
-                        {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                        }
-                    )
-                }
-            )
+            ? _t("%(label)s, back on %(date)s", {
+                  label: this.props.record.data.current_leave_id.display_name,
+                  date: this.props.record.data["leave_date_to"].toLocaleString({
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                  }),
+              })
             : super.label;
-    }
+    },
 });
 
 patch(HrPresenceStatusPrivate.prototype, patchHrPresenceStatusPrivate());

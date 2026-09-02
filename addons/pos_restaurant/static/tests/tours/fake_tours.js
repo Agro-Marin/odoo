@@ -1,13 +1,13 @@
 /* global posmodel */
 
-import { registry } from "@web/core/registry";
-import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
-import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
-import * as FloorScreen from "@pos_restaurant/../tests/tours/utils/floor_screen_util";
 import * as ChromePos from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
-import * as ChromeRestaurant from "@pos_restaurant/../tests/tours/utils/chrome";
+import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
 import * as ProductScreenPos from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
+import * as ChromeRestaurant from "@pos_restaurant/../tests/tours/utils/chrome";
+import * as FloorScreen from "@pos_restaurant/../tests/tours/utils/floor_screen_util";
 import * as ProductScreenResto from "@pos_restaurant/../tests/tours/utils/product_screen_util";
+import { registry } from "@web/core/registry";
 
 const Chrome = { ...ChromePos, ...ChromeRestaurant };
 const ProductScreen = { ...ProductScreenPos, ...ProductScreenResto };
@@ -19,7 +19,7 @@ const getRandomTable = () => {
 
 const getRandomTableWithOrder = () => {
     const tables = posmodel.currentFloor.table_ids.filter(
-        (table) => table.backLink("<-pos.order.table_id").length > 0
+        (table) => table.backLink("<-pos.order.table_id").length > 0,
     );
     return tables[Math.floor(Math.random() * tables.length)].table_number;
 };
@@ -31,7 +31,7 @@ const getRandomProduct = () => {
             !p.isCombo() &&
             !p.isTracked() &&
             p.id !== posmodel.config.tip_product_id?.id &&
-            !posmodel.config._pos_special_products_ids?.includes(p.id)
+            !posmodel.config._pos_special_products_ids?.includes(p.id),
     );
     return products[Math.floor(Math.random() * products.length)].name;
 };

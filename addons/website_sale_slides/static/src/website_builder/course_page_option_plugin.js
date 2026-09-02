@@ -19,4 +19,6 @@ class CoursePageOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(CoursePageOptionPlugin.id, CoursePageOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(CoursePageOptionPlugin.id, CoursePageOptionPlugin);

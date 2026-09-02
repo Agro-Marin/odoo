@@ -31,12 +31,14 @@ patch(ImageSelector.prototype, {
             },
             401: {
                 title: _t("Unauthorized Key"),
-                subtitle: _t("Please check your Unsplash access key and application ID."),
+                subtitle: _t(
+                    "Please check your Unsplash access key and application ID.",
+                ),
             },
             403: {
                 title: _t("Search is temporarily unavailable"),
                 subtitle: _t(
-                    "The max number of searches is exceeded. Please retry in an hour or extend to a better account."
+                    "The max number of searches is exceeded. Please retry in an hour or extend to a better account.",
                 ),
             },
         };
@@ -103,7 +105,10 @@ patch(ImageSelector.prototype, {
          *     an element of a
          */
         function alternate(a, b) {
-            return [a.map((v, i) => (i < b.length ? [v, b[i]] : v)), b.slice(a.length)].flat(2);
+            return [
+                a.map((v, i) => (i < b.length ? [v, b[i]] : v)),
+                b.slice(a.length),
+            ].flat(2);
         }
         return alternate(this.unsplashState.unsplashRecords, this.state.libraryMedia);
     },
@@ -122,7 +127,7 @@ patch(ImageSelector.prototype, {
                 this.state.needle,
                 offset,
                 this.NUMBER_OF_RECORDS_TO_DISPLAY,
-                this.props.orientation
+                this.props.orientation,
             );
             this.unsplashState.isFetchingUnsplash = false;
             this.unsplashState.unsplashError = false;
@@ -130,8 +135,10 @@ patch(ImageSelector.prototype, {
             // based on their ids. This will allow us to ignore duplicate
             // images from Unsplash. We can assume there are no duplicates at
             // this point as a precondition.
-            const existingIds = new Set(this.unsplashState.unsplashRecords.map(r => r.id));
-            const newImages = images.filter(record => {
+            const existingIds = new Set(
+                this.unsplashState.unsplashRecords.map((r) => r.id),
+            );
+            const newImages = images.filter((record) => {
                 if (existingIds.has(record.id)) {
                     return false;
                 }
@@ -194,7 +201,11 @@ patch(ImageSelector.prototype, {
     },
 
     async onClickRecord(media) {
-        this.props.selectMedia({ ...media, mediaType: "unsplashRecord", query: this.state.needle });
+        this.props.selectMedia({
+            ...media,
+            mediaType: "unsplashRecord",
+            query: this.state.needle,
+        });
         if (!this.props.multiSelect) {
             await this.props.save();
         }

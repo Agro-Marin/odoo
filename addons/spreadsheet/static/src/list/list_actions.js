@@ -2,8 +2,9 @@
 // @ts-check
 
 import { astToFormula, helpers } from "@odoo/o-spreadsheet";
-import { getFirstListFunction, getNumberOfListFormulas } from "./list_helpers.js";
+
 import { navigateTo } from "../actions/helpers.js";
+import { getFirstListFunction, getNumberOfListFormulas } from "./list_helpers.js";
 
 const { isMatrix } = helpers;
 
@@ -52,7 +53,7 @@ export const SEE_RECORD_LIST = async (position, env, newWindow) => {
             views: [[false, "form"]],
             context,
         },
-        { viewType: "form", newWindow }
+        { viewType: "form", newWindow },
     );
 };
 

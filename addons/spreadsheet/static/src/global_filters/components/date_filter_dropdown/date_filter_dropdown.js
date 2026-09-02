@@ -106,7 +106,9 @@ export class DateFilterDropdown extends Component {
     setup() {
         this._computeDefaultSelectedValues();
         this._applyCurrentValueToSelectedValues(this.props.value);
-        onWillUpdateProps((nextProps) => this._applyCurrentValueToSelectedValues(nextProps.value));
+        onWillUpdateProps((nextProps) =>
+            this._applyCurrentValueToSelectedValues(nextProps.value),
+        );
     }
 
     /**
@@ -116,7 +118,11 @@ export class DateFilterDropdown extends Component {
         const now = DateTime.local();
         this.selectedValues = {
             month: { month: now.month, year: now.year, type: "month" },
-            quarter: { quarter: Math.ceil(now.month / 3), year: now.year, type: "quarter" },
+            quarter: {
+                quarter: Math.ceil(now.month / 3),
+                year: now.year,
+                type: "quarter",
+            },
             year: { year: now.year, type: "year" },
             range: { from: "", to: "", type: "range" },
         };
@@ -241,7 +247,9 @@ export class DateFilterDropdown extends Component {
     }
 
     selectPrevious(type) {
-        this.selectedValues[type] = getPreviousDateFilterValue(this.selectedValues[type]);
+        this.selectedValues[type] = getPreviousDateFilterValue(
+            this.selectedValues[type],
+        );
     }
 
     selectNext(type) {

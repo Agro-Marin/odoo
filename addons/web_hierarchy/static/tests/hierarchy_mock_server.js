@@ -31,7 +31,8 @@ function hierarchyRead({ model, args, kwargs }) {
             ];
         }
         records.push(
-            ...(this.env[model].web_search_read(domain, specification, kwargs)?.records || [])
+            ...(this.env[model].web_search_read(domain, specification, kwargs)
+                ?.records || []),
         );
     } else {
         fetchChildIdsForAllRecords = true;

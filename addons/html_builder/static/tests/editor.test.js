@@ -6,12 +6,12 @@ import { insertText, pasteHtml } from "@html_editor/../tests/_helpers/user_actio
 import { FontPlugin } from "@html_editor/main/font/font_plugin";
 import { isTextNode } from "@html_editor/utils/dom_info";
 import { parseHTML } from "@html_editor/utils/html";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import {
     click,
     manuallyDispatchProgrammaticEvent,
-    waitFor,
     queryOne,
+    waitFor,
     waitForNone,
 } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
@@ -35,7 +35,9 @@ test("should add an icon from the media modal dialog", async () => {
     await contains(".o-we-command").click();
     await contains(".modal .modal-body .nav-item:nth-child(3) a").click();
     await contains(".modal .modal-body .fa-heart").click();
-    expect(p).toHaveInnerHTML(`x<span class="fa-solid fa-heart" contenteditable="false">\u200b</span>`);
+    expect(p).toHaveInnerHTML(
+        `x<span class="fa-solid fa-heart" contenteditable="false">\u200b</span>`,
+    );
 });
 
 test("should delete text forward", async () => {
@@ -61,7 +63,7 @@ test("unsplittable node predicates should not crash when called with text node a
     const textNode = editor.editable.querySelector("p").firstChild;
     expect(isTextNode(textNode)).toBe(true);
     expect(() =>
-        editor.resources.unsplittable_node_predicates.forEach((p) => p(textNode))
+        editor.resources.unsplittable_node_predicates.forEach((p) => p(textNode)),
     ).not.toThrow();
 });
 
@@ -219,7 +221,8 @@ describe("toolbar dropdowns", () => {
     test("list dropdown should not close on click", async () => {
         const { editor } = await setup();
         click(".o-we-toolbar .btn[name='list_selector']");
-        const bulletedListButtonSelector = ".dropdown-menu button[name='bulleted_list']";
+        const bulletedListButtonSelector =
+            ".dropdown-menu button[name='bulleted_list']";
         await focusAndClick(bulletedListButtonSelector);
         await animationFrame();
         expect(bulletedListButtonSelector).toBeVisible();
@@ -283,7 +286,9 @@ describe("font types", () => {
             "Header 1 Display 4",
         ];
         expectedButtons.forEach((button) => {
-            expect(`.o_font_selector_menu .o-dropdown-item:contains('${button}')`).toHaveCount(1);
+            expect(
+                `.o_font_selector_menu .o-dropdown-item:contains('${button}')`,
+            ).toHaveCount(1);
         });
     });
     test("'Light' is available", async () => {
@@ -294,7 +299,9 @@ describe("font types", () => {
         await waitFor(".o-we-toolbar");
         click(".o-we-toolbar .btn[name='font']");
         await waitFor(".o_font_selector_menu");
-        expect(`.o_font_selector_menu .o-dropdown-item:contains('Light')`).toHaveCount(1);
+        expect(`.o_font_selector_menu .o-dropdown-item:contains('Light')`).toHaveCount(
+            1,
+        );
         click(".o_font_selector_menu .o-dropdown-item:contains('Light')");
         await waitForNone(".o_font_selector_menu");
         expect(".o-we-toolbar .btn[name='font']").toHaveText("Light");
@@ -308,7 +315,9 @@ describe("font types", () => {
         await waitFor(".o-we-toolbar");
         click(".o-we-toolbar .btn[name='font']");
         await waitFor(".o_font_selector_menu");
-        expect(`.o_font_selector_menu .o-dropdown-item:contains('Small')`).toHaveCount(1);
+        expect(`.o_font_selector_menu .o-dropdown-item:contains('Small')`).toHaveCount(
+            1,
+        );
         click(".o_font_selector_menu .o-dropdown-item:contains('Small')");
         await waitForNone(".o_font_selector_menu");
         expect(".o-we-toolbar .btn[name='font']").toHaveText("Small");
@@ -316,7 +325,9 @@ describe("font types", () => {
     });
 
     test("Should not be able to change tag of `o_editable` element", async () => {
-        const { getEditor } = await setupHTMLBuilder(`<h1 class="o_editable">abcd</h1>`);
+        const { getEditor } = await setupHTMLBuilder(
+            `<h1 class="o_editable">abcd</h1>`,
+        );
         const editor = getEditor();
         const h1 = editor.editable.querySelector("h1");
         setSelection({ anchorNode: h1, anchorOffset: 0, focusOffset: 1 });

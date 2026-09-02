@@ -56,5 +56,5 @@ export class DocumentsCogMenuItem extends Component {
         await this.env.model.notify();
     }
 
-    async doActionOnFolder(folder) {}
+    async doActionOnFolder() {}
 }

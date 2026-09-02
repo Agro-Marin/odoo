@@ -32,7 +32,7 @@ export class PaymentAdyen extends PaymentInterface {
 
     _handleOdooConnectionFailure(data = {}) {
         // handle timeout
-        var line = this.pendingAdyenline();
+        const line = this.pendingAdyenline();
         if (line) {
             line.setPaymentStatus("retry");
         }
@@ -56,12 +56,12 @@ export class PaymentAdyen extends PaymentInterface {
     }
 
     _adyenGetSaleId() {
-        var config = this.pos.config;
+        const config = this.pos.config;
         return `${config.display_name} (ID: ${config.id})`;
     }
 
     _adyenCommonMessageHeader() {
-        var config = this.pos.config;
+        const config = this.pos.config;
         this.most_recent_service_id = Math.floor(
             Math.random() * Math.pow(2, 64),
         ).toString(); // random ID to identify request/response pairs
@@ -78,10 +78,10 @@ export class PaymentAdyen extends PaymentInterface {
     }
 
     _adyenPayData() {
-        var order = this.pos.getOrder();
-        var config = this.pos.config;
-        var line = order.getSelectedPaymentline();
-        var data = {
+        const order = this.pos.getOrder();
+        const config = this.pos.config;
+        const line = order.getSelectedPaymentline();
+        const data = {
             SaleToPOIRequest: {
                 MessageHeader: Object.assign(this._adyenCommonMessageHeader(), {
                     MessageCategory: "Payment",
@@ -114,27 +114,27 @@ export class PaymentAdyen extends PaymentInterface {
     }
 
     _adyenPay(uuid) {
-        var order = this.pos.getOrder();
+        const order = this.pos.getOrder();
 
         if (order.getSelectedPaymentline().amount < 0) {
             this._show_error(_t("Cannot process transactions with negative amount."));
             return Promise.resolve();
         }
 
-        var data = this._adyenPayData();
-        var line = order.payment_ids.find((paymentLine) => paymentLine.uuid === uuid);
+        const data = this._adyenPayData();
+        const line = order.payment_ids.find((paymentLine) => paymentLine.uuid === uuid);
         line.setTerminalServiceId(this.most_recent_service_id);
         return this._callAdyen(data).then((data) => this._adyenHandleResponse(data));
     }
 
     _adyenCancel(ignore_error) {
-        var config = this.pos.config;
-        var previous_service_id = this.most_recent_service_id;
-        var header = Object.assign(this._adyenCommonMessageHeader(), {
+        const config = this.pos.config;
+        const previous_service_id = this.most_recent_service_id;
+        const header = Object.assign(this._adyenCommonMessageHeader(), {
             MessageCategory: "Abort",
         });
 
-        var data = {
+        const data = {
             SaleToPOIRequest: {
                 MessageHeader: header,
                 AbortRequest: {
@@ -164,7 +164,7 @@ export class PaymentAdyen extends PaymentInterface {
 
     _convertReceiptInfo(output_text) {
         return output_text.reduce((acc, entry) => {
-            var params = new URLSearchParams(entry.Text);
+            const params = new URLSearchParams(entry.Text);
             if (params.get("name") && !params.get("value")) {
                 return acc + "\n" + params.get("name");
             } else if (params.get("name") && params.get("value")) {
@@ -180,9 +180,9 @@ export class PaymentAdyen extends PaymentInterface {
      * when we first make a request to pay.
      */
     _adyenHandleResponse(response) {
-        var line = this.pendingAdyenline();
+        const line = this.pendingAdyenline();
 
-        if (!response || (response.error && response.error.status_code == 401)) {
+        if (!response || (response.error && response.error.status_code === 401)) {
             this._show_error(
                 _t("Authentication failed. Please check your Adyen credentials."),
             );
@@ -200,9 +200,9 @@ export class PaymentAdyen extends PaymentInterface {
                 [response],
             );
 
-            var msg = "";
+            let msg = "";
             if (response.EventNotification) {
-                var params = new URLSearchParams(
+                const params = new URLSearchParams(
                     response.EventNotification.EventDetails,
                 );
                 msg = params.get("message");
@@ -267,7 +267,7 @@ export class PaymentAdyen extends PaymentInterface {
     isPaymentSuccessful(notification, response) {
         return (
             notification &&
-            notification.SaleToPOIResponse.MessageHeader.ServiceID ==
+            notification.SaleToPOIResponse.MessageHeader.ServiceID ===
                 this.pendingAdyenline()?.terminalServiceId &&
             response.Result === "Success"
         );
@@ -278,7 +278,7 @@ export class PaymentAdyen extends PaymentInterface {
         const payment_result = payment_response.PaymentResult;
 
         const cashier_receipt = payment_response.PaymentReceipt.find(
-            (receipt) => receipt.DocumentQualifier == "CashierReceipt",
+            (receipt) => receipt.DocumentQualifier === "CashierReceipt",
         );
 
         if (cashier_receipt) {
@@ -288,7 +288,7 @@ export class PaymentAdyen extends PaymentInterface {
         }
 
         const customer_receipt = payment_response.PaymentReceipt.find(
-            (receipt) => receipt.DocumentQualifier == "CustomerReceipt",
+            (receipt) => receipt.DocumentQualifier === "CustomerReceipt",
         );
 
         if (customer_receipt) {

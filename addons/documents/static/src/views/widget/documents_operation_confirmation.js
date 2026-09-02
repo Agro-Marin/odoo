@@ -21,7 +21,10 @@ export class DocumentsOperationConfirmation extends Component {
 
     get buttonLabel() {
         const destination = {
-            folder_name: truncate(this.props.record.data.display_name, DESTINATION_MAX_LENGTH),
+            folder_name: truncate(
+                this.props.record.data.display_name,
+                DESTINATION_MAX_LENGTH,
+            ),
         };
         if (this.props.record.data.user_permission !== "edit") {
             return _t("Insufficient access to %(folder_name)s", destination);
@@ -55,7 +58,8 @@ export class DocumentsOperationConfirmation extends Component {
                         display_name: this.props.record.data.display_name,
                         access_internal: this.props.record.data.access_internal,
                         access_via_link: this.props.record.data.access_via_link,
-                        is_access_via_link_hidden: this.props.record.data.is_access_via_link_hidden,
+                        is_access_via_link_hidden:
+                            this.props.record.data.is_access_via_link_hidden,
                     },
                     confirm: async () => resolve(true),
                     cancel: () => resolve(false),
@@ -65,7 +69,9 @@ export class DocumentsOperationConfirmation extends Component {
                 return;
             }
         }
-        await this.orm.call("documents.operation", "action_confirm", [this.props.record.resId]);
+        await this.orm.call("documents.operation", "action_confirm", [
+            this.props.record.resId,
+        ]);
         this.notifySuccess();
         this.env.dialogData.close();
     }

@@ -18,10 +18,10 @@ export class SlidesForumOption extends BaseOptionComponent {
 class SlidesForumOptionPlugin extends Plugin {
     static id = "slidesForumOption";
     resources = {
-        builder_options: [
-            withSequence(after(FORUMS_INDEX), SlidesForumOption),
-        ],
+        builder_options: [withSequence(after(FORUMS_INDEX), SlidesForumOption)],
     };
 }
 
-registry.category("website-plugins").add(SlidesForumOptionPlugin.id, SlidesForumOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(SlidesForumOptionPlugin.id, SlidesForumOptionPlugin);

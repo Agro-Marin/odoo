@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { registries } from "@odoo/o-spreadsheet";
-import { setCellContent, setSelection, updatePivot } from "@spreadsheet/../tests/helpers/commands";
+import {
+    setCellContent,
+    setSelection,
+    updatePivot,
+} from "@spreadsheet/../tests/helpers/commands";
 import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
-import { getEvaluatedCell, getFormattedValueGrid } from "@spreadsheet/../tests/helpers/getters";
+import {
+    getEvaluatedCell,
+    getFormattedValueGrid,
+} from "@spreadsheet/../tests/helpers/getters";
 import { createSpreadsheetWithPivot } from "@spreadsheet/../tests/helpers/pivot";
 import { doMenuAction } from "@spreadsheet/../tests/helpers/ui";
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
+
 import { Partner, Product } from "../../helpers/data.js";
 const { cellMenuRegistry } = registries;
 
@@ -15,11 +23,25 @@ defineSpreadsheetModels();
 beforeEach(() => {
     Product._records.push(
         { id: 200, display_name: "chair", name: "chair" },
-        { id: 201, display_name: "table", name: "table" }
+        { id: 201, display_name: "table", name: "table" },
     );
     Partner._records.push(
-        { id: 200, foo: 12, bar: true, product_id: 200, probability: 100, currency_id: 1 },
-        { id: 201, foo: 13, bar: false, product_id: 201, probability: 50, currency_id: 1 }
+        {
+            id: 200,
+            foo: 12,
+            bar: true,
+            product_id: 200,
+            probability: 100,
+            currency_id: 1,
+        },
+        {
+            id: 201,
+            foo: 13,
+            bar: false,
+            product_id: 201,
+            probability: 50,
+            currency_id: 1,
+        },
     );
 });
 
@@ -29,7 +51,9 @@ describe("Pivot custom groups", () => {
         updatePivot(model, pivotId, {
             columns: [{ fieldName: "GroupedProducts", order: "asc" }],
             rows: [],
-            measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+            measures: [
+                { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+            ],
             customFields: {
                 GroupedProducts: {
                     parentField: "product_id",
@@ -58,12 +82,19 @@ describe("Pivot custom groups", () => {
         updatePivot(model, pivotId, {
             columns: [],
             rows: [{ fieldName: "GroupedNames", order: "asc" }],
-            measures: [{ id: "probability:min", fieldName: "probability", aggregator: "min" }],
+            measures: [
+                { id: "probability:min", fieldName: "probability", aggregator: "min" },
+            ],
             customFields: {
                 GroupedNames: {
                     parentField: "name",
                     name: "GroupedNames",
-                    groups: [{ name: "First Three", values: ["Partner1", "Partner2", "Partner3"] }],
+                    groups: [
+                        {
+                            name: "First Three",
+                            values: ["Partner1", "Partner2", "Partner3"],
+                        },
+                    ],
                 },
             },
         });
@@ -108,7 +139,7 @@ describe("Pivot custom groups", () => {
         const cell = getEvaluatedCell(model, "A1");
         expect(cell.value).toEqual("#ERROR");
         expect(cell.message).toEqual(
-            'Cannot use custom pivot groups with "Count Distinct" measure'
+            'Cannot use custom pivot groups with "Count Distinct" measure',
         );
         const pivot = model.getters.getPivot(pivotId);
         expect(pivot.definition.measures[0].isValid).toBe(false);
@@ -119,7 +150,9 @@ describe("Pivot custom groups", () => {
         updatePivot(model, pivotId, {
             columns: [{ fieldName: "GroupedProducts", order: "asc" }],
             rows: [{ fieldName: "product_id", order: "asc" }],
-            measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+            measures: [
+                { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+            ],
             customFields: {
                 GroupedProducts: {
                     parentField: "product_id",
@@ -147,13 +180,25 @@ describe("Pivot custom groups", () => {
     });
 
     test("Custom groups handle None values", async function () {
-        Partner._records.push({ id: 202, foo: 12, bar: true, product_id: false, probability: 10 });
+        Partner._records.push({
+            id: 202,
+            foo: 12,
+            bar: true,
+            product_id: false,
+            probability: 10,
+        });
 
         const { model, pivotId } = await createSpreadsheetWithPivot();
         updatePivot(model, pivotId, {
             columns: [{ fieldName: "GroupedProducts", order: "asc" }],
             rows: [],
-            measures: [{ id: "probability:count", fieldName: "probability", aggregator: "count" }],
+            measures: [
+                {
+                    id: "probability:count",
+                    fieldName: "probability",
+                    aggregator: "count",
+                },
+            ],
             customFields: {
                 GroupedProducts: {
                     parentField: "product_id",
@@ -192,13 +237,21 @@ describe("Pivot custom groups", () => {
     });
 
     test("Can sort custom groups alphabetically", async function () {
-        Partner._records.push({ id: 202, foo: 12, bar: true, product_id: false, probability: 10 });
+        Partner._records.push({
+            id: 202,
+            foo: 12,
+            bar: true,
+            product_id: false,
+            probability: 10,
+        });
 
         const { model, pivotId } = await createSpreadsheetWithPivot();
         updatePivot(model, pivotId, {
             columns: [{ fieldName: "GroupedProducts", order: "asc" }],
             rows: [],
-            measures: [{ id: "probability:max", fieldName: "probability", aggregator: "max" }],
+            measures: [
+                { id: "probability:max", fieldName: "probability", aggregator: "max" },
+            ],
             customFields: {
                 GroupedProducts: {
                     parentField: "product_id",
@@ -235,7 +288,9 @@ describe("Pivot custom groups", () => {
         updatePivot(model, pivotId, {
             columns: [{ fieldName: "GroupedProducts", order: "asc" }],
             rows: [],
-            measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+            measures: [
+                { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+            ],
             customFields: {
                 GroupedProducts: {
                     parentField: "product_id",
@@ -259,13 +314,21 @@ describe("Pivot custom groups", () => {
     });
 
     test("Others group is always sorted at the end", async function () {
-        Partner._records.push({ id: 202, foo: 12, bar: true, product_id: false, probability: 10 });
+        Partner._records.push({
+            id: 202,
+            foo: 12,
+            bar: true,
+            product_id: false,
+            probability: 10,
+        });
 
         const { model, pivotId } = await createSpreadsheetWithPivot();
         updatePivot(model, pivotId, {
             columns: [{ fieldName: "GroupedProducts", order: "asc" }],
             rows: [],
-            measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+            measures: [
+                { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+            ],
             customFields: {
                 GroupedProducts: {
                     parentField: "product_id",
@@ -308,7 +371,9 @@ describe("Pivot custom groups menu items", () => {
         updatePivot(model, pivotId, {
             columns: [{ fieldName: "product_id" }],
             rows: [],
-            measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+            measures: [
+                { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+            ],
         });
         await waitForDataLoaded(model);
 
@@ -333,7 +398,9 @@ describe("Pivot custom groups menu items", () => {
         updatePivot(model, pivotId, {
             columns: [{ fieldName: "product_id" }],
             rows: [],
-            measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+            measures: [
+                { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+            ],
             customFields: {
                 Product2: {
                     parentField: "product_id",
@@ -365,7 +432,9 @@ describe("Pivot custom groups menu items", () => {
         updatePivot(model, pivotId, {
             columns: [{ fieldName: "Product2", order: "asc" }],
             rows: [],
-            measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+            measures: [
+                { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+            ],
             customFields: {
                 Product2: {
                     parentField: "product_id",
@@ -391,9 +460,14 @@ describe("Pivot custom groups menu items", () => {
     test("Can remove existing groups with menu items", async function () {
         const { model, pivotId, env } = await createSpreadsheetWithPivot();
         updatePivot(model, pivotId, {
-            columns: [{ fieldName: "Product2", order: "asc" }, { fieldName: "product_id" }],
+            columns: [
+                { fieldName: "Product2", order: "asc" },
+                { fieldName: "product_id" },
+            ],
             rows: [],
-            measures: [{ id: "probability:sum", fieldName: "probability", aggregator: "sum" }],
+            measures: [
+                { id: "probability:sum", fieldName: "probability", aggregator: "sum" },
+            ],
             customFields: {
                 Product2: {
                     parentField: "product_id",

@@ -2,14 +2,18 @@
 
 import { patch } from "@web/core/utils/patch";
 import { VideoSelector } from "@html_editor/main/media/media_dialog/video_selector";
-import { insertSnippet, registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
+import {
+    insertSnippet,
+    registerWebsitePreviewTour,
+} from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
     "snippet_background_video",
     {
         url: "/",
         edition: true,
-    }, () => [
+    },
+    () => [
         {
             trigger: "body",
             run: function () {
@@ -30,11 +34,11 @@ registerWebsitePreviewTour(
                             src: "/hello/world.mp4",
                         });
                     },
-                    async _getVideoURLData(src, options) {
-                        if (src === '/hello/world.mp4') {
+                    async _getVideoURLData(src) {
+                        if (src === "/hello/world.mp4") {
                             return {
-                                'platform': 'vimeo',
-                                'embed_url': 'about:blank',
+                                platform: "vimeo",
+                                embed_url: "about:blank",
                             };
                         }
                         return super._getVideoURLData(...arguments);
@@ -67,7 +71,8 @@ registerWebsitePreviewTour(
             trigger: "textarea.is-valid",
         },
         {
-            content: "Click on the 'Add' button to apply the selected video as the background.",
+            content:
+                "Click on the 'Add' button to apply the selected video as the background.",
             trigger: ".modal-footer button.btn-primary",
             run: "click",
         },
@@ -77,7 +82,8 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check that the video container is not editable.",
-            trigger: ":iframe #wrap section.o_background_video > .o_bg_video_container[contenteditable=false]",
+            trigger:
+                ":iframe #wrap section.o_background_video > .o_bg_video_container[contenteditable=false]",
         },
-    ]
+    ],
 );

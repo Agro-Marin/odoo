@@ -28,7 +28,10 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     async load(config) {
-        if (this.documentService.initData.documentId || config.context.documents_init_document_id) {
+        if (
+            this.documentService.initData.documentId ||
+            config.context.documents_init_document_id
+        ) {
             config.irFilters.forEach((fil) => {
                 fil.is_default = false;
             });
@@ -94,7 +97,7 @@ export class DocumentsSearchModel extends SearchModel {
             super.takeSearchDefaultsFromGlobalContext(...arguments);
         if (searchPanelDefaults.user_folder_id) {
             searchPanelDefaults.user_folder_id = toFolderValueId(
-                searchPanelDefaults.user_folder_id
+                searchPanelDefaults.user_folder_id,
             );
             if (!this.globalContext.no_documents_unique_folder_id) {
                 this.globalContext["documents_unique_folder_id"] =
@@ -148,7 +151,9 @@ export class DocumentsSearchModel extends SearchModel {
      * @returns {Object[]}
      */
     getSelectedFolderAndParents() {
-        return this.getFolderAndParents(this.getFolderById(this.getSelectedFolderId() || false));
+        return this.getFolderAndParents(
+            this.getFolderById(this.getSelectedFolderId() || false),
+        );
     }
 
     /**
@@ -166,11 +171,13 @@ export class DocumentsSearchModel extends SearchModel {
             if (selectedFolder.childrenIds && selectedFolder.childrenIds.length) {
                 this.documentService.logAccess(selectedFolder.access_token);
             } else {
-                this.documentService.logAccess(selectedFolder.access_token).then((result) => {
-                    if (result && result?.reload) {
-                        this._reloadSearchModel(true);
-                    }
-                });
+                this.documentService
+                    .logAccess(selectedFolder.access_token)
+                    .then((result) => {
+                        if (result && result?.reload) {
+                            this._reloadSearchModel(true);
+                        }
+                    });
             }
         }
     }
@@ -185,7 +192,7 @@ export class DocumentsSearchModel extends SearchModel {
     async _reloadSearchPanel(skipUpdate = false) {
         await this._fetchSections(
             this.getSections((s) => s.type === "category"),
-            []
+            [],
         );
         if (!skipUpdate) {
             this.trigger("update-search-panel");
@@ -221,7 +228,7 @@ export class DocumentsSearchModel extends SearchModel {
             : userFolderCategory.activeValueId;
         const result = super._getCategoryDomain();
         const folderLeafIdx = result.findIndex(
-            (leaf) => leaf[0] === "user_folder_id" && leaf[1] === "="
+            (leaf) => leaf[0] === "user_folder_id" && leaf[1] === "=",
         );
         if (folderLeafIdx !== -1) {
             result.splice(folderLeafIdx, 1, ...[["folder_id", "=", folderIdToOpen]]);
@@ -302,8 +309,13 @@ export class DocumentsSearchModel extends SearchModel {
             category.activeValueId = this.context.documents_init_folder_id || false;
             return;
         }
-        const storageItem = browser.localStorage.getItem("searchpanel_documents_document");
-        if (storageItem && !["COMPANY", "MY", "RECENT", "SHARED", "TRASH"].includes(storageItem)) {
+        const storageItem = browser.localStorage.getItem(
+            "searchpanel_documents_document",
+        );
+        if (
+            storageItem &&
+            !["COMPANY", "MY", "RECENT", "SHARED", "TRASH"].includes(storageItem)
+        ) {
             try {
                 category.activeValueId = JSON.parse(storageItem);
             } catch {
@@ -313,7 +325,9 @@ export class DocumentsSearchModel extends SearchModel {
             category.activeValueId = storageItem;
         }
         if (
-            ["COMPANY", "MY", "RECENT", "SHARED", "TRASH"].includes(category.activeValueId) ||
+            ["COMPANY", "MY", "RECENT", "SHARED", "TRASH"].includes(
+                category.activeValueId,
+            ) ||
             (valueIds.includes(category.activeValueId) &&
                 this._isCategoryValueReachable(category, category.activeValueId))
         ) {
@@ -321,19 +335,26 @@ export class DocumentsSearchModel extends SearchModel {
         }
         if (category.values.has(category.activeValueId)) {
             let newSection = category.values.get(
-                category.values.get(category.activeValueId).parentId
+                category.values.get(category.activeValueId).parentId,
             );
-            while (newSection && !this._isCategoryValueReachable(category, newSection.id)) {
+            while (
+                newSection &&
+                !this._isCategoryValueReachable(category, newSection.id)
+            ) {
                 newSection = category.values.get(newSection.parentId);
             }
             if (newSection) {
-                category.activeValueId = newSection.id || valueIds[Number(valueIds.length > 1)];
+                category.activeValueId =
+                    newSection.id || valueIds[Number(valueIds.length > 1)];
             } else {
                 category.activeValueId = this.documentService.userIsInternal
                     ? "COMPANY"
                     : valueIds[0];
             }
-            browser.localStorage.setItem("searchpanel_documents_document", category.activeValueId);
+            browser.localStorage.setItem(
+                "searchpanel_documents_document",
+                category.activeValueId,
+            );
         } else {
             category.activeValueId = false;
         }

@@ -1,8 +1,8 @@
 /** @odoo-module native */
 
-import { Component, onMounted, xml } from "/web/static/lib/owl/owl.es.js";
-
 import useStore from "../hooks/useStore.js";
+
+import { Component, onMounted, xml } from "/web/static/lib/owl/owl.es.js";
 
 export class LoadingFullScreen extends Component {
     static props = {

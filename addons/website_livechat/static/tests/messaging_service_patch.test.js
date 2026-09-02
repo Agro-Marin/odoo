@@ -1,4 +1,9 @@
-import { contains, openFormView, start, startServer } from "@mail/../tests/mail_test_helpers";
+import {
+    contains,
+    openFormView,
+    start,
+    startServer,
+} from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
 import { rpc } from "@web/core/network";
 

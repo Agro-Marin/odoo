@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { registries, EvaluationError } from "@odoo/o-spreadsheet";
+import { EvaluationError, registries } from "@odoo/o-spreadsheet";
 
 const LOADING_ERROR = "Loading...";
 

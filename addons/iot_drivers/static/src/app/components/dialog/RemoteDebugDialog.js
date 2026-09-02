@@ -1,10 +1,10 @@
 /** @odoo-module native */
 
-import { Component, onWillStart, useState, xml } from "/web/static/lib/owl/owl.es.js";
-
 import useStore from "../../hooks/useStore.js";
 import { LoadingFullScreen } from "../LoadingFullScreen.js";
 import { BootstrapDialog } from "./BootstrapDialog.js";
+
+import { Component, onWillStart, useState, xml } from "/web/static/lib/owl/owl.es.js";
 
 export class RemoteDebugDialog extends Component {
     static props = {};

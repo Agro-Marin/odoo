@@ -4,8 +4,18 @@ import { animationFrame } from "@odoo/hoot-mock";
 
 import { focus, mailModels } from "@mail/../tests/mail_test_helpers";
 import { projectModels } from "@project/../tests/project_models";
-import { contains, defineModels, mountView, onRpc } from "@web/../tests/web_test_helpers";
-import { ProductProduct, ProjectTask, SaleOrder, SaleOrderLine } from "./project_task_model.js";
+import {
+    contains,
+    defineModels,
+    mountView,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
+import {
+    ProductProduct,
+    ProjectTask,
+    SaleOrder,
+    SaleOrderLine,
+} from "./project_task_model.js";
 
 describe.current.tags("desktop");
 
@@ -48,7 +58,13 @@ ProjectTask._views = {
 
 projectModels.ProjectTask = ProjectTask;
 
-defineModels({ ...mailModels, ...projectModels, SaleOrder, SaleOrderLine, ProductProduct });
+defineModels({
+    ...mailModels,
+    ...projectModels,
+    SaleOrder,
+    SaleOrderLine,
+    ProductProduct,
+});
 
 beforeEach(() => {
     ProjectTask._records[0].partner_id = 1;
@@ -69,9 +85,11 @@ onRpc("get_first_service_line", function ({ args, model }) {
 
 test("test so_line_create_button widget: valid SO", async () => {
     const project_name = projectModels.ProjectProject._records.find(
-        (project) => project.id === 1
+        (project) => project.id === 1,
     ).name;
-    const partner_name = mailModels.ResPartner._records.find((partner) => partner.id === 1).name;
+    const partner_name = mailModels.ResPartner._records.find(
+        (partner) => partner.id === 1,
+    ).name;
     await mountView({
         resId: 1,
         resModel: "project.task",
@@ -80,10 +98,11 @@ test("test so_line_create_button widget: valid SO", async () => {
 
     await focus("div[name='sale_line_id'] input");
     const create_so_button = queryOne(
-        "div[name='sale_line_id'] a[aria-label='Create Sales Order']"
+        "div[name='sale_line_id'] a[aria-label='Create Sales Order']",
     );
     expect(create_so_button).toBeVisible({
-        message: "The so_line_create_button widget should appear when creating a new record.",
+        message:
+            "The so_line_create_button widget should appear when creating a new record.",
     });
     await create_so_button.click();
     await animationFrame();
@@ -99,7 +118,7 @@ test("test so_line_create_button widget: valid SO", async () => {
 
     await contains(".modal-content .o_field_x2many_list_row_add a").click();
     await contains(".modal-content .o_selected_row td[name='product_id'] input").edit(
-        "Service Product 2"
+        "Service Product 2",
     );
     await contains(".modal-content .ui-sortable .o-autocomplete--input").click();
     await contains(".dropdown-item:nth-child(1)").click();
@@ -125,14 +144,15 @@ test("test so_line_create_button widget: invalid SO", async () => {
 
     await contains(".modal-content .o_field_x2many_list_row_add a").click();
     await contains(".modal-content .o_selected_row td[name='product_id'] input").edit(
-        "Consumable Product 1"
+        "Consumable Product 1",
     );
     await contains(".modal-content .ui-sortable .o-autocomplete--input").click();
     await contains(".dropdown-item:nth-child(1)").click();
     await contains(".modal-content button[class*='o_form_button_save']").click();
 
     expect("div[name='sale_line_id'] input").toHaveValue("", {
-        message: "The sale order line should not be created and set in the input field.",
+        message:
+            "The sale order line should not be created and set in the input field.",
     });
     // As the SO does not contain at least one service product, it should not be validated and created.
     expect.verifySteps(["invalid_so"]);
@@ -147,10 +167,13 @@ test("test so_line_create_button widget: visibility conditions", async () => {
     });
 
     await click("div[name='sale_line_id'] input");
-    expect("div[name='sale_line_id'] a[aria-label='Create Sales Order']").toHaveCount(0, {
-        message:
-            "The so_line_create_button widget should not appear as there is already a value in sale_line_id field.",
-    });
+    expect("div[name='sale_line_id'] a[aria-label='Create Sales Order']").toHaveCount(
+        0,
+        {
+            message:
+                "The so_line_create_button widget should not appear as there is already a value in sale_line_id field.",
+        },
+    );
     await edit("");
     await runAllTimers();
     await click("div[name='name'] input");

@@ -21,7 +21,7 @@ export const booleanToggleFieldLabeled = {
             type: "boolean",
             default: true,
             help: _t(
-                "If checked, the record will be saved immediately when the field is modified."
+                "If checked, the record will be saved immediately when the field is modified.",
             ),
         },
     ],

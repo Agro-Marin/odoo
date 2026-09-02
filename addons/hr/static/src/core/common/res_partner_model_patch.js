@@ -1,9 +1,8 @@
 /** @odoo-module native */
 import { ResPartner } from "@mail/core/common/res_partner_model";
 import { fields } from "@mail/model/misc";
-
-import { patch } from "@web/core/utils/patch";
 import { user } from "@web/core/user";
+import { patch } from "@web/core/utils/patch";
 
 patch(ResPartner.prototype, {
     employeeId: undefined,
@@ -16,7 +15,7 @@ patch(ResPartner.prototype, {
             compute() {
                 return (
                     this.employee_ids.find(
-                        (employee) => employee.company_id?.id === user.activeCompany.id
+                        (employee) => employee.company_id?.id === user.activeCompany.id,
                     ) || this.employee_ids[0]
                 );
             },

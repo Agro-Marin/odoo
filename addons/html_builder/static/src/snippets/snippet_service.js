@@ -62,13 +62,13 @@ export class SnippetModel extends SignalStore {
 
     isCustomInnerContent(customSnippetName) {
         return !!this.snippetsByCategory.snippet_content.find(
-            (snippet) => snippet.name === customSnippetName
+            (snippet) => snippet.name === customSnippetName,
         );
     }
 
     isCustomStructure(customSnippetName) {
         return !!this.snippetsByCategory.snippet_structure.find(
-            (snippet) => snippet.name === customSnippetName
+            (snippet) => snippet.name === customSnippetName,
         );
     }
 
@@ -84,7 +84,7 @@ export class SnippetModel extends SignalStore {
             return false;
         }
         return !!this.snippetsByCategory.snippet_content.find(
-            (snippet) => snippet.name === snippetName
+            (snippet) => snippet.name === snippetName,
         );
     }
 
@@ -93,14 +93,20 @@ export class SnippetModel extends SignalStore {
     }
 
     getSnippetByName(category, name) {
-        return this.snippetsByCategory[category].find((snippet) => snippet.name === name);
+        return this.snippetsByCategory[category].find(
+            (snippet) => snippet.name === name,
+        );
     }
 
     installSnippetModule(snippet, installSnippetModule) {
-        const bodyText = _t("Do you want to install %s App?", snippet.moduleDisplayName);
+        const bodyText = _t(
+            "Do you want to install %s App?",
+            snippet.moduleDisplayName,
+        );
         const linkText = _t("More info about this app.");
         const linkUrl =
-            "/odoo/action-base.open_module_tree/" + encodeURIComponent(snippet.moduleId);
+            "/odoo/action-base.open_module_tree/" +
+            encodeURIComponent(snippet.moduleId);
 
         this.dialog.add(ConfirmationDialog, {
             title: _t("Install %s", snippet.moduleDisplayName),
@@ -136,7 +142,7 @@ export class SnippetModel extends SignalStore {
                 installSnippetModule: editor.config.installSnippetModule,
                 editor,
             },
-            { onClose }
+            { onClose },
         );
     }
 
@@ -152,10 +158,15 @@ export class SnippetModel extends SignalStore {
                     "ir.ui.view",
                     "render_public_asset",
                     [this.snippetsName, {}],
-                    { context }
+                    { context },
                 );
-                this.snippetsDocument = new DOMParser().parseFromString(html, "text/html");
-                const processors = registry.category("html_builder.snippetsPreprocessor").getAll();
+                this.snippetsDocument = new DOMParser().parseFromString(
+                    html,
+                    "text/html",
+                );
+                const processors = registry
+                    .category("html_builder.snippetsPreprocessor")
+                    .getAll();
                 for (const processor of Object.values(processors)) {
                     processor(this.snippetsName, this.snippetsDocument);
                 }
@@ -214,10 +225,14 @@ export class SnippetModel extends SignalStore {
                     });
                 }
                 if (snippetEl.dataset.oeForbidSanitize) {
-                    Object.assign(snippet, { forbidSanitize: snippetEl.dataset.oeForbidSanitize });
+                    Object.assign(snippet, {
+                        forbidSanitize: snippetEl.dataset.oeForbidSanitize,
+                    });
                 }
                 if (snippetEl.dataset.oGridColumnSpan) {
-                    snippet.gridColumnSpan = parseInt(snippetEl.dataset.oGridColumnSpan);
+                    snippet.gridColumnSpan = parseInt(
+                        snippetEl.dataset.oGridColumnSpan,
+                    );
                 }
                 switch (snippetCategory.id) {
                     case "snippet_groups":
@@ -233,7 +248,11 @@ export class SnippetModel extends SignalStore {
                         break;
                 }
                 snippet.label = this.getSnippetLabel(snippetEl, snippet.isCustom);
-                if (["snippet_structure", "snippet_content"].includes(snippetCategory.id)) {
+                if (
+                    ["snippet_structure", "snippet_content"].includes(
+                        snippetCategory.id,
+                    )
+                ) {
                     this.originalSnippets[snippet.name] ??= snippet;
                 }
                 snippets.push(snippet);
@@ -265,16 +284,23 @@ export class SnippetModel extends SignalStore {
 
     async deleteCustomSnippet(snippet) {
         return new Promise((resolve) => {
-            const message = _t("Are you sure you want to delete the block %s?", snippet.title);
+            const message = _t(
+                "Are you sure you want to delete the block %s?",
+                snippet.title,
+            );
             this.dialog.add(
                 ConfirmationDialog,
                 {
                     body: message,
                     confirm: async () => {
-                        for (const categoryKey of ["snippet_custom", "snippet_custom_content"]) {
-                            const snippetList = this.snippetsByCategory[categoryKey] || [];
+                        for (const categoryKey of [
+                            "snippet_custom",
+                            "snippet_custom_content",
+                        ]) {
+                            const snippetList =
+                                this.snippetsByCategory[categoryKey] || [];
                             const snippetIndex = snippetList.findIndex(
-                                (item) => item.id === snippet.id
+                                (item) => item.id === snippet.id,
                             );
 
                             if (snippetIndex > -1) {
@@ -292,7 +318,7 @@ export class SnippetModel extends SignalStore {
                 },
                 {
                     onClose: resolve,
-                }
+                },
             );
         });
     }
@@ -303,7 +329,7 @@ export class SnippetModel extends SignalStore {
         }
         snippet.title = newName;
         for (const snippetEl of this.snippetsDocument.body.querySelectorAll(
-            `snippets#snippet_custom > [data-oe-snippet-key = ${snippet.key}]`
+            `snippets#snippet_custom > [data-oe-snippet-key = ${snippet.key}]`,
         )) {
             snippetEl.setAttribute("name", newName);
             snippetEl.children[0].dataset["name"] = newName;
@@ -317,7 +343,9 @@ export class SnippetModel extends SignalStore {
 
     setSnippetName(snippetsDocument) {
         // TODO: this should probably be done in py
-        for (const snippetEl of snippetsDocument.body.querySelectorAll("snippets > *")) {
+        for (const snippetEl of snippetsDocument.body.querySelectorAll(
+            "snippets > *",
+        )) {
             snippetEl.children[0].dataset["name"] = snippetEl.getAttribute("name");
         }
     }
@@ -371,7 +399,7 @@ export class SnippetModel extends SignalStore {
     saveSnippet(
         snippetEl,
         cleanForSaveHandlers,
-        wrapWithSaveSnippetHandlers = (_, callback) => callback()
+        wrapWithSaveSnippetHandlers = (_, callback) => callback(),
     ) {
         return new Promise((resolve) => {
             this.dialog.add(
@@ -383,11 +411,14 @@ export class SnippetModel extends SignalStore {
                     cancel: () => resolve(false),
                     confirm: async () => {
                         const isButton = snippetEl.matches("a.btn");
-                        const snippetKey = isButton ? "s_button" : snippetEl.dataset.snippet;
+                        const snippetKey = isButton
+                            ? "s_button"
+                            : snippetEl.dataset.snippet;
                         const thumbnailURL = this.getSnippetThumbnailURL(snippetKey);
 
-                        const snippetCopyEl = await wrapWithSaveSnippetHandlers(snippetEl, () =>
-                            snippetEl.cloneNode(true)
+                        const snippetCopyEl = await wrapWithSaveSnippetHandlers(
+                            snippetEl,
+                            () => snippetEl.cloneNode(true),
                         );
 
                         // "CleanForSave" the snippet copy (only its children in
@@ -396,7 +427,9 @@ export class SnippetModel extends SignalStore {
                         const rootEl = snippetEl.matches(".s_popup")
                             ? snippetCopyEl.firstElementChild
                             : snippetCopyEl;
-                        cleanForSaveHandlers.forEach((handler) => handler({ root: rootEl }));
+                        cleanForSaveHandlers.forEach((handler) =>
+                            handler({ root: rootEl }),
+                        );
 
                         const defaultSnippetName = isButton
                             ? _t("Custom Button")
@@ -407,12 +440,12 @@ export class SnippetModel extends SignalStore {
                             snippetCopyEl.classList.remove("mb-2");
                             snippetCopyEl.classList.add(
                                 "o_snippet_drop_in_only",
-                                "s_custom_button"
+                                "s_custom_button",
                             );
                         }
 
                         const editableParentEl = snippetEl.closest(
-                            "[data-oe-model][data-oe-field][data-oe-id]"
+                            "[data-oe-model][data-oe-field][data-oe-id]",
                         );
                         const context = {
                             ...this.context,
@@ -420,21 +453,26 @@ export class SnippetModel extends SignalStore {
                             field: editableParentEl.dataset.oeField,
                             resId: editableParentEl.dataset.oeId,
                         };
-                        const savedName = await this.orm.call("ir.ui.view", "save_snippet", [], {
-                            name: defaultSnippetName,
-                            arch: snippetCopyEl.outerHTML,
-                            template_key: this.snippetsName,
-                            snippet_key: snippetKey,
-                            thumbnail_url: thumbnailURL,
-                            context,
-                        });
+                        const savedName = await this.orm.call(
+                            "ir.ui.view",
+                            "save_snippet",
+                            [],
+                            {
+                                name: defaultSnippetName,
+                                arch: snippetCopyEl.outerHTML,
+                                template_key: this.snippetsName,
+                                snippet_key: snippetKey,
+                                thumbnail_url: thumbnailURL,
+                                context,
+                            },
+                        );
 
                         // Reload the snippets so the sidebar is up to date.
                         await this.reload();
                         resolve(savedName);
                     },
                 },
-                { onClose: () => resolve(false) }
+                { onClose: () => resolve(false) },
             );
         });
     }
@@ -471,7 +509,7 @@ export const snippetService = {
                 new SnippetModel(services, {
                     snippetsName,
                     context,
-                })
+                }),
             );
             return snippetModelsMap.get(snippetsName);
         };

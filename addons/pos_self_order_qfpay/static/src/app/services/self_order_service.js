@@ -22,9 +22,7 @@ patch(SelfOrder.prototype, {
 
     filterPaymentMethods(pms) {
         const pm = super.filterPaymentMethods(...arguments);
-        const qfpay_pm = pms.filter(
-            (rec) => rec.use_payment_terminal === "qfpay",
-        );
+        const qfpay_pm = pms.filter((rec) => rec.use_payment_terminal === "qfpay");
         return [...new Set([...pm, ...qfpay_pm])];
     },
 
@@ -34,9 +32,8 @@ patch(SelfOrder.prototype, {
     },
 
     handleErrorNotification(error, type = "danger") {
-        let errorMessage = "";
         if (error instanceof QFPayError) {
-            errorMessage = `QFPay POS: ${error.message}`;
+            const errorMessage = `QFPay POS: ${error.message}`;
             this.notification.add(errorMessage, {
                 type: type,
             });

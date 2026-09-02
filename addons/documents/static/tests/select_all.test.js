@@ -65,7 +65,8 @@ const prepareSelectAllActionDataViews = () => {
 
     serverData["ir.attachment"] = [{ id: 1, name: "binary" }];
 
-    DocumentsModels.DocumentsDocument._views["list,1"] = `<list js_class="documents_list">
+    DocumentsModels.DocumentsDocument._views["list,1"] =
+        `<list js_class="documents_list">
                   <field name="name"/>
                   <field name="folder_id"/>
                   <field name="attachment_id" column_invisible="1"/>
@@ -73,7 +74,9 @@ const prepareSelectAllActionDataViews = () => {
                   <field name="active" column_invisible="1"/>
               </list>`;
     DocumentsModels.DocumentsDocument._views["search,2"] = getEnrichedSearchArch();
-    DocumentsModels.DocumentsOperation._views = { form: basicDocumentsOperationFormArch };
+    DocumentsModels.DocumentsOperation._views = {
+        form: basicDocumentsOperationFormArch,
+    };
     return serverData;
 };
 
@@ -97,10 +100,10 @@ test("Selected all records from current page are copied correctly", async functi
     await contains(actionSelector).click();
     await contains(".o_menu_item.dropdown-item .fa-copy").click();
     await contains(
-        `.modal-content > .modal-body .o_search_panel_label[data-tooltip="Folder 1"] div`
+        `.modal-content > .modal-body .o_search_panel_label[data-tooltip="Folder 1"] div`,
     ).click();
     await contains(
-        ".modal-content > .modal-footer > .o_widget_documents_operation_confirmation button"
+        ".modal-content > .modal-footer > .o_widget_documents_operation_confirmation button",
     ).click();
     expect.verifySteps(["Document Copied"]);
 });

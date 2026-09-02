@@ -15,7 +15,7 @@ class ActionsOne2ManyField extends Component {
             () => {
                 this.adapt();
             },
-            () => [adaptCounter]
+            () => [adaptCounter],
         );
         const throttledRenderAndAdapt = useThrottleForAnimation(() => {
             adaptCounter++;
@@ -28,11 +28,13 @@ class ActionsOne2ManyField extends Component {
     async adapt() {
         const rootWidth = this.root.el.getBoundingClientRect().width;
 
-        const actionsEls = Array.from(this.root.el.children).filter((el) => el.dataset.actionId);
+        const actionsEls = Array.from(this.root.el.children).filter(
+            (el) => el.dataset.actionId,
+        );
         actionsEls.forEach((el) => el.classList.remove("d-none"));
         const actionsTotalWidth = actionsEls.reduce(
             (sum, el) => sum + el.getBoundingClientRect().width,
-            0
+            0,
         );
 
         let overflowingActionId;
@@ -43,9 +45,10 @@ class ActionsOne2ManyField extends Component {
                 if (width + elWidth > rootWidth) {
                     overflowingActionId = el.dataset.actionId;
                     const firstOverflowingEl = actionsEls.find(
-                        (el) => el.dataset.actionId === overflowingActionId
+                        (el) => el.dataset.actionId === overflowingActionId,
                     );
-                    const firstOverflowingIndex = actionsEls.indexOf(firstOverflowingEl);
+                    const firstOverflowingIndex =
+                        actionsEls.indexOf(firstOverflowingEl);
                     const overflowingEls = actionsEls.slice(firstOverflowingIndex);
                     overflowingEls.forEach((el) => el.classList.add("d-none"));
                     break;
@@ -57,7 +60,9 @@ class ActionsOne2ManyField extends Component {
         const initialHiddenActionsCount = this.hiddenActionsCount;
         this.hiddenActionsCount = overflowingActionId
             ? this.currentActions.length -
-              this.currentActions.findIndex((action) => action.id === overflowingActionId)
+              this.currentActions.findIndex(
+                  (action) => action.id === overflowingActionId,
+              )
             : 0;
         if (initialHiddenActionsCount !== this.hiddenActionsCount) {
             return this.render();

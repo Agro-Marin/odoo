@@ -30,7 +30,8 @@ registry.category("web_tour.tours").add("time_off_card_tour", {
             run: "click",
         },
         {
-            content: "Verify that the popover is displayed after clicking on the time off details.",
+            content:
+                "Verify that the popover is displayed after clicking on the time off details.",
             trigger: ".o_popover",
         },
         {

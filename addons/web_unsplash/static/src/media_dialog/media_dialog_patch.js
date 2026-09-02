@@ -13,7 +13,7 @@ patch(MediaDialog.prototype, {
         const selectedImages = this.selectedMedia[TABS.IMAGES.id];
         if (selectedImages) {
             const unsplashRecords = selectedImages.filter(
-                (media) => media.mediaType === "unsplashRecord"
+                (media) => media.mediaType === "unsplashRecord",
             );
             if (unsplashRecords.length) {
                 await this.unsplashService.uploadUnsplashRecords(
@@ -29,9 +29,9 @@ patch(MediaDialog.prototype, {
                             attachments.map((attachment) => ({
                                 ...attachment,
                                 mediaType: "attachment",
-                            }))
+                            })),
                         );
-                    }
+                    },
                 );
             }
         }

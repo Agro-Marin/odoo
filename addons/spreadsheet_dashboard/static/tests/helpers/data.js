@@ -1,4 +1,7 @@
-import { defineSpreadsheetModels,SpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
+import {
+    defineSpreadsheetModels,
+    SpreadsheetModels,
+} from "@spreadsheet/../tests/helpers/data";
 import { fields, models, onRpc } from "@web/../tests/web_test_helpers";
 import { RPCError } from "@web/core/network";
 
@@ -20,8 +23,14 @@ export class SpreadsheetDashboard extends models.Model {
     json_data = fields.Char({});
     is_published = fields.Boolean({ string: "Is published" });
     dashboard_group_id = fields.Many2one({ relation: "spreadsheet.dashboard.group" });
-    favorite_user_ids = fields.Many2many({ relation: "res.users", string: "Favorite Users" });
-    is_user_favorite = fields.Boolean({ compute: "_compute_is_user_favorite", string: "Is Favorite" });
+    favorite_user_ids = fields.Many2many({
+        relation: "res.users",
+        string: "Favorite Users",
+    });
+    is_user_favorite = fields.Boolean({
+        compute: "_compute_is_user_favorite",
+        string: "Is Favorite",
+    });
     // Present on the deployed model whenever spreadsheet_dashboard_edition is
     // installed (which adds it and unconditionally patches the dashboard loader
     // to read it into the groups fetch spec). The unit-test bundle always loads
@@ -77,7 +86,9 @@ export class SpreadsheetDashboardGroup extends models.Model {
 }
 
 function mockDashboardDataController(_request, { res_id }) {
-    const [record] = this.env["spreadsheet.dashboard"].search_read([["id", "=", parseInt(res_id)]]);
+    const [record] = this.env["spreadsheet.dashboard"].search_read([
+        ["id", "=", parseInt(res_id)],
+    ]);
     if (!record) {
         const error = new RPCError(`Dashboard ${res_id} does not exist`);
         error.data = {};
@@ -92,7 +103,10 @@ function mockDashboardDataController(_request, { res_id }) {
 onRpc("/spreadsheet/dashboard/data/<int:res_id>", mockDashboardDataController);
 
 export function defineSpreadsheetDashboardModels() {
-    const SpreadsheetDashboardModels = [SpreadsheetDashboard, SpreadsheetDashboardGroup];
+    const SpreadsheetDashboardModels = [
+        SpreadsheetDashboard,
+        SpreadsheetDashboardGroup,
+    ];
     Object.assign(SpreadsheetModels, SpreadsheetDashboardModels);
     defineSpreadsheetModels();
 }

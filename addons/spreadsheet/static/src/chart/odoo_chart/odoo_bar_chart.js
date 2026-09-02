@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { chartHelpers, registries } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/translation";
 
 import { OdooChart } from "./odoo_chart.js";
@@ -45,12 +45,14 @@ export class OdooBarChart extends OdooChart {
 
 chartRegistry.add("odoo_bar", {
     match: (type) => type === "odoo_bar",
-    createChart: (definition, sheetId, getters) => new OdooBarChart(definition, sheetId, getters),
+    createChart: (definition, sheetId, getters) =>
+        new OdooBarChart(definition, sheetId, getters),
     getChartRuntime: createOdooChartRuntime,
     validateChartDefinition: (validator, definition) =>
         OdooBarChart.validateChartDefinition(validator, definition),
     transformDefinition: (definition) => OdooBarChart.transformDefinition(definition),
-    getChartDefinitionFromContextCreation: () => OdooBarChart.getDefinitionFromContextCreation(),
+    getChartDefinitionFromContextCreation: () =>
+        OdooBarChart.getDefinitionFromContextCreation(),
     name: _t("Bar"),
 });
 

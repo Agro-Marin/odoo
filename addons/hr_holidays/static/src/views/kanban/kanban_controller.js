@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { KanbanController } from "@web/views/kanban";
 import { EventBus, useSubEnv } from "@odoo/owl";
+import { KanbanController } from "@web/views/kanban";
 
 export class TimeOffKanbanController extends KanbanController {
     setup() {

@@ -1,8 +1,12 @@
-import { describe, expect, test, getFixture, beforeEach } from "@odoo/hoot";
+import { beforeEach, describe, expect, getFixture, test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
-import { makeMockEnv, contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { DateFilterValue } from "@spreadsheet/global_filters/components/date_filter_value/date_filter_value";
+import {
+    contains,
+    makeMockEnv,
+    mountWithCleanup,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineSpreadsheetModels();
@@ -164,7 +168,9 @@ test("All the options should be displayed", async function () {
         update: () => {},
     });
     await contains("input").click();
-    const options = fixture.querySelectorAll(".o-date-filter-dropdown .o-date-option-label");
+    const options = fixture.querySelectorAll(
+        ".o-date-filter-dropdown .o-date-option-label",
+    );
     expect(options.length).toBe(14);
     expect(options[0].textContent).toBe("Today");
     expect(options[1].textContent).toBe("Yesterday");
@@ -457,7 +463,11 @@ test("Choosing a from after the to will re-order dates", async function () {
     await mountDateFilterValue(env, {
         value: { type: "range", from: "2023-01-30", to: "2023-01-31" },
         update: (value) => {
-            expect(value).toEqual({ type: "range", from: "2023-01-01", to: "2023-01-30" });
+            expect(value).toEqual({
+                type: "range",
+                from: "2023-01-01",
+                to: "2023-01-30",
+            });
             expect.step("update");
         },
     });

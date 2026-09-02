@@ -50,7 +50,7 @@ export class BinaryFileManager {
                 _t("Unknown binary field %(field)s, its files were not uploaded.", {
                     field,
                 }),
-                { type: "danger" }
+                { type: "danger" },
             );
             return;
         }
@@ -105,7 +105,8 @@ export class BinaryFileManager {
             ...this.context,
             import_file: true,
             tracking_disable: this.parameters.tracking_disable,
-            name_create_enabled_fields: this.parameters.name_create_enabled_fields || {},
+            name_create_enabled_fields:
+                this.parameters.name_create_enabled_fields || {},
             import_set_empty_fields: this.parameters.import_set_empty_fields || [],
             import_skip_records: this.parameters.import_skip_records || [],
         };
@@ -135,7 +136,7 @@ export class BinaryFileManager {
                 _t("Some binary/attachment fields could not be uploaded: %(error)s", {
                     error: error.message || error,
                 }),
-                { type: "danger" }
+                { type: "danger" },
             );
             return { error };
         }

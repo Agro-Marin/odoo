@@ -1,11 +1,10 @@
 /** @odoo-module native */
-import { patch } from '@web/core/utils/patch';
+import { patch } from "@web/core/utils/patch";
 
-import { PaymentForm } from '@payment/interactions/payment_form';
-import paymentDemoMixin from '@payment_demo/interactions/payment_demo_mixin';
+import { PaymentForm } from "@payment/interactions/payment_form";
+import paymentDemoMixin from "@payment_demo/interactions/payment_demo_mixin";
 
 patch(PaymentForm.prototype, {
-
     // #=== DOM MANIPULATION ===#
 
     /**
@@ -20,14 +19,20 @@ patch(PaymentForm.prototype, {
      * @param {string} flow - The online payment flow of the selected payment option.
      * @return {void}
      */
-    async _prepareInlineForm(providerId, providerCode, paymentOptionId, paymentMethodCode, flow) {
-        if (providerCode !== 'demo') {
+    async _prepareInlineForm(
+        providerId,
+        providerCode,
+        paymentOptionId,
+        paymentMethodCode,
+        flow,
+    ) {
+        if (providerCode !== "demo") {
             await super._prepareInlineForm(...arguments);
             return;
-        } else if (flow === 'token') {
+        } else if (flow === "token") {
             return;
         }
-        this._setPaymentFlow('direct');
+        this._setPaymentFlow("direct");
     },
 
     // #=== PAYMENT FLOW ===#
@@ -43,12 +48,16 @@ patch(PaymentForm.prototype, {
      * @param {object} processingValues - The processing values of the transaction.
      * @return {void}
      */
-    async _processDirectFlow(providerCode, paymentOptionId, paymentMethodCode, processingValues) {
-        if (providerCode !== 'demo') {
+    async _processDirectFlow(
+        providerCode,
+        paymentOptionId,
+        paymentMethodCode,
+        processingValues,
+    ) {
+        if (providerCode !== "demo") {
             await super._processDirectFlow(...arguments);
             return;
         }
         paymentDemoMixin.processDemoPayment(processingValues);
     },
-
 });

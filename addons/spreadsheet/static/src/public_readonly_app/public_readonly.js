@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { Model, registries,Spreadsheet } from "@odoo/o-spreadsheet";
+import { Model, registries, Spreadsheet } from "@odoo/o-spreadsheet";
 import { Component, onWillStart, useChildSubEnv, useState } from "@odoo/owl";
 import { useSpreadsheetNotificationStore } from "@spreadsheet/hooks";
 import { download } from "@web/core/network";
@@ -66,7 +66,7 @@ export class PublicReadonlySpreadsheet extends Component {
             {
                 mode: this.props.mode === "dashboard" ? "dashboard" : "readonly",
             },
-            this.data.revisions || []
+            this.data.revisions || [],
         );
         if (this.env.debug) {
             const debugObj = spreadsheet.__DEBUG__ || {};

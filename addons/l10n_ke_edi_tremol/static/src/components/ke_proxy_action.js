@@ -13,7 +13,7 @@ export function KESendInvoiceClientAction(env, action) {
                 onClose: () => {
                     resolve({ type: "ir.actions.act_window_close" });
                 },
-            }
+            },
         );
     });
 }

@@ -19,7 +19,7 @@ patch(TicketScreen.prototype, {
     _onUpdateSelectedOrderline() {
         const selectedOrderlineId = this.getSelectedOrderlineId();
         const orderline = this.getSelectedOrder().lines.find(
-            (line) => line.id == selectedOrderlineId,
+            (line) => line.id === selectedOrderlineId,
         );
         if (
             orderline &&

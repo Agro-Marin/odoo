@@ -16,7 +16,9 @@ export class PortalWebclientWebClient extends Component {
         this.documentService = useService("document.document");
         const initData = this.documentService.initData;
         onMounted(async () => {
-            const action = await this.action.loadAction("documents.document_action_portal");
+            const action = await this.action.loadAction(
+                "documents.document_action_portal",
+            );
             action.path = "documents";
             this.action.doAction(action, {
                 additionalContext: initData.userFolderId

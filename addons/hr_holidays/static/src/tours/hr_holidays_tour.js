@@ -64,13 +64,15 @@ registry.category("web_tour.tours").add("hr_holidays_tour", {
             run: "click",
         },
         {
-            trigger: 'button[data-menu-xmlid="hr_holidays.menu_hr_holidays_management"]',
+            trigger:
+                'button[data-menu-xmlid="hr_holidays.menu_hr_holidays_management"]',
             content: _t("Let's go validate it"),
             tooltipPosition: "bottom",
             run: "click",
         },
         {
-            trigger: 'a[data-menu-xmlid="hr_holidays.menu_open_department_leave_approve"]',
+            trigger:
+                'a[data-menu-xmlid="hr_holidays.menu_open_department_leave_approve"]',
             content: _t("Select Time Off"),
             tooltipPosition: "right",
             run: "click",

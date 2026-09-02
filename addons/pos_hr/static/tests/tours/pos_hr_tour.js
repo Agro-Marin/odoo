@@ -1,16 +1,16 @@
-import * as PosHr from "@pos_hr/../tests/tours/utils/pos_hr_helpers";
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
-import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
-import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
-import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
-import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
-import * as NumberPopup from "@point_of_sale/../tests/generic_helpers/number_popup_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
+import * as NumberPopup from "@point_of_sale/../tests/generic_helpers/number_popup_util";
 import * as SelectionPopup from "@point_of_sale/../tests/generic_helpers/selection_popup_util";
-import * as BackendUtils from "@point_of_sale/../tests/pos/tours/utils/backend_utils";
 import * as Utils from "@point_of_sale/../tests/generic_helpers/utils";
-import { registry } from "@web/core/registry";
 import { negate, scan_barcode } from "@point_of_sale/../tests/generic_helpers/utils";
+import * as BackendUtils from "@point_of_sale/../tests/pos/tours/utils/backend_utils";
+import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
+import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
+import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
+import * as PosHr from "@pos_hr/../tests/tours/utils/pos_hr_helpers";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("PosHrTour", {
     steps: () =>
@@ -299,7 +299,10 @@ registry.category("web_tour.tours").add("pos_hr_go_backend_closed_registered", {
                 }
                 return step;
             }),
-            PosHr.loginScreenIsNotShown().map((step) => ({ ...step, expectUnloadPage: true })),
+            PosHr.loginScreenIsNotShown().map((step) => ({
+                ...step,
+                expectUnloadPage: true,
+            })),
         ].flat(),
 });
 
@@ -395,12 +398,14 @@ registry.category("web_tour.tours").add("test_maximum_closing_difference", {
         ].flat(),
 });
 
-registry.category("web_tour.tours").add("test_scan_employee_barcode_with_pos_hr_disabled", {
-    steps: () =>
-        [
-            // scan a barcode with 041 as prefix for cashiers
-            scan_barcode("041123"),
-            Chrome.clickBtn("Open Register"),
-            ProductScreen.isShown(),
-        ].flat(),
-});
+registry
+    .category("web_tour.tours")
+    .add("test_scan_employee_barcode_with_pos_hr_disabled", {
+        steps: () =>
+            [
+                // scan a barcode with 041 as prefix for cashiers
+                scan_barcode("041123"),
+                Chrome.clickBtn("Open Register"),
+                ProductScreen.isShown(),
+            ].flat(),
+    });

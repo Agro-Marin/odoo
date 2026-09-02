@@ -11,7 +11,7 @@ export class BlogPostTitlePlugin extends Plugin {
             // two templates (opt_blog_cover_post_fullwidth_design,
             // opt_blog_cover_post)
             const latestPostsEl = this.editable.querySelector(
-                "#o_wblog_blog_top .h1.o_not_editable"
+                "#o_wblog_blog_top .h1.o_not_editable",
             );
             latestPostsEl?.classList.remove("o_not_editable");
         },
@@ -19,4 +19,6 @@ export class BlogPostTitlePlugin extends Plugin {
 }
 
 registry.category("website-plugins").add(BlogPostTitlePlugin.id, BlogPostTitlePlugin);
-registry.category("website-translation-plugins").add(BlogPostTitlePlugin.id, BlogPostTitlePlugin);
+registry
+    .category("website-translation-plugins")
+    .add(BlogPostTitlePlugin.id, BlogPostTitlePlugin);

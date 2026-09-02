@@ -36,7 +36,7 @@ export class InputConfirmationDialog extends ConfirmationDialog {
                     };
                 }
             },
-            () => [this.modalRef.el?.querySelector("input")]
+            () => [this.modalRef.el?.querySelector("input")],
         );
     }
 

@@ -1,4 +1,4 @@
-import { describe, expect, test, getFixture } from "@odoo/hoot";
+import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { getBasicData } from "@spreadsheet/../tests/helpers/data";
 import { createSpreadsheetDashboard } from "@spreadsheet_dashboard/../tests/helpers/dashboard_action";
 import {
@@ -36,7 +36,12 @@ function getServerData(spreadsheetData) {
 }
 
 test("Search input can be toggled", async () => {
-    const productFilter = { id: "1", type: "relation", label: "Product", modelName: "product" };
+    const productFilter = {
+        id: "1",
+        type: "relation",
+        label: "Product",
+        modelName: "product",
+    };
     const spreadsheetData = { globalFilters: [productFilter] };
     const serverData = getServerData(spreadsheetData);
     await createSpreadsheetDashboard({ serverData });

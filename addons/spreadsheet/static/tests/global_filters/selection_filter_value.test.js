@@ -1,8 +1,12 @@
-import { describe, expect, test, getFixture } from "@odoo/hoot";
-import { makeMockEnv, contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
-import { getTemplate } from "@web/core/templates";
 import { SelectionFilterValue } from "@spreadsheet/global_filters/components/selection_filter_value/selection_filter_value";
+import {
+    contains,
+    makeMockEnv,
+    mountWithCleanup,
+} from "@web/../tests/web_test_helpers";
+import { getTemplate } from "@web/core/templates";
 
 describe.current.tags("desktop");
 defineSpreadsheetModels();

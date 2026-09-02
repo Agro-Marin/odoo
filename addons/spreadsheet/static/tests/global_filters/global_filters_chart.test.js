@@ -1,12 +1,15 @@
 /** @ts-check */
-import { luxon } from "@web/core/l10n/luxon";
-import { mockDate } from "@odoo/hoot-mock";
-import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { describe, expect, test } from "@odoo/hoot";
-
+import { mockDate } from "@odoo/hoot-mock";
 import { createSpreadsheetWithChart } from "@spreadsheet/../tests/helpers/chart";
-import { addGlobalFilter, setGlobalFilterValue } from "@spreadsheet/../tests/helpers/commands";
+import {
+    addGlobalFilter,
+    setGlobalFilterValue,
+} from "@spreadsheet/../tests/helpers/commands";
+import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { globalFieldMatchingRegistry } from "@spreadsheet/global_filters/helpers";
+import { luxon } from "@web/core/l10n/luxon";
+
 import { THIS_YEAR_GLOBAL_FILTER } from "../helpers/global_filter.js";
 
 const { DateTime } = luxon;
@@ -31,7 +34,9 @@ test("Can add a chart global filter", async function () {
     await addChartGlobalFilter(model);
     expect(model.getters.getGlobalFilters().length).toBe(1);
     const chartId = model.getters.getChartIds(model.getters.getActiveSheetId())[0];
-    const computedDomain = model.getters.getChartDataSource(chartId).getComputedDomain();
+    const computedDomain = model.getters
+        .getChartDataSource(chartId)
+        .getComputedDomain();
     expect(computedDomain.length).toBe(3);
     expect(computedDomain[0]).toBe("&");
 });
@@ -90,7 +95,8 @@ test("field matching is removed when chart is deleted", async function () {
         figureId: model.getters.getFigureIdFromChartId(chartId),
     });
     expect(globalFieldMatchingRegistry.get("chart").getIds(model.getters)).toEqual([], {
-        message: "it should have removed the chart and its fieldMatching and datasource altogether",
+        message:
+            "it should have removed the chart and its fieldMatching and datasource altogether",
     });
     model.dispatch("REQUEST_UNDO");
     expect(model.getters.getChartFieldMatch(chartId)[filter.id]).toEqual(matching);
@@ -118,7 +124,8 @@ test("field matching is removed when filter is deleted", async function () {
         id: filter.id,
     });
     expect(model.getters.getChartFieldMatch(chartId)[filter.id]).toBe(undefined, {
-        message: "it should have removed the chart and its fieldMatching and datasource altogether",
+        message:
+            "it should have removed the chart and its fieldMatching and datasource altogether",
     });
     expect(model.getters.getChartDataSource(chartId).getComputedDomain()).toEqual([]);
     model.dispatch("REQUEST_UNDO");

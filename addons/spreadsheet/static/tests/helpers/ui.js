@@ -1,12 +1,11 @@
-import { Model, Spreadsheet } from "@odoo/o-spreadsheet";
-import { loadChartJS } from "@web/core/lib/chartjs";
-
 import { getFixture } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
+import { Model, Spreadsheet } from "@odoo/o-spreadsheet";
 import { Component, xml } from "@odoo/owl";
 import { useSpreadsheetNotificationStore } from "@spreadsheet/hooks";
 import { PublicReadonlySpreadsheet } from "@spreadsheet/public_readonly_app/public_readonly";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { loadChartJS } from "@web/core/lib/chartjs";
 
 class Parent extends Component {
     static template = xml`<Spreadsheet model="props.model"/>`;
@@ -42,7 +41,11 @@ export async function mountSpreadsheet(model) {
  * Mount public spreadsheet component with the given data
  * @returns {Promise<HTMLElement>}
  */
-export async function mountPublicSpreadsheet(dataUrl, mode, downloadExcelUrl = "downloadUrl") {
+export async function mountPublicSpreadsheet(
+    dataUrl,
+    mode,
+    downloadExcelUrl = "downloadUrl",
+) {
     mountWithCleanup(PublicReadonlySpreadsheet, {
         props: {
             dataUrl,

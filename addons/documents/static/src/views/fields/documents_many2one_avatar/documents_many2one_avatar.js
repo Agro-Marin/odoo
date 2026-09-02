@@ -27,4 +27,6 @@ export const documentsMany2OneAvatarField = {
     ],
 };
 
-registry.category("fields").add("documents_many2one_avatar", documentsMany2OneAvatarField);
+registry
+    .category("fields")
+    .add("documents_many2one_avatar", documentsMany2OneAvatarField);

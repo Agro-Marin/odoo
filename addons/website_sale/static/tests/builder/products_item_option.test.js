@@ -52,7 +52,7 @@ test("add a new ribbon", async () => {
                 </div>
             </section>
         </div>
-        </div>`
+        </div>`,
     );
     await contains(":iframe .oe_product").click();
     await contains("button[data-action-id='createRibbon']").click();

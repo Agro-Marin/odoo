@@ -1,19 +1,20 @@
 /** @odoo-module native */
-import { convertNumericToUnit, getHtmlStyle } from "@html_editor/utils/formatting";
-import { Component } from "@odoo/owl";
-import {
-    basicContainerBuilderComponentProps,
-    useInputBuilderComponent,
-    useBuilderComponent,
-    useInputDebouncedCommit,
-} from "../utils.js";
-import { BuilderComponent } from "./builder_component.js";
 import {
     BuilderTextInputBase,
     textInputBasePassthroughProps,
 } from "@html_builder/core/building_blocks/builder_text_input_base";
-import { useChildRef } from "@web/core/utils/hooks";
+import { convertNumericToUnit, getHtmlStyle } from "@html_editor/utils/formatting";
+import { Component } from "@odoo/owl";
 import { pick } from "@web/core/utils/collections/objects";
+import { useChildRef } from "@web/core/utils/hooks";
+
+import {
+    basicContainerBuilderComponentProps,
+    useBuilderComponent,
+    useInputBuilderComponent,
+    useInputDebouncedCommit,
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
 
 export class BuilderNumberInput extends Component {
     static template = "html_builder.BuilderNumberInput";
@@ -44,7 +45,8 @@ export class BuilderNumberInput extends Component {
         useBuilderComponent();
         const { state, commit, preview } = useInputBuilderComponent({
             id: this.props.id,
-            defaultValue: this.props.default === null ? null : this.props.default?.toString(),
+            defaultValue:
+                this.props.default === null ? null : this.props.default?.toString(),
             formatRawValue: this.formatRawValue.bind(this),
             parseDisplayValue: this.parseDisplayValue.bind(this),
         });
@@ -77,7 +79,7 @@ export class BuilderNumberInput extends Component {
         return this.convertSpaceSplitValues(rawValue, (value) => {
             const unit = this.props.unit;
             const { savedValue, savedUnit } = value.match(
-                /(?<savedValue>[\d.e+-]+)(?<savedUnit>\w*)/
+                /(?<savedValue>[\d.e+-]+)(?<savedUnit>\w*)/,
             ).groups;
             if (savedUnit || this.props.saveUnit) {
                 // Convert value from saveUnit to unit
@@ -85,7 +87,7 @@ export class BuilderNumberInput extends Component {
                     parseFloat(savedValue),
                     savedUnit || this.props.saveUnit,
                     unit,
-                    getHtmlStyle(this.env.getEditingElement().ownerDocument)
+                    getHtmlStyle(this.env.getEditingElement().ownerDocument),
                 );
             }
             // Put *at most* 3 decimal digits
@@ -128,10 +130,14 @@ export class BuilderNumberInput extends Component {
                 // Only keep "-" if it is at the start
                 .replace(/(?<!^)-/g, "")
                 // Only keep the first "."
-                .replace(/^([^.]*)\.?(.*)/, (_, a, b) => a + (b ? "." + b.replace(/\./g, "") : ""));
+                .replace(
+                    /^([^.]*)\.?(.*)/,
+                    (_, a, b) => a + (b ? "." + b.replace(/\./g, "") : ""),
+                );
         }
         displayValue =
-            displayValue.split(" ").map(this.clampValue.bind(this)).join(" ") || this.props.default;
+            displayValue.split(" ").map(this.clampValue.bind(this)).join(" ") ||
+            this.props.default;
         return this.convertSpaceSplitValues(displayValue, (value) => {
             if (value === "") {
                 return value;
@@ -145,7 +151,7 @@ export class BuilderNumberInput extends Component {
                     value,
                     unit,
                     saveUnit,
-                    getHtmlStyle(this.env.getEditingElement().ownerDocument)
+                    getHtmlStyle(this.env.getEditingElement().ownerDocument),
                 );
             }
             if (unit && applyWithUnit) {
@@ -167,7 +173,9 @@ export class BuilderNumberInput extends Component {
         if (!["ArrowUp", "ArrowDown"].includes(e.key)) {
             return;
         }
-        const values = e.target.value.split(" ").map((number) => parseFloat(number) || 0);
+        const values = e.target.value
+            .split(" ")
+            .map((number) => parseFloat(number) || 0);
         if (e.key === "ArrowUp") {
             values.forEach((value, i) => {
                 values[i] = this.clampValue(value + (this.props.step || 1));

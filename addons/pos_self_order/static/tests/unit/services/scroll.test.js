@@ -1,4 +1,4 @@
-import { test, describe, expect } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { scrollItemIntoViewX } from "@pos_self_order/app/utils/scroll";
 
 const setupDomElement = ({ parentWidth, childWidth, leftMargin }) => {

@@ -243,7 +243,6 @@ export class CollaborationPlugin extends Plugin {
         this.dependencies.history.resetFromSteps(steps);
         this.snapshots = [{ step: steps[0] }];
         this.branchStepIds = branchStepIds;
-
     }
 
     makeSnapshot() {

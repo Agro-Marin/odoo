@@ -15,7 +15,6 @@ import { WebClient } from "@web/webclient/webclient";
 import {
     contains,
     defineActions,
-    defineModels,
     getService,
     mockService,
     mountWithCleanup,
@@ -33,7 +32,10 @@ import {
 import { defineDocumentsModels } from "@documents/../tests/documents_test_helpers";
 import { makeDocumentsMockEnv } from "./helpers/model.js";
 import { embeddedActionsServerData } from "./helpers/test_server_data.js";
-import { basicDocumentsKanbanArch, mountDocumentsKanbanView } from "./helpers/views/kanban.js";
+import {
+    basicDocumentsKanbanArch,
+    mountDocumentsKanbanView,
+} from "./helpers/views/kanban.js";
 import { getEnrichedSearchArch } from "./helpers/views/search.js";
 
 import { documentsClientThumbnailService } from "@documents/views/helper/documents_client_thumbnail_service";
@@ -65,7 +67,9 @@ test("Open share with edit user_permission", async function () {
     });
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
-    await contains(`.o_kanban_record:contains(${folder1Name}) .o_record_selector`).click({
+    await contains(
+        `.o_kanban_record:contains(${folder1Name}) .o_record_selector`,
+    ).click({
         ctrlKey: true,
     });
     await contains("button:contains(Share)").click();
@@ -81,17 +85,17 @@ test("Colorless-tags are also visible on cards", async function () {
     const archWithTags = basicDocumentsKanbanArch.replace(
         '<field name="name"/>',
         '<field name="name"/>\n' +
-            '<field name="tag_ids" class="d-block text-wrap" widget="documents_many2many_tags" options="{\'color_field\': \'color\'}"/>'
+            '<field name="tag_ids" class="d-block text-wrap" widget="documents_many2many_tags" options="{\'color_field\': \'color\'}"/>',
     );
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView({ arch: archWithTags });
     await contains(`.o_kanban_record:contains(${folder1Name})`).click();
     await animationFrame();
     expect(
-        ".o_kanban_record:contains('Testing tags') div[name='tag_ids'] div .o_tag:nth-of-type(1)"
+        ".o_kanban_record:contains('Testing tags') div[name='tag_ids'] div .o_tag:nth-of-type(1)",
     ).toHaveText("Colorless");
     expect(
-        ".o_kanban_record:contains('Testing tags') div[name='tag_ids'] div .o_tag:nth-of-type(2)"
+        ".o_kanban_record:contains('Testing tags') div[name='tag_ids'] div .o_tag:nth-of-type(2)",
     ).toHaveText("Colorful");
 });
 
@@ -120,7 +124,9 @@ test("Uploading from control panel", async () => {
         visible: false,
     }).click();
     await animationFrame();
-    await setInputFiles([new File(["fake_file"], "fake_file.tiff", { type: "text/plain" })]);
+    await setInputFiles([
+        new File(["fake_file"], "fake_file.tiff", { type: "text/plain" }),
+    ]);
     await animationFrame();
 
     expect.verifySteps(["doc uploaded"]);
@@ -135,16 +141,22 @@ test("Download button availability", async function () {
     const { name: folder1Name } = serverData["documents.document"][0];
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
-    await contains(`.o_kanban_record:contains(${folder1Name})`).click({ ctrlKey: true });
+    await contains(`.o_kanban_record:contains(${folder1Name})`).click({
+        ctrlKey: true,
+    });
     await waitFor(".o_control_panel_actions:contains('Download')");
 
-    await contains(`.o_kanban_record:contains(${folder1Name})`).click({ ctrlKey: true });
+    await contains(`.o_kanban_record:contains(${folder1Name})`).click({
+        ctrlKey: true,
+    });
     await contains(".o_kanban_record:contains('Request')").click();
     await waitForNone(".o_control_panel_actions:contains('Download')");
 
     await contains(".o_kanban_record:contains('Binary')").click();
     await waitFor(".o_control_panel_actions:contains('Download')");
-    await contains(`.o_kanban_record:contains(${folder1Name})`).click({ ctrlKey: true });
+    await contains(`.o_kanban_record:contains(${folder1Name})`).click({
+        ctrlKey: true,
+    });
     await waitFor(".o_control_panel_actions:contains('Download')");
 
     await contains(".o_kanban_record:contains('Request')").click({ ctrlKey: true });
@@ -159,7 +171,8 @@ test("Drag and Drop - Search panel expand folders", async function () {
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
 
-    const searchPanelSelector = ".o_search_panel_category_value .o_search_panel_label_title";
+    const searchPanelSelector =
+        ".o_search_panel_category_value .o_search_panel_label_title";
     expect(queryAllTexts(searchPanelSelector)).toEqual([
         "All",
         "Company",
@@ -168,9 +181,11 @@ test("Drag and Drop - Search panel expand folders", async function () {
         "Recent",
         "Trash",
     ]);
-    const { cancel, moveTo } = await contains(".o_kanban_record[data-value-id='3']").drag();
+    const { cancel, moveTo } = await contains(
+        ".o_kanban_record[data-value-id='3']",
+    ).drag();
     await moveTo(
-        ".o_search_panel_category_value[data-value-id='COMPANY'] div.o_search_panel_label"
+        ".o_search_panel_category_value[data-value-id='COMPANY'] div.o_search_panel_label",
     );
     expect(queryAllTexts(searchPanelSelector)).toEqual([
         "All",
@@ -182,7 +197,9 @@ test("Drag and Drop - Search panel expand folders", async function () {
         "Recent",
         "Trash",
     ]);
-    await moveTo(".o_search_panel_category_value[data-value-id='1'] div.o_search_panel_label");
+    await moveTo(
+        ".o_search_panel_category_value[data-value-id='1'] div.o_search_panel_label",
+    );
     expect(queryAllTexts(searchPanelSelector)).toEqual([
         "All",
         "Company",
@@ -217,7 +234,7 @@ test("Drag and Drop - A folder into itself or its children", async function () {
     await moveTo(folder2);
     expect(folder2).toHaveClass("o_drag_invalid");
     expect(".o_documents_dnd_text").toHaveText(
-        "You cannot move a folder into itself or a children."
+        "You cannot move a folder into itself or a children.",
     );
     await moveTo(folder3);
     expect(folder3).toHaveClass("o_drag_hover");
@@ -225,7 +242,7 @@ test("Drag and Drop - A folder into itself or its children", async function () {
     await moveTo(folder1);
     expect(folder1).toHaveClass("o_drag_invalid");
     expect(".o_documents_dnd_text").toHaveText(
-        "You cannot move a folder into itself or a children."
+        "You cannot move a folder into itself or a children.",
     );
     await cancel();
 });
@@ -233,8 +250,8 @@ test("Drag and Drop - A folder into itself or its children", async function () {
 test("Drag and Drop - After selecting multiple documents", async function () {
     const serverData = getDocumentsTestServerModelsData(
         [1, 2, 3].map((idx) =>
-            makeDocumentRecordData(idx + 1, `Test Document ${idx}`, { folder_id: 1 })
-        )
+            makeDocumentRecordData(idx + 1, `Test Document ${idx}`, { folder_id: 1 }),
+        ),
     );
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
@@ -277,7 +294,7 @@ test("Drag and Drop - Check permission when dropping documents", async function 
     await drop();
     await waitFor(".o_notification");
     expect(".o_notification_content:eq(-1)").toHaveText(
-        "At least one document could not be moved due to access rights."
+        "At least one document could not be moved due to access rights.",
     );
 });
 
@@ -295,14 +312,15 @@ test("Drag and Drop - Check access rights confirmation popup when moving from ka
         [6, "Internal Viewer - Link Viewer - Must have link", "view", "view", true],
     ];
     const serverData = getDocumentsTestServerModelsData(
-        documents.map(([id, name, access_internal, access_via_link, is_access_via_link_hidden]) =>
-            makeDocumentRecordData(id, name, {
-                access_internal,
-                access_via_link,
-                is_access_via_link_hidden,
-                type: "folder",
-            })
-        )
+        documents.map(
+            ([id, name, access_internal, access_via_link, is_access_via_link_hidden]) =>
+                makeDocumentRecordData(id, name, {
+                    access_internal,
+                    access_via_link,
+                    is_access_via_link_hidden,
+                    type: "folder",
+                }),
+        ),
     );
     const cases = [
         [2, 3, true],
@@ -315,14 +333,16 @@ test("Drag and Drop - Check access rights confirmation popup when moving from ka
 
     for (const [docToMove, targetDoc, expectedConfirmation] of cases) {
         const { drop, moveTo } = await contains(
-            `.o_kanban_record[data-value-id='${docToMove}']`
+            `.o_kanban_record[data-value-id='${docToMove}']`,
         ).drag();
         await moveTo(`.o_kanban_record[data-value-id='${targetDoc}']`);
         await drop();
         if (expectedConfirmation) {
             await waitFor(".o_dialog:not(.o_inactive_modal)");
             expect(".o_dialog:not(.o_inactive_modal)").toHaveCount(1);
-            await click(".o_dialog:not(.o_inactive_modal) .modal-footer button:contains(Cancel)");
+            await click(
+                ".o_dialog:not(.o_inactive_modal) .modal-footer button:contains(Cancel)",
+            );
             await animationFrame();
             expect(".o_dialog:not(.o_inactive_modal)").toHaveCount(0);
         } else {
@@ -353,14 +373,23 @@ test("Drag and Drop - Check access rights confirmation popup when moving from se
         user_folder_id: "2",
     });
     const serverData = getDocumentsTestServerModelsData(
-        documents.map(([id, name, access_internal, access_via_link, is_access_via_link_hidden]) =>
-            makeDocumentRecordData(id, name, {
-                access_internal,
-                access_via_link,
-                is_access_via_link_hidden,
-                type: "folder",
-            })
-        ).concat(nestedFolder)
+        documents
+            .map(
+                ([
+                    id,
+                    name,
+                    access_internal,
+                    access_via_link,
+                    is_access_via_link_hidden,
+                ]) =>
+                    makeDocumentRecordData(id, name, {
+                        access_internal,
+                        access_via_link,
+                        is_access_via_link_hidden,
+                        type: "folder",
+                    }),
+            )
+            .concat(nestedFolder),
     );
     const cases = [
         [2, 3, true],
@@ -370,15 +399,17 @@ test("Drag and Drop - Check access rights confirmation popup when moving from se
     ];
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
-    await click(".o_search_panel_category_value[data-value-id='COMPANY'] .o_toggle_fold");
+    await click(
+        ".o_search_panel_category_value[data-value-id='COMPANY'] .o_toggle_fold",
+    );
     await animationFrame();
 
     for (const [docToMove, targetDoc, expectedConfirmation] of cases) {
         const { drop, moveTo } = await contains(
-            `.o_search_panel_category_value[data-value-id='${docToMove}']`
+            `.o_search_panel_category_value[data-value-id='${docToMove}']`,
         ).drag();
         const targetFolder = document.querySelector(
-            `.o_search_panel_category_value[data-value-id='${targetDoc}']`
+            `.o_search_panel_category_value[data-value-id='${targetDoc}']`,
         );
         await moveTo(targetFolder);
         await moveTo(targetFolder, {
@@ -398,13 +429,13 @@ test("Drag and Drop - Check access rights confirmation popup when moving from se
             const accessInternal = labelByCode[targetFolder[2]];
             const accessViaLink = labelByCode[targetFolder[3]];
             expect(
-                `[aria-labelledby="o_documents_access_update_confirmation_access_internal"]:contains(${accessInternal})`
+                `[aria-labelledby="o_documents_access_update_confirmation_access_internal"]:contains(${accessInternal})`,
             ).toBeVisible();
             expect(
-                `[aria-labelledby="o_documents_access_update_confirmation_access_via_link"]:contains(${accessViaLink})`
+                `[aria-labelledby="o_documents_access_update_confirmation_access_via_link"]:contains(${accessViaLink})`,
             ).toBeVisible();
             await contains(
-                ".o_dialog:not(.o_inactive_modal) .modal-footer button:contains(Cancel)"
+                ".o_dialog:not(.o_inactive_modal) .modal-footer button:contains(Cancel)",
             ).click();
             expect.step(`confirm_${docToMove}_${targetDoc}`);
             await waitForNone(".o_dialog:not(.o_inactive_modal)");
@@ -415,7 +446,7 @@ test("Drag and Drop - Check access rights confirmation popup when moving from se
     const source = contains(".o_search_panel_category_value[data-value-id='7']");
     const { drop, moveTo } = await source.drag();
     const lastCompanyChild = document.querySelector(
-        ".o_search_panel_category_value[data-value-id='6']"
+        ".o_search_panel_category_value[data-value-id='6']",
     );
     await moveTo(lastCompanyChild);
     await moveTo(lastCompanyChild, {
@@ -444,7 +475,9 @@ test("Drag and Drop - Drop multiple documents at once", async function () {
     await contains(".o_kanban_record[data-value-id='2']").click({ ctrlKey: true });
     await contains(".o_kanban_record[data-value-id='3']").click({ ctrlKey: true });
 
-    const { drop, moveTo } = await contains(".o_kanban_record[data-value-id='2']").drag();
+    const { drop, moveTo } = await contains(
+        ".o_kanban_record[data-value-id='2']",
+    ).drag();
     await moveTo(".o_kanban_record[data-value-id='1']");
     await drop();
     await waitFor(".o_notification");
@@ -461,14 +494,18 @@ test("Drag and Drop - Drop document while holding CTRL", async function () {
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
 
-    const { drop, moveTo } = await contains(".o_kanban_record[data-value-id='2']").drag();
+    const { drop, moveTo } = await contains(
+        ".o_kanban_record[data-value-id='2']",
+    ).drag();
     expect(".o_documents_dnd_modifier").not.toBeVisible();
     await keyDown("Control");
     expect(".o_documents_dnd_modifier").toBeVisible();
     await moveTo(
-        ".o_search_panel_category_value[data-value-id='COMPANY'] div.o_search_panel_label"
+        ".o_search_panel_category_value[data-value-id='COMPANY'] div.o_search_panel_label",
     );
-    await moveTo(".o_search_panel_category_value[data-value-id='1'] div.o_search_panel_label");
+    await moveTo(
+        ".o_search_panel_category_value[data-value-id='1'] div.o_search_panel_label",
+    );
     expect(".o_documents_dnd_modifier").toBeVisible();
     await drop();
     await waitFor(".o_notification");
@@ -496,7 +533,7 @@ test("Lock action availability and check", async function () {
     await contains(".o_cp_action_menus button").click();
     await contains(".o-dropdown--menu .o-dropdown-item:contains('Unlock')").click();
     expect(".modal-body").toHaveText(
-        "This document is locked by OdooBot.\nAre you sure you want to unlock it?"
+        "This document is locked by OdooBot.\nAre you sure you want to unlock it?",
     );
     await contains(".modal .modal-footer .btn-primary").click();
     await waitForNone(".o_kanban_record i.fa-lock");
@@ -555,7 +592,7 @@ test("Thumbnail: webp thumbnail generation", async function () {
 
 test("Document Request Upload", async function () {
     mockService("file_upload", {
-        upload: (route, files, params) => {
+        upload: (route) => {
             if (route === "/documents/upload/accessToken") {
                 expect.step("upload_done");
             }
@@ -575,7 +612,7 @@ test("Document Request Upload", async function () {
         '<field name="name"/>',
         '<field name="name"/>\n' +
             '<t t-set="isRequest" t-value="record.type.raw_value === \'binary\' and !record.attachment_id.raw_value"/>\n' +
-            '<input t-if="isRequest" type="file" class="o_hidden o_kanban_replace_document"/>\n'
+            '<input t-if="isRequest" type="file" class="o_hidden o_kanban_replace_document"/>\n',
     );
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView({ arch: archWithRequest });
@@ -665,11 +702,15 @@ test("Split PDF button availability", async function () {
     await mountWithCleanup(WebClient);
     await getService("action").doAction(1);
 
-    await contains(".o_kanban_record:contains('text_file.txt') .o_record_selector").click();
+    await contains(
+        ".o_kanban_record:contains('text_file.txt') .o_record_selector",
+    ).click();
     await contains(".o_dropdown_title").click();
     await waitForNone(".o-dropdown-item:contains('Split PDF')");
 
-    await contains(".o_kanban_record:contains('text_file.txt') [name='document_preview']").click();
+    await contains(
+        ".o_kanban_record:contains('text_file.txt') [name='document_preview']",
+    ).click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitForNone(".o-dropdown-item:contains('Split PDF')");
     await press("escape");
@@ -679,7 +720,9 @@ test("Split PDF button availability", async function () {
     await contains(".o_dropdown_title").click();
     await waitForNone(".o-dropdown-item:contains('Split PDF')");
 
-    await contains(".o_kanban_record:contains('pdf1.pdf') [name='document_preview']").click();
+    await contains(
+        ".o_kanban_record:contains('pdf1.pdf') [name='document_preview']",
+    ).click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitForNone(".o-dropdown-item:contains('Split PDF')");
     await press("escape");
@@ -689,7 +732,9 @@ test("Split PDF button availability", async function () {
     await contains(".o_dropdown_title").click();
     await waitFor(".o-dropdown-item:contains('Split PDF')");
 
-    await contains(".o_kanban_record:contains('pdf2.pdf') [name='document_preview']").click();
+    await contains(
+        ".o_kanban_record:contains('pdf2.pdf') [name='document_preview']",
+    ).click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitFor(".o-dropdown-item:contains('Split PDF')");
 });
@@ -706,7 +751,7 @@ test("Export action is not available in file viewer ", async function () {
 
     const archWithURL = basicDocumentsKanbanArch.replace(
         '<field name="name"/>',
-        '<field name="name"/>\n' + '<field name="url"/>'
+        '<field name="name"/>\n' + '<field name="url"/>',
     );
 
     DocumentsModels.DocumentsDocument._views = {
@@ -719,13 +764,13 @@ test("Export action is not available in file viewer ", async function () {
     await getService("action").doAction(1);
 
     await contains(
-        ".o_kanban_record:contains('https://youtu.be/Ayab6wZ_U1A') .o_record_selector"
+        ".o_kanban_record:contains('https://youtu.be/Ayab6wZ_U1A') .o_record_selector",
     ).click();
     await contains(".o_dropdown_title").click();
     await waitFor(".o-dropdown-item:contains('Export')");
 
     await contains(
-        ".o_kanban_record:contains('https://youtu.be/Ayab6wZ_U1A') [name='document_preview']"
+        ".o_kanban_record:contains('https://youtu.be/Ayab6wZ_U1A') [name='document_preview']",
     ).click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitForNone(".o-dropdown-item:contains('Export')");
@@ -752,7 +797,9 @@ test("Select a range with SHIFT key", async () => {
     await makeDocumentsMockEnv({ serverData: embeddedActionsServerData });
     await mountDocumentsKanbanView();
     const { name: folder1Name } = embeddedActionsServerData["documents.document"][0];
-    await contains(`.o_kanban_record:contains(${folder1Name}) .o_record_selector`).click({
+    await contains(
+        `.o_kanban_record:contains(${folder1Name}) .o_record_selector`,
+    ).click({
         ctrlKey: true,
     });
     await keyDown("Shift");
@@ -798,7 +845,9 @@ test("The search panel spins on the folder an upload targets", async () => {
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
     await contains(".o_has_treeEntry .o_toggle_fold").click();
-    expect(".o_search_panel_category_value.o_treeEntry:contains(Folder 1)").toHaveCount(1);
+    expect(".o_search_panel_category_value.o_treeEntry:contains(Folder 1)").toHaveCount(
+        1,
+    );
     expect(".o_search_panel_category_value .fa-circle-notch").toHaveCount(0);
     const fileUpload = getService("file_upload");
     const uploaded = new Deferred();
@@ -815,11 +864,13 @@ test("The search panel spins on the folder an upload targets", async () => {
         [new File(["x"], "x.txt")],
         "accessTokenFolder1",
         {},
-        { targetFolderId: 1 }
+        { targetFolderId: 1 },
     );
     await uploaded;
     await animationFrame();
-    expect(".o_search_panel_category_value.o_treeEntry:contains(Folder 1) .fa-circle-notch").toHaveCount(1);
+    expect(
+        ".o_search_panel_category_value.o_treeEntry:contains(Folder 1) .fa-circle-notch",
+    ).toHaveCount(1);
 });
 
 test("Name in previewer is correct without attachment", async function () {
@@ -870,14 +921,18 @@ test("Name in previewer is correct without attachment", async function () {
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
 
-    await contains(".o_kanban_record:contains('Shin chan') [name='document_preview']").click();
+    await contains(
+        ".o_kanban_record:contains('Shin chan') [name='document_preview']",
+    ).click();
     await waitFor(".o-FileViewer");
 
     const closeBtn = document.querySelector(".o-FileViewer [aria-label='Close']");
     closeBtn.click();
     await waitForNone(".o-FileViewer");
 
-    await contains(".o_kanban_record:contains('Mom vs Dad') [name='document_preview']").click();
+    await contains(
+        ".o_kanban_record:contains('Mom vs Dad') [name='document_preview']",
+    ).click();
     await waitFor(".o-FileViewer");
 
     expect(previewedAttachments).toHaveLength(2);
@@ -888,7 +943,10 @@ test("Name in previewer is correct without attachment", async function () {
     expect(previewedAttachments[1].id).toBe(-11);
     expect(previewedAttachments[1].name).toBe("Mom vs Dad |Shinchan");
 
-    expect.verifySteps(["preview_Shin chan: The Spicy Kasukabe", "preview_Mom vs Dad |Shinchan"]);
+    expect.verifySteps([
+        "preview_Shin chan: The Spicy Kasukabe",
+        "preview_Mom vs Dad |Shinchan",
+    ]);
 });
 
 test("Check actions with preview", async function () {
@@ -901,23 +959,29 @@ test("Check actions with preview", async function () {
         },
     ]);
 
-    serverData["ir.attachment"] = [{ id: 1, name: "Test_file.txt", mimetype: "image/webp" }];
+    serverData["ir.attachment"] = [
+        { id: 1, name: "Test_file.txt", mimetype: "image/webp" },
+    ];
 
     const basicDocumentsKanbanArchWithLockUid = basicDocumentsKanbanArch.replace(
         '<field name="name"/>',
-        '<field name="name"/>\n<field name="lock_uid"/>'
+        '<field name="name"/>\n<field name="lock_uid"/>',
     );
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView({ arch: basicDocumentsKanbanArchWithLockUid });
 
-    await contains(".o_kanban_record:contains('Test_file.txt') [name='document_preview']").click();
+    await contains(
+        ".o_kanban_record:contains('Test_file.txt') [name='document_preview']",
+    ).click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitFor(".o-dropdown-item:contains('Lock')");
     await contains(".o-dropdown-item:contains('Lock')").click();
 
     expect(".o-FileViewer").toHaveCount(0);
 
-    await contains(".o_kanban_record:contains('Test_file.txt') [name='document_preview']").click();
+    await contains(
+        ".o_kanban_record:contains('Test_file.txt') [name='document_preview']",
+    ).click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitFor(".o-dropdown-item:contains('Unlock')");
 });
@@ -938,7 +1002,9 @@ test("Ensure previewer shows correct name after renaming a document", async func
         form: "<form><field name='name'/></form>",
     };
 
-    serverData["ir.attachment"] = [{ id: 1, name: "text_file.txt", mimetype: "image/webp" }];
+    serverData["ir.attachment"] = [
+        { id: 1, name: "text_file.txt", mimetype: "image/webp" },
+    ];
 
     await makeDocumentsMockEnv({ serverData });
     await mountWithCleanup(WebClient);
@@ -948,13 +1014,17 @@ test("Ensure previewer shows correct name after renaming a document", async func
         views: [[false, "kanban"]],
     });
 
-    await contains(".o_kanban_record:contains('text_file.txt')").click({ ctrlKey: true });
+    await contains(".o_kanban_record:contains('text_file.txt')").click({
+        ctrlKey: true,
+    });
     await contains(".o_control_panel_actions button:contains('Action')").click();
     await contains(".o-dropdown-item:contains('Rename')").click();
     await contains(".o_input").edit("test1.txt");
     await contains(".o_form_button_save:contains('Save')").click();
     expect(".o_kanban_record span:contains('test1.txt')").toHaveCount(1);
-    await contains(".o_kanban_record:contains('test1.txt') [name='document_preview']").click();
+    await contains(
+        ".o_kanban_record:contains('test1.txt') [name='document_preview']",
+    ).click();
     await waitFor(".o-FileViewer");
     expect(".o-FileViewer-header span:contains('test1.txt')").toHaveCount(1);
 });
@@ -962,12 +1032,17 @@ test("Ensure previewer shows correct name after renaming a document", async func
 test("Select all (Ctrl+A) in an empty folder does not crash", async function () {
     onRpc("/documents/touch/<access_token>", () => ({}));
     const serverData = getDocumentsTestServerModelsData([
-        makeDocumentRecordData(2, "Empty Folder", { type: "folder", user_permission: "edit" }),
+        makeDocumentRecordData(2, "Empty Folder", {
+            type: "folder",
+            user_permission: "edit",
+        }),
         makeDocumentRecordData(3, "In Folder 1", { folder_id: 1 }),
     ]);
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
-    await contains(`.o_search_panel_label[data-tooltip="Company"] .o_toggle_fold`).click();
+    await contains(
+        `.o_search_panel_label[data-tooltip="Company"] .o_toggle_fold`,
+    ).click();
 
     await contains(`.o_search_panel_label[data-tooltip="Folder 1"] div`).click();
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(1);

@@ -23,10 +23,15 @@ export class SetShopContainerAction extends PreviewableWebsiteConfigAction {
     static id = "setShopContainer";
 
     async apply({ editingElement: productDetailMainEl, isPreviewing, params, value }) {
-        await super.apply({ editingElement: productDetailMainEl, isPreviewing, params, value });
+        await super.apply({
+            editingElement: productDetailMainEl,
+            isPreviewing,
+            params,
+            value,
+        });
 
         if (!isPreviewing) {
-            await rpc("/shop/config/website", { 'shop_page_container': value });
+            await rpc("/shop/config/website", { shop_page_container: value });
         }
     }
 }

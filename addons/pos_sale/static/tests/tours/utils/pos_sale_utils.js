@@ -1,6 +1,6 @@
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
 import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
 
 export function selectNthOrder(n) {
     return [
@@ -82,7 +82,10 @@ export function selectedOrderLinesHasLots(productName, lots) {
         content: `check lot${index} is linked`,
         trigger: `.info-list li:contains(${serialNumber})`,
     });
-    const lotSteps = lots.reduce((acc, serial, i) => acc.concat(getSerialStep(i, serial)), []);
+    const lotSteps = lots.reduce(
+        (acc, serial, i) => acc.concat(getSerialStep(i, serial)),
+        [],
+    );
     return [...ProductScreen.selectedOrderlineHas(productName), ...lotSteps];
 }
 

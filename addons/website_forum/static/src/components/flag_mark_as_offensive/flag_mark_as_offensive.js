@@ -29,7 +29,7 @@ export class FlagMarkAsOffensiveDialog extends Component {
                     };
                 }
             },
-            () => [this.modalRef.el?.querySelector(".btn-link")]
+            () => [this.modalRef.el?.querySelector(".btn-link")],
         );
     }
 }

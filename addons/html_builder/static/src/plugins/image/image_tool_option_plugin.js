@@ -1,28 +1,32 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { ClassAction } from "@html_builder/core/core_builder_action_plugin";
+import { BaseOptionComponent } from "@html_builder/core/utils";
+import { computeMaxDisplayWidth } from "@html_builder/plugins/image/image_format_option";
+import {
+    ALIGNMENT_STYLE_PADDING,
+    IMAGE_TOOL,
+    REPLACE_MEDIA,
+} from "@html_builder/utils/option_sequence";
+import { isImageSupportedForProcessing } from "@html_editor/main/media/image_post_process_plugin";
+import { Plugin } from "@html_editor/plugin";
+import { selectElements } from "@html_editor/utils/dom_traversal";
+import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
+import { getFetchedMimetype, isImageCorsProtected } from "@html_editor/utils/image";
 import {
     cropperDataFieldsWithAspectRatio,
     loadImage,
     loadImageInfo,
 } from "@html_editor/utils/image_processing";
-import { registry } from "@web/core/registry";
-import { Plugin } from "@html_editor/plugin";
-import { ImageToolOption } from "./image_tool_option.js";
-import { getFetchedMimetype, isImageCorsProtected } from "@html_editor/utils/image";
 import { withSequence } from "@html_editor/utils/resource";
-import {
-    REPLACE_MEDIA,
-    IMAGE_TOOL,
-    ALIGNMENT_STYLE_PADDING,
-} from "@html_builder/utils/option_sequence";
-import { ReplaceMediaOption, searchSupportedParentLinkEl } from "./replace_media_option.js";
-import { computeMaxDisplayWidth } from "@html_builder/plugins/image/image_format_option";
-import { BuilderAction } from "@html_builder/core/builder_action";
-import { ClassAction } from "@html_builder/core/core_builder_action_plugin";
-import { selectElements } from "@html_editor/utils/dom_traversal";
+import { registry } from "@web/core/registry";
 import { isCSSColor } from "@web/core/utils/format/colors";
-import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
-import { BaseOptionComponent } from "@html_builder/core/utils";
-import { isImageSupportedForProcessing } from "@html_editor/main/media/image_post_process_plugin";
+
+import { ImageToolOption } from "./image_tool_option.js";
+import {
+    ReplaceMediaOption,
+    searchSupportedParentLinkEl,
+} from "./replace_media_option.js";
 
 const IMAGE_LINK_ALIGN_CLASSES = ["mx-auto", "ms-auto", "me-auto"];
 
@@ -67,10 +71,11 @@ class ImageToolOptionPlugin extends Plugin {
                     if (!imgInfo.originalSrc || !imgInfo.originalId) {
                         continue;
                     }
-                    const isImgSupportedForProcessing = await isImageSupportedForProcessing(
-                        image,
-                        await getFetchedMimetype(image, imgInfo)
-                    );
+                    const isImgSupportedForProcessing =
+                        await isImageSupportedForProcessing(
+                            image,
+                            await getFetchedMimetype(image, imgInfo),
+                        );
                     const newDataset = {};
                     if (isImgSupportedForProcessing) {
                         newDataset.formatMimetype =
@@ -81,7 +86,7 @@ class ImageToolOptionPlugin extends Plugin {
                             : original.naturalWidth;
                         const optimizedWidth = Math.min(
                             maxWidth,
-                            computeMaxDisplayWidth(node || this.editable)
+                            computeMaxDisplayWidth(node || this.editable),
                         );
                         newDataset.resizeWidth = optimizedWidth;
                     }
@@ -106,13 +111,13 @@ class ImageToolOptionPlugin extends Plugin {
     migrateImages(rootEl) {
         for (const el of selectElements(
             rootEl,
-            "img[data-original-id]:not([data-attachment-id]), .oe_img_bg[data-original-id]:not([data-attachment-id])"
+            "img[data-original-id]:not([data-attachment-id]), .oe_img_bg[data-original-id]:not([data-attachment-id])",
         )) {
             el.dataset.attachmentId = el.dataset.originalId;
         }
         for (const el of selectElements(
             rootEl,
-            "img[data-original-mimetype]:not([data-format-mimetype]), .oe_img_bg[data-original-mimetype]:not([data-format-mimetype])"
+            "img[data-original-mimetype]:not([data-format-mimetype]), .oe_img_bg[data-original-mimetype]:not([data-format-mimetype])",
         )) {
             el.dataset.formatMimetype = el.dataset.originalMimetype;
             delete el.dataset.originalMimetype;
@@ -136,14 +141,21 @@ export class CropImageAction extends BuilderAction {
     static id = "cropImage";
     static dependencies = ["imageCrop", "imagePostProcess"];
     isApplied({ editingElement }) {
-        return cropperDataFieldsWithAspectRatio.some((field) => editingElement.dataset[field]);
+        return cropperDataFieldsWithAspectRatio.some(
+            (field) => editingElement.dataset[field],
+        );
     }
     load({ editingElement: img }) {
         return new Promise((resolve) => {
             this.dependencies.imageCrop.openCropImage(img, {
                 onClose: resolve,
                 onSave: async (newDataset) => {
-                    resolve(this.dependencies.imagePostProcess.processImage({ img, newDataset }));
+                    resolve(
+                        this.dependencies.imagePostProcess.processImage({
+                            img,
+                            newDataset,
+                        }),
+                    );
                 },
             });
         });
@@ -158,7 +170,7 @@ export class ResetCropAction extends BuilderAction {
     static dependencies = ["imagePostProcess"];
     async load({ editingElement: img }) {
         const newDataset = Object.fromEntries(
-            cropperDataFieldsWithAspectRatio.map((field) => [field, undefined])
+            cropperDataFieldsWithAspectRatio.map((field) => [field, undefined]),
         );
         return this.dependencies.imagePostProcess.processImage({ img, newDataset });
     }
@@ -193,7 +205,7 @@ export class SetLinkAction extends BuilderAction {
             // Copy alignment classes so the new link behaves like the image in
             // flex layouts.
             const alignClasses = IMAGE_LINK_ALIGN_CLASSES.filter((cls) =>
-                editingElement.classList.contains(cls)
+                editingElement.classList.contains(cls),
             );
             for (const className of IMAGE_LINK_ALIGN_CLASSES) {
                 wrapperEl.classList.toggle(className, alignClasses.includes(className));
@@ -230,7 +242,7 @@ export class ImageAlignClassAction extends ClassAction {
         // Mirror image alignment classes on the wrapping <a> (only when it
         // wraps just this image) so flex layouts stay consistent.
         const alignClasses = IMAGE_LINK_ALIGN_CLASSES.filter((cls) =>
-            editingElement.classList.contains(cls)
+            editingElement.classList.contains(cls),
         );
         for (const className of IMAGE_LINK_ALIGN_CLASSES) {
             linkEl.classList.toggle(className, alignClasses.includes(className));
@@ -251,7 +263,11 @@ export class SetUrlAction extends BuilderAction {
             linkEl.removeAttribute("href");
             return;
         }
-        if (!url.startsWith("/") && !url.startsWith("#") && !/^([a-zA-Z]*.):.+$/gm.test(url)) {
+        if (
+            !url.startsWith("/") &&
+            !url.startsWith("#") &&
+            !/^([a-zA-Z]*.):.+$/gm.test(url)
+        ) {
             // We permit every protocol (http:, https:, ftp:, mailto:,...).
             // If none is explicitly specified, we assume it is a http.
             url = "http://" + url;
@@ -301,4 +317,6 @@ export class AltAction extends BuilderAction {
     }
 }
 
-registry.category("builder-plugins").add(ImageToolOptionPlugin.id, ImageToolOptionPlugin);
+registry
+    .category("builder-plugins")
+    .add(ImageToolOptionPlugin.id, ImageToolOptionPlugin);

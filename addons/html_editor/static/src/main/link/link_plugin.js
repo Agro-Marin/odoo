@@ -555,7 +555,6 @@ export class LinkPlugin extends Plugin {
                     }
                 }
             } else if (url) {
-
                 if (
                     (selectionTextContent && selectionTextContent === label) ||
                     isImage

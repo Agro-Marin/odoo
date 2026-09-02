@@ -3,7 +3,6 @@ import { onWillStart } from "@odoo/owl";
 import { RelationalModel, RelationalRecord } from "@web/model/relational_model";
 
 class CalendarFormRecord extends RelationalRecord {
-
     async setLocation() {
         const videoLocation = await this.model.discussVideocallLocation;
         this.update({
@@ -29,7 +28,7 @@ export class CalendarFormModel extends RelationalModel {
         onWillStart(async () => {
             this.discussVideocallLocation = this.orm.call(
                 "calendar.event",
-                "get_discuss_videocall_location"
+                "get_discuss_videocall_location",
             );
         });
     }

@@ -45,7 +45,9 @@ export function onWaterfallOdooChartItemClick(getters, chart) {
         if (!domain) {
             const datasetItemDomain = dataset.domains[0];
             const firstGroupBy = chart.dataSource._metaData.groupBy[0];
-            domain = Domain.removeDomainLeaves(datasetItemDomain, [firstGroupBy]).toList();
+            domain = Domain.removeDomainLeaves(datasetItemDomain, [
+                firstGroupBy,
+            ]).toList();
         }
         return { name, domain };
     });
@@ -69,26 +71,36 @@ export function onGeoOdooChartItemClick(getters, chart) {
 }
 
 export function onSunburstOdooChartItemClick(getters, chart) {
-    return navigateInOdooMenuOnClick(getters, chart, (chartJsItem, chartData, chartJSChart) => {
-        const { datasetIndex, index } = chartJsItem;
-        const rawItem = chartJSChart.data.datasets[datasetIndex].data[index];
-        const domain = chart.dataSource.buildDomainFromGroupByLabels(rawItem.groups);
-        return { name: rawItem.groups.join(" / "), domain: domain };
-    });
+    return navigateInOdooMenuOnClick(
+        getters,
+        chart,
+        (chartJsItem, chartData, chartJSChart) => {
+            const { datasetIndex, index } = chartJsItem;
+            const rawItem = chartJSChart.data.datasets[datasetIndex].data[index];
+            const domain = chart.dataSource.buildDomainFromGroupByLabels(
+                rawItem.groups,
+            );
+            return { name: rawItem.groups.join(" / "), domain: domain };
+        },
+    );
 }
 
 export function onTreemapOdooChartItemClick(getters, chart) {
-    return navigateInOdooMenuOnClick(getters, chart, (chartJsItem, chartData, chartJSChart) => {
-        const { datasetIndex, index } = chartJsItem;
-        const rawItem = chartJSChart.data.datasets[datasetIndex].data[index];
-        const depth = rawItem.l;
-        const groups = [];
-        for (let i = 0; i <= depth; i++) {
-            groups.push(rawItem._data[i]);
-        }
-        const domain = chart.dataSource.buildDomainFromGroupByLabels(groups);
-        return { name: groups.join(" / "), domain: domain };
-    });
+    return navigateInOdooMenuOnClick(
+        getters,
+        chart,
+        (chartJsItem, chartData, chartJSChart) => {
+            const { datasetIndex, index } = chartJsItem;
+            const rawItem = chartJSChart.data.datasets[datasetIndex].data[index];
+            const depth = rawItem.l;
+            const groups = [];
+            for (let i = 0; i <= depth; i++) {
+                groups.push(rawItem._data[i]);
+            }
+            const domain = chart.dataSource.buildDomainFromGroupByLabels(groups);
+            return { name: groups.join(" / "), domain: domain };
+        },
+    );
 }
 
 function navigateInOdooMenuOnClick(getters, chart, getDomainFromChartItem) {
@@ -106,7 +118,7 @@ function navigateInOdooMenuOnClick(getters, chart, getDomainFromChartItem) {
         const { name, domain } = getDomainFromChartItem(
             items[0],
             { datasets, labels },
-            chartJSChart
+            chartJSChart,
         );
         if (!domain || !name) {
             return;
@@ -124,7 +136,7 @@ function navigateInOdooMenuOnClick(getters, chart, getDomainFromChartItem) {
                 ],
                 domain,
             },
-            { viewType: "list", newWindow: isChartJSMiddleClick(event) }
+            { viewType: "list", newWindow: isChartJSMiddleClick(event) },
         );
     };
 }
@@ -156,16 +168,21 @@ export function onGeoOdooChartItemHover() {
     };
 }
 
-export async function navigateToOdooMenu(menu, actionService, notificationService, newWindow) {
+export async function navigateToOdooMenu(
+    menu,
+    actionService,
+    notificationService,
+    newWindow,
+) {
     if (!menu) {
         throw new Error(`Cannot find any menu associated with the chart`);
     }
     if (!menu.actionID) {
         notificationService.add(
             _t(
-                "The menu linked to this chart doesn't have an corresponding action. Please link the chart to another menu."
+                "The menu linked to this chart doesn't have an corresponding action. Please link the chart to another menu.",
             ),
-            { type: "danger" }
+            { type: "danger" },
         );
         return;
     }

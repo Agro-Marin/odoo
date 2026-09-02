@@ -18,7 +18,9 @@ patch(AttachmentList.prototype, {
      */
     canAddToDocuments(attachment) {
         return (
-            this.documentService.userIsDocumentUser && !attachment.uploading && !this.env.inComposer
+            this.documentService.userIsDocumentUser &&
+            !attachment.uploading &&
+            !this.env.inComposer
         );
     },
 
@@ -41,7 +43,7 @@ patch(AttachmentList.prototype, {
         const defaults = await this.orm.call(
             "ir.attachment",
             "get_documents_operation_add_destination",
-            [attachment.id]
+            [attachment.id],
         );
         await this.documentService.openOperationDialog({
             attachmentId: attachment.id,

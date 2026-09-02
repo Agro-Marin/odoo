@@ -27,7 +27,10 @@ export class MonetaryFieldPlugin extends Plugin {
             }
         };
         this.addDomListener(this.editable, "focusin", (ev) =>
-            handleEvent(ev, ({ fieldEl }) => fieldEl !== ev.relatedTarget?.closest(monetarySel))
+            handleEvent(
+                ev,
+                ({ fieldEl }) => fieldEl !== ev.relatedTarget?.closest(monetarySel),
+            ),
         );
         this.addDomListener(this.editable, "click", (ev) =>
             handleEvent(
@@ -35,8 +38,8 @@ export class MonetaryFieldPlugin extends Plugin {
                 ({ amountEl }) =>
                     !this.dependencies.selection
                         .getTargetedNodes()
-                        .some((node) => amountEl.contains(node))
-            )
+                        .some((node) => amountEl.contains(node)),
+            ),
         );
     }
 }

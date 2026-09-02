@@ -530,7 +530,6 @@ describe("Related Model", () => {
     });
 
     test("Load data: connect records without many2one", async () => {
-
         await makeMockServer();
         const models = getRelatedModelsInstance(false);
         models.connectNewData({

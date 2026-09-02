@@ -1,13 +1,11 @@
 /** @odoo-module native */
-import {
-    LocationSchedule
-} from '@delivery/js/location_selector/location_schedule/location_schedule';
-import { Component } from '@odoo/owl';
-import { _t } from '@web/core/translation';
+import { LocationSchedule } from "@delivery/js/location_selector/location_schedule/location_schedule";
+import { Component } from "@odoo/owl";
+import { _t } from "@web/core/translation";
 
 export class Location extends Component {
     static components = { LocationSchedule };
-    static template = 'delivery.locationSelector.location';
+    static template = "delivery.locationSelector.location";
     static props = {
         id: String,
         number: Number,

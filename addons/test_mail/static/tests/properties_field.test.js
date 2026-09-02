@@ -55,7 +55,9 @@ async function testPropertyFieldAvatarOpenChat(propertyType) {
     await openFormView("mail.test.properties", childId);
     await waitForSteps([]);
     await click(
-        propertyType === "many2one" ? ".o_field_property_many2one_value img" : ".o_m2m_avatar"
+        propertyType === "many2one"
+            ? ".o_field_property_many2one_value img"
+            : ".o_m2m_avatar",
     );
     await waitForSteps(["read res.users"]);
     await contains(".o-mail-ChatWindow", { text: "Partner Test" });

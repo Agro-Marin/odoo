@@ -20,12 +20,14 @@ class BackgroundOptionPlugin extends Plugin {
         system_classes: ["o_colored_level"],
     };
     normalize(root) {
-        const markColorLevelSelectorParams = this.getResource("mark_color_level_selector_params");
+        const markColorLevelSelectorParams = this.getResource(
+            "mark_color_level_selector_params",
+        );
         for (const markColorLevelSelectorParam of markColorLevelSelectorParams) {
             applyFunDependOnSelectorAndExclude(
                 this.markColorLevel,
                 root,
-                markColorLevelSelectorParam
+                markColorLevelSelectorParam,
             );
         }
     }
@@ -33,4 +35,6 @@ class BackgroundOptionPlugin extends Plugin {
         editingEl.classList.add("o_colored_level");
     }
 }
-registry.category("builder-plugins").add(BackgroundOptionPlugin.id, BackgroundOptionPlugin);
+registry
+    .category("builder-plugins")
+    .add(BackgroundOptionPlugin.id, BackgroundOptionPlugin);

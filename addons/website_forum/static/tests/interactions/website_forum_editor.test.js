@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
-import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
+import {
+    startInteractions,
+    setupInteractionWhiteList,
+} from "@web/../tests/public/helpers";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { WebsiteForumWysiwyg } from "@website_forum/components/website_forum_wysiwyg/website_forum_wysiwyg";
 import { onMounted } from "@odoo/owl";
@@ -47,7 +50,9 @@ describe("editor in forum", () => {
     test("H1 to H3 are not available as fonts", async () => {
         await startInteractions(makeHtmlContent(1));
         const wysiwyg = await mountedWysiwyg;
-        const fontPlugin = wysiwyg.editor.plugins.find((p) => p.constructor.id === "font");
+        const fontPlugin = wysiwyg.editor.plugins.find(
+            (p) => p.constructor.id === "font",
+        );
         const tagNames = fontPlugin.availableFontItems.map((item) => item.tagName);
         expect(tagNames).not.toInclude("h1");
         expect(tagNames).not.toInclude("h2");

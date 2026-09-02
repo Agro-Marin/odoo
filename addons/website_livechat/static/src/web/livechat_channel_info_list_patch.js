@@ -12,11 +12,14 @@ const livechatChannelInfoListPatch = {
             .filter((channel) => channel.notEq(this.props.thread))
             .sort(
                 (t1, t2) =>
-                    compareDatetime(t2.last_interest_dt, t1.last_interest_dt) || t2.id - t1.id
+                    compareDatetime(t2.last_interest_dt, t1.last_interest_dt) ||
+                    t2.id - t1.id,
             );
     },
     CLOSED_ON_TEXT(thread) {
-        return _t("(closed on: %(date)s)", { date: formatDateTime(thread.livechat_end_dt) });
+        return _t("(closed on: %(date)s)", {
+            date: formatDateTime(thread.livechat_end_dt),
+        });
     },
 };
 

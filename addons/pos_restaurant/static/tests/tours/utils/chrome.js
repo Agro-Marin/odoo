@@ -13,7 +13,8 @@ export function closePrintingWarning() {
     return [
         {
             ...Dialog.confirm(),
-            content: "acknowledge printing error ( because we don't have printer in the test. )",
+            content:
+                "acknowledge printing error ( because we don't have printer in the test. )",
         },
     ];
 }

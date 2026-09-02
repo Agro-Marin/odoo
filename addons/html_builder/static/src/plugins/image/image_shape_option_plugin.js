@@ -72,7 +72,12 @@ const MISSING_SHAPE_COLOR_SELECTORS =
 
 export class ImageShapeOptionPlugin extends Plugin {
     static id = "imageShapeOption";
-    static dependencies = ["history", "userCommand", "imagePostProcess", "imageToolOption"];
+    static dependencies = [
+        "history",
+        "userCommand",
+        "imagePostProcess",
+        "imageToolOption",
+    ];
     static shared = [
         "resetShapeDataset",
         "getImageShapeGroups",
@@ -97,8 +102,13 @@ export class ImageShapeOptionPlugin extends Plugin {
         process_image_warmup_handlers: this.processImageWarmup.bind(this),
         process_image_post_handlers: this.processImagePost.bind(this),
         hover_effect_allowed_predicates: (el) => this.canHaveHoverEffect(el),
-        image_shape_groups_providers: withSequence(0, () => deepCopy(imageShapeDefinitions)),
-        on_media_dialog_saved_handlers: withSequence(5, this.onMediaDialogSavedHandlers.bind(this)),
+        image_shape_groups_providers: withSequence(0, () =>
+            deepCopy(imageShapeDefinitions),
+        ),
+        on_media_dialog_saved_handlers: withSequence(
+            5,
+            this.onMediaDialogSavedHandlers.bind(this),
+        ),
         before_save_handlers: () =>
             applyFunDependOnSelectorAndExclude(
                 this.cleanImageStaleDataset.bind(this),
@@ -106,7 +116,7 @@ export class ImageShapeOptionPlugin extends Plugin {
                 {
                     selector: "img",
                     exclude: "[data-oe-type='image'] > img",
-                }
+                },
             ),
         // TODO: Remove in master. Kept for stable to add default shape colors
         // when dropping snippets.
@@ -133,7 +143,9 @@ export class ImageShapeOptionPlugin extends Plugin {
      * with missing shape colors.
      */
     async addShapeColorAttribute(editingElement) {
-        const missingShapeColorEls = editingElement.querySelectorAll(MISSING_SHAPE_COLOR_SELECTORS);
+        const missingShapeColorEls = editingElement.querySelectorAll(
+            MISSING_SHAPE_COLOR_SELECTORS,
+        );
         if (!missingShapeColorEls.length) {
             return;
         }
@@ -162,7 +174,10 @@ export class ImageShapeOptionPlugin extends Plugin {
     }
     async canHaveHoverEffect(imgEl) {
         const dataset = Object.assign({}, imgEl.dataset, await loadImageInfo(imgEl));
-        const isImageSupportedForShapes = await this.asyncIsImageSupportedForShapes(imgEl, dataset);
+        const isImageSupportedForShapes = await this.asyncIsImageSupportedForShapes(
+            imgEl,
+            dataset,
+        );
         return (
             imgEl.tagName === "IMG" &&
             !this.isDeviceShape(imgEl) &&
@@ -213,14 +228,19 @@ export class ImageShapeOptionPlugin extends Plugin {
     }
     async loadShape(img, newData = {}) {
         // todo: find a way to apply to carousel thumbnail after processImage
-        return this.dependencies.imagePostProcess.processImage({ img, newDataset: newData });
+        return this.dependencies.imagePostProcess.processImage({
+            img,
+            newDataset: newData,
+        });
     }
     async processImageWarmup(img, newDataset) {
         const getData = (propName) =>
             propName in newDataset ? newDataset[propName] : img.dataset[propName];
         const combinedDataset = { ...img.dataset, ...newDataset };
-        const previousShapeId = img.dataset.shape || this.getDefaultShapeId(img.dataset);
-        const shapeId = combinedDataset.shape || this.getDefaultShapeId(combinedDataset);
+        const previousShapeId =
+            img.dataset.shape || this.getDefaultShapeId(img.dataset);
+        const shapeId =
+            combinedDataset.shape || this.getDefaultShapeId(combinedDataset);
         // todo: should we reset some data if shapeName is not defined?
         if (!shapeId) {
             return;
@@ -232,7 +252,9 @@ export class ImageShapeOptionPlugin extends Plugin {
         const defaultShapeColors = this.getThemedSvgColors(shapeSvgText).join(";");
         newDataset.shapeColors =
             newDataset.shapeColors ??
-            (isNewShape ? defaultShapeColors : img.dataset.shapeColors ?? defaultShapeColors);
+            (isNewShape
+                ? defaultShapeColors
+                : (img.dataset.shapeColors ?? defaultShapeColors));
 
         const getNaturalWidth = async () => {
             if (img.naturalWidth) {
@@ -241,7 +263,8 @@ export class ImageShapeOptionPlugin extends Plugin {
             const loadedImgEl = await loadImage(img.getAttribute("src"));
             return loadedImgEl.naturalWidth;
         };
-        const svgWidth = getData("resizeWidth") || getData("width") || (await getNaturalWidth());
+        const svgWidth =
+            getData("resizeWidth") || getData("width") || (await getNaturalWidth());
 
         // Get the svg element.
         const svg = await this.computeShape(shapeSvgText, {
@@ -284,7 +307,9 @@ export class ImageShapeOptionPlugin extends Plugin {
         };
 
         return {
-            getHeight: svg.dataset.imgPerspective && ((canvas) => canvas.width / svgAspectRatio),
+            getHeight:
+                svg.dataset.imgPerspective &&
+                ((canvas) => canvas.width / svgAspectRatio),
             perspective: svg.dataset.imgPerspective || null,
             newDataset,
             // If imgAspectRatio is defined, the image is cropped a second time
@@ -339,7 +364,8 @@ export class ImageShapeOptionPlugin extends Plugin {
      * @returns {SVGElement}
      */
     async computeShape(svgText, params) {
-        const { shapeId, shapeFlip, shapeRotate, shapeAnimationSpeed, shapeColors } = params;
+        const { shapeId, shapeFlip, shapeRotate, shapeAnimationSpeed, shapeColors } =
+            params;
         // Apply the colors to the shape.
         svgText = this.replaceSvgColors(svgText, shapeColors.split(";"));
         // Apply the right animation speed if there is an animated shape.
@@ -347,7 +373,10 @@ export class ImageShapeOptionPlugin extends Plugin {
             svgText = this.replaceAnimationDuration(svgText, shapeAnimationSpeed);
         }
 
-        const svg = new DOMParser().parseFromString(svgText, "image/svg+xml").documentElement;
+        const svg = new DOMParser().parseFromString(
+            svgText,
+            "image/svg+xml",
+        ).documentElement;
 
         // Modifies the SVG according to the "flip" or/and "rotate" options.
         if ((shapeFlip || shapeRotate) && this.isTransformableShape(shapeId)) {
@@ -355,7 +384,7 @@ export class ImageShapeOptionPlugin extends Plugin {
             if (shapeFlip) {
                 // Possible values => "x", "y", "xy"
                 shapeTransformValues.push(
-                    `scale${shapeFlip === "x" ? "X" : shapeFlip === "y" ? "Y" : ""}(-1)`
+                    `scale${shapeFlip === "x" ? "X" : shapeFlip === "y" ? "Y" : ""}(-1)`,
                 );
             }
             if (shapeRotate) {
@@ -369,7 +398,7 @@ export class ImageShapeOptionPlugin extends Plugin {
             // mask over the SVG image.
             svg.querySelector("#filterPath").setAttribute(
                 "style",
-                `transform: ${shapeTransformValues.join(" ")}; ${transformOrigin}`
+                `transform: ${shapeTransformValues.join(" ")}; ${transformOrigin}`,
             );
         }
 
@@ -410,10 +439,16 @@ export class ImageShapeOptionPlugin extends Plugin {
         // Applying regex substitutions to modify animation speed in the 'svg'
         // variable.
         svgText = svgText.replace(CSS_ANIMATION_RULE_REGEX, callbackCssAnimationRule);
-        svgText = svgText.replace(SVG_DUR_TIMECOUNT_VAL_REGEX, callbackSvgDurTimecountVal);
+        svgText = svgText.replace(
+            SVG_DUR_TIMECOUNT_VAL_REGEX,
+            callbackSvgDurTimecountVal,
+        );
         if (CSS_ANIMATION_RATIO_REGEX.test(svgText)) {
             // Replace the CSS --animation_ratio variable for future purpose.
-            svgText = svgText.replace(CSS_ANIMATION_RATIO_REGEX, `--animation_ratio: ${ratio};`);
+            svgText = svgText.replace(
+                CSS_ANIMATION_RATIO_REGEX,
+                `--animation_ratio: ${ratio};`,
+            );
         } else {
             // Add the style tag with the root variable --animation ratio for
             // future purpose.
@@ -429,7 +464,7 @@ export class ImageShapeOptionPlugin extends Plugin {
         for (const [i, color] of colors.entries()) {
             shapeSvgText = shapeSvgText.replace(
                 new RegExp(svgColors[i], "g"),
-                this.dependencies.imageToolOption.getCSSColorValue(color)
+                this.dependencies.imageToolOption.getCSSColorValue(color),
             );
         }
         return shapeSvgText;
@@ -439,7 +474,7 @@ export class ImageShapeOptionPlugin extends Plugin {
         // If they do not map a NULL, this way we know if a default color is in
         // the shape
         return Object.values(DEFAULT_PALETTE).map((color) =>
-            shapeSvgText.includes(color) ? color : null
+            shapeSvgText.includes(color) ? color : null,
         );
     }
     getThemedSvgColors(shapeSvgText) {
@@ -447,7 +482,7 @@ export class ImageShapeOptionPlugin extends Plugin {
         return svgColors.map((color, i) =>
             color !== null
                 ? this.dependencies.imageToolOption.getCSSColorValue(`o-color-${i + 1}`)
-                : null
+                : null,
         );
     }
     applyShapeColors(editingElement, newColors) {}
@@ -500,7 +535,7 @@ export class ImageShapeOptionPlugin extends Plugin {
             .map((x) =>
                 Object.values(x.subgroups)
                     .map((x) => Object.entries(x.shapes))
-                    .flat()
+                    .flat(),
             )
             .flat();
         return Object.fromEntries(entries);
@@ -530,7 +565,10 @@ export class ImageShapeOptionPlugin extends Plugin {
             const imgFilename = originalSrc?.split("/").pop().split(".")[0];
             // If there's no originalSrc or the file name was set by 'setShape' action,
             // we should remove it.
-            if (!originalSrc || (imgFilename && imgEl.dataset.fileName === `${imgFilename}.svg`)) {
+            if (
+                !originalSrc ||
+                (imgFilename && imgEl.dataset.fileName === `${imgFilename}.svg`)
+            ) {
                 delete imgEl.dataset.fileName;
             }
         }
@@ -579,7 +617,10 @@ export class SetImageShapeAction extends BuilderAction {
         updateImageAttributes();
         const imgFilename = img.dataset.originalSrc.split("/").pop().split(".")[0];
         img.dataset.fileName = `${imgFilename}.svg`;
-        this.dependencies.imageShapeOption.resetShapeDataset(img, img.dataset.originalSrc);
+        this.dependencies.imageShapeOption.resetShapeDataset(
+            img,
+            img.dataset.originalSrc,
+        );
     }
     isApplied({ editingElement: img, value }) {
         const datasetShape = img.dataset.shape;
@@ -603,7 +644,7 @@ export class SetImgShapeColorAction extends BuilderAction {
         const oldColors = img.dataset.shapeColors.split(";");
         const newColors = oldColors.slice(0);
         newColors[newColorId] = this.dependencies.imageToolOption.getCSSColorValue(
-            color === "" ? `o-color-${newColorId + 1}` : color
+            color === "" ? `o-color-${newColorId + 1}` : color,
         );
         return this.dependencies.imageShapeOption.loadShape(img, {
             shapeColors: newColors.join(";"),
@@ -637,7 +678,9 @@ export class RotateImageShapeAction extends BuilderAction {
         const currentRotateValue = parseInt(img.dataset.shapeRotate) || 0;
         const rotation = side === "left" ? -90 : 90;
         const newRotateValue = (currentRotateValue + rotation + 360) % 360;
-        return this.dependencies.imageShapeOption.loadShape(img, { shapeRotate: newRotateValue });
+        return this.dependencies.imageShapeOption.loadShape(img, {
+            shapeRotate: newRotateValue,
+        });
     }
     apply({ loadResult: updateImageAttributes }) {
         updateImageAttributes();
@@ -693,7 +736,9 @@ export class ToggleImageShapeRatioAction extends BuilderAction {
     }
 }
 
-registry.category("builder-plugins").add(ImageShapeOptionPlugin.id, ImageShapeOptionPlugin);
+registry
+    .category("builder-plugins")
+    .add(ImageShapeOptionPlugin.id, ImageShapeOptionPlugin);
 
 /**
  * @param {String} mimetype

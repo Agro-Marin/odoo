@@ -1,16 +1,16 @@
 import {
     addBuilderAction,
     addBuilderOption,
-    setupHTMLBuilder,
     editBuilderRangeValue,
+    setupHTMLBuilder,
 } from "@html_builder/../tests/helpers";
 import { BuilderAction } from "@html_builder/core/builder_action";
+import { BaseOptionComponent } from "@html_builder/core/utils";
 import { HistoryPlugin } from "@html_editor/core/history_plugin";
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime, animationFrame, click, freezeTime } from "@odoo/hoot-dom";
 import { xml } from "@odoo/owl";
 import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { BaseOptionComponent } from "@html_builder/core/utils";
 
 describe.current.tags("desktop");
 
@@ -31,7 +31,7 @@ test("should commit changes", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderRange action="'customAction'" displayRangeValue="true"/>`;
-        }
+        },
     );
     await setupHTMLBuilder(`
         <div class="test-options-target">10</div>
@@ -66,13 +66,13 @@ test("range input should step up or down with arrow keys", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-integer-step";
             static template = xml`<BuilderRange action="'customAction'" step="2" displayRangeValue="true"/>`;
-        }
+        },
     );
     addBuilderOption(
         class extends BaseOptionComponent {
             static selector = ".test-fractional-step";
             static template = xml`<BuilderRange action="'customAction'" step="0.15" displayRangeValue="true"/>`;
-        }
+        },
     );
     await setupHTMLBuilder(`
         <div class="test-integer-step">10</div>
@@ -162,7 +162,7 @@ test("keeping an arrow key pressed should commit only once", async () => {
         class extends BaseOptionComponent {
             static selector = ".test-options-target";
             static template = xml`<BuilderRange action="'customAction'" step="2" displayRangeValue="true"/>`;
-        }
+        },
     );
     freezeTime();
     await setupHTMLBuilder(`

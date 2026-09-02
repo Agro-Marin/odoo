@@ -6,8 +6,8 @@ import { hrTimesheetGraphModel } from "./timesheet_graph_model.js";
 const viewRegistry = registry.category("views");
 
 export const hrTimesheetGraphView = {
-  ...graphView,
-  Model: hrTimesheetGraphModel,
+    ...graphView,
+    Model: hrTimesheetGraphModel,
 };
 
 viewRegistry.add("hr_timesheet_graphview", hrTimesheetGraphView);

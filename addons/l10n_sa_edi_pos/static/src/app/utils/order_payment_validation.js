@@ -6,14 +6,12 @@ import OrderPaymentValidation from "@point_of_sale/app/utils/order_payment_valid
 import { markup } from "@odoo/owl";
 
 patch(OrderPaymentValidation.prototype, {
-    setup(vals) {
+    setup() {
         super.setup(...arguments);
         this.dialog = this.pos.env.services.dialog;
     },
     async finalizeValidation() {
-        const potentialValidationError = await super.finalizeValidation(
-            ...arguments,
-        );
+        const potentialValidationError = await super.finalizeValidation(...arguments);
 
         // note: isSACompany guarantees order.is_to_invoice()
         // expect for cases like deposit and settlement

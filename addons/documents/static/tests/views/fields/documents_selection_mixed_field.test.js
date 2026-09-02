@@ -20,12 +20,10 @@ test("Documents mixed selection field in form", async () => {
     ];
     const serverData = {
         ...getDocumentsTestServerModelsData(),
-        "documents.sharing": testCases.map(
-            ([originalAccessInternal, excludeNone, expectedOptions], idx) => ({
-                id: idx + 1,
-                access_internal: originalAccessInternal,
-            })
-        ),
+        "documents.sharing": testCases.map(([originalAccessInternal], idx) => ({
+            id: idx + 1,
+            access_internal: originalAccessInternal,
+        })),
     };
     await makeDocumentsMockEnv({ serverData });
     for (const [
@@ -34,7 +32,9 @@ test("Documents mixed selection field in form", async () => {
     ] of testCases.entries()) {
         const resId = idx + 1;
         const options =
-            excludeNone === null ? "{}" : `{'exclude_none': ${excludeNone ? "True" : "False"}}`;
+            excludeNone === null
+                ? "{}"
+                : `{'exclude_none': ${excludeNone ? "True" : "False"}}`;
         const view = await mountView({
             resModel: "documents.sharing",
             type: "form",
@@ -54,7 +54,9 @@ test("Documents mixed selection field in form", async () => {
             message: `${testCase}: Should have rendered outer div`,
         });
         await contains(`.test${resId}.o_field_documents_mixed_selection input`).click();
-        expect(".o-dropdown-item").toHaveCount(expectedOptions.length, { message: testCase });
+        expect(".o-dropdown-item").toHaveCount(expectedOptions.length, {
+            message: testCase,
+        });
         for (const expectedOption of expectedOptions) {
             expect(`.o-dropdown-item div:contains(${expectedOption})`).toHaveCount(1, {
                 message: `${testCase}: ${expectedOption} option must be present with option: ${options}`,

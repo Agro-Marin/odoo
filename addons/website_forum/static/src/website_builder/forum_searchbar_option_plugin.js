@@ -34,4 +34,6 @@ class ForumSearchbarOptionPlugin extends Plugin {
     };
 }
 
-registry.category("website-plugins").add(ForumSearchbarOptionPlugin.id, ForumSearchbarOptionPlugin);
+registry
+    .category("website-plugins")
+    .add(ForumSearchbarOptionPlugin.id, ForumSearchbarOptionPlugin);

@@ -1,13 +1,13 @@
-import * as PosLoyalty from "@pos_loyalty/../tests/tours/utils/pos_loyalty_util";
-import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
-import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
-import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import * as Dialog from "@point_of_sale/../tests/generic_helpers/dialog_util";
-import * as combo from "@point_of_sale/../tests/pos/tours/utils/combo_popup_util";
 import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
-import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
-import { registry } from "@web/core/registry";
 import { negate } from "@point_of_sale/../tests/generic_helpers/utils";
+import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
+import * as combo from "@point_of_sale/../tests/pos/tours/utils/combo_popup_util";
+import { inLeftSide } from "@point_of_sale/../tests/pos/tours/utils/common";
+import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_screen_util";
+import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_screen_util";
+import * as PosLoyalty from "@pos_loyalty/../tests/tours/utils/pos_loyalty_util";
+import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("PosLoyaltyLoyaltyProgram1", {
     steps: () =>
@@ -187,24 +187,26 @@ registry.category("web_tour.tours").add("PosLoyaltyPromotion", {
         ].flat(),
 });
 
-registry.category("web_tour.tours").add("PosLoyaltyDontGrantPointsForRewardOrderLines", {
-    steps: () =>
-        [
-            Chrome.startPoS(),
-            Dialog.confirm("Open Register"),
+registry
+    .category("web_tour.tours")
+    .add("PosLoyaltyDontGrantPointsForRewardOrderLines", {
+        steps: () =>
+            [
+                Chrome.startPoS(),
+                Dialog.confirm("Open Register"),
 
-            ProductScreen.clickPartnerButton(),
-            ProductScreen.clickCustomer("A Test Partner"),
+                ProductScreen.clickPartnerButton(),
+                ProductScreen.clickCustomer("A Test Partner"),
 
-            ProductScreen.addOrderline("Desk Organizer", "1"),
-            ProductScreen.addOrderline("Whiteboard Pen", "1"),
-            PosLoyalty.isRewardButtonHighlighted(true, true),
-            PosLoyalty.claimReward("100% on the cheapest product"),
+                ProductScreen.addOrderline("Desk Organizer", "1"),
+                ProductScreen.addOrderline("Whiteboard Pen", "1"),
+                PosLoyalty.isRewardButtonHighlighted(true, true),
+                PosLoyalty.claimReward("100% on the cheapest product"),
 
-            PosLoyalty.orderTotalIs("5.10"),
-            PosLoyalty.finalizeOrder("Cash", "5.10"),
-        ].flat(),
-});
+                PosLoyalty.orderTotalIs("5.10"),
+                PosLoyalty.finalizeOrder("Cash", "5.10"),
+            ].flat(),
+    });
 
 registry.category("web_tour.tours").add("PosLoyaltyNextOrderCouponExpirationDate", {
     steps: () =>
@@ -272,17 +274,19 @@ registry.category("web_tour.tours").add("PosCheapestProductTaxInclude", {
         ].flat(),
 });
 
-registry.category("web_tour.tours").add("test_not_create_loyalty_card_expired_program", {
-    steps: () =>
-        [
-            Chrome.startPoS(),
-            Dialog.confirm("Open Register"),
-            ProductScreen.clickPartnerButton(),
-            ProductScreen.clickCustomer("Test Partner", true),
-            ProductScreen.addOrderline("Desk Organizer", "3"),
-            PosLoyalty.finalizeOrder("Cash", "15.3"),
-        ].flat(),
-});
+registry
+    .category("web_tour.tours")
+    .add("test_not_create_loyalty_card_expired_program", {
+        steps: () =>
+            [
+                Chrome.startPoS(),
+                Dialog.confirm("Open Register"),
+                ProductScreen.clickPartnerButton(),
+                ProductScreen.clickCustomer("Test Partner", true),
+                ProductScreen.addOrderline("Desk Organizer", "3"),
+                PosLoyalty.finalizeOrder("Cash", "15.3"),
+            ].flat(),
+    });
 
 registry.category("web_tour.tours").add("PosOrderClaimReward", {
     steps: () =>

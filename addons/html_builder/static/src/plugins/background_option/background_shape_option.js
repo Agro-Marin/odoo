@@ -13,7 +13,8 @@ export class BackgroundShapeOption extends BaseOptionComponent {
         this.toRatio = toRatio;
         this.state = useDomState((editingElement) => {
             const shapeData = this.backgroundShapePlugin.getShapeData(editingElement);
-            const shapeInfo = this.backgroundShapePlugin.getBackgroundShapes()[shapeData.shape];
+            const shapeInfo =
+                this.backgroundShapePlugin.getBackgroundShapes()[shapeData.shape];
             return {
                 shapeName: shapeInfo?.selectLabel || _t("None"),
                 isAnimated: shapeInfo?.animated,
@@ -45,7 +46,8 @@ export function getDefaultColors(editingElement) {
     // Needs to be in document for bg-image class to take effect
     editingElement.ownerDocument.body.appendChild(shapeContainerClonedEl);
     shapeContainerClonedEl.style.setProperty("background-image", "");
-    const shapeSrc = shapeContainerClonedEl && getBgImageURLFromEl(shapeContainerClonedEl);
+    const shapeSrc =
+        shapeContainerClonedEl && getBgImageURLFromEl(shapeContainerClonedEl);
     shapeContainerClonedEl.remove();
     if (!shapeSrc) {
         return {};

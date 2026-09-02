@@ -14,22 +14,17 @@ patch(ReceiptScreen.prototype, {
         this.doPrintEventBadge = useTrackedAsync(() => this.printEventBadge());
     },
     async printEventFull() {
-        const registrations = this.currentOrder.eventRegistrations.map(
-            (reg) => reg.id,
-        );
+        const registrations = this.currentOrder.eventRegistrations.map((reg) => reg.id);
         await this.report.doAction(
             "event.action_report_event_registration_full_page_ticket",
             [registrations],
         );
     },
     async printEventBadge() {
-        const registrations = this.currentOrder.eventRegistrations.map(
-            (reg) => reg.id,
-        );
-        await this.report.doAction(
-            "event.action_report_event_registration_badge",
-            [registrations],
-        );
+        const registrations = this.currentOrder.eventRegistrations.map((reg) => reg.id);
+        await this.report.doAction("event.action_report_event_registration_badge", [
+            registrations,
+        ]);
 
         // Update the status to "attended" if we print the attendee badge
         if (registrations.length > 0) {

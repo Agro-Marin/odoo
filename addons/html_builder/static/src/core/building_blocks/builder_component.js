@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, xml } from "@odoo/owl";
+
 import { useDomState } from "../utils.js";
 
 export class BuilderComponent extends Component {
@@ -13,7 +14,7 @@ export class BuilderComponent extends Component {
             (editingElement) => ({
                 isVisible: !!editingElement,
             }),
-            { checkEditingElement: false }
+            { checkEditingElement: false },
         );
     }
 }

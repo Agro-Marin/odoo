@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { patch } from '@web/core/utils/patch';
+import { patch } from "@web/core/utils/patch";
 
-import { PaymentForm } from '@payment/interactions/payment_form';
+import { PaymentForm } from "@payment/interactions/payment_form";
 
 patch(PaymentForm.prototype, {
-
     /**
      * Allow forcing redirect to authorization url for Flutterwave token flow.
      *
@@ -16,11 +15,16 @@ patch(PaymentForm.prototype, {
      * @param {object} processingValues - The processing values of the transaction.
      * @return {void}
      */
-    _processTokenFlow(providerCode, paymentOptionId, paymentMethodCode, processingValues) {
-        if (providerCode === 'flutterwave' && processingValues.redirect_form_html) {
+    _processTokenFlow(
+        providerCode,
+        paymentOptionId,
+        paymentMethodCode,
+        processingValues,
+    ) {
+        if (providerCode === "flutterwave" && processingValues.redirect_form_html) {
             this._processRedirectFlow(...arguments);
         } else {
             super._processTokenFlow(...arguments);
         }
-    }
+    },
 });

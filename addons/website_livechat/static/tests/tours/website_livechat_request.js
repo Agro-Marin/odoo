@@ -1,11 +1,12 @@
+import { registry } from "@web/core/registry";
+
 import {
     closeChat,
-    okRating,
-    feedback,
-    downloadTranscript,
     confirmnClose,
+    downloadTranscript,
+    feedback,
+    okRating,
 } from "./website_livechat_common.js";
-import { registry } from "@web/core/registry";
 
 const chatRequest = [
     {
@@ -31,7 +32,7 @@ const chatRequest = [
             if (
                 queryAll(
                     ".o-mail-Message:contains('Hi ! What a coincidence! I need your help indeed.')",
-                    { root: this.anchor }
+                    { root: this.anchor },
                 ).length === 1
             ) {
                 document.body.classList.add("no_duplicated_message");
@@ -47,5 +48,12 @@ const chatRequest = [
 registry.category("web_tour.tours").add("website_livechat_chat_request", {
     url: "/",
     steps: () =>
-        [].concat(chatRequest, closeChat, confirmnClose, okRating, feedback, downloadTranscript),
+        [].concat(
+            chatRequest,
+            closeChat,
+            confirmnClose,
+            okRating,
+            feedback,
+            downloadTranscript,
+        ),
 });

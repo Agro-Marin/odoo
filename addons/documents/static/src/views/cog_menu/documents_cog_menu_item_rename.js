@@ -23,6 +23,6 @@ export const documentsCogMenuItemRename = {
     groupNumber: STATIC_COG_GROUP_ACTION_BASIC,
     isDisplayed: (env) =>
         DocumentsCogMenuItem.isVisible(env, ({ folder, documentService }) =>
-            documentService.isEditable(folder)
+            documentService.isEditable(folder),
         ),
 };

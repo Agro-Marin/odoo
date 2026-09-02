@@ -23,8 +23,7 @@ import { uuid } from "@web/core/utils/format/strings";
 const { DateTime } = luxon;
 
 const WEBSOCKET_PORT = browser.location.protocol === "https:" ? 3001 : 3000;
-const WEBSOCKET_PROTOCOL =
-    browser.location.protocol === "https:" ? "wss:" : "ws:";
+const WEBSOCKET_PROTOCOL = browser.location.protocol === "https:" ? "wss:" : "ws:";
 const WEBSOCKET_URL = "/socket.io/?transport=websocket&EIO=3";
 
 const convertObjectValuesToInt = (object) =>
@@ -36,7 +35,7 @@ export class GloryService {
     /**
      * @param {(status: string) => void} onStatusChange
      */
-    constructor(onStatusChange) {
+    constructor() {
         this.setup(...arguments);
     }
 
@@ -128,20 +127,17 @@ export class GloryService {
         this.paymentInProgress = true;
         this._newSequenceNumber();
 
-        const { xmlResponse } = await this._sendXmlRequest(
-            XML_REQUESTS.startPayment,
-            [
-                {
-                    name: "Amount",
-                    children: [amountInCents.toString()],
-                },
-                {
-                    // Option Type 1 = Enable cancellation when there is insufficient change
-                    name: "Option",
-                    attributes: { type: "1" },
-                },
-            ],
-        );
+        const { xmlResponse } = await this._sendXmlRequest(XML_REQUESTS.startPayment, [
+            {
+                name: "Amount",
+                children: [amountInCents.toString()],
+            },
+            {
+                // Option Type 1 = Enable cancellation when there is insufficient change
+                name: "Option",
+                attributes: { type: "1" },
+            },
+        ]);
 
         const result = await this._handlePaymentResponse(xmlResponse);
 
@@ -165,9 +161,7 @@ export class GloryService {
             }
         }
 
-        const { statusCode } = await this._sendXmlRequest(
-            XML_REQUESTS.cancelPayment,
-        );
+        const { statusCode } = await this._sendXmlRequest(XML_REQUESTS.cancelPayment);
 
         if (this.occupied && !this.paymentInProgress) {
             await this._release();
@@ -231,13 +225,10 @@ export class GloryService {
         await this._setDateAndTime();
         await this._checkStatusAndVerifyIfNeeded();
 
-        const { xmlResponse } = await this._sendXmlRequest(
-            XML_REQUESTS.getInventory,
-            [
-                // Option Type 2 = 'Payable' inventory, see p76 of the IF Specification document
-                { name: "Option", attributes: { type: "2" } },
-            ],
-        );
+        const { xmlResponse } = await this._sendXmlRequest(XML_REQUESTS.getInventory, [
+            // Option Type 2 = 'Payable' inventory, see p76 of the IF Specification document
+            { name: "Option", attributes: { type: "2" } },
+        ]);
         this._inventoryChangeHandler(xmlResponse);
     }
 
@@ -264,9 +255,7 @@ export class GloryService {
     }
 
     async _refreshSession() {
-        const data = await this._sendWebsocketRequest(
-            WEBSOCKET_REQUESTS.openSession,
-        );
+        const data = await this._sendWebsocketRequest(WEBSOCKET_REQUESTS.openSession);
         this.sessionId = data.SessionID;
     }
 
@@ -294,10 +283,9 @@ export class GloryService {
 
     async _checkStatusAndVerifyIfNeeded() {
         const firstConnection = this.state.inventory.length === 0;
-        const { xmlResponse } = await this._sendXmlRequest(
-            XML_REQUESTS.getStatus,
-            [{ name: "RequireVerification", attributes: { type: "1" } }],
-        );
+        const { xmlResponse } = await this._sendXmlRequest(XML_REQUESTS.getStatus, [
+            { name: "RequireVerification", attributes: { type: "1" } },
+        ]);
         this._statusChangeHandler(xmlResponse);
 
         const requireVerifyType = parseVerificationInfo(xmlResponse);
@@ -305,15 +293,12 @@ export class GloryService {
             return;
         }
 
-        const { statusCode } = await this._sendXmlRequest(
-            XML_REQUESTS.collect,
-            [
-                {
-                    name: "RequireVerification",
-                    attributes: { type: requireVerifyType.toString() },
-                },
-            ],
-        );
+        const { statusCode } = await this._sendXmlRequest(XML_REQUESTS.collect, [
+            {
+                name: "RequireVerification",
+                attributes: { type: requireVerifyType.toString() },
+            },
+        ]);
 
         return statusCode;
     }
@@ -333,8 +318,7 @@ export class GloryService {
         }
 
         if (this.status === "COUNTING") {
-            const amount =
-                statusResponse.getElementsByTagName("Amount")[0].textContent;
+            const amount = statusResponse.getElementsByTagName("Amount")[0].textContent;
             this.state.amountInserted = parseInt(amount);
         }
     }
@@ -343,9 +327,7 @@ export class GloryService {
      * @param {Element} inventoryResponse
      */
     _inventoryChangeHandler(inventoryResponse) {
-        const cashElements = Array.from(
-            inventoryResponse.getElementsByTagName("Cash"),
-        );
+        const cashElements = Array.from(inventoryResponse.getElementsByTagName("Cash"));
         const dispensableCash = cashElements.find(
             (cashElement) => cashElement.getAttribute("type") === "4",
         );
@@ -375,9 +357,7 @@ export class GloryService {
         );
         return denominationElements.map((denomination) => ({
             value: parseInt(denomination.getAttribute("fv")),
-            amount: parseInt(
-                denomination.getElementsByTagName("Piece")[0].textContent,
-            ),
+            amount: parseInt(denomination.getElementsByTagName("Piece")[0].textContent),
             status: GLORY_CURRENCY_STATUS[
                 denomination.getElementsByTagName("Status")[0].textContent
             ],
@@ -421,9 +401,7 @@ export class GloryService {
      * @param {Element} paymentResponse
      */
     _getTransactionInfo(paymentResponse) {
-        const cashElements = Array.from(
-            paymentResponse.getElementsByTagName("Cash"),
-        );
+        const cashElements = Array.from(paymentResponse.getElementsByTagName("Cash"));
         const cashGivenElement = cashElements.find(
             (cashElement) => cashElement.getAttribute("type") === "1",
         );
@@ -431,11 +409,9 @@ export class GloryService {
             (cashElement) => cashElement.getAttribute("type") === "2",
         );
         const cashGiven = this._getTotalFromGloryCashElement(cashGivenElement);
-        const cashReturned =
-            this._getTotalFromGloryCashElement(cashReturnedElement);
+        const cashReturned = this._getTotalFromGloryCashElement(cashReturnedElement);
         const transactionId =
-            paymentResponse.getElementsByTagName("TransactionId")[0]
-                .textContent;
+            paymentResponse.getElementsByTagName("TransactionId")[0].textContent;
 
         return {
             cashGiven,
@@ -462,9 +438,7 @@ export class GloryService {
      * @param {any[]} params
      */
     _sendWebsocketRequest(request, ...params) {
-        const resultPromise = this._waitForResponseWithType(
-            request.responseName,
-        );
+        const resultPromise = this._waitForResponseWithType(request.responseName);
         this.socketIo.sendMessage([request.requestName, ...params]);
         return resultPromise;
     }
@@ -486,15 +460,12 @@ export class GloryService {
         this._logXml("SEND", xmlString);
         this.socketIo.sendMessage(["xml send", xmlString]);
 
-        const xmlResponse = await this._waitForResponseWithType(
-            request.responseName,
-        );
+        const xmlResponse = await this._waitForResponseWithType(request.responseName);
         const statusCode = parseGloryResult(xmlResponse);
 
         if (
             !secondAttempt &&
-            (statusCode === "SESSION_TIMEOUT" ||
-                statusCode === "INVALID_SESSION")
+            (statusCode === "SESSION_TIMEOUT" || statusCode === "INVALID_SESSION")
         ) {
             await this._refreshSession();
             return this._sendXmlRequest(request, children, true);

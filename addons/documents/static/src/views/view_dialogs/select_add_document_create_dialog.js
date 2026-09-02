@@ -37,7 +37,10 @@ export class SelectAddDocumentCreateDialog extends SelectCreateDialog {
     }
 
     get addDocumentsAttachmentMethod() {
-        return this.props.chatterParams?.addDocumentsAttachment || this.addDocumentsAttachment;
+        return (
+            this.props.chatterParams?.addDocumentsAttachment ||
+            this.addDocumentsAttachment
+        );
     }
 
     get pasteDocumentsLinkMethod() {
@@ -64,8 +67,9 @@ export class SelectAddDocumentCreateDialog extends SelectCreateDialog {
             ]);
         } catch (error) {
             this.notification.add(
-                _t("Failed to paste link(s): ") + (error.data?.message || error.toString()),
-                { type: "danger" }
+                _t("Failed to paste link(s): ") +
+                    (error.data?.message || error.toString()),
+                { type: "danger" },
             );
             this.props.close();
             return;
@@ -94,18 +98,21 @@ export class SelectAddDocumentCreateDialog extends SelectCreateDialog {
             const attachmentRecords = await this.orm.call(
                 "documents.document",
                 "add_documents_attachment",
-                [resIds, "mail.compose.message", 0]
+                [resIds, "mail.compose.message", 0],
             );
             processedAttachments = await this._processAttachments(attachmentRecords);
         } catch (error) {
             this.notification.add(
-                _t("Failed to add document(s): ") + (error.data?.message || error.toString()),
-                { type: "danger" }
+                _t("Failed to add document(s): ") +
+                    (error.data?.message || error.toString()),
+                { type: "danger" },
             );
             this.props.close();
             return;
         }
-        const thread = this.props.chatterParams?.thread || this.addToThread(this.model, this.resId);
+        const thread =
+            this.props.chatterParams?.thread ||
+            this.addToThread(this.model, this.resId);
         const composer = this.props.chatterParams?.composer || thread.composer;
 
         const attachmentIds = [];

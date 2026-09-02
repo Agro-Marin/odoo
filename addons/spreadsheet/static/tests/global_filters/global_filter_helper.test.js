@@ -1,5 +1,5 @@
 /** @ts-check */
-import { beforeEach,describe, expect, test } from "@odoo/hoot";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
 import {
     assertDateDomainEqual,
@@ -14,7 +14,7 @@ import {
     getRelativeDateFromTo,
     RELATIVE_PERIODS,
 } from "@spreadsheet/global_filters/helpers";
-import { allowTranslations,makeMockEnv } from "@web/../tests/web_test_helpers";
+import { allowTranslations, makeMockEnv } from "@web/../tests/web_test_helpers";
 import { luxon } from "@web/core/l10n/luxon";
 import { getOperatorLabel } from "@web/core/tree";
 
@@ -107,28 +107,48 @@ test("getRelativeDateDomain > simple date time", async function () {
     const now = DateTime.fromISO("2022-05-16T00:00:00+00:00", { zone: "utc" });
     const domain = getRelativeDateDomain(now, 0, "last_7_days", "field", "datetime");
     expect(getDateDomainDurationInDays(domain)).toBe(7);
-    assertDateDomainEqual("field", "2022-05-10 00:00:00", "2022-05-16 23:59:59", domain);
+    assertDateDomainEqual(
+        "field",
+        "2022-05-10 00:00:00",
+        "2022-05-16 23:59:59",
+        domain,
+    );
 });
 
 test("getRelativeDateDomain > date time from middle of day", async function () {
     const now = DateTime.fromISO("2022-05-16T13:59:00+00:00", { zone: "utc" });
     const domain = getRelativeDateDomain(now, 0, "last_7_days", "field", "datetime");
     expect(getDateDomainDurationInDays(domain)).toBe(7);
-    assertDateDomainEqual("field", "2022-05-10 00:00:00", "2022-05-16 23:59:59", domain);
+    assertDateDomainEqual(
+        "field",
+        "2022-05-10 00:00:00",
+        "2022-05-16 23:59:59",
+        domain,
+    );
 });
 
 test("getRelativeDateDomain > date time with timezone", async function () {
     const now = DateTime.fromISO("2022-05-16T12:00:00+02:00", { zone: "UTC+2" });
     const domain = getRelativeDateDomain(now, 0, "last_7_days", "field", "datetime");
     expect(getDateDomainDurationInDays(domain)).toBe(7);
-    assertDateDomainEqual("field", "2022-05-09 22:00:00", "2022-05-16 21:59:59", domain);
+    assertDateDomainEqual(
+        "field",
+        "2022-05-09 22:00:00",
+        "2022-05-16 21:59:59",
+        domain,
+    );
 });
 
 test("getRelativeDateDomain > date time with timezone on different day than UTC", async function () {
     const now = DateTime.fromISO("2022-05-16T01:00:00+02:00", { zone: "UTC+2" });
     const domain = getRelativeDateDomain(now, 0, "last_7_days", "field", "datetime");
     expect(getDateDomainDurationInDays(domain)).toBe(7);
-    assertDateDomainEqual("field", "2022-05-09 22:00:00", "2022-05-16 21:59:59", domain);
+    assertDateDomainEqual(
+        "field",
+        "2022-05-09 22:00:00",
+        "2022-05-16 21:59:59",
+        domain,
+    );
 });
 
 test("getRelativeDateDomain > with offset > year_to_date (year to date)", async function () {
@@ -190,19 +210,38 @@ test("getRelativeDateDomain > with offset > simple date time", async function ()
     const now = DateTime.fromISO("2022-05-16T00:00:00+00:00", { zone: "utc" });
     const domain = getRelativeDateDomain(now, -1, "last_7_days", "field", "datetime");
     expect(getDateDomainDurationInDays(domain)).toBe(7);
-    assertDateDomainEqual("field", "2022-05-03 00:00:00", "2022-05-09 23:59:59", domain);
+    assertDateDomainEqual(
+        "field",
+        "2022-05-03 00:00:00",
+        "2022-05-09 23:59:59",
+        domain,
+    );
 });
 
 test("dateFilterValueToString > relative periods", function () {
     expect(valueToString({ type: "relative", period: "today" })).toBe("Today");
     expect(valueToString({ type: "relative", period: "yesterday" })).toBe("Yesterday");
-    expect(valueToString({ type: "relative", period: "last_7_days" })).toBe("Last 7 Days");
-    expect(valueToString({ type: "relative", period: "last_30_days" })).toBe("Last 30 Days");
-    expect(valueToString({ type: "relative", period: "last_90_days" })).toBe("Last 90 Days");
-    expect(valueToString({ type: "relative", period: "month_to_date" })).toBe("Month to Date");
-    expect(valueToString({ type: "relative", period: "last_month" })).toBe("Last Month");
-    expect(valueToString({ type: "relative", period: "year_to_date" })).toBe("Year to Date");
-    expect(valueToString({ type: "relative", period: "last_12_months" })).toBe("Last 12 Months");
+    expect(valueToString({ type: "relative", period: "last_7_days" })).toBe(
+        "Last 7 Days",
+    );
+    expect(valueToString({ type: "relative", period: "last_30_days" })).toBe(
+        "Last 30 Days",
+    );
+    expect(valueToString({ type: "relative", period: "last_90_days" })).toBe(
+        "Last 90 Days",
+    );
+    expect(valueToString({ type: "relative", period: "month_to_date" })).toBe(
+        "Month to Date",
+    );
+    expect(valueToString({ type: "relative", period: "last_month" })).toBe(
+        "Last Month",
+    );
+    expect(valueToString({ type: "relative", period: "year_to_date" })).toBe(
+        "Year to Date",
+    );
+    expect(valueToString({ type: "relative", period: "last_12_months" })).toBe(
+        "Last 12 Months",
+    );
 });
 test("dateFilterValueToString > month", function () {
     expect(valueToString({ type: "month", year: 2022, month: 5 })).toBe("May 2022");
@@ -218,13 +257,17 @@ test("dateFilterValueToString > year", function () {
 
 test("dateFilterValueToString > range", function () {
     expect(valueToString({ type: "range", from: "2022-01-01", to: "2022-12-31" })).toBe(
-        "January 1 – December 31, 2022"
+        "January 1 – December 31, 2022",
     );
     expect(valueToString({ type: "range", from: "2022-01-01", to: "2022-01-01" })).toBe(
-        "January 1, 2022"
+        "January 1, 2022",
     );
-    expect(valueToString({ type: "range", from: "2022-01-01" })).toBe("Since January 1, 2022");
-    expect(valueToString({ type: "range", to: "2022-12-31" })).toBe("Until December 31, 2022");
+    expect(valueToString({ type: "range", from: "2022-01-01" })).toBe(
+        "Since January 1, 2022",
+    );
+    expect(valueToString({ type: "range", to: "2022-12-31" })).toBe(
+        "Until December 31, 2022",
+    );
     expect(valueToString({ type: "range" })).toBe("All time");
 });
 
@@ -240,28 +283,36 @@ test("dateFilterValueToString > invalid value", function () {
 
 describe("getNextDateFilterValue", () => {
     test("month: December rolls over to January next year", () => {
-        expect(getNextDateFilterValue({ type: "month", year: 2022, month: 12 })).toEqual({
+        expect(
+            getNextDateFilterValue({ type: "month", year: 2022, month: 12 }),
+        ).toEqual({
             type: "month",
             year: 2023,
             month: 1,
         });
     });
     test("month: increments month", () => {
-        expect(getNextDateFilterValue({ type: "month", year: 2022, month: 5 })).toEqual({
-            type: "month",
-            year: 2022,
-            month: 6,
-        });
+        expect(getNextDateFilterValue({ type: "month", year: 2022, month: 5 })).toEqual(
+            {
+                type: "month",
+                year: 2022,
+                month: 6,
+            },
+        );
     });
     test("quarter: Q4 rolls over to Q1 next year", () => {
-        expect(getNextDateFilterValue({ type: "quarter", year: 2022, quarter: 4 })).toEqual({
+        expect(
+            getNextDateFilterValue({ type: "quarter", year: 2022, quarter: 4 }),
+        ).toEqual({
             type: "quarter",
             year: 2023,
             quarter: 1,
         });
     });
     test("quarter: increments quarter", () => {
-        expect(getNextDateFilterValue({ type: "quarter", year: 2022, quarter: 2 })).toEqual({
+        expect(
+            getNextDateFilterValue({ type: "quarter", year: 2022, quarter: 2 }),
+        ).toEqual({
             type: "quarter",
             year: 2022,
             quarter: 3,
@@ -277,7 +328,10 @@ describe("getNextDateFilterValue", () => {
     test("relative", () => {
         mockDate("2022-07-14 00:00:00");
 
-        let result = getNextDateFilterValue({ type: "relative", period: "last_7_days" });
+        let result = getNextDateFilterValue({
+            type: "relative",
+            period: "last_7_days",
+        });
         expect(result).toEqual({
             type: "range",
             from: "2022-07-15",
@@ -342,35 +396,47 @@ describe("getNextDateFilterValue", () => {
 
     test("range: shifts range forward", () => {
         expect(
-            getNextDateFilterValue({ type: "range", from: "2022-01-01", to: "2022-01-10" })
+            getNextDateFilterValue({
+                type: "range",
+                from: "2022-01-01",
+                to: "2022-01-10",
+            }),
         ).toEqual({ type: "range", from: "2022-01-11", to: "2022-01-20" });
     });
 });
 
 describe("getPreviousDateFilterValue", () => {
     test("month: January rolls back to December previous year", () => {
-        expect(getPreviousDateFilterValue({ type: "month", year: 2022, month: 1 })).toEqual({
+        expect(
+            getPreviousDateFilterValue({ type: "month", year: 2022, month: 1 }),
+        ).toEqual({
             type: "month",
             year: 2021,
             month: 12,
         });
     });
     test("month: decrements month", () => {
-        expect(getPreviousDateFilterValue({ type: "month", year: 2022, month: 6 })).toEqual({
+        expect(
+            getPreviousDateFilterValue({ type: "month", year: 2022, month: 6 }),
+        ).toEqual({
             type: "month",
             year: 2022,
             month: 5,
         });
     });
     test("quarter: Q1 rolls back to Q4 previous year", () => {
-        expect(getPreviousDateFilterValue({ type: "quarter", year: 2022, quarter: 1 })).toEqual({
+        expect(
+            getPreviousDateFilterValue({ type: "quarter", year: 2022, quarter: 1 }),
+        ).toEqual({
             type: "quarter",
             year: 2021,
             quarter: 4,
         });
     });
     test("quarter: decrements quarter", () => {
-        expect(getPreviousDateFilterValue({ type: "quarter", year: 2022, quarter: 3 })).toEqual({
+        expect(
+            getPreviousDateFilterValue({ type: "quarter", year: 2022, quarter: 3 }),
+        ).toEqual({
             type: "quarter",
             year: 2022,
             quarter: 2,
@@ -386,21 +452,30 @@ describe("getPreviousDateFilterValue", () => {
     test("relative", () => {
         mockDate("2022-07-14 00:00:00");
 
-        let result = getPreviousDateFilterValue({ type: "relative", period: "last_7_days" });
+        let result = getPreviousDateFilterValue({
+            type: "relative",
+            period: "last_7_days",
+        });
         expect(result).toEqual({
             type: "range",
             from: "2022-07-01",
             to: "2022-07-07",
         });
 
-        result = getPreviousDateFilterValue({ type: "relative", period: "last_30_days" });
+        result = getPreviousDateFilterValue({
+            type: "relative",
+            period: "last_30_days",
+        });
         expect(result).toEqual({
             type: "range",
             from: "2022-05-16",
             to: "2022-06-14",
         });
 
-        result = getPreviousDateFilterValue({ type: "relative", period: "last_90_days" });
+        result = getPreviousDateFilterValue({
+            type: "relative",
+            period: "last_90_days",
+        });
         expect(result).toEqual({
             type: "range",
 
@@ -408,13 +483,19 @@ describe("getPreviousDateFilterValue", () => {
             to: "2022-04-15",
         });
 
-        result = getPreviousDateFilterValue({ type: "relative", period: "year_to_date" });
+        result = getPreviousDateFilterValue({
+            type: "relative",
+            period: "year_to_date",
+        });
         expect(result).toEqual({
             type: "year",
             year: 2021,
         });
 
-        result = getPreviousDateFilterValue({ type: "relative", period: "last_12_months" });
+        result = getPreviousDateFilterValue({
+            type: "relative",
+            period: "last_12_months",
+        });
         expect(result).toEqual({
             type: "range",
             from: "2020-07-01",
@@ -442,7 +523,10 @@ describe("getPreviousDateFilterValue", () => {
             month: 5,
         });
 
-        result = getPreviousDateFilterValue({ type: "relative", period: "month_to_date" });
+        result = getPreviousDateFilterValue({
+            type: "relative",
+            period: "month_to_date",
+        });
         expect(result).toEqual({
             type: "month",
             year: 2022,
@@ -452,7 +536,11 @@ describe("getPreviousDateFilterValue", () => {
 
     test("range: shifts range backward", () => {
         expect(
-            getPreviousDateFilterValue({ type: "range", from: "2022-01-11", to: "2022-01-20" })
+            getPreviousDateFilterValue({
+                type: "range",
+                from: "2022-01-11",
+                to: "2022-01-20",
+            }),
         ).toEqual({ type: "range", from: "2022-01-01", to: "2022-01-10" });
     });
 });
@@ -487,7 +575,9 @@ test("getFacetInfo for text values", async () => {
         id: "1",
     };
     const env = {};
-    expect(await getFacetInfo(env, filter, { operator: "ilike", strings: ["hello"] })).toEqual({
+    expect(
+        await getFacetInfo(env, filter, { operator: "ilike", strings: ["hello"] }),
+    ).toEqual({
         title: "Text Filter",
         id: "1",
         operator: LAZY_TRANSLATED_CONTAINS,
@@ -513,7 +603,11 @@ test("getFacetInfo for date values", async () => {
         });
     }
     expect(
-        await getFacetInfo(env, filter, { type: "range", from: "2022-01-01", to: "2022-12-31" })
+        await getFacetInfo(env, filter, {
+            type: "range",
+            from: "2022-01-01",
+            to: "2022-12-31",
+        }),
     ).toEqual({
         title: "Date Filter",
         id: "1",
@@ -521,28 +615,36 @@ test("getFacetInfo for date values", async () => {
         operator: "",
         values: ["January 1 – December 31, 2022"],
     });
-    expect(await getFacetInfo(env, filter, { type: "range", from: "2022-01-01" })).toEqual({
+    expect(
+        await getFacetInfo(env, filter, { type: "range", from: "2022-01-01" }),
+    ).toEqual({
         title: "Date Filter",
         id: "1",
         separator: "or",
         operator: "",
         values: ["Since January 1, 2022"],
     });
-    expect(await getFacetInfo(env, filter, { type: "range", to: "2022-12-31" })).toEqual({
+    expect(
+        await getFacetInfo(env, filter, { type: "range", to: "2022-12-31" }),
+    ).toEqual({
         title: "Date Filter",
         id: "1",
         separator: "or",
         operator: "",
         values: ["Until December 31, 2022"],
     });
-    expect(await getFacetInfo(env, filter, { type: "month", month: 1, year: 2022 })).toEqual({
+    expect(
+        await getFacetInfo(env, filter, { type: "month", month: 1, year: 2022 }),
+    ).toEqual({
         title: "Date Filter",
         id: "1",
         separator: "or",
         operator: "",
         values: ["January 2022"],
     });
-    expect(await getFacetInfo(env, filter, { type: "quarter", quarter: 1, year: 2022 })).toEqual({
+    expect(
+        await getFacetInfo(env, filter, { type: "quarter", quarter: 1, year: 2022 }),
+    ).toEqual({
         title: "Date Filter",
         id: "1",
         separator: "or",
@@ -598,17 +700,20 @@ test("getFacetInfo for selection values", async () => {
         selectionField: "position",
     };
     const env = await makeMockEnv();
-    expect(await getFacetInfo(env, filter, { operator: "in", selectionValues: ["after"] })).toEqual(
-        {
-            title: "Selection Filter",
-            id: "42",
-            separator: "or",
-            operator: "",
-            values: ["A"],
-        }
-    );
     expect(
-        await getFacetInfo(env, filter, { operator: "in", selectionValues: ["after", "before"] })
+        await getFacetInfo(env, filter, { operator: "in", selectionValues: ["after"] }),
+    ).toEqual({
+        title: "Selection Filter",
+        id: "42",
+        separator: "or",
+        operator: "",
+        values: ["A"],
+    });
+    expect(
+        await getFacetInfo(env, filter, {
+            operator: "in",
+            selectionValues: ["after", "before"],
+        }),
     ).toEqual({
         title: "Selection Filter",
         id: "42",

@@ -105,7 +105,7 @@ export class EventEvent extends models.ServerModel {
         },
     ];
 
-    get_slot_tickets_availability_pos(self, slot_ticket_ids) {
+    get_slot_tickets_availability_pos() {
         return [5];
     }
 }

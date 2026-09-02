@@ -217,7 +217,6 @@ export class DeletePlugin extends Plugin {
      * @param {EditorSelection} [selection]
      */
     deleteSelection(selection = this.dependencies.selection.getEditableSelection()) {
-
         let range = this.getNormalizedRange(selection);
         if (range.collapsed) {
             return;
@@ -398,7 +397,6 @@ export class DeletePlugin extends Plugin {
 
         return { startContainer, startOffset, endContainer, endOffset };
     }
-
 
     /**
      * @param {RangeLike} range

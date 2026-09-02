@@ -1,8 +1,8 @@
 /** @ts-check */
 
+import { animationFrame } from "@odoo/hoot-mock";
 import * as spreadsheet from "@odoo/o-spreadsheet";
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
-import { animationFrame } from "@odoo/hoot-mock";
 
 const { toCartesian, toZone, lettersToNumber, deepCopy } = spreadsheet.helpers;
 
@@ -110,21 +110,36 @@ export function autofill(model, from, to) {
 /**
  * Set the content of a cell
  */
-export function setCellContent(model, xc, content, sheetId = model.getters.getActiveSheetId()) {
+export function setCellContent(
+    model,
+    xc,
+    content,
+    sheetId = model.getters.getActiveSheetId(),
+) {
     model.dispatch("UPDATE_CELL", { ...toCartesian(xc), sheetId, content });
 }
 
 /**
  * Set the format of a cell
  */
-export function setCellFormat(model, xc, format, sheetId = model.getters.getActiveSheetId()) {
+export function setCellFormat(
+    model,
+    xc,
+    format,
+    sheetId = model.getters.getActiveSheetId(),
+) {
     model.dispatch("UPDATE_CELL", { ...toCartesian(xc), sheetId, format });
 }
 
 /**
  * Set the style of a cell
  */
-export function setCellStyle(model, xc, style, sheetId = model.getters.getActiveSheetId()) {
+export function setCellStyle(
+    model,
+    xc,
+    style,
+    sheetId = model.getters.getActiveSheetId(),
+) {
     model.dispatch("UPDATE_CELL", { ...toCartesian(xc), sheetId, style });
 }
 
@@ -141,7 +156,7 @@ export function addColumns(
     position,
     column,
     quantity,
-    sheetId = model.getters.getActiveSheetId()
+    sheetId = model.getters.getActiveSheetId(),
 ) {
     return model.dispatch("ADD_COLUMNS_ROWS", {
         sheetId,
@@ -157,7 +172,7 @@ export function addRows(
     position,
     row,
     quantity,
-    sheetId = model.getters.getActiveSheetId()
+    sheetId = model.getters.getActiveSheetId(),
 ) {
     return model.dispatch("ADD_COLUMNS_ROWS", {
         sheetId,
@@ -174,7 +189,11 @@ export function addRows(
  * @param {string[]} columns
  * @param {UID} sheetId
  */
-export function deleteColumns(model, columns, sheetId = model.getters.getActiveSheetId()) {
+export function deleteColumns(
+    model,
+    columns,
+    sheetId = model.getters.getActiveSheetId(),
+) {
     return model.dispatch("REMOVE_COLUMNS_ROWS", {
         sheetId,
         dimension: "COL",
@@ -188,7 +207,7 @@ export function createBasicChart(
     chartId,
     definition,
     sheetId = model.getters.getActiveSheetId(),
-    figureId = model.uuidGenerator.smallUuid()
+    figureId = model.uuidGenerator.smallUuid(),
 ) {
     model.dispatch("CREATE_CHART", {
         chartId,
@@ -218,7 +237,7 @@ export function createScorecardChart(
     model,
     chartId,
     sheetId = model.getters.getActiveSheetId(),
-    figureId = model.uuidGenerator.smallUuid()
+    figureId = model.uuidGenerator.smallUuid(),
 ) {
     model.dispatch("CREATE_CHART", {
         figureId,
@@ -244,7 +263,7 @@ export function createGaugeChart(
     model,
     chartId,
     sheetId = model.getters.getActiveSheetId(),
-    figureId = model.uuidGenerator.smallUuid()
+    figureId = model.uuidGenerator.smallUuid(),
 ) {
     model.dispatch("CREATE_CHART", {
         figureId,
@@ -346,7 +365,13 @@ export function createSheet(model, data = {}) {
     });
 }
 
-export function createCarousel(model, data = { items: [] }, carouselId, sheetId, figureData = {}) {
+export function createCarousel(
+    model,
+    data = { items: [] },
+    carouselId,
+    sheetId,
+    figureData = {},
+) {
     return model.dispatch("CREATE_CAROUSEL", {
         figureId: carouselId || model.uuidGenerator.smallUuid(),
         sheetId: sheetId || model.getters.getActiveSheetId(),
@@ -363,7 +388,7 @@ export function addChartFigureToCarousel(
     model,
     carouselId,
     chartFigureId,
-    sheetId = model.getters.getActiveSheetId()
+    sheetId = model.getters.getActiveSheetId(),
 ) {
     return model.dispatch("ADD_FIGURE_CHART_TO_CAROUSEL", {
         carouselFigureId: carouselId,

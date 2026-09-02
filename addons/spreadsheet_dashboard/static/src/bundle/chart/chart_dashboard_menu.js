@@ -6,7 +6,9 @@ const { ChartDashboardMenu } = components;
 
 patch(ChartDashboardMenu.prototype, {
     get granularityOptions() {
-        return this.env.model.getters.getAvailableChartGranularities(this.props.chartId);
+        return this.env.model.getters.getAvailableChartGranularities(
+            this.props.chartId,
+        );
     },
 
     onGranularitySelected(ev) {

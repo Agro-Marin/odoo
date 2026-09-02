@@ -1,12 +1,13 @@
 import { luxon } from "@web/core/l10n/luxon";
-import { registry } from '@web/core/registry';
+import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
 
 const today = luxon.DateTime.now();
 const pastDateFrom = today.minus({ days: 3 }).toFormat("MM/dd/yyyy");
 const pastDateTo = today.minus({ days: 2 }).toFormat("MM/dd/yyyy");
 const futureDateTo = today.plus({ days: 2 }).toFormat("MM/dd/yyyy");
-const warningText = "The allocated days cannot be used, because the allocation is set to finish in the past.";
+const warningText =
+    "The allocated days cannot be used, because the allocation is set to finish in the past.";
 
 registry.category("web_tour.tours").add("time_off_allocation_warning_tour", {
     url: "/odoo",
@@ -19,12 +20,14 @@ registry.category("web_tour.tours").add("time_off_allocation_warning_tour", {
         },
         {
             content: "Open Management menu",
-            trigger: ".o-dropdown[data-menu-xmlid='hr_holidays.menu_hr_holidays_management']",
+            trigger:
+                ".o-dropdown[data-menu-xmlid='hr_holidays.menu_hr_holidays_management']",
             run: "click",
         },
         {
             content: "Go to Allocations",
-            trigger: ".o-dropdown-item[data-menu-xmlid='hr_holidays.hr_holidays_menu_manager_approve_allocations']",
+            trigger:
+                ".o-dropdown-item[data-menu-xmlid='hr_holidays.hr_holidays_menu_manager_approve_allocations']",
             run: "click",
         },
         {
@@ -38,7 +41,8 @@ registry.category("web_tour.tours").add("time_off_allocation_warning_tour", {
             run: "click",
         },
         {
-            trigger: ".o-autocomplete--dropdown-menu > li > a[id=holiday_status_id_0_0_0]",
+            trigger:
+                ".o-autocomplete--dropdown-menu > li > a[id=holiday_status_id_0_0_0]",
             run: "click",
         },
         {

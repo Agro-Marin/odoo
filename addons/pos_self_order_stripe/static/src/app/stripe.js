@@ -114,7 +114,7 @@ export class Stripe {
         const discoveredReaders = discoverReaders.discoveredReaders;
         const findLinkedReader = discoveredReaders.find(
             (reader) =>
-                reader.serial_number == this.stripePaymentMethod.stripe_serial_number,
+                reader.serial_number === this.stripePaymentMethod.stripe_serial_number,
         );
 
         const result = await this.terminal.connectReader(findLinkedReader, {
