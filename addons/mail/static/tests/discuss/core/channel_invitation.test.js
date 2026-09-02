@@ -11,10 +11,11 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
-import { mockDate } from "@odoo/hoot-mock";
+import { Deferred, mockDate } from "@odoo/hoot-mock";
 import {
     Command,
     getService,
+    onRpc,
     serverState,
     withUser,
 } from "@web/../tests/web_test_helpers";
@@ -269,4 +270,31 @@ test("Active dialog retains focus over invite input", async () => {
     await animationFrame();
     await contains(".o-discuss-ChannelInvitation");
     await contains("button:focus", { text: "Use Camera" });
+});
+
+test("the invite search says it is loading instead of saying there is nobody", async () => {
+    const searchDone = new Deferred();
+    onRpc("res.partner", "search_for_channel_invite", async () => {
+        await searchDone;
+    });
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({
+        email: "testpartner@odoo.com",
+        name: "TestPartner",
+    });
+    pyEnv["res.users"].create({ partner_id: partnerId });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "TestChannel",
+        channel_member_ids: [Command.create({ partner_id: serverState.partnerId })],
+        channel_type: "channel",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await click(".o-mail-DiscussContent-header button[title='Invite People']");
+    // request in flight: the dialog must not claim the search came back empty
+    await contains(".o-discuss-ChannelInvitation-searchStatus .fa-spin");
+    await contains(".o-discuss-ChannelInvitation", { text: "No user found.", count: 0 });
+    searchDone.resolve();
+    await contains(".o-discuss-ChannelInvitation-selectable", { text: "TestPartner" });
+    await contains(".o-discuss-ChannelInvitation-searchStatus .fa-spin", { count: 0 });
 });

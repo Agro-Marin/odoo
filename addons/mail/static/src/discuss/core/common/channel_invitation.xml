@@ -11,9 +11,15 @@
     <t t-name="discuss.ChannelInvitation.main">
         <div class="d-flex flex-column flex-grow-1 bg-inherit o-min-height-0" t-att-class="{ 'w-100': props.hasSizeConstraints, 'px-1': !props.thread }">
             <t t-if="store.self_partner">
-                <input class="o-discuss-ChannelInvitation-search form-control lh-1 px-2 bg-view" t-att-value="searchStr" t-ref="input" t-att-placeholder="searchPlaceholder" t-on-input="onInput"/>
+                <div class="position-relative">
+                    <input class="o-discuss-ChannelInvitation-search form-control lh-1 px-2 pe-4 bg-view" t-att-value="searchStr" t-ref="input" t-att-placeholder="searchPlaceholder" t-on-input="onInput" aria-describedby="o-discuss-ChannelInvitation-searchStatus"/>
+                    <div t-if="state.hasPendingRequest" id="o-discuss-ChannelInvitation-searchStatus" class="o-discuss-ChannelInvitation-searchStatus position-absolute top-50 end-0 translate-middle-y me-2 smaller opacity-50" role="status">
+                        <i class="fa fa-spin fa-circle-o-notch" title="Loading..." aria-hidden="true"/>
+                        <span class="visually-hidden">Looking for people to invite...</span>
+                    </div>
+                </div>
                 <ul class="d-flex flex-column mx-0 pt-1 pb-0 overflow-auto o-scrollbar-thin list-group border-0 flex-grow-1" t-att-class="{ 'align-items-center justify-content-center': selectablePartners.length === 0 and state.selectableEmails.length === 0 }">
-                    <div t-if="selectablePartners.length === 0 and state.selectableEmails.length === 0" class="smaller text-muted mx-1 opacity-50">
+                    <div t-if="!state.hasPendingRequest and selectablePartners.length === 0 and state.selectableEmails.length === 0" class="smaller text-muted mx-1 opacity-50">
                         <t t-if="props.thread">No user found that is not already a member of this channel.</t>
                         <t t-else="">No user found.</t>
                     </div>
