@@ -5,12 +5,14 @@ import ast
 import functools
 import re
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from pathlib import Path
 from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from itertools import starmap
 
 import _ast_cache
 import doc_measured
@@ -31,6 +33,36 @@ class Figure(NamedTuple):
     measure: Callable[[], tuple[int, ...]]
     render: Callable[[tuple[int, ...]], tuple[str, ...]]
     tolerance: float = 0.0
+
+
+class Row(NamedTuple):
+    name: str
+    section: str
+    label: str
+    measure: Callable[[], int]
+
+
+class Table(NamedTuple):
+    name: str
+    path: Path
+    rows: tuple[Row, ...]
+
+    @property
+    def start(self) -> str:
+        return f".. {self.name}-table-start"
+
+    @property
+    def end(self) -> str:
+        return f".. {self.name}-table-end"
+
+
+class Drift(NamedTuple):
+    name: str
+    page: str
+    detail: str
+
+    def __str__(self) -> str:
+        return f"{self.name} in {self.page}: {self.detail}"
 
 
 def _plain(values: tuple[int, ...]) -> tuple[str, ...]:
@@ -407,36 +439,9 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         _plain,
     ),
     Figure(
-        "vocabulary_population",
-        GUIDELINES,
-        re.compile(r"population\s+is\s+the\s+(\d[\d,]*)\s+non-test\s+methods"),
-        lambda: (naming_vocabulary.census().methods,),
-        _grouped,
-    ),
-    Figure(
-        "vocabulary_drift",
-        GUIDELINES,
-        re.compile(
-            r"many\s+ways:\s+(\d[\d,]*)\s+stems\s+are\s+written[\s\S]{0,90}?"
-            r"one\s+semantic\s+family,\s+and\s+(\d[\d,]*)\s+groups"
-        ),
-        lambda: (
-            naming_vocabulary.census().family_stems,
-            naming_vocabulary.census().identical_bodies,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "get_definitions",
-        GUIDELINES,
-        re.compile(r"is\s+not\s+a\s+default\.\*\*\s+At\s+(\d[\d,]*)\s+definitions"),
-        lambda: (naming_vocabulary.census().get,),
-        _grouped,
-    ),
-    Figure(
         "get_share",
         GUIDELINES,
-        re.compile(r"definitions\s+it\s+is\s+([\d.]+)\s*%"),
+        re.compile(r"is\s+not\s+a\s+default\.\*\*\s+It\s+is\s+([\d.]+)\s*%"),
         lambda: (round(naming_vocabulary.census().get_share * 10),),
         _tenths,
     ),
@@ -468,27 +473,6 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         _grouped,
     ),
     Figure(
-        "ungoverned_populations",
-        GUIDELINES,
-        re.compile(
-            r"\*\*module\s+level\*\*\s+--\s+\*\*(\d[\d,]*)\*\*\s+of\s+them[\s\S]{0,160}?"
-            r"of\s+which\s+there\s+are\s+\*\*(\d[\d,]*)\*\*\s*\n?\s*across\s+\*\*(\d[\d,]*)\*\*\s+classes"
-        ),
-        lambda: (
-            naming_vocabulary.census().module_level_helpers,
-            naming_vocabulary.census().helper_class_methods,
-            naming_vocabulary.census().helper_classes,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "nested_helpers",
-        GUIDELINES,
-        re.compile(r"\*\*(\d[\d,]*)\*\*\s+of\s+them\s+sit\s+on\s+model\s+methods"),
-        lambda: (naming_vocabulary.census().nested_helpers,),
-        _grouped,
-    ),
-    Figure(
         "nested_backlog",
         GUIDELINES,
         re.compile(
@@ -499,13 +483,6 @@ _MEASUREMENTS: tuple[Figure, ...] = (
             naming_vocabulary.census().nested_abolished,
             naming_vocabulary.census().nested_reserved,
         ),
-        _grouped,
-    ),
-    Figure(
-        "calculate_family",
-        GUIDELINES,
-        re.compile(r"\*\*(\d[\d,]*)\*\*\s+model\s+methods\s+still\s+wear\s+it"),
-        lambda: (naming_vocabulary.census().calculate,),
         _grouped,
     ),
     Figure(
@@ -535,68 +512,6 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         _grouped,
     ),
     Figure(
-        "find_total",
-        GUIDELINES,
-        re.compile(
-            r"the\s+\*\*(\d[\d,]*)\*\*\s+``_find_\*``\s+methods\s+that\s*\n?\s*remain"
-        ),
-        lambda: (naming_vocabulary.census().find_total,),
-        _grouped,
-    ),
-    Figure(
-        "find_orm_read",
-        GUIDELINES,
-        re.compile(r"\*\*(\d[\d,]*)\*\*\s+perform\s+an\s+ORM\s+read"),
-        lambda: (naming_vocabulary.census().find_orm_read,),
-        _grouped,
-    ),
-    Figure(
-        "or_create_conversion",
-        GUIDELINES,
-        re.compile(
-            r"\*\*(\d[\d,]*)\*\*\s+methods\s+here\s+still\s+spell\s+it\s+``_find_``,\s+against\s*\n?\s*"
-            r"\*\*(\d[\d,]*)\*\*\s+spelling\s+it\s+``_get_``"
-        ),
-        lambda: (
-            naming_vocabulary.census().find_or_create,
-            naming_vocabulary.census().get_or_create,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "find_other",
-        GUIDELINES,
-        re.compile(r"\*\*(\d[\d,]*)\*\*\s+do\s+something\s+else\s+entirely"),
-        lambda: (naming_vocabulary.census().find_other,),
-        _grouped,
-    ),
-    Figure(
-        "resolve_total",
-        GUIDELINES,
-        re.compile(
-            r"at\s+\*\*(\d[\d,]*)\*\*\s+definitions\s+here\s+against\s+the\s+size\s+of\s+"
-            r"``_find_``\s+--\s+\*\*(\d[\d,]*)\*\*"
-        ),
-        lambda: (
-            naming_vocabulary.census().resolve_total,
-            naming_vocabulary.census().find_total,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "prepare_writing",
-        GUIDELINES,
-        re.compile(
-            r"\*\*(\d[\d,]*)\*\*\s+of\s+this\s+repository's\s+\*\*(\d[\d,]*)\*\*\s+"
-            r"``_prepare_\*``\s+definitions"
-        ),
-        lambda: (
-            naming_vocabulary.census().prepare_writing,
-            naming_vocabulary.census().prepare,
-        ),
-        _grouped,
-    ),
-    Figure(
         "raise_noreturn",
         GUIDELINES,
         re.compile(
@@ -606,116 +521,6 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         lambda: (
             naming_vocabulary.census().raise_noreturn,
             naming_vocabulary.census().raise_total,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "raise_unconditional",
-        GUIDELINES,
-        re.compile(
-            r"unconditional\s+raiser,\s+\*\*(\d[\d,]*)\*\*\s+of\s+those\s+\*\*(\d[\d,]*)\*\*"
-        ),
-        lambda: (
-            naming_vocabulary.census().raise_unconditional,
-            naming_vocabulary.census().raise_total,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "converter_idiom",
-        GUIDELINES,
-        re.compile(
-            r"\*\*(\d[\d,]*)\*\*\s+definitions\s+under\s+\*\*(\d[\d,]*)\*\*\s+names\s+are\s+spelled"
-        ),
-        lambda: (
-            naming_vocabulary.census().converter_idiom,
-            naming_vocabulary.census().converter_idiom_names,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "stored_code_binding",
-        GUIDELINES,
-        re.compile(
-            r"\*\*(\d[\d,]*)\*\*\s+distinct\s+private\s+method\s+names\s*\n?\s*"
-            r"are\s+reached\s+that\s+way\s+from\s+\*\*(\d[\d,]*)\*\*\s+code\s+blocks\s+in\s+"
-            r"\*\*(\d[\d,]*)\*\*\s+shipped\s+data\s+files"
-        ),
-        lambda: (
-            naming_vocabulary.census().stored_code_names,
-            naming_vocabulary.census().stored_code_blocks,
-            naming_vocabulary.census().stored_code_files,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "sync_family",
-        GUIDELINES,
-        re.compile(
-            r"had\s+never\s+named:\s+\*\*(\d[\d,]*)\*\*\s+"
-            r"definitions\s+spell\s+it\s+``_sync_\*``\s+and\s+\*\*(\d[\d,]*)\*\*\s+"
-            r"spell\s+it\s+``_synchronize_\*``,\s+against\s+"
-            r"``_update_\*``'s\s+\*\*(\d[\d,]*)\*\*"
-        ),
-        lambda: (
-            naming_vocabulary.census().sync,
-            naming_vocabulary.census().synchronize,
-            naming_vocabulary.census().update,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "collection_head_order",
-        GUIDELINES,
-        re.compile(
-            r"across\s+\*\*(\d[\d,]*)\*\*\s+of\s+them\s+this\s+repository\s+spells\s+"
-            r"\*\*(\d[\d,]*)\*\*\s*\n?\s*definitions\s+head-first\s+against\s+"
-            r"\*\*(\d[\d,]*)\*\*\s+the\s+other\s+way"
-        ),
-        lambda: (
-            naming_vocabulary.census().heads_searched,
-            naming_vocabulary.census().heads_head_first,
-            naming_vocabulary.census().heads_tail_first,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "fields_family_order",
-        GUIDELINES,
-        re.compile(
-            r"\*\*(\d[\d,]*)\*\*\s+definitions\s+under\s+\*\*(\d[\d,]*)\*\*\s+names\s+in\s+this\s*\n?\s*"
-            r"repository\s+spell\s+it\s*\n?\s*head-first\s+and\s+\*\*(\d[\d,]*)\*\*\s+spell\s+it\s+the\s+other\s+way"
-        ),
-        lambda: (
-            naming_vocabulary.census().fields_family_head_first,
-            naming_vocabulary.census().fields_family_names,
-            naming_vocabulary.census().fields_family_tail_first,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "ondelete_family",
-        GUIDELINES,
-        re.compile(
-            r"opinion,\s+over\s+\*\*(\d[\d,]*)\*\*\s*\n?\s*methods\.[\s\S]{0,900}?"
-            r"at\s+\*\*(\d[\d,]*)\*\*\s+of\s+the"
-        ),
-        lambda: (
-            naming_vocabulary.census().ondelete_hooks,
-            naming_vocabulary.census().ondelete_canonical,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "onchange_field_naming",
-        GUIDELINES,
-        re.compile(
-            r"\*\*(\d[\d,]*)\*\*\s+of\s+\*\*(\d[\d,]*)\*\*\s+single-field\s*\n?\s*"
-            r"onchange\s+hooks\s+are\s+spelled\s+for\s+their\s+field"
-        ),
-        lambda: (
-            naming_vocabulary.census().onchange_named_for_field,
-            naming_vocabulary.census().onchange_single,
         ),
         _grouped,
     ),
@@ -739,116 +544,6 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         _grouped,
     ),
     Figure(
-        "constrains_family",
-        GUIDELINES,
-        re.compile(
-            r"fourth\s+and\s+largest,\s+at\s+\*\*(\d[\d,]*)\*\*\s+hooks\."
-            r"[\s\S]{0,120}?\*\*(\d[\d,]*)\*\*\s+already\s+carry"
-            r"[\s\S]{0,400}?That\s+leaves\s+\*\*(\d[\d,]*)\*\*\s+spelled\s+with"
-        ),
-        lambda: (
-            naming_vocabulary.census().constrains_hooks,
-            naming_vocabulary.census().constrains_canonical,
-            naming_vocabulary.census().constrains_unruled,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "constrains_field_naming",
-        GUIDELINES,
-        re.compile(
-            r"\*\*(\d[\d,]*)\*\*\s+bind\s+exactly\s+one\s+field\s+and\s+only\s+"
-            r"\*\*(\d[\d,]*)\*\*\s+are\s+``_check_<field>``"
-            r"[\s\S]{0,400}?\*\*(\d[\d,]*)\*\*\s+multi-field\s+"
-            r"constraints\s+are\s+named\s+for\s+exactly\s+one"
-        ),
-        lambda: (
-            naming_vocabulary.census().constrains_single,
-            naming_vocabulary.census().constrains_named_for_field,
-            naming_vocabulary.census().constrains_multi_named_for_one,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "infix_abolished",
-        GUIDELINES,
-        re.compile(
-            r"Backlog:\s+\*\*(\d[\d,]*)\*\*\s+model\s+methods\s+put\s+an\s+abolished\s+verb"
-        ),
-        lambda: (naming_vocabulary.census().infix_abolished,),
-        _grouped,
-    ),
-    Figure(
-        "generate_family",
-        GUIDELINES,
-        re.compile(
-            r"come\s+to\s+\*\*(\d[\d,]*)\*\*\s+definitions\s+between\s+them;\s+"
-            r"``_generate_``\s+alone\s+is\s+\*\*(\d[\d,]*)\*\*"
-        ),
-        lambda: (
-            naming_vocabulary.census().assemble_verbs,
-            naming_vocabulary.census().generate,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "validation_family",
-        GUIDELINES,
-        re.compile(
-            r"``_check_\*``\s+\((\d[\d,]*)\s+definitions\)[\s\S]{0,110}?"
-            r"``_validate_``\s+\((\d[\d,]*)\)[\s\S]{0,90}?"
-            r"\((\d[\d,]*)\s+together\)"
-        ),
-        lambda: (
-            naming_vocabulary.census().check,
-            naming_vocabulary.census().validate,
-            naming_vocabulary.census().validate_synonyms,
-        ),
-        _grouped,
-    ),
-    Figure(
-        "exec_verbs",
-        GUIDELINES,
-        re.compile(r"``_handle_``\s+\((\d[\d,]*)\s+definitions\)"),
-        lambda: (naming_vocabulary.census().exec_verbs,),
-        _grouped,
-    ),
-    Figure(
-        "set_update_split",
-        GUIDELINES,
-        re.compile(
-            r"``_set_\*``\s+\((\d[\d,]*)\s+definitions\)\s+and\s+"
-            r"``_update_\*``\s+\((\d[\d,]*)\)"
-        ),
-        lambda: (naming_vocabulary.census().set_, naming_vocabulary.census().update),
-        _grouped,
-    ),
-    Figure(
-        "hook_purity",
-        GUIDELINES,
-        re.compile(
-            r"``\[ratchet\s+hookpurity\]``\.\s+(\d[\d,]*)\s+are\s+not\s+hooks\s+at\s+all"
-        ),
-        lambda: (len(field_hook_purity.measure()),),
-        _grouped,
-    ),
-    Figure(
-        "unbound_hook_prefixes",
-        GUIDELINES,
-        re.compile(
-            r"\*\*(\d[\d,]*)\*\*\s+names,\s+at\s+\*\*(\d[\d,]*)\*\*\s+definitions"
-        ),
-        field_hook_naming.unbound_prefixes,
-        _grouped,
-    ),
-    Figure(
-        "inverse_spellings",
-        GUIDELINES,
-        re.compile(r"(\d[\d,]*)\s+against\s+(\d[\d,]*)\s+now\s+that\s+the\s+count"),
-        field_hook_naming.inverse_spellings,
-        _grouped,
-    ),
-    Figure(
         "dispatch_names",
         GUIDELINES,
         re.compile(
@@ -856,23 +551,6 @@ _MEASUREMENTS: tuple[Figure, ...] = (
             r"repository's\s+(\d+(?:,\d{3})*)"
         ),
         dispatch_names,
-        _grouped,
-    ),
-    Figure(
-        "duck_typed_hooks",
-        GUIDELINES,
-        re.compile(
-            r"(\d[\d,]*)\s+classes\s+in\s+this\s+repository\s+implement\s+it"
-            r"[\s\S]{0,180}?at\s+(\d[\d,]*)\s+and\s+(\d[\d,]*)\."
-        ),
-        duck_typed_hooks,
-        _grouped,
-    ),
-    Figure(
-        "field_hook_exemptions",
-        GUIDELINES,
-        re.compile(r"\*\*(\d[\d,]*)\*\*\s+hook\s+is\s+exempt\s+today"),
-        field_hook_exemptions,
         _grouped,
     ),
     Figure(
@@ -884,15 +562,6 @@ _MEASUREMENTS: tuple[Figure, ...] = (
             r"``field``'s\s+\*\*(\d[\d,]*)\*\*\s+``Field``\s+and\s+\*\*(\d[\d,]*)\*\*\s+``str``"
         ),
         field_param_typing,
-        _grouped,
-    ),
-    Figure(
-        "post_overload",
-        GUIDELINES,
-        re.compile(
-            r"is\s+overloaded\*\*\s+``\[review\]``\.\s+(\d[\d,]*)\s+definitions"
-        ),
-        lambda: (naming_vocabulary.census().post,),
         _grouped,
     ),
 )
@@ -914,6 +583,354 @@ either checks or updates, and `update` rewrites the documents, never the code
 being measured.
 """
 
+_census = naming_vocabulary.census
+_unbound = functools.cache(field_hook_naming.unbound_prefixes)
+_inverse = functools.cache(field_hook_naming.inverse_spellings)
+_duck_typed = functools.cache(duck_typed_hooks)
+_exemptions = functools.cache(field_hook_exemptions)
+
+_CENSUS_ROWS: tuple[Row, ...] = (
+    Row(
+        "hook_purity",
+        "§2.4.1",
+        "Field hooks the declaring model also calls on ``self``",
+        lambda: len(field_hook_purity.measure()),
+    ),
+    Row(
+        "field_hook_exemptions",
+        "§2.4.1",
+        "Field hooks exempt from the dedication test",
+        lambda: _exemptions()[0],
+    ),
+    Row(
+        "unbound_hook_names",
+        "§2.4.1",
+        "Names wearing a hook prefix with no binding",
+        lambda: _unbound()[0],
+    ),
+    Row(
+        "unbound_hook_definitions",
+        "§2.4.1",
+        "… definitions under those names",
+        lambda: _unbound()[1],
+    ),
+    Row(
+        "onchange_single",
+        "§2.4.2",
+        "Single-field ``@api.onchange`` hooks",
+        lambda: _census().onchange_single,
+    ),
+    Row(
+        "onchange_named_for_field",
+        "§2.4.2",
+        "… spelled ``_onchange_<field>``",
+        lambda: _census().onchange_named_for_field,
+    ),
+    Row(
+        "ondelete_hooks",
+        "§2.4.2",
+        "``@api.ondelete`` hooks",
+        lambda: _census().ondelete_hooks,
+    ),
+    Row(
+        "ondelete_canonical",
+        "§2.4.2",
+        "… spelled ``_unlink_except_*``",
+        lambda: _census().ondelete_canonical,
+    ),
+    Row(
+        "constrains_hooks",
+        "§2.4.2",
+        "``@api.constrains`` hooks",
+        lambda: _census().constrains_hooks,
+    ),
+    Row(
+        "constrains_canonical",
+        "§2.4.2",
+        "… spelled ``_check_*``",
+        lambda: _census().constrains_canonical,
+    ),
+    Row(
+        "constrains_unruled",
+        "§2.4.2",
+        "… with a first token carrying no rule",
+        lambda: _census().constrains_unruled,
+    ),
+    Row(
+        "constrains_single",
+        "§2.4.2",
+        "… binding exactly one field",
+        lambda: _census().constrains_single,
+    ),
+    Row(
+        "constrains_named_for_field",
+        "§2.4.2",
+        "… of those, spelled ``_check_<field>``",
+        lambda: _census().constrains_named_for_field,
+    ),
+    Row(
+        "constrains_multi_named_for_one",
+        "§2.4.2",
+        "Multi-field constraints named for one trigger",
+        lambda: _census().constrains_multi_named_for_one,
+    ),
+    Row(
+        "vocabulary_population",
+        "§2.4.3",
+        "Non-test methods declared on a model class",
+        lambda: _census().methods,
+    ),
+    Row(
+        "family_stems",
+        "§2.4.3",
+        "Stems spelled with two or more verbs of one family",
+        lambda: _census().family_stems,
+    ),
+    Row(
+        "identical_bodies",
+        "§2.4.3",
+        "Groups of methods sharing a byte-identical body",
+        lambda: _census().identical_bodies,
+    ),
+    Row(
+        "infix_abolished",
+        "§2.4.4",
+        "Model methods with an abolished verb behind a noun",
+        lambda: _census().infix_abolished,
+    ),
+    Row(
+        "fields_family_head_first",
+        "§2.4.4",
+        "``fields`` family: definitions spelled head-first",
+        lambda: _census().fields_family_head_first,
+    ),
+    Row(
+        "fields_family_names",
+        "§2.4.4",
+        "``fields`` family: distinct names spelled head-first",
+        lambda: _census().fields_family_names,
+    ),
+    Row(
+        "fields_family_tail_first",
+        "§2.4.4",
+        "``fields`` family: definitions spelled tail-first",
+        lambda: _census().fields_family_tail_first,
+    ),
+    Row(
+        "heads_searched",
+        "§2.4.4",
+        "Other collection heads the census searches",
+        lambda: _census().heads_searched,
+    ),
+    Row(
+        "heads_head_first",
+        "§2.4.4",
+        "Other heads: definitions spelled head-first",
+        lambda: _census().heads_head_first,
+    ),
+    Row(
+        "heads_tail_first",
+        "§2.4.4",
+        "Other heads: definitions spelled tail-first",
+        lambda: _census().heads_tail_first,
+    ),
+    Row(
+        "converter_idiom",
+        "§2.4.5",
+        "``X_to_Y`` converter definitions",
+        lambda: _census().converter_idiom,
+    ),
+    Row(
+        "converter_idiom_names",
+        "§2.4.5",
+        "… distinct names",
+        lambda: _census().converter_idiom_names,
+    ),
+    Row("get_definitions", "§2.4.7", "``_get_*`` definitions", lambda: _census().get),
+    Row(
+        "assemble_verbs",
+        "§2.4.7",
+        "Abolished payload verbs, the four between them",
+        lambda: _census().assemble_verbs,
+    ),
+    Row(
+        "generate",
+        "§2.4.7",
+        "``_generate_*`` definitions",
+        lambda: _census().generate,
+    ),
+    Row(
+        "calculate",
+        "§2.4.7",
+        "``_calculate_*`` model methods",
+        lambda: _census().calculate,
+    ),
+    Row("prepare", "§2.4.7", "``_prepare_*`` definitions", lambda: _census().prepare),
+    Row(
+        "prepare_writing",
+        "§2.4.7",
+        "… calling ``create()``, ``write()`` or ``unlink()``",
+        lambda: _census().prepare_writing,
+    ),
+    Row("check", "§2.4.8", "``_check_*`` definitions", lambda: _census().check),
+    Row(
+        "validate",
+        "§2.4.8",
+        "``_validate_*`` definitions",
+        lambda: _census().validate,
+    ),
+    Row(
+        "validate_synonyms",
+        "§2.4.8",
+        "``_verify_``, ``_ensure_`` and ``_control_`` together",
+        lambda: _census().validate_synonyms,
+    ),
+    Row(
+        "exec_verbs",
+        "§2.4.9",
+        "Execution-verb definitions, ``_do_`` through ``_handle_``",
+        lambda: _census().exec_verbs,
+    ),
+    Row(
+        "raise_total",
+        "§2.4.10",
+        "``_raise_*`` model methods",
+        lambda: _census().raise_total,
+    ),
+    Row(
+        "raise_unconditional",
+        "§2.4.10",
+        "… raising unconditionally",
+        lambda: _census().raise_unconditional,
+    ),
+    Row("find_total", "§2.4.11", "``_find_*`` methods", lambda: _census().find_total),
+    Row(
+        "find_orm_read",
+        "§2.4.11",
+        "… performing an ORM read",
+        lambda: _census().find_orm_read,
+    ),
+    Row(
+        "find_other",
+        "§2.4.11",
+        "… doing something else entirely",
+        lambda: _census().find_other,
+    ),
+    Row(
+        "find_or_create",
+        "§2.4.11",
+        "``_find_or_create_*`` methods",
+        lambda: _census().find_or_create,
+    ),
+    Row(
+        "get_or_create",
+        "§2.4.11",
+        "``_get_or_create_*`` methods",
+        lambda: _census().get_or_create,
+    ),
+    Row(
+        "resolve_total",
+        "§2.4.11",
+        "``_resolve_*`` definitions",
+        lambda: _census().resolve_total,
+    ),
+    Row("set_", "§2.4.12", "``_set_*`` definitions", lambda: _census().set_),
+    Row("update", "§2.4.12", "``_update_*`` definitions", lambda: _census().update),
+    Row(
+        "inverse_canonical",
+        "§2.4.12",
+        "``inverse=`` targets spelled ``_inverse_<field>``",
+        lambda: _inverse()[0],
+    ),
+    Row(
+        "inverse_setter",
+        "§2.4.12",
+        "``inverse=`` targets spelled ``_set_*``",
+        lambda: _inverse()[1],
+    ),
+    Row("sync", "§2.4.12", "``_sync_*`` definitions", lambda: _census().sync),
+    Row(
+        "synchronize",
+        "§2.4.12",
+        "``_synchronize_*`` definitions",
+        lambda: _census().synchronize,
+    ),
+    Row("post", "§2.4.12", "``_post_*`` definitions", lambda: _census().post),
+    Row(
+        "module_level_helpers",
+        "§2.4.13",
+        "Module-level functions under ``models/`` and ``wizard/``",
+        lambda: _census().module_level_helpers,
+    ),
+    Row(
+        "helper_class_methods",
+        "§2.4.13",
+        "Methods on plain classes in model files",
+        lambda: _census().helper_class_methods,
+    ),
+    Row(
+        "helper_classes",
+        "§2.4.13",
+        "… such classes",
+        lambda: _census().helper_classes,
+    ),
+    Row(
+        "nested_helpers",
+        "§2.4.13",
+        "Functions nested inside model methods",
+        lambda: _census().nested_helpers,
+    ),
+    Row(
+        "stored_code_names",
+        "§2.4.14",
+        "Private method names reached from stored Python",
+        lambda: _census().stored_code_names,
+    ),
+    Row(
+        "stored_code_blocks",
+        "§2.4.14",
+        "… code blocks reaching them",
+        lambda: _census().stored_code_blocks,
+    ),
+    Row(
+        "stored_code_files",
+        "§2.4.14",
+        "… shipped data files holding those blocks",
+        lambda: _census().stored_code_files,
+    ),
+    Row(
+        "report_values_implementers",
+        "§2.4.14",
+        "Classes implementing ``_get_report_values``",
+        lambda: _duck_typed()[0],
+    ),
+    Row(
+        "get_values_implementers",
+        "§2.4.14",
+        "… ``get_values``",
+        lambda: _duck_typed()[1],
+    ),
+    Row(
+        "set_values_implementers",
+        "§2.4.14",
+        "… ``set_values``",
+        lambda: _duck_typed()[2],
+    ),
+)
+
+CENSUS = Table(
+    "census",
+    GUIDELINES,
+    tuple(row._replace(measure=functools.cache(row.measure)) for row in _CENSUS_ROWS),
+)
+
+TABLES: tuple[Table, ...] = (CENSUS,)
+
+ITEMS: tuple[Figure | Table, ...] = (*FIGURES, *TABLES)
+
+_HEADER = ("Section", "Population", "Count")
+_ROW = re.compile(r"^(§\S+)\s{2,}(.+?)\s{2,}([\d,]+)$", re.MULTILINE)
+
 
 def _match(figure: Figure) -> re.Match[str]:
     match = figure.pattern.search(figure.path.read_text(encoding="utf-8"))
@@ -926,68 +943,239 @@ def _match(figure: Figure) -> re.Match[str]:
     return match
 
 
+def _block(table: Table) -> re.Match[str]:
+    pattern = re.compile(
+        rf"^{re.escape(table.start)}$.*?^{re.escape(table.end)}$",
+        re.MULTILINE | re.DOTALL,
+    )
+    match = pattern.search(table.path.read_text(encoding="utf-8"))
+    if match is None:
+        raise LookupError(
+            f"{table.name}: {table.path.name} holds no block between "
+            f"{table.start!r} and {table.end!r}. The table is no longer checked; "
+            f"restore the markers or drop the table from TABLES."
+        )
+    return match
+
+
+def render_table(table: Table, values: dict[str, int]) -> str:
+    cells = [(row.section, row.label, f"{values[row.name]:,}") for row in table.rows]
+    widths = [max(len(cell[i]) for cell in (_HEADER, *cells)) for i in range(3)]
+    rule = "  ".join("=" * width for width in widths)
+
+    def line(section: str, label: str, count: str) -> str:
+        return f"{section:<{widths[0]}}  {label:<{widths[1]}}  {count:>{widths[2]}}"
+
+    return "\n".join(
+        (
+            table.start,
+            "",
+            rule,
+            line(*_HEADER),
+            rule,
+            *starmap(line, cells),
+            rule,
+            "",
+            table.end,
+        )
+    )
+
+
+def _stated_rows(block: str) -> dict[tuple[str, str], str]:
+    return {(section, label): count for section, label, count in _ROW.findall(block)}
+
+
 def figures_for(
-    directory: Path, figures: Sequence[Figure] = FIGURES
-) -> tuple[Figure, ...]:
+    directory: Path, figures: Sequence[Figure | Table] = FIGURES
+) -> tuple[Figure | Table, ...]:
     return tuple(f for f in figures if directory in f.path.parents)
 
 
-def check(figures: Sequence[Figure] = FIGURES) -> list[str]:
-    problems = []
-    for figure in figures:
-        stated = _match(figure).groups()
-        measured = figure.measure()
-        if figure.tolerance:
-            fresh = all(
-                _within(s, m, figure.tolerance)
-                for s, m in zip(stated, measured, strict=True)
-            )
-        else:
-            fresh = tuple(stated) == figure.render(measured)
-        if not fresh:
-            problems.append(
-                f"{figure.name} in {figure.path.name}: states "
-                f"{', '.join(stated)}, measured "
-                f"{', '.join(figure.render(measured))}"
-            )
-    return problems
-
-
-def update(figures: Sequence[Figure] = FIGURES) -> list[str]:
-    changed = []
-    for figure in figures:
-        raw = figure.path.read_text(encoding="utf-8")
-        match = _match(figure)
-        measured = figure.measure()
-        if figure.tolerance and all(
+def _figure_drifts(figure: Figure) -> list[Drift]:
+    stated = _match(figure).groups()
+    measured = figure.measure()
+    if figure.tolerance:
+        fresh = all(
             _within(s, m, figure.tolerance)
-            for s, m in zip(match.groups(), measured, strict=True)
-        ):
-            continue
-        expected = figure.render(measured)
-        text = raw
-        for index, value in reversed(list(enumerate(expected, start=1))):
-            start, end = match.span(index)
-            text = text[:start] + value + text[end:]
-        if text != raw:
-            figure.path.write_text(text, encoding="utf-8")
-            changed.append(f"{figure.name}: {', '.join(expected)}")
+            for s, m in zip(stated, measured, strict=True)
+        )
+    else:
+        fresh = tuple(stated) == figure.render(measured)
+    if fresh:
+        return []
+    return [
+        Drift(
+            figure.name,
+            figure.path.name,
+            f"states {', '.join(stated)}, measured "
+            f"{', '.join(figure.render(measured))}",
+        )
+    ]
+
+
+def _table_drifts(table: Table) -> list[Drift]:
+    block = _block(table).group(0)
+    stated = _stated_rows(block)
+    measured = {row.name: row.measure() for row in table.rows}
+    drifts = []
+    for row in table.rows:
+        rendered = f"{measured[row.name]:,}"
+        if (row.section, row.label) not in stated:
+            drifts.append(
+                Drift(
+                    f"{table.name}.{row.name}",
+                    table.path.name,
+                    f"no row labelled {row.label!r}; run --update {table.name}",
+                )
+            )
+        elif stated[row.section, row.label] != rendered:
+            drifts.append(
+                Drift(
+                    f"{table.name}.{row.name}",
+                    table.path.name,
+                    f"states {stated[row.section, row.label]}, measured {rendered}",
+                )
+            )
+    if not drifts and block != render_table(table, measured):
+        drifts.append(
+            Drift(
+                table.name,
+                table.path.name,
+                f"the block is not in its generated form; run --update {table.name}",
+            )
+        )
+    return drifts
+
+
+def drifts(items: Sequence[Figure | Table] = ITEMS) -> list[Drift]:
+    found: list[Drift] = []
+    for item in items:
+        if isinstance(item, Table):
+            found.extend(_table_drifts(item))
+        else:
+            found.extend(_figure_drifts(item))
+    return found
+
+
+def check(items: Sequence[Figure | Table] = ITEMS) -> list[str]:
+    return [str(drift) for drift in drifts(items)]
+
+
+def check_by_page(items: Sequence[Figure | Table] = ITEMS) -> dict[str, list[str]]:
+    by_page: dict[str, list[str]] = {}
+    for drift in drifts(items):
+        by_page.setdefault(drift.page, []).append(f"{drift.name}: {drift.detail}")
+    return by_page
+
+
+def _update_figure(figure: Figure) -> list[str]:
+    raw = figure.path.read_text(encoding="utf-8")
+    match = _match(figure)
+    measured = figure.measure()
+    if figure.tolerance and all(
+        _within(s, m, figure.tolerance)
+        for s, m in zip(match.groups(), measured, strict=True)
+    ):
+        return []
+    expected = figure.render(measured)
+    text = raw
+    for index, value in reversed(list(enumerate(expected, start=1))):
+        start, end = match.span(index)
+        text = text[:start] + value + text[end:]
+    if text == raw:
+        return []
+    figure.path.write_text(text, encoding="utf-8")
+    return [f"{figure.name}: {', '.join(expected)}"]
+
+
+def _update_table(table: Table, rows: Collection[str] | None) -> list[str]:
+    raw = table.path.read_text(encoding="utf-8")
+    match = _block(table)
+    stated = _stated_rows(match.group(0))
+    values: dict[str, int] = {}
+    changed = []
+    for row in table.rows:
+        kept = stated.get((row.section, row.label))
+        if rows is None or row.name in rows or kept is None:
+            values[row.name] = row.measure()
+            if kept != f"{values[row.name]:,}":
+                changed.append(f"{table.name}.{row.name}: {values[row.name]:,}")
+        else:
+            values[row.name] = int(kept.replace(",", ""))
+    rendered = render_table(table, values)
+    if rendered == match.group(0):
+        return []
+    table.path.write_text(
+        raw[: match.start()] + rendered + raw[match.end() :], encoding="utf-8"
+    )
+    return changed or [f"{table.name}: block rewritten in its generated form"]
+
+
+def update(
+    items: Sequence[Figure | Table] = ITEMS, rows: Collection[str] | None = None
+) -> list[str]:
+    changed: list[str] = []
+    for item in items:
+        if isinstance(item, Table):
+            changed.extend(_update_table(item, rows))
+        else:
+            changed.extend(_update_figure(item))
     return changed
 
 
-def main() -> int:
+def select(
+    names: Sequence[str], items: Sequence[Figure | Table] = ITEMS
+) -> tuple[list[Figure | Table], frozenset[str] | None]:
+    by_name = {item.name: item for item in items}
+    row_tables = {
+        row.name: table
+        for table in items
+        if isinstance(table, Table)
+        for row in table.rows
+    }
+    chosen: list[Figure | Table] = []
+    rows: set[str] = set()
+    whole_table = False
+    for name in names:
+        if name in by_name:
+            item = by_name[name]
+            whole_table = whole_table or isinstance(item, Table)
+        elif name in row_tables:
+            item = row_tables[name]
+            rows.add(name)
+        else:
+            known = sorted((*by_name, *row_tables))
+            raise LookupError(
+                f"{name!r} names no figure, table or table row; known names: "
+                + ", ".join(known)
+            )
+        if item not in chosen:
+            chosen.append(item)
+    return chosen, (None if whole_table or not rows else frozenset(rows))
+
+
+def main(
+    argv: Sequence[str] | None = None, items: Sequence[Figure | Table] = ITEMS
+) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
-    parser.add_argument("--update", action="store_true")
-    args = parser.parse_args()
-    if args.update:
-        changed = update()
+    parser.add_argument("--update", nargs="*", metavar="NAME")
+    args = parser.parse_args(argv)
+    if args.update is not None:
+        try:
+            chosen, rows = select(args.update, items) if args.update else (items, None)
+        except LookupError as exc:
+            print(exc, file=sys.stderr)
+            return 2
+        changed = update(chosen, rows)
         print("\n".join(changed) if changed else "already fresh")
         return 0
-    problems = check()
-    for problem in problems:
-        print(problem)
-    return 1 if (problems and args.check) else 0
+    by_page = check_by_page(items)
+    for page, problems in by_page.items():
+        print(page)
+        for problem in problems:
+            print(f"  {problem}")
+    return 1 if (by_page and args.check) else 0
 
 
 if __name__ == "__main__":
