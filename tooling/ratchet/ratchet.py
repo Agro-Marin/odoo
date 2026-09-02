@@ -378,6 +378,7 @@ def _list_baselines(*, as_json: bool, notes: bool = False) -> int:
                         "predates_root": bool(measured_at)
                         and not measured_root
                         and bool(gate_sibling(path.stem)),
+                        "unstamped": not measured_at,
                     }
                 )
             except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -399,6 +400,10 @@ def _list_baselines(*, as_json: bool, notes: bool = False) -> int:
                 # The stamp is an odoo commit and the count was taken over a
                 # sibling: it resolves cleanly in the wrong repository.
                 flag = "  STAMP-PREDATES-ROOT"
+            elif row["unstamped"]:
+                # No stamp means no freshness check of any kind can run: the
+                # row is unfalsifiable, which is not the same as verified.
+                flag = "  UNSTAMPED"
             elif row["unchecked"]:
                 # Unknowable is not wrong, so this is deliberately not
                 # ORPHANED-BASE -- but it is not clean either, and rendering it
@@ -431,6 +436,14 @@ def _list_baselines(*, as_json: bool, notes: bool = False) -> int:
                 f"Their stamp is an odoo commit, so it resolves in the wrong "
                 f"repository and says nothing about the tree that was measured. "
                 f"The next --update --root <sibling> records the sibling's commit."
+            )
+        unstamped = [r["gate"] for r in rows if r["unstamped"]]
+        if unstamped:
+            print(
+                f"\n{len(unstamped)} floor(s) carry no measured_at at all: "
+                f"{', '.join(unstamped)}.\n"
+                f"Nothing can check their freshness; they are unverified, not "
+                f"clean. The next --update stamps each."
             )
         unchecked = [r["gate"] for r in rows if r["unchecked"]]
         if unchecked:

@@ -195,6 +195,15 @@ class ProvenanceTests(unittest.TestCase):
         self.assertEqual(code, EXIT_OK)
         ancestor.assert_called_once_with("ent1234", "enterprise")
 
+    def test_a_floor_with_no_stamp_is_rendered_unstamped_not_clean(self):
+        (self.dir / "mypy.json").write_text('{"count": 5, "note": "n"}\n')
+        code, out, _ = self._run(["--list"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("UNSTAMPED", out)
+        self.assertIn("unverified, not clean", out)
+        self.assertNotIn("ORPHANED-BASE", out)
+        self.assertNotIn("UNCHECKED", out)
+
     def test_a_sibling_stamp_without_a_root_is_not_rendered_as_clean(self):
         (self.dir / "naming_enterprise.json").write_text(
             '{"count": 3, "note": "n", "measured_at": "odoo1234"}\n'
@@ -252,7 +261,7 @@ class ProvenanceTests(unittest.TestCase):
         self.assertIn("could not resolve", out)
 
     def test_a_baseline_with_no_stamp_at_all_is_not_unchecked(self):
-        """104 committed baselines carry no measured_at; absent is not doubtful."""
+        """A floor with no measured_at is UNSTAMPED: unverified, not wrong."""
         (self.dir / "mypy.json").write_text('{"count": 5, "note": "n"}\n')
         _code, out, _ = self._run(["--list"])
         self.assertNotIn("UNCHECKED", out)
