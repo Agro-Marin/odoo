@@ -83,8 +83,6 @@
             "@appointment_google_calendar/*": ["../enterprise/appointment_google_calendar/static/src/*"],
             "@appointment_microsoft_calendar/*": ["../enterprise/appointment_microsoft_calendar/static/src/*"],
             "@approval/*": ["addons/approval/static/src/*"],
-            "@approvals/*": ["../enterprise/approvals/static/src/*"],
-            "@approvals_purchase/*": ["../enterprise/approvals_purchase/static/src/*"],
             "@auth_oauth/*": ["addons/auth_oauth/static/src/*"],
             "@auth_passkey/*": ["addons/auth_passkey/static/src/*"],
             "@auth_password_policy/*": ["addons/auth_password_policy/static/src/*"],

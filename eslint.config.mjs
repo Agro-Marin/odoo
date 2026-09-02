@@ -131,7 +131,6 @@ export const ENTERPRISE_MODULES = [
     "spreadsheet_dashboard_edition",
     "spreadsheet_dashboard_documents",
     "spreadsheet_sale_management",
-    "approvals",
     "test_discuss_full_enterprise",
     "test_mail_enterprise",
     "whatsapp",
