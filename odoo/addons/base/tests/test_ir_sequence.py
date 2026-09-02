@@ -1,9 +1,10 @@
 import re
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import date, datetime
 from unittest.mock import patch
 
 import psycopg.errors
+from freezegun import freeze_time
 
 import odoo
 from odoo.exceptions import ConcurrencyError, UserError
@@ -826,3 +827,42 @@ class TestIrSequenceNextBatch(common.TransactionCase):
                     3,
                     "twenty values should not cost twenty statements",
                 )
+
+
+class TestIrSequenceTimezone(common.TransactionCase):
+    def _seq(self, use_date_range):
+        return (
+            self.env["ir.sequence"]
+            .with_context(tz="America/Mexico_City")
+            .create(
+                {
+                    "name": "tz sequence",
+                    "implementation": "no_gap",
+                    "use_date_range": use_date_range,
+                    "prefix": "%(year)s/",
+                    "padding": 3,
+                }
+            )
+        )
+
+    def test_date_ranged_and_plain_agree_on_the_year_across_the_tz_boundary(self):
+        """A plain sequence resolves "today" in the user's timezone; a date-ranged
+        one must do the same, or the two disagree on %(year)s near midnight.
+        2026-01-01 01:00 UTC is still 2025-12-31 in America/Mexico_City (UTC-6)."""
+        with freeze_time("2026-01-01 01:00:00"):
+            plain = self._seq(use_date_range=False)
+            ranged = self._seq(use_date_range=True)
+            self.assertEqual(plain.next_by_id().split("/")[0], "2025")
+            self.assertEqual(
+                ranged.next_by_id().split("/")[0],
+                "2025",
+                "the date-ranged sequence must resolve the year in the user tz too",
+            )
+            self.assertEqual(ranged.preview_next().split("/")[0], "2025")
+
+    def test_an_explicit_date_still_overrides_the_resolved_now(self):
+        with freeze_time("2026-01-01 01:00:00"):
+            ranged = self._seq(use_date_range=True)
+            self.assertEqual(
+                ranged.next_by_id(sequence_date=date(2030, 6, 1)).split("/")[0], "2030"
+            )

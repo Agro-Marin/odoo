@@ -534,13 +534,18 @@ class IrSequence(models.Model):
         )
         return date_range
 
+    def _resolve_sequence_date(self, sequence_date: Any = None) -> Any:
+        return (
+            sequence_date
+            or self.env.context.get("ir_sequence_date")
+            or datetime.now(self.env.tz).replace(tzinfo=None)
+        )
+
     def _get_current_sequence(self, sequence_date: Any = None) -> Any:
         self.check_singleton()
         if not self.use_date_range:
             return self
-        dt = sequence_date or self.env.context.get(
-            "ir_sequence_date", fields.Datetime.now()
-        )
+        dt = self._resolve_sequence_date(sequence_date)
         seq_date = self.env["ir.sequence.date_range"].search(
             [
                 ("sequence_id", "=", self.id),
@@ -561,9 +566,7 @@ class IrSequence(models.Model):
                 else sequence_date
             )
             return self.with_context(ir_sequence_date=ir_sequence_date)._next_do()
-        dt = sequence_date or self.env.context.get(
-            "ir_sequence_date", fields.Datetime.now()
-        )
+        dt = self._resolve_sequence_date(sequence_date)
         seq_date = self._get_current_sequence(dt)
         ir_sequence_date = dt.replace(tzinfo=None) if isinstance(dt, datetime) else dt
         return seq_date.with_context(
@@ -586,9 +589,7 @@ class IrSequence(models.Model):
             return self.with_context(ir_sequence_date=ir_sequence_date)._next_do_batch(
                 count
             )
-        dt = sequence_date or self.env.context.get(
-            "ir_sequence_date", fields.Datetime.now()
-        )
+        dt = self._resolve_sequence_date(sequence_date)
         seq_date = self._get_current_sequence(dt)
         ir_sequence_date = dt.replace(tzinfo=None) if isinstance(dt, datetime) else dt
         return seq_date.with_context(
@@ -614,9 +615,7 @@ class IrSequence(models.Model):
             return self.with_context(ir_sequence_date=ir_sequence_date).get_next_char(
                 self.number_next_actual
             )
-        dt = sequence_date or self.env.context.get(
-            "ir_sequence_date", fields.Datetime.now()
-        )
+        dt = self._resolve_sequence_date(sequence_date)
         date_range = self.env["ir.sequence.date_range"].search(
             [
                 ("sequence_id", "=", self.id),
