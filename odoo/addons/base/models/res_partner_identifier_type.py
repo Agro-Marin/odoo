@@ -5,7 +5,7 @@ from odoo.exceptions import ValidationError
 
 from .mixin_catalog import name_uniq_index
 
-_NON_ALPHANUMERIC = re.compile(r"[^0-9A-Za-z]+")
+_NON_ALPHANUMERIC = re.compile(r"[^\w&]+|_+")
 
 
 class ResPartnerIdentifierType(models.Model):

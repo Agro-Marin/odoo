@@ -232,3 +232,59 @@ class TestPartnerIdentifier(TransactionCase):
             with self.assertRaises(ValidationError):
                 with self.cr.savepoint():
                     self.company._update_identifier("TEST_RFC", "ZZZ850101QW1")
+
+    def test_a_value_with_non_ascii_letters_is_normalized_not_stripped(self):
+        """A leading Ñ or an ampersand belongs to the RFC; normalizing must keep
+        them, not delete them into a value the pattern then rejects."""
+        self.company._update_identifier("TEST_RFC", "ÑAM-010101-AB1")
+        identifier = self.company.identifier_ids.filtered(
+            lambda i: i.type_id == self.rfc
+        )
+        self.assertEqual(identifier.value, "ÑAM-010101-AB1")
+        self.assertEqual(identifier.normalized_value, "ÑAM010101AB1")
+
+        amp = self.Partner.create({"name": "A&B SA", "is_company": True})
+        amp._update_identifier("TEST_RFC", "A&B-010101-AB1")
+        self.assertEqual(
+            amp.identifier_ids.filtered(
+                lambda i: i.type_id == self.rfc
+            ).normalized_value,
+            "A&B010101AB1",
+        )
+
+    def test_a_clash_with_an_unreadable_holder_raises_validation_not_access(self):
+        """The uniqueness check must see holders in other companies (so it can
+        refuse the value) without leaking the read as an AccessError."""
+        company_b = self.env["res.company"].create({"name": "Other Co"})
+        hidden = self.Partner.create(
+            {"name": "Hidden Holder", "company_id": company_b.id}
+        )
+        self.Identifier.create(
+            {
+                "partner_id": hidden.id,
+                "type_id": self.rfc.id,
+                "value": "VAN850101QW1",
+            }
+        )
+        manager = self.env["res.users"].create(
+            {
+                "name": "Partner Manager A",
+                "login": "identifier_pm_a",
+                "company_ids": [(6, 0, self.env.ref("base.main_company").ids)],
+                "company_id": self.env.ref("base.main_company").id,
+                "group_ids": [
+                    (
+                        6,
+                        0,
+                        [
+                            self.env.ref("base.group_user").id,
+                            self.env.ref("base.group_partner_manager").id,
+                        ],
+                    )
+                ],
+            }
+        )
+        mine = self.Partner.create({"name": "Mine A"})
+        with self.assertRaises(ValidationError):
+            with self.cr.savepoint():
+                mine.with_user(manager)._update_identifier("TEST_RFC", "VAN850101QW1")
