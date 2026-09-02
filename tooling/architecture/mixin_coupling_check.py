@@ -521,7 +521,7 @@ def metadata_metrics() -> dict[str, int]:
     return metrics
 
 
-def main(argv: list[str] | None = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--check", action="store_true", help="CI mode: exit 1 on any drift"
@@ -544,6 +544,139 @@ def main(argv: list[str] | None = None) -> int:
         default=MODEL_COMPOSITION.label,
         help="which composition --explain refers to (default: BaseModel)",
     )
+    return parser
+
+
+def _explain_edge(m, chosen: Composition, src: str, dst: str) -> int:
+    direct = m["_edges"].get(src, {}).get(dst) or set()
+    wide_edges = (
+        measure(through_recordsets=True, comp=chosen)["_edges"]
+        if chosen.recordset_aware
+        else m["_edges"]
+    )
+    wide = wide_edges.get(src, {}).get(dst) or set()
+    if not direct and not wide:
+        print(f"no edge {src} -> {dst}", file=sys.stderr)
+        return 2
+    if direct:
+        print(f"{src} -> {dst} via {len(direct)} member(s) on self:")
+        for member in sorted(direct):
+            print(f"  {member}")
+    if indirect := wide - direct:
+        print(
+            f"{src} -> {dst} via {len(indirect)} member(s) reached through "
+            f"another recordset of the same model:"
+        )
+        for member in sorted(indirect):
+            print(f"  {member}")
+    return 0
+
+
+def _collect_reports(m, chosen: Composition) -> list[tuple]:
+    reports = []
+    for comp in COMPOSITIONS:
+        cm = m if comp is chosen else measure(comp=comp)
+        cwide = (
+            measure(through_recordsets=True, comp=comp)
+            if comp.recordset_aware
+            else None
+        )
+        reports.append((comp, cm, cwide, _verdicts(cm, cwide, comp.baseline)))
+    return reports
+
+
+def _print_json(reports: list[tuple]) -> None:
+    print(
+        json.dumps(
+            {
+                comp.label: {
+                    "metrics": {k: a for k, a, _, _ in vs},
+                    "baseline": comp.baseline,
+                    "status": {k: st for k, _, _, st in vs},
+                    "sccs": cm["sccs"],
+                    "recordset_sccs": cwide["sccs"] if cwide else None,
+                    "collisions": cm["collisions"],
+                }
+                for comp, cm, cwide, vs in reports
+            },
+            indent=2,
+        )
+    )
+
+
+def _print_composition(comp: Composition, cm, cwide, vs) -> None:
+    print(f"{comp.label} mixin coupling check")
+    print("=" * 64)
+    for key, actual, floor, status in vs:
+        flag = "ok" if status == "ok" else status
+        print(f"[{flag:>8}] {key}: {actual} (baseline {floor})")
+    print("-" * 64)
+    print(f"units: {len(cm['units'])}   inter-unit edges: {cm['edges_total']}")
+    for component in cm["sccs"]:
+        print(f"  cycle of {len(component)}: {', '.join(component)}")
+    if cwide is not None:
+        print(
+            f"through recordsets: {cwide['edges_total']} edges, "
+            f"{cwide['cyclic_edges']} cyclic"
+        )
+        for component in cwide["sccs"]:
+            print(f"  cycle of {len(component)} via recordsets: {', '.join(component)}")
+    if cm["scc_without_base"] < cm["max_scc"]:
+        print(
+            f"  without {comp.root_file}: largest cycle is "
+            f"{cm['scc_without_base']} — the rest of the cycle is "
+            f"{comp.root_file} being both composition root and "
+            f"metadata holder"
+        )
+    for component in cm["sccs_without_base"]:
+        print(f"    residual cycle: {', '.join(component)}")
+    if cm["collisions"]:
+        print("\nname defined by more than one unit (MRO order decides):")
+        for name, owners in sorted(cm["collisions"].items()):
+            print(f"  {name}: {', '.join(owners)}")
+    else:
+        print("\nNo cross-unit name collisions. ✓")
+    print()
+
+
+def _check_verdicts(reports: list[tuple]) -> int:
+    verdicts = [(comp.label, *v) for comp, _, _, vs in reports for v in vs]
+    grew = [v for v in verdicts if v[4] == "GREW"]
+    improved = [v for v in verdicts if v[4] == "IMPROVED"]
+
+    if grew:
+        print("\nFAILED: mixin coupling grew:", file=sys.stderr)
+        for label, key, actual, floor, _ in grew:
+            print(f"  {label}.{key}: {floor} -> {actual}", file=sys.stderr)
+        return 1
+    if improved:
+        print(
+            "\nFAILED: coupling improved but the baseline was not lowered "
+            "(exact-mode ratchet — commit the new floor):",
+            file=sys.stderr,
+        )
+        for label, key, actual, floor, _ in improved:
+            print(f"  {label}.{key}: {floor} -> {actual}", file=sys.stderr)
+        return 1
+    stale = doc_measured.check(METADATA_MODULE, metadata_metrics())
+    if stale:
+        print(
+            "\nFAILED: mixins/_metadata.py MEASURED block is stale:",
+            file=sys.stderr,
+        )
+        for problem in stale:
+            print(f"  {problem}", file=sys.stderr)
+        print(
+            "  python tooling/architecture/mixin_coupling_check.py --update-doc",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"Mixin coupling within baseline, all {len(COMPOSITIONS)} compositions. ✓")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
     args = parser.parse_args(argv)
 
     if args.update_doc:
@@ -555,132 +688,17 @@ def main(argv: list[str] | None = None) -> int:
     m = measure(comp=chosen)
 
     if args.explain:
-        src, dst = args.explain
-        direct = m["_edges"].get(src, {}).get(dst) or set()
-        wide_edges = (
-            measure(through_recordsets=True, comp=chosen)["_edges"]
-            if chosen.recordset_aware
-            else m["_edges"]
-        )
-        wide = wide_edges.get(src, {}).get(dst) or set()
-        if not direct and not wide:
-            print(f"no edge {src} -> {dst}", file=sys.stderr)
-            return 2
-        if direct:
-            print(f"{src} -> {dst} via {len(direct)} member(s) on self:")
-            for member in sorted(direct):
-                print(f"  {member}")
-        if indirect := wide - direct:
-            print(
-                f"{src} -> {dst} via {len(indirect)} member(s) reached through "
-                f"another recordset of the same model:"
-            )
-            for member in sorted(indirect):
-                print(f"  {member}")
-        return 0
+        return _explain_edge(m, chosen, *args.explain)
 
-    reports = []
-    for comp in COMPOSITIONS:
-        cm = m if comp is chosen else measure(comp=comp)
-        cwide = (
-            measure(through_recordsets=True, comp=comp)
-            if comp.recordset_aware
-            else None
-        )
-        reports.append((comp, cm, cwide, _verdicts(cm, cwide, comp.baseline)))
+    reports = _collect_reports(m, chosen)
 
     if args.json:
-        print(
-            json.dumps(
-                {
-                    comp.label: {
-                        "metrics": {k: a for k, a, _, _ in vs},
-                        "baseline": comp.baseline,
-                        "status": {k: st for k, _, _, st in vs},
-                        "sccs": cm["sccs"],
-                        "recordset_sccs": cwide["sccs"] if cwide else None,
-                        "collisions": cm["collisions"],
-                    }
-                    for comp, cm, cwide, vs in reports
-                },
-                indent=2,
-            )
-        )
+        _print_json(reports)
     else:
         for comp, cm, cwide, vs in reports:
-            print(f"{comp.label} mixin coupling check")
-            print("=" * 64)
-            for key, actual, floor, status in vs:
-                flag = "ok" if status == "ok" else status
-                print(f"[{flag:>8}] {key}: {actual} (baseline {floor})")
-            print("-" * 64)
-            print(f"units: {len(cm['units'])}   inter-unit edges: {cm['edges_total']}")
-            for component in cm["sccs"]:
-                print(f"  cycle of {len(component)}: {', '.join(component)}")
-            if cwide is not None:
-                print(
-                    f"through recordsets: {cwide['edges_total']} edges, "
-                    f"{cwide['cyclic_edges']} cyclic"
-                )
-                for component in cwide["sccs"]:
-                    print(
-                        f"  cycle of {len(component)} via recordsets: "
-                        f"{', '.join(component)}"
-                    )
-            if cm["scc_without_base"] < cm["max_scc"]:
-                print(
-                    f"  without {comp.root_file}: largest cycle is "
-                    f"{cm['scc_without_base']} — the rest of the cycle is "
-                    f"{comp.root_file} being both composition root and "
-                    f"metadata holder"
-                )
-            for component in cm["sccs_without_base"]:
-                print(f"    residual cycle: {', '.join(component)}")
-            if cm["collisions"]:
-                print("\nname defined by more than one unit (MRO order decides):")
-                for name, owners in sorted(cm["collisions"].items()):
-                    print(f"  {name}: {', '.join(owners)}")
-            else:
-                print("\nNo cross-unit name collisions. ✓")
-            print()
+            _print_composition(comp, cm, cwide, vs)
 
-    verdicts = [(comp.label, *v) for comp, _, _, vs in reports for v in vs]
-
-    grew = [v for v in verdicts if v[4] == "GREW"]
-    improved = [v for v in verdicts if v[4] == "IMPROVED"]
-
-    if args.check:
-        if grew:
-            print("\nFAILED: mixin coupling grew:", file=sys.stderr)
-            for label, key, actual, floor, _ in grew:
-                print(f"  {label}.{key}: {floor} -> {actual}", file=sys.stderr)
-            return 1
-        if improved:
-            print(
-                "\nFAILED: coupling improved but the baseline was not lowered "
-                "(exact-mode ratchet — commit the new floor):",
-                file=sys.stderr,
-            )
-            for label, key, actual, floor, _ in improved:
-                print(f"  {label}.{key}: {floor} -> {actual}", file=sys.stderr)
-            return 1
-        stale = doc_measured.check(METADATA_MODULE, metadata_metrics())
-        if stale:
-            print(
-                "\nFAILED: mixins/_metadata.py MEASURED block is stale:",
-                file=sys.stderr,
-            )
-            for problem in stale:
-                print(f"  {problem}", file=sys.stderr)
-            print(
-                "  python tooling/architecture/mixin_coupling_check.py --update-doc",
-                file=sys.stderr,
-            )
-            return 1
-        print(
-            f"Mixin coupling within baseline, all {len(COMPOSITIONS)} compositions. ✓"
-        )
-    return 0
+    return _check_verdicts(reports) if args.check else 0
 
 
 if __name__ == "__main__":

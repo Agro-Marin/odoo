@@ -345,7 +345,45 @@ def _report_cross_tree(args) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+@dataclass(frozen=True)
+class Survey:
+    found: list[Access]
+    undeclared: Counter
+    public: int
+    contracts: dict[str, set[str]]
+    groups: dict[str, set[str]]
+    writes: list[Access]
+    cross_layer: list[Access]
+    declared: list[Access]
+    internal: list[Access]
+    undeclared_reaches: list[Access]
+
+
+def survey() -> Survey:
+    found, undeclared, public = measure()
+    contracts = declared_contracts()
+    groups = internal_collaborators()
+    return Survey(
+        found=found,
+        undeclared=undeclared,
+        public=public,
+        contracts=contracts,
+        groups=groups,
+        writes=[a for a in found if a.write],
+        cross_layer=[a for a in found if is_cross_layer(a)],
+        declared=[a for a in found if is_declared(a, contracts)],
+        internal=[
+            a for a in found if not is_declared(a, contracts) and is_internal(a, groups)
+        ],
+        undeclared_reaches=[
+            a
+            for a in found
+            if not is_declared(a, contracts) and not is_internal(a, groups)
+        ],
+    )
+
+
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument(
@@ -371,6 +409,131 @@ def main(argv: list[str] | None = None) -> int:
         help="print the cross-tree count only, for the ratchet",
     )
     doc_measured.main_flags(parser)
+    return parser
+
+
+def _report_doc_block(args, s: Survey) -> int:
+    metrics = doc_metrics(s.found, s.undeclared, s.public, s.contracts, s.groups)
+    path = Path(__file__)
+    if args.update_doc:
+        changed = doc_measured.update(path, metrics)
+        print(
+            f"{'updated' if changed else 'already fresh'}: "
+            f"{doc_measured.render(metrics)}"
+        )
+        return 0
+    problems = doc_measured.check(path, metrics)
+    if problems:
+        print("module docstring's MEASURED block is stale:")
+        for problem in problems:
+            print(f"  {problem}")
+        print("\n  python tooling/architecture/js_private_access.py --update-doc")
+        return 1
+    print(f"[ ok] MEASURED block is fresh: {doc_measured.render(metrics)}")
+    return 0
+
+
+def _print_json(s: Survey) -> None:
+    print(
+        json.dumps(
+            {
+                "total": len(s.found),
+                "declared": len(s.declared),
+                "undeclared_reaches": len(s.undeclared_reaches),
+                "module_internal": len(s.internal),
+                "declared_members": sum(len(m) for m in s.contracts.values()),
+                "collaborators": {k: sorted(v) for k, v in sorted(s.groups.items())},
+                "contracts": {k: sorted(v) for k, v in sorted(s.contracts.items())},
+                "writes": len(s.writes),
+                "cross_layer": [asdict(a) for a in s.cross_layer],
+                "reads": len(s.found) - len(s.writes),
+                "public_members": s.public,
+                "undeclared": dict(s.undeclared.most_common()),
+                "accesses": [asdict(a) for a in s.found],
+            },
+            indent=2,
+        )
+    )
+
+
+def _print_contracts(s: Survey) -> None:
+    print(f"\nDeclared contracts ({len(s.contracts)}):\n")
+    for owner, members in sorted(s.contracts.items()):
+        reached = sum(1 for a in s.declared if owner in a.owners)
+        print(f"  {owner}  — {len(members)} members, {reached} access(es) honour it")
+    print(
+        f"\n  {len(s.declared)} of {len(s.found)} access(es) name a declared contract "
+        f"member;\n  {len(s.internal)} are intra-module, from a declared "
+        f"collaborator;\n  {len(s.undeclared_reaches)} reach a member no contract "
+        f"publishes, from outside."
+    )
+    declared_members = sum(len(m) for m in s.contracts.values())
+    print(
+        "  Only the LAST number is debt. It is reported, not ratcheted —\n"
+        "  pin it with --count-undeclared once it stops moving."
+    )
+    collaborator_count = sum(len(v) for v in s.groups.values())
+    print(
+        f"\n  Companion: {declared_members} member(s) declared across "
+        f"{len(s.contracts)} contract(s), and {collaborator_count} module(s)\n"
+        f"  declared as internal collaborators.\n"
+        "  The debt figure falls when coupling is removed AND when it is\n"
+        "  merely reclassified — by publishing a member, or by declaring the\n"
+        "  reaching file part of the module it reaches into. Both are\n"
+        "  legitimate and both are visible here on purpose: a companion\n"
+        "  rising as the debt falls is classification, not improvement. Same\n"
+        "  reason the public-member count sits beside the budget above."
+    )
+
+
+def _print_report(s: Survey, top: int) -> None:
+    print("JS cross-module private-access budget (web/static/src)")
+    print("=" * 72)
+    print("\nWrites to another module's private — the half to clear first:\n")
+    for access in s.writes:
+        print(access)
+
+    if s.contracts:
+        _print_contracts(s)
+
+    by_file = Counter(a.module for a in s.found)
+    shown = by_file.most_common(None if top == 0 else top)
+    print("\nBy file:\n")
+    for module, count in shown:
+        w = sum(1 for a in s.writes if a.module == module)
+        print(f"  {count:4d}  ({w} write{'' if w == 1 else 's'})  {module}")
+    if len(by_file) > len(shown):
+        print(f"  ... and {len(by_file) - len(shown)} more (--top 0 for all)")
+
+    print("-" * 72)
+    if s.cross_layer:
+        print(f"\n{len(s.cross_layer)} CROSS-LAYER access(es) — these fail the gate:\n")
+        for access in s.cross_layer:
+            print(access)
+        print(
+            "\n  A layer reaching into another layer's privates is not the friend\n"
+            "  coupling the count tolerates. Publish what the caller needs on the\n"
+            "  owner, as Model.updateEpoch and DynamicList#clearSampleData were."
+        )
+    print(f"\n{len(s.found)} cross-module private access(es) in {len(by_file)} file(s)")
+    print(f"  reads: {len(s.found) - len(s.writes)}   writes: {len(s.writes)}")
+    print(f"  cross-layer: {len(s.cross_layer)} (must be 0)")
+    print(
+        f"  {sum(s.undeclared.values())} further access(es) name a member no module "
+        f"declares\n  (stamped on a foreign object at runtime; reported, not counted)"
+    )
+    print(
+        f"\n  companion: {s.public} public member(s) on {DATAPOINT_DIR} classes — "
+        f"this\n  number rising as the budget falls means privates were promoted, "
+        f"not removed."
+    )
+    print("\nRatchet this number:")
+    print("  python tooling/architecture/js_private_access.py --count \\")
+    print("      | xargs python tooling/ratchet/ratchet.py jsprivate --count")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
     args = parser.parse_args(argv)
 
     scanned = len(iter_source_files())
@@ -380,142 +543,24 @@ def main(argv: list[str] | None = None) -> int:
     if args.cross_tree or args.count_cross_tree:
         return _report_cross_tree(args)
 
-    found, undeclared, public = measure()
-    writes = [a for a in found if a.write]
-    cross_layer = [a for a in found if is_cross_layer(a)]
-
-    contracts = declared_contracts()
-    groups = internal_collaborators()
-    declared = [a for a in found if is_declared(a, contracts)]
-    internal = [
-        a for a in found if not is_declared(a, contracts) and is_internal(a, groups)
-    ]
-    undeclared_reaches = [
-        a for a in found if not is_declared(a, contracts) and not is_internal(a, groups)
-    ]
+    s = survey()
 
     if args.check_doc or args.update_doc:
-        metrics = doc_metrics(found, undeclared, public, contracts, groups)
-        path = Path(__file__)
-        if args.update_doc:
-            changed = doc_measured.update(path, metrics)
-            print(
-                f"{'updated' if changed else 'already fresh'}: "
-                f"{doc_measured.render(metrics)}"
-            )
-            return 0
-        problems = doc_measured.check(path, metrics)
-        if problems:
-            print("module docstring's MEASURED block is stale:")
-            for problem in problems:
-                print(f"  {problem}")
-            print("\n  python tooling/architecture/js_private_access.py --update-doc")
-            return 1
-        print(f"[ ok] MEASURED block is fresh: {doc_measured.render(metrics)}")
-        return 0
+        return _report_doc_block(args, s)
 
     if args.count:
-        print(len(found))
+        print(len(s.found))
         return 0
     if args.count_undeclared:
-        print(len(undeclared_reaches))
+        print(len(s.undeclared_reaches))
         return 0
     if args.json:
-        print(
-            json.dumps(
-                {
-                    "total": len(found),
-                    "declared": len(declared),
-                    "undeclared_reaches": len(undeclared_reaches),
-                    "module_internal": len(internal),
-                    "declared_members": sum(len(m) for m in contracts.values()),
-                    "collaborators": {k: sorted(v) for k, v in sorted(groups.items())},
-                    "contracts": {k: sorted(v) for k, v in sorted(contracts.items())},
-                    "writes": len(writes),
-                    "cross_layer": [asdict(a) for a in cross_layer],
-                    "reads": len(found) - len(writes),
-                    "public_members": public,
-                    "undeclared": dict(undeclared.most_common()),
-                    "accesses": [asdict(a) for a in found],
-                },
-                indent=2,
-            )
-        )
+        _print_json(s)
         return 0
 
-    print("JS cross-module private-access budget (web/static/src)")
-    print("=" * 72)
-    print("\nWrites to another module's private — the half to clear first:\n")
-    for access in writes:
-        print(access)
+    _print_report(s, args.top)
 
-    if contracts:
-        print(f"\nDeclared contracts ({len(contracts)}):\n")
-        for owner, members in sorted(contracts.items()):
-            reached = sum(1 for a in declared if owner in a.owners)
-            print(
-                f"  {owner}  — {len(members)} members, {reached} access(es) honour it"
-            )
-        print(
-            f"\n  {len(declared)} of {len(found)} access(es) name a declared contract "
-            f"member;\n  {len(internal)} are intra-module, from a declared "
-            f"collaborator;\n  {len(undeclared_reaches)} reach a member no contract "
-            f"publishes, from outside."
-        )
-        declared_members = sum(len(m) for m in contracts.values())
-        print(
-            "  Only the LAST number is debt. It is reported, not ratcheted —\n"
-            "  pin it with --count-undeclared once it stops moving."
-        )
-        collaborator_count = sum(len(v) for v in groups.values())
-        print(
-            f"\n  Companion: {declared_members} member(s) declared across "
-            f"{len(contracts)} contract(s), and {collaborator_count} module(s)\n"
-            f"  declared as internal collaborators.\n"
-            "  The debt figure falls when coupling is removed AND when it is\n"
-            "  merely reclassified — by publishing a member, or by declaring the\n"
-            "  reaching file part of the module it reaches into. Both are\n"
-            "  legitimate and both are visible here on purpose: a companion\n"
-            "  rising as the debt falls is classification, not improvement. Same\n"
-            "  reason the public-member count sits beside the budget above."
-        )
-
-    by_file = Counter(a.module for a in found)
-    shown = by_file.most_common(None if args.top == 0 else args.top)
-    print("\nBy file:\n")
-    for module, count in shown:
-        w = sum(1 for a in writes if a.module == module)
-        print(f"  {count:4d}  ({w} write{'' if w == 1 else 's'})  {module}")
-    if len(by_file) > len(shown):
-        print(f"  ... and {len(by_file) - len(shown)} more (--top 0 for all)")
-
-    print("-" * 72)
-    if cross_layer:
-        print(f"\n{len(cross_layer)} CROSS-LAYER access(es) — these fail the gate:\n")
-        for access in cross_layer:
-            print(access)
-        print(
-            "\n  A layer reaching into another layer's privates is not the friend\n"
-            "  coupling the count tolerates. Publish what the caller needs on the\n"
-            "  owner, as Model.updateEpoch and DynamicList#clearSampleData were."
-        )
-    print(f"\n{len(found)} cross-module private access(es) in {len(by_file)} file(s)")
-    print(f"  reads: {len(found) - len(writes)}   writes: {len(writes)}")
-    print(f"  cross-layer: {len(cross_layer)} (must be 0)")
-    print(
-        f"  {sum(undeclared.values())} further access(es) name a member no module "
-        f"declares\n  (stamped on a foreign object at runtime; reported, not counted)"
-    )
-    print(
-        f"\n  companion: {public} public member(s) on {DATAPOINT_DIR} classes — "
-        f"this\n  number rising as the budget falls means privates were promoted, "
-        f"not removed."
-    )
-    print("\nRatchet this number:")
-    print("  python tooling/architecture/js_private_access.py --count \\")
-    print("      | xargs python tooling/ratchet/ratchet.py jsprivate --count")
-
-    return 1 if (args.check and cross_layer) else 0
+    return 1 if (args.check and s.cross_layer) else 0
 
 
 if __name__ == "__main__":

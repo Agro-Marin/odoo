@@ -191,7 +191,7 @@ def unresolved(specifiers, addon: str = DEFAULT_ADDON) -> list[str]:
     )
 
 
-def main(argv: list[str] | None = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="exit 1 on drift")
     parser.add_argument("--update", action="store_true", help="rewrite the pin")
@@ -202,6 +202,92 @@ def main(argv: list[str] | None = None) -> int:
         choices=GOVERNED_ADDONS,
         help="which addon's surface to measure and pin (default: web)",
     )
+    return parser
+
+
+def _print_json(present, absent, detailed, by_scope, new, gone, unexpected, resolved):
+    print(
+        json.dumps(
+            {
+                "scopes_present": present,
+                "scopes_absent": absent,
+                "measured": len(detailed),
+                "test_only": sorted(
+                    s for s, (prod, test) in by_scope.items() if prod == 0 and test
+                ),
+                "new": new,
+                "gone": gone,
+                "unresolved_unexpected": unexpected,
+                "unresolved_fixed": resolved,
+            },
+            indent=2,
+        )
+    )
+
+
+def _print_drift(measured, new, gone, unexpected, resolved) -> None:
+    for scope, specs in new.items():
+        print(
+            f"\n[FAIL] scope '{scope}': {len(specs)} NEW specifier(s) — the surface grew:"
+        )
+        for s in specs[:20]:
+            print(f"    {s}  ({measured[s]} importer(s))")
+        if len(specs) > 20:
+            print(f"    … and {len(specs) - 20} more")
+    for scope, specs in gone.items():
+        print(
+            f"\n[FAIL] scope '{scope}': {len(specs)} pinned specifier(s) no longer "
+            f"imported from it — shrink the list:"
+        )
+        for s in specs[:20]:
+            print(f"    {s}")
+        if len(specs) > 20:
+            print(f"    … and {len(specs) - 20} more")
+    if unexpected:
+        print(
+            f"\n[FAIL] {len(unexpected)} specifier(s) resolve to no module in web — "
+            f"these cannot load, and are not surface:"
+        )
+        for s in unexpected:
+            print(f"    {s}  ({measured[s]} importer(s))")
+        print("    Fix the import; do not pin it.")
+    if resolved:
+        print(
+            f"\n[FAIL] {len(resolved)} known-unresolved specifier(s) no longer "
+            f"dangle — shrink KNOWN_UNRESOLVED:"
+        )
+        for s in resolved:
+            print(f"    {s}")
+
+
+def _print_report(
+    addon, present, absent, measured, by_scope, new, gone, unexpected, resolved
+) -> None:
+    print("JS public-surface ratchet (shrink-only, per consumer scope)")
+    print("=" * 64)
+    print(f"consumer scopes present: {', '.join(present)}")
+    if absent:
+        print(_consumer_scopes.absent_scopes_line("js_public_surface", absent))
+    print(f"measured {len(measured)} specifier(s) imported from outside {addon}")
+    deep = sum(1 for s in measured if s.count("/") >= 3)
+    test_only = sum(1 for prod, test in by_scope.values() if prod == 0 and test)
+    print(f"  of which {deep} reach three or more segments deep")
+    print(
+        f"  {len(measured) - test_only} reached from production code, {test_only} only from tests"
+    )
+    _print_drift(measured, new, gone, unexpected, resolved)
+    print("-" * 64)
+    if not new and not gone and not unexpected and not resolved:
+        print(f"\nSurface unchanged across {len(present)} scope(s). ✓")
+        if KNOWN_UNRESOLVED:
+            print(
+                f"  {len(KNOWN_UNRESOLVED)} known-unresolved specifier(s) carried "
+                f"as debt (see R6)."
+            )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
     args = parser.parse_args(argv)
     addon = args.addon
 
@@ -244,77 +330,13 @@ def main(argv: list[str] | None = None) -> int:
     measured = {spec: prod + test for spec, (prod, test) in by_scope.items()}
 
     if args.json:
-        print(
-            json.dumps(
-                {
-                    "scopes_present": present,
-                    "scopes_absent": absent,
-                    "measured": len(detailed),
-                    "test_only": sorted(
-                        s for s, (prod, test) in by_scope.items() if prod == 0 and test
-                    ),
-                    "new": new,
-                    "gone": gone,
-                    "unresolved_unexpected": unexpected,
-                    "unresolved_fixed": resolved,
-                },
-                indent=2,
-            )
+        _print_json(
+            present, absent, detailed, by_scope, new, gone, unexpected, resolved
         )
-        return 1 if ((new or gone or unexpected or resolved) and args.check) else 0
-
-    print("JS public-surface ratchet (shrink-only, per consumer scope)")
-    print("=" * 64)
-    print(f"consumer scopes present: {', '.join(present)}")
-    if absent:
-        print(_consumer_scopes.absent_scopes_line("js_public_surface", absent))
-    print(f"measured {len(measured)} specifier(s) imported from outside {addon}")
-    deep = sum(1 for s in measured if s.count("/") >= 3)
-    test_only = sum(1 for prod, test in by_scope.values() if prod == 0 and test)
-    print(f"  of which {deep} reach three or more segments deep")
-    print(
-        f"  {len(measured) - test_only} reached from production code, {test_only} only from tests"
-    )
-    for scope, specs in new.items():
-        print(
-            f"\n[FAIL] scope '{scope}': {len(specs)} NEW specifier(s) — the surface grew:"
+    else:
+        _print_report(
+            addon, present, absent, measured, by_scope, new, gone, unexpected, resolved
         )
-        for s in specs[:20]:
-            print(f"    {s}  ({measured[s]} importer(s))")
-        if len(specs) > 20:
-            print(f"    … and {len(specs) - 20} more")
-    for scope, specs in gone.items():
-        print(
-            f"\n[FAIL] scope '{scope}': {len(specs)} pinned specifier(s) no longer "
-            f"imported from it — shrink the list:"
-        )
-        for s in specs[:20]:
-            print(f"    {s}")
-        if len(specs) > 20:
-            print(f"    … and {len(specs) - 20} more")
-    if unexpected:
-        print(
-            f"\n[FAIL] {len(unexpected)} specifier(s) resolve to no module in web — "
-            f"these cannot load, and are not surface:"
-        )
-        for s in unexpected:
-            print(f"    {s}  ({measured[s]} importer(s))")
-        print("    Fix the import; do not pin it.")
-    if resolved:
-        print(
-            f"\n[FAIL] {len(resolved)} known-unresolved specifier(s) no longer "
-            f"dangle — shrink KNOWN_UNRESOLVED:"
-        )
-        for s in resolved:
-            print(f"    {s}")
-    print("-" * 64)
-    if not new and not gone and not unexpected and not resolved:
-        print(f"\nSurface unchanged across {len(present)} scope(s). ✓")
-        if KNOWN_UNRESOLVED:
-            print(
-                f"  {len(KNOWN_UNRESOLVED)} known-unresolved specifier(s) carried "
-                f"as debt (see R6)."
-            )
 
     return 1 if ((new or gone or unexpected or resolved) and args.check) else 0
 
