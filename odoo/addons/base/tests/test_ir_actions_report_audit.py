@@ -1028,3 +1028,41 @@ class TestHtmlToImageDiagnostics(TransactionCase):
             "the renderer's own diagnosis is the useful half, and routing "
             "weasyprint's records to a per-render sink had swallowed it",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestReportPaperformatFallback(TransactionCase):
+    def test_a_report_with_no_paperformat_falls_back_to_a_real_one(self):
+        """When neither the report nor the company names a paperformat,
+        get_paperformat() must not return an empty recordset: float(False) then
+        makes every @page margin 0mm and the running header overlaps the body."""
+        report = self.env["ir.actions.report"].create(
+            {
+                "name": "No Paperformat Report",
+                "model": "res.partner",
+                "report_type": "qweb-pdf",
+                "report_name": "base.no_paperformat_probe",
+            }
+        )
+        self.env.company.paperformat_id = False
+        self.assertFalse(report.paperformat_id)
+
+        paperformat = report.get_paperformat()
+        self.assertEqual(
+            paperformat,
+            self.env.ref("base.paperformat_euro"),
+            "an unconfigured report must fall back to the shipped default format",
+        )
+
+        css = self.env["ir.actions.report"]._prepare_paperformat_css(paperformat)
+        self.assertIn(
+            "margin: 30.0mm", css, "the fallback must carry real, non-zero margins"
+        )
+        empty_css = self.env["ir.actions.report"]._prepare_paperformat_css(
+            self.env["report.paperformat"]
+        )
+        self.assertIn(
+            "margin: 0.0mm 0.0mm 0.0mm 0.0mm",
+            empty_css,
+            "an empty paperformat is exactly the 0mm case the fallback avoids",
+        )
