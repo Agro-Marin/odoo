@@ -26798,3 +26798,2626 @@ msgstr ""
 #: code:addons/web/static/src/core/emoji_picker/emoji_data.js:0
 msgid "ココ"
 msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/web_read.py:0
+msgid ""
+"%(count)s of the records you edited were modified by another user in the meantime.\n"
+"Conflicting field(s): %(fields)s.\n"
+"Please reload and re-apply your changes."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/density/density_toggle.js:0
+msgid "%(current)s density (click for %(next)s)"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/control_panel/control_panel.js:0
+msgid "%s View"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/ui/commands/command_palette.js:0
+msgid "%s more results — refine your search"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2one/many2one_field.js:0
+msgid ""
+"'substring' assumes name_search is a plain ilike, so a longer term cannot "
+"match where a shorter one did not. Models that also match on another field "
+"(a barcode, a reference) must not use it."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.external_layout_footer
+msgid ""
+"(document\n"
+"                        name)"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/search_bar/search_bar.js:0
+msgid "(loading failed)"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.styles_company_report
+msgid ""
+"/* Contrast utility: returns black or white for legible\n"
+"        text on $background. TODO: Replace with native CSS color-contrast() once WeasyPrint gains\n"
+"        support. */ @function co-color-contrast($background) { @if (lightness($background) &gt; 50) {\n"
+"        @return black; } @else { @return white; } }"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/calendar/calendar_common/calendar_common_popover.js:0
+msgid "0 minutes"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_base_document_layout
+msgid "<i class=\"fa-solid fa-arrow-rotate-right\"/> Reset"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.config_speedscope_index
+msgid "<i class=\"fa-solid fa-download\"/> (html)"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.config_speedscope_index
+msgid "<i class=\"fa-solid fa-download\"/> (json)"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.config_speedscope_index
+msgid ""
+"<select class=\"form-select\" name=\"profile_aggregation_mode\" id=\"profile_aggregation_mode\">\n"
+"                                        <option value=\"tabs\">Separated (one per tab)</option>\n"
+"                                        <option value=\"temporal\">Temporal (experimental)</option>\n"
+"                                    </select>\n"
+"                                    <span id=\"temporal_warning\" class=\"alert alert-warning\" style=\"display:none\"><b>Warning:</b> Temporal mode will\n"
+"                                        merge all samples.<br/>It can lead to partially invalid\n"
+"                                        result in case of concurrent profiles.<br/>Use with caution </span>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"<span class=\"fa-solid fa-users fa-lg\" aria-label=\"Number of active "
+"users\"/>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"<span class=\"o_form_label\" invisible=\"active_user_count &gt; 1\">\n"
+"                                    Active User\n"
+"                                </span>\n"
+"                                <span class=\"o_form_label\" invisible=\"active_user_count &lt;= 1\">\n"
+"                                    Active Users\n"
+"                                </span>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"<span class=\"o_form_label\" invisible=\"company_count &gt; 1\">\n"
+"                                    Company\n"
+"                                </span>\n"
+"                                <span class=\"o_form_label\" invisible=\"company_count &lt;= 1\">\n"
+"                                    Companies\n"
+"                                </span>\n"
+"                                <br/>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"<span class=\"o_form_label\" invisible=\"language_count &gt; 1\">\n"
+"                                        Language\n"
+"                                    </span>\n"
+"                                    <span class=\"o_form_label\" invisible=\"language_count &lt;= 1\">\n"
+"                                        Languages\n"
+"                                    </span>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.internal_layout
+msgid "<span class=\"page\"/> / <span class=\"topage\"/>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.report_invoice_wizard_preview
+msgid ""
+"<span class=\"text-nowrap\">$ <span class=\"oe_currency_value\">\n"
+"                                        11,750.00</span></span>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.report_invoice_wizard_preview
+msgid ""
+"<span class=\"text-nowrap\">$ <span class=\"oe_currency_value\">\n"
+"                                        7,500.00</span></span>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.report_invoice_wizard_preview
+msgid ""
+"<span class=\"w-100 o_force_ltr\" itemprop=\"streetAddress\">77 Santa\n"
+"                                    Barbara Rd<br/>Pleasant Hill CA 94523<br/>United States</span>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.report_invoice_wizard_preview
+msgid "<span id=\"line_tax_ids_2\">15%</span>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.report_invoice_wizard_preview
+msgid ""
+"<span>Invoice</span>\n"
+"                        <span>INV/2023/00003</span>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.report_invoice_wizard_preview
+msgid ""
+"<span>[FURN_8220] Four Person Desk<br/> Four person modern\n"
+"                                        office workstation</span>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.report_invoice_wizard_preview
+msgid ""
+"<span>[FURN_8999] Three-Seat Sofa<br/> Three Seater Sofa with\n"
+"                                        Lounger in Steel Grey Colour</span>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.report_invoice_wizard_preview
+msgid ""
+"<strong class=\"text-nowrap\">$ <span class=\"oe_currency_value\">\n"
+"                                                    22,137.50</span></strong>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"<strong>Save</strong> this page\n"
+"                                        and come back here to set up the feature."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"<strong>Save</strong> this page and\n"
+"                                    come back here to choose your Geo Provider."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"<strong>Save</strong> this page and\n"
+"                                    come back here to set up Cloudflare turnstile."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"<strong>Save</strong> this page and\n"
+"                                    come back here to set up Google Places API key"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"<strong>Save</strong> this page and\n"
+"                                    come back here to set up reCaptcha."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"<strong>Save</strong> this page and\n"
+"                                    come back here to set up the feature."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "A"
+msgstr ""
+
+#. module: web
+#: model:ir.model.constraint,message:web.constraint_web_js_error_check_cause_len
+msgid "A JS error cause chain cannot exceed 4096 characters."
+msgstr ""
+
+#. module: web
+#: model:ir.model.constraint,message:web.constraint_web_js_error_check_stack_len
+msgid "A JS error stack cannot exceed 4096 characters."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "API Keys"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"API Keys allow your users to access Odoo with external tools when multi-"
+"factor authentication is enabled."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "About"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/calendar/calendar_model.js:0
+msgid ""
+"Activate at least one record in the side panel to assign the new events to."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/search_bar/search_bar.xml:0
+msgid "Active search filters"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Add Languages"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid "Add button label"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Add fun feedback and motivate your employees"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.config_speedscope_index
+msgid ""
+"Aggregate\n"
+"                                        SQL"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.config_speedscope_index
+msgid ""
+"Aggregation\n"
+"                                        mode"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/settings/widgets/res_config_invite_users.js:0
+msgid "All email addresses already have a pending invitation."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_mail_plugin
+msgid "Allow integration with the mail plugins"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/field_selector/field_selector_field.js:0
+msgid "Allow properties"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_google_calendar
+msgid "Allow the users to synchronize their calendar with Google Calendar"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_microsoft_calendar
+msgid "Allow the users to synchronize their calendar with Outlook Calendar"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_base_import
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Allow users to import data from CSV/XLS/XLSX/ODS files"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/selection/badge_selection_with_filter/badge_selection_field_with_filter.js:0
+msgid "Allowed values field"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_res_config_settings__group_multi_currency
+msgid "Allows to work in a multi currency environment"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/display/statusbar/statusbar_field.js:0
+msgid "Always-visible steps"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/core/file_upload/file_upload_service.js:0
+msgid "An error occurred while uploading."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_search
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "Anonymous Traffic"
+msgstr ""
+
+#. module: web
+#: model:ir.model,name:web.model_ir_asset
+msgid "Asset"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/char/char_field.js:0
+msgid "Autocomplete"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Autocomplete partner addresses with Google Places"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Automatically enrich your contact base with company data"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "B"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.actions.act_window,help:web.action_web_cwv_metric
+msgid ""
+"Beacons are emitted by every browser session via the <code>web_vitals</code> service\n"
+"                and persisted on <code>pagehide</code>. If this view stays empty, check the server\n"
+"                log for <code>[cwv]</code> entries."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.actions.act_window,help:web.action_web_js_error
+msgid ""
+"Beacons arrive from the bootstrap loader, the ESM error beacon, and services\n"
+"                that fail to start. An empty view is good news; if you expected entries, check\n"
+"                the server log for <code>[js_error]</code> lines."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/selection/selection/filterable_selection_field.js:0
+msgid "Blacklisted values"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_report_theme__font_body
+msgid "Body font"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_js_error__phase
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "Boot Phase"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/copy_clipboard/copy_clipboard_field.js:0
+msgid "Bootstrap button variant, e.g. 'primary' or 'secondary'."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_form
+msgid "Browser"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_cwv_metric__url
+msgid ""
+"Browser path at the time the beacon fired (the query string is stripped "
+"before persisting).  May be the same path for many records.  Capped at 2048 "
+"chars at the DB level so a rogue writer cannot bloat the row."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "Bundle Asset Failed"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__web_js_error__kind__asset_load_error
+msgid "Bundle Asset Failed to Load"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/copy_clipboard/copy_clipboard_field.js:0
+msgid "Button style"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"By default, new users get highest access rights for all installed apps. If "
+"unchecked, new users will only have basic employee access."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/core/utils/format/binary.js:0
+msgid "Bytes|KB|MB|GB|TB|PB|EB|ZB|YB"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "C"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_cwv_metric__cls
+msgid "CLS"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2many_binary/many2many_binary_field.js:0
+msgid "CSS class"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_report_theme__font_body
+msgid "CSS font-family for running text. Empty uses the company font."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_report_theme__font_display
+msgid ""
+"CSS font-family for the document title and grand total. Empty uses the body "
+"font."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid "Can delete"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid "Can link"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid "Can unlink"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid "Can write"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_js_error__message
+msgid ""
+"Capped at 4096 chars at the DB level so a writer bypassing the controller "
+"cannot bloat the row."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_js_error__cause
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_form
+msgid "Cause Chain"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid "Char field holding the name the file is downloaded under."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.webclient_offline
+msgid ""
+"Check your network connection and come back here. Odoo will load as soon as\n"
+"                    you're back online."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/json_checkboxes/json_checkboxes_field.js:0
+msgid "Checkbox List"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Choose the layout of your documents"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2many_binary/many2many_binary_field.js:0
+msgid "Class list put on the file-list container."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_cwv_metric__pageview_id
+msgid ""
+"Client-generated id, stable for one page load. Metrics arrive across several"
+" beacons as INP/CLS keep growing after the first tab-switch; the controller "
+"upserts on this key so a pageview contributes one row (updated to the latest"
+" values) instead of accumulating duplicates."
+msgstr ""
+
+#. module: web
+#: model:ir.model,name:web.model_web_js_error
+msgid "Client-side JS Error"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_website_cf_turnstile
+msgid "Cloudflare Turnstile"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/search_panel/search_panel.xml:0
+msgid "Collapse the search panel"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/color/color_field.js:0
+msgid "Color"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/color_picker/color_picker_field.js:0
+msgid "Color Index"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_users__color_scheme
+#: model:ir.model.fields,field_description:web.field_res_users_settings__color_scheme
+msgid "Color Scheme"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_js_error__col
+msgid "Column"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/properties/properties_field.js:0
+msgid "Columns"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid ""
+"Comma-separated list the file picker filters on, e.g. `.png,.jpg` or "
+"`image/*`."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/display/statusbar/statusbar_field.js:0
+msgid "Comma-separated selection values that stay inline even when folded."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/field_selector/field_selector_field.js:0
+msgid "Comodel"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/density/density_toggle.js:0
+#: model:ir.model.fields.selection,name:web.selection__res_users_settings__density__compact
+msgid "Compact"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.external_layout_striped
+msgid ""
+"Company\n"
+"                        tagline"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__company_country_code
+msgid "Company Country Code"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__company_informations
+msgid "Company Informations"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/field_widgets_dialog.js:0
+msgid "Component"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/density/density_toggle.js:0
+#: model:ir.model.fields.selection,name:web.selection__res_users_settings__density__condensed
+#: model:report.theme,name:web.report_theme_condensed
+msgid "Condensed"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Configure Document Layout"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"Configure company rules to automatically create SO/PO when one of your "
+"company sells/buys to another of your company."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.config_speedscope_index
+msgid ""
+"Constant\n"
+"                                        Time"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid ""
+"Constant boolean -- `True` or `False`. When false the dropdown offers no "
+"creation at all. It is evaluated with NO record in scope, so an expression "
+"over field values raises instead of reading them."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid ""
+"Constant boolean -- `True` or `False`. When false the linked record cannot "
+"be edited from here. It is evaluated with NO record in scope, so an "
+"expression over field values raises instead of reading them."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Contacts"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_users_settings__density
+msgid "Content Density"
+msgstr ""
+
+#. module: web
+#: model:ir.actions.act_window,name:web.action_web_cwv_metric
+#: model:ir.ui.menu,name:web.menu_web_cwv_metric
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_graph
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_list
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_pivot
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_search
+msgid "Core Web Vitals"
+msgstr ""
+
+#. module: web
+#: model:ir.model,name:web.model_web_cwv_metric
+msgid "Core Web Vitals Metric"
+msgstr ""
+
+#. module: web
+#: model:ir.model.constraint,message:web.constraint_web_cwv_metric_check_latency_range
+msgid "Core Web Vitals latencies must be between 0 and 3600000 ms."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_report_theme__border_radius
+msgid "Corner radius"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_report_theme__border_radius
+msgid "Corner radius for totals bands and boxed elements (CSS length)."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/google_slide_viewer/google_slide_viewer.js:0
+msgid "Could not display the selected slide"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/session.py:0
+msgid "Could not fetch the language list."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__company_country_group_codes
+msgid "Country Group Codes"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"Create corresponding in/out orders and bills when you sell/buy between your "
+"companies"
+msgstr ""
+
+#. module: web
+#: model:ir.model.constraint,message:web.constraint_web_cwv_metric_check_cls_range
+msgid "Cumulative Layout Shift must be between 0 and 1000."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_cwv_metric__cls
+msgid ""
+"Cumulative Layout Shift — unitless score (0 is best).  Lighthouse 'good' is "
+"< 0.1."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__report_footer
+msgid "Custom Report Footer"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__res_users_settings__color_scheme__dark
+msgid "Dark"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field.js:0
+msgid "Dashboard Graph"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/temporal/remaining_days/remaining_days_field.js:0
+msgid "Decoration expressions"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Default Access Rights"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/res_config_settings.py:0
+msgid "Default access for new users"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/switch_company_menu/switch_company_menu.js:0
+msgid "Deselect all"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/search_bar_menu/search_bar_menu.xml:0
+msgid "Disabled due to invalid configuration"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/copy_clipboard/copy_clipboard_field.js:0
+msgid "Disabled when"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_report_theme__font_display
+msgid "Display font"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/field_widgets_dialog.js:0
+msgid "Display name"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Document Layout"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2many_binary/many2many_binary_field.js:0
+msgid "Download %s"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid "Dynamic Placeholder model reference"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/web_read.py:0
+msgid "Each record must have a corresponding vals entry."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Edit Layout"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/res_config_settings.py:0
+msgid "Edit new user default group"
+msgstr ""
+
+#. module: web
+#: model:report.theme,name:web.report_theme_editorial
+msgid "Editorial"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/embedded_actions_bar/embedded_actions_bar.xml:0
+msgid "Embedded actions"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"Enable the profiling tool. Profiling may impact performance while being "
+"active."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/search_panel/search_panel.xml:0
+msgid "Expand the search panel"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/media/image/image_field.js:0
+msgid "Extra CSS classes set on the <img> element."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_cwv_metric__fcp
+msgid "FCP (ms)"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/embedded_actions_bar/embedded_actions.js:0
+msgid "Failed to save the embedded actions configuration."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/field_widgets_dialog.js:0
+msgid "Field Widgets"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2one/many2one_field.js:0
+msgid ""
+"Field filled in with the typed text when creating a record from the "
+"dropdown. Defaults to 'name'."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/selection/badge_selection_with_filter/badge_selection_field_with_filter.js:0
+msgid "Field holding the list of selection values that stay selectable."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/selection/selection/filterable_selection_field.js:0
+msgid ""
+"Field holding the list of selection values to keep. Takes precedence over "
+"the two lists above."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid "Field holding the model name whose fields the picker offers."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/json.py:0
+msgid "Fields not aggregatable for %(model)s: %(fields)s"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid "File name field"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2many_binary/many2many_binary_field.js:0
+msgid "Files"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/field_widgets_dialog.js:0
+msgid "Filter by name, display name, or supported type…"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Find free high-resolution images from Unsplash"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_cwv_metric__fcp
+msgid ""
+"First Contentful Paint — time from navigation start to first text/image "
+"paint.  Lighthouse 'good' is < 1800."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/url/url_field.js:0
+msgid "Fixed label shown instead of the URL itself."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_js_error__cause
+msgid ""
+"Flattened ``error.cause`` chain, one 'Caused by:' segment per level. This is"
+" the field an OWL lifecycle error points at: its own message says to read "
+"`cause`, and without it the report names a failure without saying why it "
+"happened."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/float_toggle/float_toggle_field.js:0
+msgid "Float Toggle"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/database.py:0
+msgid ""
+"For security, the master password can only be changed from localhost while "
+"it is still the default. Set 'admin_passwd' in the configuration file "
+"instead."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/display/progress_bar/progress_bar_field.js:0
+msgid "Force read-only"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/display/progress_bar/progress_bar_field.js:0
+msgid ""
+"Force the bar non-editable even when 'Can edit value' is set -- used to keep"
+" a card's bar inert in kanban."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/form/form_status_indicator/form_status_indicator.js:0
+msgid "Form has validation errors"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.config_speedscope_index
+msgid ""
+"Frames +\n"
+"                                        sql (Combined)"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/display/gauge/gauge_field.js:0
+msgid "Gauge"
+msgstr ""
+
+#. module: web
+#: model:ir.ui.menu,name:web.menu_config
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "General Settings"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_geocoding
+msgid "Geocoding"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Geolocate your partners"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Geolocation"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_google_address_autocomplete
+msgid "Google Address Autocomplete"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field.js:0
+msgid "Graph type"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "Has Cause Chain"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid "Height"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid "Height in pixels. Ignored when the `size` option is set."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/text/text_field.js:0
+msgid "Height of the textarea, in rows. The list variant caps it at one."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/switch_company_menu/switch_company_item.js:0
+msgid "Hide %s content."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/public/show_password.js:0
+msgid "Hide password"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/properties/properties_field.js:0
+msgid "How many columns the property list is laid out in: 1 or 2."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_cwv_metric__inp
+msgid "INP (ms)"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/media/image/image_field.js:0
+msgid "Image class"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Import & Export"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/media/signature/signature_field.js:0
+msgid "Initials"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/monetary/monetary_field.js:0
+msgid "Input type"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/debug_items.js:0
+msgid "Inspect Field Widgets"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Integrate with mail client plugins"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Integrations"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Inter-Company Transactions"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_cwv_metric__inp
+msgid ""
+"Interaction to Next Paint — reported as the worst-observed interaction "
+"duration over the page lifetime (P100), a strict upper bound on the "
+"canonical P98 metric.  Vendoring the web-vitals library for a true P98 is a "
+"future improvement; the wire format won't change."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/properties_base_definition.py:0
+msgid "Invalid model: %(model_name)s"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/export.py:0
+msgid "Invalid order clause %(order)s for %(model)s."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/web_read.py:0
+msgid ""
+"Invalid record reference '%(row_id)s' in field \"%(field)s\". Your changes "
+"were not saved — please reload the page and re-apply them."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__is_root_company
+msgid "Is Root Company"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_form
+msgid "JS Error"
+msgstr ""
+
+#. module: web
+#: model:ir.actions.act_window,name:web.action_web_js_error
+#: model:ir.ui.menu,name:web.menu_web_js_error
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_list
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "JS Errors"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/media/signature/signature_field.js:0
+#: model:ir.model.fields,field_description:web.field_web_js_error__kind
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "Kind"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_cwv_metric__lcp
+msgid "LCP (ms)"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_auth_ldap
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "LDAP Authentication"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/display/progress_bar/progress_bar_field.js:0
+msgid "Label drawn beside the bar."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_cwv_metric__lcp
+msgid ""
+"Largest Contentful Paint — time from navigation start to the render of the "
+"largest visible element.  Lighthouse 'good' is < 2500."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_search
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "Last 24h"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_search
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "Last 7 Days"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_search
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "Last Hour"
+msgstr ""
+
+#. module: web
+#: model:report.theme,name:web.report_theme_ledger
+msgid "Ledger"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/field_selector/field_selector_field.js:0
+msgid "Let the selector descend into properties fields."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__res_users_settings__color_scheme__light
+msgid "Light"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_js_error__line
+msgid "Line"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/url/url_field.js:0
+msgid "Link text"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/selection/selection/filterable_selection_field.js:0
+msgid "List of selection values to drop, e.g. `['a', 'b']`."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/selection/selection/filterable_selection_field.js:0
+msgid "List of selection values to keep, e.g. `['a', 'b']`."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/integer/integer_field.js:0
+msgid "Lower bound of the number input. Only applies with Type 'number'."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "M"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Mail Plugin"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/errors/error_dialogs.js:0
+msgid "MailDeliveryError"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/json_helpers.py:0
+msgid "Malformed stored filter domain: %s"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.login_layout
+msgid ""
+"Manage\n"
+"                                    Databases"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Manage API Keys"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Manage Companies"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_account_inter_company_rules
+msgid "Manage Inter Company"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Manage Languages"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Manage Users"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/temporal/remaining_days/remaining_days_field.js:0
+msgid ""
+"Map of decoration name to a python expression over `days`, e.g. {'danger': "
+"'days < 0'}."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/integer/integer_field.js:0
+msgid "Maximum"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_js_error__message
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_form
+msgid "Message"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/integer/integer_field.js:0
+msgid "Minimum"
+msgstr ""
+
+#. module: web
+#: model:report.theme,name:web.report_theme_modern
+msgid "Modern"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__web_js_error__kind__module_rebind
+msgid "Module Rebind"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__group_multi_currency
+msgid "Multi-Currencies"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/field_widgets_dialog.js:0
+#: model:ir.model.fields,field_description:web.field_report_theme__name
+msgid "Name"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many_dialog.js:0
+msgid "New: %s"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.actions.act_window,help:web.action_web_cwv_metric
+msgid "No Core Web Vitals beacons yet."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.actions.act_window,help:web.action_web_js_error
+msgid "No client-side JS errors recorded."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_picker.xml:0
+msgid "No emojis match your search"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/boolean_favorite/boolean_favorite_field.js:0
+#: code:addons/web/static/src/fields/display/stat_info/stat_info_field.js:0
+msgid "No label"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/list/list_aggregates.js:0
+msgid "No total: a group mixes several currencies"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/list/list_aggregates.js:0
+msgid "No total: currency rates are still loading"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/list/list_aggregates.js:0
+msgid "No total: currency rates could not be loaded"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/list/list_aggregates.js:0
+msgid "No total: one currency has no exchange rate"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/field_widgets_dialog.js:0
+msgid "No widgets match the filter."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__active_user_count
+msgid "Number of Active Users"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__company_count
+msgid "Number of Companies"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__language_count
+msgid "Number of Languages"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "O"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "OAuth Authentication"
+msgstr ""
+
+#. module: web
+#: model:ir.ui.menu,name:web.menu_technical_observability
+msgid "Observability"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/errors/error_dialogs.js:0
+msgid "Occurred on %(host)s on %(when)s"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/errors/error_dialogs.js:0
+msgid "Occurred on %(host)s on model %(model)s on %(when)s"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/errors/error_dialogs.js:0
+msgid "Occurred on %(when)s"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/errors/error_dialogs.js:0
+msgid "Occurred on model %(model)s on %(when)s"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/model/relational_model/dynamic_list.js:0
+msgid ""
+"Of the %(selectedRecords)s selected records, only the first %(firstRecords)s"
+" have been archived/unarchived."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2one/many2one_field.js:0
+msgid "Offer a barcode scanner button on mobile devices."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid ""
+"Offer a picker that inserts a {{object.field}} expression into the text."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/field_selector/field_selector_field.js:0
+msgid ""
+"Only offer fields pointing at this model, and the relations reaching one."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_js_error__reloaded
+msgid ""
+"Only set for asset_load_error: whether the loader's one-per-minute self-heal"
+" reload fired, or the guard suppressed it. Null everywhere else — an absent "
+"value must not read as 'suppressed', which would claim a reload was withheld"
+" when none was ever attempted."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/profiling/profiling_item.xml:0
+msgid "Open profiles"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/properties/properties_field.js:0
+msgid "Open with the definition editor already available."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/field_widgets_dialog.js:0
+msgid "Options"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "P"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.external_layout_footer
+msgid ""
+"Page <span class=\"page\"/>\n"
+"                        / <span class=\"topage\"/>"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_cwv_metric__pageview_id
+msgid "Pageview ID"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_partner_autocomplete
+msgid "Partner Autocomplete"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/char/char_field.js:0
+msgid "Passed straight through to the input's `autocomplete` attribute."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.report_invoice_wizard_preview
+msgid ""
+"Payment Communication: <b>\n"
+"                                <span>INV/2023/00003</span>\n"
+"                                </b>"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Performance"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Permissions"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_view_form_inherit_view
+msgid ""
+"Please note that your view includes invalid locators.<br/> These nodes could\n"
+"                    not be anchored to the parent view and have no effect.<br/> This issue may have\n"
+"                    arisen as a result of manual modifications or during the upgrade process.<br/>\n"
+"                    For your reference, invalid xpath nodes are highlighted in red."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_search
+msgid "Poor CLS (> 0.25)"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_search
+msgid "Poor INP (> 500ms)"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_search
+msgid "Poor LCP (> 4s)"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_cwv_metric_search
+msgid "Poor TTFB (> 1.8s)"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__web_js_error__phase__post_boot
+msgid "Post-boot"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.brand_promotion_message
+msgid "Powered by"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__web_js_error__phase__pre_boot
+msgid "Pre-boot"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "Pre-boot (loader down)"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid ""
+"Precision as a `[total, decimals]` pair, e.g. `[16,2]`. Overrides the "
+"field's own digits."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Preview Document"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/user_groups/res_user_group_ids_privilege_field.js:0
+msgid "Privilege"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/profiling/profiling_qweb.js:0
+msgid "Profiling QWeb View"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__profiling_enabled_until
+msgid "Profiling enabled until"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Progressive Web App"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/properties/property_tags.js:0
+msgid "Property Tags"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Protect your forms from spam and abuse."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Protect your forms with CF Turnstile."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid "Python domain gating the per-row delete action."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid ""
+"Python domain; creation is offered only for records it matches. `False` "
+"forbids it outright."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid "Python domain; when it does not match, the sub-view is read-only."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/copy_clipboard/copy_clipboard_field.js:0
+msgid "Python expression; when it is true the copy button is inert."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2one/many2one_field.js:0
+msgid "Quick-create field"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "R"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/list_x2many_field.js:0
+msgid "Record Count"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_cwv_metric__recorded_at
+#: model:ir.model.fields,field_description:web.field_web_js_error__recorded_at
+msgid "Recorded At"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__web_js_error__reloaded__reloaded
+msgid "Reloaded"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/search_bar/search_bar.js:0
+msgid "Remove %s"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/user_switch/user_switch.js:0
+msgid "Remove %s from the list"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/install_scoped_app/install_scoped_app.xml:0
+msgid "Rename application"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/display/stat_info/stat_info_field.js:0
+msgid "Render the figure without the field label beneath it."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/char/char_field.js:0
+msgid "Render the input as `type=password`, masking what is typed."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/boolean_favorite/boolean_favorite_field.js:0
+msgid "Render the star without the field label beside it."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2one/many2one_field.js:0
+msgid "Repeat every search"
+msgstr ""
+
+#. module: web
+#: model:ir.model,name:web.model_report_theme
+#: model:ir.model.fields,field_description:web.field_base_document_layout__report_theme_id
+#: model:ir.model.fields,field_description:web.field_res_company__report_theme_id
+msgid "Report Theme"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/module_views.xml:0
+msgid "Reset Updating States"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/monetary/monetary_field.js:0
+msgid "Round using the field's own digits instead of the currency's."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/text/text_field.js:0
+msgid "Rows"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_report_theme__rule_weight
+msgid "Rule weight"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_sms
+msgid "SMS"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.config_speedscope_index
+msgid ""
+"SQL\n"
+"                                        density"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.config_speedscope_index
+msgid ""
+"SQL no\n"
+"                                        gap"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/color/color_field.js:0
+msgid ""
+"Save the record as soon as a colour is picked. Defaults to true in list and "
+"kanban views."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/translation_button.js:0
+msgid "Save this record and its parent to translate"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/graph/graph_controller.xml:0
+msgid "Scatter Plot"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2one/many2one_field.js:0
+msgid "Search memoization"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.login
+msgid ""
+"Select <i class=\"fa-solid fa-database\" role=\"img\" aria-"
+"label=\"Database\" title=\"Database\"/>"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/profiling/profiling_qweb.xml:0
+msgid "Select a view to profile"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_js_error__reloaded
+msgid "Self-heal"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Send SMS"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Send texts to your contacts"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_report_theme__sequence
+msgid "Sequence"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__web_js_error__kind__service_start
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_search
+msgid "Service Failed to Start"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Set custom access rights for new users"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/monetary/monetary_field.js:0
+msgid ""
+"Set to `number` for a native numeric input; the value is then left "
+"unformatted while editing."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/switch_company_menu/switch_company_item.js:0
+msgid "Show %s content."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__show_effect
+msgid "Show Effect"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/public/show_password.js:0
+#: model_terms:ir.ui.view,arch_db:web.login
+msgid "Show password"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/breadcrumbs/breadcrumbs.xml:0
+msgid "Show the hidden breadcrumbs"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/media/signature/signature_field.js:0
+msgid "Signature"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2one/many2one_field.js:0
+msgid "Skip a search already known to be empty"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/many2one/many2one_field.js:0
+msgid "Skip any search extending an empty one"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_js_error__stack
+#: model_terms:ir.ui.view,arch_db:web.view_web_js_error_form
+msgid "Stack"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/properties/properties_field.js:0
+msgid "Start in edit mode"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/selection/state_selection/state_selection_field.js:0
+msgid "State Selection"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/debug/field_widgets_dialog.js:0
+msgid "Supported types"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__web_js_error__reloaded__suppressed
+msgid "Suppressed"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/switch_company_menu/switch_company_item.js:0
+msgid "Switch to %s"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/dark_mode_toggle/dark_mode_toggle.js:0
+msgid "Switch to dark mode"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/dark_mode_toggle/dark_mode_toggle.js:0
+msgid "Switch to light mode"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__res_users_settings__color_scheme__system
+msgid "System"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_cwv_metric__ttfb
+msgid "TTFB (ms)"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_report_theme__row_padding
+msgid "Table row padding"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid "Text of the row/card creation button, replacing \"Add a line\"."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_res_config_settings__company_country_code
+msgid ""
+"The ISO country code in two chars. \n"
+"You can use this field for quick search."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/action.py:0
+msgid "The action '%s' does not exist"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/action.py:0
+msgid "The action '%s' does not exist."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/embedded_actions_bar/embedded_actions.js:0
+msgid "The action was created, but saving its position failed."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/res_users.py:0
+msgid "The following email address(es) could not be parsed: %s"
+msgstr ""
+
+#. module: web
+#: model:ir.model.constraint,message:web.constraint_web_js_error_check_reloaded_only_on_asset_load_error
+msgid "The reloaded field can only be set for asset_load_error records."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/errors/error_dialogs.js:0
+msgid "The request sent to the server was too large"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/export_writers.py:0
+msgid ""
+"The value of cell (row %(row)s, column %(column)s) could not be written to "
+"the XLSX file."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.view_base_document_layout
+#: model_terms:ir.ui.view,arch_db:web.view_users_form_color_scheme
+#: model_terms:ir.ui.view,arch_db:web.view_users_form_simple_modif_color_scheme
+msgid "Theme"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/export_writers.py:0
+msgid ""
+"There are too many rows (limit: %(limit)s) to export as Excel 2007-2013 "
+"(.xlsx) format. Consider splitting the export."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_report_theme__rule_weight
+msgid "Thickness of the accent rule under table headers (CSS length)."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/actions/action_executors/act_url.js:0
+msgid "This action tried to open an unsafe URL and was blocked."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/domain.py:0
+msgid "This endpoint is reserved to internal users."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/web_read.py:0
+msgid ""
+"This form is out of date and references field(s) that no longer exist (%s). "
+"Your changes were not saved — please reload the page and re-apply them."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/core/network/slow_rpc_service.js:0
+msgid "This is taking longer than usual…"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"This name will be used for the application when Odoo is installed through "
+"the browser."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/tree_editor/tree_editor.xml:0
+msgid ""
+"This nested condition targets a field that does not exist on this model and "
+"cannot be edited here."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/pivot.py:0
+msgid ""
+"This pivot is too large to export (over %s cells). Narrow the grouping or "
+"add filters and try again."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/web_read.py:0
+msgid ""
+"This record was modified by another user while you were editing it.\n"
+"Conflicting field(s): %s.\n"
+"Please reload and re-apply your changes."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/web_read.py:0
+msgid ""
+"This record was modified by another user.\n"
+"Please reload and re-apply your changes."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_cwv_metric__ttfb
+msgid ""
+"Time To First Byte — time from request start to the first byte of the "
+"response.  Lighthouse 'good' is < 800."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/search/search_bar/search_bar_toggler.xml:0
+msgid "Toggle the search bar"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_cwv_metric__user_agent
+msgid ""
+"Truncated to 500 chars at the controller; the 512-char DB cap is a backstop "
+"for any other write path."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__web_js_error__kind__error
+msgid "Uncaught Error"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__web_js_error__kind__unhandledrejection
+msgid "Unhandled Rejection"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields.selection,name:web.selection__web_js_error__phase__unknown
+msgid "Unknown"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/web_search_panel.py:0
+msgid "Unknown field %(field)s on model %(model)s"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/json.py:0
+msgid "Unknown fields for %(model)s: %(fields)s"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/export.py:0
+msgid "Unknown groupby fields for %(model)s: %(fields)s"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/controllers/export.py:0
+msgid "Unknown order fields for %(model)s: %(fields)s"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_web_unsplash
+msgid "Unsplash Image Library"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/tree_editor/tree_editor.xml:0
+msgid "Unsupported sub-domain (unknown field)"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Update Info"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/integer/integer_field.js:0
+msgid "Upper bound of the number input. Only applies with Type 'number'."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.config_speedscope_index
+msgid ""
+"Use\n"
+"                                        execution context"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Use LDAP credentials to log in"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Use external accounts to log in (Google, Facebook, etc.)"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_auth_oauth
+msgid "Use external authentication providers (OAuth)"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/basic/monetary/monetary_field.js:0
+msgid "Use the field's digits"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_web_cwv_metric__user_agent
+#: model:ir.model.fields,field_description:web.field_web_js_error__user_agent
+msgid "User Agent"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/user_groups/res_user_group_ids_field.js:0
+msgid "User Groups"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_cwv_metric__user_id
+msgid ""
+"User logged in when the beacon fired; null for anonymous frontend traffic."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/webclient/user_menu/user_menu.xml:0
+msgid "User menu"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_js_error__user_id
+msgid ""
+"User whose session emitted the beacon; null for anonymous frontend traffic."
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid "Users"
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/res_config_settings.py:0
+msgid "VAT"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_report_theme__row_padding
+msgid ""
+"Vertical padding of table rows (CSS length), e.g. 0.3rem for a dense ledger "
+"or 0.7rem for a roomier document."
+msgstr ""
+
+#. module: web
+#: model:ir.actions.server,name:web.ir_cron_web_cwv_metric_gc_ir_actions_server
+msgid "Web: Core Web Vitals Retention"
+msgstr ""
+
+#. module: web
+#: model:ir.actions.server,name:web.ir_cron_web_js_error_gc_ir_actions_server
+msgid "Web: JS Error Retention"
+msgstr ""
+
+#. module: web
+#: model_terms:ir.ui.view,arch_db:web.res_config_settings_view_form
+msgid ""
+"When populating your address book, Odoo provides a list of matching "
+"companies. When selecting one item, the company data and logo are auto-"
+"filled."
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,help:web.field_web_js_error__phase
+msgid ""
+"Whether the module system had finished booting. A pre_boot failure means the"
+" loader itself did not come up, so nothing else in the client is trustworthy"
+" at that point."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/selection/selection/filterable_selection_field.js:0
+msgid "Whitelist field"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/selection/selection/filterable_selection_field.js:0
+msgid "Whitelisted values"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid "Width"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/field_options.js:0
+msgid "Width in pixels. Ignored when the `size` option is set."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/properties_base_definition.py:0
+msgid "You cannot read that field definition."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/public/error_notifications_registry.js:0
+msgid "You do not have permission to perform this operation."
+msgstr ""
+
+#. module: web
+#. odoo-python
+#: code:addons/web/models/res_users.py:0
+msgid "You have to install the Discuss application to use this feature."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/core/file_upload/file_upload_service.js:0
+msgid "Your session expired. Please log in again."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field.js:0
+msgid "`bar` or `line`."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "i"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid "many2many only: Python domain gating 'Add' / the select dialog."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/fields/relational/x2many/x2many_field.js:0
+msgid "many2many only: Python domain gating removal of an existing link."
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "o"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/view_components/multi_currency_popover.xml:0
+msgid "on"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/ui/dialog/dialog.xml:0
+msgid "props.title"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "r"
+msgstr ""
+
+#. module: web
+#: model:ir.model.fields,field_description:web.field_res_config_settings__module_google_recaptcha
+msgid "reCAPTCHA"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "v"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/views/view_components/multi_currency_popover.xml:0
+msgid "without currency"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "x"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "サ"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "割"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "可"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "合"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "営"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "得"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "指"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "月"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "有"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "満"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "無"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "申"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "祝"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "禁"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "秘"
+msgstr ""
+
+#. module: web
+#. odoo-javascript
+#: code:addons/web/static/src/components/emoji_picker/emoji_data.js:0
+msgid "空"
+msgstr ""
+

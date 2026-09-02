@@ -495,3 +495,73 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:certificate.certificate_key_view_search
 msgid "key search"
 msgstr ""
+
+#. module: certificate
+#. odoo-python
+#: code:addons/certificate/models/certificate_key.py:0
+msgid "A private key is required."
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,field_description:certificate.field_certificate_certificate__content_encrypted
+msgid "Certificate (encrypted)"
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,field_description:certificate.field_certificate_certificate__content_plain
+msgid "Certificate (unencrypted)"
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,field_description:certificate.field_certificate_certificate__pkcs12_password_encrypted
+msgid "Certificate Password (encrypted)"
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,field_description:certificate.field_certificate_certificate__pkcs12_password_plain
+msgid "Certificate Password (unencrypted)"
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,field_description:certificate.field_certificate_certificate__encryption_key_version
+#: model:ir.model.fields,field_description:certificate.field_certificate_key__encryption_key_version
+msgid "Encryption Key Version"
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,field_description:certificate.field_certificate_key__content_encrypted
+msgid "Key file (encrypted)"
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,field_description:certificate.field_certificate_key__content_plain
+msgid "Key file (unencrypted)"
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,field_description:certificate.field_certificate_key__password_encrypted
+msgid "Private key password (encrypted)"
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,field_description:certificate.field_certificate_key__password_plain
+msgid "Private key password (unencrypted)"
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,help:certificate.field_certificate_certificate__encryption_key_version
+#: model:ir.model.fields,help:certificate.field_certificate_key__encryption_key_version
+msgid ""
+"Version of the encryption key used for this record's encrypted columns (for "
+"key-rotation tracking). 0/unset means untracked — the rotation migration "
+"treats such rows as eligible."
+msgstr ""
+
+#. module: certificate
+#: model:ir.model.fields,help:certificate.field_certificate_certificate__scope
+msgid ""
+"What this certificate may be used for. Every consumer selects on this field,"
+" so a certificate is inert until it is scoped deliberately -- 'General' is "
+"the safe default, not a fiscal role."
+msgstr ""
+

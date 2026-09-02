@@ -227,3 +227,57 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:sale_purchase.exception_purchase_on_sale_quantity_decreased
 msgid "ordered instead of"
 msgstr ""
+
+#. module: sale_purchase
+#. odoo-python
+#: code:addons/sale_purchase/models/product_template.py:0
+msgid ""
+"%(product)s is re-invoiced at cost, so it is already bought through the "
+"expense and cannot also raise a RfQ in %(company)s."
+msgstr ""
+
+#. module: sale_purchase
+#. odoo-python
+#: code:addons/sale_purchase/models/product_template.py:0
+msgid ""
+"%(product)s is set up as a subcontracted service in %(company)s, which only "
+"a service can be."
+msgstr ""
+
+#. module: sale_purchase
+#: model_terms:ir.ui.view,arch_db:sale_purchase.exception_purchase_on_sale_cancellation
+#: model_terms:ir.ui.view,arch_db:sale_purchase.exception_sale_on_purchase_cancellation
+msgid ""
+".\n"
+"                Manual actions may be needed."
+msgstr ""
+
+#. module: sale_purchase
+#: model:ir.model.fields,field_description:sale_purchase.field_purchase_order__has_sale_order
+msgid "Has Source Sale"
+msgstr ""
+
+#. module: sale_purchase
+#. odoo-python
+#: code:addons/sale_purchase/models/product_template.py:0
+msgid ""
+"Please define the vendor from whom you would like to purchase %(product)s "
+"automatically for %(company)s."
+msgstr ""
+
+#. module: sale_purchase
+#: model_terms:ir.ui.view,arch_db:sale_purchase.purchase_order_inherited_form_sale
+msgid "Sale"
+msgstr ""
+
+#. module: sale_purchase
+#: model_terms:ir.ui.view,arch_db:sale_purchase.product_template_form_view_inherit
+msgid "Subcontracting"
+msgstr ""
+
+#. module: sale_purchase
+#: model:ir.model.fields,help:sale_purchase.field_purchase_order__has_sale_order
+msgid ""
+"Technical field: whether the purchase order has associated sale orders."
+msgstr ""
+

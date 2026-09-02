@@ -5840,3 +5840,1272 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:mass_mailing.s_pricelist_boxed
 msgid "✽  Pizzas"
 msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_customer_quote
+msgid ""
+"\"This company transformed our business. Their solutions are innovative and "
+"reliable\""
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid "24/7 Support"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_link_list
+msgid "5 Color Mistakes That Are Ruining Your Home's Vibe"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_link_list
+msgid "7 Design Secrets of the World's Most Beautiful Homes"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "8.00am - 12.00am"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "8.00am - 6.00pm"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.mailing_list_view_kanban
+msgid ""
+"<br/>\n"
+"                                    <span class=\"text-muted\">\n"
+"                                        <i class=\"fa-regular fa-envelope\"/> Contacts\n"
+"                                    </span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_signature
+msgid "<em>Customer Service</em>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_5
+msgid "<font class=\"text-white\">Reaching new heights together</font>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_5
+msgid "<font class=\"text-white\">Where ideas come to life</font>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_author
+msgid ""
+"<font style=\"color: white\"><strong>If you're ready to transform your "
+"website into a high-converting asset</strong>, <em>hit reply and let's work "
+"together.</em></font>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_blog_post_card
+msgid "<font style=\"color: white\">Head of Design</font>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_author
+msgid ""
+"<font style=\"color: white\">Hi there, I'm <strong>John Doe</strong>, a "
+"design expert specializing in responsive web and mobile app interfaces. "
+"<strong>For over 13 years</strong>, I've focused on creating elegant, user-"
+"centric designs that are both scalable and easy to maintain.</font>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_blog_post_card
+msgid "<font style=\"color: white\">Julian Thorne</font>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_kanban
+msgid ""
+"<i class=\"fa-solid fa-bullseye me-2\" role=\"img\" aria-"
+"label=\"Lead/Opportunity\"/>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_form
+msgid "<i class=\"fa-solid fa-chart-column\"/> Compare Version"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_form
+msgid "<i class=\"fa-solid fa-copy\"/> Create an Alternative"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_form
+msgid "<i class=\"fa-solid fa-envelope\"/> Send this as winner"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_form
+msgid ""
+"<i class=\"fa-solid fa-envelope\"/><span name=\"ab_test_auto\">\n"
+"                                                Send Winner Now\n"
+"                                            </span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.ab_testing_description
+msgid ""
+"<i class=\"fa-solid fa-exclamation-triangle text-danger\" aria-hidden=\"true\"/>\n"
+"                            The sum of all percentages for this A/B campaign totals"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.mailing_contact_view_kanban
+msgid ""
+"<i class=\"fa-solid fa-exclamation-triangle\" role=\"img\" aria-"
+"label=\"Warning\" title=\"Warning\"/>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_form
+msgid ""
+"<small class=\"oe_edit_only text-muted mb-2\" style=\"font-size:74%\" invisible=\"reply_to_mode == 'update' or mailing_model_name in ['mailing.contact', 'res.partner', 'mailing.list']\">\n"
+"                                                To track replies, this address must belong to this database.\n"
+"                                            </small>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid "<span class=\"display-3-fs\">Discover our main three benefits</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid "<span class=\"display-4-fs\">1</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid "<span class=\"display-4-fs\">2</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid "<span class=\"display-4-fs\">3</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid ""
+"<span class=\"fa-solid fa-asterisk me-2\" contenteditable=\"false\"/>What We"
+" Offer"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mailing_list_advertisement
+msgid ""
+"<span class=\"fa-solid fa-check text-o-color-1\" role=\"img\"/>  Curated "
+"Industry Insights"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mailing_list_advertisement
+msgid ""
+"<span class=\"fa-solid fa-check text-o-color-1\" role=\"img\"/>  Expert Tips"
+" &amp; How-Tos"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mailing_list_advertisement
+msgid ""
+"<span class=\"fa-solid fa-check text-o-color-1\" role=\"img\"/>  Guides "
+"&amp; Resources"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_comparisons
+msgid ""
+"<span class=\"fa-solid fa-check text-success\" role=\"img\"/>  Access all "
+"modules"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_comparisons
+msgid ""
+"<span class=\"fa-solid fa-check text-success\" role=\"img\"/>  Account "
+"management"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_comparisons
+msgid ""
+"<span class=\"fa-solid fa-check text-success\" role=\"img\"/>  Complete CRM "
+"for any team"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_comparisons
+msgid "<span class=\"fa-solid fa-check text-success\" role=\"img\"/>  Email support"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_comparisons
+msgid ""
+"<span class=\"fa-solid fa-check text-success\" role=\"img\"/>  Limited "
+"customization"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_comparisons
+msgid ""
+"<span class=\"fa-solid fa-check text-success\" role=\"img\"/>  Sales &amp; "
+"marketing for 2"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_badge
+msgid "<span class=\"fa-solid fa-folder\"/>Category"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_kanban
+msgid ""
+"<span class=\"fa-solid fa-hourglass me-2 small my-auto\" aria-label=\"Scheduled date\"/>\n"
+"                                    <span>Next Batch</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_kanban
+msgid ""
+"<span class=\"fa-solid fa-hourglass-half me-2 small my-auto\" aria-"
+"label=\"Scheduled date\"/>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_cta_badge
+msgid ""
+"<span class=\"fa-solid fa-info-circle\" role=\"img\"/>  What do you want to "
+"promote&amp;nbsp;?"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_kanban
+msgid ""
+"<span class=\"fa-solid fa-paper-plane me-2 small my-auto\" aria-label=\"Sent"
+" date\"/>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_centered_cta_badge
+msgid ""
+"<span class=\"fa-solid fa-shopping-cart\" contenteditable=\"false\"/>  Huge "
+"holiday sale savings. Don't miss out."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_special_offer_cta
+msgid ""
+"<span class=\"fa-solid fa-tag\" contenteditable=\"false\"/>  <strong>Special"
+" Offers</strong>. Complimentary care packs included with every sofa."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_comparisons
+msgid "<span class=\"fa-solid fa-times text-danger\" role=\"img\"/>  No customization"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_comparisons
+msgid "<span class=\"fa-solid fa-times text-danger\" role=\"img\"/>  No support"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mail_block_header_logo_and_button
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mail_block_header_name_and_button
+msgid ""
+"<span class=\"fa-solid fa-user me-2\" contenteditable=\"false\"/>My "
+"Account<span class=\"fa-solid fa-chevron-right ms-2\" "
+"contenteditable=\"false\"/>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_comparisons
+msgid ""
+"<span class=\"h2-fs\"><strong>$ 15.00</strong></span>\n"
+"                                        <span class=\"o_small-fs\">/ month</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_comparisons
+msgid ""
+"<span class=\"h2-fs\"><strong>$ 25.00</strong></span>\n"
+"                                        <span class=\"o_small-fs\">/ month</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_form
+msgid ""
+"<strong class=\"d-block\" invisible=\"mailing_type == 'mail' or not ab_testing_enabled or state != 'done' or sent != 0 or failed != 0 or canceled != 0\">\n"
+"                            <span name=\"ab_test_text\">There wasn't enough recipients given to this mailing. </span>\n"
+"                        </strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_5
+msgid "<strong><font class=\"text-white\">Innovation Hub</font></strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_5
+msgid "<strong><font class=\"text-white\">Key Milestone</font></strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_numbers
+msgid "<strong><font style=\"font-size: 48px; color: white;\">45</font></strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_numbers
+msgid "<strong><font style=\"font-size: 48px;\">12</font></strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_numbers
+msgid "<strong><font style=\"font-size: 48px;\">8</font></strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_4
+msgid "<strong>A Breath of Fresh Air</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_6
+msgid "<strong>About our product line</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_attributes_horizontal
+msgid "<strong>Easy returns</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_reviews_wall
+msgid ""
+"<strong>Emil Foster</strong><br/>\n"
+"                                        <span class=\"text-muted\">Creative Director</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_attributes_horizontal
+msgid "<strong>Free shipping</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_reviews_wall
+msgid ""
+"<strong>James Carter</strong><br/>\n"
+"                                        <span class=\"text-muted\">Chief Technical Officer</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_customer_quote
+msgid "<strong>Jane DOE</strong><br/>CEO of MyCompany"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_reviews_wall
+msgid ""
+"<strong>Jody Roberts</strong><br/>\n"
+"                                        <span class=\"text-muted\">Chief Financial Officer</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_4
+msgid "<strong>John DOE</strong><br/>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_blockquote
+msgid ""
+"<strong>John DOE</strong><br/><span class=\"h6-fs\"><font "
+"class=\"text-600\">CEO of MyCompany</font></span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_product_description
+msgid ""
+"<strong>Replace this block with the authentic, singular story of your "
+"product.</strong> Focus on the unique spark that gave it personality. "
+"<strong>Be short, be specific, and let your brand's voice shine</strong> "
+"through unique work choices. This explains the <em>soul</em> behind the "
+"product, inspiring a deeper connection beyond simple features."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_attributes_horizontal
+msgid "<strong>Secure payment</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mailing_list_advertisement
+msgid "<strong>Stay Ahead with weekly insights &amp; updates</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_7
+msgid "<strong>Stay in the Loop !<br/>Get the latest updates</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_picture
+msgid "<strong>Step Up Your Game</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_reviews_wall
+msgid ""
+"<strong>Sullivan Mitchell</strong><br/>\n"
+"                                        <span class=\"text-muted\">Marketing Director</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_2
+msgid "<strong>The Innovation Behind Our Product</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_3
+msgid "<strong>Timeless Design</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_1
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_title_with_side_text
+msgid "<strong>Unveil Our Exclusive Collections</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_card
+msgid ""
+"<strong>Why settle for a generic solution?</strong><br/>We don't just offer "
+"tools; we provide a competitive advantage. Our platform is engineered to "
+"streamline your workflow, eliminate bottlenecks, and help you scale faster "
+"than ever before."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "<u>Friday</u>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "<u>Monday</u>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_form
+msgid "<u>Refresh <i class=\"fa-solid fa-arrows-rotate ms-1\"/></u>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "<u>Saturday</u>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "<u>Sunday</u>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "<u>Thursday</u>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "<u>Tuesday</u>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "<u>Wednesday</u>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_4
+msgid "A Breath of Fresh Air"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_product_description
+msgid "A great product"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_blog_post_card
+msgid "A love letter to the space you call your own."
+msgstr ""
+
+#. module: mass_mailing
+#. odoo-javascript
+#: code:addons/mass_mailing/static/src/builder/plugins/schedule_option_plugin.js:0
+msgid "Add Activity"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_section_mobile
+msgid "App Store"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_card
+msgid "Automate your daily tasks."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_section_mobile
+msgid "Available for iOS and Android."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_membership_advertisement
+msgid "Award-winning collection"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_7
+msgid "Be the first to find out all the latest new, products and trends."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_membership_advertisement
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_cta_card
+msgid "Become a Member"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid ""
+"Benefit from tax-free shopping, simplifying your purchase and enhancing your"
+" savings without any extra costs."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Benefits"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_signature
+msgid "Best,"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_card
+msgid "Browse our documentation"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_product_showcase
+msgid "Built to Last: The Beauty of Choosing Quality Materials"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_left_cta
+msgid "Buy Now"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Call To Action"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Call To Action Card"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Call To Action Text (center)"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Call To Action Text (left)"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Centered CTA"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "Closed"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_features_column
+msgid ""
+"Consistent performance and uptime ensure efficient, reliable service with "
+"minimal interruptions and quick response times."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mail_block_header_logo_and_inline_menu
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mail_block_header_logo_and_stacked_menu
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mail_block_header_name_and_inline_menu
+msgid "Contact Us"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Content Card"
+msgstr ""
+
+#. module: mass_mailing
+#. odoo-javascript
+#: code:addons/mass_mailing/static/src/builder/options/company_team_options.xml:0
+msgid "Content Width"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_media_list
+msgid ""
+"Continue reading <span class=\"fa-solid fa-right-long align-middle ms-1\"/>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Customer Quote"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_product_showcase
+msgid ""
+"Design for the Soul: Why Your Home Should Be a Reflection of Your Best Self"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_cta_card
+msgid "Designed for You"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_image_text
+msgid "Discover New <strong>Opportunities</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_features_showcase
+msgid "Discover all features"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_media_list
+msgid "Discover more <span class=\"fa-solid fa-right-long align-middle ms-1\"/>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_4
+msgid ""
+"Discover the thrill of a home that truly reflects your soul. It's more than "
+"just decor; it's about creating a space so vibrant and curated that "
+"<strong>you'll beam with pride</strong> every time you step inside."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_left_cta
+msgid ""
+"Don't settle for the ordinary. Our artisans obsess over every detail to "
+"create the perfection your home demands. Own a masterpiece today."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_membership_advertisement
+msgid ""
+"Each piece is more than just furniture; it's a recognized masterpiece of "
+"craftsmanship and style."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_4
+msgid "Elegance That Inspires"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_image
+msgid "Enhance Your <strong>Experience</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_6
+msgid ""
+"Enhance your experience with our user-focused designs, ensuring you get the "
+"best value."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_3
+msgid ""
+"Experience the perfect harmony of form and function. Each piece is "
+"meticulously designed with <strong>premium materials</strong>, ensuring that"
+" your interior reflects a sophisticated yet inviting atmosphere."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid "Fair pricing"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_search
+msgid "Favorites"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Features Column"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Features Showcase"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_company_team
+msgid ""
+"Founder and chief visionary, Tony is the driving force behind the company. He loves\n"
+"                                    to keep his hands full by participating in the development of the software,\n"
+"                                    marketing, and customer experience strategies."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_card
+msgid "Gain real-time insights."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_section_mobile
+msgid "Google Play Store"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_product_showcase
+msgid ""
+"Great design is about more than just filling a room; it is about creating a "
+"lifestyle that feels both luxurious and meaningful. Our pieces are carefully"
+" made to bring soul to your space, blending modern ideas with the warmth of "
+"traditional craftsmanship. Every detail is a deliberate choice, intended to "
+"turn your house into a personal gallery where you can truly relax in style."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_features_column
+msgid ""
+"Growth capability is a system's ability to scale and adapt, meeting "
+"increasing demands and evolving needs for long-term success."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_need_help
+msgid "How is your data secured?"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_product_showcase
+msgid ""
+"In a fast-paced world, your home should be your ultimate escape—a private "
+"place that brings you a sense of calm and clarity. Our collection focuses on"
+" clean lines and comfortable shapes, providing a sophisticated backdrop for "
+"your most important moments. We believe your surroundings should be a "
+"testament to your taste, offering the perfect l ease you need to unwind."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_need_help
+msgid "In this section, you can address common questions efficiently."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_card
+msgid "Integrate with your favorite apps."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_center_cta
+msgid "Invest in the Future"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_need_help
+msgid "Is the website user-friendly?"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mail_block_header_logo_col
+msgid "Issue<br/><strong>#42</strong>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_membership_advertisement
+msgid ""
+"Join our inner circle to enjoy exclusive privileges and turn every curated "
+"choice into a journey of refined inspiration."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mailing_list_advertisement
+msgid ""
+"Join our mailing list to receive carefully curated resources, tips, and "
+"updates straight to your inbox."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_2
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_4
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_membership_advertisement
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_card
+msgid "Learn More"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_contact
+msgid "Let's get in touch"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Logo + Button"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Logo + Inline Menu"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Logo + Stacked Menu"
+msgstr ""
+
+#. module: mass_mailing
+#. odoo-python
+#: code:addons/mass_mailing/wizard/mail_compose_message.py:0
+msgid "Mass Mailing Template: '%(name)s' (ID: %(record_id)s)"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Membership"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Menu"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.theme_default_template
+msgid ""
+"Michael Fletcher<br/>\n"
+"                    <span style=\"font-size: 12px; font-weight: bolder;\">Customer Service</span>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.view_mail_mass_mailing_search
+msgid "My Favorites"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Name + Button"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Name + Inline Menu"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Name + Social"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_need_help
+msgid "Need help?"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_blog_post_card
+msgid "New Blog post"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_section_mobile
+msgid "Odoo Mobile"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_6
+msgid ""
+"Our product line offers a range of innovative solutions designed to meet "
+"your needs. Each product is crafted for quality and reliability."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid ""
+"Our support team is available 24/7 to assist with any inquiries or issues, "
+"ensuring you get help whenever you need it."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_need_help
+msgid ""
+"Our website is designed for easy navigation, allowing you to find the "
+"information you need quickly and efficiently."
+msgstr ""
+
+#. module: mass_mailing
+#: model:ir.model.fields.selection,name:mass_mailing.selection__mailing_trace__failure_type__mail_server_unauthorized
+msgid "Outgoing mail server not available to this email"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_features_column
+msgid "Performance"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_link_list
+msgid "Popular Links"
+msgstr ""
+
+#. module: mass_mailing
+#: model:ir.model.fields,field_description:mass_mailing.field_mailing_contact__website_message_ids
+#: model:ir.model.fields,field_description:mass_mailing.field_mailing_mailing__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: mass_mailing
+#: model:ir.model.fields,help:mass_mailing.field_mailing_contact__website_message_ids
+#: model:ir.model.fields,help:mass_mailing.field_mailing_mailing__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Product Description"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Product Showcase"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_product_showcase
+msgid "Read More"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_blog_post_card
+msgid "Read Now"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_4
+msgid ""
+"Redefine your daily rituals with interiors that inspire. From the moment you"
+" walk through the door, our pieces evoke a sense of <strong>pure "
+"delight</strong>, turning every corner of your home into a sanctuary of "
+"happiness and ease."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_features_column
+msgid "Reliability"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_features_column
+msgid "Scalability"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Section Mobile"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_card
+msgid "See how"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_special_offer_cta
+msgid "See more"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_cta_badge
+msgid "See more <span class=\"fa-solid fa-right-long\" role=\"img\"/>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_centered_cta_badge
+msgid "Shop Now"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_3
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_center_cta
+msgid "Shop now"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Social + Footer"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Social + Footer + Separator"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Social + Logo"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Special Offer CTA"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_features_column
+msgid ""
+"Speed and efficiency ensure tasks are completed quickly and resources are "
+"used optimally, enhancing productivity and satisfaction."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_product_description
+msgid "Starting from $29.99"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_7
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mailing_list_advertisement
+msgid "Subscribe"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid "Tax free"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Text Card"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_product_showcase
+msgid "The Art of the Escape: Creating a Quiet Sanctuary in a Busy World"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_link_list
+msgid "The Essential Guide to Timeless Furniture Investing"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_link_list
+msgid "The Interior Trend You Can't Afford to Miss"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_blog_post_card
+msgid "The Joy of Coming Home"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_left_cta
+msgid "The Mastery of Making"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_blockquote
+msgid ""
+"There is a certain magic in a room that just feels right. It's that "
+"effortless click when a sleek silhouette meets a soft, lived-in texture, "
+"turning a house into a haven that truly moves you..."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.mailing_subscription_view_form
+msgid "This email is blacklisted for mass mailings"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Title + Side Text"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_product_showcase
+msgid ""
+"True elegance is something you can feel, rooted in high-quality materials "
+"that only get better with time. By using the finest woods and textiles, we "
+"create furniture that doesn't just sit in a room—it grows with it. These "
+"pieces are designed to be your home's future heirlooms, crafted with such "
+"care that they will remain as beautiful and relevant years from now as they "
+"are today."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_center_cta
+msgid ""
+"True luxury is measured in decades.<br/>We blend heritage craft with the "
+"finest materials.<br/>Discover pieces that age beautifully."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_cta_card
+msgid ""
+"True luxury is more rewarding as a member.<br/>Join our inner circle for "
+"exclusive benefits and early access.<br/>Elevate your home today."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_card
+msgid "Unlock your full potential"
+msgstr ""
+
+#. module: mass_mailing
+#. odoo-python
+#: code:addons/mass_mailing/wizard/mail_compose_message.py:0
+msgid "Unnamed Mailing"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.actions.act_window,help:mass_mailing.mailing_trace_report_action_mail
+msgid ""
+"Use this menu to keep track of the results of your mailings.<br>\n"
+"                From here, you'll be able to overview the rate of replies, clicks, bounces..."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_media_list
+msgid ""
+"Use this snippet to build various types of components that feature a left- or right-aligned image alongside textual content. Duplicate the element to create a list that fits your needs.\n"
+"                                <br/>"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_need_help
+msgid ""
+"We deliver personalized solutions, ensuring that every customer receives "
+"top-tier service tailored to their needs."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_need_help
+msgid ""
+"We provide 24/7 support through various channels, including live chat, "
+"email, and phone, to assist with any queries."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_describing_benefits
+msgid ""
+"We provide transparent pricing that offers great value, ensuring you always "
+"get the best deal without hidden costs."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.email_designer_snippets
+msgid "Website"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_need_help
+msgid "What sets us apart?"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_need_help
+msgid "What support do we offer?"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.actions.act_window,help:mass_mailing.mailing_filter_action
+msgid ""
+"While designing the mailing, you can define the rules to filter recipients.\n"
+"                To save the same criteria for future use, you can add it to the favorite list\n"
+"                by clicking on <i class=\"fa-regular fa-floppy-disk text-warning\"></i> icon next to \"Recipients\"."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_link_list
+msgid "Why Your Living Room Feels Unfinished (And How to Fix It)"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_1
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_content_card_2
+msgid ""
+"Write one or two paragraphs describing your product or services. To be "
+"successful, your content needs to be useful to your readers."
+msgstr ""
+
+#. module: mass_mailing
+#. odoo-javascript
+#: code:addons/mass_mailing/static/src/builder/tabs/design_tab.xml:0
+#: model_terms:ir.ui.view,arch_db:mass_mailing.social_links
+msgid "X"
+msgstr ""
+
+#. module: mass_mailing
+#. odoo-javascript
+#: code:addons/mass_mailing/static/src/builder/tabs/design_tab.xml:0
+msgid "Y"
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mail_block_footer_one_liner
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mail_block_footer_social
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mail_block_footer_social_and_logo
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_mail_block_footer_social_left
+msgid ""
+"You're seeing this because you've shopped with us or joined our mailing "
+"list."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.s_text_need_help
+msgid ""
+"Your data is protected by advanced encryption and security protocols, "
+"keeping your personal information safe."
+msgstr ""
+
+#. module: mass_mailing
+#: model_terms:ir.ui.view,arch_db:mass_mailing.ab_testing_description
+msgid ""
+"of all potential recipients.<br/>\n"
+"                            <b class=\"text-danger\">Some of the mailings will not be sent</b>, as only 1 email will be sent for each unique recipient in this campaign."
+msgstr ""
+

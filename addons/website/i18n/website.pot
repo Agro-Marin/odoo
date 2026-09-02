@@ -19646,3 +19646,1158 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:website.s_key_benefits
 msgid "✽  What We Offer"
 msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.list_hybrid
+msgid ""
+"' did not match anything.\n"
+"                            Results are displayed for '"
+msgstr ""
+
+#. module: website
+#. odoo-python
+#: code:addons/website/models/website.py:0
+msgid "'%s' is not a valid template reference."
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_faq_horizontal
+msgid ""
+"<a class=\"o_translate_inline\" href=\"#\">Read More <i class=\"fa-solid fa-"
+"angle-right\" role=\"img\"/></a>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_references
+msgid ""
+"<a class=\"o_translate_inline\" href=\"#\">See our case studies <i "
+"class=\"fa-solid fa-right-long ms-2\"/></a>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_empowerment
+msgid ""
+"<a href=\"#\" class=\"btn btn-primary mb-2 o_translate_inline\">Get started</a>\n"
+"                            <a href=\"#\" class=\"btn btn-secondary mb-2 o_translate_inline\">Learn more</a>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_bento_banner
+msgid ""
+"<a href=\"#\" role=\"button\" class=\"btn btn-lg btn-secondary o_translate_inline\">\n"
+"                                        Buy now\n"
+"                                    </a>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_contact_info
+msgid ""
+"<i class=\"fa-regular fa-building\" role=\"presentation\"/>\n"
+"                            Office"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_contact_info
+msgid ""
+"<i class=\"fa-regular fa-envelope\" role=\"presentation\"/>\n"
+"                            Email"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.website_controller_pages_kanban_view
+msgid "<i class=\"fa-solid fa-arrow-right fa-2x text-primary\" title=\"URL\"/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_cta_card
+msgid "<i class=\"fa-solid fa-check text-o-color-1\" role=\"img\"/>  Complete access"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_cta_card
+msgid "<i class=\"fa-solid fa-check text-o-color-1\" role=\"img\"/>  Quick support"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_cta_card
+msgid ""
+"<i class=\"fa-solid fa-check text-o-color-1\" role=\"img\"/>  Wonderful "
+"experience"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid ""
+"<i class=\"fa-solid fa-check text-success\" role=\"img\"/>  24/7 toll-free "
+"support"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid "<i class=\"fa-solid fa-check text-success\" role=\"img\"/>  Access all modules"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid "<i class=\"fa-solid fa-check text-success\" role=\"img\"/>  Account management"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid ""
+"<i class=\"fa-solid fa-check text-success\" role=\"img\"/>  All modules "
+"&amp; features"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid ""
+"<i class=\"fa-solid fa-check text-success\" role=\"img\"/>  Complete CRM for"
+" any team"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid "<i class=\"fa-solid fa-check text-success\" role=\"img\"/>  Email support"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid ""
+"<i class=\"fa-solid fa-check text-success\" role=\"img\"/>  Limited "
+"customization"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid ""
+"<i class=\"fa-solid fa-check text-success\" role=\"img\"/>  Sales &amp; "
+"marketing for 2"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid ""
+"<i class=\"fa-solid fa-check text-success\" role=\"img\"/>  Unlimited CRM "
+"support"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid ""
+"<i class=\"fa-solid fa-check text-success\" role=\"img\"/>  Unlimited "
+"customization"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.website_visitor_view_form
+msgid "<i class=\"fa-solid fa-circle o_button_icon text-danger\" title=\"Offline\"/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.website_visitor_view_form
+msgid ""
+"<i class=\"fa-solid fa-circle o_button_icon text-success\" "
+"title=\"Connected\"/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.website_pages_kanban_view
+msgid "<i class=\"fa-solid fa-earth-americas me-1\" title=\"Website\"/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.contactus
+#: model_terms:ir.ui.view,arch_db:website.contactus_thanks_ir_ui_view
+msgid ""
+"<i class=\"fa-solid fa-envelope fa-1x "
+"me-2\"/><span>info@yourcompany.example.com</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_website_form_info
+msgid ""
+"<i class=\"fa-solid fa-envelope o_not-animable\" role=\"img\"/>\n"
+"                          yourcompany@example.com\n"
+"                        <br/>\n"
+"                        <br/>\n"
+"                        <i class=\"fa-solid fa-phone o_not-animable\" role=\"img\"/>\n"
+"                           +32(0)499 123 456\n"
+"                        <br/>\n"
+"                        <br/>\n"
+"                        <i class=\"fa-solid fa-location-dot o_not-animable\" role=\"img\"/>\n"
+"                          Brussels, Belgium"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_cta_badge
+#: model_terms:ir.ui.view,arch_db:website.s_discovery
+#: model_terms:ir.ui.view,arch_db:website.s_empowerment
+msgid ""
+"<i class=\"fa-solid fa-info-circle o_not-animable\" role=\"img\"/>  What do "
+"you want to promote&amp;nbsp;?"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.contactus
+#: model_terms:ir.ui.view,arch_db:website.contactus_thanks_ir_ui_view
+msgid ""
+"<i class=\"fa-solid fa-location-dot me-2\"/><span class=\"o_force_ltr\">3575"
+" Fake Buena Vista Avenue</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.protected_403
+msgid ""
+"<i class=\"fa-solid fa-lock fa-2x\"/><br/>\n"
+"                                <span class=\"mt-1\">A password is required to access this page.</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.protected_403
+msgid ""
+"<i class=\"fa-solid fa-lock fa-2x\"/><br/>\n"
+"                                <span class=\"mt-1\">Wrong password</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.header_text_element
+msgid ""
+"<i class=\"fa-solid fa-phone fa-1x me-1\"/>\n"
+"                            <span class=\"o_force_ltr\"><small>+1 555-555-5556</small></span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.header_text_element
+msgid "<i class=\"fa-solid fa-phone fa-1x me-1\"/>͏"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.contactus
+#: model_terms:ir.ui.view,arch_db:website.contactus_thanks_ir_ui_view
+msgid ""
+"<i class=\"fa-solid fa-phone me-2\"/><span class=\"o_force_ltr\">+1 "
+"555-555-5556</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_contact_info
+msgid ""
+"<i class=\"fa-solid fa-phone\" role=\"presentation\"/>\n"
+"                            Phone"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid "<i class=\"fa-solid fa-times text-danger\" role=\"img\"/>  No customization"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid "<i class=\"fa-solid fa-times text-danger\" role=\"img\"/>  No support"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_little_icons
+msgid ""
+"<i class=\"s_mega_menu_little_icons_icon fa-regular fa-eye me-2\"/>\n"
+"                                <b>About us</b>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_little_icons
+msgid ""
+"<i class=\"s_mega_menu_little_icons_icon fa-regular fa-handshake me-2\"/>\n"
+"                                <b>Services</b>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_little_icons
+msgid ""
+"<i class=\"s_mega_menu_little_icons_icon fa-regular fa-map me-2\"/>\n"
+"                                <b>Guides</b>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_little_icons
+msgid ""
+"<i class=\"s_mega_menu_little_icons_icon fa-regular fa-newspaper me-2\"/>\n"
+"                                <b>Our blog</b>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_little_icons
+msgid ""
+"<i class=\"s_mega_menu_little_icons_icon fa-regular fa-star me-2\"/>\n"
+"                                <b>Customers</b>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_little_icons
+msgid ""
+"<i class=\"s_mega_menu_little_icons_icon fa-solid fa-calendar-days me-2\"/>\n"
+"                                <b>Events</b>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_little_icons
+msgid ""
+"<i class=\"s_mega_menu_little_icons_icon fa-solid fa-headphones me-2\"/>\n"
+"                                <b>Help center</b>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_little_icons
+msgid ""
+"<i class=\"s_mega_menu_little_icons_icon fa-solid fa-tags me-2\"/>\n"
+"                                <b>Products</b>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_little_icons
+msgid ""
+"<i class=\"s_mega_menu_little_icons_icon fa-solid fa-users me-2\"/>\n"
+"                                <b>Partners</b>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_thumbnails
+msgid ""
+"<i class=\"s_mega_menu_thumbnails_icon fa-solid fa-comments me-2\"/> Contact"
+" us"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_thumbnails
+msgid ""
+"<i class=\"s_mega_menu_thumbnails_icon fa-solid fa-cube me-2\"/> Free "
+"returns"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_thumbnails
+msgid ""
+"<i class=\"s_mega_menu_thumbnails_icon fa-solid fa-shopping-basket me-2\"/> "
+"Pickup in store"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_thumbnails
+msgid ""
+"<i class=\"s_mega_menu_thumbnails_icon fa-solid fa-truck me-2\"/> Express "
+"delivery"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.header_text_element
+msgid ""
+"<small class=\"d-flex align-items-center\">\n"
+"                            <i class=\"fa-solid fa-dollar-sign fa-1x fa-stack me-1\"/>\n"
+"                            Low Price Guarantee\n"
+"                        </small>\n"
+"                        <small class=\"d-flex align-items-center\">\n"
+"                            <i class=\"fa-solid fa-shopping-basket fa-1x fa-stack me-1\"/>\n"
+"                            30 Days Online Returns\n"
+"                        </small>\n"
+"                        <small class=\"d-flex align-items-center\">\n"
+"                            <i class=\"fa-solid fa-truck fa-1x fa-stack me-1\"/>\n"
+"                            Standard Shipping\n"
+"                        </small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_attributes_vertical
+msgid ""
+"<small class=\"text-muted\" style=\"text-align: center;\">\n"
+"                                Every product is carefully tested to meet<br/>\n"
+"                                high standards of durability and performance.\n"
+"                            </small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_attributes_vertical
+msgid ""
+"<small class=\"text-muted\" style=\"text-align: center;\">\n"
+"                                Free 30-day returns with quick refunds<br/>\n"
+"                                or easy exchanges and no stress.\n"
+"                            </small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_attributes_vertical
+msgid ""
+"<small class=\"text-muted\" style=\"text-align: center;\">\n"
+"                                Your information is protected with encrypted<br/>\n"
+"                                checkout and trusted payment methods.\n"
+"                            </small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.header_text_element
+msgid ""
+"<small>\n"
+"                                <i class=\"fa-solid fa-envelope fa-1x me-1\"/>\n"
+"                                info@yourcompany.example.com\n"
+"                            </small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.header_text_element
+msgid ""
+"<small><i class=\"fa-solid fa-envelope fa-1x me-1\"/> "
+"info@yourcompany.example.com</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_carousel_cards
+#: model_terms:ir.ui.view,arch_db:website.s_carousel_intro
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel_compact
+msgid ""
+"<span class=\"carousel-control-next-icon\" aria-hidden=\"true\"/>\n"
+"                                <span class=\"visually-hidden\">Next</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_carousel
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel_minimal
+msgid ""
+"<span class=\"carousel-control-next-icon\" aria-hidden=\"true\"/>\n"
+"                    <span class=\"visually-hidden\">Next</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_carousel_cards
+#: model_terms:ir.ui.view,arch_db:website.s_carousel_intro
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel_compact
+msgid ""
+"<span class=\"carousel-control-prev-icon\" aria-hidden=\"true\"/>\n"
+"                                <span class=\"visually-hidden\">Previous</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_thumbnails
+msgid ""
+"<span class=\"d-block p-2 small\">\n"
+"                                <b>Discover our new products</b>\n"
+"                            </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_adventure
+msgid ""
+"<span class=\"display-4-fs\">Embark on your</span>\n"
+"                    <br/>Next Adventure"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid "<span class=\"fa-regular fa-circle-check\"/>  24/7 Support"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid "<span class=\"fa-regular fa-circle-check\"/>  Access all modules"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid "<span class=\"fa-regular fa-circle-check\"/>  All modules &amp; features"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid "<span class=\"fa-regular fa-circle-check\"/>  Complete CRM for any team"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid "<span class=\"fa-regular fa-circle-check\"/>  Email support"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid "<span class=\"fa-regular fa-circle-check\"/>  Limited Customization"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid "<span class=\"fa-regular fa-circle-check\"/>  PaaS Access"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid "<span class=\"fa-regular fa-circle-check\"/>  Unlimited CRM support"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid "<span class=\"fa-regular fa-circle-check\"/>  Unlimited customization"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_list
+msgid ""
+"<span class=\"h2-fs\">$50M</span><br/>\n"
+"                            Expected revenue"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_list
+msgid ""
+"<span class=\"h2-fs\">100,000</span><br/>\n"
+"                            Website visitors"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_list
+msgid ""
+"<span class=\"h2-fs\">15%</span><br/>\n"
+"                            Revenue Growth"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_list
+msgid ""
+"<span class=\"h2-fs\">20+</span><br/>\n"
+"                            Projects deployed"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_list
+msgid ""
+"<span class=\"h2-fs\">4x</span><br/>\n"
+"                            Inventory turnover"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_list
+msgid ""
+"<span class=\"h2-fs\">85%</span><br/>\n"
+"                            User Retention"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_bento_grid
+msgid ""
+"<span class=\"h3-fs\">\n"
+"                                    \"This collection masterfully combines premium craftsmanship with timeless design, creating pieces that elevate any interior space.\"\n"
+"                                </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_timeline_list
+msgid ""
+"<span class=\"o_dot o_not_editable position-absolute translate-middle-x rounded-circle pe-none\" contenteditable=\"false\"/>\n"
+"                            <small class=\"text-muted\">Apr 03, 2024</small>\n"
+"                            <strong>New Dashboard Features for Custom Reports</strong>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_timeline_list
+msgid ""
+"<span class=\"o_dot o_not_editable position-absolute translate-middle-x rounded-circle pe-none\" contenteditable=\"false\"/>\n"
+"                            <small class=\"text-muted\">Aug 27, 2024</small>\n"
+"                            <strong>Improved Security Protocols Implemented</strong>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_timeline_list
+msgid ""
+"<span class=\"o_dot o_not_editable position-absolute translate-middle-x rounded-circle pe-none\" contenteditable=\"false\"/>\n"
+"                            <small class=\"text-muted\">Dec 22, 2024</small>\n"
+"                            <strong>Advanced Analytics Tools Introduced</strong>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_timeline_list
+msgid ""
+"<span class=\"o_dot o_not_editable position-absolute translate-middle-x rounded-circle pe-none\" contenteditable=\"false\"/>\n"
+"                            <small class=\"text-muted\">Feb 11, 2024</small>\n"
+"                            <strong>Enhanced User Interface for Better Navigation</strong>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_timeline_list
+msgid ""
+"<span class=\"o_dot o_not_editable position-absolute translate-middle-x rounded-circle pe-none\" contenteditable=\"false\"/>\n"
+"                            <small class=\"text-muted\">Jun 15, 2024</small>\n"
+"                            <strong>Integrated Multi-Language Support Added</strong>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_timeline_list
+msgid ""
+"<span class=\"o_dot o_not_editable position-absolute translate-middle-x rounded-circle pe-none\" contenteditable=\"false\"/>\n"
+"                            <small class=\"text-muted\">Oct 09, 2024</small>\n"
+"                            <strong>Mobile App Compatibility Expanded</strong>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel_compact
+msgid ""
+"<span class=\"o_small\">\n"
+"                                                <strong>Iris DOE</strong><br/>\n"
+"                                                <span class=\"text-muted\">Manager of MyCompany</span>\n"
+"                                            </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel_compact
+msgid ""
+"<span class=\"o_small\">\n"
+"                                                <strong>Jane DOE</strong><br/>\n"
+"                                                <span class=\"text-muted\">CEO of MyCompany</span>\n"
+"                                            </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel_compact
+msgid ""
+"<span class=\"o_small\">\n"
+"                                                <strong>John DOE</strong><br/>\n"
+"                                                <span class=\"text-muted\">CCO of MyCompany</span>\n"
+"                                            </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel_minimal
+msgid ""
+"<span class=\"o_small\">\n"
+"                                        <strong>Iris DOE</strong><br/>\n"
+"                                        <span class=\"text-muted\">Manager of MyCompany</span>\n"
+"                                    </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel_minimal
+msgid ""
+"<span class=\"o_small\">\n"
+"                                        <strong>Jane DOE</strong><br/>\n"
+"                                        <span class=\"text-muted\">CEO of MyCompany</span>\n"
+"                                    </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel
+#: model_terms:ir.ui.view,arch_db:website.s_quotes_carousel_minimal
+msgid ""
+"<span class=\"o_small\">\n"
+"                                        <strong>John DOE</strong><br/>\n"
+"                                        <span class=\"text-muted\">CCO of MyCompany</span>\n"
+"                                    </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_banner
+msgid ""
+"<span class=\"o_small\">\n"
+"                                        <strong>Paul Dawson</strong><br/>\n"
+"                                        <span>CEO of MyCompany</span>\n"
+"                                    </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_blockquote
+msgid ""
+"<span class=\"o_small\">\n"
+"                        <strong>Paul Dawson</strong><br/>\n"
+"                        <span class=\"text-muted\">CEO of MyCompany</span>\n"
+"                    </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_bento_grid
+msgid ""
+"<span class=\"o_small-fs\">\n"
+"                                            Furniture Design Specialist\n"
+"                                            <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>\n"
+"                                        </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.cookies_bar
+msgid ""
+"<span class=\"pe-1\">We use cookies to provide you a better user experience on this website.</span>\n"
+"                                                <a href=\"/cookie-policy\" class=\"o_cookies_bar_text_policy btn btn-link btn-sm px-0 o_translate_inline\">Cookie Policy</a>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_badge
+msgid ""
+"<span class=\"s_badge badge text-bg-secondary o_animable\" data-name=\"Badge\" data-vxml=\"001\">\n"
+"            <i class=\"fa-solid fa-folder o_not-animable\"/>Category\n"
+"        </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers
+msgid ""
+"<span class=\"s_number display-1-fs\">12k</span><br/>\n"
+"                            <span class=\"h5-fs\">Useful options</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers
+msgid ""
+"<span class=\"s_number display-1-fs\">45%</span><br/>\n"
+"                            <span class=\"h5-fs\">More leads</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers
+msgid ""
+"<span class=\"s_number display-1-fs\">8+</span><br/>\n"
+"                            <span class=\"h5-fs\">Amazing pages</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_website_form
+msgid ""
+"<span class=\"s_website_form_label_content\">Subject</span>\n"
+"                                    <span class=\"s_website_form_mark\"> *</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_website_form
+msgid ""
+"<span class=\"s_website_form_label_content\">Your Email</span>\n"
+"                                    <span class=\"s_website_form_mark\"> *</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_website_form
+msgid ""
+"<span class=\"s_website_form_label_content\">Your Name</span>\n"
+"                                    <span class=\"s_website_form_mark\"> *</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_website_form
+msgid ""
+"<span class=\"s_website_form_label_content\">Your Question</span>\n"
+"                                    <span class=\"s_website_form_mark\"> *</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_big_number
+msgid ""
+"<span style=\"font-size: 10.75rem;\">\n"
+"                            <font class=\"text-gradient\" style=\"background-image: linear-gradient(0deg, var(--o-color-4) 25%, var(--o-color-5) 90%);\">\n"
+"                                87%\n"
+"                            </font>\n"
+"                        </span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid ""
+"<strong class=\"h2-fs\">$ 125.00</strong>\n"
+"                                            <small class=\"text-muted\">/ month</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid ""
+"<strong class=\"h2-fs\">$ 15.00</strong>\n"
+"                                    <small class=\"text-muted\">/ month</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid ""
+"<strong class=\"h2-fs\">$ 25.00</strong>\n"
+"                                    <small class=\"text-muted\">/ month</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons
+msgid ""
+"<strong class=\"h2-fs\">$ 45.00</strong>\n"
+"                                    <small class=\"text-muted\">/ month</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_comparisons_horizontal
+msgid ""
+"<strong class=\"h2-fs\">$ 65.00</strong>\n"
+"                                            <small class=\"text-muted\">/ month</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_reviews_wall
+msgid ""
+"<strong>Daniella Clarke</strong><br/>\n"
+"                                    <span class=\"text-muted\">Senior Manager</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_reviews_wall
+msgid ""
+"<strong>Emil Foster</strong><br/>\n"
+"                                    <span class=\"text-muted\">Creative Director</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_reviews_wall
+msgid ""
+"<strong>James Carter</strong><br/>\n"
+"                                    <span class=\"text-muted\">Chief Technical Officer</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_reviews_wall
+msgid ""
+"<strong>Jody Roberts</strong><br/>\n"
+"                                    <span class=\"text-muted\">Chief Financial Officer</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_reviews_wall
+msgid ""
+"<strong>Laura Evans</strong><br/>\n"
+"                                    <span class=\"text-muted\">Head of Operations</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_reviews_wall
+msgid ""
+"<strong>Sullivan Mitchell</strong><br/>\n"
+"                                    <span class=\"text-muted\">Marketing Director</span>"
+msgstr ""
+
+#. module: website
+#. odoo-javascript
+#: code:addons/website/static/src/components/website_loader/website_loader.xml:0
+msgid "A"
+msgstr ""
+
+#. module: website
+#. odoo-python
+#: code:addons/website/models/website_controller_page.py:0
+msgid "A page must be set to display a concrete model."
+msgstr ""
+
+#. module: website
+#. odoo-javascript
+#: code:addons/website/static/src/components/website_loader/website_loader.xml:0
+msgid "B"
+msgstr ""
+
+#. module: website
+#. odoo-javascript
+#: code:addons/website/static/src/components/dialog/seo.xml:0
+#: code:addons/website/static/src/components/website_loader/website_loader.xml:0
+msgid "C"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_media_list
+msgid "Continue reading <i class=\"fa-solid fa-right-long align-middle ms-1\"/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_grid
+msgid ""
+"Customer Retention<br/>\n"
+"                            <span class=\"h1-fs\">85%</span>"
+msgstr ""
+
+#. module: website
+#. odoo-javascript
+#: code:addons/website/static/src/builder/plugins/options/countdown_option.xml:0
+#: code:addons/website/static/src/components/dialog/seo.xml:0
+msgid "D"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_media_list
+msgid "Discover more <i class=\"fa-solid fa-right-long align-middle ms-1\"/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_banner_categories
+msgid ""
+"Each item in our collection is grouped by category to make your browsing experience effortless. Take a look and dive into the different worlds we’ve curated for you.\n"
+"                            <br/>\n"
+"                            <br/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_attributes_vertical
+msgid ""
+"Easy returns with quick<br/>\n"
+"                                and simple process"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_bento_grid
+msgid ""
+"Elevate your living space with furniture that blends modern aesthetics and classic charm, crafted to bring both comfort and style to your home.\n"
+"                            <br/><br/><br/><br/><br/><br/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_bento_grid
+msgid ""
+"Elevate your living space with furniture that blends modern aesthetics and classic charm, crafted to bring both comfort and style to your home.\n"
+"                            <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_grid
+msgid ""
+"Expected revenue<br/>\n"
+"                            <span class=\"h1-fs\">$50M</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_tabs_images
+msgid ""
+"Fifth Slide\n"
+"                                    <small class=\"oe_unbreakable o_nav_tabs_description opacity-75\">Add a unique perspective or detail</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_tabs_images
+msgid ""
+"First Slide\n"
+"                                    <small class=\"oe_unbreakable o_nav_tabs_description opacity-75\">A slide description</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_company_team
+msgid ""
+"Founder and chief visionary, Tony is the driving force behind the company. He loves\n"
+"                                    to keep his hands full by participating in the development of the software,\n"
+"                                    marketing, and customer experience strategies."
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_tabs_images
+msgid ""
+"Fourth Slide\n"
+"                                    <small class=\"oe_unbreakable o_nav_tabs_description opacity-75\">Describe the scene as you envision it</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_intro_pill
+msgid "Get Started"
+msgstr ""
+
+#. module: website
+#: model:ir.model.fields,help:website.field_website_controller_page__active
+#: model:ir.model.fields,help:website.field_website_page__active
+msgid ""
+"If this view is inherited,\n"
+"\n"
+"* if True, the view always extends its parent\n"
+"* if False, the view currently does not extend its parent but can be enabled"
+msgstr ""
+
+#. module: website
+#. odoo-python
+#: code:addons/website/models/mixin_website_cover_properties.py:0
+msgid "Invalid cover properties value."
+msgstr ""
+
+#. module: website
+#. odoo-python
+#: code:addons/website/models/website_snippet_filter.py:0
+msgid "Invalid field '%s' in search domain"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_grid
+msgid ""
+"Inventory turnover<br/>\n"
+"                            <span class=\"h1-fs\">4x</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_floating_blocks
+msgid ""
+"Jump Into <br class=\"d-none d-lg-inline\"/>\n"
+"                                            Comfort!"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_floating_blocks
+msgid ""
+"Looking for a quick and easy way to organize repeat orders?<br/>\n"
+"                                            It's just one of the ways we support our members."
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_grid
+msgid ""
+"Online Members<br/>\n"
+"                            <span class=\"h1-fs\">235,403</span>"
+msgstr ""
+
+#. module: website
+#: model:ir.model.fields,help:website.field_website_controller_page__mode
+#: model:ir.model.fields,help:website.field_website_page__mode
+msgid ""
+"Only applies if this view inherits from an other one (inherit_id is not False/Null).\n"
+"\n"
+"* if extension (default), if this view is requested the closest primary view is looked up (via inherit_id), then all views inheriting from it with this view's model are applied\n"
+"* if primary, the closest primary view is fully resolved (even if it uses a different model than this one), then this view's inheritance specs (<xpath/>) are applied, and the result is used as if it were this view's actual arch."
+msgstr ""
+
+#. module: website
+#. odoo-python
+#: code:addons/website/models/website_menu.py:0
+msgid "Only website editors can edit the menus."
+msgstr ""
+
+#. module: website
+#. odoo-python
+#: code:addons/website/models/website_form.py:0
+msgid "Only website editors can introspect form model fields."
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_grid
+msgid ""
+"Projects deployed<br/>\n"
+"                            <span class=\"h1-fs\">+225</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_attributes_vertical
+msgid ""
+"Quality assured<br/>\n"
+"                                with every purchase"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_grid
+msgid ""
+"Revenue Growth<br/>\n"
+"                            <span class=\"h1-fs\">54%</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_tabs_images
+msgid ""
+"Second Slide\n"
+"                                    <small class=\"oe_unbreakable o_nav_tabs_description opacity-75\">What is this slide about</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_attributes_vertical
+msgid ""
+"Secure payment<br/>\n"
+"                                with trusted methods"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_dynamic_snippet_template
+msgid "See all<span class=\"fa-solid fa-right-long ms-2\"/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_cta_badge
+#: model_terms:ir.ui.view,arch_db:website.s_discovery
+#: model_terms:ir.ui.view,arch_db:website.s_empowerment
+msgid "See more <i class=\"fa-solid fa-right-long\" role=\"img\"/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_bento_grid
+msgid "Shop Now"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_bento_banner
+msgid ""
+"Simple forms. Natural textures. Timeless design. Explore our new furniture collection—crafted to bring calm and clarity to your space.\n"
+"                                    <br/><br/>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_banner
+msgid "Start Now <span class=\"fa-solid fa-angle-right ms-2\"/>"
+msgstr ""
+
+#. module: website
+#. odoo-javascript
+#: code:addons/website/static/src/components/dialog/seo.xml:0
+msgid "T"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_tabs_images
+msgid ""
+"Third Slide\n"
+"                                    <small class=\"oe_unbreakable o_nav_tabs_description opacity-75\">Add your touch to complete the image</small>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_grid
+msgid ""
+"Transactions<br/>\n"
+"                            <span class=\"h1-fs\">45,958</span>"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.footer_custom
+msgid ""
+"We are a team of passionate people whose goal is to improve everyone's life through disruptive products. We build great products to solve your business problems.\n"
+"                                <br/><br/>Our products are designed for small to medium size companies willing to optimize their performance."
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_numbers_grid
+msgid ""
+"Website visitors<br/>\n"
+"                            <span class=\"h1-fs\">100,000</span>"
+msgstr ""
+
+#. module: website
+#: model:ir.model.fields,help:website.field_website_controller_page__customize_show
+#: model:ir.model.fields,help:website.field_website_page__customize_show
+msgid ""
+"When set, the website editor surfaces this view as a user-togglable "
+"inherited variant of its parent (used by the Customize panel)."
+msgstr ""
+
+#. module: website
+#. odoo-javascript
+#: code:addons/website/static/src/builder/plugins/options/social_media_option_plugin.js:0
+#: code:addons/website/static/src/builder/plugins/theme/theme_button_option.xml:0
+#: code:addons/website/static/src/builder/plugins/theme/theme_tab.xml:0
+#: model_terms:ir.ui.view,arch_db:website.footer_custom
+#: model_terms:ir.ui.view,arch_db:website.header_social_links
+#: model_terms:ir.ui.view,arch_db:website.s_mega_menu_odoo_menu
+#: model_terms:ir.ui.view,arch_db:website.s_references_social
+#: model_terms:ir.ui.view,arch_db:website.s_share
+#: model_terms:ir.ui.view,arch_db:website.s_social_media
+#: model_terms:ir.ui.view,arch_db:website.template_footer_centered
+#: model_terms:ir.ui.view,arch_db:website.template_footer_headline
+#: model_terms:ir.ui.view,arch_db:website.template_footer_links
+msgid "X"
+msgstr ""
+
+#. module: website
+#. odoo-javascript
+#: code:addons/website/static/src/builder/plugins/theme/theme_button_option.xml:0
+#: code:addons/website/static/src/builder/plugins/theme/theme_tab.xml:0
+msgid "Y"
+msgstr ""
+
+#. module: website
+#: model_terms:ir.ui.view,arch_db:website.s_floating_blocks
+msgid ""
+"Your New <br class=\"d-none d-lg-inline\"/>\n"
+"                                            Workspace"
+msgstr ""
+
+#. module: website
+#: model:ir.model.constraint,message:website.constraint_website_controller_page_unique_name_slugified
+msgid "url should be unique per website"
+msgstr ""
+

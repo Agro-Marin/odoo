@@ -335,3 +335,73 @@ msgstr ""
 #: model:uom.uom,name:uom.product_uom_yard
 msgid "yd"
 msgstr ""
+
+#. module: uom
+#. odoo-python
+#: code:addons/uom/models/uom_uom.py:0
+msgid ""
+"%(unit)s is the reference unit of %(dependent_units)s. Deleting it would "
+"delete those too. Delete them first, or give them another reference unit."
+msgstr ""
+
+#. module: uom
+#. odoo-python
+#: code:addons/uom/models/uom_uom.py:0
+msgid ""
+"A price per %(unit)s cannot be converted into a price per %(other_unit)s "
+"because they do not share a common reference unit."
+msgstr ""
+
+#. module: uom
+#: model:ir.model,name:uom.model_decimal_precision
+msgid "Decimal Precision"
+msgstr ""
+
+#. module: uom
+#: model:ir.model.fields,field_description:uom.field_uom_uom__reference_uom_id
+msgid "Dimension"
+msgstr ""
+
+#. module: uom
+#: model:uom.uom,name:uom.product_uom_litre
+msgid "L"
+msgstr ""
+
+#. module: uom
+#: model:ir.model.constraint,message:uom.constraint_uom_uom_factor_gt_zero
+msgid "The conversion ratio for a unit of measure must be strictly positive!"
+msgstr ""
+
+#. module: uom
+#: model:ir.model.fields,help:uom.field_uom_uom__reference_uom_id
+msgid ""
+"The root unit this one is ultimately defined against. Two units are "
+"convertible if and only if they share it."
+msgstr ""
+
+#. module: uom
+#. odoo-python
+#: code:addons/uom/models/uom_uom.py:0
+msgid ""
+"The unit of measure %(unit)s cannot be converted into %(other_unit)s because"
+" they do not share a common reference unit."
+msgstr ""
+
+#. module: uom
+#. odoo-python
+#: code:addons/uom/models/uom_uom.py:0
+msgid ""
+"The unit of measure %s has a conversion ratio but no reference unit. Either "
+"set a reference unit or keep a ratio of 1."
+msgstr ""
+
+#. module: uom
+#: model:uom.uom,name:uom.product_uom_gram
+msgid "g"
+msgstr ""
+
+#. module: uom
+#: model:uom.uom,name:uom.product_uom_meter
+msgid "m"
+msgstr ""
+

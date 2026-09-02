@@ -4493,3 +4493,1914 @@ msgid ""
 "⚠️ This question is positioned before some or all of its triggers and could "
 "be skipped."
 msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/controllers/main.py:0
+msgid "%(low).0f-%(high).0f min"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_file_upload
+msgid ", Max size:"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_form
+msgid "/* Custom CSS for survey frontend */"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_form
+msgid "0 = keep forever"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid "3 out of 5 stars"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/controllers/main.py:0
+msgid "< %(minutes).0f min"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.certification_report_view_general
+msgid ""
+"<b>Certificate</b>\n"
+"                        <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.certification_report_view_general
+msgid ""
+"<br/>\n"
+"                            <span>by</span>"
+msgstr ""
+
+#. module: survey
+#: model:mail.template,body_html:survey.mail_template_certification
+msgid ""
+"<div style=\"background:#F0F0F0;color:#515166;padding:10px 0px;font-family:Arial,Helvetica,sans-serif;font-size:14px;\">\n"
+"                <table style=\"width:600px;margin:5px auto;\">\n"
+"                    <tbody>\n"
+"                        <tr>\n"
+"                            <td>\n"
+"                                <!-- We use the logo of the company that created the survey (to\n"
+"                                handle multi company cases) -->\n"
+"                                <a href=\"/\">\n"
+"                                    <img t-if=\"not object.survey_id.create_uid.company_id.uses_default_logo\" t-attf-src=\"/logo.png?company={{ object.survey_id.create_uid.company_id.id }}\" style=\"vertical-align:baseline;max-width:100px;\"/>\n"
+"                                </a>\n"
+"                            </td>\n"
+"                            <td style=\"text-align:right;vertical-align:middle;\"> Certification: <t t-out=\"object.survey_id.display_name or ''\">Feedback Form</t>\n"
+"                            </td>\n"
+"                        </tr>\n"
+"                    </tbody>\n"
+"                </table>\n"
+"                <table style=\"width:600px;margin:0px auto;background:white;border:1px solid #e1e1e1;\">\n"
+"                    <tbody>\n"
+"                        <tr>\n"
+"                            <td style=\"padding:15px 20px 10px 20px;\">\n"
+"                                <p>Dear <span t-out=\"object.partner_id.name or 'participant'\">\n"
+"                                    participant</span></p>\n"
+"                                <p> Please find attached your <strong t-out=\"object.survey_id.display_name or ''\">Furniture\n"
+"                                    Creation</strong> certification </p>\n"
+"                                <p>Congratulations for passing the test with a score of <strong t-out=\"object.scoring_percentage\"/>%!</p>\n"
+"                            </td>\n"
+"                        </tr>\n"
+"                    </tbody>\n"
+"                </table>\n"
+"            </div>\n"
+"        "
+msgstr ""
+
+#. module: survey
+#: model:mail.template,body_html:survey.mail_template_user_input_invite
+msgid ""
+"<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px; font-size: 13px;\"> Dear <t t-out=\"object.partner_id.name or 'participant'\">participant</t><br/><br/>\n"
+"                    <t t-if=\"object.survey_id.certification\">\n"
+"                        You have been invited to take a new certification.\n"
+"                    </t>\n"
+"                    <t t-else=\"\">\n"
+"                        We are conducting a survey and your response would be appreciated.\n"
+"                    </t>\n"
+"                    </p><div style=\"margin: 16px 0px 16px 0px;\">\n"
+"                        <a t-att-href=\"(object.get_start_url())\" t-attf-style=\"background-color: {{user.company_id.email_secondary_color or '#875A7B'}}; padding: 8px 16px 8px 16px; text-decoration: none; color: {{user.company_id.email_primary_color or '#FFFFFF'}}; border-radius: 5px; font-size:13px;\">\n"
+"                            <t t-if=\"object.survey_id.certification\">\n"
+"                                Start Certification\n"
+"                            </t>\n"
+"                            <t t-else=\"\">\n"
+"                                Start Survey\n"
+"                            </t>\n"
+"                        </a>\n"
+"                    </div>\n"
+"                    <t t-if=\"object.deadline\"> Please answer the survey for <t t-out=\"format_date(object.deadline) or ''\">05/05/2021</t>.<br/><br/>\n"
+"                    </t>\n"
+"                    <t t-if=\"object.survey_id.certification\">\n"
+"                        We wish you good luck!\n"
+"                    </t>\n"
+"                    <t t-else=\"\">\n"
+"                        Thank you in advance for your participation.\n"
+"                    </t>\n"
+"                \n"
+"            </div>\n"
+"        "
+msgstr ""
+
+#. module: survey
+#: model:mail.template,body_html:survey.mail_template_survey_save_later
+msgid ""
+"<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px; font-size: 13px;\"> Dear <t t-out=\"object.partner_id.name or 'participant'\">participant</t><br/><br/>\n"
+"                    Your answers to <t t-out=\"object.survey_id.title or ''\">Feedback Form</t> have\n"
+"                    been saved. You can pick up where you left off at any time: </p><div style=\"margin: 16px 0px 16px 0px;\">\n"
+"                        <a t-att-href=\"object.get_start_url()\" t-attf-style=\"background-color: {{user.company_id.email_secondary_color or '#875A7B'}}; padding: 8px 16px 8px 16px; text-decoration: none; color: {{user.company_id.email_primary_color or '#FFFFFF'}}; border-radius: 5px; font-size:13px;\">\n"
+"                    Resume Survey\n"
+"                        </a>\n"
+"                    </div>\n"
+"                    <t t-if=\"object.deadline\"> Please finish before <t t-out=\"format_date(object.deadline) or ''\">05/05/2021</t>.<br/><br/>\n"
+"                    </t>\n"
+"                    Thank you in advance for your participation. \n"
+"            </div>\n"
+"        "
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid ""
+"<i class=\"fa fa-table me-1\"/>Cross-Tabulation <i class=\"fa fa-chevron-"
+"down ms-1 small\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_navigation
+msgid "<i class=\"fa-regular fa-bookmark me-1\"/>Save &amp; Continue Later"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid "<i class=\"fa-regular fa-square-check fa-lg me-2\"/> answer"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_cross_tab
+msgid "<i class=\"fa-solid fa-arrow-left\"/> Back to Results"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid ""
+"<i class=\"fa-solid fa-chart-bar me-2\"/>Period Comparison <i class=\"fa-"
+"solid fa-chevron-down ms-1 small\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.user_input_session_manage_content
+msgid ""
+"<i class=\"fa-solid fa-chart-column\"/>\n"
+"                                Results"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid ""
+"<i class=\"fa-solid fa-chart-line me-2\"/>Response Trends <i class=\"fa-"
+"solid fa-chevron-down ms-1 small\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid "<i class=\"fa-solid fa-cloud-upload fa-2x\" title=\"Upload\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_file_upload
+msgid "<i class=\"fa-solid fa-cloud-upload fa-3x text-muted mb-2\" title=\"Upload\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "<i class=\"fa-solid fa-code-compare\"/> Compare"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_header
+msgid "<i class=\"fa-solid fa-download\"/> CSV"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_button_form_view
+msgid ""
+"<i class=\"fa-solid fa-exclamation-triangle\"/> It is currently not possible to pass this\n"
+"            assessment because no question is configured to give any points."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_header
+msgid "<i class=\"fa-solid fa-file-excel\"/> XLSX"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_results_filters
+msgid "<i class=\"fa-solid fa-filter\"/> Apply"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<i class=\"fa-solid fa-grip-vertical me-2 text-muted\"/>1.\n"
+"                                            Item A"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<i class=\"fa-solid fa-grip-vertical me-2 text-muted\"/>2.\n"
+"                                            Item B"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<i class=\"fa-solid fa-grip-vertical me-2 text-muted\"/>3.\n"
+"                                            Item C"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_ranking
+msgid ""
+"<i class=\"fa-solid fa-grip-vertical text-muted\" style=\"cursor: grab;\" "
+"title=\"Drag to reorder\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_header
+msgid "<i class=\"fa-solid fa-table-cells\"/> Cross-Tab"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_fill_form_done
+msgid ""
+"<i class=\"fa-solid fa-trophy\" role=\"img\" aria-label=\"Download "
+"certification\" title=\"Download certification\"/> Download certification"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid ""
+"<i class=\"fa-solid fa-users me-2\"/>Respondent Segments <i class=\"fa-solid"
+" fa-chevron-down ms-1 small\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "<option value=\"\">-- Select question --</option>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_cross_tab
+msgid "<option value=\"\">Select a question...</option>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid ""
+"<option value=\"day\" selected=\"\">Daily</option>\n"
+"                        <option value=\"week\">Weekly</option>\n"
+"                        <option value=\"month\">Monthly</option>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_result_nps
+msgid "<small class=\"text-muted\">NPS Score</small>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_fill_form_in_progress
+msgid ""
+"<span class=\"fw-bold text-muted ms-2 d-none d-md-inline\" id=\"enter-tooltip\"> or\n"
+"                        press CTRL+Enter</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_constant_sum
+msgid ""
+"<span class=\"me-2\">Total:</span>\n"
+"                <span class=\"o_survey_constant_sum_total\">0</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.res_partner_view_form
+msgid ""
+"<span class=\"o_stat_text\" invisible=\"certifications_company_count &lt; 2\">\n"
+"                            Certifications</span>\n"
+"                        <span class=\"o_stat_text\" invisible=\"certifications_company_count &gt; 1\">\n"
+"                            Certification</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.res_partner_view_form
+msgid ""
+"<span class=\"o_stat_text\" invisible=\"certifications_count &lt; 2\">\n"
+"                            Certifications</span>\n"
+"                        <span class=\"o_stat_text\" invisible=\"certifications_count &gt; 1\">\n"
+"                            Certification</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_fill_form_start
+msgid ""
+"<span class=\"o_survey_enter fw-bold text-muted ms-2 d-none d-md-inline\">or press\n"
+"                        Enter</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_selection_key
+msgid ""
+"<span class=\"o_survey_key text-center position-absolute bg-white rounded-start py-0 ps-2\">\n"
+"                <span class=\"text-primary text-center text-center w-100 position-relative\">Key</span>\n"
+"            </span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_results_filters
+msgid ""
+"<span class=\"o_survey_results_topbar_clear_filters text-primary\">\n"
+"                                <i class=\"fa-solid fa-trash-can me-1\"/>Remove all filters </span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.user_input_session_manage_content
+msgid "<span class=\"o_survey_session_answer_count\">0</span> /"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_result_nps
+msgid "<span class=\"text-danger me-2\" style=\"width: 100px;\">Detractors</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_nps
+msgid ""
+"<span class=\"text-danger\">Not at all likely</span>\n"
+"                <span class=\"text-success\">Extremely likely</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_result_nps
+msgid "<span class=\"text-success me-2\" style=\"width: 100px;\">Promoters</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_result_nps
+msgid "<span class=\"text-warning me-2\" style=\"width: 100px;\">Passives</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>Distribute 100 points:</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>Do you like it?</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>How likely are you to recommend us?</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>How many ...?</span>\n"
+"                                    <br/>\n"
+"                                    <i class=\"fa-2x\" role=\"img\" aria-label=\"Numeric\" title=\"Numeric\">123 </i>\n"
+"                                    <i class=\"fa-solid fa-sort fa-2x\" role=\"img\" aria-label=\"Numeric\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>How much do you agree?</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>How would you rate us?</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>Min</span>\n"
+"                                        <span>Max</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>Name all the animals</span>\n"
+"                                    <br/>\n"
+"                                    <i class=\"fa-solid fa-align-justify fa-4x\" role=\"img\" aria-label=\"Multiple lines\" title=\"Multiple Lines\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>Name one animal</span>\n"
+"                                    <br/>\n"
+"                                    <i class=\"fa-solid fa-minus fa-4x\" role=\"img\" aria-label=\"Single Line\" title=\"Single Line\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>Not likely</span>\n"
+"                                        <span>Very likely</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>Rank these items:</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.certification_report_view_general
+msgid ""
+"<span>This certificate is presented to</span>\n"
+"                            <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>Upload a document:</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>When does ... start?</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>When is Christmas?</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>Which are yellow?</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"<span>Which is yellow?</span>\n"
+"                                    <br/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.certification_report_view_general
+msgid ""
+"<span>for successfully completing</span>\n"
+"                            <br/>"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/controllers/main.py:0
+msgid "> %(minutes).0f min"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question_answer__skip_action
+msgid ""
+"Action to perform when this answer is selected and the page is submitted."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__theme_custom_css
+msgid "Additional CSS applied to the survey frontend. Use with caution."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_form
+msgid "Advanced"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__likert_preset__agreement_5
+msgid "Agreement (5-point)"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__likert_preset__agreement_7
+msgid "Agreement (7-point)"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "All values must be numbers."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__file_upload_types
+msgid "Allowed File Types"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_file_upload
+msgid "Allowed:"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_followup_rule__condition_type__always
+msgid "Always (on every completion)"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__anonymize_ip
+msgid "Anonymize IP Addresses"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_form
+msgid "Appearance"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_category__active
+#: model:ir.model.fields,help:survey.field_survey_tag__active
+msgid "Archive a tag to hide it without deleting it."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__calculated_expression
+msgid ""
+"Arithmetic expression using question references. Use Q<id> to reference other questions' numerical answers. Supports +, -, *, /, parentheses, and the functions: min(), max(), abs(), round().\n"
+"Example: Q42 * 0.3 + Q43 * 0.7"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__followup_rule_ids
+msgid "Automated emails sent after survey completion based on conditions."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__data_retention_days
+msgid ""
+"Automatically delete completed responses older than this many days. Set to 0"
+" to keep responses indefinitely."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/mixin_survey_question_statistics.py:0
+msgid "Avg: %s"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__question_type__calculated
+msgid "Calculated / Hidden Field"
+msgstr ""
+
+#. module: survey
+#: model:ir.actions.act_window,name:survey.action_survey_category
+#: model:ir.ui.menu,name:survey.survey_menu_category
+#: model_terms:ir.ui.view,arch_db:survey.survey_category_view_list
+msgid "Categories"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__category_id
+#: model_terms:ir.ui.view,arch_db:survey.survey_category_view_form
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_search
+msgid "Category"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_category__name
+msgid "Category Name"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.certification_report_view_general
+msgid ""
+"Certification\n"
+"                    n°"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid ""
+"Circular dependency detected in conditional questions. Question '%(title)s' "
+"is part of a trigger cycle."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__date_close
+msgid "Closes On"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_category__code
+#: model:ir.model.fields,field_description:survey.field_survey_tag__code
+msgid "Code"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_cross_tab
+msgid "Column Question"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "Column question"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__file_upload_types
+msgid "Comma-separated list of allowed file extensions."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__triggering_operator
+msgid "Comparison operator for value-based conditional trigger."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "Completion Time"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_followup_rule__condition_type
+msgid "Condition"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"Conditional display is not available when questions are\n"
+"                                        randomly picked."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__question_type__constant_sum
+msgid "Constant Sum"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.constraint,message:survey.constraint_survey_question_constant_sum
+msgid "Constant sum total must be positive"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__triggering_operator__contains
+msgid "Contains"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question_answer__skip_action__next
+msgid "Continue normally"
+msgstr ""
+
+#. module: survey
+#: model:mail.template,subject:survey.mail_template_survey_save_later
+msgid "Continue {{ object.survey_id.display_name }}"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_survey__questions_layout__conversational
+msgid "Conversational"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_result_text
+msgid "Count"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.actions.act_window,help:survey.action_survey_category
+msgid "Create a new category"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.actions.act_window,help:survey.action_survey_tag
+msgid "Create a new tag"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_header
+msgid "Cross-Tab"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_header
+msgid "Cross-Tabulation"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_quota__current_count
+msgid "Current Count"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__theme_custom_css
+msgid "Custom CSS"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__slug
+msgid "Custom URL Slug"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_invite_view_form
+msgid ""
+"Customers will receive a new\n"
+"                                    token and be able to completely retake the survey."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_invite_view_form
+msgid ""
+"Customers will receive the\n"
+"                                    same token."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__data_retention_days
+msgid "Data Retention (days)"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_survey__theme_font__default
+msgid "Default (System)"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_constant_sum
+msgid "Distribute"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__triggering_operator__neq
+msgid "Does not equal"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_ranking
+msgid ""
+"Drag items to rank them, or focus one and press Alt +\n"
+"                Up / Down (1 = highest)"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_file_upload
+msgid "Drop a file here or click to browse"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid "Drop file here"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__question_type__dropdown
+msgid "Dropdown"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_followup_rule__mail_template_id
+msgid "Email Template"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_followup_rule__mail_template_id
+msgid ""
+"Email template to send. Available variables: object (survey.user_input)."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__survey_embed_code
+msgid "Embed Code"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question_answer__skip_action__end_survey
+msgid "End survey"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__triggering_operator__eq
+msgid "Equals"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_header
+msgid "Export CSV"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_header
+msgid "Export XLSX"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question_answer__skip_redirect_url
+msgid "External URL to redirect to when 'Redirect to URL' action is selected."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_followup_rule__condition_type__failed
+msgid "Failed certification"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question_answer__comment
+msgid "Feedback shown to the learner when this answer is selected."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__question_type__file_upload
+msgid "File Upload"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "File exceeds maximum size of %s MB."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "File type not allowed. Accepted: %s"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__followup_rule_ids
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_form
+msgid "Follow-up Rules"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__theme_font
+msgid "Font Family"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__calculated_expression
+msgid "Formula"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__likert_preset__frequency_5
+msgid "Frequency (5-point)"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+#: model_terms:ir.ui.view,arch_db:survey.survey_results_filters
+msgid "From"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_cross_tab
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "Generate"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "Granularity:"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__triggering_operator__gt
+msgid "Greater than"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__triggering_operator__gte
+msgid "Greater than or equal"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__survey_embed_code
+msgid "HTML iframe snippet for embedding this survey on an external website."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__rating_icon__heart
+msgid "Hearts"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/controllers/main.py:0
+msgid "High (67-100)"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/templates/samples.py:0
+msgid ""
+"How good of a presenter are you? Let's find out!<br>But first, keep "
+"listening to the host."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_user_input__ip_address
+msgid "IP Address"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__anonymize_ip
+msgid "If enabled, respondent IP addresses are not stored."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__likert_preset__importance_5
+msgid "Importance (5-point)"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "Invalid answer format."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "Invalid file upload."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "Invalid numerical value."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "Invalid ranking answer format."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "Invalid rating value."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__triggering_operator__is_answered
+msgid "Is answered"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__triggering_operator__is_not_answered
+msgid "Is not answered"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid "Item A: <span class=\"badge bg-primary\">40</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid "Item B: <span class=\"badge bg-primary\">35</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid "Item C: <span class=\"badge bg-primary\">25</span>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_session_code
+msgid ""
+"Join\n"
+"                                    Session"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_result_text
+msgid "Keyword"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_result_text
+msgid "Keyword frequency table"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__matrix_row_ids
+msgid "Labels used for proposed choices: rows of matrix or Likert statements"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__triggering_operator__lt
+msgid "Less than"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__triggering_operator__lte
+msgid "Less than or equal"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__likert_preset
+msgid "Likert Preset"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__question_type__likert
+msgid "Likert Scale"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/controllers/main.py:0
+msgid "Low (0-33)"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_user_input_view_search
+msgid "Low Quality"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_file_upload
+msgid "MB"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__file_upload_max_size
+msgid "Max File Size (MB)"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_followup_rule__score_max
+msgid "Max Score (%)"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__file_upload_max_size
+msgid "Maximum file size in megabytes."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_quota__limit
+msgid ""
+"Maximum number of responses that can select this answer. A response in "
+"progress reserves its place so the quota cannot be oversold, and releases it"
+" again if it is abandoned."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_followup_rule__score_max
+msgid "Maximum scoring_percentage to trigger (inclusive)."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/controllers/main.py:0
+msgid "Medium (34-66)"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_followup_rule__score_min
+msgid "Min Score (%)"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_followup_rule__score_min
+msgid "Minimum scoring_percentage to trigger (inclusive)."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_survey__theme_font__monospace
+msgid "Monospace"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid "NPS"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__question_type__nps
+msgid "Net Promoter Score"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_form
+msgid "No category"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__rating_max
+msgid "Number of rating icons (1 to 10)."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_survey__webhook_events__completed
+msgid "On completion only"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_survey__webhook_events__all
+msgid "On start, page submit, and completion"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/controllers/main.py:0
+msgid "One or more selected answers have reached their response quota."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_session_code
+msgid ""
+"Oops!\n"
+"                                        No survey matches this code."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_access_error
+msgid ""
+"Oopsie! We could not let you open this survey. Make sure you are\n"
+"                            using the correct link and are allowed to\n"
+"                            participate or get in touch with its organizer."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__date_open
+msgid "Opens On"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_followup_rule__condition_type__passed
+msgid "Passed certification"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "Period A"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "Period B"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/templates/samples.py:0
+msgid ""
+"Please complete this very short survey to let us know how satisfied your are"
+" with our products.<br>Your responses will help us improve our product range"
+" to serve you even better."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_void_content
+msgid ""
+"Please make sure\n"
+"                            you have at least one question in your survey. You also need at least\n"
+"                            one section if you chose the \"Page per section\" layout.<br/>"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "Please rank all items."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_cross_tab
+msgid "Please select two different questions."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__website_message_ids
+#: model:ir.model.fields,field_description:survey.field_survey_user_input__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__website_message_ids
+#: model:ir.model.fields,help:survey.field_survey_user_input__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__likert_preset
+msgid ""
+"Predefined scale labels. Select a preset then add your statements as matrix "
+"rows."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__theme_color
+msgid "Primary Color"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__theme_color
+msgid "Primary color for buttons and accents (hex code, e.g. #714B67)."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__survey_qr_url
+msgid "QR Code URL"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_user_input__quality_score
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "Quality Score"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_results_filters
+msgid "Quality min"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question_answer__skip_target_id
+msgid "Question or page to skip to when 'Skip to question/page' is selected."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_quota__is_full
+msgid "Quota Full"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_quota__limit
+msgid "Quota Limit"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.constraint,message:survey.constraint_survey_quota_limit_positive
+msgid "Quota limit must be positive!"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__quota_ids
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_form
+msgid "Quotas"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__shuffle_answers
+msgid ""
+"Randomize the display order of suggested answers for each respondent. The "
+"order is deterministic per respondent (seeded by their access token)."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__question_type__ranking
+msgid "Ranking"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__question_type__rating
+msgid "Rating"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__rating_icon
+msgid "Rating Icon"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__rating_max
+msgid "Rating Maximum"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.constraint,message:survey.constraint_survey_question_rating
+msgid "Rating max must be between 1 and 10"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "Rating must be between 1 and %s."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question_answer__skip_redirect_url
+msgid "Redirect URL"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question_answer__skip_action__redirect
+msgid "Redirect to URL"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_user_input__is_speeder
+msgid ""
+"Respondent completed the survey in less than a third of this survey's median"
+" duration, compared against every response as it stands now."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_user_input__is_straight_liner
+msgid "Respondent selected the same answer for every choice/matrix question."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_user_input__ip_address
+msgid ""
+"Respondent's IP address. Not stored if survey has 'Anonymize IP' enabled."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_user_input__quality_score
+msgid ""
+"Response quality from 0 (worst) to 100 (best). Based on speed and answer "
+"variety."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__quota_ids
+msgid ""
+"Response quotas per answer option. When a quota is full, new respondents "
+"cannot select that answer."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_user_input__save_later_datetime
+msgid "Resume Link Sent"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_cross_tab
+msgid "Row Question"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "Row question"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_followup_rule__name
+msgid "Rule Name"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_survey__theme_font__sans-serif
+msgid "Sans-serif"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__likert_preset__satisfaction_5
+msgid "Satisfaction (5-point)"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__date_schedule_applied
+msgid "Schedule Applied On"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid "Score Distribution"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_followup_rule__condition_type__score_range
+msgid "Score in range"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_results_filters
+msgid "Score max %"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_results_filters
+msgid "Score min %"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+msgid ""
+"Select two questions to see how their answers relate to each\n"
+"                    other."
+msgstr ""
+
+#. module: survey
+#: model:mail.template,description:survey.mail_template_survey_save_later
+msgid "Sent to a participant who asked to resume the survey later"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_survey__theme_font__serif
+msgid "Serif"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_table_pagination
+msgid ""
+"Show\n"
+"                    All"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__triggering_question_id
+msgid ""
+"Show this question only when the selected question's answer meets the operator condition.\n"
+"Use this for non-choice questions (numerical, text, date, scale, etc.)."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__shuffle_answers
+msgid "Shuffle Answers"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question_answer__skip_action
+msgid "Skip Action"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question_answer__skip_target_id
+msgid "Skip To"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question_answer__skip_action__skip_to
+msgid "Skip to question/page"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__question_type__slider
+msgid "Slider"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__slider_max
+msgid "Slider Maximum"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__slider_min
+msgid "Slider Minimum"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__slider_step
+msgid "Slider Step"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__slider_unit
+msgid "Slider Unit"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.constraint,message:survey.constraint_survey_question_slider
+msgid "Slider must have min < max and a positive step"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_fill_form_in_progress
+msgid ""
+"Sorry,\n"
+"                    you have not been fast enough."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_user_input__is_speeder
+msgid "Speeder"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_user_input_view_search
+msgid "Speeders"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_category__code
+#: model:ir.model.fields,help:survey.field_survey_tag__code
+msgid ""
+"Stable identifier for imports, filters and data files. Unlike the name it is"
+" never translated, so it means the same thing to every reader."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__rating_icon__star
+msgid "Stars"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__question_type__statement
+msgid "Statement / Info Screen"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_user_input__is_straight_liner
+msgid "Straight-liner"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_user_input_view_search
+msgid "Straight-liners"
+msgstr ""
+
+#. module: survey
+#: model:ir.model,name:survey.model_survey_category
+msgid "Survey Category"
+msgstr ""
+
+#. module: survey
+#: model:ir.model,name:survey.model_survey_followup_rule
+msgid "Survey Follow-up Rule"
+msgstr ""
+
+#. module: survey
+#: model:ir.model,name:survey.model_mixin_survey_question_statistics
+msgid "Survey Question Statistics Mixin"
+msgstr ""
+
+#. module: survey
+#: model:ir.model,name:survey.model_survey_quota
+msgid "Survey Quota"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__date_open
+msgid ""
+"Survey automatically becomes active at this date and time. Leave empty for "
+"immediate."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__date_close
+msgid ""
+"Survey automatically becomes inactive at this date and time. Leave empty for"
+" no deadline."
+msgstr ""
+
+#. module: survey
+#: model:ir.actions.server,name:survey.ir_cron_survey_cleanup_expired_responses_ir_actions_server
+msgid "Survey: Clean Up Expired Responses"
+msgstr ""
+
+#. module: survey
+#: model:mail.template,name:survey.mail_template_survey_save_later
+msgid "Survey: Resume Later"
+msgstr ""
+
+#. module: survey
+#: model:ir.actions.server,name:survey.ir_cron_survey_scheduled_open_close_ir_actions_server
+msgid "Survey: Scheduled Open/Close"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_print
+msgid ""
+"The\n"
+"                                                            correct answer was:"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_session_code
+msgid ""
+"The\n"
+"                                        session did not start yet."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_survey.py:0
+msgid ""
+"The custom URL slug '%(slug)s' collides with another survey's short link. "
+"Pick a different length or wording."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_survey.py:0
+msgid ""
+"The custom URL slug '%(slug)s' may only contain lowercase letters, digits "
+"and single hyphens."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/wizard/survey_invite.py:0
+msgid ""
+"The email template \"%(template)s\" is not a survey invitation template: it "
+"renders %(model)s rather than survey participations. Set its model to "
+"\"Survey User Input\" or pick another template."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.constraint,message:survey.constraint_survey_question_scale
+msgid ""
+"The scale must be a growing non-empty range with min >= 0, max <= 100, and "
+"at most 20 steps"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__constant_sum_total
+msgid "The total that all distributed values must sum to."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__triggering_value
+msgid ""
+"The value to compare against. For numerical questions use a number, for date"
+" questions use YYYY-MM-DD format."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_form
+msgid "Theme"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+#: code:addons/survey/models/survey_user_input.py:0
+msgid "This answer is not a valid choice for this question."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields.selection,name:survey.selection__survey_question__rating_icon__thumb
+msgid "Thumbs Up"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_statistics_inner
+#: model_terms:ir.ui.view,arch_db:survey.survey_results_filters
+msgid "To"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_result_text
+msgid "Top Keywords"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_cross_tab
+msgid "Total"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__constant_sum_total
+msgid "Total Points"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__triggering_operator
+msgid "Trigger Operator"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__triggering_value
+msgid "Trigger Value"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_question__triggering_question_id
+msgid "Triggering Question (value-based)"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.constraint,message:survey.constraint_survey_survey_slug_unique
+msgid "Two surveys cannot share the same custom URL slug."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__webhook_url
+msgid ""
+"URL to POST survey event data to. The payload is a JSON object with event "
+"type, survey, respondent, and answer details."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__slider_unit
+msgid "Unit label displayed next to the value (e.g., '%', 'kg', '$')."
+msgstr ""
+
+#. module: survey
+#. odoo-javascript
+#: code:addons/survey/static/src/interactions/survey_file_upload.js:0
+msgid "Upload failed."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "Uploaded file not found."
+msgstr ""
+
+#. module: survey
+#. odoo-javascript
+#: code:addons/survey/static/src/interactions/survey_file_upload.js:0
+msgid "Uploading…"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_question__description
+msgid ""
+"Use this field to add additional explanations about your question or to illustrate it with pictures or a video.\n"
+"Write {{Q42}} to pipe in the respondent's answer to question 42 — the same question id a calculated field's Q42 refers to."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "Value must be between %(min)s and %(max)s."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_question.py:0
+msgid "Values must sum to %s (currently %s)."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__slug
+msgid ""
+"Vanity URL path for this survey (e.g. 'customer-feedback'). The survey will "
+"be accessible at /s/customer-feedback in addition to the token URL."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_fill_form_in_progress
+msgid ""
+"We have registered your answer! Please wait for the\n"
+"                    host to go to the next question."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__webhook_events
+msgid "Webhook Events"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,field_description:survey.field_survey_survey__webhook_url
+msgid "Webhook URL"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_survey.py:0
+msgid "Webhook URL must include a hostname."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_survey.py:0
+msgid "Webhook URL must not target local or internal hostnames."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_survey.py:0
+msgid ""
+"Webhook URL must not target private or internal networks (%(hostname)s "
+"resolves to %(address)s)."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_survey.py:0
+msgid "Webhook URL must use http or https scheme (got '%(scheme)s')."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/survey_survey.py:0
+msgid "Webhook host %(hostname)s could not be resolved."
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/models/templates/samples.py:0
+msgid ""
+"Welcome to this Odoo certification. You will receive 2 random questions out "
+"of a pool of 3.(<span style=\"font-style: italic\">Cheating on your "
+"neighbors will not help!</span> 😁).<br>Good luck!"
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_user_input__save_later_datetime
+msgid "When the 'continue later' link was last emailed for this attempt."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__date_schedule_applied
+msgid ""
+"When the Opens On schedule was last acted on — either the scheduler opened "
+"the survey, or someone archived it and overrode the schedule. Cleared when "
+"Opens On changes, which arms it again."
+msgstr ""
+
+#. module: survey
+#: model:ir.model.fields,help:survey.field_survey_survey__webhook_events
+msgid ""
+"Which events trigger the webhook. 'All' fires on survey_started, "
+"page_submitted, and survey_completed."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"YYYY-MM-DD <i class=\"fa-solid fa-calendar-days\" role=\"img\" aria-"
+"label=\"Calendar\" title=\"Calendar\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"YYYY-MM-DD hh:mm:ss <i class=\"fa-solid fa-calendar-days\" role=\"img\" "
+"aria-label=\"Calendar\" title=\"Calendar\"/>"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.actions.act_window,help:survey.action_survey_user_input
+msgid ""
+"You can share your links through different means: email, invite shortcut, live\n"
+"                presentation, ..."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_form
+msgid "e.g. customer-feedback"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_survey_view_form
+msgid "https://example.com/webhook"
+msgstr ""
+
+#. module: survey
+#. odoo-python
+#: code:addons/survey/wizard/survey_invite.py:0
+msgid "no model"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.question_constant_sum
+msgid "points across the items below."
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_403_page
+msgid ""
+"this\n"
+"                        page"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_page_cross_tab
+msgid "— Cross-Tabulation"
+msgstr ""
+
+#. module: survey
+#: model_terms:ir.ui.view,arch_db:survey.survey_question_form
+msgid ""
+"⚠️ This question is positioned before some or all of its triggers and could\n"
+"                    be skipped."
+msgstr ""
+

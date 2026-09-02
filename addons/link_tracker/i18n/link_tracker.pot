@@ -346,3 +346,42 @@ msgstr ""
 #: code:addons/link_tracker/models/link_tracker.py:0
 msgid "“%s” is not a valid link, links cannot redirect to the current page."
 msgstr ""
+
+#. module: link_tracker
+#: model_terms:ir.ui.view,arch_db:link_tracker.utm_campaign_view_kanban
+msgid "<i class=\"fa-solid fa-mouse-pointer\" aria-label=\"Clicks\" role=\"img\"/>"
+msgstr ""
+
+#. module: link_tracker
+#: model:ir.actions.server,name:link_tracker.ir_cron_link_tracker_fetch_titles_ir_actions_server
+msgid "Link Tracker: fetch page titles"
+msgstr ""
+
+#. module: link_tracker
+#: model:ir.actions.server,name:link_tracker.ir_cron_link_tracker_clear_expired_ips_ir_actions_server
+msgid "Link Tracker: forget click IPs past retention"
+msgstr ""
+
+#. module: link_tracker
+#: model:ir.model.fields,field_description:link_tracker.field_link_tracker__key_hash
+msgid "Unique key digest"
+msgstr ""
+
+#. module: link_tracker
+#. odoo-python
+#: code:addons/link_tracker/models/link_tracker.py:0
+msgid "“%s” is not a known sort order."
+msgstr ""
+
+#. module: link_tracker
+#. odoo-python
+#: code:addons/link_tracker/models/link_tracker.py:0
+msgid "“%s” is not a valid link, it already is a tracked short link."
+msgstr ""
+
+#. module: link_tracker
+#. odoo-python
+#: code:addons/link_tracker/models/link_tracker.py:0
+msgid "“%s” is not a valid link."
+msgstr ""
+

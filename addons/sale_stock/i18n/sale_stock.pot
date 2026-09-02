@@ -862,3 +862,418 @@ msgstr ""
 #: code:addons/sale_stock/static/src/xml/delay_alert.xml:0
 msgid "will be late."
 msgstr ""
+
+#. module: sale_stock
+#. odoo-python
+#: code:addons/sale_stock/models/sale_order.py:0
+msgid ""
+"\n"
+"                    The delivery address has been changed on the Sales Order<br/>\n"
+"                    From <strong>\"%(old_address)s\"</strong> to <strong>\"%(new_address)s\"</strong>,\n"
+"                    You should probably update the partner on this document.\n"
+"                    "
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.exception_on_picking
+msgid ""
+".\n"
+"            Manual actions may be needed."
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_order_portal_content_inherit_sale_stock
+msgid "<i class=\"fa-regular fa-clock\"/> Awaiting arrival"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_order_portal_content_inherit_sale_stock
+msgid "<i class=\"fa-regular fa-clock\"/>Preparation"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_order_portal_content_inherit_sale_stock
+msgid "<i class=\"fa-solid fa-times\"/> Cancelled"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_order_portal_content_inherit_sale_stock
+msgid "<i class=\"fa-solid fa-times\"/>Cancelled"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_order_portal_content_inherit_sale_stock
+msgid "<i class=\"fa-solid fa-truck\"/> Received"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.res_partner_view_sale_buttons_inherit
+msgid "<span class=\"o_stat_text\">On-time Rate</span>"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.res_partner_view_sale_buttons_inherit
+msgid "<span class=\"o_stat_value\">%</span>"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_order_portal_content_inherit_sale_stock
+msgid ""
+"<span class=\"small badge rounded-pill text-bg-success orders_label_text_align\">\n"
+"                                        <i class=\"fa-solid fa-truck\"/> Shipped\n"
+"                                    </span>"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,help:sale_stock.field_sale_order__transfer_state
+msgid ""
+"Blue: Not Delivered/Started\n"
+"            Orange: Partially transferred\n"
+"            Green: Fully transferred"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_customer_delay_report__company_id
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__company_id
+msgid "Company"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model,name:sale_stock.model_res_partner
+msgid "Contact"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_stock_move__created_sale_line_ids
+msgid "Created Sale Order Lines"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_customer_delay_report__partner_id
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_delivery_line_match_list
+msgid "Customer"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model,name:sale_stock.model_customer_delay_report
+msgid "Customer Delay Report"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_res_partner__customer_on_time_rate
+#: model:ir.model.fields,field_description:sale_stock.field_res_users__customer_on_time_rate
+msgid "Customer On-Time Delivery Rate"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.actions.act_window,help:sale_stock.action_sale_customer_delay_report
+msgid "Customer On-time Delivery analysis"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__date_expected
+msgid "Date Expected"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_order_line__date_planned
+msgid "Date Planned"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_order_line__date_planned_forecast
+msgid "Date Planned Forecast"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_stock_picking__days_to_deliver
+msgid "Days To Deliver"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,help:sale_stock.field_sale_delivery_line_match__product_uom_id
+msgid "Default unit of measure used for all stock operations."
+msgstr ""
+
+#. module: sale_stock
+#. odoo-python
+#: code:addons/sale_stock/models/sale_order.py:0
+msgid "Delivery Matching"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.customer_delay_report_filter
+msgid "Effective Date Last Year"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_order__force_fully_delivered
+msgid "Force Fully Delivered"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__sale_order_line__transfer_state__done
+msgid "Fully delivered"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.report_delivery_document_inherit_sale_stock
+msgid ""
+"Incoterm\n"
+"                    details"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__line_qty
+msgid "Line Qty"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__line_uom_id
+msgid "Line Uom"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__lot_ids
+msgid "Lot"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_delivery_line_match_list
+msgid "Match"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.view_order_form_inherit_sale_stock
+msgid "Match Deliveries"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.view_stock_picking_form
+msgid "Match Sales"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__move_id
+msgid "Move"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__sale_order_line__transfer_state__no
+msgid "Nothing to deliver"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.customer_delay_report_view_graph
+msgid "On-Time Delivery"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_customer_delay_report__on_time_rate
+msgid "On-Time Delivery Rate"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_customer_delay_report__qty_on_time
+msgid "On-Time Quantity"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.actions.act_window,name:sale_stock.action_sale_customer_delay_report
+#: model_terms:ir.ui.view,arch_db:sale_stock.customer_delay_report_filter
+msgid "On-time Delivery"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.res_partner_view_sale_buttons_inherit
+msgid "On-time Rate"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_delivery_line_match_list
+msgid "Ordered"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__ordered_qty
+msgid "Ordered Qty"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__sale_order_line__transfer_state__over_done
+msgid "Over delivered"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,help:sale_stock.field_res_partner__customer_on_time_rate
+#: model:ir.model.fields,help:sale_stock.field_res_users__customer_on_time_rate
+msgid ""
+"Over the past x days; the number of products delivered on time to this "
+"customer divided by the number of ordered products. x is either the System "
+"Parameter sale_stock.on_time_delivery_days or the default 365"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__sale_order_line__transfer_state__partial
+msgid "Partially delivered"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__partner_id
+msgid "Partner"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__picking_id
+msgid "Picking"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_customer_delay_report__category_id
+msgid "Product Category"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_delivery_line_match_list
+msgid "Product Description"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__product_uom_qty
+msgid "Product Uom Qty"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model,name:sale_stock.model_product_product
+msgid "Product Variant"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_order_line__qty_available_virtual_at_date
+msgid "Qty Available Virtual At Date"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_order_line__qty_free_today
+msgid "Qty Free Today"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_order_line__qty_to_transfer
+msgid "Qty To Transfer"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__qty_transferred
+msgid "Qty Transferred"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__qty_to_transfer
+msgid "Qty to transfer"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_delivery_line_match_list
+msgid "Quantity"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__reference
+msgid "Reference"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,help:sale_stock.field_sale_order__force_fully_delivered
+msgid "Report this order as fully transferred regardless of its lines."
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_product_product__sale_order_line_ids
+msgid "SO Lines"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_res_partner__sale_line_ids
+#: model:ir.model.fields,field_description:sale_stock.field_res_users__sale_line_ids
+msgid "Sale Lines"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model,name:sale_stock.model_sale_order
+msgid "Sale Order"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_delivery_line_match_list
+msgid "Sales Delivery Lines"
+msgstr ""
+
+#. module: sale_stock
+#. odoo-python
+#: code:addons/sale_stock/models/stock_picking.py:0
+msgid "Sales Matching"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model,name:sale_stock.model_sale_delivery_line_match
+msgid "Sales Order Line & Delivery Move Matching"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__state
+msgid "State"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model,name:sale_stock.model_stock_move
+msgid "Stock Move Ewaybill"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__sale_order_line__transfer_state__to_do
+msgid "To deliver"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_delivery_line_match_list
+msgid "Total Delivered"
+msgstr ""
+
+#. module: sale_stock
+#: model_terms:ir.ui.view,arch_db:sale_stock.sale_delivery_line_match_list
+msgid "Total Ordered"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_customer_delay_report__qty_total
+msgid "Total Quantity"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__transfer_state
+msgid "Transfer State"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__transferred_qty
+msgid "Transferred Qty"
+msgstr ""
+
+#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_sale_delivery_line_match__product_uom_id
+msgid "Unit"
+msgstr ""
+
+#. module: sale_stock
+#. odoo-python
+#: code:addons/sale_stock/report/sale_delivery_line_match.py:0
+msgid "You must select at least one Sales Order line to match or deliver."
+msgstr ""
+
+#. module: sale_stock
+#. odoo-python
+#: code:addons/sale_stock/report/sale_delivery_line_match.py:0
+msgid "You must select at least one delivery move to match."
+msgstr ""
+

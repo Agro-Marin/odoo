@@ -107,3 +107,10 @@ msgstr ""
 #: code:addons/google_address_autocomplete/static/src/address_autocomplete/google_address_autocomplete.js:0
 msgid "Zip field"
 msgstr ""
+
+#. module: google_address_autocomplete
+#. odoo-python
+#: code:addons/google_address_autocomplete/controllers/google_address_autocomplete.py:0
+msgid "You don't have access to the internal API key."
+msgstr ""
+

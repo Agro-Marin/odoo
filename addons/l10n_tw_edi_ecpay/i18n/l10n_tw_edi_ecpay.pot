@@ -962,3 +962,17 @@ msgstr ""
 #: model:ir.model.fields.selection,name:l10n_tw_edi_ecpay.selection__l10n_tw_edi_invoice_print__print_format_b2c__1
 msgid "single-sided printing"
 msgstr ""
+
+#. module: l10n_tw_edi_ecpay
+#. odoo-python
+#: code:addons/l10n_tw_edi_ecpay/models/account_move.py:0
+msgid ""
+"Error:\n"
+"%(errors)s"
+msgstr ""
+
+#. module: l10n_tw_edi_ecpay
+#: model:ir.model,name:l10n_tw_edi_ecpay.model_account_tax
+msgid "Tax"
+msgstr ""
+

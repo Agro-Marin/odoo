@@ -1405,3 +1405,230 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:portal.address_form_fields
 msgid "your account details"
 msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid ""
+"2. Confirm you want to delete your account by copying\n"
+"                                            down your login ("
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.my_account_link
+msgid ""
+"<i class=\"fa-regular fa-id-card me-1 small text-primary-emphasis\"/> My "
+"Account"
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.side_content
+msgid "<i class=\"fa-solid fa-pencil\"/> Edit information"
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.user_dropdown
+msgid ""
+"<i class=\"fa-solid fa-right-from-bracket me-1 small text-primary-emphasis\"/>\n"
+"                    Logout"
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.user_dropdown
+msgid "<i class=\"fa-solid fa-th me-1 small text-primary-emphasis\"/> Apps"
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.address_footer
+msgid "<i class=\"fw-light fa-solid fa-angle-left me-2\"/>Discard"
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_back_in_edit_mode
+msgid ""
+"<i class=\"oi oi-arrow-right me-1\"/>Back\n"
+"                to edit mode"
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "<i title=\"Documentation\" class=\"fa-solid fa-info-circle o_button_icon\"/>"
+msgstr ""
+
+#. module: portal
+#. odoo-javascript
+#: code:addons/portal/static/src/interactions/portal_composer.js:0
+msgid "Could not remove the attachment."
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid ""
+"Disable your account, preventing any\n"
+"                                            further login.<br/>\n"
+"                                            <b>\n"
+"                                                <i class=\"fa-solid fa-exclamation-triangle text-danger\"/>\n"
+"                                            This action cannot be undone. </b>"
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.address_form_fields
+msgid ""
+"If\n"
+"                        you want to modify it, update"
+msgstr ""
+
+#. module: portal
+#: model:ir.model.fields,field_description:portal.field_account_analytic_account__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_account_tax__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_calendar_event__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_crm_team__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_crm_team_member__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_discuss_channel__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_gamification_activity__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_gamification_badge__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_gamification_badge_user__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_gamification_challenge__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_gamification_goal__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_gamification_kudos__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_gamification_mentorship__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_gamification_quest__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_gamification_season__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_gamification_team__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_iap_account__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_ir_actions_server__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_ir_cron__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_mail_blacklist__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_mixin_mail_thread__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_mixin_mail_thread_blacklist__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_mixin_mail_thread_cc__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_mixin_mail_thread_main_attachment__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_mixin_mail_thread_phone__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_mixin_mail_tracking_duration__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_mixin_rating__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_phone_blacklist__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_product_category__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_product_pricelist__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_product_product__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_product_template__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_res_partner__website_message_ids
+#: model:ir.model.fields,field_description:portal.field_res_users__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: portal
+#: model:ir.model.fields,help:portal.field_mixin_portal__access_url
+msgid "Portal URL for this record (overridden by concrete models)."
+msgstr ""
+
+#. module: portal
+#: model:ir.model.fields,help:portal.field_account_analytic_account__website_message_ids
+#: model:ir.model.fields,help:portal.field_account_tax__website_message_ids
+#: model:ir.model.fields,help:portal.field_calendar_event__website_message_ids
+#: model:ir.model.fields,help:portal.field_crm_team__website_message_ids
+#: model:ir.model.fields,help:portal.field_crm_team_member__website_message_ids
+#: model:ir.model.fields,help:portal.field_discuss_channel__website_message_ids
+#: model:ir.model.fields,help:portal.field_gamification_activity__website_message_ids
+#: model:ir.model.fields,help:portal.field_gamification_badge__website_message_ids
+#: model:ir.model.fields,help:portal.field_gamification_badge_user__website_message_ids
+#: model:ir.model.fields,help:portal.field_gamification_challenge__website_message_ids
+#: model:ir.model.fields,help:portal.field_gamification_goal__website_message_ids
+#: model:ir.model.fields,help:portal.field_gamification_kudos__website_message_ids
+#: model:ir.model.fields,help:portal.field_gamification_mentorship__website_message_ids
+#: model:ir.model.fields,help:portal.field_gamification_quest__website_message_ids
+#: model:ir.model.fields,help:portal.field_gamification_season__website_message_ids
+#: model:ir.model.fields,help:portal.field_gamification_team__website_message_ids
+#: model:ir.model.fields,help:portal.field_iap_account__website_message_ids
+#: model:ir.model.fields,help:portal.field_ir_actions_server__website_message_ids
+#: model:ir.model.fields,help:portal.field_ir_cron__website_message_ids
+#: model:ir.model.fields,help:portal.field_mail_blacklist__website_message_ids
+#: model:ir.model.fields,help:portal.field_mixin_mail_thread__website_message_ids
+#: model:ir.model.fields,help:portal.field_mixin_mail_thread_blacklist__website_message_ids
+#: model:ir.model.fields,help:portal.field_mixin_mail_thread_cc__website_message_ids
+#: model:ir.model.fields,help:portal.field_mixin_mail_thread_main_attachment__website_message_ids
+#: model:ir.model.fields,help:portal.field_mixin_mail_thread_phone__website_message_ids
+#: model:ir.model.fields,help:portal.field_mixin_mail_tracking_duration__website_message_ids
+#: model:ir.model.fields,help:portal.field_mixin_rating__website_message_ids
+#: model:ir.model.fields,help:portal.field_phone_blacklist__website_message_ids
+#: model:ir.model.fields,help:portal.field_product_category__website_message_ids
+#: model:ir.model.fields,help:portal.field_product_pricelist__website_message_ids
+#: model:ir.model.fields,help:portal.field_product_product__website_message_ids
+#: model:ir.model.fields,help:portal.field_product_template__website_message_ids
+#: model:ir.model.fields,help:portal.field_res_partner__website_message_ids
+#: model:ir.model.fields,help:portal.field_res_users__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid ""
+"Put my email and phone in a block list to make sure\n"
+"                                                I'm never contacted\n"
+"                                                again"
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "Remove API key"
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_searchbar
+msgid "Search filters"
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.wizard_view
+msgid ""
+"Select which contacts should belong to the portal in the list below.\n"
+"                    The email address of each selected contact must be valid and unique.\n"
+"                    If necessary, you can fix any contact's email address directly in the list."
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "Show password"
+msgstr ""
+
+#. module: portal
+#. odoo-javascript
+#: code:addons/portal/static/src/interactions/address_card.js:0
+msgid "The address could not be removed."
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.address_form_fields
+msgid ""
+"The company name and VAT number can only be\n"
+"                        updated on your main account."
+msgstr ""
+
+#. module: portal
+#. odoo-python
+#: code:addons/portal/wizard/portal_share.py:0
+msgid "This document cannot be shared: it has no portal page."
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "Type your login to confirm"
+msgstr ""
+
+#. module: portal
+#: model:ir.model,name:portal.model_res_users_apikeys
+msgid "Users API Keys"
+msgstr ""
+
+#. module: portal
+#: model:ir.model.fields,help:portal.field_ir_ui_view__customize_show
+msgid ""
+"When set, the website editor surfaces this view as a user-togglable "
+"inherited variant of its parent (used by the Customize panel)."
+msgstr ""
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.address_form_fields
+msgid ""
+"your\n"
+"                        account details"
+msgstr ""
+

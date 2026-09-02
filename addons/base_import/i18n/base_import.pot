@@ -960,3 +960,122 @@ msgstr ""
 #: code:addons/base_import/models/base_import.py:0
 msgid "unknown error code %s"
 msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/models/base_import.py:0
+msgid "%(option)s must be a whole number of rows, not %(value)s."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/models/base_import.py:0
+msgid "(none)"
+msgstr ""
+
+#. module: base_import
+#: model:ir.model.constraint,message:base_import.constraint_base_import_mapping_column_unique_per_model
+msgid "A column name can only be mapped to one field per model."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/models/base_import.py:0
+msgid "Cannot import into %(model)s: no such model."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/models/base_import.py:0
+msgid ""
+"Column %(column)s cannot be imported: %(path)s is not a relation on model "
+"%(model)s, so it has no sub-fields."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/models/base_import.py:0
+msgid "Column %(column)s is not mapped to a field name."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/models/base_import.py:0
+msgid "Could not detect the file's encoding, please select it manually."
+msgstr ""
+
+#. module: base_import
+#. odoo-javascript
+#: code:addons/base_import/static/src/import_model.js:0
+msgid ""
+"Could not match files to imported records for: %(fields)s. No files were "
+"attached."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/models/base_import.py:0
+msgid ""
+"Error while importing records: all rows should be of the same size, but the "
+"title row has %(title_row_entries)d entries while row %(row_number)d has "
+"%(row_entries)d. You may need to change the separator character."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/controllers/main.py:0
+msgid "Invalid import identifier."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/controllers/main.py:0
+msgid "No file was uploaded."
+msgstr ""
+
+#. module: base_import
+#. odoo-javascript
+#: code:addons/base_import/static/src/import_action/import_action.js:0
+msgid "Please upload a valid file to import (%(extensions)s)."
+msgstr ""
+
+#. module: base_import
+#. odoo-javascript
+#: code:addons/base_import/static/src/binary_file_manager.js:0
+msgid "Some binary/attachment fields could not be uploaded: %(error)s"
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/models/base_import.py:0
+msgid ""
+"The file could not be read. Please check the format options, or contact your"
+" administrator if the problem persists."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/controllers/main.py:0
+msgid "This import does not exist or is no longer available."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/models/base_import.py:0
+msgid "Unable to load \"%(extension)s\" file: requires Python module \"%(modname)s\""
+msgstr ""
+
+#. module: base_import
+#. odoo-javascript
+#: code:addons/base_import/static/src/binary_file_manager.js:0
+msgid "Unknown binary field %(field)s, its files were not uploaded."
+msgstr ""
+
+#. module: base_import
+#. odoo-python
+#: code:addons/base_import/models/base_import.py:0
+msgid ""
+"Unsupported file format \"%(file_type)s\", import only supports "
+"%(supported)s"
+msgstr ""
+

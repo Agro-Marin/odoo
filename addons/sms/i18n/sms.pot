@@ -1545,3 +1545,72 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:sms.sms_template_preview_form
 msgid "record:"
 msgstr ""
+
+#. module: sms
+#: model_terms:ir.ui.view,arch_db:sms.iap_account_view_form
+msgid ""
+"<i class=\"fa-solid fa-triangle-exclamation\"/> An error occurred with your "
+"account. Please contact the support for more information..."
+msgstr ""
+
+#. module: sms
+#: model_terms:ir.ui.view,arch_db:sms.iap_account_view_form
+msgid ""
+"<i class=\"fa-solid fa-triangle-exclamation\"/> You cannot send SMS while "
+"your account is not registered."
+msgstr ""
+
+#. module: sms
+#: model_terms:ir.ui.view,arch_db:sms.sms_template_view_form
+msgid ""
+"<span class=\"o_stat_text\">Add</span>\n"
+"                                    <span class=\"o_stat_text\">Context Action</span>"
+msgstr ""
+
+#. module: sms
+#: model_terms:ir.ui.view,arch_db:sms.sms_template_view_form
+msgid ""
+"<span class=\"o_stat_text\">Remove</span>\n"
+"                                    <span class=\"o_stat_text\">Context Action</span>"
+msgstr ""
+
+#. module: sms
+#: model_terms:ir.ui.view,arch_db:sms.ir_actions_server_view_form
+msgid ""
+"<span invisible=\"sms_method != 'sms'\">\n"
+"                                        The message will be sent as an SMS to the recipients of the template\n"
+"                                        and will not appear in the messaging history.\n"
+"                                    </span>\n"
+"                                    <span invisible=\"sms_method != 'note'\">\n"
+"                                        The SMS will not be sent, it will only be posted as an\n"
+"                                        internal note in the messaging history.\n"
+"                                    </span>\n"
+"                                    <span invisible=\"sms_method != 'comment'\">\n"
+"                                        The SMS will be sent as an SMS to the recipients of the\n"
+"                                        template and it will also be posted as an internal note\n"
+"                                        in the messaging history.\n"
+"                                    </span>"
+msgstr ""
+
+#. module: sms
+#. odoo-python
+#: code:addons/sms/models/ir_actions_server.py:0
+msgid ""
+"Sending SMS can only be done on a not transient mixin.mail.thread model"
+msgstr ""
+
+#. module: sms
+#: model:ir.model.fields,help:sms.field_ir_actions_server__state
+#: model:ir.model.fields,help:sms.field_ir_cron__state
+msgid ""
+"Type of server action. The following values are available:\n"
+"- 'Update Record': update the values of a record\n"
+"- 'Create Record': create a new record with new values\n"
+"- 'Duplicate Record': copy an existing record\n"
+"- 'Execute Code': a block of Python code that will be executed\n"
+"- 'Send Webhook Notification': send a POST request to an external system\n"
+"- 'Multi Actions': define an action that triggers several other server actions\n"
+"\n"
+"Additional types may be added by other modules (e.g. Discuss, SMS)."
+msgstr ""
+

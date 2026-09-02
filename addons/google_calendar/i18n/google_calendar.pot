@@ -439,3 +439,20 @@ msgstr ""
 msgid ""
 "you don't seem to have permission to modify this event on Google Calendar"
 msgstr ""
+
+#. module: google_calendar
+#. odoo-python
+#: code:addons/google_calendar/models/res_users_settings.py:0
+msgid "Google Calendar: %s"
+msgstr ""
+
+#. module: google_calendar
+#: model:ir.model.fields,field_description:google_calendar.field_res_users_settings__google_calendar_credential_id
+msgid "Google Credential"
+msgstr ""
+
+#. module: google_calendar
+#: model:ir.model.fields,help:google_calendar.field_res_users_settings__google_calendar_credential_id
+msgid "Holds this user's Google OAuth tokens."
+msgstr ""
+

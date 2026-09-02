@@ -2594,3 +2594,22 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:l10n_in.view_company_form
 msgid "update it"
 msgstr ""
+
+#. module: l10n_in
+#: model:ir.model.fields,field_description:l10n_in.field_l10n_in_pan_entity__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: l10n_in
+#: model:ir.model.fields,help:l10n_in.field_l10n_in_pan_entity__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: l10n_in
+#: model:ir.model.fields,help:l10n_in.field_res_config_settings__l10n_in_gstin
+msgid ""
+"The Tax Identification Number. Values here will be validated based on the "
+"country format. You can use '/' to indicate that the partner is not subject "
+"to tax."
+msgstr ""
+

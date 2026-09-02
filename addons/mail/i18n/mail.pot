@@ -13604,3 +13604,28 @@ msgstr ""
 #: code:addons/mail/static/src/core/web/activity.js:0
 msgid "“%s”"
 msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/discuss/discuss_channel.py:0
+msgid ""
+"%(partners)s cannot be added as recipients of a message in %(channel)s."
+msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/discuss/discuss_channel.py:0
+msgid ""
+"Inviting by email is not allowed for this channel type (%(channel_type)s)."
+msgstr ""
+
+#. module: mail
+#: model:ir.model,name:mail.model_res_partner_tag
+msgid "Partner Tag"
+msgstr ""
+
+#. module: mail
+#: model:ir.model,website_form_label:mail.model_mail_mail
+msgid "Send an E-mail"
+msgstr ""
+

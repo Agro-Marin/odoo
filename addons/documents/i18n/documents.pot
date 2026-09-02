@@ -4762,3 +4762,660 @@ msgid ""
 "•\n"
 "                                        <b>URL</b>"
 msgstr ""
+
+#. module: documents
+#. odoo-javascript
+#: code:addons/documents/static/src/owl/components/pdf_manager/pdf_manager.js:0
+msgid "%s is password protected and cannot be split."
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.share_file
+msgid "<i class=\"fa-regular fa-eye\"/> Preview file"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.public_folder_page
+msgid "<i class=\"fa-solid fa-download\"/> Download All"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.share_file
+msgid "<i class=\"fa-solid fa-download\"/> Download file"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.document_view_kanban
+msgid ""
+"<i class=\"fa-solid fa-up-right-from-square me-2\" title=\"This is a "
+"shortcut\"/>"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.document_view_kanban
+msgid ""
+"<i class=\"fa-solid fa-up-right-from-square text-gray-500\" title=\"This is "
+"a shortcut\"/>"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.document_request_page
+msgid "<i class=\"fa-solid fa-upload\"/> Add file"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.share_file
+msgid "<i class=\"fa-solid fa-upload\"/> Replace file"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.public_folder_page
+msgid "<i class=\"fa-solid fa-upload\"/> Upload"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.document_view_kanban
+msgid ""
+"<span>\n"
+"                                                    <b> Request</b>\n"
+"                                                </span>"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.document_view_kanban
+msgid ""
+"<span>\n"
+"                                                <b>Requested Document</b>\n"
+"                                            </span>"
+msgstr ""
+
+#. module: documents
+#: model:mail.template,body_html:documents.mail_template_document_request
+msgid ""
+"<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"padding-top: 16px; background-color: #F1F1F1; font-family:Verdana, Arial,sans-serif; color: #454748; width: 100%; border-collapse:separate;\">\n"
+"                <tr>\n"
+"                    <td align=\"center\">\n"
+"                        <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"padding: 16px; background-color: white; color: #454748; border-collapse:separate;\">\n"
+"                            <tbody>\n"
+"                                <!-- HEADER -->\n"
+"                                <tr>\n"
+"                                    <td align=\"center\" style=\"min-width: 590px;\">\n"
+"                                        <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"min-width: 590px; background-color: white; padding: 0px 8px 0px 8px; border-collapse:separate;\">\n"
+"                                            <tr>\n"
+"                                                <td valign=\"middle\">\n"
+"                                                    <span style=\"font-size: 10px;\"> Document\n"
+"                                                        Request: <br/>\n"
+"                                            <t t-if=\"object.name\">\n"
+"                                                <span style=\"font-size: 20px; font-weight: bold;\" t-out=\"object.name or ''\">Inbox\n"
+"                                                Financial</span>\n"
+"                                                </t>\n"
+"                                                </span>\n"
+"                                                <br/>\n"
+"                                                </td>\n"
+"                                                <td valign=\"middle\" align=\"right\" t-if=\"not object.create_uid.company_id.uses_default_logo\">\n"
+"                                                    <img t-attf-src=\"/logo.png?company={{ object.create_uid.company_id.id }}\" style=\"padding: 0px; margin: 0px; height: auto; width: 80px;\" t-att-alt=\"object.create_uid.company_id.name\"/>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                            <tr>\n"
+"                                                <td colspan=\"2\" style=\"text-align:center;\">\n"
+"                                                    <hr width=\"100%\" style=\"background-color:rgb(204,204,204);border:medium none;clear:both;display:block;font-size:0px;min-height:1px;line-height:0; margin: 16px 0px 16px 0px;\"/>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                        </table>\n"
+"                                    </td>\n"
+"                                </tr>\n"
+"                                <!-- CONTENT -->\n"
+"                                <tr>\n"
+"                                    <td align=\"center\" style=\"min-width: 590px;\">\n"
+"                                        <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"min-width: 590px; background-color: white; padding: 0px 8px 0px 8px; border-collapse:separate;\">\n"
+"                                            <tr>\n"
+"                                                <td valign=\"top\" style=\"font-size: 13px;\">\n"
+"                                                    <div> Hello <t t-out=\"object.requestee_partner_id.name or ''\">\n"
+"                                                        OdooBot</t>, <br/><br/>\n"
+"                                            <t t-out=\"object.create_uid.name or ''\">\n"
+"                                                OdooBot</t> (<t t-out=\"object.create_uid.email or ''\">\n"
+"                                                odoobot@example.com</t>) asks you to provide\n"
+"                                                the following document: <br/><br/>\n"
+"                                            <center>\n"
+"                                                <div>\n"
+"                                                    <t t-if=\"object.name\">\n"
+"                                                        <b t-out=\"object.name or ''\">Inbox\n"
+"                                                Financial</b>\n"
+"                                                    </t>\n"
+"                                                    </div>\n"
+"                                                    <div>\n"
+"                                                        <t t-if=\"object.request_activity_id.note\">\n"
+"                                                            <i t-out=\"object.request_activity_id.note or ''\">Example\n"
+"                                                of a note.</i>\n"
+"                                                    </t>\n"
+"                                                    </div>\n"
+"                                                    <br/>\n"
+"                                                    <div style=\"margin: 16px 0px 16px 0px;\">\n"
+"                                                        <a t-att-href=\"object.access_url\" t-attf-style=\"background-color: {{user.company_id.email_secondary_color or '#875A7B'}}; padding: 20px 30px 20px 30px; text-decoration: none; color: {{user.company_id.email_primary_color or '#FFFFFF'}}; border-radius: 5px; font-size:13px;\">\n"
+"                                                Upload the requested document\n"
+"                                                    </a>\n"
+"                                                    </div>\n"
+"                                                </center><br/>\n"
+"                                                Please provide us with the missing document\n"
+"                                                before <t t-out=\"object.request_activity_id.date_deadline\">\n"
+"                                                2021-05-17</t>. <t t-if=\"user and user.signature\" data-o-mail-quote-container=\"1\">\n"
+"                                                    <br/>\n"
+"                                                    <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"user.signature or ''\" data-o-mail-quote=\"1\">Mitchell\n"
+"                                                Admin</t></div>\n"
+"                                                    <br data-o-mail-quote=\"1\"/>\n"
+"                                                </t>\n"
+"                                                </div>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                            <tr>\n"
+"                                                <td style=\"text-align:center;\">\n"
+"                                                    <hr width=\"100%\" style=\"background-color:rgb(204,204,204);border:medium none;clear:both;display:block;font-size:0px;min-height:1px;line-height:0; margin: 16px 0px 16px 0px;\"/>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                        </table>\n"
+"                                    </td>\n"
+"                                </tr>\n"
+"                                <!-- FOOTER -->\n"
+"                                <tr>\n"
+"                                    <td align=\"center\" style=\"min-width: 590px;\">\n"
+"                                        <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"min-width: 590px; background-color: white; font-size: 11px; padding: 0px 8px 0px 8px; border-collapse:separate;\">\n"
+"                                            <tr>\n"
+"                                                <td valign=\"middle\" align=\"left\">\n"
+"                                                    <t t-out=\"object.create_uid.company_id.name or ''\">\n"
+"                                                        YourCompany</t>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                            <tr>\n"
+"                                                <td valign=\"middle\" align=\"left\" style=\"opacity: 0.7;\">\n"
+"                                                    <t t-out=\"object.create_uid.company_id.phone or ''\">+1\n"
+"                                                        650-123-4567</t>\n"
+"                                                    <t t-if=\"object.create_uid.company_id.email\"> | <a t-attf-href=\"mailto:{{ object.create_uid.company_id.email }}\" style=\"text-decoration:none; color: #454748;\" t-out=\"object.create_uid.company_id.email or ''\">\n"
+"                                                        info@yourcompany.com</a>\n"
+"                                                    </t>\n"
+"                                                    <t t-if=\"object.create_uid.company_id.website\">\n"
+"                                                        | <a t-att-href=\"object.create_uid.company_id.website\" style=\"text-decoration:none; color: #454748;\" t-out=\"object.create_uid.company_id.website or ''\">\n"
+"                                                        http://www.example.com</a>\n"
+"                                                    </t>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                        </table>\n"
+"                                    </td>\n"
+"                                </tr>\n"
+"                            </tbody>\n"
+"                        </table>\n"
+"                    </td>\n"
+"                </tr>\n"
+"                <!-- POWERED BY -->\n"
+"                <tr>\n"
+"                    <td align=\"center\" style=\"min-width: 590px;\">\n"
+"                        <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"min-width: 590px; background-color: #F1F1F1; color: #454748; padding: 8px; border-collapse:separate;\">\n"
+"                            <tr>\n"
+"                                <td style=\"text-align: center; font-size: 13px;\"> Powered by <a target=\"_blank\" href=\"https://www.odoo.com/app/documents\" t-attf-style=\"color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Odoo\n"
+"                                    Documents</a>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                        </table>\n"
+"                    </td>\n"
+"                </tr>\n"
+"            </table>\n"
+"        "
+msgstr ""
+
+#. module: documents
+#: model:mail.template,body_html:documents.mail_template_document_request_reminder
+msgid ""
+"<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"padding-top: 16px; background-color: #F1F1F1; font-family:Verdana, Arial,sans-serif; color: #454748; width: 100%; border-collapse:separate;\">\n"
+"                <tr>\n"
+"                    <td align=\"center\">\n"
+"                        <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"padding: 16px; background-color: white; color: #454748; border-collapse:separate;\">\n"
+"                            <tbody>\n"
+"                                <!-- HEADER -->\n"
+"                                <tr>\n"
+"                                    <td align=\"center\" style=\"min-width: 590px;\">\n"
+"                                        <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"min-width: 590px; background-color: white; padding: 0px 8px 0px 8px; border-collapse:separate;\">\n"
+"                                            <tr>\n"
+"                                                <td valign=\"middle\">\n"
+"                                                    <span style=\"font-size: 10px;\"> Document\n"
+"                                                        Request: <br/>\n"
+"                                            <t t-if=\"object.name\">\n"
+"                                                <span style=\"font-size: 20px; font-weight: bold;\" t-out=\"object.name or ''\">Inbox\n"
+"                                                Financial</span>\n"
+"                                                </t>\n"
+"                                                </span>\n"
+"                                                <br/>\n"
+"                                                </td>\n"
+"                                                <td valign=\"middle\" align=\"right\">\n"
+"                                                    <img t-attf-src=\"/logo.png?company={{ object.create_uid.company_id.id }}\" style=\"padding: 0px; margin: 0px; height: auto; width: 80px;\" t-att-alt=\"object.create_uid.company_id.name\"/>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                            <tr>\n"
+"                                                <td colspan=\"2\" style=\"text-align:center;\">\n"
+"                                                    <hr width=\"100%\" style=\"background-color:rgb(204,204,204);border:medium none;clear:both;display:block;font-size:0px;min-height:1px;line-height:0; margin: 16px 0px 16px 0px;\"/>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                        </table>\n"
+"                                    </td>\n"
+"                                </tr>\n"
+"                                <!-- CONTENT -->\n"
+"                                <tr>\n"
+"                                    <td align=\"center\" style=\"min-width: 590px;\">\n"
+"                                        <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"min-width: 590px; background-color: white; padding: 0px 8px 0px 8px; border-collapse:separate;\">\n"
+"                                            <tr>\n"
+"                                                <td valign=\"top\" style=\"font-size: 13px;\">\n"
+"                                                    <div> Hello <t t-out=\"object.requestee_partner_id.name or ''\">\n"
+"                                                        OdooBot</t>, <br/><br/> This is a friendly\n"
+"                                                        reminder to upload your requested document: <br/><br/>\n"
+"                                            <center>\n"
+"                                                <div>\n"
+"                                                    <t t-if=\"object.name\">\n"
+"                                                        <b t-out=\"object.name or ''\">Inbox\n"
+"                                                Financial</b>\n"
+"                                                    </t>\n"
+"                                                    </div>\n"
+"                                                    <div>\n"
+"                                                        <t t-if=\"object.request_activity_id.note\">\n"
+"                                                            <i t-out=\"object.request_activity_id.note or ''\">Example\n"
+"                                                of a note.</i>\n"
+"                                                    </t>\n"
+"                                                    </div>\n"
+"                                                    <br/>\n"
+"                                                    <div style=\"margin: 16px 0px 16px 0px;\">\n"
+"                                                        <a t-att-href=\"object.access_url\" t-attf-style=\"background-color: {{user.company_id.email_secondary_color or '#875A7B'}}; padding: 20px 30px 20px 30px; text-decoration: none; color: {{user.company_id.email_primary_color or '#FFFFFF'}}; border-radius: 5px; font-size:13px;\">\n"
+"                                                Upload the requested document\n"
+"                                                    </a>\n"
+"                                                    </div>\n"
+"                                                </center><br/>\n"
+"                                                Please provide us with the missing document\n"
+"                                                before <t t-out=\"object.request_activity_id.date_deadline or ''\">\n"
+"                                                2021-05-17</t>. <br/><br/> Thank you, <t t-if=\"user and user.signature\" data-o-mail-quote-container=\"1\">\n"
+"                                                    <br/>\n"
+"                                                    <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"user.signature\" data-o-mail-quote=\"1\">Mitchell\n"
+"                                                Admin</t></div>\n"
+"                                                    <br data-o-mail-quote=\"1\"/>\n"
+"                                                </t>\n"
+"                                                </div>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                            <tr>\n"
+"                                                <td style=\"text-align:center;\">\n"
+"                                                    <hr width=\"100%\" style=\"background-color:rgb(204,204,204);border:medium none;clear:both;display:block;font-size:0px;min-height:1px;line-height:0; margin: 16px 0px 16px 0px;\"/>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                        </table>\n"
+"                                    </td>\n"
+"                                </tr>\n"
+"                                <!-- FOOTER -->\n"
+"                                <tr>\n"
+"                                    <td align=\"center\" style=\"min-width: 590px;\">\n"
+"                                        <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"min-width: 590px; background-color: white; font-size: 11px; padding: 0px 8px 0px 8px; border-collapse:separate;\">\n"
+"                                            <tr>\n"
+"                                                <td valign=\"middle\" align=\"left\">\n"
+"                                                    <t t-out=\"object.create_uid.company_id.name or ''\">\n"
+"                                                        YourCompany</t>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                            <tr>\n"
+"                                                <td valign=\"middle\" align=\"left\" style=\"opacity: 0.7;\">\n"
+"                                                    <t t-out=\"object.create_uid.company_id.phone or ''\">+1\n"
+"                                                        650-123-4567</t>\n"
+"                                                    <t t-if=\"object.create_uid.company_id.email\"> | <a t-attf-href=\"mailto:{{ object.create_uid.company_id.email }}\" style=\"text-decoration:none; color: #454748;\" t-out=\"object.create_uid.company_id.email\">\n"
+"                                                        info@yourcompany.com</a>\n"
+"                                                    </t>\n"
+"                                                    <t t-if=\"object.create_uid.company_id.website\">\n"
+"                                                        | <a t-att-href=\"object.create_uid.company_id.website\" style=\"text-decoration:none; color: #454748;\" t-out=\"object.create_uid.company_id.website\">\n"
+"                                                        http://www.example.com</a>\n"
+"                                                    </t>\n"
+"                                                </td>\n"
+"                                            </tr>\n"
+"                                        </table>\n"
+"                                    </td>\n"
+"                                </tr>\n"
+"                            </tbody>\n"
+"                        </table>\n"
+"                    </td>\n"
+"                </tr>\n"
+"                <!-- POWERED BY -->\n"
+"                <tr>\n"
+"                    <td align=\"center\" style=\"min-width: 590px;\">\n"
+"                        <table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"min-width: 590px; background-color: #F1F1F1; color: #454748; padding: 8px; border-collapse:separate;\">\n"
+"                            <tr>\n"
+"                                <td style=\"text-align: center; font-size: 13px;\"> Powered by <a target=\"_blank\" href=\"https://www.odoo.com/app/documents\" t-attf-style=\"color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Odoo\n"
+"                                    Documents</a>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                        </table>\n"
+"                    </td>\n"
+"                </tr>\n"
+"            </table>\n"
+"        "
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,field_description:documents.field_documents_access_log__access_date
+msgid "Access Date"
+msgstr ""
+
+#. module: documents
+#: model:ir.actions.act_window,name:documents.documents_access_log_action
+#: model:ir.ui.menu,name:documents.menu_documents_access_log
+#: model_terms:ir.ui.view,arch_db:documents.documents_access_log_view_list
+#: model_terms:ir.ui.view,arch_db:documents.documents_access_log_view_search
+msgid "Access Log"
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document.py:0
+msgid "Access Log: %s"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.actions.act_window,help:documents.mail_activity_plan_action_document
+msgid ""
+"Activity plans are used to assign a list of activities in just a few clicks\n"
+"                (e.g. \"NDA signature process\", \"Folder workflow\", ...)"
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,help:documents.field_documents_tag__active
+msgid "Archive a tag to hide it without deleting it."
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,field_description:documents.field_documents_document__available_embedded_actions_ids
+msgid "Available Actions"
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,field_description:documents.field_documents_document__is_download_blocked
+msgid "Block Download"
+msgstr ""
+
+#. module: documents
+#: model:res.groups,comment:documents.group_documents_manager
+msgid ""
+"Can configure folders, manage access rights, and oversee all documents\n"
+"            within their areas."
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,field_description:documents.field_documents_document__checksum
+msgid "Checksum"
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,field_description:documents.field_documents_tag__code
+msgid "Code"
+msgstr ""
+
+#. module: documents
+#. odoo-javascript
+#: code:addons/documents/static/src/owl/components/pdf_manager/pdf_manager.js:0
+msgid "Could not open %s."
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.documents_access_log_view_search
+msgid "Date"
+msgstr ""
+
+#. module: documents
+#: model:ir.model,name:documents.model_documents_access_log
+msgid "Document Access Log"
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document_access.py:0
+msgid ""
+"Document access can only be granted at creation (Command.create) or cleared;"
+" got command %s."
+msgstr ""
+
+#. module: documents
+#: model:ir.actions.server,name:documents.ir_cron_url_preview_ir_actions_server
+msgid "Documents: Fetch URL previews"
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields.selection,name:documents.selection__documents_access_log__action__download
+msgid "Downloaded"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.documents_access_log_view_search
+msgid "Downloads"
+msgstr ""
+
+#. module: documents
+#: model:res.groups,comment:documents.group_documents_system
+msgid ""
+"Has full control over all document settings, folders, and user rights\n"
+"            across the application."
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,help:documents.field_documents_document__is_download_blocked
+msgid ""
+"If set, people who can only view this document cannot download it. Editors "
+"are unaffected: they can replace the content, so withholding it from them "
+"would mean nothing."
+msgstr ""
+
+#. module: documents
+#. odoo-javascript
+#: code:addons/documents/static/src/views/hooks.js:0
+msgid "Install an automation app to build rules on this folder."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/wizard/documents_request_wizard.py:0
+msgid "Invalid model %s."
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.documents_access_log_view_search
+msgid "Last 30 Days"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.actions.act_window,help:documents.documents_access_log_action
+msgid "No access recorded yet"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.actions.act_window,help:documents.documents_access_log_action
+msgid ""
+"Opening and downloading a document is recorded here, so you can\n"
+"                answer who took a copy of what, and when."
+msgstr ""
+
+#. module: documents
+#. odoo-javascript
+#: code:addons/documents/static/src/owl/components/pdf_manager/pdf_manager.js:0
+msgid "PDF split failed (status %s)."
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.documents_access_log_view_search
+msgid "Person"
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,field_description:documents.field_documents_document__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,help:documents.field_documents_document__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document_user_folder.py:0
+msgid "Searching on %s is not supported."
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,help:documents.field_documents_document__url_preview_pending
+msgid ""
+"Set when a URL document still needs its link preview fetched asynchronously "
+"(see _cron_update_url_preview)."
+msgstr ""
+
+#. module: documents
+#. odoo-javascript
+#: code:addons/documents/static/src/owl/components/pdf_manager/pdf_manager.js:0
+msgid "Split on blank pages"
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,help:documents.field_documents_tag__code
+msgid ""
+"Stable identifier for imports, filters and data files. Unlike the name it is"
+" never translated, so it means the same thing to every reader."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document.py:0
+msgid ""
+"The following shortcuts point at another shortcut instead of a document: \n"
+msgstr ""
+
+#. module: documents
+#. odoo-javascript
+#: code:addons/documents/static/src/views/hooks.js:0
+msgid "The server returned an unexpected response to the upload."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document_versioning.py:0
+msgid "This version does not belong to this document."
+msgstr ""
+
+#. module: documents
+#. odoo-javascript
+#: code:addons/documents/static/src/owl/components/pdf_manager/pdf_manager.js:0
+msgid ""
+"This will discard the current grouping and rebuild the groups from the blank"
+" pages. This cannot be undone."
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.actions.act_window,help:documents.mail_activity_type_action_document
+msgid ""
+"Those represent the different categories of things you have to do (e.g. \"Call\" or\n"
+"                \"Send email\")."
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields,field_description:documents.field_documents_document__url_preview_pending
+msgid "URL preview to fetch"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.actions.act_window,help:documents.document_action
+#: model_terms:ir.actions.act_window,help:documents.document_action_portal
+msgid ""
+"Upload <span class=\"fw-normal\">a file or</span>\n"
+"                drag <span class=\"fw-normal\">it here.</span>"
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document_versioning.py:0
+msgid "Version deleted from the history: “%s”."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document_versioning.py:0
+msgid ""
+"Version deleted: “%(deleted)s” removed, “%(promoted)s” is now the current "
+"version."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document_versioning.py:0
+msgid "Version restored: “%(restored)s” replaces “%(replaced)s”."
+msgstr ""
+
+#. module: documents
+#: model:ir.model.fields.selection,name:documents.selection__documents_access_log__action__view
+msgid "Viewed"
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.documents_access_log_view_search
+msgid "Views"
+msgstr ""
+
+#. module: documents
+#. odoo-javascript
+#: code:addons/documents/static/src/components/documents_details_panel/documents_details_panel.xml:0
+msgid "Who opened and downloaded this document"
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document.py:0
+msgid "You are not allowed to access these documents."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document.py:0
+msgid "You are not allowed to create documents here."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document_versioning.py:0
+msgid "You are not allowed to delete a version of this document."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document_embedded_actions.py:0
+msgid "You are not allowed to pin/unpin actions on this folder."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document_versioning.py:0
+msgid "You are not allowed to restore a version of this document."
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.tracking_access_members_change
+msgid ""
+"expiration date changed\n"
+"                        from"
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document.py:0
+msgid ""
+"“%(name)s” is locked by %(user)s and cannot be sent to the trash by another "
+"user."
+msgstr ""
+
+#. module: documents
+#. odoo-python
+#: code:addons/documents/models/documents_document.py:0
+msgid ""
+"“%(name)s” is locked by %(user)s and its content cannot be replaced by "
+"another user."
+msgstr ""
+
+#. module: documents
+#: model_terms:ir.ui.view,arch_db:documents.public_folder_page
+msgid "• <b>URL</b>"
+msgstr ""
+

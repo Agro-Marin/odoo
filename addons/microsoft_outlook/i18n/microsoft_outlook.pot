@@ -288,3 +288,40 @@ msgstr ""
 #: model:ir.model,name:microsoft_outlook.model_res_users
 msgid "User"
 msgstr ""
+
+#. module: microsoft_outlook
+#: model_terms:ir.ui.view,arch_db:microsoft_outlook.fetchmail_server_view_form
+#: model_terms:ir.ui.view,arch_db:microsoft_outlook.ir_mail_server_view_form
+msgid "<i class=\"fa-solid fa-cog\" title=\"Edit Settings\"/>"
+msgstr ""
+
+#. module: microsoft_outlook
+#: model:ir.model.fields,help:microsoft_outlook.field_fetchmail_server__oauth2_credential_id
+#: model:ir.model.fields,help:microsoft_outlook.field_ir_mail_server__oauth2_credential_id
+#: model:ir.model.fields,help:microsoft_outlook.field_mixin_microsoft_outlook__oauth2_credential_id
+msgid "Holds this record's OAuth tokens."
+msgstr ""
+
+#. module: microsoft_outlook
+#. odoo-python
+#: code:addons/microsoft_outlook/models/fetchmail_server.py:0
+msgid ""
+"Incorrect Connection Encryption for Outlook mail server “%s”. Please set it "
+"to \"SSL/TLS\"."
+msgstr ""
+
+#. module: microsoft_outlook
+#: model:ir.model.fields,field_description:microsoft_outlook.field_fetchmail_server__oauth2_credential_id
+#: model:ir.model.fields,field_description:microsoft_outlook.field_ir_mail_server__oauth2_credential_id
+#: model:ir.model.fields,field_description:microsoft_outlook.field_mixin_microsoft_outlook__oauth2_credential_id
+msgid "OAuth2 Credential"
+msgstr ""
+
+#. module: microsoft_outlook
+#. odoo-python
+#: code:addons/microsoft_outlook/models/fetchmail_server.py:0
+msgid ""
+"Please leave the password field empty for Outlook mail server “%s”. The "
+"OAuth process does not require it."
+msgstr ""
+

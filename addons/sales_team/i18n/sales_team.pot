@@ -731,3 +731,163 @@ msgid ""
 "the user will have an access to the sales configuration as well as statistic"
 " reports."
 msgstr ""
+
+#. module: sales_team
+#: model_terms:ir.ui.view,arch_db:sales_team.crm_team_member_view_form
+msgid "<i class=\"fa-solid fa-building me-1 text-primary\" title=\"Company\"/>"
+msgstr ""
+
+#. module: sales_team
+#: model_terms:ir.ui.view,arch_db:sales_team.crm_team_member_view_form
+msgid "<i class=\"fa-solid fa-envelope me-1 text-primary\" title=\"Email\"/>"
+msgstr ""
+
+#. module: sales_team
+#: model_terms:ir.ui.view,arch_db:sales_team.crm_team_member_view_kanban
+#: model_terms:ir.ui.view,arch_db:sales_team.crm_team_view_form
+msgid ""
+"<i class=\"fa-solid fa-envelope me-1\" role=\"img\" aria-label=\"Email\" "
+"title=\"Email\"/>"
+msgstr ""
+
+#. module: sales_team
+#: model_terms:ir.ui.view,arch_db:sales_team.crm_team_member_view_form
+msgid "<i class=\"fa-solid fa-phone me-1 text-primary\" title=\"Phone\"/>"
+msgstr ""
+
+#. module: sales_team
+#: model:ir.model.fields,help:sales_team.field_crm_tag__active
+msgid "Archive a tag to hide it without deleting it."
+msgstr ""
+
+#. module: sales_team
+#. odoo-python
+#: code:addons/sales_team/models/crm_team.py:0
+msgid "Cannot delete default team \"%(name)s\""
+msgstr ""
+
+#. module: sales_team
+#: model:ir.model.fields,field_description:sales_team.field_crm_tag__child_ids
+msgid "Child Tags"
+msgstr ""
+
+#. module: sales_team
+#: model:ir.model.fields,field_description:sales_team.field_crm_tag__code
+msgid "Code"
+msgstr ""
+
+#. module: sales_team
+#: model:ir.model,name:sales_team.model_res_config_settings
+msgid "Config Settings"
+msgstr ""
+
+#. module: sales_team
+#: model_terms:ir.actions.act_window,help:sales_team.crm_team_member_action
+msgid "Create a new salesman"
+msgstr ""
+
+#. module: sales_team
+#. odoo-python
+#: code:addons/sales_team/models/crm_team.py:0
+msgid "Dashboard"
+msgstr ""
+
+#. module: sales_team
+#: model_terms:ir.actions.act_window,help:sales_team.crm_team_member_action
+msgid "Link salespersons to sales teams."
+msgstr ""
+
+#. module: sales_team
+#: model:ir.model.fields,field_description:sales_team.field_res_config_settings__is_membership_multi
+msgid "Multi Teams"
+msgstr ""
+
+#. module: sales_team
+#. odoo-python
+#: code:addons/sales_team/models/crm_team.py:0
+msgid "Only a Sales Administrator can allow multiple sales team memberships."
+msgstr ""
+
+#. module: sales_team
+#: model:ir.model.fields,field_description:sales_team.field_crm_tag__parent_path
+msgid "Parent Path"
+msgstr ""
+
+#. module: sales_team
+#: model:ir.model.fields,field_description:sales_team.field_crm_tag__parent_id
+#: model_terms:ir.ui.view,arch_db:sales_team.sales_team_crm_tag_view_search
+#: model_terms:ir.ui.view,arch_db:sales_team.sales_team_crm_tag_view_tree
+msgid "Parent Tag"
+msgstr ""
+
+#. module: sales_team
+#. odoo-python
+#: code:addons/sales_team/models/crm_team_member.py:0
+msgid "Sales Team '%(team)s' is archived and cannot take new members."
+msgstr ""
+
+#. module: sales_team
+#. odoo-python
+#: code:addons/sales_team/models/crm_team_member.py:0
+msgid "Salesperson '%(user)s' is archived and cannot join a sales team."
+msgstr ""
+
+#. module: sales_team
+#: model_terms:ir.ui.view,arch_db:sales_team.sales_team_crm_tag_view_search
+msgid "Search Tags"
+msgstr ""
+
+#. module: sales_team
+#: model:ir.model.fields,help:sales_team.field_crm_tag__code
+msgid ""
+"Stable identifier for imports, filters and data files. Unlike the name it is"
+" never translated, so it means the same thing to every reader."
+msgstr ""
+
+#. module: sales_team
+#: model:ir.model,name:sales_team.model_ir_config_parameter
+msgid "System Parameter"
+msgstr ""
+
+#. module: sales_team
+#: model_terms:ir.ui.view,arch_db:sales_team.sales_team_crm_tag_view_search
+msgid "Tag"
+msgstr ""
+
+#. module: sales_team
+#: model:res.groups,comment:sales_team.group_sale_salesman_all_leads
+msgid ""
+"The user will have access to all records of everyone in the sales "
+"application."
+msgstr ""
+
+#. module: sales_team
+#: model:res.groups,comment:sales_team.group_sale_salesman_team
+msgid ""
+"The user will have access to records of their team members in the sales "
+"application."
+msgstr ""
+
+#. module: sales_team
+#: model:res.groups,comment:sales_team.group_sale_salesman
+msgid "The user will have access to their own data in the sales application."
+msgstr ""
+
+#. module: sales_team
+#: model_terms:ir.actions.act_window,help:sales_team.crm_team_action_pipeline
+#: model_terms:ir.actions.act_window,help:sales_team.crm_team_action_sales
+msgid ""
+"Use Sales Teams to organize your sales departments.\n"
+"                    Each team will work with a separate pipeline."
+msgstr ""
+
+#. module: sales_team
+#: model:res.groups,name:sales_team.group_sale_salesman_team
+msgid "User: Team Documents"
+msgstr ""
+
+#. module: sales_team
+#: model:ir.model,name:sales_team.model_ir_ui_view
+msgid "View"
+msgstr ""
+

@@ -658,3 +658,50 @@ msgstr ""
 #: model:ir.model.fields,field_description:l10n_tr_nilvera.field_res_users__invoice_edi_format
 msgid "eInvoice format"
 msgstr ""
+
+#. module: l10n_tr_nilvera
+#: model_terms:ir.ui.view,arch_db:l10n_tr_nilvera.res_config_settings_view_form
+msgid ""
+"<i title=\"Go to Nilvera portal\" role=\"img\" aria-label=\"Go to Nilvera portal\" class=\"fa-solid fa-square-up-right\"/>\n"
+"                                    Nilvera portal"
+msgstr ""
+
+#. module: l10n_tr_nilvera
+#: model_terms:ir.ui.view,arch_db:l10n_tr_nilvera.res_config_settings_view_form
+msgid ""
+"<i title=\"Go to Nilvera portal\" role=\"img\" aria-label=\"Go to Nilvera portal\" class=\"fa-solid fa-square-up-right\"/>\n"
+"                                    Nilvera portal (Test)"
+msgstr ""
+
+#. module: l10n_tr_nilvera
+#: model_terms:ir.ui.view,arch_db:l10n_tr_nilvera.res_config_settings_view_form
+msgid ""
+"<i title=\"Test connection\" role=\"img\" aria-label=\"Test connection\" class=\"fa-solid fa-plug\"/>\n"
+"                                    Test connection"
+msgstr ""
+
+#. module: l10n_tr_nilvera
+#: model_terms:ir.ui.view,arch_db:l10n_tr_nilvera.res_config_settings_view_form
+msgid ""
+"<span class=\"o_form_label\">\n"
+"                                    Nilvera Details\n"
+"                                </span>\n"
+"                                <span class=\"fa-regular fa-building fa-lg\" title=\"Values set here are company-specific.\"/>"
+msgstr ""
+
+#. module: l10n_tr_nilvera
+#. odoo-python
+#: code:addons/l10n_tr_nilvera/lib/nilvera_client.py:0
+msgid ""
+"Odoo could not perform this action at the moment, try again later.\n"
+"%(reason)s - %(status_code)s"
+msgstr ""
+
+#. module: l10n_tr_nilvera
+#: model:ir.model.fields,help:l10n_tr_nilvera.field_res_config_settings__l10n_tr_nilvera_vat
+msgid ""
+"The Tax Identification Number. Values here will be validated based on the "
+"country format. You can use '/' to indicate that the partner is not subject "
+"to tax."
+msgstr ""
+

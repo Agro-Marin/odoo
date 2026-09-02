@@ -104,3 +104,190 @@ msgstr ""
 #: model:ir.model,name:contacts.model_res_users
 msgid "User"
 msgstr ""
+
+#. module: partner
+#. odoo-python
+#: code:addons/partner/models/res_partner_age_range.py:0
+msgid "%(first)s and later"
+msgstr ""
+
+#. module: partner
+#. odoo-python
+#: code:addons/partner/models/res_partner_age_range.py:0
+msgid "%(first)s-%(last)s"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.constraint,message:partner.constraint_res_partner_age_range_name_uniq
+msgid "A cohort with the same name already exists."
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner_age_range__active
+msgid "Active"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner__age
+#: model:ir.model.fields,field_description:partner.field_res_users__age
+msgid "Age"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner__age_range_id
+#: model:ir.model.fields,field_description:partner.field_res_users__age_range_id
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_age_range_view_form
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_age_range_view_tree
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_view_search
+msgid "Age Range"
+msgstr ""
+
+#. module: partner
+#: model:ir.actions.act_window,name:partner.res_partner_age_range_action
+#: model:ir.ui.menu,name:partner.res_partner_age_range_menu
+msgid "Age Ranges"
+msgstr ""
+
+#. module: partner
+#. odoo-python
+#: code:addons/partner/models/res_partner.py:0
+msgid "Age is searched by a whole number of years."
+msgstr ""
+
+#. module: partner
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_age_range_view_search
+msgid "Archived"
+msgstr ""
+
+#. module: partner
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_age_range_view_form
+msgid "Birth years"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,help:partner.field_res_partner_age_range__gap_before
+msgid ""
+"Birth years left between this cohort and the one below it. A contact born in"
+" those years is classified into nothing at all, which the scale gives no "
+"other sign of."
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner__birthdate
+#: model:ir.model.fields,field_description:partner.field_res_users__birthdate
+msgid "Birthdate"
+msgstr ""
+
+#. module: partner
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_view_search
+msgid "Birthday Month"
+msgstr ""
+
+#. module: partner
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_view_search
+msgid "Birthday This Month"
+msgstr ""
+
+#. module: partner
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_view_search
+msgid "Birthday Today"
+msgstr ""
+
+#. module: partner
+#: model_terms:ir.actions.act_window,help:partner.res_partner_age_range_action
+msgid "Create an age range"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner_age_range__create_uid
+msgid "Created by"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner_age_range__create_date
+msgid "Created on"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,help:partner.field_res_partner_age_range__max_value
+msgid ""
+"First birth year *after* the cohort -- it is the lower bound of the next "
+"one. 0 means no upper limit, which the newest cohort should use so a newborn"
+" still classifies. The oldest cohort stays closed on its lower side: a birth"
+" year before it predates every cohort here."
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,help:partner.field_res_partner_age_range__min_value
+msgid "First birth year of the cohort, inclusive."
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner_age_range__min_value
+msgid "From year"
+msgstr ""
+
+#. module: partner
+#: model:ir.ui.menu,name:partner.res_partner_identifier_type_menu
+msgid "Identifier Types"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner_age_range__write_uid
+msgid "Last Updated by"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner_age_range__write_date
+msgid "Last Updated on"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner_age_range__name
+msgid "Name"
+msgstr ""
+
+#. module: partner
+#: model:ir.model,name:partner.model_res_partner_age_range
+msgid "Partner Age Range"
+msgstr ""
+
+#. module: partner
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_view_form
+msgid "Private Information"
+msgstr ""
+
+#. module: partner
+#: model_terms:ir.actions.act_window,help:partner.res_partner_age_range_action
+msgid ""
+"Ranges are cohorts of birth years, so a contact stays in the same\n"
+"                one as time passes. Give the newest cohort no upper limit, and a\n"
+"                contact born today still classifies."
+msgstr ""
+
+#. module: partner
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_age_range_view_search
+msgid "Search Age Range"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner_age_range__max_value
+msgid "To year"
+msgstr ""
+
+#. module: partner
+#: model:ir.model.fields,field_description:partner.field_res_partner_age_range__gap_before
+msgid "Uncovered"
+msgstr ""
+
+#. module: partner
+#: model_terms:ir.ui.view,arch_db:partner.res_partner_view_search
+msgid "Without Birthdate"
+msgstr ""
+
+#. module: partner
+#. odoo-python
+#: code:addons/partner/models/res_partner_age_range.py:0
+msgid "up to %(last)s"
+msgstr ""
+

@@ -609,3 +609,30 @@ msgstr ""
 #: code:addons/mrp_account/models/mrp_workorder.py:0
 msgid "[WC] %s"
 msgstr ""
+
+#. module: mrp_account
+#: model:ir.model,name:mrp_account.model_res_company
+msgid "Companies"
+msgstr ""
+
+#. module: mrp_account
+#. odoo-python
+#: code:addons/mrp_account/wizard/mrp_wip_accounting.py:0
+msgid ""
+"No account is configured for: %(labels)s. Set the WIP accounts on the "
+"company, or the production and stock valuation accounts on the product "
+"category."
+msgstr ""
+
+#. module: mrp_account
+#. odoo-python
+#: code:addons/mrp_account/wizard/mrp_wip_accounting.py:0
+msgid ""
+"Post one WIP entry per company: the selected orders belong to %(companies)s."
+msgstr ""
+
+#. module: mrp_account
+#: model:ir.model,name:mrp_account.model_stock_move
+msgid "Stock Move Ewaybill"
+msgstr ""
+

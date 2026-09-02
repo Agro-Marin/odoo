@@ -596,3 +596,10 @@ msgstr ""
 #: code:addons/l10n_in_edi/models/account_move.py:0
 msgid "here"
 msgstr ""
+
+#. module: l10n_in_edi
+#. odoo-python
+#: code:addons/l10n_in_edi/models/account_move.py:0
+msgid "E-invoice submitted successfully."
+msgstr ""
+

@@ -2097,3 +2097,67 @@ msgstr ""
 #: model:ir.actions.server,name:l10n_gr_edi.ir_cron_mydata_fetch_third_party_invoices_ir_actions_server
 msgid "myDATA: Fetch third-party issued invoice and create draft Vendor Bills"
 msgstr ""
+
+#. module: l10n_gr_edi
+#: model:ir.model.fields,field_description:l10n_gr_edi.field_account_move__count_transmission
+msgid "Count Transmission"
+msgstr ""
+
+#. module: l10n_gr_edi
+#: model:ir.model.fields,field_description:l10n_gr_edi.field_account_move__exchange_state
+msgid "Exchange Status"
+msgstr ""
+
+#. module: l10n_gr_edi
+#: model:ir.model,name:l10n_gr_edi.model_exchange_transmission
+msgid "Exchange Transmission"
+msgstr ""
+
+#. module: l10n_gr_edi
+#: model:ir.model.fields,field_description:l10n_gr_edi.field_account_bank_statement_line__l10n_gr_edi_url
+#: model:ir.model.fields,field_description:l10n_gr_edi.field_account_move__l10n_gr_edi_url
+msgid "L10N Gr Edi Url"
+msgstr ""
+
+#. module: l10n_gr_edi
+#: model:ir.model.fields,help:l10n_gr_edi.field_account_move__exchange_state
+msgid ""
+"Rolled up from this record's transmissions. The counterparty's verdict, not "
+"whether a call completed."
+msgstr ""
+
+#. module: l10n_gr_edi
+#: model:ir.model,name:l10n_gr_edi.model_account_tax
+msgid "Tax"
+msgstr ""
+
+#. module: l10n_gr_edi
+#: model:ir.model.fields,help:l10n_gr_edi.field_exchange_transmission__l10n_gr_edi_mark
+msgid ""
+"The authority's identifier for the invoice. On a classification it is an "
+"input we must quote, not a verdict on what we sent -- which is why it is not"
+" `reference`."
+msgstr ""
+
+#. module: l10n_gr_edi
+#: model:ir.model.fields,field_description:l10n_gr_edi.field_account_move__transmission_ids
+msgid "Transmission"
+msgstr ""
+
+#. module: l10n_gr_edi
+#: model:api.endpoint.outbound,name:l10n_gr_edi.endpoint_mydata
+#: model:ir.model,name:l10n_gr_edi.model_exchange_protocol_mydata
+msgid "myDATA (AADE)"
+msgstr ""
+
+#. module: l10n_gr_edi
+#: model:ir.model.fields,field_description:l10n_gr_edi.field_exchange_transmission__l10n_gr_edi_url
+msgid "myDATA QR URL"
+msgstr ""
+
+#. module: l10n_gr_edi
+#. odoo-python
+#: code:addons/l10n_gr_edi/models/exchange_protocol_mydata.py:0
+msgid "myDATA refused the document without saying why."
+msgstr ""
+

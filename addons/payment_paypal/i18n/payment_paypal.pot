@@ -175,3 +175,10 @@ msgstr ""
 #: code:addons/payment_paypal/models/payment_provider.py:0
 msgid "You must have an HTTPS connection to generate a webhook."
 msgstr ""
+
+#. module: payment_paypal
+#. odoo-python
+#: code:addons/payment_paypal/models/payment_provider.py:0
+msgid "PayPal: You must have an HTTPS connection to generate a webhook."
+msgstr ""
+

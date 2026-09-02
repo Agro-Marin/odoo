@@ -1997,3 +1997,612 @@ msgstr ""
 #: code:addons/automation/models/automation_runtime.py:0
 msgid "unknown step"
 msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/workflow_edge.py:0
+msgid "%(from_node)s → %(to_node)s (%(condition)s)"
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/workflow_edge.py:0
+msgid ""
+"'%(source)s' -> '%(target)s' is conditional, but automation '%(name)s' does not record its runs, so the condition would be ignored.\n"
+"\n"
+"Switch on 'Record Every Run' on the automation, or make this connection unconditional."
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "(live)"
+msgstr ""
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_form_workflow_dag
+msgid ""
+"<em>Tip: connect the steps on the <strong>Workflow</strong> tab to\n"
+"                                order them, and to branch on success, on error or on an expression.\n"
+"                                A manual run records every step, with its outcome, under\n"
+"                                Automation Runtimes.</em>"
+msgstr ""
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_ir_actions_server_form_workflow_dag
+msgid ""
+"<i class=\"fa-solid fa-info-circle\"/>\n"
+"                                This action executes once EVERY edge above is satisfied."
+msgstr ""
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_ir_actions_server_form_workflow_dag
+msgid ""
+"<strong>No incoming edge:</strong> Action starts immediately (root action)"
+msgstr ""
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_ir_actions_server_form_workflow_dag
+msgid ""
+"<strong>On Error:</strong> lets a step handle the failure of another, "
+"instead of the run aborting"
+msgstr ""
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_ir_actions_server_form_workflow_dag
+msgid "<strong>One edge:</strong> Waits for that edge's condition to hold"
+msgstr ""
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_ir_actions_server_form_workflow_dag
+msgid "<strong>Several edges:</strong> Waits for ALL of them (AND join)"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__ir_actions_server__node_type__action
+msgid "Action"
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/workflow_edge.py:0
+msgid "Action '%(action)s' cannot depend on itself."
+msgstr ""
+
+#. module: automation
+#: model:ir.model,name:automation.model_mail_activity
+msgid "Activity"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_runtime_edge__condition__always
+#: model:ir.model.fields.selection,name:automation.selection__workflow_edge__condition__always
+msgid "Always"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__ir_actions_server__node_type__approval
+msgid "Approval"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_runtime_line__activity_ids
+msgid "Approval Activities"
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation_runtime_line.py:0
+msgid "Approval cannot be requested: this run has no target record."
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation_runtime_line.py:0
+msgid "Approval was refused."
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__approval_user_ids
+#: model:ir.model.fields,field_description:automation.field_ir_cron__approval_user_ids
+msgid "Approvers"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__approval_note
+#: model:ir.model.fields,field_description:automation.field_ir_cron__approval_note
+msgid "Ask For"
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation_rule.py:0
+msgid ""
+"Automation '%(name)s' has conditional connections (%(edges)s) but does not record its runs, so those conditions would be ignored.\n"
+"\n"
+"Switch on 'Record Every Run', or make the connections unconditional."
+msgstr ""
+
+#. module: automation
+#: model:ir.actions.server,name:automation.ir_cron_data_automation_resume_ir_actions_server
+msgid "Automation Rules: resume paused workflows"
+msgstr ""
+
+#. module: automation
+#: model:ir.model,name:automation.model_automation_runtime_edge
+msgid "Automation Runtime Edge"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__pos_x
+#: model:ir.model.fields,field_description:automation.field_ir_cron__pos_x
+msgid "Canvas X"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__pos_y
+#: model:ir.model.fields,field_description:automation.field_ir_cron__pos_y
+msgid "Canvas Y"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_runtime_edge__condition
+#: model:ir.model.fields,field_description:automation.field_workflow_edge__condition
+msgid "Condition"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_runtime_edge__condition_expr
+msgid "Condition Expr"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__create_runtime_instance
+msgid ""
+"Create an Automation Runtime for every execution, so each step's outcome is recorded and the workflow's edge conditions are evaluated.\n"
+"\n"
+"Off by default: an automation on a high-volume trigger would write one runtime per event. Leave it off for a lightweight rule; turn it on for anything that branches, or whose history you need."
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "Definition"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid ""
+"Drag from a step's edge onto another to connect them; drag a step to move it;\n"
+"                double-click one to open it. A connection the engine refuses — a cycle, or a\n"
+"                step from another automation — is reported rather than drawn."
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/workflow_edge.py:0
+msgid ""
+"Edge '%(source)s' -> '%(target)s' is conditional on an expression but "
+"carries none, so the target could never become ready."
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_ir_actions_server__edge_in_ids
+#: model:ir.model.fields,help:automation.field_ir_cron__edge_in_ids
+msgid "Edges that must be satisfied before this action can execute"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_runtime_line__edge_in_ids
+msgid "Edges that must be satisfied before this step can execute"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_ir_actions_server__edge_out_ids
+#: model:ir.model.fields,help:automation.field_ir_cron__edge_out_ids
+msgid "Edges this action's outcome can satisfy"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_runtime_line__edge_out_ids
+msgid "Edges this step's outcome can satisfy"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_ir_actions_server__approval_user_ids
+#: model:ir.model.fields,help:automation.field_ir_cron__approval_user_ids
+msgid ""
+"Everyone who must mark their activity done before an Approval step lets the "
+"workflow continue"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_workflow_edge__condition_expr
+#: model:ir.model.fields.selection,name:automation.selection__automation_runtime_edge__condition__expression
+#: model:ir.model.fields.selection,name:automation.selection__workflow_edge__condition__expression
+msgid "Expression"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_ir_actions_server__pos_x
+#: model:ir.model.fields,help:automation.field_ir_cron__pos_x
+msgid "Horizontal position of this node on the workflow canvas"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_ir_actions_server__wait_delay
+#: model:ir.model.fields,help:automation.field_ir_cron__wait_delay
+msgid "How long a Wait step pauses the run before its successors advance"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__edge_in_ids
+#: model:ir.model.fields,field_description:automation.field_ir_cron__edge_in_ids
+msgid "Incoming Edges"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_workflow_edge__label
+msgid "Label"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "Loading the workflow…"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__activity_calendar_event_id
+#: model:ir.model.fields,field_description:automation.field_automation_runtime__activity_calendar_event_id
+msgid "Next Activity Calendar Event"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__node_type
+#: model:ir.model.fields,field_description:automation.field_ir_cron__node_type
+msgid "Node Type"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_runtime_edge__condition__on_error
+#: model:ir.model.fields.selection,name:automation.selection__workflow_edge__condition__on_error
+msgid "On Error"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_runtime_edge__condition__on_success
+#: model:ir.model.fields.selection,name:automation.selection__workflow_edge__condition__on_success
+msgid "On Success"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__edge_out_ids
+#: model:ir.model.fields,field_description:automation.field_ir_cron__edge_out_ids
+msgid "Outgoing Edges"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_runtime__parent_line_id
+msgid "Parent Step"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_runtime_line__state__paused
+msgid "Paused"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_workflow_edge__condition_expr
+msgid ""
+"Python expression evaluated against the runtime; required when the condition"
+" is Expression"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__rating_ids
+#: model:ir.model.fields,field_description:automation.field_automation_runtime__rating_ids
+msgid "Ratings"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__create_runtime_instance
+msgid "Record Every Run"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "Remove connection"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_runtime_line__date_resume
+msgid "Resumes At"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_runtime_edge__runtime_id
+msgid "Runtime"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "Save this automation to draw its workflow."
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "Showing"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_ir_actions_server__approval_note
+#: model:ir.model.fields,help:automation.field_ir_cron__approval_note
+msgid "Shown on the activity each approver receives"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_workflow_edge__label
+msgid "Shown on the edge when the workflow is drawn"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_workflow_edge__source_node_id
+msgid "Source"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_runtime_edge__source_line_id
+msgid "Source Step"
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/ir_actions_server.py:0
+msgid ""
+"Step '%(action)s' asks for approval but names nobody to give it, so the "
+"workflow would wait forever."
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/ir_actions_server.py:0
+msgid "Step '%(action)s' is a sub-workflow but names no automation to run."
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/ir_actions_server.py:0
+msgid ""
+"Step '%(action)s' waits for %(delay)s %(unit)s, which is not a wait. Give it"
+" a positive duration."
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/ir_actions_server.py:0
+msgid ""
+"Step '%(action)s' would run automation '%(target)s', which reaches back to "
+"'%(owner)s' -- a sub-workflow cannot contain the workflow that runs it."
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/workflow_edge.py:0
+msgid ""
+"Step '%(target)s' cannot depend on '%(source)s': they belong to different automations.\n"
+"\n"
+"Dependencies only order the steps of one automation, so a step from another rule can never complete within this run."
+msgstr ""
+
+#. module: automation
+#: model_terms:ir.ui.view,arch_db:automation.view_ir_actions_server_form_workflow_dag
+msgid "Step Type"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__subflow_automation_id
+#: model:ir.model.fields,field_description:automation.field_ir_cron__subflow_automation_id
+#: model:ir.model.fields.selection,name:automation.selection__ir_actions_server__node_type__subflow
+msgid "Sub-workflow"
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation_runtime.py:0
+msgid "Sub-workflow '%(name)s' did not complete."
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_workflow_edge__target_node_id
+msgid "Target"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_runtime_edge__target_line_id
+msgid "Target Step"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.js:0
+msgid "That connection was refused"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_mail_activity__automation_runtime_line_id
+msgid "The Approval step waiting on this activity"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_runtime__edge_ids
+msgid "The DAG this run was started with, conditions included"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_runtime__parent_line_id
+msgid "The Sub-workflow step this run was started by, if any"
+msgstr ""
+
+#. module: automation
+#. odoo-python
+#: code:addons/automation/models/automation_runtime_line.py:0
+msgid "The approval activity was removed before anyone acted on it."
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_ir_actions_server__subflow_automation_id
+#: model:ir.model.fields,help:automation.field_ir_cron__subflow_automation_id
+msgid "The automation a Sub-workflow step runs and waits for"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.js:0
+msgid "The canvas element was not mounted."
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "The workflow could not be drawn."
+msgstr ""
+
+#. module: automation
+#: model:ir.model.constraint,message:automation.constraint_workflow_edge_edge_uniq
+msgid "These two steps are already connected."
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid ""
+"This automation has no steps yet. Add server actions, then connect them "
+"here."
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "Tidy up"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_rule__edge_ids
+msgid "Typed dependencies between this automation's steps"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_ir_actions_server__pos_y
+#: model:ir.model.fields,help:automation.field_ir_cron__pos_y
+msgid "Vertical position of this node on the workflow canvas"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__ir_actions_server__node_type__wait
+msgid "Wait"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_ir_actions_server__wait_unit
+#: model:ir.model.fields,field_description:automation.field_ir_cron__wait_unit
+msgid "Wait Unit"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields.selection,name:automation.selection__automation_runtime__state__waiting_resume
+msgid "Waiting to Resume"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_runtime_line__edge_in_ids
+#: model_terms:ir.ui.view,arch_db:automation.view_automation_runtime_line_form
+#: model_terms:ir.ui.view,arch_db:automation.view_ir_actions_server_tree_workflow
+msgid "Waits For"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_ir_actions_server__node_type
+#: model:ir.model.fields,help:automation.field_ir_cron__node_type
+msgid ""
+"What this step does when the workflow reaches it. An Action runs the server "
+"action; a Wait pauses the run and resumes it later."
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_automation_runtime_line__date_resume
+msgid "When a paused Wait step becomes ready again"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,help:automation.field_workflow_edge__condition
+msgid ""
+"When this edge lets the target advance:\n"
+"- On Success: the source completed\n"
+"- On Error: the source failed\n"
+"- Always: the source settled, however it settled\n"
+"- Expression: the source settled and the expression is truthy"
+msgstr ""
+
+#. module: automation
+#: model:ir.model,name:automation.model_workflow_edge
+msgid "Workflow DAG Edge"
+msgstr ""
+
+#. module: automation
+#: model:ir.model.fields,field_description:automation.field_automation_rule__edge_ids
+#: model:ir.model.fields,field_description:automation.field_automation_runtime__edge_ids
+msgid "Workflow Edges"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "Workflow run"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_graph.js:0
+msgid "always"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "connections"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_graph.js:0
+msgid "if"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_graph.js:0
+msgid "on error"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_graph.js:0
+msgid "on success"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
+msgid "steps,"
+msgstr ""
+
+#. module: automation
+#: model:ir.model,name:automation.model_ir_websocket
+msgid "websocket message handling"
+msgstr ""
+

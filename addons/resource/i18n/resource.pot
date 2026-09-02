@@ -1301,3 +1301,66 @@ msgstr ""
 #: code:addons/resource/models/resource_calendar_attendance.py:0
 msgid "this week"
 msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/resource_calendar_attendance.py:0
+msgid ""
+"%(name)s: a line on a 2 weeks calendar must belong to the first or the "
+"second week."
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_kanban
+msgid "Delete"
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_kanban
+msgid "Edit"
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
+msgid "In Conflict"
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.actions.act_window,help:resource.resource_role_action
+msgid "No role found. Let's create one!"
+msgstr ""
+
+#. module: resource
+#: model:ir.model,name:resource.model_mixin_resource_allocation
+msgid "Resource Allocation Mixin"
+msgstr ""
+
+#. module: resource
+#: model:ir.model,name:resource.model_resource_role
+msgid "Resource Role"
+msgstr ""
+
+#. module: resource
+#: model:ir.actions.act_window,name:resource.resource_role_action
+msgid "Roles"
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.actions.act_window,help:resource.resource_role_action
+msgid ""
+"Roles describe what a resource can do. Assign them to tasks in\n"
+"                your project templates, or to shifts when planning who covers\n"
+"                what."
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/resource_calendar_attendance.py:0
+msgid "Unassigned week"
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_list
+msgid "e.g. Developer"
+msgstr ""
+

@@ -65,3 +65,20 @@ msgstr ""
 #: model:ir.model,name:microsoft_account.model_res_users
 msgid "User"
 msgstr ""
+
+#. module: microsoft_account
+#: model:ir.model.fields,help:microsoft_account.field_res_users__microsoft_calendar_credential_id
+msgid "Holds this user's Microsoft OAuth tokens."
+msgstr ""
+
+#. module: microsoft_account
+#. odoo-python
+#: code:addons/microsoft_account/models/res_users.py:0
+msgid "Microsoft Calendar: %s"
+msgstr ""
+
+#. module: microsoft_account
+#: model:ir.model.fields,field_description:microsoft_account.field_res_users__microsoft_calendar_credential_id
+msgid "Microsoft Credential"
+msgstr ""
+

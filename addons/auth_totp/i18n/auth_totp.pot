@@ -368,3 +368,41 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:auth_totp.auth_totp_form
 msgid "e.g. 123456"
 msgstr ""
+
+#. module: auth_totp
+#: model_terms:ir.ui.view,arch_db:auth_totp.view_totp_field
+#: model_terms:ir.ui.view,arch_db:auth_totp.view_totp_form
+msgid ""
+"<i class=\"fa-solid fa-check text-success\"/>\n"
+"                        <span class=\"fw-bold ms-1 me-2\">\n"
+"                            Enabled\n"
+"                        </span>"
+msgstr ""
+
+#. module: auth_totp
+#: model_terms:ir.ui.view,arch_db:auth_totp.view_totp_form
+msgid ""
+"<i class=\"fa-solid fa-xmark text-danger\"/>\n"
+"                        <span class=\"fw-bold ms-1\">\n"
+"                            Disabled\n"
+"                        </span>"
+msgstr ""
+
+#. module: auth_totp
+#. odoo-python
+#: code:addons/auth_totp/models/auth_totp.py:0
+msgid "Only an authenticated user can register a trusted device"
+msgstr ""
+
+#. module: auth_totp
+#. odoo-python
+#: code:addons/auth_totp/controllers/home.py:0
+msgid "Unknown browser"
+msgstr ""
+
+#. module: auth_totp
+#. odoo-python
+#: code:addons/auth_totp/controllers/home.py:0
+msgid "Unknown platform"
+msgstr ""
+

@@ -4633,3 +4633,575 @@ msgstr ""
 #: code:addons/product/static/src/js/pricelist_report/product_pricelist_report.xml:0
 msgid "xlsx"
 msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/wizard/product_merge.py:0
+msgid "%(product)s (ID %(id)s)"
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/wizard/product_merge.py:0
+msgid ""
+"%(product)s has no counterpart among the variants of %(destination)s. "
+"Products can only be merged when every variant of the source matches one of "
+"the destination on the same attribute values."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_pricelist_item.py:0
+msgid ""
+"%(rule)s cannot be priced: %(base)s is not a base this pricelist knows how "
+"to compute from."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_pricelist_item.py:0
+msgid ""
+"%(rule)s: the minimum margin (%(min)s) must be lower than the maximum margin"
+" (%(max)s)."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_pricelist_item.py:0
+msgid "%(rule)s: the price rounding must be strictly positive."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_product.py:0
+msgid "%s is not a line field of the order."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/report/product_label_report.py:0
+msgid "%s is not a number of labels."
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.view_product_pricelist_kanban
+msgid ""
+"<i class=\"fa-solid fa-money-bill-1\" role=\"img\" aria-label=\"Currency\" "
+"title=\"Currency\"/>"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.view_product_pricelist_item_form
+msgid ""
+"<i class=\"fa-solid fa-right-long mx-2 oe_edit_only\" aria-label=\"Arrow "
+"icon\" title=\"Arrow\"/>"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.view_product_template_form_only
+msgid ""
+"<strong>Warning</strong>: adding or deleting attributes will delete and\n"
+"                        recreate existing variants and lead to the loss of their possible\n"
+"                        customizations."
+msgstr ""
+
+#. module: product
+#: model:ir.model.constraint,message:product.constraint_product_uom_barcode_company_uniq
+msgid "A barcode can only be assigned to one packaging within a company."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_combo_item.py:0
+msgid ""
+"A combo must keep at least 1 choice: %(combos)s would be left empty. Delete "
+"the combo itself instead."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/report/product_label_report.py:0
+msgid "A number of labels cannot be negative."
+msgstr ""
+
+#. module: product
+#: model_terms:ir.actions.act_window,help:product.action_product_pricelist_2
+msgid ""
+"A price is a set of sales prices or rules to compute the price of sales order lines\n"
+"                based on products, product categories, dates and ordered quantities.\n"
+"                This is the perfect tool to handle several pricings, seasonal discounts, etc."
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.report_pricelist_page
+msgid ""
+"Acme\n"
+"                                                Widget - Blue"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,help:product.field_product_product__uom_ids
+#: model:ir.model.fields,help:product.field_product_template__uom_ids
+msgid ""
+"Additional packagings for this product which can be used for sales.\n"
+"They must measure the same thing as the product's unit (a box of 6, a pallet, ...), so that a quantity or a price can be converted between them."
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "Are you sure to execute the automatic merge of your products?"
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/report/product_pricelist_report.py:0
+msgid "At most %s products can be printed on the pricelist report."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/report/product_pricelist_report.py:0
+msgid "At most %s quantity columns can be printed on the pricelist report."
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "Close"
+msgstr ""
+
+#. module: product
+#: model:ir.ui.menu,name:product.menu_configuration
+msgid "Configuration"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_attribute__count_product_tmpl
+msgid "Count Product Tmpl"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_merge_wizard__current_line_id
+msgid "Current Line"
+msgstr ""
+
+#. module: product
+#: model:ir.actions.act_window,name:product.action_product_deduplicate
+#: model:ir.ui.menu,name:product.menu_product_deduplicate
+msgid "Deduplicate Products"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "Deduplicate the other Products"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_merge_wizard__dst_product_tmpl_id
+msgid "Destination Product"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "Exclude products having"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields.selection,name:product.selection__product_merge_wizard__state__finished
+msgid "Finished"
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/wizard/product_merge.py:0
+msgid ""
+"For safety reasons, you cannot merge more than %(maximum)s products "
+"together. You can re-open the wizard several times if needed."
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_merge_wizard__number_group
+msgid "Group of Products"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,help:product.field_product_attribute__value_type
+msgid ""
+"How many values a single attribute line may hold. Always 'multi' for "
+"products: a line carries every value the template offers."
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,help:product.field_product_pricelist_item__price
+msgid "Human-readable summary of the price this rule computes."
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_merge_line__aggr_ids
+msgid "Ids"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,help:product.field_product_category__active
+msgid ""
+"If unchecked, it will allow you to hide the category without removing it."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/report/product_pricelist_report.py:0
+msgid "Invalid product ids."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/report/product_pricelist_report.py:0
+msgid "Invalid quantities."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_product.py:0
+msgid ""
+"It is not possible to import different values for the same attribute: %s"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_merge_wizard__exclude_journal_item
+msgid "Journal Items associated to the product"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_merge_wizard__maximum_group
+msgid "Maximum of Group of Products"
+msgstr ""
+
+#. module: product
+#: model:ir.actions.act_window,name:product.action_product_template_merge
+#: model:ir.actions.act_window,name:product.action_product_variant_merge
+msgid "Merge"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "Merge Automatically"
+msgstr ""
+
+#. module: product
+#: model:ir.model,name:product.model_product_merge_line
+msgid "Merge Product Line"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "Merge Products"
+msgstr ""
+
+#. module: product
+#: model:ir.model,name:product.model_product_merge_wizard
+msgid "Merge Products Wizard"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "Merge the following products"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "Merge with Manual Check"
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/wizard/product_merge.py:0
+msgid "Merged with the following products: %s"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_merge_line__min_id
+msgid "MinID"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.view_product_product_search_catalog
+#: model_terms:ir.ui.view,arch_db:product.view_product_template_search
+msgid "My Favorites"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields.selection,name:product.selection__product_merge_wizard__state__option
+msgid "Option"
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_product.py:0
+msgid ""
+"Other units of measure (e.g., %(problem_uom)s) have already been used for "
+"this product. The unit of measure cannot be changed from %(uom)s. If you "
+"want to change it, please archive the product and create a new one."
+msgstr ""
+
+#. module: product
+#: model:ir.model,name:product.model_report_product_report_producttemplatelabel_dymo
+msgid "Product Label Report Dymo"
+msgstr ""
+
+#. module: product
+#: model:ir.model,name:product.model_mixin_product_price
+msgid "Product Pricing Mixin"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_product__import_attribute_values
+#: model:ir.model.fields,field_description:product.field_product_template__import_attribute_values
+msgid "Product Values"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_product__lst_price
+msgid "Public Price"
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/report/product_pricelist_report.py:0
+msgid "Quantities must be positive."
+msgstr ""
+
+#. module: product
+#: model_terms:ir.actions.act_window,help:product.action_product_supplierinfo
+msgid ""
+"Register the prices requested by your vendors for each product, based on the\n"
+"                quantity and the period."
+msgstr ""
+
+#. module: product
+#: model:ir.ui.menu,name:product.menu_product_pricelist
+msgid "Sale pricelists"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "Search duplicates based on duplicated data in"
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/wizard/product_merge.py:0
+msgid "Select at least two products to merge them together."
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid ""
+"Select the list of fields used to search for duplicated\n"
+"                    products. If you select several fields, only the products\n"
+"                    having all of them in common are proposed for merging (not\n"
+"                    one of the fields)."
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid ""
+"Selected products will be merged together. All documents\n"
+"                        linked to one of these products will be redirected to the\n"
+"                        destination product, variant by variant. You can remove\n"
+"                        products from this list to avoid merging them."
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields.selection,name:product.selection__product_merge_wizard__state__selection
+msgid "Selection"
+msgstr ""
+
+#. module: product
+#: model:ir.ui.menu,name:product.menu_configuration_settings
+msgid "Settings"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "Skip these products"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_merge_wizard__state
+msgid "State"
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/wizard/product_merge.py:0
+msgid ""
+"The destination product belongs to %(company)s while %(products)s do not. "
+"Merge into the product shared between companies instead, or the documents of"
+" the other companies would end up pointing at a product they cannot use."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_supplierinfo.py:0
+msgid "The end date of vendor %(vendor)s must be after its start date."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_product.py:0
+msgid ""
+"The existing product has different attribute values. \"%(imported_values)s\""
+" is not equivalent to \"%(existing_values)s\" for \"%(external_id)s\", "
+"\"%(id)s\""
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,help:product.field_product_category__product_count
+msgid "The number of products under this category and its children."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_template.py:0
+msgid ""
+"The packaging %(packagings)s cannot be used for %(product)s: they do not "
+"measure the same thing as its unit %(unit)s, so no quantity or price could "
+"be converted between them."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/mixin_product_price.py:0
+msgid ""
+"The price of %(product)s cannot be expressed in %(unit)s: that unit is not "
+"compatible with the product's unit %(product_unit)s."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/report/product_pricelist_report.py:0
+msgid "The pricelist report can only be printed for products."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/controllers/catalog.py:0
+#: code:addons/product/models/product_product.py:0
+msgid "The product catalog cannot be used on this model."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_pricelist_item.py:0
+#: code:addons/product/models/product_supplierinfo.py:0
+msgid ""
+"The product variant %(variant)s does not belong to the product %(product)s."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/controllers/catalog.py:0
+msgid "The requested record does not exist."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_tag.py:0
+msgid "The tag name %(name)s already exists."
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.product_merge_wizard_form
+msgid "There are no more products to merge for this request"
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/report/product_label_report.py:0
+msgid "There is nothing to print with this label layout."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_product.py:0
+#: code:addons/product/models/product_template.py:0
+msgid "This field can only be used to import products."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/report/product_label_report.py:0
+msgid ""
+"This label layout is no longer available. Please reopen the print dialog and"
+" try again."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_product.py:0
+msgid ""
+"Unable to import products with attribute value without attribute name "
+"(defined as: attribute:value): %s"
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/models/product_product.py:0
+msgid ""
+"Unable to import products with attribute values but without name of product "
+"set"
+msgstr ""
+
+#. module: product
+#: model:ir.ui.menu,name:product.menu_uom_uom
+msgid "Units of measure"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_attribute__value_type
+msgid "Value Type"
+msgstr ""
+
+#. module: product
+#: model:ir.ui.menu,name:product.menu_product_supplierinfo
+msgid "Vendor pricelists"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_merge_line__wizard_id
+msgid "Wizard"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.actions.act_window,help:product.action_product_pricelist_2
+msgid ""
+"You can assign pricelists to your customers or select one when creating a new sales\n"
+"                quotation."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/controllers/catalog.py:0
+msgid "You cannot edit the products of a read-only record."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/wizard/product_merge.py:0
+msgid ""
+"You cannot merge products measured in different units (%(units)s). Every "
+"quantity already recorded against the source products would silently change "
+"meaning."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/wizard/product_merge.py:0
+msgid "You cannot merge products of different types (%(types)s)."
+msgstr ""
+
+#. module: product
+#. odoo-python
+#: code:addons/product/wizard/product_merge.py:0
+msgid "You have to specify a filter for your selection."
+msgstr ""
+
