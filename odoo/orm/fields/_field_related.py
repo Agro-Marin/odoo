@@ -112,9 +112,16 @@ def compute_related(field: Field, records: BaseModel) -> None:
         processed = field._process_related(value[field.related_field.name], record.env)
         if processed:
             record[field.name] = processed
-        else:
-            key = (type(processed), processed)
-            falsy_groups.setdefault(key, (processed, []))[1].append(record.id)
+            continue
+        key = (type(processed), processed)
+        try:
+            group = falsy_groups.setdefault(key, (processed, []))
+        except TypeError:
+            # same allowance as inverse_related: an unhashable falsy value is
+            # assigned per record instead of grouped
+            record[field.name] = processed
+            continue
+        group[1].append(record.id)
     for processed, ids in falsy_groups.values():
         records.browse(ids)[field.name] = processed
 

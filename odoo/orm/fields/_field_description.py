@@ -56,7 +56,7 @@ class _FieldDescriptionMixin(_FieldStubs):
         if not self.aggregator or self.is_column:
             return self.aggregator
         if self.inherited_field and self.inherited_field._description_aggregator(env):
-            return self.inherited_field.aggregator
+            return self.aggregator
 
         model = env[self.model_name]
         try:

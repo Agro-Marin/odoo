@@ -308,6 +308,11 @@ def update_cache(
             for record in records:
                 Field._update_cache(field, record, dict(cache_value), dirty)
             return True
+        # copy for the singleton too: storing the caller's dict by reference
+        # lets a later per-language write on this record leak into whoever
+        # else was updated from the same dict
+        Field._update_cache(field, records, dict(cache_value), dirty)
+        return True
     return False
 
 
@@ -537,6 +542,9 @@ def reconcile_obsolete_terms(
             translation_dictionary[closest_term] = translation_dictionary.pop(old_term)
 
 
+_PROXY_MISSING = object()
+
+
 class LangProxyDict(collections.abc.MutableMapping):
     __slots__ = ("_cache", "_field", "_lang")
 
@@ -579,9 +587,15 @@ class LangProxyDict(collections.abc.MutableMapping):
             vals.setdefault("en_US", value)
 
     def __delitem__(self, key: IdType) -> None:
-        vals = self._cache.get(key)
-        if vals:
-            vals.pop(self._lang, None)
+        vals = self._cache.get(key, _PROXY_MISSING)
+        if vals is None:
+            # a stored NULL is visible through __iter__, so deleting it must
+            # evict the entry, not silently keep yielding the key
+            del self._cache[key]
+            return
+        if vals is _PROXY_MISSING or self._lang not in vals:
+            raise KeyError(key)
+        del vals[self._lang]
 
     def __iter__(self) -> typing.Iterator[IdType]:
         for key, vals in self._cache.items():

@@ -96,9 +96,6 @@ class Integer(Field[int]):
             return float(value)
         return value
 
-    def _update_inverse(self, records: BaseModel, value: BaseModel) -> None:
-        self._update_cache(records, value.id or 0)
-
     @override
     def convert_to_export(self, value, record: ModelLike) -> typing.Any:
         if value or value == 0:

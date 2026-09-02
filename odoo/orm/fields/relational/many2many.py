@@ -249,16 +249,19 @@ class Many2many(_RelationalMulti):
                 inv_cache = invf._get_cache(comodel.env)
                 for y, xs in y_to_xs.items():
                     corecord = comodel.browse((y,))
-                    try:
-                        ids0 = inv_cache[corecord.id]
-                        ids1 = tuple(
-                            unique(
-                                itertools.chain(ids0, (x for x in xs if x in valid_ids))
-                            )
-                        )
-                        invf._update_cache(corecord, ids1)
-                    except KeyError:
-                        pass
+                    ids0 = inv_cache.get(corecord.id, SENTINEL)
+                    if ids0 is SENTINEL:
+                        # a stored corecord will fetch the truth from the
+                        # database; a NEW one has no database to consult, so
+                        # its inverse must be seeded or the link is invisible
+                        # -- the same allowance Many2one._update_inverses makes
+                        if corecord.id:
+                            continue
+                        ids0 = ()
+                    ids1 = tuple(
+                        unique(itertools.chain(ids0, (x for x in xs if x in valid_ids)))
+                    )
+                    invf._update_cache(corecord, ids1)
 
         pairs = [(x, y) for x, ys in old_relation.items() for y in ys - new_relation[x]]
         if pairs:
