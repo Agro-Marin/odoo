@@ -109,8 +109,9 @@ class ResPartnerIdentifier(models.Model):
         candidates = self.filtered(lambda i: i.type_id.unique_across_contacts)
         if not candidates:
             return
-        holders = defaultdict(self.browse)
-        for other in self.search(
+        identifier_sudo = self.sudo()
+        holders = defaultdict(identifier_sudo.browse)
+        for other in identifier_sudo.search(
             [
                 ("type_id", "in", candidates.type_id.ids),
                 ("normalized_value", "in", candidates.mapped("normalized_value")),
