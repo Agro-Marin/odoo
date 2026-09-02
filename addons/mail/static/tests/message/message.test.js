@@ -1778,6 +1778,30 @@ test("avatar card from author should be opened after clicking on their name", as
     await contains(".o_card_user_infos > a", { text: "+5646548" });
 });
 
+test("avatar card of an author without a user should be opened after clicking on their name", async () => {
+    // external contacts (email-in correspondents, livechat visitors) have no
+    // user account, and the card knows how to render a bare partner
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({
+        name: "Userless Contact",
+        email: "userless@example.com",
+        phone: "+3312345",
+    });
+    pyEnv["mail.message"].create({
+        author_id: partnerId,
+        body: "not empty",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click(".o-mail-Message-author", { text: "Userless Contact" });
+    await contains(".o_avatar_card");
+    await contains(".o_card_user_infos > span", { text: "Userless Contact" });
+    await contains(".o_card_user_infos > a", { text: "userless@example.com" });
+    await contains(".o_card_user_infos > a", { text: "+3312345" });
+});
+
 test("subtype description should be displayed if it is different than body", async () => {
     const pyEnv = await startServer();
     const threadId = pyEnv["res.partner"].create({});

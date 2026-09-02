@@ -11,16 +11,29 @@ patch(ChannelMemberList.prototype, {
         });
     },
     /**
+     * The card renders a bare partner, so a user account is not required:
+     * external contacts (livechat visitors, email correspondents) get one too.
+     *
+     * @param {import("models").ChannelMember} member
+     * @returns {boolean}
+     */
+    isClickable(member) {
+        return Boolean(
+            !this.store.inPublicPage && !member.guest_id && member.partner_id
+        );
+    },
+    /**
      * @param {MouseEvent} ev
      * @param {import("models").ChannelMember} member
      */
     onClickAvatar(ev, member) {
-        if (!this.canOpenChatWith(member)) {
+        if (!this.isClickable(member)) {
             return;
         }
         if (!this.avatarCard.isOpen) {
             this.avatarCard.open(ev.currentTarget, {
-                id: member.partner_id.main_user_id?.id,
+                id: member.partner_id.id,
+                model: "res.partner",
             });
         }
     },
