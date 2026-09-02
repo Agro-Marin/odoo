@@ -2136,8 +2136,14 @@ class TestPermissions(TransactionCaseWithUserDemo):
                         SELECT "res_partner"."id"
                         FROM "res_partner"
                         WHERE "res_partner"."id" IN (%s) AND (
-                            ("res_partner"."company_id" IN (%s) OR "res_partner"."company_id" IS NULL)
-                            OR "res_partner"."partner_share" IS NOT TRUE
+                            (
+                                ("res_partner"."company_id" IN (%s) OR "res_partner"."company_id" IS NULL)
+                                OR "res_partner"."partner_share" IS NOT TRUE
+                            )
+                            AND (
+                                "res_partner"."parent_id" IN (%s)
+                                OR ("res_partner"."type" NOT IN (%s) OR "res_partner"."type" IS NULL)
+                            )
                         )
                     )
                     AND "ir_attachment"."res_model" IN (%s)

@@ -273,4 +273,16 @@
         <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
     </record>
 
+    <record id="res_partner_private_address_rule" model="ir.rule">
+        <field name="name">res.partner: a private address is its subject's</field>
+        <field name="model_id" ref="base.model_res_partner" />
+        <field
+            name="domain_force">['|', ('type', '!=', 'private'), ('parent_id', '=', user.partner_id.id)]</field>
+        <field name="global" eval="True" />
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
+    </record>
+
 </odoo>
