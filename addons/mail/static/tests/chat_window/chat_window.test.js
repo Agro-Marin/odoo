@@ -129,6 +129,42 @@ test("chat window: basic rendering", async () => {
     await contains(".o-dropdown-item", { text: "Leave Channel" });
 });
 
+test("clicking the correspondent avatars of a chat opens the avatar card", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({
+        email: "mario@example.com",
+        name: "Mario",
+    });
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: partnerId }),
+        ],
+        channel_type: "chat",
+    });
+    setupChatHub({ opened: [channelId] });
+    await start();
+    await click(".o-mail-ChatWindow-threadAvatar.cursor-pointer");
+    await contains(".o_avatar_card");
+    await contains(".o-mail-avatar-card-name", { text: "Mario" });
+    await contains(".o-mail-ChatWindow .o-mail-Thread");
+    await click(".o-mail-Thread-avatar.cursor-pointer");
+    await contains(".o_avatar_card");
+    await contains(".o-mail-avatar-card-name", { text: "Mario" });
+});
+
+test("the thread avatar of a group conversation stays inert", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_type: "group",
+        name: "Group",
+    });
+    setupChatHub({ opened: [channelId] });
+    await start();
+    await contains(".o-mail-ChatWindow-threadAvatar");
+    await contains(".o-mail-ChatWindow-threadAvatar.cursor-pointer", { count: 0 });
+});
+
 test.skip("Fold state of chat window is sync among browser tabs", async () => {
     const pyEnv = await startServer();
     pyEnv["discuss.channel"].create({ name: "General" });

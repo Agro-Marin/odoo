@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="mail.ChatWindow.headerContent" t-inherit-mode="extension">
+        <xpath expr="//div[@name='threadAvatar']" position="attributes">
+            <attribute name="t-att-class">{
+                'py-1': !thread or threadActions.actions.length gt 3,
+                'py-2': thread and threadActions.actions.length lte 3,
+                'ms-1': thread,
+                'ms-3': !thread,
+                'ps-2': !hasActionsMenu,
+                'cursor-pointer': correspondentPartner,
+            }</attribute>
+            <attribute name="t-on-click">onClickCorrespondentAvatar</attribute>
+        </xpath>
+    </t>
+</templates>
