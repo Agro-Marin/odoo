@@ -10,6 +10,7 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
+import { manuallyDispatchProgrammaticEvent, queryFirst } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
 import {
     asyncStep,
@@ -125,4 +126,28 @@ test("local storage for call settings", async () => {
     await editInput(document.body, ".o-Discuss-CallSettings-thresholdInput", 0.3);
     await advanceTime(2000);
     await waitForSteps(["mail_user_setting_voice_threshold: 0.3"]);
+});
+
+test("the blur intensity readout follows the slider while it is dragged", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "test" });
+    patchUiSize({ size: SIZES.SM });
+    await start();
+    await openDiscuss(channelId);
+    await contains("[title='Open Actions Menu']");
+    await click("[title='Open Actions Menu']");
+    await click(".o-dropdown-item", { text: "Call Settings" });
+    await click("input[title='Blur video background']");
+    await contains("label[aria-label='Background blur intensity']");
+    // dragging a range input fires `input`, not `change`: `change` only lands
+    // once the thumb is released
+    const slider = queryFirst(
+        "label[aria-label='Background blur intensity'] input[type=range]"
+    );
+    slider.value = "8";
+    await manuallyDispatchProgrammaticEvent(slider, "input");
+    await contains(
+        "label[aria-label='Background blur intensity'] .o-discuss-DiscussCallSettings-width-text-percentage",
+        { text: "40%" }
+    );
 });

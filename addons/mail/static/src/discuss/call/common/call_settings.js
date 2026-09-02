@@ -153,13 +153,13 @@ export class CallSettings extends Component {
     }
 
     /** @param {Event} ev */
-    onChangeBackgroundBlurAmount(ev) {
+    onInputBackgroundBlurAmount(ev) {
         this.store.settings.backgroundBlurAmount = Number(ev.target.value);
         this.saveBackgroundBlurAmount();
     }
 
     /** @param {Event} ev */
-    onChangeEdgeBlurAmount(ev) {
+    onInputEdgeBlurAmount(ev) {
         this.store.settings.edgeBlurAmount = Number(ev.target.value);
         this.saveEdgeBlurAmount();
     }
