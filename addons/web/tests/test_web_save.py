@@ -142,10 +142,12 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         self.env.flush_all()
         partner = self.partner.with_user(user)
         read_values = partner.web_read({"parent_id": {"fields": {"display_name": {}}}})
-        self.assertFalse(
-            read_values[0]["parent_id"],
-            "the rule-hidden parent must be blanked on read, else the test "
-            "no longer reproduces the baseline the client actually receives",
+        self.assertEqual(
+            read_values[0]["parent_id"]["id"],
+            hidden.id,
+            "a many2one the readable record holds resolves to its own value "
+            "whatever hides the target, so a sub-field spec cannot turn a set "
+            "field into an empty one",
         )
         partner.web_save(
             {"parent_id": self.c3.id},

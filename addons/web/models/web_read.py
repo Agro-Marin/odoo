@@ -501,11 +501,16 @@ class Base(models.AbstractModel):
             for vals in readable_records._web_read(extra_fields)
         }
 
+        withheld = co_records.browse(
+            [co_id for co_id in co_ids if co_id not in many2one_data]
+        )
+        for rec in withheld.sudo().exists():
+            many2one_data[rec.id] = {"id": rec.id}
+
         if "display_name" in field_spec["fields"]:
-            for rec in readable_records:
-                many2one_data.setdefault(rec.id, {"id": rec.id})["display_name"] = (
-                    rec.display_name
-                )
+            named = co_records.browse([co_id for co_id in many2one_data if co_id])
+            for rec in named.sudo():
+                many2one_data[rec.id]["display_name"] = rec.display_name
 
         for values in values_list:
             if values[field_name] is False:

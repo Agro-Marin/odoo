@@ -99,6 +99,51 @@ class TestWebReadRelational(common.TransactionCase):
             secret.id, returned_ids, "inaccessible co-record id must not leak"
         )
 
+    def test_many2one_to_inaccessible_target_keeps_its_value(self):
+        Partner = self.env["res.partner"]
+        secret = Partner.create({"name": "ZZSECRET parent", "is_company": True})
+        child = Partner.create({"name": "Child", "parent_id": secret.id})
+        self.env.flush_all()
+
+        self.env["ir.rule"].create(
+            {
+                "name": "test hide secret parents",
+                "model_id": self.env["ir.model"]._get("res.partner").id,
+                "domain_force": "[('name', 'not ilike', 'ZZSECRET')]",
+                "groups": [],
+            }
+        )
+        user = self.env["res.users"].create(
+            {
+                "name": "m2o access tester",
+                "login": "m2o_access_tester",
+                "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+            }
+        )
+        self.assertNotIn(secret.id, Partner.with_user(user).search([]).ids)
+
+        [res] = child.with_user(user).web_read(
+            {"parent_id": {"fields": {"display_name": {}, "phone": {}}}}
+        )
+        self.assertEqual(
+            res["parent_id"]["id"],
+            secret.id,
+            "a sub-field spec must not change whether the many2one reports the "
+            "value the readable record holds; without the spec web_read returns "
+            "that id already",
+        )
+        self.assertEqual(
+            res["parent_id"]["display_name"],
+            secret.display_name,
+            "the label of what a readable record points at is what web_read_group "
+            "already reports for the same value",
+        )
+        self.assertNotIn(
+            "phone",
+            res["parent_id"],
+            "sub-fields of an unreadable target stay withheld",
+        )
+
 
 @common.tagged("post_install", "-at_install", "web_unit", "web_read")
 class TestWebResequence(common.TransactionCase):

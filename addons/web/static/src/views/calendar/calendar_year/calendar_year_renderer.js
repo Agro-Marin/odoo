@@ -82,6 +82,7 @@ export class CalendarYearRenderer extends CalendarRendererBase {
             firstDay: this.model.firstDayOfWeek,
             headerToolbar: { start: false, center: "title", end: false },
             height: "auto",
+            tableHeaderSticky: false,
             locale: Settings.defaultLocale,
             longPressDelay: 500,
             navLinks: false,
