@@ -78,20 +78,10 @@ HOOK_IMPORT = PatchImportHook()
 sys.meta_path.insert(0, HOOK_IMPORT)
 
 
-def _select_run_mode() -> None:
-    import odoo
-
-    if odoo.evented or not (len(sys.argv) > 1 and sys.argv[1] == "evented"):
-        return
-    sys.argv.remove("evented")
-    odoo.evented = True
-
-
 def patch_init() -> None:
     os.environ["TZ"] = "UTC"
     if hasattr(time, "tzset"):
         time.tzset()
-    _select_run_mode()
 
     for submodule in pkgutil.iter_modules(__path__):
         if submodule.name.startswith("_"):

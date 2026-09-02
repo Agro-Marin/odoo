@@ -51,7 +51,6 @@ SCOPED_PACKAGES = (
     "fields",
     "models",
     "_monkeypatches",
-    "upgrade_code",
 )
 
 ERROR_LINE_RE = re.compile(

@@ -41,10 +41,10 @@ class TestTheScanReachesSomething(unittest.TestCase):
         files = {p.name for p in ncv.core_files() if p.is_relative_to(ncv.FRAMEWORK)}
         self.assertIn("http.py", files)
         self.assertIn(
-            "test_cursor.py",
+            "cursor.py",
             files,
-            "test_cursor.py defines TestCursor, a cursor -- excluding it by its "
-            "filename is the mistake this gate exists not to repeat",
+            "cursor.py defines TestCursor, a cursor -- excluding odoo/tests by its "
+            "directory name is the mistake this gate exists not to repeat",
         )
 
     def test_a_real_suite_tree_is_out_of_scope(self):

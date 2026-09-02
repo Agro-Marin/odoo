@@ -32,10 +32,9 @@ def core_units() -> set[str]:
     """The importable units directly under the core package.
 
     A directory counts when it holds any Python at all, not only when it has an
-    __init__.py: mypy.ini sets namespace_packages, and odoo/upgrade and
-    odoo/upgrade_code are exactly that -- checkable by mypy, and missed by an
-    __init__.py test. This gate's first draft made that mistake and reported
-    both as covered.
+    __init__.py: mypy.ini sets namespace_packages, and odoo/upgrade is
+    exactly that -- checkable by mypy, and missed by an __init__.py test.
+    This gate's first draft made that mistake and reported it as covered.
     """
     units = {"odoo"}  # odoo/__init__.py, reachable only as `-m odoo`
     for path in CORE.iterdir():
@@ -57,9 +56,9 @@ def module_reachable_files(directory: Path) -> tuple[list[Path], list[Path]]:
 
     mypy's module mode walks a package by dotted name, so a file whose stem is
     not an identifier is unreachable -- and mypy says nothing about skipping
-    it. odoo/upgrade_code is entirely of that kind: nine scripts named
-    `18.5-00-domain-dynamic-dates.py` and so on, which `-p odoo.upgrade_code`
-    parsed none of while reporting success.
+    it. odoo/upgrade_code was entirely of that kind until it was deleted:
+    nine scripts named `18.5-00-domain-dynamic-dates.py` and so on, which
+    `-p odoo.upgrade_code` parsed none of while reporting success.
     """
     reachable, unreachable = [], []
     for path in sorted(directory.rglob("*.py")):

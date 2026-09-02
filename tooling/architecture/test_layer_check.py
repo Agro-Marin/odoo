@@ -630,7 +630,7 @@ def test_core_test_framework_modules_are_not_test_files():
 
 
 def test_the_test_frameworks_own_tests_are_still_test_files():
-    for name in ("test_cursor.py", "test_module_operations.py"):
+    for name in ("test_x.py", "conftest.py"):
         path = lc.ROOT / "odoo" / "tests" / name
         assert lc._is_test_file(path), f"odoo/tests/{name} IS a test"
 

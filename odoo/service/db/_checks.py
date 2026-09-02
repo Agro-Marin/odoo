@@ -3,17 +3,11 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any, Literal
 
-from psycopg import sql as psycopg_sql
-
 import odoo.exceptions
 import odoo.tools
-from odoo.db import is_maintenance_db
-from odoo.tools import SQL
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from odoo.db import BaseCursor
 
 _logger = logging.getLogger("odoo.service.db")
 
@@ -39,24 +33,6 @@ def check_db_name(name: str) -> None:
         raise ValueError(_DBNAME_ERROR_MSG.format(name=name))
 
 
-def is_db_rpc_exposed(db_name: object) -> bool:
-    if not isinstance(db_name, str) or not db_name:
-        return False
-    if is_maintenance_db(db_name):
-        return False
-    exposed = odoo.tools.config["db_name"]
-    return not exposed or db_name in exposed
-
-
-class DatabaseExists(Warning):
-    pass
-
-
-def get_database_identifier(cr: BaseCursor, name: str) -> SQL:
-    name = psycopg_sql.Identifier(name).as_string(cr.connection)
-    return SQL(name.replace("%", "%%"))
-
-
 def check_db_management_enabled(func: Callable, /) -> Callable:
 
     @functools.wraps(func)
@@ -75,16 +51,3 @@ def check_super(passwd: str) -> Literal[True]:
     if passwd and odoo.tools.config.is_valid_admin_password(passwd):
         return True
     raise odoo.exceptions.AccessDenied
-
-
-def _terminate_backends(cr: BaseCursor, db_name: str) -> None:
-    try:
-        cr.execute(
-            """SELECT pg_terminate_backend(pid)
-                      FROM pg_stat_activity
-                      WHERE datname = %s AND
-                            pid != pg_backend_pid()""",
-            (db_name,),
-        )
-    except Exception:
-        _logger.debug("pg_terminate_backend failed for %r", db_name, exc_info=True)

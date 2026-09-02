@@ -69,7 +69,15 @@ def _module_uses(sub: str, name: str) -> bool:
 
 def test_the_package_is_a_package():
     assert SUBMODULES, "odoo/service/db/ has no submodules; the split was undone"
-    assert {"lifecycle", "dump", "restore", "listing", "rpc"} == SUBMODULES
+    assert {
+        "_checks",
+        "_dump_scanner",
+        "dump",
+        "lifecycle",
+        "listing",
+        "restore",
+        "rpc",
+    } == SUBMODULES
 
 
 def test_no_string_patch_aims_at_the_package():

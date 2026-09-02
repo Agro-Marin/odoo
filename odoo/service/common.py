@@ -10,8 +10,7 @@ from odoo.db import PoolError
 from odoo.exceptions import AccessDenied
 from odoo.modules.registry import Registry
 
-from ._db_helpers import is_db_rpc_exposed
-from ._dispatch import dispatch_through_table
+from ._dispatch import dispatch_through_table, is_db_rpc_exposed
 
 _logger = logging.getLogger(__name__)
 

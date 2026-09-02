@@ -5,9 +5,9 @@ from typing import Any, Literal
 import odoo.modules.registry
 import odoo.tools
 
-from .._db_helpers import check_db_management_enabled, check_super
 from .._dispatch import dispatch_through_table
 from .._env import get_env_int
+from ._checks import check_db_management_enabled, check_super
 from .dump import exp_dump
 from .lifecycle import exp_create_database, exp_drop, exp_duplicate_database, exp_rename
 from .listing import (

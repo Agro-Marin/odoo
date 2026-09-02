@@ -9,7 +9,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from odoo.cli import upgrade_code
 from odoo.cli.command import (
     commands,
     load_addons_commands,
@@ -122,7 +121,6 @@ class TestCommand(BaseCase):
             "server",
             "shell",
             "start",
-            "upgrade_code",
         }
         for option in ("help", "-h", "--help"):
             with self.subTest(option=option):
@@ -166,85 +164,6 @@ class TestCommand(BaseCase):
         for name in commands:
             with self.subTest(command=name):
                 self.run_command(name, "--help", timeout=10)
-
-    def test_upgrade_code_example(self):
-        proc = self.run_command(
-            "upgrade_code", "--script", "17.5-00-example", "--dry-run"
-        )
-        self.assertFalse(
-            proc.stdout,
-            "there should be no file modified by the example script",
-        )
-        self.assertFalse(proc.stderr)
-
-    def test_upgrade_code_help(self):
-        proc = self.run_command("upgrade_code", "--help")
-        self.assertIn("usage: ", proc.stdout)
-        self.assertIn("Rewrite the entire source code", proc.stdout)
-        self.assertFalse(proc.stderr)
-
-    def test_upgrade_code_standalone(self):
-        proc = sp.run(
-            [sys.executable, upgrade_code.__file__, "--help"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        self.assertIn("usage: ", proc.stdout)
-        self.assertIn("Rewrite the entire source code", proc.stdout)
-        for flag in (
-            "--script",
-            "--from",
-            "--to",
-            "--glob",
-            "--dry-run",
-            "--addons-path",
-        ):
-            self.assertIn(
-                flag,
-                proc.stdout,
-                msg=f"standalone --help missing {flag}",
-            )
-        self.assertFalse(proc.stderr)
-
-    def test_upgrade_code_standalone_runs(self):
-        proc = sp.run(
-            [
-                sys.executable,
-                upgrade_code.__file__,
-                "--script",
-                "17.5-00-example",
-                "--dry-run",
-                "--addons-path",
-                str(Path(__file__).parents[4] / "odoo/addons"),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        self.assertEqual(
-            proc.returncode,
-            0,
-            msg=f"standalone --script failed: stderr={proc.stderr[:200]!r}",
-        )
-
-    def test_upgrade_code_rejects_inverted_range(self):
-        proc = self.run_command(
-            "upgrade_code",
-            "--from",
-            "19.0",
-            "--to",
-            "17.0",
-            "--glob",
-            "no/such/*.py",
-            "--dry-run",
-            check=False,
-        )
-        self.assertNotEqual(
-            proc.returncode,
-            0,
-            msg="upgrade_code should reject --to < --from",
-        )
 
     def test_i18n_loadlang_requires_language(self):
         proc = self.run_command(
@@ -645,20 +564,6 @@ class TestCommand(BaseCase):
         self.assertIn("--addons=/y", rest)
         ns2, _ = parser.parse_known_args(["server", "--addons-path=/y"])
         self.assertEqual(ns2.addons_path, "/y")
-
-    def test_upgrade_code_rejects_out_of_tree_script(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            upgrade_dir = root / "upgrade_code"
-            upgrade_dir.mkdir()
-            evil = root / "evil.py"
-            evil.write_text("def upgrade(fm):\n    pass\n")
-            with mock.patch.object(upgrade_code, "UPGRADE", upgrade_dir):
-                with self.assertRaises(FileNotFoundError) as ctx:
-                    upgrade_code.migrate_source_files(
-                        addons_path=[tmp], glob="*.py", script="../evil"
-                    )
-            self.assertIn("outside", str(ctx.exception))
 
     def test_discovery_survives_broken_addon_cli(self):
         from odoo.cli import command as cmd
@@ -1353,22 +1258,6 @@ class TestCommand(BaseCase):
         self.assertFalse(ns.force_overwrite)
         self.assertFalse(ns.overwrite)
 
-    def test_upgrade_code_clears_progress_line(self):
-        import contextlib
-        import io
-
-        fm = upgrade_code.FileManager([], "**/*")
-        fm._show_progress = True
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr):
-            fm.clear_progress()
-        self.assertEqual(stderr.getvalue(), "\033[K")
-        fm._show_progress = False
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr):
-            fm.clear_progress()
-        self.assertEqual(stderr.getvalue(), "", msg="must be silent off-tty")
-
     def test_module_subcommands_exit_nonzero_when_nothing_resolved(self):
         from odoo.cli.module import Module
 
@@ -1410,7 +1299,6 @@ class TestCommand(BaseCase):
         for argv in (
             ["db", "init", "foo", "--addons-path=/x"],
             ["db", "--addons-path=/x", "list"],
-            ["upgrade_code", "--script", "s", "--addons-path", "/a,/b"],
         ):
             with self.subTest(argv=argv):
                 bootstrap, rest = parser.parse_known_args(argv)
@@ -1500,7 +1388,6 @@ class TestCommand(BaseCase):
             "scaffold": "--template",
             "shell": "--shell-interface",
             "start": "--path",
-            "upgrade_code": "--glob",
         }
         for name, flag in expected.items():
             with self.subTest(name=name):

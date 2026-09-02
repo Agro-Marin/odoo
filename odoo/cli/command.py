@@ -315,7 +315,15 @@ def prepare_bootstrap_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _select_run_mode() -> None:
+    if odoo.evented or not (len(sys.argv) > 1 and sys.argv[1] == "evented"):
+        return
+    sys.argv.remove("evented")
+    odoo.evented = True
+
+
 def main() -> None:
+    _select_run_mode()
     args = sys.argv[1:]
 
     boot_parser = prepare_bootstrap_parser()

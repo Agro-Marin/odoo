@@ -69,7 +69,6 @@ on:
       - 'odoo/fields/**/*.py'
       - 'odoo/models/**/*.py'
       - 'odoo/_monkeypatches/**/*.py'
-      - 'odoo/upgrade_code/**/*.py'
       - 'mypy.ini'
       - 'requirements*.txt'
       - 'tooling/ratchet/**'
@@ -188,7 +187,7 @@ jobs:
         # move ambiguous between them.
         #
         # odoo/cli is every entry point odoo-bin exposes -- server, shell, db,
-        # i18n, obfuscate, upgrade_code, populate, neutralize -- and it was in
+        # i18n, obfuscate, populate, neutralize -- and it was in
         # NO type gate's scope: mypy.ini names the six framework packages and
         # odoo.tools carries its own. It measured 55 errors in 8 of its 16
         # files the first time anyone ran it, among them a version comparison
@@ -279,8 +278,7 @@ jobs:
           set +e
           # odoo/upgrade is deliberately absent: it holds a .gitkeep and no
           # Python at all, and a scope resolving to nothing is a lane passing
-          # over air. odoo/upgrade_code has its own step below, because mypy
-          # refuses module mode and path mode in one invocation.
+          # over air.
           python -m mypy --no-incremental --config-file mypy.ini \
             -p odoo.api -p odoo.fields -p odoo.models -p odoo._monkeypatches \
             -m odoo -m odoo.__main__ -m odoo._testing_bootstrap \
@@ -298,38 +296,6 @@ jobs:
           python tooling/ratchet/ratchet.py mypy_core_rest --count "${{ steps.mypy_core_rest.outputs.error_count }}" --json | tee /tmp/verdict_core_rest.json
           python tooling/ratchet/ratchet.py mypy_core_rest --count "${{ steps.mypy_core_rest.outputs.error_count }}"
 
-      - name: Run mypy (odoo/upgrade_code)
-        id: mypy_upgrade_code
-        # AN ELEVENTH SCOPE, AND IT IS PATH MODE ON PURPOSE. The upgrade
-        # scripts are named 18.5-00-domain-dynamic-dates.py and the like --
-        # valid filenames, invalid module names. mypy's module mode walks a
-        # package by dotted name, so `-p odoo.upgrade_code` parsed the
-        # directory, NONE of the nine files in it, and reported success. Passed
-        # as a path the same nine held 31 errors.
-        #
-        # A separate step because mypy refuses `-p` and a path together
-        # ("May only specify one of: module/package, files, or command").
-        #
-        # A HARD ZERO WITH NO BASELINE FILE. Several of the 31 were latent crashes rather
-        # than typing nits, all on inputs that parse: negating a non-numeric
-        # Constant, .value on a non-Constant argument, a DictReader.fieldnames
-        # of None, and data_file_module_name annotated FileManager -- which has
-        # no .path -- in two scripts. tooling/typecheck/test_py_scope_coverage.py
-        # holds this directory to path mode.
-        run: |
-          set +e
-          python -m mypy --no-incremental --config-file mypy.ini \
-            odoo/upgrade_code/ --verbose 2>&1 | tee /tmp/mypy_upgrade_code.log
-          set -e
-          # `|| true`, NOT `|| echo 0` -- see the note on the six-package step.
-          ERR_COUNT=$(grep -cE ": error:" /tmp/mypy_upgrade_code.log || true)
-          echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
-
-      - name: Enforce ratchet (odoo/upgrade_code)
-        run: |
-          python tooling/ratchet/ratchet.py mypy_upgrade_code --count "${{ steps.mypy_upgrade_code.outputs.error_count }}" --json | tee /tmp/verdict_upgrade_code.json
-          python tooling/ratchet/ratchet.py mypy_upgrade_code --count "${{ steps.mypy_upgrade_code.outputs.error_count }}"
-
       - name: Enforce per-file locks
         id: scope
         # The ratchet above measures ONE integer over six packages, so a clean
@@ -344,14 +310,12 @@ jobs:
         # makes every file of its package read as `unchecked` -- the verdict
         # that exists precisely so a file nothing compiled cannot pass for a
         # file found clean. The list must therefore track SCOPED_PACKAGES:
-        # tools, api, fields, models, _monkeypatches and upgrade_code joined it
-        # when the scope gap was closed, and their lanes are the last three
-        # files below. Each of those runs carries --verbose for this step alone;
+        # tools, api, fields, models and _monkeypatches joined it when the
+        # scope gap was closed, and their lanes are the last two files below. Each of those runs carries --verbose for this step alone;
         # it does not perturb the counts, as no verbose line matches ": error:".
         run: |
           cat /tmp/mypy.log /tmp/mypy_cli.log /tmp/mypy_tests.log \
-              /tmp/mypy_tools.log /tmp/mypy_core_rest.log \
-              /tmp/mypy_upgrade_code.log > /tmp/mypy_scoped.log
+              /tmp/mypy_tools.log /tmp/mypy_core_rest.log > /tmp/mypy_scoped.log
           python tooling/typecheck/py_scope_gate.py --log /tmp/mypy_scoped.log --check
 
       - name: Summarise

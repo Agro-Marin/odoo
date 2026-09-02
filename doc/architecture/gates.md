@@ -292,11 +292,9 @@ binds its own reference at import, so patching the facade alone would leave the
 rest reading the real pages and report the suite as vacuous-proof when it was
 merely unpatched.
 
-`package_index_check.py` covers four packages that document themselves
+`package_index_check.py` covers three packages that document themselves
 per-module: `odoo/db/README.md`'s *Module map*, `odoo/_monkeypatches/README.md`'s
-*Patch Index*, `odoo/http/README.md`'s *Module map*, and
-`odoo/upgrade_code/README.md`'s *Module map* (whose rows are dated script stems
-such as `18.1-00-sql-constraint`, not importable identifiers).
+*Patch Index* and `odoo/http/README.md`'s *Module map*.
 `PACKAGE_INDEXES` is an inclusion list, so `test_every_core_readme_is_classified`
 forces every core README into it or into `READMES_WITHOUT_AN_INDEX`.
 
@@ -381,8 +379,8 @@ so every cleanup is locked in.
 `ratchet.py <gate> --count N` with no `baselines/<gate>.json` passes at 0 and
 fails on anything above it, in either mode, naming the file it did not find;
 `--update` is what opens a floor, and `--list` reads only the files, so it stays
-a list of debt rather than of every contract. Thirty-seven of the counts the
-workflows hand to `ratchet.py` are held that way: **eslint, jsfunclen_stock, jsfunclen_product, pyfunclen_loyalty, pyfunclen_tests, py_x2many_count_mail, py_x2many_count_stock, py_x2many_count_project, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, py_hook_arity, py_hook_arity_addons, py_shadowed_member, py_shadowed_member_enterprise, py_shadowed_member_agromarin, py_shadowed_member_design-themes, jsserviceshape_account, jsserviceshape_stock, jseagerfixture, naming_design-themes, mypy_cli, mypy_tests, orderlineqty_agromarin, orderlineqty_design-themes, mypy_core_rest, mypy_upgrade_code, naming_core, py_count_as_boolean_tests, py_hook_arity_tests, py_x2many_count_tests and sql_in_placeholder_tests**.
+a list of debt rather than of every contract. Thirty-six of the counts the
+workflows hand to `ratchet.py` are held that way: **eslint, jsfunclen_stock, jsfunclen_product, pyfunclen_loyalty, pyfunclen_tests, py_x2many_count_mail, py_x2many_count_stock, py_x2many_count_project, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, py_hook_arity, py_hook_arity_addons, py_shadowed_member, py_shadowed_member_enterprise, py_shadowed_member_agromarin, py_shadowed_member_design-themes, jsserviceshape_account, jsserviceshape_stock, jseagerfixture, naming_design-themes, mypy_cli, mypy_tests, orderlineqty_agromarin, orderlineqty_design-themes, mypy_core_rest, naming_core, py_count_as_boolean_tests, py_hook_arity_tests, py_x2many_count_tests and sql_in_placeholder_tests**.
 Each was born at zero, so the file it once carried recorded no debt and no
 move — a contract wearing ratchet JSON, and `--list` reported it as a floor to
 drive down. `assert_ratchet` under `test_lint` has read an absent baseline as

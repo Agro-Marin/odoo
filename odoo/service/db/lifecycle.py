@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import psycopg
+from psycopg import sql as psycopg_sql
 
 import odoo.api
 import odoo.db
@@ -18,13 +19,7 @@ import odoo.modules.registry
 import odoo.tools
 from odoo.tools import SQL
 
-from .._db_helpers import (
-    DatabaseExists,
-    _terminate_backends,
-    check_db_management_enabled,
-    check_db_name,
-    get_database_identifier,
-)
+from ._checks import check_db_management_enabled, check_db_name
 from .listing import check_db_exposed, invalidate_catalog_caches
 
 if TYPE_CHECKING:
@@ -33,6 +28,28 @@ else:
     BaseCursor = Any
 
 _logger = logging.getLogger("odoo.service.db")
+
+
+class DatabaseExists(Warning):
+    pass
+
+
+def get_database_identifier(cr: BaseCursor, name: str) -> SQL:
+    name = psycopg_sql.Identifier(name).as_string(cr.connection)
+    return SQL(name.replace("%", "%%"))
+
+
+def _terminate_backends(cr: BaseCursor, db_name: str) -> None:
+    try:
+        cr.execute(
+            """SELECT pg_terminate_backend(pid)
+                      FROM pg_stat_activity
+                      WHERE datname = %s AND
+                            pid != pg_backend_pid()""",
+            (db_name,),
+        )
+    except Exception:
+        _logger.debug("pg_terminate_backend failed for %r", db_name, exc_info=True)
 
 
 def _check_faketime_mode(db_name: str) -> None:

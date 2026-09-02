@@ -1496,7 +1496,7 @@ class TestValidateDbNameLengthBoundary:
 class TestRpcDbExposedGate:
     @pytest.fixture
     def gate(self):
-        from odoo.service._db_helpers import is_db_rpc_exposed
+        from odoo.service._dispatch import is_db_rpc_exposed
 
         return is_db_rpc_exposed
 

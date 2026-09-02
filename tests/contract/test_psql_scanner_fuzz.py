@@ -1,7 +1,7 @@
 import random
 import subprocess
 
-from odoo.service._dump_scanner import _get_disallowed_psql_meta_command
+from odoo.service.db._dump_scanner import _get_disallowed_psql_meta_command
 
 from .._pg import psql_path
 from .conftest import requires_pg, requires_psql

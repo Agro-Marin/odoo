@@ -20,8 +20,10 @@ it is hooked on that module's import, which for a stdlib module means "at
 boot" — so the mechanism cannot tell the difference, and the index inherits
 the lie. `site.py` was that file: it patched `odoo`, `encodings.aliases`,
 `codecs` and `babel.core`, and nothing named `site`. Bootstrap that patches no
-module at all belongs in `patch_init()` (see `_select_run_mode`), not in a file
-borrowing an unrelated module's name.
+module at all belongs in `patch_init()` only while it must run before any
+third-party import -- the `TZ` pin is the one such step -- and nowhere in this
+package otherwise: the `evented` argv surgery moved to `cli/command.py`, where
+argv is parsed.
 
 ### Importing a patch submodule applies its patch
 
@@ -169,7 +171,7 @@ Patches should be removed when:
 | `xlwt.py` | 2026-02 | xlwt is abandoned (last release 2017); migrated to xlsxwriter |
 | `stdnum.py` | 2026-08 | Obsolete **and broken**. python-stdnum 2.2 sets `operation_timeout` itself in `_get_zeep_soap_client`, which `requirements-addons.txt` already recorded as the reason for the pin; meanwhile stdnum grew a third `verify` parameter that the replacement never had, so every VIES/UID/RNC/TCKimlik lookup raised `TypeError` -- uncaught, since `account_vat`'s `_compute_vies_valid` only handles `OSError`/`InvalidComponent`/`zeep.exceptions.Fault`. The replacement also dropped `session.verify`, i.e. TLS verification config. |
 | `smtplib.py` | 2026-08 | Unreachable. It replaced `SMTP._print_debug` on the class, but the only caller (`ir_mail_server.py`) assigns the identical function to the *instance* two lines before its `set_debuglevel()`, so the class-level one was never invoked -- and it hard-coded an addon's logger name into core. |
-| `site.py` | 2026-08 | Split, not deleted: it was named for a module it did not patch. The codec/alias half is `codecs.py`, the Babel half is `babel.py`, and the `evented` argv surgery -- not a module patch at all -- is now `patch_init`'s `_select_run_mode()`. |
+| `site.py` | 2026-08 | Split, not deleted: it was named for a module it did not patch. The codec/alias half is `codecs.py`, the Babel half is `babel.py`, and the `evented` argv surgery -- not a module patch at all -- is `cli/command.py`'s `_select_run_mode()`, run first thing in `main()`. |
 | `werkzeug.py` (MultiDict.deepcopy) | 2026-08 | Werkzeug 3.x already takes `memo`; the wrapper dropped it, which turned a working cycle-safe `copy.deepcopy` into `RecursionError`. |
 | `werkzeug.py` (Rule._get_func_code) | 2026-08 | An `assert isinstance(code, CodeType)` over a parameter werkzeug already annotates `CodeType`, stripped entirely under `-O`. |
 | `csv.py` (the `UNIX` dialect) | 2026-08 | Not a patch: Odoo's own dialect, registered under a global name in the stdlib registry, with exactly one caller. It now lives beside that caller as `tools/translate.py::_UnixDialect`, where it cannot be reached by name from anywhere and does not depend on a monkeypatch having run first. |

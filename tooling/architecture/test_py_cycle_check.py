@@ -144,10 +144,8 @@ class TestTestFrameworkIsInTheGraph(unittest.TestCase):
         self.assertEqual(missing, [], f"test framework modules dropped: {missing}")
 
     def test_the_frameworks_own_tests_are_still_excluded(self):
-        modules, _edges, _lines = pcc.build_graph()
-        for name in ("odoo.tests.test_cursor", "odoo.tests.test_module_operations"):
-            with self.subTest(name=name):
-                self.assertNotIn(name, modules)
+        self.assertTrue(pcc._is_test_file(("tests", "test_x.py"), "test_x.py"))
+        self.assertTrue(pcc._is_test_file(("tests", "conftest.py"), "conftest.py"))
 
     def test_ordinary_test_packages_are_still_dropped(self):
         modules, _edges, _lines = pcc.build_graph()

@@ -28,12 +28,7 @@ SCOPE_PACKAGES: tuple[str, ...] = (
     "tests",
 )
 
-SCOPE_EXEMPT_PACKAGES: frozenset[str] = frozenset(
-    {
-        "addons",
-        "upgrade_code",
-    }
-)
+SCOPE_EXEMPT_PACKAGES: frozenset[str] = frozenset({"addons"})
 
 _MODEL_RE = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$|^base$")
 

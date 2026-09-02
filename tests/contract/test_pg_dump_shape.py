@@ -3,7 +3,7 @@ import subprocess
 
 import pytest
 
-from odoo.service._dump_scanner import (
+from odoo.service.db._dump_scanner import (
     _ALLOWED_PSQL_META_COMMANDS,
     _check_dump_sql_safe,
 )

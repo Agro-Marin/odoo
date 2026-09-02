@@ -32,7 +32,6 @@ package live in `odoo/addons/base/tests/` (see Conventions).
 | `shell.py` | `run_tests(env, tags)` for interactive `odoo-bin shell` use |
 | `benchmark.py` | `BenchmarkStats`/`compute_stats`/timers for perf suites |
 | `module_operations.py` | CLI: install/uninstall/cycle modules, `@standalone` runner |
-| `test_cursor.py`, `test_module_operations.py` | Back-compat import shims (old upstream paths; runbot may use `python -m odoo.tests.test_module_operations`) |
 
 ## Entry Points
 

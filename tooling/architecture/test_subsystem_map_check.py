@@ -110,13 +110,6 @@ class DatedModuleStemTest(unittest.TestCase):
         self.assertEqual([n for n, _ in names], list(self.STEMS))
         self.assertTrue(complete)
 
-    def test_the_charset_agrees_with_what_the_tree_reports(self):
-        modules, _packages = smc._actual_children("upgrade_code", smc.CORE_ROOT)
-        self.assertTrue(modules, "upgrade_code has no modules — probe is vacuous")
-        for stem in sorted(modules):
-            with self.subTest(stem=stem):
-                self.assertEqual(smc.parse_names(stem), ([(stem, False)], True))
-
     def test_widening_did_not_break_the_prose_boundary(self):
         self.assertEqual(
             smc.parse_names("service/  Process lifecycle + servers: server"),

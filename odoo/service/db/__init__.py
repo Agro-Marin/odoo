@@ -1,15 +1,15 @@
-from .._db_helpers import (
+from odoo.db import SYSTEM_DBS
+
+from ._checks import (
     DBNAME_MAX_LENGTH,
     DBNAME_PATTERN,
-    DatabaseExists,
     check_db_management_enabled,
-    check_super,
-    get_database_identifier,
     check_db_name,
+    check_super,
 )
-from odoo.db import SYSTEM_DBS
 from .dump import BACKUP_FORMATS, dump_db, dump_db_manifest, exp_dump
 from .lifecycle import (
+    DatabaseExists,
     _create_empty_database,
     _drop_database,
     _duplicate_database,
@@ -18,6 +18,7 @@ from .lifecycle import (
     exp_drop,
     exp_duplicate_database,
     exp_rename,
+    get_database_identifier,
 )
 from .listing import (
     check_db_exposed,

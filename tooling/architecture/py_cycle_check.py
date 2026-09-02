@@ -15,7 +15,7 @@ from _repo_root import find_odoo_root
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_cycle_check")
 CORE = REPO_ROOT / "odoo"
 
-EXCLUDED_SUBPACKAGES = frozenset({"addons", "upgrade_code"})
+EXCLUDED_SUBPACKAGES = frozenset({"addons"})
 
 
 @dataclass(frozen=True)

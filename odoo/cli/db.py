@@ -15,11 +15,11 @@ import requests
 
 from ..db import SYSTEM_DBS, db_connect
 from ..modules.neutralize import neutralize_database
-from ..service._db_helpers import check_db_name
 from ..service.db import (
     _drop_database,
     _duplicate_database,
     _rename_database,
+    check_db_name,
     dump_db,
     exp_create_database,
     exp_db_exist,

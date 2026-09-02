@@ -569,6 +569,7 @@ def load_module_graph(
     models_to_check: OrderedSet[str] | None = None,
     install_demo: bool = True,
     run_tests: bool = True,
+    migrations: MigrationManager | None = None,
 ) -> None:
     if models_to_check is None:
         models_to_check = OrderedSet()
@@ -576,7 +577,8 @@ def load_module_graph(
     registry = env.registry
     cr = env.cr
     assert isinstance(cr, odoo.db.Cursor), "Need for a real Cursor to load modules"
-    migrations = MigrationManager(cr, graph)
+    if migrations is None:
+        migrations = MigrationManager(cr, graph)
     module_count = len(graph)
     _logger.info("loading %d modules...", module_count)
 
@@ -648,6 +650,7 @@ class _ModuleLoader:
         "env",
         "graph",
         "install_modules",
+        "migrations",
         "models_to_check",
         "new_db_demo",
         "registry",
@@ -683,6 +686,7 @@ class _ModuleLoader:
         self.graph: ModuleGraph = None  # type: ignore[assignment]
         self.env: Environment = None  # type: ignore[assignment]
         self.report: OdooTestResult | None = None
+        self.migrations: MigrationManager = None  # type: ignore[assignment]
 
     def bootstrap(self) -> bool:
         cr = self.cr
@@ -742,6 +746,7 @@ class _ModuleLoader:
         self.report = self.registry._assertion_report
         self.env = api.Environment(self.cr, api.SUPERUSER_ID, {})
         self.env.transaction.default_env = self.env
+        self.migrations = MigrationManager(self.cr, self.graph)
         load_module_graph(
             self.env,
             self.graph,
@@ -750,6 +755,7 @@ class _ModuleLoader:
             models_to_check=self.models_to_check,
             install_demo=self.new_db_demo,
             run_tests=self.run_tests,
+            migrations=self.migrations,
         )
 
     def load_languages(self) -> None:
@@ -845,6 +851,7 @@ class _ModuleLoader:
             self.graph.extend(module_list)
             _logger.debug("Updating graph with %d more modules", len(module_list))
             updated_modules_count = len(self.registry.updated_modules)
+            self.migrations = MigrationManager(self.cr, self.graph)
             load_module_graph(
                 env,
                 self.graph,
@@ -852,6 +859,7 @@ class _ModuleLoader:
                 report=self.report,
                 models_to_check=self.models_to_check,
                 run_tests=self.run_tests,
+                migrations=self.migrations,
             )
             if len(self.registry.updated_modules) == updated_modules_count:
                 break
@@ -894,9 +902,8 @@ class _ModuleLoader:
     def run_end_migrations(self) -> None:
         if not self.update_module:
             return
-        migrations = MigrationManager(self.cr, self.graph)
         for package in self.graph:
-            migrations.migrate_module(package, "end")
+            self.migrations.migrate_module(package, "end")
 
     def report_pending_module_states(self) -> None:
         cr = self.cr

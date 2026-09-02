@@ -260,7 +260,6 @@ CONTRACTS: tuple[Contract, ...] = (
             "odoo.orm",
             "odoo.service",
             "odoo.tools",
-            "odoo.upgrade_code",
             "odoo.init",
             "odoo.logutils",
             "odoo.exceptions",

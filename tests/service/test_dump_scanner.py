@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from odoo.service import _dump_scanner
+from odoo.service.db import _dump_scanner
 
 
 @pytest.fixture(scope="module")

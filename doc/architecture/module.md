@@ -52,14 +52,15 @@ odoo/
 │   │   _prefork, _worker, _watcher, wsgi, _cron, lifecycle,
 │   │   _factory (picks and runs a server), _process_state (its two globals)
 │   ├── db/         Database management, the /web/database/manager service
-│   │               (five modules in one-way order). Reads downward:
-│   │               rpc -> {restore -> {lifecycle, listing}, dump -> listing,
-│   │                       lifecycle -> listing}
+│   │               (seven modules in one-way order). Reads downward:
+│   │               rpc -> {restore -> {lifecycle, listing, _dump_scanner},
+│   │                       dump -> listing, lifecycle -> listing},
+│   │               every one of them over _checks (the db-name, master
+│   │               password and list_db guards)
 │   └── transaction (the retrying() primitive), model, security, common,
-│       _dispatch (one arity policy for the common/db RPC tables),
+│       _dispatch (arity policy + db-name exposure for the common/db RPC tables),
 │       _env, _limits (time/memory/back-off budgets),
-│       _db_helpers, _dump_scanner, metrics (the Prometheus exposition
-│       web serves at /web/metrics)
+│       metrics (the Prometheus exposition web serves at /web/metrics)
 ├── modules/        The module graph (iterated by phase, dependency depth,
 │   │               then name) and what loads it
 │   └── module_graph, module, loading, migration, db, neutralize,
@@ -76,7 +77,6 @@ odoo/
 │                   (`PatchImportHook` on `sys.meta_path`; every
 │                   non-underscore submodule exposes `patch_module()`)
 ├── cli/            Command-line entry points
-├── upgrade_code/   Dated source-rewrite scripts run by `odoo-bin upgrade_code`
 └── addons/         The bundled base addons — `base` plus the `test_*` suites,
                     and only those. (`web` and the rest of the standard addons
                     live in the repo-root `addons/`, the second tree described

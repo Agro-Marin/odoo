@@ -17,8 +17,8 @@ import odoo.release
 import odoo.tools
 from odoo.tools.misc import exec_pg_environ, get_pg_tool_path
 
-from .._db_helpers import check_db_management_enabled, check_db_name
 from .._env import get_env_float
+from ._checks import check_db_management_enabled, check_db_name
 from .listing import check_db_exposed
 
 if TYPE_CHECKING:

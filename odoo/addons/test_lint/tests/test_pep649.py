@@ -8,7 +8,6 @@ CLEAN_MODULES = (
     "odoo.cli.obfuscate",
     "odoo.cli.populate",
     "odoo.cli.scaffold",
-    "odoo.cli.upgrade_code",
     "odoo.db.cursor",
     "odoo.db.pool",
     "odoo.db.utils",

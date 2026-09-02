@@ -17,8 +17,8 @@ from odoo.db import is_maintenance_db
 from odoo.db import schema as _db_schema
 from odoo.release import version_info
 
-from .._db_helpers import check_db_name
 from .._env import get_env_float
+from ._checks import check_db_name
 
 _logger = logging.getLogger("odoo.service.db")
 

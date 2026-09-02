@@ -28,7 +28,7 @@ from odoo.modules.registry import Registry
 from odoo.tools import lazy
 from odoo.tools.safe_eval import _UNSAFE_ATTRIBUTES
 
-from ._db_helpers import is_db_rpc_exposed
+from ._dispatch import is_db_rpc_exposed
 from .transaction import (
     PG_CONCURRENCY_ERRORS_TO_RETRY,
     PG_CONCURRENCY_EXCEPTIONS_TO_RETRY,

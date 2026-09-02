@@ -29,7 +29,6 @@ SCANNED_TREES: tuple[Path, ...] = (
     REPO_ROOT / "odoo" / "cli",
     REPO_ROOT / "odoo" / "tests",
     REPO_ROOT / "odoo" / "_monkeypatches",
-    REPO_ROOT / "odoo" / "upgrade_code",
     REPO_ROOT / "odoo" / "api",
     REPO_ROOT / "odoo" / "fields",
     REPO_ROOT / "odoo" / "models",

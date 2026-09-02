@@ -309,19 +309,6 @@ class LiveRepositoryTest(unittest.TestCase):
         self.assertEqual(pic.listed_modules(["| `db/cursor.py` | x |"]), set())
         self.assertEqual(pic.listed_modules(["| `odoo/http/stream.py` | x |"]), set())
 
-    def test_upgrade_code_inventory_is_actually_enforced(self):
-
-        pkg = pic.CORE_ROOT / "upgrade_code"
-        readme, heading = pic.PACKAGE_INDEXES["upgrade_code"]
-        section = pic.extract_section(
-            (pkg / readme).read_text(encoding="utf-8"), heading
-        )
-        listed = pic.listed_modules(section)
-        self.assertIn("18.1-00-sql-constraint", listed)
-        self.assertEqual(listed, pic.actual_modules(pkg))
-        pretend = pic.actual_modules(pkg) | {"19.0-00-something-new"}
-        self.assertEqual(sorted(pretend - listed), ["19.0-00-something-new"])
-
     def test_a_module_added_to_db_would_be_caught(self):
         report = pic.check()
         db = next(p for p in report.packages if p.package == "db")

@@ -14,9 +14,9 @@ import odoo.modules.registry
 import odoo.tools
 from odoo.tools.misc import exec_pg_environ, get_pg_tool_path
 
-from .._db_helpers import check_db_management_enabled, check_db_name
-from .._dump_scanner import _check_dump_sql_safe
 from .._env import get_env_float, get_env_int
+from ._checks import check_db_management_enabled, check_db_name
+from ._dump_scanner import _check_dump_sql_safe
 from .lifecycle import (
     _check_filestore_dest_free,
     _create_empty_database,

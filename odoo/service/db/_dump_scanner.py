@@ -6,7 +6,7 @@ import string
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ._env import get_env_int
+from .._env import get_env_int
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

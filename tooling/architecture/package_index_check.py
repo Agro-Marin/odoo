@@ -19,7 +19,6 @@ PACKAGE_INDEXES: dict[str, tuple[str, str]] = {
     "db": ("README.md", "## Module map"),
     "_monkeypatches": ("README.md", "## Patch Index"),
     "http": ("README.md", "## Module map"),
-    "upgrade_code": ("README.md", "## Module map"),
 }
 
 READMES_WITHOUT_AN_INDEX: frozenset[str] = frozenset()

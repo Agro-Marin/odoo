@@ -60,9 +60,6 @@ classes individually silently stops covering new ones.
     `_HTTP_EXPORTS`, to `__all__`, and to the `TYPE_CHECKING` block that keeps
     ruff's `F822` and the type checker satisfied.
     `TestCommonHasNoImportEdgeToHttp` pins all of it.
-- `test_cursor.py` / `test_module_operations.py` are import shims for old
-  upstream paths — external tooling (runbot) may call
-  `python -m odoo.tests.test_module_operations`. Keep until proven dead.
 
 ## Gotchas (hard-won)
 

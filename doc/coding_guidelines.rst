@@ -1197,7 +1197,7 @@ meanings -- a business method that deletes records is ``_remove_*``, never
 
 **Every row is a claim about a *layer*, not about a word** ``[review]``, and a
 reader who greps the table for the verb gets the answer wrong in both directions.
-``_drop_`` is reserved for SQL **DDL**, so ``service/_db_helpers.py``'s
+``_drop_`` is reserved for SQL **DDL**, so ``service/db/lifecycle.py``'s
 ``_drop_conn`` -- which issues ``pg_terminate_backend`` -- was never in the row
 and is ``_terminate_backends``. The other direction cost more, because it looks
 like obedience: ``assetsbundle``'s ``_addon_relative_path_exists`` asks the
@@ -1878,13 +1878,14 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
   than reported may be installed; a read may not.**
 * **Importing a Python file is a write, and a read verb hides it the same way**
   ``[review]``. The example above is a database write; the cheaper miss is module
-  execution. ``cli/upgrade_code.py``'s ``get_upgrade_code_scripts`` reached
-  ``_load_module_from_file`` for every script in the version range, which imports
-  and **runs** each one, so asking for the scripts was what executed their module
-  bodies -- and no caller reading ``get_`` could see it. §2.4.3 reserves
-  ``_load_`` for the ORM operation and for module loading, and this is the second
-  of those: it is ``load_upgrade_code_scripts``. **A reserved verb is owed where
-  it applies, not merely permitted.**
+  execution. ``cli/upgrade_code.py``'s ``get_upgrade_code_scripts`` (the upstream
+  source rewriter, since deleted) reached ``_load_module_from_file`` for every
+  script in the version range, which imports and **runs** each one, so asking
+  for the scripts was what executed their module bodies -- and no caller reading
+  ``get_`` could see it. §2.4.3 reserves ``_load_`` for the ORM operation and for
+  module loading, and this was the second of those: it became
+  ``load_upgrade_code_scripts``. **A reserved verb is owed where it applies, not
+  merely permitted.**
 
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3425,11 +3426,12 @@ the two senses are why a grep for one finds the other.
 
 * **The three bind names whose object is held state** ``[review]``. Read as an
   unbounded reservation the table sends a reader to rename things it was never
-  about: ``cli/upgrade_code.py``'s ``FileManager.clear_progress`` writes the
-  ``\033[K`` that erases a progress line, holds nothing, and drops nothing that
-  could go stale -- and it is a published API **6** shipped ``upgrade_code``
-  scripts call and **2** test stubs redefine, so a rename is real cost for no
-  correctness. **The failure column is the scope**: where no reader can be served
+  about: ``cli/upgrade_code.py``'s ``FileManager.clear_progress`` (deleted since,
+  with the upstream source rewriters) wrote the ``\033[K`` that erases a progress
+  line, held nothing, and dropped nothing that could go stale -- and it was a
+  published API every shipped ``upgrade_code`` script called, so a rename was
+  real cost for no correctness. **The failure column is the scope**: where no
+  reader can be served
   a wrong value because the state was kept, the table has no opinion and the
   ordinary vocabulary applies. Transient output is outside it; **rows are not**
   (``_clear_schedule`` above), because a row is state something else will read.
@@ -5373,9 +5375,9 @@ writing a wrong one still fails.
 
 **Two bodies of docstrings are load-bearing and must not be removed.**
 ``odoo/cli/`` docstrings are the CLI's user-facing help text, rendered by
-``help.py``, fed to argparse by ``command.py`` and string-replaced by
-``upgrade_code.py``, which raises ``AttributeError`` the moment one becomes
-``None``. A handful more are machine-checked contracts read by
+``help.py`` and fed to argparse by ``command.py``; the since-deleted
+``upgrade_code.py`` string-replaced one and raised ``AttributeError`` the moment
+it became ``None``. A handful more are machine-checked contracts read by
 ``tooling/architecture/`` and ``tests/service/``: ``orm/__init__.py``,
 ``orm/models/mixins/_metadata.py``, ``http/tests/test_openapi.py``. Deleting one
 of those breaks a test, not a style gate.
@@ -8299,8 +8301,8 @@ One row per change, one clause. The argument lives in the section it moved.
        second reads correctly, which is why it survives review; the test is the
        return, and ``cli/populate.py`` held both senses at once. §2.4.7:
        importing a Python file is a write, so ``get_upgrade_code_scripts``, which
-       executes every script it returns, is ``load_upgrade_code_scripts`` under
-       §2.4.3's reserved verb. §2.4.9: an abolished execution verb in the **tail**
+       executed every script it returned, became ``load_upgrade_code_scripts``
+       under §2.4.3's reserved verb. §2.4.9: an abolished execution verb in the **tail**
        hides from ``classify`` exactly as a noun in front does, and is false
        rather than vague where one collection feeds two opposite operations
        (``_get_fields_to_process``); and ``main`` is a binding to the process
