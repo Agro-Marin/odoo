@@ -417,10 +417,18 @@ class Base(models.AbstractModel):
     @api.readonly
     @versioned_envelope
     def web_read(self, specification: dict[str, dict]) -> list[dict]:
+        if not self:
+            return []
+        if set(specification) <= {"id"}:
+            # read() checks access for every other spec; the id-only shortcut
+            # below must not let a caller enumerate a model it cannot read
+            self.check_access("read")
+        return self._web_read(specification)
+
+    def _web_read(self, specification: dict[str, dict]) -> list[dict]:
         fields_to_read = list(specification) or ["id"]
 
         if set(fields_to_read) == {"id"}:
-            self.check_access("read")
             values_list = [
                 {"id": (id_.origin or False) if isinstance(id_, NewId) else id_}
                 for id_ in self._ids
@@ -490,7 +498,7 @@ class Base(models.AbstractModel):
 
         many2one_data = {
             vals["id"]: cleanup(vals)
-            for vals in readable_records.web_read(extra_fields)
+            for vals in readable_records._web_read(extra_fields)
         }
 
         if "display_name" in field_spec["fields"]:
@@ -569,7 +577,7 @@ class Base(models.AbstractModel):
                 co_records = co_records.browse(ids_to_read)
 
             x2many_data = {
-                vals["id"]: vals for vals in co_records.web_read(field_spec["fields"])
+                vals["id"]: vals for vals in co_records._web_read(field_spec["fields"])
             }
 
             for values in values_list:
@@ -615,12 +623,12 @@ class Base(models.AbstractModel):
             if has_sub_fields:
                 try:
                     co_data = {
-                        d["id"]: d for d in co_recordset.web_read(field_spec["fields"])
+                        d["id"]: d for d in co_recordset._web_read(field_spec["fields"])
                     }
                 except AccessError:
                     for co_id in co_ids:
                         try:
-                            result = CoModel.browse(co_id).web_read(
+                            result = CoModel.browse(co_id)._web_read(
                                 field_spec["fields"]
                             )
                             if result:
@@ -684,7 +692,7 @@ class Base(models.AbstractModel):
         for (comodel, prop_name), ids in batch_ids.items():
             co_records = self.env[comodel].with_context(**(prop_ctx or {})).browse(ids)
             co_data[(comodel, prop_name)] = {
-                d["id"]: d for d in co_records.web_read(batch_specs[prop_name])
+                d["id"]: d for d in co_records._web_read(batch_specs[prop_name])
             }
 
         for values in values_list:

@@ -163,3 +163,9 @@ class TestWebReadIdOnlyAccessCheck(common.TransactionCase):
         record = mail_server.with_user(user)
         with self.assertRaises(AccessError):
             record.web_read({"id": {}})
+
+    def test_an_empty_recordset_reads_as_empty_without_access(self):
+        user = new_test_user(self.env, login="web_read_unprivileged_empty")
+        nothing = self.env["ir.mail_server"].with_user(user).browse()
+        self.assertEqual(nothing.web_read({"id": {}}), [])
+        self.assertEqual(nothing.web_read({"name": {}}), [])
