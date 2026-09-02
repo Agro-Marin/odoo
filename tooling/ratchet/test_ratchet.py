@@ -118,7 +118,7 @@ class ProvenanceTests(unittest.TestCase):
                 ["mypy", "--count", "10", "--update", "--note", "n"]
             )
         self.assertEqual(code, EXIT_USAGE)
-        self.assertIn("dirty tree", err)
+        self.assertIn("dirty odoo tree", err)
         self.assertIn("odoo/orm/fields/base.py", err)
         self.assertFalse((self.dir / "mypy.json").exists())
 
@@ -150,6 +150,61 @@ class ProvenanceTests(unittest.TestCase):
             code, out, _ = self._run(["mypy", "--count", "5"])
         self.assertEqual(code, EXIT_OK)
         self.assertIn("== baseline", out)
+
+    def test_a_sibling_gate_refuses_update_without_a_root(self):
+        code, _, err = self._run(
+            ["naming_enterprise", "--count", "3", "--update", "--note", "n"]
+        )
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("--root enterprise", err)
+        self.assertFalse((self.dir / "naming_enterprise.json").exists())
+
+    def test_a_sibling_root_is_the_tree_checked_and_the_history_stamped(self):
+        with (
+            mock.patch.object(ratchet, "_dirty_paths", return_value=[]) as dirty,
+            mock.patch.object(ratchet, "_head_commit", return_value="ent1234") as head,
+        ):
+            code, _, _ = self._run(
+                [
+                    "naming_enterprise",
+                    "--count",
+                    "3",
+                    "--update",
+                    "--note",
+                    "n",
+                    "--root",
+                    "enterprise",
+                ]
+            )
+        self.assertEqual(code, EXIT_OK)
+        dirty.assert_called_once_with("enterprise")
+        head.assert_called_once_with("enterprise")
+        data = json.loads((self.dir / "naming_enterprise.json").read_text())
+        self.assertEqual(data["measured_root"], "enterprise")
+        self.assertEqual(data["measured_at"], "ent1234")
+
+    def test_a_check_resolves_the_stamp_in_the_recorded_root(self):
+        (self.dir / "naming_enterprise.json").write_text(
+            '{"count": 3, "note": "n", "measured_at": "ent1234", '
+            '"measured_root": "enterprise"}\n'
+        )
+        with mock.patch.object(
+            ratchet, "_is_ancestor_of_head", return_value=True
+        ) as ancestor:
+            code, _, _ = self._run(["naming_enterprise", "--count", "3"])
+        self.assertEqual(code, EXIT_OK)
+        ancestor.assert_called_once_with("ent1234", "enterprise")
+
+    def test_a_sibling_stamp_without_a_root_is_not_rendered_as_clean(self):
+        (self.dir / "naming_enterprise.json").write_text(
+            '{"count": 3, "note": "n", "measured_at": "odoo1234"}\n'
+        )
+        with mock.patch.object(ratchet, "_is_ancestor_of_head", return_value=True):
+            code, out, _ = self._run(["--list"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("STAMP-PREDATES-ROOT", out)
+        self.assertIn("wrong repository", out)
+        self.assertNotIn("ORPHANED-BASE", out)
 
     def test_update_stamps_the_commit_it_was_measured_against(self):
         with mock.patch.object(ratchet, "_head_commit", return_value="cafe1234"):

@@ -55,6 +55,22 @@ files and nothing else, so it stays a list of debt. `assert_ratchet` under
 `odoo/addons/test_lint/tests` has read an absent baseline as zero since it
 landed; this is the same rule for the workflow-driven gates.
 
+## A floor is a claim about a commit
+
+`--update` refuses a dirty tree (`git status --porcelain --untracked-files=all`
+non-empty) and stamps `measured_at` with the HEAD it was measured on, so a floor
+can only be banked from a clean worktree of the commit it names. A check whose
+floor is stamped at a commit outside HEAD's history exits 2 with "re-measure":
+that count was taken on a tree this branch never had. A stamp git cannot resolve
+stays `UNCHECKED` and is still compared, because unknowable is not wrong.
+
+A gate named `<name>_<sibling>` measures that sibling checkout. Bank it with
+`--root <sibling>` from a clean worktree of the *sibling*: that is the tree the
+dirty check reads and the history the stamp lives in, recorded as
+`measured_root`. Without `--root` the tool refuses. A sibling floor stamped
+before `--root` existed carries an odoo commit, which resolves cleanly in the
+wrong repository; `--list` renders it `STAMP-PREDATES-ROOT` until its next bank.
+
 ## Wired gates
 
 **`baselines/` is the list and `--list` is the reading.** No file states how
