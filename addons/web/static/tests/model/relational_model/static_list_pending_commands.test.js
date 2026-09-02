@@ -58,7 +58,7 @@ function makeList({ loadRecords = async () => [] } = {}) {
                 virtualId: params.virtualId || null,
                 activeFields: {},
                 fields: {},
-                fieldNames: [],
+                fieldNames: /** @type {string[]} */ ([]),
                 loadedFieldNames: new Set(Object.keys(data)),
                 data: { ...data },
                 changes: {},
@@ -166,6 +166,7 @@ describe("save barrier on pending commands", () => {
             isInEdition: true,
             changes: markRaw({}),
             _values: markRaw({}),
+            /** @returns {Record<string, any>} */
             get savedData() {
                 return this._values;
             },
@@ -314,6 +315,7 @@ describe("save barrier on pending commands", () => {
             },
         });
 
+        /** @type {string[]} */
         const warnings = [];
         const originalWarn = console.warn;
         console.warn = (...args) => warnings.push(args.join(" "));

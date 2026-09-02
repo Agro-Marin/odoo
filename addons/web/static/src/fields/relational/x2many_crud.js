@@ -58,12 +58,13 @@ export function useX2ManyCrud(getList, isMany2Many) {
 
 /**
  * @param {Object} params
- * @param {Function} params.addNew
- * @returns {Function}
+ * @param {(vals: { context?: any, mode: string, position?: any }) => any} params.addNew
+ * @returns {(vals: { context?: any, editable?: any }) => Promise<void>}
  */
 export function useAddInlineRecord({ addNew }) {
     let creatingRecord = false;
 
+    /** @param {{ context?: any, editable?: any }} vals */
     async function addInlineRecord({ context, editable }) {
         if (!creatingRecord) {
             creatingRecord = true;

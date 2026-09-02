@@ -212,6 +212,7 @@ const FORWARDED_TO_CONTROLLER = ["noBreadcrumbs"];
  * @returns {Record<string, any>}
  */
 function pickDeclaredProps(props, declared) {
+    /** @type {Record<string, any>} */
     const picked = {};
     for (const key of Object.keys(props)) {
         if (key in declared) {

@@ -45,6 +45,7 @@ async function closePopover() {
     await animationFrame();
 }
 
+/** @param {string} propertyType */
 async function changeType(propertyType) {
     const TYPES = [
         "char",
@@ -114,6 +115,10 @@ async function makePropertiesGroupView(propertySpecs) {
     });
 }
 
+/**
+ * @param {string} separatorName
+ * @param {boolean} isSeparator
+ */
 async function toggleSeparator(separatorName, isSeparator) {
     await click(
         `[property-name="${separatorName}"] > * > .o_field_property_open_popover`,

@@ -11,13 +11,26 @@ import {
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
+    /**
+     * @type {{
+     *     pushState: number,
+     *     switchView: Record<string, any>[],
+     *     doAction: Record<string, any>[],
+     * }}
+     */
     const calls = { pushState: 0, switchView: [], doAction: [] };
     const am = {
         pushState: () => calls.pushState++,
         getView: () => null,
-        switchView: (type, props, options) =>
-            calls.switchView.push({ type, props, options }),
-        doAction: (action, options) => calls.doAction.push({ action, options }),
+        switchView: (
+            /** @type {string} */ type,
+            /** @type {Record<string, any>} */ props,
+            /** @type {Record<string, any>} */ options,
+        ) => calls.switchView.push({ type, props, options }),
+        doAction: (
+            /** @type {Record<string, any>} */ action,
+            /** @type {Record<string, any>} */ options,
+        ) => calls.doAction.push({ action, options }),
         ...overrides,
     };
     am.__calls = calls;

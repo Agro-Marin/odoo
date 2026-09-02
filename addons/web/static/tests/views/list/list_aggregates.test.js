@@ -305,6 +305,7 @@ describe("weightedGroupAverage — an avg over groups", () => {
     // `record.__count` the records behind it. The average of the group averages
     // is not the average, and which correction applies depends on what the
     // server already did to the column.
+    /** @param {[number, number][]} pairs */
     const groups = (...pairs) =>
         pairs.map(([value, count]) => ({ value, record: { __count: count } }));
 

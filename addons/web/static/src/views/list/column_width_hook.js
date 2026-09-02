@@ -29,7 +29,7 @@ const DELETE_BUTTON_WIDTH = 12;
  * hasActionsColumn: boolean,
  * }} state
  * @param {number} allowedWidth total width the columns must add up to
- * @param {number[]} [startingWidths] widths to resize from, instead of measuring
+ * @param {number[] | null} [startingWidths] widths to resize from, instead of measuring
  *        the table -- used when a resize continues from a previous layout
  * @returns {Number[]}
  */
@@ -45,7 +45,7 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
     } else {
         table.style.tableLayout = "auto";
         headers.forEach((th) => {
-            th.style.width = null;
+            th.style.width = "";
         });
         table.classList.add("o_list_computing_widths");
         _columnWidths = headers.map((th) => th.getBoundingClientRect().width);
@@ -300,7 +300,8 @@ export class MagicColumnWidths {
         if (!this.cellPaddings || this.cellPaddings.length !== headers.length) {
             this.cellPaddings = headers.map((th) => getHorizontalPadding(th));
         }
-        const totalCellPadding = this.cellPaddings.reduce(
+        const cellPaddings = this.cellPaddings;
+        const totalCellPadding = cellPaddings.reduce(
             (total, padding) => padding + total,
             0,
         );
@@ -309,19 +310,16 @@ export class MagicColumnWidths {
         const allowedWidthDiff = Math.abs(this.allowedWidth - nextAllowedWidth);
         this.allowedWidth = nextAllowedWidth;
 
-        if (!this.columnWidths || allowedWidthDiff > 0) {
-            this.columnWidths = computeWidths(
-                table,
-                state,
-                this.allowedWidth,
-                this.columnWidths,
-            );
-        }
+        const columnWidths =
+            !this.columnWidths || allowedWidthDiff > 0
+                ? computeWidths(table, state, this.allowedWidth, this.columnWidths)
+                : this.columnWidths;
+        this.columnWidths = columnWidths;
 
         table.style.tableLayout = "fixed";
         headers.forEach((th, index) => {
             th.style.width = `${Math.floor(
-                this.columnWidths[index] + this.cellPaddings[index],
+                columnWidths[index] + cellPaddings[index],
             )}px`;
         });
         this.lastAppliedParentWidth = parentClientWidth;
@@ -351,10 +349,15 @@ export class MagicColumnWidths {
         this._resizing = true;
         const table = this.tableRef.el;
         const th = /** @type {HTMLElement} */ (ev.target).closest("th");
+        const thRow = th?.parentNode;
+        if (!th || !thRow) {
+            this._resizing = false;
+            return;
+        }
         table.style.width = `${Math.floor(table.getBoundingClientRect().width)}px`;
-        const thPosition = [...(th?.parentNode?.children ?? [])].indexOf(th);
+        const thPosition = [...thRow.children].indexOf(th);
         const resizingColumnElements = [...table.getElementsByTagName("tr")]
-            .filter((tr) => tr.children.length === th.parentNode.children.length)
+            .filter((tr) => tr.children.length === thRow.children.length)
             .map((tr) => tr.children[thPosition]);
         const initialX = ev.clientX;
         const initialWidth = th.getBoundingClientRect().width;

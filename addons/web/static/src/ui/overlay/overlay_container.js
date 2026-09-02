@@ -53,6 +53,11 @@ class OverlayItem extends Component {
         id: { type: Number, optional: true },
     };
 
+    /** @type {import("@odoo/owl").Ref} */
+    rootRef;
+    /** @type {OverlayItem[]} */
+    siblings;
+
     setup() {
         this.rootRef = useRef("rootRef");
 
@@ -118,6 +123,15 @@ export class OverlayContainer extends Component {
         overlays: { type: Object, optional: true },
         rootId: { type: String, optional: true },
     };
+
+    /** @type {import("@odoo/owl").Ref} */
+    root;
+    /** @type {{ rootId: string | undefined }} */
+    state;
+    /** @type {Record<string | number, any>} */
+    overlays;
+    /** @type {(string | undefined)[]} */
+    containerRootIds;
 
     setup() {
         this.root = useRef("root");

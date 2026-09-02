@@ -12,6 +12,11 @@ import { registry } from "@web/core/registry";
  *     cycle: number,
  *     cyclePos: (dt: DateTime) => number,
  * }} GranularityConfig
+ * @typedef {{
+ *     min_groups: number,
+ *     fill_from?: string | false,
+ *     fill_to?: string | false,
+ * }} FillTemporalContext
  */
 
 /**
@@ -234,20 +239,14 @@ export class FillTemporalPeriod {
      *                                          until:
      *                                          true: this.end
      *                                          false: the last group with at least one record
-     * @returns {Object} new context
+     * @returns {Record<string, any> & { fill_temporal: FillTemporalContext }} new context
      */
     getContext({
         context,
         forceFillingFrom = true,
         forceFillingTo = !this.computedEnd,
     }) {
-        /**
-         * @type {{
-         *     min_groups: number,
-         *     fill_from?: string | false,
-         *     fill_to?: string | false,
-         * }}
-         */
+        /** @type {FillTemporalContext} */
         const fillTemporal = {
             min_groups: this.minGroups,
         };
@@ -261,8 +260,7 @@ export class FillTemporalPeriod {
                 this.end.minus({ [minGranularity]: 1 }),
             );
         }
-        context = { ...context, fill_temporal: fillTemporal };
-        return context;
+        return { ...context, fill_temporal: fillTemporal };
     }
     /**
      * @param {number} minGroups minimum amount of groups to display, regardless of other

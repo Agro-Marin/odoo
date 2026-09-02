@@ -19,17 +19,18 @@ import {
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
+    /** @type {{ restore: string[], stateToUrl: (Record<string, any> | undefined)[] }} */
     const calls = { restore: [], stateToUrl: [] };
     const am = {
         router: {
-            stateToUrl: (state) => {
+            stateToUrl: (/** @type {Record<string, any> | undefined} */ state) => {
                 calls.stateToUrl.push(state);
                 return `/odoo/url-for-${state?.action ?? "none"}`;
             },
         },
-        restore: (jsId) => calls.restore.push(jsId),
+        restore: (/** @type {string} */ jsId) => calls.restore.push(jsId),
         breadcrumbCache: new BreadcrumbCache(),
-        makeController: (params) => ({ ...params }),
+        makeController: (/** @type {Record<string, any>} */ params) => ({ ...params }),
         ...overrides,
     };
     am.__calls = calls;
@@ -374,7 +375,9 @@ test("a trail longer than the cache limit still names every crumb", async () => 
     }
     onRpc("/web/action/load_breadcrumbs", async (request) => {
         const { params } = await request.json();
-        return params.actions.map((a) => ({ display_name: `name-${a.action}` }));
+        return params.actions.map((/** @type {{ action: any }} */ a) => ({
+            display_name: `name-${a.action}`,
+        }));
     });
 
     await refreshBreadcrumbDisplayNames(controllers, cache);

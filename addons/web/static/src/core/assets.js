@@ -345,15 +345,6 @@ async function loadESMBundleHere(specifiers, importMap) {
 }
 
 /**
- * Load ESM specifiers into ANOTHER document, by injecting a module script that
- * imports them there and reports back through a one-shot event pair.
- *
- * @param {Document} targetDoc
- * @param {string[]} specifiers
- * @param {Record<string, string> | null} importMap
- * @returns {Promise<any>}
- */
-/**
  * The import map another document needs in order to resolve the specifiers this
  * one has already loaded.
  *
@@ -485,6 +476,15 @@ function runESMBundleScript(targetDoc, specifiers, extraMap, injected) {
     });
 }
 
+/**
+ * Load ESM specifiers into ANOTHER document, by injecting a module script that
+ * imports them there and reports back through a one-shot event pair.
+ *
+ * @param {Document} targetDoc
+ * @param {string[]} specifiers
+ * @param {Record<string, string> | null} importMap
+ * @returns {Promise<any>}
+ */
 async function loadESMBundleInto(targetDoc, specifiers, importMap) {
     const cacheKey = JSON.stringify(specifiers);
     if (!crossDocESMBundleCache.has(targetDoc)) {

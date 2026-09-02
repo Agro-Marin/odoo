@@ -13,6 +13,11 @@ function service() {
     return new FillTemporal();
 }
 
+/**
+ * @param {FillTemporal} svc
+ * @param {string} groupBySpec
+ * @param {Record<string, any>} [extra]
+ */
 function forGroupBy(svc, groupBySpec, extra = {}) {
     return svc.getFillTemporalPeriodForGroupBy({
         modelName: "crm.lead",
@@ -56,7 +61,7 @@ describe("cache key derivation", () => {
 describe("minGroups", () => {
     test("sizes the derived end on a fresh period", () => {
         mockDate("2021-10-10 12:00:00");
-        const months = (n) =>
+        const months = (/** @type {number} */ n) =>
             Math.round(
                 forGroupBy(service(), "date_deadline:month", { minGroups: n }).end.diff(
                     forGroupBy(service(), "date_deadline:month", { minGroups: n })
@@ -150,10 +155,16 @@ describe("cycle arithmetic", () => {
     test("expand adds exactly one granularity step", () => {
         mockDate("2021-10-15 12:00:00");
         for (const granularity of Object.keys(GRANULARITY_TABLE)) {
+            // Every key of GRANULARITY_TABLE pluralises to a luxon duration
+            // unit, which is what both diff() and the Duration read want.
+            const unit =
+                /** @type {"hours"|"days"|"weeks"|"months"|"quarters"|"years"} */ (
+                    `${granularity}s`
+                );
             const p = forGroupBy(service(), `date_deadline:${granularity}`);
             const before = p.end;
             p.expand();
-            expect(p.end.diff(before, granularity)[`${granularity}s`]).toBe(1, {
+            expect(p.end.diff(before, unit)[unit]).toBe(1, {
                 message: `${granularity}: expand() adds one step`,
             });
         }
@@ -217,6 +228,6 @@ describe("domain and context", () => {
             .getContext({}).fill_temporal.fill_from;
         expect(dateFrom).toBe("2021-10-01");
         expect(datetimeFrom).toMatch(/^2021-(09-30|10-01) \d{2}:\d{2}:\d{2}$/);
-        expect(datetimeFrom.slice(0, 10)).not.toBe("2021-10-15");
+        expect(String(datetimeFrom).slice(0, 10)).not.toBe("2021-10-15");
     });
 });

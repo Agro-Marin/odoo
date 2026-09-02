@@ -52,7 +52,6 @@ addons/web/static/src/ui/bottom_sheet/bottom_sheet.js
 addons/web/static/src/ui/dialog/confirmation_dialog.js
 addons/web/static/src/ui/dialog/dialog.js
 addons/web/static/src/ui/notification/notification.js
-addons/web/static/src/ui/overlay/overlay_container.js
 addons/web/static/src/ui/popover/popover.js
 addons/web/static/src/views/calendar/calendar_common/calendar_common_renderer.js
 addons/web/static/src/views/calendar/calendar_model.js
@@ -66,7 +65,6 @@ addons/web/static/src/views/kanban/kanban_cover_image_dialog.js
 addons/web/static/src/views/kanban/kanban_keyboard_nav.js
 addons/web/static/src/views/kanban/kanban_record.js
 addons/web/static/src/views/kanban/kanban_record_quick_create.js
-addons/web/static/src/views/list/column_width_hook.js
 addons/web/static/src/views/list/list_column_utils.js
 addons/web/static/src/views/list/list_keyboard_nav.js
 addons/web/static/src/views/pivot/pivot_model.js
@@ -341,7 +339,6 @@ addons/web/static/tests/webclient/actions/misc.test.js
 addons/web/static/tests/webclient/actions/multi_company_action.test.js
 addons/web/static/tests/webclient/actions/new_window_action.test.js
 addons/web/static/tests/webclient/actions/report_action.test.js
-addons/web/static/tests/webclient/actions/report_hook.test.js
 addons/web/static/tests/webclient/actions/target.test.js
 addons/web/static/tests/webclient/actions/url_action.test.js
 addons/web/static/tests/webclient/actions/window_action.test.js

@@ -641,12 +641,6 @@ function _rpcCached(url, params, settings, rpcCache) {
 }
 
 /**
- * @param {string} url
- * @param {{[key: string]: any}} params
- * @param {{[key: string]: any}} settings
- * @returns {Promise<any>}
- */
-/**
  * The fetch options for one JSON-RPC call, and the handles needed to cancel it.
  *
  * Three signals can end this request -- our own abort, an optional timeout, and
@@ -698,6 +692,12 @@ function stampVersion(parsed) {
     return result;
 }
 
+/**
+ * @param {string} url
+ * @param {{[key: string]: any}} params
+ * @param {{[key: string]: any}} settings
+ * @returns {Promise<any>}
+ */
 function _rpcOnce(url, params, settings) {
     const data = {
         id: _rpcState.rpcId++,

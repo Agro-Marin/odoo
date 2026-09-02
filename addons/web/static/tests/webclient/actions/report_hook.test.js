@@ -9,6 +9,18 @@ import {
     useEnrichWithActionLinks,
 } from "@web/webclient/actions/reports/report_hook";
 
+/**
+ * @param {import("@odoo/owl").Ref} ref
+ * @returns {HTMLElement}
+ */
+function mountedEl(ref) {
+    const el = ref.el;
+    if (!el) {
+        throw new Error("the ref holds no element");
+    }
+    return el;
+}
+
 class EnrichHost extends Component {
     static template = xml`
         <div t-ref="root">
@@ -17,6 +29,10 @@ class EnrichHost extends Component {
             <span class="untouched">z</span>
         </div>`;
     static props = {};
+
+    /** @type {import("@odoo/owl").Ref} */
+    root;
+
     setup() {
         this.root = useRef("root");
         useEnrichWithActionLinks(this.root);
@@ -36,13 +52,13 @@ test("every matching element is wrapped in exactly one action anchor", async () 
 test("a wrapped element still matches the selector it was found by", async () => {
     const comp = await mountWithCleanup(EnrichHost);
     expect(
-        comp.root.el.querySelectorAll("[res-id][res-model][view-type]"),
+        mountedEl(comp.root).querySelectorAll("[res-id][res-model][view-type]"),
     ).toHaveLength(2);
 });
 
 test("re-running enrich on already-enriched DOM adds nothing", async () => {
     const comp = await mountWithCleanup(EnrichHost);
-    const rootEl = comp.root.el;
+    const rootEl = mountedEl(comp.root);
     const anchorsAfterMount = rootEl.querySelectorAll("a").length;
     expect(anchorsAfterMount).toBe(2);
 
@@ -56,7 +72,7 @@ test("re-running enrich on already-enriched DOM adds nothing", async () => {
 
 test("enrich still wraps elements added after the first pass", async () => {
     const comp = await mountWithCleanup(EnrichHost);
-    const rootEl = comp.root.el;
+    const rootEl = mountedEl(comp.root);
     const fresh = document.createElement("span");
     fresh.setAttribute("res-id", "3");
     fresh.setAttribute("res-model", "partner");
@@ -78,6 +94,12 @@ class ConditionalEnrichHost extends Component {
             </div>
         </div>`;
     static props = {};
+
+    /** @type {{ shown: boolean }} */
+    state;
+    /** @type {import("@odoo/owl").Ref} */
+    root;
+
     setup() {
         this.state = useState({ shown: true });
         this.root = useRef("root");
@@ -101,6 +123,10 @@ class IframeEnrichHost extends Component {
     static template = xml`<iframe t-ref="frame" t-att-srcdoc="doc"/>`;
     static props = {};
     doc = `<body><span res-id="7" res-model="partner" view-type="form" class="tgt">x</span></body>`;
+
+    /** @type {import("@odoo/owl").Ref} */
+    frame;
+
     setup() {
         this.frame = useRef("frame");
         useEnrichWithActionLinks(this.frame);

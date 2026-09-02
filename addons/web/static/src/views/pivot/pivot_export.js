@@ -2,7 +2,7 @@
 /** @odoo-module native */
 
 /**
- * @param {Object} header
+ * @param {Record<string, any>} header
  * @returns {{ title: string, width: number, height: number, is_bold: boolean }}
  */
 function processHeader(header) {
@@ -26,7 +26,7 @@ export function computeExportedTableWidth(leafCount, measureCount) {
 }
 
 /**
- * @param {Object} table
+ * @param {Record<string, any>} table
  * @param {Object} metaData
  * @param {string[]} metaData.activeMeasures
  * @param {string} metaData.resModel

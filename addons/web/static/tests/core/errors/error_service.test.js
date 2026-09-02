@@ -283,7 +283,7 @@ test("defaultHandler tolerates an error event target without a location", async 
     const env = {
         services: {
             dialog: {
-                add(_DialogComponent, props) {
+                add(/** @type {any} */ _DialogComponent, /** @type {any} */ props) {
                     expect.step("dialog");
                     expect(props.serverHost).toBe(undefined);
                 },
@@ -800,7 +800,7 @@ describe("the reported class depends on the debug mode", () => {
         );
         const env = await makeMockEnv();
         patchWithCleanup(env, { debug });
-        const service = registry.category("services").get("error").start(env);
+        const service = registry.category("services").get("error").start(env, {});
         const error = new Error("boom");
         await service
             .onError({

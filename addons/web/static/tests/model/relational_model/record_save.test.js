@@ -44,7 +44,7 @@ function makeRecord({
         dirty: true,
         activeFields: {},
         fields: {},
-        fieldNames: [],
+        fieldNames: /** @type {string[]} */ ([]),
         data: {},
         config: {
             isRoot: false,
@@ -53,6 +53,7 @@ function makeRecord({
         isInEdition: true,
         changes: markRaw({}),
         _values: markRaw({}),
+        /** @returns {Record<string, any>} */
         get savedData() {
             return this._values;
         },
@@ -148,12 +149,17 @@ describe("no-changes short-circuit", () => {
 
 describe("creation path", () => {
     test("calls webSave with [] ids for a new record and returns true", async () => {
+        /** @type {number[]} */
         const savedIds = [];
         const rec = makeRecord({
             resId: false,
             resIds: [],
             changes: { name: "New Partner" },
-            webSave: async (model, ids, vals) => {
+            webSave: async (
+                /** @type {string} */ model,
+                /** @type {number[]} */ ids,
+                /** @type {Record<string, any>} */ vals,
+            ) => {
                 savedIds.push(...ids);
                 return [{ id: 99, name: "New Partner" }];
             },
@@ -166,11 +172,15 @@ describe("creation path", () => {
 
 describe("update path", () => {
     test("calls webSave with [resId] for an existing record and returns true", async () => {
+        /** @type {number[]} */
         const savedIds = [];
         const rec = makeRecord({
             resId: 7,
             changes: { name: "Updated" },
-            webSave: async (model, ids) => {
+            webSave: async (
+                /** @type {string} */ model,
+                /** @type {number[]} */ ids,
+            ) => {
                 savedIds.push(...ids);
                 return [{ id: 7, name: "Updated" }];
             },

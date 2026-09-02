@@ -18,7 +18,7 @@ export class ResizablePanel extends Component {
         class: { type: String, optional: true },
         slots: { type: Object },
         handleSide: {
-            validate: (val) => ["start", "end"].includes(val),
+            validate: (/** @type {string} */ val) => ["start", "end"].includes(val),
             optional: true,
         },
     };
