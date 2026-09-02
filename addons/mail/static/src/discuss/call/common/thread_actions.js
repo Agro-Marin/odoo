@@ -40,7 +40,7 @@ registerThreadAction("call", {
     name: ({ thread }) =>
         thread.rtc_session_ids.length > 0 ? _t("Join the Call") : _t("Start Call"),
     /** @param {ActionParams} params */
-    open: ({ store, thread }) => store.rtc.toggleCall(thread),
+    open: ({ store, thread }) => store.rtc.requestToggleCall(thread),
     sequence: 10,
     sequenceQuick: 30,
     tags: [ACTION_TAGS.SUCCESS, ACTION_TAGS.JOIN_LEAVE_CALL],
@@ -57,8 +57,10 @@ registerThreadAction("camera-call", {
             : _t("Start Video Call"),
     /** @param {ActionParams} params */
     open: async ({ store, thread }) => {
-        await store.rtc.toggleCall(thread, { camera: true });
-        if (store.rtc.selfSession) {
+        if (
+            (await store.rtc.requestToggleCall(thread, { camera: true })) &&
+            store.rtc.selfSession
+        ) {
             store.rtc.enterFullscreen();
         }
     },

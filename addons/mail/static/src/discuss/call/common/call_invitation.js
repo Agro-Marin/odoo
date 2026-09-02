@@ -31,12 +31,15 @@ export class CallInvitation extends Component {
         useSubEnv({ inCallInvitation: true });
     }
 
-    joinCall() {
-        this.props.thread.open({ focus: true });
-        this.rtc.toggleCall(this.props.thread, {
+    async joinCall() {
+        const hasJoined = await this.rtc.requestToggleCall(this.props.thread, {
             audio: this.state.hasMicrophone,
             camera: this.state.hasCamera,
         });
+        if (!hasJoined) {
+            return;
+        }
+        this.props.thread.open({ focus: true });
     }
 
     get acceptOrRejectActions() {

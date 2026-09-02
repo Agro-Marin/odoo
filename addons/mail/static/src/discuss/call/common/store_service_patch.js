@@ -2,6 +2,7 @@
 import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { router } from "@web/core/browser/router";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 /**
  * @type {Partial<import("models").Store> & ThisType<import("models").Store>}
@@ -53,6 +54,22 @@ const StorePatch = {
     onStarted() {
         super.onStarted(...arguments);
         this.rtc.start();
+    },
+    async requestStartMeeting() {
+        if (this.rtc.channel) {
+            const hasConfirmed = await this.rtc.askCallSwitchConfirmation({
+                confirmLabel: _t("Start Meeting"),
+                description: _t(
+                    "You will leave the ongoing call and automatically join the new meeting.",
+                ),
+                message: _t("Start a new Meeting?"),
+                title: _t("New Meeting Confirmation"),
+            });
+            if (!hasConfirmed) {
+                return;
+            }
+        }
+        await this.startMeeting();
     },
     async startMeeting() {
         const thread = await this.createGroupChat({
