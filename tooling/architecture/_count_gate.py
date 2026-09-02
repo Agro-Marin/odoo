@@ -31,8 +31,12 @@ def build_parser(
     siblings: Sequence[str],
     addon_help_tail: str = "",
     addon_help: str | None = None,
+    description: str | None = None,
 ) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=description,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument("--json", action="store_true", help="machine-readable")
     parser.add_argument("--top", type=int, default=25, help="0 for all")
@@ -64,9 +68,10 @@ def run(
     where_for: Callable[[str], str] | None = None,
     addon_help_tail: str = "",
     addon_help: str | None = None,
+    description: str | None = None,
 ) -> int:
     args = build_parser(
-        default_addon, everything, siblings, addon_help_tail, addon_help
+        default_addon, everything, siblings, addon_help_tail, addon_help, description
     ).parse_args(argv)
 
     if args.addon not in governed:

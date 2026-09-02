@@ -1296,6 +1296,25 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run bridge-budget ratchet (addons)
+        id: bridge_budget
+        # An auto_install module with two or more triggers is a bridge: it is
+        # installed only when every parent already is, so each parent sits in
+        # every closure the bridge appears in. One under 60 pyLOC is a
+        # directory, a manifest and a security file for the lines it carries;
+        # folded into the parent that already depends on the others it costs
+        # the graph nothing. The count is odoo/addons and addons as one number
+        # and a fold is a decision per module -- the gate prints the list bare
+        # so the decision is read off it, never off the count.
+        run: |
+          set +e
+          python tooling/architecture/bridge_budget.py | tee /tmp/bridge_budget.log
+          python tooling/architecture/bridge_budget.py --count \
+            | xargs python tooling/ratchet/ratchet.py bridge_budget --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run JS function-length ratchet
         id: js_funclen
         # A count ratchet rather than a contract: nothing bounded how long a JS
@@ -2119,6 +2138,12 @@ jobs:
               cat "/tmp/py_x2many_count_$scope.log" 2>/dev/null \
                 || echo "($scope x2many-counter gate did not run)"
             done
+            echo '```'
+            echo ""
+            echo "### Bridges under budget"
+            echo '```'
+            cat /tmp/bridge_budget.log 2>/dev/null \
+              || echo "(bridge-budget gate did not run)"
             echo '```'
             echo ""
             echo "### Addon files importing werkzeug instead of odoo.http"
