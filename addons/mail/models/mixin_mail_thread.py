@@ -820,7 +820,14 @@ class MixinMailThread(models.AbstractModel):
             return {}
 
         tracked_fields = self.fields_get(
-            fields_iter, attributes=("string", "type", "selection", "currency_field")
+            fields_iter,
+            attributes=(
+                "company_dependent",
+                "currency_field",
+                "selection",
+                "string",
+                "type",
+            ),
         )
         tracking = {}
         for record in self:
