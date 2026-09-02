@@ -329,6 +329,40 @@ PUBLIC_SURFACE_PIN = ROOT / "tooling" / "architecture" / "public_surface_web.txt
 GUIDELINES = ROOT / "doc" / "coding_guidelines.rst"
 
 
+def headless_integration_suites() -> tuple[int, ...]:
+    workflow = (ROOT / ".github" / "workflows" / "integration_tests.yml").read_text(
+        encoding="utf-8"
+    )
+    steps = [
+        step
+        for step in re.split(r"\n(?=\s+- name: )", workflow)
+        if step.lstrip().startswith("- name:")
+    ]
+    suites = []
+    for step in steps:
+        body = "\n".join(
+            "" if line.lstrip().startswith("#") else re.sub(r"\s#.*$", "", line)
+            for line in step.splitlines()
+        )
+        if "odoo-bin" in body and ("--test-enable" in body or "--test-tags" in body):
+            suites.append(body)
+    return (sum("--no-http" in suite for suite in suites), len(suites))
+
+
+def gate_modules_without_a_docstring() -> tuple[int, ...]:
+    modules = [
+        path
+        for path in sorted((ROOT / "tooling" / "architecture").glob("*.py"))
+        if not path.name.startswith(("test_", "_"))
+    ]
+    silent = [
+        path
+        for path in modules
+        if ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"))) is None
+    ]
+    return (len(silent), len(modules))
+
+
 def architecture_checkers() -> tuple[int, ...]:
     workflow = (ROOT / ".github" / "workflows" / "architecture.yml").read_text(
         encoding="utf-8"
@@ -360,6 +394,25 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         GUIDELINES,
         re.compile(r"core Python, \*\*excess lines\*\* over (\d+)"),
         py_function_length_budget,
+        _plain,
+    ),
+    Figure(
+        "headless_integration_suites",
+        RISKS,
+        re.compile(
+            r"\*\*(\d[\d,]*)\*\*\s+of\s+the\s+\*\*(\d[\d,]*)\*\*\s+suites\s+the\n?\s*"
+            r"integration\s+lane\s+runs\s+pass"
+        ),
+        headless_integration_suites,
+        _plain,
+    ),
+    Figure(
+        "gate_modules_without_a_docstring",
+        RISKS,
+        re.compile(
+            r"Today\s+\*\*(\d[\d,]*)\*\*\s+of\s+the\s+\*\*(\d[\d,]*)\*\*\s+gate\s+modules"
+        ),
+        gate_modules_without_a_docstring,
         _plain,
     ),
     Figure(

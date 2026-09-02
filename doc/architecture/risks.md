@@ -22,6 +22,9 @@ a question — those live at the bottom of the view that owns the subject, under
 | R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 | **2026-08-14** |
 | R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 | — |
 | R7 | Every measured figure is single-process | Medium | 2026-08-08 | **2026-08-28** |
+| R8 | The integration lane is headless, so the tours it selects skip as passes | High | 2026-09-02 | — |
+| R9 | A recursive stored compute has a shape no DB-free tier can pin | Medium | 2026-09-02 | — |
+| R10 | Most gate modules state their reason nowhere | Medium | 2026-09-02 | — |
 
 ---
 
@@ -185,8 +188,21 @@ structure holds". Two lanes execute addon tests: the integration lane is the onl
 one that runs addon tests in Python, and it runs twenty-five suites; the JS lane
 (`js_tests.yml`, added 2026-09-01) runs the HOOT suites under both presets.
 
-**What would close it.** Broadening the integration lane is the only lever;
-adding structural gates cannot reach this class of defect by construction.
+**Widened 2026-09-02: the Python lane is headless as well as narrow.** Nearly
+every one of its suites passes `--no-http` — R8 carries the figure and the
+mechanism — so what "runs addon tests" executes is the database half of each
+suite and not its browser half. An `HttpCase` class skips itself at `setUpClass`
+and is reported as skipped, never as a failure, so the lane's green covers the
+tours and the served-controller tests of a suite it names exactly as well as the
+boundary job covers behaviour: not at all. The sentence above therefore reads
+"runs the addon tests that need no server" for all but the two suites R8 names,
+and the defect class this entry opened on — green everywhere, wrong at runtime —
+has a second instance in R9, where the tier that stayed green cannot hold the
+state the defect needs.
+
+**What would close it.** Broadening the integration lane is the only lever —
+more suites, and a server under the ones already there (R8) — because adding
+structural gates cannot reach this class of defect by construction.
 
 ## R5 — Two ADRs describe a subsystem the repository has never contained — **CLOSED 2026-08-14**
 
@@ -326,6 +342,128 @@ is stated on the page rather than here: where between total conflict and none
 the retry ladder begins to converge, and the replica case — signalling read
 through a cursor that lands on a replica merely *behind* reads as "nothing has
 changed".
+
+## R8 — The integration lane is headless, so the tours it selects skip as passes
+
+**What.** Every `HttpCase` — a tour, and any test that drives a browser or an
+HTTP client against the server — needs a running HTTP server, and `--no-http`
+starts none. Such a class skips itself at `setUpClass`, which never reaches
+`startTest`, so it adds nothing to the test count and the log records a skip
+where the suite's author wrote a test. **23** of the **25** suites the
+integration lane runs pass `--no-http`; `test_http` and `rpc` are the two that do
+not, and each carries a count floor set *above* what a headless run of the same
+suite reports, so that a re-added flag fails the lane instead of passing it. The
+other browser lane does not reach a tour either: `js_tests.yml` (`15fb00aab7a`)
+runs the HOOT unit suites under both presets with a passed-count floor per pass,
+and a HOOT suite mounts components against a mock server — it is the browser
+without the framework, where a tour is the framework driven through the browser.
+Between the two lanes, a tour runs nowhere.
+
+**Evidence.** `hr_holidays`'s `time_off_request_calendar_view` tour fails at its
+last step on a pristine checkout — the click that should open the new-leave
+dialog opens nothing — and no headless run can see it: the class is reported as
+skipped, never as a pass, which is how it stayed unnoticed. The `rpc` suite's own
+floor comment records the shape from the other side: a headless run reports
+fewer tests than a served one, and every test in the difference is an `HttpCase`
+skipped as a success. Since `c430b51ef26` the exit code does catch one edge of
+this — a post-install phase that *prepared* tests and *started none* fails the
+run, so a lane whose whole selected suite is `HttpCase` goes red — but a mixed
+suite that skips its browser half and runs its database half is exactly the
+shape the exit code still calls a pass.
+
+**Cost.** A tour regression lands green, and stays green until somebody runs the
+suite by hand with a server. Every tour in the lane's suites is coverage the lane
+claims and does not have; every `--no-http` flag is a decision that the
+tour classes of that suite are deferred, taken once and then re-read as a pass
+on every push.
+
+**What would close it.** Chrome on the runner and the flag dropped suite by
+suite, each drop paired with its count floor raised to the served figure — the
+`rpc` suite is the template, floor comment included. The floor is the
+load-bearing half: a flag dropped without it lets the skip come back unread, and
+a floor set from the headless count ratifies the skip. The figure above is
+measured from the workflow, so each suite that drops the flag moves it, and the
+entry closes when it reads zero.
+
+## R9 — A recursive stored compute has a shape no DB-free tier can pin
+
+**What.** `e8ff3f09c9e` fixed `_recompute_singly`
+(`odoo/orm/fields/_field_compute.py`): a single-record read of a `store=True,
+recursive=True` field widened into the field's whole pending set on every read,
+including the nested read a compute issues for its parent's value of the same
+field. In that nested frame the ancestor whose compute is in progress is
+protected and has no cache entry, so a descendant computed there fell through to
+the stored column, read the value from before the write that scheduled the
+recompute, stored it, and was marked done — and the protected assignment path
+never calls `modified()`, so nothing marked it again. The stale rows are the
+descendants of whichever record was read first. The fix widens the batch only
+when no record of the field is protected. What stays open is the *shape*, not
+the defect: a stored recursive compute on a model whose `_order` is not
+tree-ordered, where a fetch does not flush the field before the nested read can
+happen.
+
+**Evidence.** `test_orm`'s
+`test_12_recursive_stored_value_survives_a_middle_first_read` pins the fix, and
+it is database-backed on purpose: `InMemoryBackend.search`
+(`odoo/orm/runtime/backend.py`) flushes everything unconditionally where
+PostgreSQL flushes only the fields the query reaches, so the deferred pending set
+the defect needs never exists in Tier 2. The defect was live for as long as the
+shape was, and both DB-free tiers were green throughout — R4's pattern with a
+worked instance, and the reason it is recorded as a shape rather than closed as a
+bug. Shipped models carry the shape in this repository and in `enterprise`;
+`account.analytic.plan` and `stock.package` do here. `hr.department` and
+`product.category` carry the same fields and cannot reproduce it, because a
+tree-ordered `_order` makes the fetch flush the field first — a test written
+against either is green on both sides of the fix, which is the trap for whoever
+adds the next one. `res.partner.commercial_partner_id` has the identical shape
+with no materialised path, and record rules anchor `domain_force` on it.
+
+**Cost.** Silent stale stored values, with no error and no log line, on rows
+selected by read order rather than by any property a reader could predict. On
+the partner field the value is an access anchor, and whether a stale one was
+ever reachable through those rules is unmeasured; `e8ff3f09c9e^` against
+`e8ff3f09c9e` is the clean before/after for anyone who needs to know.
+
+**What would close it.** A DB-free backend whose flush is selective enough to
+hold a pending set across a search — a change to `InMemoryBackend`'s contract,
+not a test — would let the invariant be pinned in the tier every PR runs. Short
+of that, this entry stays open as the record that the invariant is pinned by one
+DB-backed test in one integration suite, and that a change to
+`_field_compute.py` or to the protection path has to be checked against a real
+database by hand before it lands.
+
+## R10 — Most gate modules state their reason nowhere
+
+**What.** `ed3f9ee3523` deleted the decision register and everything whose only
+subject was it: the coverage test that required each gate to cite a record, the
+coherence test over the records, the module-level record constant on every gate
+module and `layer_check`'s per-contract citation. The rationale for a gate had
+been moved *out* of the gate docstrings deliberately, on the grounds that the
+register held it, so the deletion left most gates stating their reason nowhere
+— the removal commit records that cost against itself. `44abc16805b` replaced
+every dangling `ADR-NNNN` token with the decision text the record had carried,
+and wrote a docstring for each gate module that had cited a record and had none.
+Today **54** of the **77** gate modules under `tooling/architecture/` carry no
+module docstring — a gate module being every `.py` there that is neither a test
+nor a private helper.
+
+**Evidence.** The figure above is measured from the tree by
+`doc_restated_counts.py`. The guide's change protocol already says where the
+reason goes — a rule whose rationale is architectural states it in the rule
+itself or in the gate's own module docstring — and the gates page's inventory
+names every gate without saying why any of them exists.
+
+**Cost.** A gate that fails names a rule and not a reason, so the reader's
+choices are to satisfy it blindly or to argue with a number. A gate with no
+stated reason cannot be *revised* either: nobody can tell a deliberate exception
+from an oversight, so its allowlist only grows, and a gate that has outlived its
+reason keeps blocking because nothing says what the reason was.
+
+**What would close it.** The figure at zero: every gate module opens with what
+it holds and why, written from the gate's own failure cases now that the record
+is gone. Because the figure is measured, a new gate born without its reason
+moves it and fails this page's check until either the docstring or an amended
+figure is written — which is the register's coverage test, reborn as a count.
 
 ---
 
