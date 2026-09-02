@@ -6,7 +6,7 @@ from odoo.exceptions import UserError
 from odoo.tests import HttpCase, new_test_user, tagged, users
 from odoo.tools.misc import hash_sign
 
-from odoo.addons.mail.tests.common import MailCommon
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 
 
 @tagged("-at_install", "post_install")
@@ -225,3 +225,44 @@ class TestDiscussChannelInvite(HttpCase, MailCommon):
             group_chat.invite_by_email(["alfred@test.com"])
         last_message = group_chat._get_last_messages()
         self.assertEqual(last_message.message_type, "user_notification")
+
+
+@tagged("-at_install", "post_install")
+class TestDiscussChannelInvitePortal(MailCommon):
+    """A `group` or a `chat` has no authorized group, so it can legitimately hold
+    a portal member -- the invite search has to be able to find one.
+
+    A `channel` still cannot: `_compute_group_public_id` gives it
+    `base.group_user`, and the search crosses that against `user_ids.all_group_ids`.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._create_portal_user()
+        cls.bob = mail_new_test_user(
+            cls.env, login="bob_invite", groups="base.group_user", name="Bob Invite"
+        )
+
+    def _selectable_partners(self, channel):
+        result = (
+            self.env["res.partner"]
+            .with_user(self.bob)
+            .search_for_channel_invite("Chell", channel_id=channel.id)
+        )
+        return result["partner_ids"]
+
+    def test_a_portal_user_is_invitable_to_a_group(self):
+        group_chat = (
+            self.env["discuss.channel"]
+            .with_user(self.bob)
+            ._create_group(partners_to=self.bob.partner_id.ids)
+        )
+        self.assertIn(self.partner_portal.id, self._selectable_partners(group_chat))
+
+    def test_a_portal_user_stays_out_of_an_internal_channel(self):
+        channel = self.env["discuss.channel"].create(
+            {"name": "internal", "channel_type": "channel"}
+        )
+        self.assertEqual(channel.group_public_id, self.env.ref("base.group_user"))
+        self.assertNotIn(self.partner_portal.id, self._selectable_partners(channel))

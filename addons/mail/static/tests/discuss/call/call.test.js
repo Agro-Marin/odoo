@@ -1343,3 +1343,23 @@ test("show warning when blur hardware acceleration is not available", async () =
     await click("[title='Dismiss warning']");
     await contains(".o-discuss-BlurPerformanceWarning-button", { count: 0 });
 });
+
+test("Escape closes the meeting's action panel, then leaves fullscreen", async () => {
+    // The meeting overlay is not a browser fullscreen (`enterFullscreen` passes
+    // `keepBrowserHeader: true`), so the browser's own Escape never applies:
+    // without a handler the only way out is the button.
+    mockGetMedia();
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    await start();
+    await openDiscuss(channelId);
+    await click("button[title='New Meeting']");
+    await contains(".o-mail-Meeting.o-fullscreen");
+    await click(".o-mail-Meeting button[title='Chat']");
+    await contains(".o-mail-Meeting .o-mail-ActionPanel");
+    triggerHotkey("Escape");
+    await contains(".o-mail-Meeting .o-mail-ActionPanel", { count: 0 });
+    await contains(".o-mail-Meeting", { count: 1 });
+    triggerHotkey("Escape");
+    await contains(".o-mail-Meeting", { count: 0 });
+});

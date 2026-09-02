@@ -3,6 +3,7 @@ import {
     contains,
     defineMailModels,
     editInput,
+    mockGetMedia,
     openDiscuss,
     patchUiSize,
     SIZES,
@@ -10,6 +11,7 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
+import { waitUntil } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
 import {
     asyncStep,
@@ -125,4 +127,27 @@ test("local storage for call settings", async () => {
     await editInput(document.body, ".o-Discuss-CallSettings-thresholdInput", 0.3);
     await advanceTime(2000);
     await waitForSteps(["mail_user_setting_voice_threshold: 0.3"]);
+});
+
+test("switching microphone mid-call asks for that exact device", async () => {
+    // Without `exact`, `deviceId` is an *ideal* constraint: the browser may
+    // hand back the previous microphone and the switch is silently ignored.
+    const constraints = [];
+    mockGetMedia();
+    patchWithCleanup(browser.navigator.mediaDevices, {
+        getUserMedia(request) {
+            constraints.push(request);
+            return super.getUserMedia(request);
+        },
+    });
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "test" });
+    const env = await start();
+    await openDiscuss(channelId);
+    await click("[title='Start Call']");
+    await contains(".o-discuss-Call");
+    constraints.length = 0;
+    await env.services["mail.store"].settings.setAudioInputDevice("mockAudioDeviceId");
+    await waitUntil(() => constraints.some((request) => request.audio));
+    expect(constraints.at(-1).audio.deviceId).toEqual({ exact: "mockAudioDeviceId" });
 });

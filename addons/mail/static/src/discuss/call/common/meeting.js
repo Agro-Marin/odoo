@@ -19,6 +19,7 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useService } from "@web/core/utils/hooks";
 
 import { MeetingSideActions } from "./meeting_side_actions.js";
@@ -72,9 +73,27 @@ export class Meeting extends Component {
         });
         onMounted(() => (this.store.meetingViewOpened = true));
         onWillUnmount(() => (this.store.meetingViewOpened = false));
+        useHotkey("escape", () => this.onEscape());
     }
 
     get thread() {
         return this.store.rtc.channel;
+    }
+
+    /**
+     * Peel the meeting one layer at a time, the way the chat window already
+     * does it (`chat_window.js:123`): the open side panel first, the fullscreen
+     * view itself last. Nothing else exits this view -- `enterFullscreen`
+     * passes `keepBrowserHeader: true`, so `mail_fullscreen.js` never calls
+     * `requestFullscreen()` and the browser's own Escape does not apply.
+     */
+    onEscape() {
+        if (this.threadActions.activeAction) {
+            this.threadActions.activeAction.close();
+            return;
+        }
+        if (this.rtc.state.isFullscreen) {
+            this.rtc.exitFullscreen();
+        }
     }
 }

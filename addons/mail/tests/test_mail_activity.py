@@ -69,3 +69,54 @@ class TestMailActivityIntegrity(ActivityScheduleCase):
             meeting.unlink()
         with self.assertRaises(exceptions.UserError):
             todo.unlink()
+
+
+@tagged("-at_install", "post_install", "mail_activity")
+class TestMailActivityTypeOnchange(ActivityScheduleCase):
+    """Switching the activity type must not undo choices the user already made.
+
+    The type only carries *defaults*; a type that declares none has nothing to
+    say about the field, so what the user typed stands.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.test_record = cls.env["res.partner"].create({"name": "Activity Target"})
+        # `activity_type_call` is the one ActivityScheduleCase leaves without a
+        # default assignee, which is the case the user hits.
+        cls.assertFalse(cls, cls.activity_type_call.default_user_id)
+        cls.activity_type_todo.default_user_id = cls.user_admin
+
+    def _new_activity(self, activity_type):
+        return self.env["mail.activity"].new(
+            {
+                "res_model_id": self.env["ir.model"]._get_id("res.partner"),
+                "res_id": self.test_record.id,
+                "activity_type_id": activity_type.id,
+            }
+        )
+
+    def test_switching_type_keeps_the_chosen_assignee(self):
+        activity = self._new_activity(self.activity_type_todo)
+        activity.user_id = self.user_employee
+        activity.activity_type_id = self.activity_type_call
+        activity._onchange_activity_type_id()
+        self.assertEqual(
+            activity.user_id,
+            self.user_employee,
+            "a type without a default assignee has no opinion on who is assigned",
+        )
+
+    def test_a_type_with_a_default_assignee_still_wins(self):
+        activity = self._new_activity(self.activity_type_call)
+        activity.user_id = self.user_employee
+        activity.activity_type_id = self.activity_type_todo
+        activity._onchange_activity_type_id()
+        self.assertEqual(activity.user_id, self.user_admin)
+
+    def test_an_unassigned_activity_still_falls_back_to_the_current_user(self):
+        activity = self._new_activity(self.activity_type_call)
+        activity.user_id = False
+        activity._onchange_activity_type_id()
+        self.assertEqual(activity.user_id, self.env.user)
