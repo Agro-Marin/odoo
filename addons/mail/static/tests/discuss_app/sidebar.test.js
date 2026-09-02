@@ -1486,3 +1486,16 @@ test("Sidebar channels show correct notification counter based on settings", asy
         count: 0,
     });
 });
+
+test("printing discuss hides the sidebar container, the composer and the action panel", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    await start();
+    await openDiscuss(channelId);
+    // The resizable container is what reserves the sidebar width: hiding only the
+    // inner panel leaves an empty column on the printed page.
+    await contains(".o-mail-DiscussSidebar-resizablePanelContainer.d-print-none");
+    await contains(".d-print-none:has(> .o-mail-Composer)");
+    await contains(".o-discuss-ChannelMemberList");
+    await contains(".o-mail-DiscussContent-panelContainer.d-print-none");
+});

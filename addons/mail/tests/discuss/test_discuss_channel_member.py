@@ -426,3 +426,41 @@ class TestDiscussChannelMember(MailCommon):
                 1,
             ],
         )
+
+    def test_new_member_lands_at_latest_message(self):
+        """A member added to a channel that already has history must not start
+        with the whole history flagged unread."""
+        channel = (
+            self.env["discuss.channel"]
+            .with_user(self.user_1)
+            ._create_channel(group_id=None, name="Channel with history")
+        )
+        channel.message_post(body="first", message_type="comment")
+        channel.message_post(body="second", message_type="comment")
+        last_message_id = max(channel.message_ids.ids)
+        new_members = channel.with_user(self.user_1)._add_members(users=self.user_2)
+        self.assertEqual(new_members.new_message_separator, last_message_id + 1)
+        self.assertEqual(new_members.message_unread_counter, 0)
+
+    def test_new_member_separator_respects_explicit_value(self):
+        """An explicit create_member_params must still win over the default."""
+        channel = (
+            self.env["discuss.channel"]
+            .with_user(self.user_1)
+            ._create_channel(group_id=None, name="Channel with history 2")
+        )
+        channel.message_post(body="first", message_type="comment")
+        new_members = channel.with_user(self.user_1)._add_members(
+            users=self.user_2, create_member_params={"new_message_separator": 1}
+        )
+        self.assertEqual(new_members.new_message_separator, 1)
+
+    def test_new_member_in_empty_channel_keeps_zero_separator(self):
+        channel = (
+            self.env["discuss.channel"]
+            .with_user(self.user_1)
+            ._create_channel(group_id=None, name="Empty channel")
+        )
+        channel.message_ids.unlink()
+        new_members = channel.with_user(self.user_1)._add_members(users=self.user_2)
+        self.assertEqual(new_members.new_message_separator, 0)

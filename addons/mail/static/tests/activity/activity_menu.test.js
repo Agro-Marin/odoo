@@ -9,7 +9,7 @@ import {
 import { ActivityMenu } from "@mail/core/web/activity_menu";
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, queryText } from "@odoo/hoot-dom";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { mockService, mountWithCleanup } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -39,4 +39,35 @@ test("global shortcut", async () => {
     await triggerHotkey("alt+shift+a");
     await animationFrame();
     expect(".modal-dialog .modal-title").toHaveText("Schedule Activity");
+});
+
+test("document-less activity group redirects with the My/Today/Late filters", async () => {
+    /** @type {any[]} */
+    const opened = [];
+    mockService("action", {
+        doAction(action, options) {
+            opened.push([action, options]);
+        },
+    });
+    await start();
+    const menu = await mountWithCleanup(ActivityMenu);
+    menu.openActivityGroup({
+        id: 1,
+        model: "mail.activity",
+        name: "Other activities",
+        activity_ids: [1, 2],
+    });
+    expect(opened.length).toBe(1);
+    const [action, options] = opened[0];
+    expect(action).toBe("mail.mail_activity_without_access_action");
+    // The redirection must carry the same defaults every other systray entry
+    // gets, instead of opening every document-less activity unfiltered.
+    expect(options.additionalContext).toEqual({
+        force_search_count: 1,
+        search_default_filter_activities_my: 1,
+        search_default_activities_overdue: 1,
+        search_default_activities_today: 1,
+        active_ids: [1, 2],
+        active_model: "mail.activity",
+    });
 });

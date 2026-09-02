@@ -10,6 +10,7 @@ if typing.TYPE_CHECKING:
 
     from .mail_message import MailMessage
     from odoo.addons.base.models.ir_model_fields import IrModelFields
+    from odoo.addons.base.models.res_company import ResCompany
     from odoo.addons.base.models.res_currency import ResCurrency
 
 
@@ -60,6 +61,14 @@ class MailTrackingValue(models.Model):
         readonly=True,
         ondelete="set null",
         help="Used to display the currency when tracking monetary values",
+    )
+    company_id: ResCompany = fields.Many2one(
+        "res.company",
+        "Company",
+        readonly=True,
+        ondelete="set null",
+        help="Company the value belonged to, for company dependent fields: their "
+        "value only means something together with the company it was read in",
     )
 
     mail_message_id: MailMessage = fields.Many2one(
@@ -135,6 +144,11 @@ class MailTrackingValue(models.Model):
             raise NotImplementedError(
                 f"Unsupported tracking on field {field.name} (type {col_type}"
             )
+
+        if col_info.get("company_dependent"):
+            # Mirrors `currency_id` for monetary fields: the pair (value, company)
+            # is what carries meaning, the value alone is ambiguous.
+            values["company_id"] = self.env.company.id
 
         return {"field_id": field.id, **values}
 

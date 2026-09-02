@@ -462,3 +462,51 @@ test("check actions in mobile view", async () => {
     await contains(".dropdown-item", { text: "Remove" });
     await contains(".dropdown-item", { text: "Download" });
 });
+
+test("audio attachment opens in an audio player, not the video one", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_type: "channel",
+        name: "channel1",
+    });
+    const attachmentId = pyEnv["ir.attachment"].create({
+        name: "test.ogg",
+        mimetype: "audio/ogg",
+    });
+    pyEnv["mail.message"].create({
+        attachment_ids: [attachmentId],
+        body: "<p>Test</p>",
+        model: "discuss.channel",
+        res_id: channelId,
+        message_type: "comment",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await click(".o-mail-AttachmentContainer");
+    await contains(".o-FileViewer audio");
+    await contains(".o-FileViewer video", { count: 0 });
+});
+
+test("mp3 attachment opens in an audio player, not the video one", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_type: "channel",
+        name: "channel1",
+    });
+    const attachmentId = pyEnv["ir.attachment"].create({
+        name: "test.mp3",
+        mimetype: "audio/mpeg",
+    });
+    pyEnv["mail.message"].create({
+        attachment_ids: [attachmentId],
+        body: "<p>Test</p>",
+        model: "discuss.channel",
+        res_id: channelId,
+        message_type: "comment",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await click(".o-mail-AttachmentContainer");
+    await contains(".o-FileViewer audio");
+    await contains(".o-FileViewer video", { count: 0 });
+});
