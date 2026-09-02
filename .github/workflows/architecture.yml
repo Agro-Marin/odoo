@@ -841,6 +841,35 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run Python class-length ratchet
+        id: py_classlen
+        # The mass a function budget cannot see: a class of short methods.
+        # Same unit as pyfunclen, EXCESS LINES above the 400-line budget summed
+        # over offenders, so splitting one huge class into two large ones is an
+        # improvement the gate accepts. See the module docstring.
+        run: |
+          set +e
+          python tooling/architecture/py_class_length.py | tee /tmp/py_classlen.log
+          python tooling/architecture/py_class_length.py --count \
+            | xargs python tooling/ratchet/ratchet.py pyclasslen --count
+          rc=$?
+          set -e
+          exit $rc
+
+      - name: Run Python class-length ratchet (addons)
+        id: py_classlen_addons
+        # The bundled tree as one number, --mode no-increase for the reason
+        # pyfunclen_addons is: it moves both ways constantly.
+        run: |
+          set +e
+          python tooling/architecture/py_class_length.py --addon addons \
+            | tee /tmp/py_classlen_addons.log
+          python tooling/architecture/py_class_length.py --count --addon addons \
+            | xargs python tooling/ratchet/ratchet.py pyclasslen_addons --mode no-increase --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run Python function-length ratchet (mail)
         id: py_funclen_mail
         # The Python half of the `--addon mail` pair. `pyfunclen` measures

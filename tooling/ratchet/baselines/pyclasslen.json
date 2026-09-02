@@ -1,0 +1,6 @@
+{
+  "count": 23728,
+  "measured_at": "4b7ba08c09d485076f485cca4f2d81a8be64f0db",
+  "measured_root": "",
+  "note": "Born at 23728: 54 classes over the 400-line budget in odoo/ (the core package plus odoo/addons/base), led by ir_ui_view.IrUiView 2,971, ir_qweb.IrQweb 2,490, tools/config.configmanager 2,035, ir_qweb_assets.IrQweb 1,801, ir_attachment 1,724, res_partner 1,678. The unit is excess lines over the budget summed over offenders, as pyfunclen: splitting one huge class into two large ones lowers it."
+}

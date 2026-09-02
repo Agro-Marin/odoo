@@ -1,0 +1,6 @@
+{
+  "count": 178124,
+  "measured_at": "4b7ba08c09d485076f485cca4f2d81a8be64f0db",
+  "measured_root": "",
+  "note": "Born at 178124: 305 classes over the 400-line budget in the bundled addons tree as one number, led by account_move.AccountMove 7,006, mixin_mail_thread.MixinMailThread 4,770, mrp_production 4,647, stock_move 4,577, account_move_line 4,213. Driven --mode no-increase like pyfunclen_addons because the tree moves both ways constantly."
+}

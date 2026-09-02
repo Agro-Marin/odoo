@@ -86,6 +86,7 @@ while read -r gate floor; do
 done <<'EOF'
 js_function_length jsfunclen
 py_function_length pyfunclen
+py_class_length    pyclasslen
 py_x2many_count    py_x2many_count
 sql_in_placeholder sql_in_placeholder
 py_count_as_boolean py_count_as_boolean
@@ -146,6 +147,7 @@ py_function_length.py --addon survey --count|pyfunclen_survey --count
 py_function_length.py --addon tests --count|pyfunclen_tests --count
 py_function_length.py --addon tooling --count|pyfunclen_tooling --count
 py_function_length.py --count --addon addons|pyfunclen_addons --mode no-increase --count
+py_class_length.py --count --addon addons|pyclasslen_addons --mode no-increase --count
 py_shadowed_member.py --addon addons --count|py_shadowed_member_addons --count
 py_x2many_count.py --addon account --count|py_x2many_count_account --count
 py_x2many_count.py --addon addons --count|py_x2many_count_addons --count
@@ -384,8 +386,8 @@ the enumeration above derives from the workflows
 (`test_ratchet_baselines_match_documented_gates`), so a file deleted or a
 step added fails the page rather than the lane.
 
-`pyfunclen_addons` is the only floor invoked `--mode no-increase`, and it is the
-only one whose scope is the bundled-addons tree entire. It exists because
+`pyfunclen_addons` and `pyclasslen_addons` are the two floors invoked `--mode
+no-increase`, and the only ones whose scope is the bundled-addons tree entire. It exists because
 `pyfunclen` stops at the core package: a long function *moved* out of `odoo/`
 into an addon improved one reading and was measured by nothing on the other
 side. The tree is too wide to hold still — it swung ~1700 excess lines in each
