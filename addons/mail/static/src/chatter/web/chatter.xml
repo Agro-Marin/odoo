@@ -96,7 +96,7 @@
  <t t-if="scheduledMessages.length">
  <t t-call="mail.ScheduledMessagesList"/>
  </t>
- <div t-if="state.isAttachmentBoxOpened" class="o-mail-AttachmentBox position-relative">
+ <div t-if="state.isAttachmentBoxOpened and !state.isSearchOpen" class="o-mail-AttachmentBox position-relative">
  <div class="d-flex align-items-center">
  <hr class="flex-grow-1"/>
  <span class="p-3 fw-bold">
