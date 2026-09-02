@@ -1,5 +1,5 @@
 {
-  "count": 596,
-  "measured_at": "6137c6abfcf6509f286ad624300a789fd0b2e00a",
-  "note": "Re-measured after rebasing this branch a second time, onto origin/19.0-marin at 8781de80114 (nine further commits). The upstream side had moved both of these itself -- the .pot re-export took translations well below its floor and the manifest canonicalisation took lint_manifest_shape below its own -- so neither side's figure described the merged tree and both were re-derived at HEAD."
+  "count": 595,
+  "measured_at": "24f92b0f744fe7664a897896eb4ab25bf1f647ae",
+  "note": "Re-measured at 24f92b0f744 after a rebase orphaned the previous stamp 6137c6abfcf; moved 596 -> 595. Read through the test_lint lane's own reader (odoo-bin --addons-path=odoo/addons,addons -i test_lint --test-enable --test-tags /test_lint on a fresh database, where test_manifests reported 595 against the floor), and attributed by running the same three manifest checks standalone at both commits (596 and 595, to the unit) and diffing the sets: the one that left is social_media, sorted into canonical key order by f16a3a7a876, which came in through the rebase and never met this floor. hr_work_entry and microsoft_account changed their message (new keys, same wrong order) and still count.\n\nRe-measured after rebasing this branch a second time, onto origin/19.0-marin at 8781de80114 (nine further commits). The upstream side had moved both of these itself -- the .pot re-export took translations well below its floor and the manifest canonicalisation took lint_manifest_shape below its own -- so neither side's figure described the merged tree and both were re-derived at HEAD."
 }
