@@ -47,6 +47,11 @@ on:
       # The loading suite characterizes this package; a change to it that
       # reordered a phase would otherwise not trigger the suite that notices.
       - 'odoo/modules/**'
+      # The registry's init_models() window and the reflection helpers that
+      # defer through it: the -u-only path that once died outside the window
+      # lives in these two places, and only the loading suite runs a -u.
+      - 'odoo/orm/runtime/**'
+      - 'odoo/addons/base/models/ir_model*.py'
       - 'requirements*.txt'
       # The @standalone runner and the one script that exercises it. Both
       # were broken at HEAD with nothing to notice.

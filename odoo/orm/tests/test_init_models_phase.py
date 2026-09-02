@@ -14,6 +14,8 @@ class _FakeRegistry:
     init_phase: typing.Any = _R.init_phase
     post_init: typing.Any = _R.post_init
     add_relation_reflection: typing.Any = _R.add_relation_reflection
+    init_models_window: typing.Any = _R.init_models_window
+    drain_post_init: typing.Any = _R.drain_post_init
     del _R
 
 
@@ -85,3 +87,50 @@ class TestPhaseWhileOpen:
         assert not second.post_init_queue
         assert not second.foreign_keys
         assert not second.relation_reflections
+
+
+class TestTheWindow:
+    def test_it_opens_the_phase_and_closes_it_again(self):
+        registry = _FakeRegistry()
+        with registry.init_models_window(install=True) as phase:
+            assert registry.init_phase is phase
+            assert phase.install is True
+        with pytest.raises(RuntimeError, match="only available while init_models"):
+            registry.init_phase
+
+    def test_a_clean_exit_drains_the_post_init_queue(self):
+        registry = _FakeRegistry()
+        ran: list[str] = []
+        with registry.init_models_window(install=False):
+            registry.post_init(ran.append, "first")
+            registry.post_init(ran.append, "second")
+            assert ran == []
+        assert ran == ["first", "second"]
+
+    def test_an_exception_closes_the_window_without_draining(self):
+        registry = _FakeRegistry()
+        ran: list[str] = []
+        with pytest.raises(ValueError), registry.init_models_window(install=False):
+            registry.post_init(ran.append, "never")
+            raise ValueError("boom")
+        assert ran == []
+        assert registry._init_phase is None
+
+    def test_it_cannot_be_nested(self):
+        registry = _FakeRegistry()
+        with (
+            registry.init_models_window(install=False),
+            pytest.raises(RuntimeError, match="cannot be nested"),
+            registry.init_models_window(install=False),
+        ):
+            pass
+
+    def test_draining_mid_window_leaves_nothing_for_the_exit(self):
+        registry = _FakeRegistry()
+        ran: list[str] = []
+        with registry.init_models_window(install=False):
+            registry.post_init(ran.append, "early")
+            registry.drain_post_init()
+            assert ran == ["early"]
+            registry.post_init(ran.append, "late")
+        assert ran == ["early", "late"]

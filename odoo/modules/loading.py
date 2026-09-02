@@ -964,7 +964,11 @@ class _ModuleLoader:
     def _reflect_inherits_across_the_whole_registry(self) -> None:
         if not self.registry.updated_modules:
             return
-        self.env["ir.model.inherit"]._reflect_inherits(list(self.registry.models))
+        # The reflection helpers defer their cache marking through the
+        # post-init queue, which exists only inside a window; this pass runs
+        # after every init_models() window has closed, so it opens its own.
+        with self.registry.init_models_window(install=False):
+            self.env["ir.model.inherit"]._reflect_inherits(list(self.registry.models))
 
     def uninstall_removed_modules(self) -> None:
         if not self.update_module:

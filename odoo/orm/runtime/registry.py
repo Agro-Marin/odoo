@@ -23,7 +23,6 @@ from odoo.tools.misc import format_frame
 
 from .. import registration
 from ..primitives import SUPERUSER_ID
-from ._init_phase import InitModelsPhase
 from ._registry_capabilities import (
     _RegistryCapabilitiesMixin,
     forget_all_unaccent_tables,
@@ -495,9 +494,7 @@ class Registry(
         env = Environment(cr, SUPERUSER_ID, context)
         models = [env[model_name] for model_name in model_names]
 
-        try:
-            self._init_phase = InitModelsPhase(install=install)
-
+        with self.init_models_window(install) as phase:
             for model in models:
                 model._auto_init()
                 model.init()
@@ -507,15 +504,11 @@ class Registry(
             env["ir.model.fields.selection"]._reflect_selections(model_names)
             env["ir.model.constraint"]._reflect_constraints(model_names)
             env["ir.model.inherit"]._reflect_inherits(model_names)
-            env["ir.model.relation"]._reflect_relations(
-                self.init_phase.relation_reflections
-            )
+            env["ir.model.relation"]._reflect_relations(phase.relation_reflections)
 
             self._ordinary_tables = {}
 
-            post_init_queue = self.init_phase.post_init_queue
-            while post_init_queue:
-                post_init_queue.popleft()()
+            self.drain_post_init()
 
             self.check_indexes(cr, model_names)
             self.check_foreign_keys(cr)
@@ -523,9 +516,6 @@ class Registry(
             env.flush_all()
 
             self.check_tables_exist(cr)
-
-        finally:
-            self._init_phase = None
 
     def _clear_cache_group(self, cache_name: str) -> None:
         self._caches.clear_group(cache_name)
@@ -787,7 +777,9 @@ class Registry(
             in_request = hasattr(thread, "cursor_mode")
             lag = self._replica_lag
             sample_due = lag.acquire_sample_interval()
-            if (lag.is_replica_usable() or sample_due) and self._replica_breaker.acquire_attempt():
+            if (
+                lag.is_replica_usable() or sample_due
+            ) and self._replica_breaker.acquire_attempt():
                 try:
                     cr = self._db_readonly.cursor()
                 except psycopg.OperationalError, db.PoolError:

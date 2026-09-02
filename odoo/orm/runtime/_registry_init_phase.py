@@ -1,4 +1,5 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from functools import partial
 
 from ._init_phase import InitModelsPhase
@@ -14,10 +15,6 @@ class _RegistryInitPhaseMixin(_RegistryStubs):
         self._init_phase = None
 
     @property
-    def in_init_phase(self) -> bool:
-        return self._init_phase is not None
-
-    @property
     def init_phase(self) -> InitModelsPhase:
         if self._init_phase is None:
             raise RuntimeError(
@@ -29,6 +26,25 @@ class _RegistryInitPhaseMixin(_RegistryStubs):
                 "other time -- is the bug."
             )
         return self._init_phase
+
+    @contextmanager
+    def init_models_window(self, install: bool) -> Iterator[InitModelsPhase]:
+        if self._init_phase is not None:
+            raise RuntimeError(
+                "Registry.init_models_window() cannot be nested: one "
+                "module-initialisation pass is already open"
+            )
+        self._init_phase = InitModelsPhase(install=install)
+        try:
+            yield self._init_phase
+            self.drain_post_init()
+        finally:
+            self._init_phase = None
+
+    def drain_post_init(self) -> None:
+        post_init_queue = self.init_phase.post_init_queue
+        while post_init_queue:
+            post_init_queue.popleft()()
 
     def post_init(self, func: Callable, *args, **kwargs) -> None:
         self.init_phase.post_init_queue.append(partial(func, *args, **kwargs))

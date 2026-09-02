@@ -11,7 +11,7 @@ from odoo.tools import SQL, OrderedSet
 
 from .ir_model_common import (
     MODULE_UNINSTALL_FLAG,
-    mark_modified_after_init,
+    mark_modified,
     query_insert,
     query_update,
     selection_xmlid,
@@ -103,7 +103,7 @@ class IrModelFieldsSelection(models.Model):
         rows = [key + val for key, val in expected.items() if existing.get(key) != val]
         if rows:
             ids = upsert_en(self, cols, rows, ["field_id", "value"])
-            mark_modified_after_init(self.browse(ids), cols[2:])
+            self.pool.post_init(mark_modified, self.browse(ids), cols[2:])
 
         module = self.env.context.get("module")
         if not module:
