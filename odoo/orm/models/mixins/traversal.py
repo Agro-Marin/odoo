@@ -8,7 +8,7 @@ from odoo.libs._field_access import batch_cache_filter as _batch_cache_filter
 from odoo.libs._field_access import batch_cache_get as _batch_cache_get
 from odoo.libs._field_access import batch_group_ids as _batch_group_ids
 from odoo.libs._field_access import sort_ids_by_cache as _sort_ids_by_cache
-from odoo.tools import SQL
+from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
 
 from ... import decorators as api
@@ -447,6 +447,60 @@ class TraversalMixin(_ModelStubs):
         record = typing.cast("BaseModel", self)
         for name, value in values.items():
             record[name] = value
+
+    def _ancestor_ids(self, include_self: bool = False) -> OrderedSet[int]:
+        result: OrderedSet[int] = OrderedSet()
+        unresolved = self.browse()
+        has_path = "parent_path" in self._fields
+        for record in self:
+            # A record that exists only in cache -- what an onchange builds --
+            # carries no parent_path, so its chain has to be walked instead.
+            path = record.parent_path if has_path else None
+            if path:
+                ids = [int(label) for label in path.split("/") if label]
+                result.update(ids if include_self else ids[:-1])
+            else:
+                unresolved |= record
+        for record in unresolved:
+            result.update(record._ancestor_ids_by_walking(include_self))
+        return result
+
+    def _ancestor_ids_by_walking(self, include_self: bool) -> list[int]:
+        parent_name = self._parent_name
+        chain: list[int] = []
+        seen: set = set()
+        current = self if include_self else self[parent_name]
+        while current and current._ids[0] not in seen:
+            seen.add(current._ids[0])
+            if isinstance(current.id, int):
+                chain.append(current.id)
+            current = current[parent_name]
+        chain.reverse()
+        return chain
+
+    def _descendant_ids(self, include_self: bool = False) -> OrderedSet[int]:
+        if not self.ids:
+            return OrderedSet()
+        found = OrderedSet(
+            self.with_context(active_test=False)
+            ._search(Domain("id", "child_of", list(self.ids)))
+            .get_result_ids()
+        )
+        if not include_self:
+            found -= OrderedSet(self.ids)
+        return found
+
+    def _is_descendant_of(self, other: BaseModel, strict: bool = False) -> bool:
+        self.check_singleton()
+        # An empty `other` answers False rather than raising: the natural call
+        # is `record._is_descendant_of(record[parent_name])`, and that argument
+        # is empty at every root.
+        if not other:
+            return False
+        other.check_singleton()
+        if self == other:
+            return not strict
+        return other.id in self._ancestor_ids()
 
     def _has_cycle(self, field_name: str | None = None) -> bool:
         if not field_name:

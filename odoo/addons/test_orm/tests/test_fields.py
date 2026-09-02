@@ -4508,6 +4508,59 @@ class TestParentStore(TransactionCaseWithUserDemo):
         with self.assertRaises(UserError):
             self.cats(1, 3).write({"parent": self.cats(9).id})
 
+    def test_ancestor_ids_reads_the_path_and_orders_root_first(self):
+        self.assertEqual(list(self.cats(9)._ancestor_ids()), self.cats(0, 3, 6).ids)
+        self.assertEqual(
+            list(self.cats(9)._ancestor_ids(include_self=True)),
+            self.cats(0, 3, 6, 9).ids,
+        )
+        self.assertEqual(list(self.cats(0)._ancestor_ids()), [])
+        self.assertEqual(
+            list(self.cats(0)._ancestor_ids(include_self=True)), self.cats(0).ids
+        )
+
+    def test_ancestor_ids_walks_when_the_record_has_no_path_yet(self):
+        # An onchange builds a record that exists only in cache, and such a
+        # record has no parent_path -- so the helper must fall back to walking
+        # or it silently reports no ancestors at all.
+        draft = self.cats().new({"name": "draft", "parent": self.cats(6).id})
+        self.assertFalse(draft.parent_path)
+        self.assertEqual(list(draft._ancestor_ids()), self.cats(0, 3, 6).ids)
+        self.assertEqual(
+            list(draft._ancestor_ids(include_self=True)), self.cats(0, 3, 6).ids
+        )
+
+    def test_the_two_ancestor_branches_agree(self):
+        for index in range(10):
+            saved = self.cats(index)
+            draft = self.cats().new({"name": "d", "parent": saved.parent.id})
+            self.assertEqual(
+                list(draft._ancestor_ids()),
+                list(saved._ancestor_ids()),
+                f"path and walk disagree below category {index}",
+            )
+
+    def test_descendant_ids(self):
+        self.assertEqual(
+            sorted(self.cats(3)._descendant_ids()),
+            sorted(self.cats(4, 5, 6, 7, 8, 9).ids),
+        )
+        self.assertEqual(
+            sorted(self.cats(3)._descendant_ids(include_self=True)),
+            sorted(self.cats(3, 4, 5, 6, 7, 8, 9).ids),
+        )
+        self.assertEqual(list(self.cats(9)._descendant_ids()), [])
+        self.assertEqual(list(self.cats()._descendant_ids()), [])
+
+    def test_is_descendant_of(self):
+        self.assertTrue(self.cats(9)._is_descendant_of(self.cats(0)))
+        self.assertTrue(self.cats(9)._is_descendant_of(self.cats(6)))
+        self.assertFalse(self.cats(9)._is_descendant_of(self.cats(1)))
+        self.assertFalse(self.cats(0)._is_descendant_of(self.cats(9)))
+        self.assertTrue(self.cats(9)._is_descendant_of(self.cats(9)))
+        self.assertFalse(self.cats(9)._is_descendant_of(self.cats(9), strict=True))
+        self.assertFalse(self.cats(9)._is_descendant_of(self.cats()))
+
     def test_every_parent_path_ends_in_a_separator(self):
         # Six descendant checks across the workspace are spelled
         # `a.parent_path.startswith(b.parent_path)`.  That is only correct
