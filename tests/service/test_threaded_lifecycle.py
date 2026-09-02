@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from odoo.service import _process_state, _threaded
+from odoo.service import settings as server_settings
 
 
 @pytest.fixture
@@ -95,7 +96,7 @@ class TestStartInstallsTheHandlers:
         seen = {}
         cfg = {"http_enable": False, "test_enable": False, "limit_time_cpu": 0}
         with (
-            patch.object(_threaded, "config", cfg),
+            server_settings.override(**cfg),
             patch.object(_threaded.signal, "signal", side_effect=seen.__setitem__),
             patch.object(_threaded, "_IS_POSIX", True),
         ):
@@ -120,7 +121,7 @@ class TestStartInstallsTheHandlers:
     def test_http_is_not_spawned_when_disabled(self, server):
         cfg = {"http_enable": False, "test_enable": False, "limit_time_cpu": 0}
         with (
-            patch.object(_threaded, "config", cfg),
+            server_settings.override(**cfg),
             patch.object(_threaded.signal, "signal"),
             patch.object(server, "http_spawn") as spawn,
         ):
@@ -130,7 +131,7 @@ class TestStartInstallsTheHandlers:
     def test_http_is_spawned_under_test_enable_even_when_stopping(self, server):
         cfg = {"http_enable": True, "test_enable": True, "limit_time_cpu": 0}
         with (
-            patch.object(_threaded, "config", cfg),
+            server_settings.override(**cfg),
             patch.object(_threaded.signal, "signal"),
             patch.object(server, "http_spawn") as spawn,
         ):
@@ -207,17 +208,8 @@ class TestGracefulStop:
 
 class TestTheFixtureMatchesTheConstructor:
     def test_the_field_sets_agree(self, server):
-        from unittest.mock import patch
-
-        from odoo.service import _base_server
-        from odoo.tools import config
-
-        config.parse_config([], setup_logging=False)
-        cfg = dict(config.options)
-        cfg.update({"http_interface": "", "http_port": 8069, "limit_time_real": 120})
-        with (
-            patch.object(_threaded, "config", cfg),
-            patch.object(_base_server, "config", cfg),
+        with server_settings.override(
+            http_interface="", http_port=8069, limit_time_real=120
         ):
             real = _threaded.ThreadedServer(MagicMock())
 

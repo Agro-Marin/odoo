@@ -26,6 +26,7 @@ from odoo.service import (
     _process_state,
     _threaded,
 )
+from odoo.service import settings as server_settings
 from odoo.service import wsgi as _wsgi
 from odoo.tools import SQL
 
@@ -601,7 +602,7 @@ class TestWorkerCronCheckLimits:
     def test_worker_stays_alive_within_limit(self, srv, worker_cron):
         worker_cron.alive_time = time.monotonic()
         with (
-            patch("odoo.service._worker.config", {"limit_time_worker_cron": 3600}),
+            server_settings.override(limit_time_worker_cron=3600),
             patch.object(srv.Worker, "check_limits"),
         ):
             worker_cron.check_limits()
@@ -610,7 +611,7 @@ class TestWorkerCronCheckLimits:
     def test_worker_dies_when_age_exceeded(self, srv, worker_cron):
         worker_cron.alive_time = time.monotonic() - 99_999
         with (
-            patch("odoo.service._worker.config", {"limit_time_worker_cron": 60}),
+            server_settings.override(limit_time_worker_cron=60),
             patch.object(srv.Worker, "check_limits"),
         ):
             worker_cron.check_limits()
@@ -619,7 +620,7 @@ class TestWorkerCronCheckLimits:
     def test_zero_limit_never_expires(self, srv, worker_cron):
         worker_cron.alive_time = time.monotonic() - 99_999
         with (
-            patch("odoo.service._worker.config", {"limit_time_worker_cron": 0}),
+            server_settings.override(limit_time_worker_cron=0),
             patch.object(srv.Worker, "check_limits"),
         ):
             worker_cron.check_limits()
@@ -628,7 +629,7 @@ class TestWorkerCronCheckLimits:
     def test_negative_limit_never_expires(self, srv, worker_cron):
         worker_cron.alive_time = time.monotonic() - 99_999
         with (
-            patch("odoo.service._worker.config", {"limit_time_worker_cron": -1}),
+            server_settings.override(limit_time_worker_cron=-1),
             patch.object(srv.Worker, "check_limits"),
         ):
             worker_cron.check_limits()
@@ -655,7 +656,7 @@ def worker_check_limits_env(memory_bytes=0, config_override=None):
     mock_resource = _resource_stub()
     mock_memory_info = MagicMock(return_value=memory_bytes)
     with (
-        patch("odoo.service._worker.config", cfg),
+        server_settings.override(**cfg),
         patch("odoo.service._limits.get_memory_rss", mock_memory_info),
         patch("odoo.service._worker.resource", mock_resource),
     ):
@@ -1129,9 +1130,7 @@ class TestPreforkInitTimeout:
             **overrides,
         }
         with (
-            patch.object(_prefork, "config", cfg),
-            patch.object(_base_server, "config", cfg),
-            patch("odoo.service._limits.config", cfg),
+            server_settings.override(**cfg),
         ):
             return srv.PreforkServer(MagicMock())
 
@@ -1721,7 +1720,7 @@ class TestRequestHandlerSocketTimeout:
         original_name = me.name
         try:
             with (
-                patch.object(wsgi_mod, "config", cfg),
+                server_settings.override(**cfg),
                 patch.object(werkzeug.serving.WSGIRequestHandler, "setup"),
             ):
                 handler.setup()
@@ -1792,11 +1791,10 @@ def threaded_server(srv):
 class TestThreadedWSGIServerAutoLimit:
     def test_auto_limit_subtracts_cron_and_job_threads(self, srv, monkeypatch):
         monkeypatch.delenv("ODOO_MAX_HTTP_THREADS", raising=False)
-        from odoo.service import wsgi as wsgi_mod
 
         cfg = {"db_maxconn": 20, "max_cron_threads": 2, "job_workers": 4}
         with (
-            patch.object(wsgi_mod, "config", cfg),
+            server_settings.override(**cfg),
             patch.object(
                 werkzeug.serving.ThreadedWSGIServer, "__init__", return_value=None
             ),
@@ -1806,11 +1804,10 @@ class TestThreadedWSGIServerAutoLimit:
 
     def test_auto_limit_floors_at_one(self, srv, monkeypatch):
         monkeypatch.delenv("ODOO_MAX_HTTP_THREADS", raising=False)
-        from odoo.service import wsgi as wsgi_mod
 
         cfg = {"db_maxconn": 5, "max_cron_threads": 2, "job_workers": 4}
         with (
-            patch.object(wsgi_mod, "config", cfg),
+            server_settings.override(**cfg),
             patch.object(
                 werkzeug.serving.ThreadedWSGIServer, "__init__", return_value=None
             ),
@@ -1893,9 +1890,7 @@ class TestThreadedServerProcessLimit:
         }
         with (
             patch("odoo.service._limits.get_memory_rss", return_value=memory),
-            patch("odoo.service._threaded.config", cfg),
-            patch("odoo.service._limits.config", cfg),
-            patch("odoo.service._base_server.config", cfg),
+            server_settings.override(**cfg),
             patch("threading.enumerate", return_value=list(threads)),
         ):
             yield
@@ -1916,8 +1911,7 @@ class TestThreadedServerProcessLimit:
         def tick(mem):
             with (
                 patch("odoo.service._limits.get_memory_rss", return_value=mem),
-                patch("odoo.service._threaded.config", cfg),
-                patch("odoo.service._base_server.config", cfg),
+                server_settings.override(**cfg),
                 patch("threading.enumerate", return_value=[]),
             ):
                 tserver.check_limits()
@@ -2047,12 +2041,9 @@ def _adopt_inherited_fd(fd, *, via_env, interface):
     server.logger = MagicMock()
     server.interface, server.port, server.population = interface, 0, 2
     server.open_pipe = MagicMock(return_value=(0, 0))
-    cfg = MagicMock()
-    cfg.__getitem__.side_effect = {"http_enable": True}.__getitem__
-    cfg.http_socket_activation = not via_env
     env = {"ODOO_HTTP_SOCKET_FD": str(fd)} if via_env else {}
     with (
-        patch.object(_prefork, "config", cfg),
+        server_settings.override(http_enable=True, http_socket_activation=not via_env),
         patch.object(signal, "signal"),
         patch.dict(os.environ, env, clear=False),
     ):
@@ -2279,7 +2270,7 @@ class TestMemoryLogStrings:
         event_server._process_handle = MagicMock()
         cfg = {"limit_memory_soft_gevent": 100, "limit_memory_soft": 0}
         with (
-            patch.object(_threaded, "config", cfg),
+            server_settings.override(**cfg),
             patch("odoo.service._limits.get_memory_rss", return_value=500),
             patch.object(_threaded.os, "kill"),
         ):
@@ -2405,7 +2396,7 @@ class TestProcessLimitRealTimeLog:
             "limit_time_real_cron": 0,
         }
         with (
-            patch.object(_threaded, "config", cfg),
+            server_settings.override(**cfg),
             patch.object(_limits, "get_memory_rss", return_value=0),
             patch.object(threading, "enumerate", return_value=[fake_thread]),
         ):
@@ -2515,7 +2506,7 @@ def _drive_listen_thread(listen_server, process_jobs, *, sleeps_before_stop=2):
         patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
         patch("odoo.service._cron.get_cron_databases", return_value=["db1"]) as db_list,
         patch("odoo.service._threaded.selectors.DefaultSelector"),
-        patch("odoo.service._threaded.config", cfg),
+        server_settings.override(**cfg),
         patch("odoo.service._threaded.time.sleep", fake_sleep),
     ):
         with pytest.raises(_StopHarness):
@@ -2718,7 +2709,7 @@ class TestListenThreadFirstPassIsImmediate:
             patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
             patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch("odoo.service._threaded.selectors.DefaultSelector", _Sel),
-            patch("odoo.service._threaded.config", cfg),
+            server_settings.override(**cfg),
             patch("odoo.service._threaded.time.sleep", lambda _s: None),
         ):
             with pytest.raises(_StopHarness):
@@ -2764,7 +2755,7 @@ class TestListenThreadFirstPassIsImmediate:
             patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
             patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch("odoo.service._threaded.selectors.DefaultSelector", _Sel),
-            patch("odoo.service._threaded.config", cfg),
+            server_settings.override(**cfg),
             patch("odoo.service._threaded.time.sleep", lambda _s: None),
         ):
             with pytest.raises(_StopHarness):
@@ -2847,7 +2838,7 @@ class TestWorkerCpuLimitHandoff:
             patch.object(srv.Worker, "start", lambda self: None),
             patch.object(srv.Worker, "stop", traced_stop),
             patch("odoo.service._worker.threading.Thread", lambda **kw: _T()),
-            patch("odoo.service._worker.config", {"limit_time_cpu": 1}),
+            server_settings.override(limit_time_cpu=1),
         ):
             w.run()
 
@@ -2876,11 +2867,10 @@ class TestTheStartupLineNamesTheSocketItActuallyGot:
         server.interface, server.port, server.population = "127.0.0.1", 0, 1
         server.open_pipe = MagicMock(return_value=(0, 0))
         server._sweep_stale_censuses = MagicMock()
-        cfg = MagicMock()
-        cfg.__getitem__.side_effect = {"http_enable": True}.__getitem__
-        cfg.http_socket_activation = socket_activation
         with (
-            patch.object(_prefork, "config", cfg),
+            server_settings.override(
+                http_enable=True, http_socket_activation=socket_activation
+            ),
             patch.object(signal, "signal"),
             patch.object(_prefork.socket, "socket") as mock_sock,
             patch.dict(os.environ, env, clear=False),

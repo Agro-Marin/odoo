@@ -2,7 +2,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import odoo
+import odoo.tools
 from odoo.service import _factory, _process_state
+from odoo.service.settings import ServerSettings, installed
 
 
 @pytest.fixture
@@ -40,6 +43,7 @@ def start(monkeypatch):
             return _make
 
         cfg = {
+            **dict(odoo.tools.config.options),
             "workers": workers,
             "max_cron_threads": 0,
             "job_workers": 0,
@@ -52,7 +56,7 @@ def start(monkeypatch):
         with (
             patch.multiple(_factory, **classes),
             patch.object(_factory, "load_server_wide_modules"),
-            patch.object(_factory, "config", cfg),
+            installed(ServerSettings.from_config(cfg)),
             patch.object(_factory, "_limit_malloc_arenas") as arenas,
             patch.object(_factory, "_warn_on_connection_budget"),
             patch.object(_factory, "inotify", inotify or None),
@@ -61,8 +65,6 @@ def start(monkeypatch):
             patch.object(_factory, "FSWatcherWatchdog", _watcher_factory("watchdog")),
             patch.object(_factory, "_reexec_server") as reexec,
         ):
-            import odoo
-
             monkeypatch.setattr(odoo, "evented", evented, raising=False)
             try:
                 rc = _factory.start(["db"], stop=False)

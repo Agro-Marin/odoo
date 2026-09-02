@@ -18,11 +18,12 @@ from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.module import load_odoo_module
 from odoo.modules.registry import Registry
 from odoo.release import nt_service_name
-from odoo.tools import config, profiler
+from odoo.tools import profiler
 from odoo.tools.misc import stripped_sys_argv
 
 from . import _process_state
 from ._env import _IS_POSIX, _IS_WINDOWS, get_env_float, get_env_int
+from .settings import current
 
 if TYPE_CHECKING:
     from odoo.db import BaseCursor
@@ -32,7 +33,7 @@ _logger = logging.getLogger("odoo.service.server")
 
 def load_server_wide_modules() -> None:
     with gc.disabling_gc():
-        for m in config["server_wide_modules"]:
+        for m in current().server_wide_modules:
             try:
                 load_odoo_module(m)
             except Exception:
@@ -110,7 +111,7 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
 
 
 def _get_narrowing_test_spec() -> str:
-    tags = (config["test_tags"] or "").strip()
+    tags = current().test_tags.strip()
     return "" if tags in {"", "+standard"} else tags
 
 
@@ -121,9 +122,10 @@ def _limit_resident_registries(dbnames: list[str]) -> None:
     if not registries_size:
         if _IS_POSIX:
             avgsz = 15 * 1024 * 1024
+            configured_soft_limit = current().limit_memory_soft
             limit_memory_soft = (
-                config["limit_memory_soft"]
-                if config["limit_memory_soft"] > 0
+                configured_soft_limit
+                if configured_soft_limit > 0
                 else (2048 * 1024 * 1024)
             )
             registries_size = (limit_memory_soft // avgsz) or 1
@@ -136,7 +138,7 @@ def _limit_resident_registries(dbnames: list[str]) -> None:
         "ODOO_REGISTRY_MAX_IDLE_TIMEOUT", 0, minimum=0, logger=_logger
     )
     if not idle_timeout:
-        idle_timeout = config.get("registry_idle_timeout") or 0
+        idle_timeout = current().registry_idle_timeout
     if idle_timeout > 0:
         Registry.idle_timeout = idle_timeout
         _logger.info("Idle registries are dropped after %ds", idle_timeout)
@@ -164,19 +166,20 @@ def preload_registries(dbnames: list[str] | None) -> int:
         try:
             with preload_profiler:
                 current_worker_thread().dbname = dbname
-                update_module = config["init"] or config["update"] or config["reinit"]
+                settings = current()
+                update_module = settings.update_module
 
                 with Registry._lock:
                     registry = Registry.new(
                         dbname,
                         update_module=update_module,
-                        install_modules=config["init"],
-                        upgrade_modules=config["update"],
-                        reinit_modules=config["reinit"],
+                        install_modules=settings.init,
+                        upgrade_modules=settings.update,
+                        reinit_modules=settings.reinit,
                     )
 
                 unrun = 0
-                if config["test_enable"]:
+                if settings.test_enable:
                     unrun = _run_post_install_tests(registry, update_module)
                 report = registry._assertion_report
                 if report and not report.wasSuccessful():
@@ -231,15 +234,16 @@ def _limit_malloc_arenas() -> None:
 
 
 def _get_connection_budget_demand() -> tuple[int, int]:
-    maxconn = config["db_maxconn"]
-    if not config["workers"]:
+    settings = current()
+    maxconn = settings.db_maxconn
+    if not settings.workers:
         return 1, maxconn
-    children = config["workers"] + config["max_cron_threads"] + config["job_workers"]
+    children = settings.workers + settings.max_cron_threads + settings.job_workers
     demand = children * maxconn
     processes = children
-    if config["http_enable"]:
+    if settings.http_enable:
         processes += 1
-        demand += config["db_maxconn_gevent"] or maxconn
+        demand += settings.db_maxconn_gevent or maxconn
     return processes, demand
 
 
@@ -255,7 +259,7 @@ def _warn_on_connection_budget() -> None:
         return
     try:
         processes, demand = _get_connection_budget_demand()
-        configured_port = config["db_port"]
+        configured_port = current().db_port
         with contextlib.closing(db.db_connect("postgres").cursor()) as cr:
             cr.execute("SHOW max_connections")
             server_max = int(_scalar(cr))

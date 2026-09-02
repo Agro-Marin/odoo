@@ -41,7 +41,8 @@ odoo/
 │                      metrics (SQL per cursor) · stats (what the pool did)
 ├── http/           Decomposed http.py (flat modules)
 │   ├── [foundation]   constants, exceptions (the HTTP exception vocabulary),
-│   │                  _protocols
+│   │                  _protocols, settings (HttpSettings: the frozen snapshot
+│   │                  of the options the serving tier reads)
 │   ├── [serving]   application, dispatcher, routing, session, request_class,
 │   │               _serve, _response, wrappers, stream, _csrf, controller,
 │   │               core (the `request` proxy + its LocalStack), helpers,
@@ -52,7 +53,8 @@ odoo/
 ├── service/        Process lifecycle + the servers
 │   ├── server, _base_server, _threaded (ThreadedServer + EventServer),
 │   │   _prefork, _worker, _watcher, wsgi, _cron, lifecycle,
-│   │   _factory (picks and runs a server), _process_state (its two globals)
+│   │   _factory (picks and runs a server), _process_state (its two globals),
+│   │   settings (ServerSettings: the frozen snapshot start() builds once)
 │   ├── db/         Database management, the /web/database/manager service
 │   │               (seven modules in one-way order). Reads downward:
 │   │               rpc -> {restore -> {lifecycle, listing, _dump_scanner},
@@ -613,6 +615,7 @@ seam, not an import.**
 |---|---|
 | `db/` ↔ ORM | `orm/runtime/savepoint.py` assigns `_OrmFlushingSavepoint` to `BaseCursor._flushing_savepoint_cls` at import, so `db/` never imports the ORM |
 | `db/` ↔ `tools.config` | `tools/config.py` gives `db/settings.py`'s slot a source that builds a frozen `PoolSettings` from the option dict; every pool captures the snapshot it was built from, the free functions take one or ask the slot, and a test installs its own — so `db/` reads typed fields and never the dict, and never imports `odoo.tools` |
+| `http/`, `service/` ↔ `tools.config` | the same slot shape (`odoo.libs.settings.SettingsSlot`), one per tier, and the same rule as `db/`: `ServerSettings` and `HttpSettings` name every option their package reads and `from_config` is the one place each key is spelled, but nothing is installed at boot — `current()` derives a snapshot from the live option dict per read, which is what keeps `config.patch(...)`, `config.options.new_child(...)` and every one of the hundred-odd test sites that write a key after boot meaningful; a lifetime that genuinely freezes one captures it (`ThreadedWSGIServerReloadable` captures the snapshot its thread bound is computed from), and a test installs its own instead of patching the dict. The `/web/database/manager` service (`service/db/`) stays on the dict on purpose — `list_db` is flipped at run time by `odoo-bin db`, and the admin password is a credential it verifies and rewrites, not a setting |
 | `components/` ↔ runtime | `FieldCache`/`ComputeEngine` take callbacks for SQL and recompute, so the engine never imports `Environment` |
 | Layer 1 ↔ `BaseModel` | the model layer injects `BaseModel` into `orm/_recordset.py` via `set_base_model()`, so `fields/` and `domain/` recognise recordsets without importing Layer 2 |
 | CRUD ↔ persistence | the model mixins dispatch row I/O through `env.backend` |

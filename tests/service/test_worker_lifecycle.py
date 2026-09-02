@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from odoo.service import _cron, _worker
+from odoo.service import settings as server_settings
 
 
 def _open_fds() -> set[int]:
@@ -97,7 +98,7 @@ class TestWorkerSignalDispositions:
     def test_the_cpu_alarm_raises_and_names_the_limit(self, multi):
         worker = _worker.Worker(multi)
         with (
-            patch.object(_worker, "config", {"limit_time_cpu": 77}),
+            server_settings.override(limit_time_cpu=77),
             pytest.raises(_worker.CpuTimeLimitExceeded, match="77"),
         ):
             worker.signal_time_expired_handler(24, None)
@@ -118,9 +119,7 @@ class TestCpuRlimitClamp:
         res.getrlimit.return_value = (resource.RLIM_INFINITY, hard)
         with (
             patch.object(_worker, "resource", res),
-            patch.object(
-                _worker, "config", {"limit_memory_soft": 0, "limit_time_cpu": limit}
-            ),
+            server_settings.override(limit_memory_soft=0, limit_time_cpu=limit),
             patch.object(_worker, "get_memory_over_soft_limit", return_value=None),
         ):
             worker.check_limits()

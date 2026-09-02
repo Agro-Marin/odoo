@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from odoo.service import _threaded
+from odoo.service import settings as server_settings
 from odoo.service._cron import CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL
 
 
@@ -92,7 +93,7 @@ class TestSpawnersTypeTheirThreadsForTheRightTimeBudget:
             return t
 
         with (
-            patch.object(_threaded, "config", cfg),
+            server_settings.override(**cfg),
             patch.object(_threaded.threading, "Thread", side_effect=fake_thread),
             patch.object(_threaded, "as_worker_thread", side_effect=lambda t: t),
         ):

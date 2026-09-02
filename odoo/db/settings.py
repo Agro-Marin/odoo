@@ -7,7 +7,13 @@ from odoo.libs.settings import OptionSource, SettingsSlot
 
 __all__ = ["PoolSettings", "current", "installed", "override", "provide", "slot"]
 
-REPLICA_OVERRIDABLE: tuple[str, ...] = ("host", "port", "user", "password", "sslmode")
+REPLICA_OVERRIDABLE: tuple[tuple[str, str], ...] = (
+    ("host", "replica_host"),
+    ("port", "replica_port"),
+    ("user", "replica_user"),
+    ("password", "replica_password"),
+    ("sslmode", "replica_sslmode"),
+)
 
 
 def _optional_int(value: object) -> int | None:
@@ -85,10 +91,10 @@ class PoolSettings:
 
     def connection_keywords(self, readonly: bool = False) -> dict[str, Any]:
         keywords: dict[str, Any] = {}
-        for name in REPLICA_OVERRIDABLE:
+        for name, replica_name in REPLICA_OVERRIDABLE:
             value = getattr(self, name)
             if readonly:
-                value = getattr(self, f"replica_{name}") or value
+                value = getattr(self, replica_name) or value
             if value:
                 keywords[name] = value
         return keywords

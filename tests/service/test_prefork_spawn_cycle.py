@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from odoo.service import _prefork
+from odoo.service import settings as server_settings
 
 
 class TestTheWorkerCensusCrossesTheFork:
@@ -33,7 +34,7 @@ class TestTheWorkerCensusCrossesTheFork:
         obj.workers_cron = dict.fromkeys((4,), MagicMock())
         obj.workers_job = dict.fromkeys((5, 6), MagicMock())
         obj._census_written_at = float("-inf")
-        with patch.object(_prefork, "config", {"data_dir": str(tmp_path)}):
+        with server_settings.override(data_dir=str(tmp_path)):
             yield obj
 
     def _child_of(self, master):
@@ -128,11 +129,11 @@ class TestTheWorkerCensusCrossesTheFork:
         The failure mode must be exactly what it was before the census
         existed: the metrics are absent.
         """
-        with patch.object(_prefork, "config", {"data_dir": "/proc/nonexistent-dir"}):
+        with server_settings.override(data_dir="/proc/nonexistent-dir"):
             master._census_written_at = float("-inf")
             master._publish_census()
 
-        with patch.object(_prefork, "config", {}):
+        with server_settings.override(data_dir=""):
             master._census_written_at = float("-inf")
             master._publish_census()
             assert master._get_census_path() is None
@@ -318,7 +319,7 @@ class TestProcessSpawnChecksSignallingOncePerCycle:
         snapshot = MagicMock()
         snapshot.snapshot = registries
         with (
-            patch.object(_prefork, "config", cfg),
+            server_settings.override(**cfg),
             patch.object(_prefork.Registry, "registries", snapshot),
             patch.object(_prefork, "db") as fake_db,
             patch.object(prefork, "spawn_worker", side_effect=fake_spawn),
@@ -386,7 +387,7 @@ class TestProcessSpawnChecksSignallingOncePerCycle:
     def test_a_failed_spawn_stops_the_cycle_instead_of_looping(self, prefork):
         cfg = {"http_enable": False, "max_cron_threads": 3, "job_workers": 2}
         with (
-            patch.object(_prefork, "config", cfg),
+            server_settings.override(**cfg),
             patch.object(_prefork.Registry, "registries", MagicMock(snapshot={})),
             patch.object(_prefork, "db"),
             patch.object(prefork, "spawn_worker", return_value=None) as spawn,

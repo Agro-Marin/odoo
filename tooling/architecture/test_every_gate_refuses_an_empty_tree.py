@@ -46,6 +46,7 @@ GATES = {
     "py_x2many_count": ["--count"],
     "bridge_budget": ["--count"],
     "werkzeug_in_addons": ["--count"],
+    "config_in_addons": ["--count"],
     "sql_in_placeholder": ["--count"],
     "py_count_as_boolean": ["--count"],
     "py_hook_arity": ["--count"],

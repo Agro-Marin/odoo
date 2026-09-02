@@ -4,6 +4,7 @@ import pytest
 
 from odoo.modules.registry import Registry
 from odoo.service import lifecycle
+from odoo.service import settings as server_settings
 
 AVG_REGISTRY_BYTES = 15 * 1024 * 1024
 
@@ -28,7 +29,7 @@ def sizing(monkeypatch, registry_limits):
         cfg = {"limit_memory_soft": 0, **(config or {})}
         Registry.registries.count = resident
         with (
-            patch.object(lifecycle, "config", cfg),
+            server_settings.override(**cfg),
             patch.object(lifecycle, "_IS_POSIX", posix),
         ):
             lifecycle._limit_resident_registries(list(dbnames))

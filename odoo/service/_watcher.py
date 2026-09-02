@@ -10,6 +10,7 @@ from pathlib import Path
 import odoo.addons
 from . import _process_state
 from .lifecycle import restart
+from .settings import current
 
 if os.name == "posix":
     try:
@@ -102,10 +103,8 @@ class FSWatcherBase:
 
     @staticmethod
     def get_watch_paths() -> list[str]:
-        from odoo.tools import config
-
         roots = list(odoo.addons.__path__)
-        if "reload" in config["dev_mode"]:
+        if "reload" in current().dev_mode:
             return roots
         paths = []
         for root in roots:
@@ -121,9 +120,8 @@ class FSWatcherBase:
     def _signal_asset_change(self, path: str) -> None:
         from odoo import db as odoo_db
         from odoo.orm.runtime.registry import Registry
-        from odoo.tools import config
 
-        databases = set(Registry.registries.snapshot) | set(config["db_name"] or ())
+        databases = set(Registry.registries.snapshot) | set(current().db_name or ())
         for db_name in databases:
             try:
                 with odoo_db.db_connect(db_name).cursor() as cr:
@@ -177,15 +175,13 @@ class FSWatcherBase:
             timer.cancel()
 
     def handle_file(self, path: str) -> bool | None:
-        from odoo.tools import config
-
         if path.endswith(ASSET_SUFFIXES) and "/static/" in path:
-            if "assets" in config["dev_mode"]:
+            if "assets" in current().dev_mode:
                 self.handle_asset_file(path)
             return None
         if self._reload_triggered:
             return None
-        if "reload" not in config["dev_mode"]:
+        if "reload" not in current().dev_mode:
             return None
         if path.endswith(".py") and not Path(path).name.startswith(".~"):
             try:

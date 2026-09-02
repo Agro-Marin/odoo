@@ -17,9 +17,9 @@ import werkzeug.serving
 from werkzeug.urls import uri_to_iri
 
 from odoo.libs.worker_thread import as_worker_thread, current_worker_thread
-from odoo.tools.config import config
 
 from ._env import get_env_float, get_env_int
+from .settings import current
 
 _logger = logging.getLogger("odoo.service.server")
 
@@ -148,7 +148,7 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
 
         code = str(code)
 
-        if "/static/" in raw_path and not config["dev_mode"]:
+        if "/static/" in raw_path and not current().dev_mode:
             self.log("debug", '"%s" %s %s', msg, code, size)
             return
 
@@ -173,7 +173,7 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
 class RequestHandler(CommonRequestHandler):
     def setup(self) -> None:
         self.timeout = get_http_socket_timeout()
-        if config["test_enable"]:
+        if current().test_enable:
             self.timeout = max(self.timeout, 5)
         super().setup()
         me = threading.current_thread()
@@ -222,8 +222,13 @@ class ThreadedWSGIServerReloadable(
     LoggingBaseWSGIServerMixIn, werkzeug.serving.ThreadedWSGIServer
 ):
     def __init__(self, host: str, port: int, app: Any) -> None:
+        self.settings = current()
         auto_limit = max(
-            (config["db_maxconn"] - config["max_cron_threads"] - config["job_workers"])
+            (
+                self.settings.db_maxconn
+                - self.settings.max_cron_threads
+                - self.settings.job_workers
+            )
             // 2,
             1,
         )
@@ -243,7 +248,7 @@ class ThreadedWSGIServerReloadable(
             _logger.info(
                 "HTTP concurrency is unbounded (ODOO_MAX_HTTP_THREADS=0); "
                 "in-flight requests are limited only by db_maxconn=%s",
-                config["db_maxconn"],
+                self.settings.db_maxconn,
             )
             return
         source = (
@@ -251,9 +256,9 @@ class ThreadedWSGIServerReloadable(
             if self.max_http_threads != auto_limit
             else "(db_maxconn %s - max_cron_threads %s - job_workers %s) // 2"
             % (
-                config["db_maxconn"],
-                config["max_cron_threads"],
-                config["job_workers"],
+                self.settings.db_maxconn,
+                self.settings.max_cron_threads,
+                self.settings.job_workers,
             )
         )
         log = _logger.warning if self.max_http_threads < 4 else _logger.info

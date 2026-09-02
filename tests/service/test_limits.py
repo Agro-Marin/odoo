@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from odoo.service import settings as server_settings
 from odoo.service._cron import ReconnectBackoff
 from odoo.service._limits import BACKOFF_BASE_S, BACKOFF_CEILING_S
 
@@ -142,7 +143,7 @@ def test_the_cron_budget_resolves_the_whole_sentinel_chain(real, cron, expected)
 def test_the_prefork_watchdog_agrees_with_the_resolver(real, cron, expected):
     from unittest.mock import MagicMock
 
-    from odoo.service import _base_server, _prefork, server
+    from odoo.service import server
     from odoo.service._limits import get_cron_real_time_budget
 
     cfg = {
@@ -155,9 +156,7 @@ def test_the_prefork_watchdog_agrees_with_the_resolver(real, cron, expected):
         "limit_time_real_job": -1,
     }
     with (
-        patch.object(_prefork, "config", cfg),
-        patch.object(_base_server, "config", cfg),
-        patch("odoo.service._limits.config", cfg),
+        server_settings.override(**cfg),
     ):
         prefork = server.PreforkServer(MagicMock())
         assert prefork.cron_timeout == (get_cron_real_time_budget() or None)
@@ -180,11 +179,12 @@ def test_nothing_outside_the_resolver_reads_the_raw_cron_knob():
         for path in scanned
         if path.exists()
         and "limit_time_real_cron" in path.read_text()
-        and path.name != "_limits.py"
+        and path.name not in {"_limits.py", "settings.py"}
     )
     assert offenders == [], (
-        "get_cron_real_time_budget() is the one answer to how long cron work may "
-        f"run; {offenders} resolve the knob themselves"
+        "ServerSettings.cron_real_time_budget, behind get_cron_real_time_budget(), "
+        f"is the one answer to how long cron work may run; {offenders} resolve "
+        "the knob themselves"
     )
 
 

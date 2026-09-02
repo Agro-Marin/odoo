@@ -10,11 +10,12 @@ from collections.abc import Iterable, Iterator
 from odoo import db
 from odoo.db import is_maintenance_db
 from odoo.libs import backoff
-from odoo.tools import SQL, OrderedSet, config
+from odoo.tools import SQL, OrderedSet
 from odoo.tools.constants import CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL
 
 from ._limits import BACKOFF_BASE_S, BACKOFF_CEILING_S
 from .db import list_dbs
+from .settings import current
 
 if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor
@@ -103,7 +104,7 @@ _dbfilter_warned = False
 def _static_dbfilter() -> re.Pattern[str] | None:
     global _dbfilter_warned  # noqa: PLW0603  warn once per process, not per sweep
 
-    pattern = config["dbfilter"]
+    pattern = current().dbfilter
     if not pattern:
         return None
     if _HOST_PLACEHOLDER_RE.search(pattern):
@@ -131,9 +132,9 @@ def _static_dbfilter() -> re.Pattern[str] | None:
 
 
 def get_cron_databases() -> list[str]:
-    names = config["db_name"]
-    if names:
-        return list(names)
+    configured = current().db_name
+    if configured:
+        return list(configured)
     names = [name for name in list_dbs(True) if not is_maintenance_db(name)]
     dbfilter = _static_dbfilter()
     if dbfilter is None:

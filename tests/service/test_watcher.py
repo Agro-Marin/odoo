@@ -8,6 +8,7 @@ import psycopg
 import pytest
 
 from odoo.service import _watcher
+from odoo.service import settings as server_settings
 
 from .conftest import fake_pg_cursor, requires_inotify
 
@@ -102,7 +103,6 @@ class TestFSWatcherAssetInvalidation:
         def _run(*, registries=(), configured=(), failing=()):
             import odoo.db
             import odoo.orm.runtime.registry as registry_mod
-            import odoo.tools
 
             statements = []
 
@@ -122,7 +122,7 @@ class TestFSWatcherAssetInvalidation:
             with (
                 patch.object(odoo.db, "db_connect", db_connect),
                 patch.object(registry_mod, "Registry", fake_registry),
-                patch.object(odoo.tools, "config", {"db_name": list(configured)}),
+                server_settings.override(db_name=tuple(configured)),
             ):
                 watcher.handle_asset_file("/src/some_bundle.js")
             return statements

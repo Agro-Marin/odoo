@@ -1,7 +1,6 @@
 import collections
 import configparser
 import contextlib
-import errno
 import functools
 import io
 import logging
@@ -2190,18 +2189,6 @@ class configmanager:
                 Path(d).mkdir(0o500, parents=True)
             except OSError:
                 self._log(logging.DEBUG, "Failed to create addons data dir %s", d)
-        return d
-
-    @property
-    def session_dir(self):
-        d = str(Path(self["data_dir"], "sessions"))
-        try:
-            Path(d).mkdir(0o700, parents=True)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
-            if not os.access(d, os.W_OK):
-                raise OSError(f"{d}: session directory is not writable") from e
         return d
 
     def filestore(self, dbname: str) -> str:

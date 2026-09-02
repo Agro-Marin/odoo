@@ -62,6 +62,7 @@ class Known:
 
 _HTTP_FOUNDATION = (
     "odoo.http.constants",
+    "odoo.http.settings",
     "odoo.http.exceptions",
     "odoo.http._protocols",
 )

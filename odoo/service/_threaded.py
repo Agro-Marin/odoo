@@ -17,7 +17,6 @@ from odoo import db
 from odoo.db import PoolError
 from odoo.libs.worker_thread import as_worker_thread, current_worker_thread
 from odoo.modules.registry import Registry
-from odoo.tools import config
 from odoo.tools.cache import log_ormcache_stats
 from odoo.tools.misc import dumpstacks
 
@@ -136,7 +135,7 @@ class ThreadedServer(CommonServer):
                     elif thread_type == "cron":
                         thread_limit_time_real = get_cron_real_time_budget()
                     else:
-                        thread_limit_time_real = config["limit_time_real"]
+                        thread_limit_time_real = self.settings.limit_time_real
                     if (
                         thread_limit_time_real > 0
                         and thread_execution_time > thread_limit_time_real
@@ -240,7 +239,9 @@ class ThreadedServer(CommonServer):
         label: str,
     ) -> None:
         max_age = (
-            get_job_max_age() if label == "job" else config["limit_time_worker_cron"]
+            get_job_max_age()
+            if label == "job"
+            else self.settings.limit_time_worker_cron
         )
 
         cron_logger = self.logger.getChild(f"{label}{number}")
@@ -274,7 +275,7 @@ class ThreadedServer(CommonServer):
                     close_cron_cursor(cr)
 
     def spawn_cron_threads(self) -> None:
-        for i in range(config["max_cron_threads"]):
+        for i in range(self.settings.max_cron_threads):
             t = threading.Thread(
                 target=self.cron_thread,
                 args=(i,),
@@ -285,7 +286,7 @@ class ThreadedServer(CommonServer):
             t.start()
 
     def spawn_job_threads(self) -> None:
-        for i in range(config["job_workers"]):
+        for i in range(self.settings.job_workers):
             t = threading.Thread(
                 target=self.job_thread,
                 args=(i,),
@@ -332,16 +333,16 @@ class ThreadedServer(CommonServer):
                 lambda sig: self.signal_handler(sig, None), 1
             )
 
-        if _IS_POSIX and config["limit_time_cpu"] > 0:
+        if _IS_POSIX and self.settings.limit_time_cpu > 0:
             self.logger.info(
                 "limit_time_cpu=%ss is not enforced with workers=0: the CPU "
                 "budget is armed per worker process (RLIMIT_CPU in "
                 "odoo.service._worker), and a threaded server has none. Use "
                 "limit_time_real, which this server does enforce per thread.",
-                config["limit_time_cpu"],
+                self.settings.limit_time_cpu,
             )
 
-        if config["http_enable"] and (config["test_enable"] or not stop):
+        if self.settings.http_enable and (self.settings.test_enable or not stop):
             self.http_spawn()
 
     def stop(self) -> None:
@@ -397,7 +398,7 @@ class ThreadedServer(CommonServer):
             rc = preload_registries(preload)
 
             if stop:
-                if config["test_enable"]:
+                if self.settings.test_enable:
                     from odoo.tests.result import _logger as logger
 
                     with Registry.registries._lock:
@@ -464,12 +465,12 @@ class EventServer(CommonServer):
 
     def __init__(self, app: Any) -> None:
         super().__init__(app)
-        self.port = config["gevent_port"]
+        self.port = self.settings.gevent_port
         self.httpd: werkzeug.serving.BaseWSGIServer | None = None
         self.ppid = os.getppid()
 
     def get_memory_soft_limit(self) -> int:
-        return config["limit_memory_soft_gevent"] or config["limit_memory_soft"]
+        return self.settings.limit_memory_soft_gevent or self.settings.limit_memory_soft
 
     def check_limits(self) -> None:
         restart = False

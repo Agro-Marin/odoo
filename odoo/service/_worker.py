@@ -30,7 +30,6 @@ except ImportError:
 
 from odoo.db import PoolError
 from odoo.modules.registry import Registry
-from odoo.tools import config
 
 from ._cron import (
     CRON_NOTIFY_JITTER_MAX_S,
@@ -50,6 +49,7 @@ from ._limits import (
     get_job_max_age,
     get_memory_over_soft_limit,
 )
+from .settings import current
 from .wsgi import BaseWSGIServerNoBind, get_http_socket_timeout
 
 if TYPE_CHECKING:
@@ -77,7 +77,7 @@ class Worker:
                     os.close(fd)
             raise
         self.wakeup_fd_r, self.wakeup_fd_w = self.eintr_pipe
-        self.watchdog_timeout = multi.timeout
+        self.watchdog_timeout: float | None = multi.timeout
         self.ppid = os.getpid()
         self.pid: int | None = None
         self.alive = True
@@ -103,7 +103,7 @@ class Worker:
 
     def signal_time_expired_handler(self, n: int, stack: Any) -> None:
         raise CpuTimeLimitExceeded(
-            f"CPU time limit ({config['limit_time_cpu']}s) exceeded"
+            f"CPU time limit ({current().limit_time_cpu}s) exceeded"
         )
 
     def sleep(self) -> None:
@@ -118,13 +118,13 @@ class Worker:
             self.logger.info("Max request (%s) reached.", self.request_count)
             self.alive = False
         memory = get_memory_over_soft_limit(
-            self._process_handle, config["limit_memory_soft"]
+            self._process_handle, current().limit_memory_soft
         )
         if memory is not None:
             self.logger.info("RSS memory soft-limit reached: %s bytes.", memory)
             self.alive = False
 
-        limit_time_cpu = config["limit_time_cpu"]
+        limit_time_cpu = current().limit_time_cpu
         if limit_time_cpu > 0:
             r = resource.getrusage(resource.RUSAGE_SELF)
             cpu_time = r.ru_utime + r.ru_stime
@@ -186,7 +186,7 @@ class Worker:
         except CpuTimeLimitExceeded:
             self.logger.warning(
                 "CPU time limit (%ss) exceeded; recycling worker.",
-                config["limit_time_cpu"],
+                current().limit_time_cpu,
             )
             self.alive = False
             t.join(timeout=self._CPU_LIMIT_JOIN_GRACE_S)
@@ -292,7 +292,7 @@ class WorkerCron(Worker):
             if self._backoff.attempts > 0:
                 return
 
-            interval = CRON_POLL_INTERVAL_S + os.getpid() % 10
+            interval: float = CRON_POLL_INTERVAL_S + os.getpid() % 10
 
             if self.watchdog_timeout:
                 interval = min(interval, max(self.watchdog_timeout / 2, 1))
@@ -303,7 +303,7 @@ class WorkerCron(Worker):
             empty_pipe(self.wakeup_fd_r)
 
     def get_max_age(self) -> int:
-        return config["limit_time_worker_cron"]
+        return current().limit_time_worker_cron
 
     def check_limits(self) -> None:
         super().check_limits()

@@ -14,11 +14,12 @@ import odoo.service.common
 import odoo.service.db
 import odoo.service.model
 from odoo.db import is_maintenance_db
+from odoo.db import settings as pool_settings
 from odoo.libs.worker_thread import current_worker_thread
-from odoo.tools import config
 
 from .constants import SESSION_LIFETIME
 from .core import borrow_request, request
+from .settings import current as current_settings
 
 _logger = logging.getLogger(__name__)
 
@@ -82,9 +83,11 @@ def _compile_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
 
 
 def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
-    names = [db for db in dbs if not is_maintenance_db(db)]
+    settings = current_settings()
+    pool = pool_settings.current()
+    names = [db for db in dbs if not is_maintenance_db(db, pool)]
 
-    pattern = config["dbfilter"]
+    pattern = settings.dbfilter
     if pattern:
         if _has_host_placeholder(pattern):
             if host is None:
@@ -97,8 +100,8 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
         dbfilter_re = _compile_dbfilter(pattern, host)
         names = [db for db in names if dbfilter_re.match(db)]
 
-    if config["db_name"]:
-        exposed = set(config["db_name"])
+    if settings.db_name:
+        exposed = set(settings.db_name)
         names = [db for db in names if db in exposed]
 
     return names
@@ -208,7 +211,7 @@ _TRACEBACK_HIDDEN = "Traceback hidden; enable dev_mode or read the server log."
 
 
 def _is_exception_detail_hidden() -> bool:
-    return bool(request) and not config["dev_mode"]
+    return bool(request) and not current_settings().dev_mode
 
 
 def _get_exception_debug_text(exception: BaseException) -> str:

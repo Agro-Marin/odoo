@@ -19,7 +19,6 @@ from odoo.exceptions import AccessDenied
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.registry import Registry
 from odoo.service.transaction import retrying
-from odoo.tools import config
 
 from ._protocols import RequestState, ir_http
 from ._retry import RequestRetryParticipant
@@ -28,6 +27,7 @@ from .core import borrow_request
 from .dispatcher import _dispatchers, get_dispatcher_for_unmatched_route
 from .exceptions import RegistryError, get_error_response, set_error_response
 from .helpers import is_cors_preflight, rewind_uploaded_files
+from .settings import current as current_settings
 from .stream import Stream
 from .wrappers import Response
 
@@ -278,7 +278,7 @@ class _RequestServeMixin(RequestState):
         if isinstance(exc, HTTPException) and exc.code is None:
             return
         if (
-            "werkzeug" in config["dev_mode"]
+            "werkzeug" in current_settings().dev_mode
             and not self.dispatcher.serializes_errors_in_dev_mode
         ):
             return

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from odoo.service import lifecycle
+from odoo.service import settings as server_settings
 
 
 @pytest.fixture
@@ -18,7 +19,7 @@ def load_modules():
                 raise ImportError(f"no module named {name}")
 
         with (
-            patch.object(lifecycle, "config", {"server_wide_modules": names}),
+            server_settings.override(server_wide_modules=names),
             patch.object(lifecycle, "load_odoo_module", side_effect=loader),
         ):
             lifecycle.load_server_wide_modules()
@@ -141,7 +142,7 @@ def _demand(**overrides):
         "http_enable": True,
         **overrides,
     }
-    with patch.object(lifecycle, "config", cfg):
+    with server_settings.override(**cfg):
         return lifecycle._get_connection_budget_demand()
 
 

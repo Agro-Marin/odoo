@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from odoo.service import _process_state
+from odoo.service import settings as server_settings
 
 
 @pytest.fixture(scope="module")
@@ -49,51 +50,47 @@ def limits_cursor(max_connections=100, reserved=3, server_port=5432):
 
 class TestConnectionBudgetDemand:
     def test_threaded_is_a_single_process(self, mod):
-        with patch.object(mod, "config", make_config(workers=0)):
+        with server_settings.override(**make_config(workers=0)):
             assert mod._get_connection_budget_demand() == (1, 64)
 
     def test_prefork_counts_http_cron_job_and_the_evented_child(self, mod):
-        with patch.object(
-            mod, "config", make_config(workers=4, max_cron_threads=2, job_workers=2)
+        with server_settings.override(
+            **make_config(workers=4, max_cron_threads=2, job_workers=2)
         ):
             processes, demand = mod._get_connection_budget_demand()
         assert processes == 9
         assert demand == 9 * 64
 
     def test_evented_child_uses_its_own_ceiling_when_set(self, mod):
-        with patch.object(
-            mod,
-            "config",
-            make_config(
+        with server_settings.override(
+            **make_config(
                 workers=1, max_cron_threads=0, job_workers=0, db_maxconn_gevent=8
-            ),
+            )
         ):
             processes, demand = mod._get_connection_budget_demand()
         assert processes == 2
         assert demand == 64 + 8
 
     def test_no_evented_child_when_http_is_disabled(self, mod):
-        with patch.object(
-            mod,
-            "config",
-            make_config(
+        with server_settings.override(
+            **make_config(
                 workers=2, max_cron_threads=0, job_workers=0, http_enable=False
-            ),
+            )
         ):
             processes, demand = mod._get_connection_budget_demand()
         assert processes == 2
         assert demand == 2 * 64
 
     def test_master_process_is_excluded(self, mod):
-        with patch.object(
-            mod, "config", make_config(workers=1, max_cron_threads=0, job_workers=0)
+        with server_settings.override(
+            **make_config(workers=1, max_cron_threads=0, job_workers=0)
         ):
             processes, _ = mod._get_connection_budget_demand()
         assert processes == 2
 
 
 class TestWarnOnConnectionBudget:
-    def _run(self, mod, config, cursor=None, connect_error=None):
+    def _run(self, mod, overrides, cursor=None, connect_error=None):
         conn = MagicMock()
         conn.cursor.return_value = cursor if cursor is not None else limits_cursor()
         db_mock = MagicMock()
@@ -103,7 +100,7 @@ class TestWarnOnConnectionBudget:
             db_mock.db_connect.return_value = conn
         logger = MagicMock()
         with (
-            patch.object(mod, "config", config),
+            server_settings.override(**overrides),
             patch.object(mod, "db", db_mock),
             patch.object(mod, "_logger", logger),
         ):
@@ -164,14 +161,14 @@ class TestWarnOnConnectionBudget:
         )
         logger.warning.assert_called_once()
 
-    def test_an_incomplete_config_cannot_break_the_boot(self, mod):
-        logger = self._run(mod, {"workers": 0})
-        logger.warning.assert_not_called()
-
-    def test_a_hostile_config_mapping_cannot_break_the_boot(self, mod):
-        exploding = MagicMock()
-        exploding.__getitem__.side_effect = RuntimeError("config is gone")
-        logger = self._run(mod, exploding)
+    def test_a_hostile_settings_source_cannot_break_the_boot(self, mod):
+        logger = MagicMock()
+        with (
+            patch.object(mod, "current", side_effect=RuntimeError("settings gone")),
+            patch.object(mod, "db", MagicMock()),
+            patch.object(mod, "_logger", logger),
+        ):
+            mod._warn_on_connection_budget()
         logger.warning.assert_not_called()
 
     def test_skipped_in_the_evented_child(self, mod):
@@ -224,9 +221,9 @@ class TestNarrowingTestSpec:
 def preload_config(**overrides):
     base = {
         "limit_memory_soft": 0,
-        "init": None,
-        "update": None,
-        "reinit": None,
+        "init": (),
+        "update": (),
+        "reinit": (),
         "test_enable": False,
     }
     base.update(overrides)
@@ -260,7 +257,7 @@ class TestPreloadRegistriesReturnCode:
             logger = MagicMock()
             with (
                 patch.object(mod, "Registry", registry_cls),
-                patch.object(mod, "config", preload_config(**(config_overrides or {}))),
+                server_settings.override(**preload_config(**(config_overrides or {}))),
                 patch.object(
                     mod, "_run_post_install_tests", return_value=unrun
                 ) as post_install,
@@ -447,11 +444,18 @@ class TestLifecycleStartWatcherCleanup:
         mock_server = MagicMock()
         mock_server.run.side_effect = OSError(errno.EADDRINUSE, "address in use")
         mock_watcher = MagicMock()
-        fake_config = {"workers": 0, "dev_mode": ["reload"], "server_wide_modules": []}
+        fake_config = {
+            **dict(odoo.tools.config.options),
+            "workers": 0,
+            "dev_mode": ["reload"],
+            "server_wide_modules": [],
+        }
 
         with (
             patch.object(_factory, "load_server_wide_modules"),
-            patch.object(_factory, "config", fake_config),
+            server_settings.installed(
+                server_settings.ServerSettings.from_config(fake_config)
+            ),
             patch.object(odoo, "evented", False),
             patch.object(_factory, "ThreadedServer", return_value=mock_server),
             patch.object(_factory, "inotify", True),

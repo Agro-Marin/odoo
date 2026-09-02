@@ -6,8 +6,9 @@ import inspect
 from collections.abc import Callable, Sequence
 from typing import Any
 
-import odoo.tools
 from odoo.db import is_maintenance_db
+
+from .settings import current
 
 __all__ = ("dispatch_through_table", "get_positional_bounds", "is_db_rpc_exposed")
 
@@ -17,7 +18,7 @@ def is_db_rpc_exposed(db_name: object) -> bool:
         return False
     if is_maintenance_db(db_name):
         return False
-    exposed = odoo.tools.config["db_name"]
+    exposed = current().db_name
     return not exposed or db_name in exposed
 
 

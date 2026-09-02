@@ -1098,6 +1098,25 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run config-in-addons ratchet
+        id: config_in_addons
+        # Non-test files under addons/ and odoo/addons/ reaching for the
+        # process-global odoo.tools.config -- a subscript, a .get, a
+        # .filestore, a bare `config` -- through any of the four import
+        # spellings. The core reads typed PoolSettings / HttpSettings /
+        # ServerSettings snapshots since 2026-09; the addons are the other
+        # half of the population and every reach is a coupling invisible to
+        # the import gates, because odoo.tools is the door addons may use.
+        # The unit is REFERENCES: nine reads in one file are nine couplings.
+        run: |
+          set +e
+          python tooling/architecture/config_in_addons.py | tee /tmp/config_in_addons.log
+          python tooling/architecture/config_in_addons.py --count \
+            | xargs python tooling/ratchet/ratchet.py config_in_addons --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run SQL IN-placeholder ratchet (core)
         id: sql_in_placeholder
         # psycopg3 binds server-side, so `IN %s` reaches PostgreSQL as
@@ -2169,6 +2188,12 @@ jobs:
             echo '```'
             cat /tmp/werkzeug_in_addons.log 2>/dev/null \
               || echo "(werkzeug-in-addons gate did not run)"
+            echo '```'
+            echo ""
+            echo "### Addon references to odoo.tools.config"
+            echo '```'
+            cat /tmp/config_in_addons.log 2>/dev/null \
+              || echo "(config-in-addons gate did not run)"
             echo '```'
             echo ""
             echo "### JavaScript (duplication)"

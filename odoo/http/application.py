@@ -17,11 +17,10 @@ from werkzeug.exceptions import (
 from werkzeug.middleware.proxy_fix import ProxyFix as ProxyFix_
 from werkzeug.wrappers import Response as WerkzeugResponse
 
-import odoo.tools
 from odoo.exceptions import AccessDenied, AccessError, UserError
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules import module as module_manager
-from odoo.tools import config, file_path
+from odoo.tools import file_path
 from odoo.tools.misc import real_time
 
 from ._protocols import ir_http
@@ -41,7 +40,8 @@ from .exceptions import (
 from .geoip import geoip2, maxminddb
 from .request_class import Request
 from .routing import _generate_routing_rules, prepare_routing_map
-from .session import FilesystemSessionStore, Session
+from .session import FilesystemSessionStore, Session, prepare_session_dir
+from .settings import current as current_settings
 from .wrappers import HTTPRequest, Response, prepare_no_content_response
 
 _logger = logging.getLogger(__name__)
@@ -149,13 +149,13 @@ class Application:
     def nodb_routing_map(self):
         return prepare_routing_map(
             _generate_routing_rules(
-                [""] + config["server_wide_modules"], nodb_only=True
+                ["", *current_settings().server_wide_modules], nodb_only=True
             )
         )
 
     @_locked_cached_property
     def session_store(self):
-        path = odoo.tools.config.session_dir
+        path = prepare_session_dir(current_settings().session_dir)
         _logger.debug("HTTP sessions stored in: %s", path)
         return FilesystemSessionStore(path, session_class=Session, renew_missing=True)
 
@@ -171,11 +171,11 @@ class Application:
         if geoip2 is None:
             return None
         try:
-            return geoip2.database.Reader(config["geoip_city_db"])
+            return geoip2.database.Reader(current_settings().geoip_city_db)
         except (OSError, maxminddb.InvalidDatabaseError) as exc:
             _logger.debug(
                 "Couldn't load Geoip City file at %s (%s). IP Resolver disabled.",
-                config["geoip_city_db"],
+                current_settings().geoip_city_db,
                 exc,
             )
             return None
@@ -185,7 +185,7 @@ class Application:
         if geoip2 is None:
             return None
         try:
-            return geoip2.database.Reader(config["geoip_country_db"])
+            return geoip2.database.Reader(current_settings().geoip_country_db)
         except (OSError, maxminddb.InvalidDatabaseError) as exc:
             _logger.debug(
                 "Couldn't load Geoip Country file (%s); caller will fall back to Geoip City if available.",
@@ -221,12 +221,13 @@ class Application:
         current_thread.rpc_model_method = ""
 
     def _apply_proxy_fix(self, environ: dict[str, object]) -> None:
-        if odoo.tools.config["proxy_mode"] and (
+        settings = current_settings()
+        if settings.proxy_mode and (
             environ.get("HTTP_X_FORWARDED_FOR")
             or environ.get("HTTP_X_FORWARDED_PROTO")
             or environ.get("HTTP_X_FORWARDED_HOST")
         ):
-            hops = max(1, odoo.tools.config["proxy_hops"] or 1)
+            hops = settings.proxy_hops
             _get_proxy_fix(hops)(environ, _noop_start_response)
 
     def _recover_from_registry_error(
@@ -276,7 +277,7 @@ class Application:
         elif isinstance(exc, SessionExpiredException):
             _logger.info(exc)
         elif isinstance(exc, AccessError):
-            _logger.warning(exc, exc_info="access" in config["dev_mode"])
+            _logger.warning(exc, exc_info="access" in current_settings().dev_mode)
         elif isinstance(exc, UserError):
             _logger.warning(exc)
         else:

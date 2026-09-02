@@ -1,19 +1,17 @@
 import pytest
 
 from odoo.service import _cron, _limits
-
-
-class _Conf(dict):
-    def __getitem__(self, key):
-        return self.get(key)
+from odoo.service import settings as server_settings
 
 
 @pytest.fixture
-def conf(monkeypatch):
-    c = _Conf({"db_name": [], "dbfilter": "", "db_template": "tpl"})
-    monkeypatch.setattr(_cron, "config", c)
+def scoped(monkeypatch):
     monkeypatch.setattr(_cron, "_dbfilter_warned", False)
-    return c
+
+    def _scoped(**overrides):
+        return server_settings.override(**{"db_name": (), "dbfilter": "", **overrides})
+
+    return _scoped
 
 
 @pytest.fixture
@@ -27,29 +25,32 @@ def catalogue(monkeypatch):
 
 
 class TestCronDatabaseList:
-    def test_db_name_wins_and_is_copied(self, conf, catalogue):
-        conf["db_name"] = ["only_this"]
-        got = _cron.get_cron_databases()
+    def test_db_name_wins_and_is_copied(self, scoped, catalogue):
+        with scoped(db_name=("only_this",)) as settings:
+            got = _cron.get_cron_databases()
         assert got == ["only_this"]
         got.append("mutated")
-        assert conf["db_name"] == ["only_this"], "the caller mutated the config list"
+        assert settings.db_name == ("only_this",), "the caller mutated the snapshot"
 
-    def test_maintenance_databases_never_get_cron(self, conf, catalogue):
-        assert _cron.get_cron_databases() == [
-            "alpha_prod",
-            "alpha_test",
-            "beta_prod",
-        ]
+    def test_maintenance_databases_never_get_cron(self, scoped, catalogue):
+        with scoped():
+            assert _cron.get_cron_databases() == [
+                "alpha_prod",
+                "alpha_test",
+                "beta_prod",
+            ]
 
-    def test_a_static_dbfilter_scopes_the_sweep(self, conf, catalogue):
-        conf["dbfilter"] = "alpha_.*"
-        assert _cron.get_cron_databases() == ["alpha_prod", "alpha_test"]
+    def test_a_static_dbfilter_scopes_the_sweep(self, scoped, catalogue):
+        with scoped(dbfilter="alpha_.*"):
+            assert _cron.get_cron_databases() == ["alpha_prod", "alpha_test"]
 
     def test_a_host_dependent_dbfilter_cannot_scope_and_says_so(
-        self, conf, catalogue, caplog
+        self, scoped, catalogue, caplog
     ):
-        conf["dbfilter"] = "%d_prod"
-        with caplog.at_level("WARNING", logger="odoo.service.server"):
+        with (
+            scoped(dbfilter="%d_prod"),
+            caplog.at_level("WARNING", logger="odoo.service.server"),
+        ):
             assert _cron.get_cron_databases() == [
                 "alpha_prod",
                 "alpha_test",
@@ -58,19 +59,23 @@ class TestCronDatabaseList:
         assert "cannot scope cron" in caplog.text
 
     def test_the_host_dependent_warning_fires_once_per_process(
-        self, conf, catalogue, caplog
+        self, scoped, catalogue, caplog
     ):
-        conf["dbfilter"] = "%h"
-        with caplog.at_level("WARNING", logger="odoo.service.server"):
+        with (
+            scoped(dbfilter="%h"),
+            caplog.at_level("WARNING", logger="odoo.service.server"),
+        ):
             for _ in range(5):
                 _cron.get_cron_databases()
         assert caplog.text.count("cannot scope cron") == 1
 
     def test_an_invalid_dbfilter_does_not_take_the_sweep_down(
-        self, conf, catalogue, caplog
+        self, scoped, catalogue, caplog
     ):
-        conf["dbfilter"] = "alpha_[("
-        with caplog.at_level("WARNING", logger="odoo.service.server"):
+        with (
+            scoped(dbfilter="alpha_[("),
+            caplog.at_level("WARNING", logger="odoo.service.server"),
+        ):
             assert _cron.get_cron_databases() == [
                 "alpha_prod",
                 "alpha_test",
@@ -78,27 +83,27 @@ class TestCronDatabaseList:
             ]
         assert "not a valid regular expression" in caplog.text
 
-    def test_the_filter_anchors_at_the_start_like_db_filter_does(self, conf, catalogue):
-        conf["dbfilter"] = "prod"
-        assert _cron.get_cron_databases() == []
+    def test_the_filter_anchors_at_the_start_like_db_filter_does(
+        self, scoped, catalogue
+    ):
+        with scoped(dbfilter="prod"):
+            assert _cron.get_cron_databases() == []
 
 
 class TestInheritFromCron:
-    def test_the_sentinel_is_the_one_the_budgets_compare_against(self, monkeypatch):
-        c = _Conf(
-            {
-                "limit_time_worker_job": _limits.INHERIT_FROM_CRON,
-                "limit_time_worker_cron": 900,
-                "limit_time_real_job": _limits.INHERIT_FROM_CRON,
-                "limit_time_real_cron": 300,
-                "limit_time_real": 120,
-            }
-        )
-        monkeypatch.setattr(_limits, "config", c)
-        assert _limits.get_job_max_age() == 900
-        assert _limits.get_job_real_time_budget() == 300
+    def test_the_sentinel_is_the_one_the_budgets_compare_against(self):
+        with server_settings.override(
+            limit_time_worker_job=_limits.INHERIT_FROM_CRON,
+            limit_time_worker_cron=900,
+            limit_time_real_job=_limits.INHERIT_FROM_CRON,
+            limit_time_real_cron=300,
+            limit_time_real=120,
+        ):
+            assert _limits.get_job_max_age() == 900
+            assert _limits.get_job_real_time_budget() == 300
 
-    def test_zero_disables_rather_than_inherits(self, monkeypatch):
-        c = _Conf({"limit_time_worker_job": 0, "limit_time_worker_cron": 900})
-        monkeypatch.setattr(_limits, "config", c)
-        assert _limits.get_job_max_age() == 0
+    def test_zero_disables_rather_than_inherits(self):
+        with server_settings.override(
+            limit_time_worker_job=0, limit_time_worker_cron=900
+        ):
+            assert _limits.get_job_max_age() == 0

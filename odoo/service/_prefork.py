@@ -22,7 +22,6 @@ if os.name == "posix":
 
 from odoo import db
 from odoo.modules.registry import Registry
-from odoo.tools import config
 from odoo.tools.cache import log_ormcache_stats
 from odoo.tools.misc import dumpstacks, stripped_sys_argv
 
@@ -83,7 +82,10 @@ class PreforkServer(CommonServer):
 
     def _get_census_path(self) -> Path | None:
         try:
-            return Path(config["data_dir"]) / f"prefork-census-{self.pid}.json"
+            data_dir = self.settings.data_dir
+            if not data_dir:
+                return None
+            return Path(data_dir) / f"prefork-census-{self.pid}.json"
         except Exception:
             return None
 
@@ -140,11 +142,11 @@ class PreforkServer(CommonServer):
 
     def __init__(self, app: Any) -> None:
         super().__init__(app)
-        self.population = config["workers"]
+        self.population = self.settings.workers
         self.timeout = (
-            config["limit_time_real"] if config["limit_time_real"] > 0 else None
+            self.settings.limit_time_real if self.settings.limit_time_real > 0 else None
         )
-        self.limit_request = config["limit_request"]
+        self.limit_request = self.settings.limit_request
         self.cron_timeout = get_cron_real_time_budget() or None
         self.job_timeout = get_job_real_time_budget() or None
         self.beat: float = 4
@@ -426,7 +428,7 @@ class PreforkServer(CommonServer):
                     )
             db.close_all()
 
-        if config["http_enable"]:
+        if self.settings.http_enable:
             while len(self.workers_http) < self.population:
                 check_registries()
                 if self.spawn_worker(WorkerHTTP, self.workers_http) is None:
@@ -434,11 +436,11 @@ class PreforkServer(CommonServer):
             if not self.long_polling_pid:
                 check_registries()
                 self.spawn_long_polling_process()
-        while len(self.workers_cron) < config["max_cron_threads"]:
+        while len(self.workers_cron) < self.settings.max_cron_threads:
             check_registries()
             if self.spawn_worker(WorkerCron, self.workers_cron) is None:
                 return
-        while len(self.workers_job) < config["job_workers"]:
+        while len(self.workers_job) < self.settings.job_workers:
             check_registries()
             if self.spawn_worker(WorkerJob, self.workers_job) is None:
                 return
@@ -498,7 +500,7 @@ class PreforkServer(CommonServer):
         signal.signal(signal.SIGUSR1, log_ormcache_stats)
         signal.signal(signal.SIGUSR2, log_ormcache_stats)
 
-        if config["http_enable"]:
+        if self.settings.http_enable:
             inherited_fd = os.environ.pop("ODOO_HTTP_SOCKET_FD", None)
             if inherited_fd:
                 self.socket = socket.socket(fileno=int(inherited_fd))
@@ -510,7 +512,7 @@ class PreforkServer(CommonServer):
                     self.interface,
                     self.port,
                 )
-            elif config.http_socket_activation:
+            elif self.settings.http_socket_activation:
                 SD_LISTEN_FDS_START = 3
                 self.socket = socket.socket(fileno=SD_LISTEN_FDS_START)
                 self._set_socket_cloexec()

@@ -1,6 +1,7 @@
 import base64
 import collections.abc
 import contextlib
+import errno
 import os
 import re
 import time
@@ -35,6 +36,17 @@ _session_identifier_re = re.compile(rf"^[A-Za-z0-9_-]{{{STORED_SESSION_BYTES}}}$
 _TRACE_MAX_ENTRIES = 50
 
 _MTIME_REFRESH_INTERVAL = 24 * 60 * 60
+
+
+def prepare_session_dir(path: str) -> str:
+    try:
+        Path(path).mkdir(0o700, parents=True)
+    except OSError as exc:
+        if exc.errno != errno.EEXIST:
+            raise
+        if not os.access(path, os.W_OK):
+            raise OSError(f"{path}: session directory is not writable") from exc
+    return path
 
 
 class FilesystemSessionStore(sessions.FilesystemSessionStore):

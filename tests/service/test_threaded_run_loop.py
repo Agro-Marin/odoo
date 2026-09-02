@@ -9,6 +9,7 @@ import pytest
 
 from odoo.db import PoolError
 from odoo.service import _cron, _threaded
+from odoo.service import settings as server_settings
 
 
 class _Stop(SystemExit):
@@ -40,7 +41,7 @@ def listen(server):
                     bound=lambda attempt, **kw: backoffs.append(attempt) or 0
                 ),
             ),
-            patch.object(_threaded, "config", {"limit_time_worker_cron": max_age}),
+            server_settings.override(limit_time_worker_cron=max_age),
             patch.object(_cron, "arm_cron_listen"),
             patch.object(_threaded, "drain_cron_notifies", return_value=set()),
             patch.object(_cron, "get_cron_databases", return_value=[]),
@@ -147,7 +148,7 @@ def run_server(server):
         server.reload = MagicMock(side_effect=lambda: calls.append(("reload", {})))
         with (
             patch.object(_threaded, "preload_registries", return_value=preload_rc),
-            patch.object(_threaded, "config", {"test_enable": False}),
+            server_settings.override(test_enable=False),
             patch.object(_threaded, "LIMIT_MONITOR_INTERVAL_S", 0),
         ):
             rc = _threaded.ThreadedServer.run(server, ["db"], stop=stop)
@@ -228,7 +229,7 @@ class TestRunLimitReached:
         )
         with (
             patch.object(_threaded, "preload_registries", return_value=0),
-            patch.object(_threaded, "config", {"test_enable": False}),
+            server_settings.override(test_enable=False),
             patch.object(_threaded, "dumpstacks") as dump,
             patch.object(_threaded, "LIMIT_MONITOR_INTERVAL_S", 0),
             patch.object(_threaded, "CRON_POLL_INTERVAL_S", 60),
@@ -289,7 +290,7 @@ def report_run(server):
         server.stop = MagicMock()
         with (
             patch.object(_threaded, "preload_registries", return_value=1),
-            patch.object(_threaded, "config", {"test_enable": True}),
+            server_settings.override(test_enable=True),
             patch.object(_threaded, "Registry", registry_cls),
             patch.dict(
                 "sys.modules",

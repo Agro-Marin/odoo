@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 import psutil
 
-from odoo.tools.config import config
-
 from ._limits import get_memory_over_soft_limit
+from .settings import ServerSettings, current
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -65,11 +64,15 @@ class CommonServer:
 
     def __init__(self, app: Any) -> None:
         self.app = app
-        self.interface: str = config["http_interface"] or "0.0.0.0"
-        self.port: int = config["http_port"]
+        self.interface: str = self.settings.http_interface or "0.0.0.0"
+        self.port: int = self.settings.http_port
         self.pid: int = os.getpid()
         self.logger = _logger.getChild(self.__class__.__name__)
         self._process_handle = psutil.Process(self.pid)
+
+    @property
+    def settings(self) -> ServerSettings:
+        return current()
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
         raise NotImplementedError(
@@ -89,7 +92,7 @@ class CommonServer:
         return memory
 
     def get_memory_soft_limit(self) -> int:
-        return config["limit_memory_soft"]
+        return self.settings.limit_memory_soft
 
     @classmethod
     def register_on_stop_hook(cls, func: Callable) -> None:

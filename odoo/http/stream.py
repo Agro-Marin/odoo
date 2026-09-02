@@ -10,10 +10,11 @@ from zlib import adler32
 
 from werkzeug.utils import send_file as _send_file
 
-from odoo.tools import config, file_path
+from odoo.tools import file_path
 
 from .constants import STATIC_CACHE_LONG
 from .core import request
+from .settings import current as current_settings
 from .wrappers import Response, _Response
 
 
@@ -144,9 +145,10 @@ class Stream:
         path = self._get_required_attribute("path")
         send_file_kwargs["use_x_sendfile"] = False
         x_accel_redirect: str | None = None
-        if config["x_sendfile"]:
+        settings = current_settings()
+        if settings.x_sendfile:
             with contextlib.suppress(ValueError):
-                fspath = Path(path).relative_to(Path(config["data_dir"]) / "filestore")
+                fspath = Path(path).relative_to(settings.filestore_root)
                 x_accel_redirect = f"/web/filestore/{fspath}"
                 send_file_kwargs["use_x_sendfile"] = True
 

@@ -4,8 +4,6 @@ import logging
 import platform
 from typing import Any
 
-from odoo.tools import config
-
 from . import _process_state
 from ._base_server import CommonServer
 from ._env import _IS_POSIX
@@ -26,6 +24,7 @@ from .lifecycle import (
     preload_registries,
     restart,
 )
+from .settings import ServerSettings, current
 
 _logger = logging.getLogger("odoo.service.server")
 
@@ -37,15 +36,15 @@ __all__ = (
 )
 
 
-def _wrap_app_in_debugger(app: Any) -> Any:
-    if "werkzeug" not in config["dev_mode"]:
+def _wrap_app_in_debugger(app: Any, settings: ServerSettings) -> Any:
+    if "werkzeug" not in settings.dev_mode:
         return app
 
     from werkzeug.debug import DebuggedApplication
 
     import odoo.http.application
 
-    if config["workers"]:
+    if settings.workers:
         _logger.warning(
             "--dev=werkzeug with workers > 0: each worker prints its own "
             "debugger PIN and only the worker that served the request accepts "
@@ -59,13 +58,13 @@ def _wrap_app_in_debugger(app: Any) -> Any:
     return DebuggedApplication(app, evalex=True)
 
 
-def _prepare_server(app: Any) -> CommonServer:
+def _prepare_server(app: Any, settings: ServerSettings) -> CommonServer:
     import odoo
 
     if odoo.evented:
         return EventServer(app)
-    if config["workers"]:
-        if config["test_enable"]:
+    if settings.workers:
+        if settings.test_enable:
             _logger.warning("Unit testing in workers mode could fail; use --workers 0.")
         return PreforkServer(app)
     _limit_malloc_arenas()
@@ -73,18 +72,24 @@ def _prepare_server(app: Any) -> CommonServer:
 
 
 def start(preload: list[str] | None = None, stop: bool = False) -> int:
+    return _run_configured_server(current(), preload, stop)
+
+
+def _run_configured_server(
+    settings: ServerSettings, preload: list[str] | None, stop: bool
+) -> int:
     load_server_wide_modules()
     import odoo
     import odoo.http
 
-    app = _wrap_app_in_debugger(odoo.http.root)
-    server = _prepare_server(app)
+    app = _wrap_app_in_debugger(odoo.http.root, settings)
+    server = _prepare_server(app, settings)
     set_server(server)
 
     _warn_on_connection_budget()
 
     watcher = None
-    if {"reload", "assets"} & set(config["dev_mode"]) and not odoo.evented:
+    if {"reload", "assets"} & set(settings.dev_mode) and not odoo.evented:
         if inotify or watchdog:
             try:
                 watcher = FSWatcherInotify() if inotify else FSWatcherWatchdog()
@@ -109,7 +114,7 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
                 (
                     " — with --dev=assets and no watcher, edited asset sources "
                     "are NOT picked up; use --dev=xml instead"
-                    if "assets" in config["dev_mode"]
+                    if "assets" in settings.dev_mode
                     else ""
                 ),
             )
