@@ -44,6 +44,17 @@ class IrRule(models.Model):
         ondelete="restrict",
     )
     domain_force = fields.Text(string="Domain")
+    composition = fields.Selection(
+        [("grant", "Grant"), ("restrict", "Restrict")],
+        default="grant",
+        required=True,
+        help=(
+            "Grant: the rule's records are added to what the group's members may "
+            "reach, and every grant rule a user matches is combined with OR. "
+            "Restrict: the rule's domain is combined with AND, like a rule with no "
+            "groups but only for the group's members, so no other rule can widen it."
+        ),
+    )
     perm_read = fields.Boolean(string="Read", default=True)
     perm_write = fields.Boolean(string="Write", default=True)
     perm_create = fields.Boolean(string="Create", default=True)
@@ -96,7 +107,11 @@ class IrRule(models.Model):
         all_rules = self._get_rules(Model._name, mode=mode).sudo()
 
         group_rules = all_rules.filtered(
-            lambda r: r.groups and r.groups & self.env.user.all_group_ids
+            lambda r: (
+                r.groups
+                and r.composition == "grant"
+                and r.groups & self.env.user.all_group_ids
+            )
         )
         group_domains = Domain.OR(
             safe_eval(r.domain_force, eval_context) if r.domain_force else []
@@ -116,7 +131,10 @@ class IrRule(models.Model):
             return Model.search_count(dom & Domain("id", "in", ids)) < len(set(ids))
 
         return all_rules.filtered(
-            lambda r: r in group_rules or (not r.groups and is_failing(r))
+            lambda r: (
+                r in group_rules
+                or ((not r.groups or r.composition == "restrict") and is_failing(r))
+            )
         ).with_user(self.env.user)
 
     def _get_rules(self, model_name: str, mode: str = "read") -> Self:
@@ -186,7 +204,7 @@ class IrRule(models.Model):
                 if rule.domain_force
                 else Domain.TRUE
             )
-            if rule.groups:
+            if rule.groups and rule.composition == "grant":
                 group_domains.append(dom)
             else:
                 global_domains.append(dom)

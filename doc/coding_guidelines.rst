@@ -7418,7 +7418,15 @@ Every new model ships explicit access rules ``[review]``. A model with no
   group. Avoid group-less global lines.
 * **Record rules** (``ir.rule``) are row-level: use them when access depends on
   the record's data -- owner, company, state. A rule with no groups applies to
-  everyone.
+  everyone and is AND-ed with every other rule. A rule with groups is
+  ``composition="grant"`` by default: its domain is OR-ed with every other grant
+  rule the user matches, so it can only ever widen access -- a grant rule cannot
+  restrict, and adding one to a model silently disarms every other grant rule's
+  restriction for the same group. A rule that must *narrow* what a group may reach
+  declares ``composition="restrict"``: its domain is AND-ed like a global rule,
+  but only for the group's members, and no grant rule can widen it. Say which
+  modes it narrows with ``perm_*``; a rule with all four set governs creation
+  too, including records the ORM creates on the user's behalf.
 * **Multi-company** rules use ``[("company_id", "in", company_ids + [False])]`` so
   company-less shared records stay visible. Pair with ``check_company=True`` on
   relational fields (§2.9.10).

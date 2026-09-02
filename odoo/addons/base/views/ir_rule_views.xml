@@ -17,6 +17,10 @@
                     string="Group-based"
                     name="group_based"
                     domain="[('global', '=', False)]" />
+                <filter
+                    string="Restricting"
+                    name="restricting"
+                    domain="[('composition', '=', 'restrict')]" />
                 <separator />
                 <filter
                     string="Full Access"
@@ -67,6 +71,7 @@
                     name="groups"
                     widget="many2many_tags"
                     options="{'no_create':True}" />
+                <field name="composition" />
                 <field name="domain_force" />
                 <field name="perm_read" width="85px" />
                 <field name="perm_write" width="85px" />
@@ -85,6 +90,7 @@
                         <group string="General">
                             <field name="name" />
                             <field name="model_id" />
+                            <field name="composition" />
                             <field name="active" widget="boolean_toggle" />
                         </group>
                         <group string="Access Rights">

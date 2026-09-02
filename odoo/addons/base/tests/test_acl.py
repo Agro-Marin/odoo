@@ -484,6 +484,49 @@ class TestIrRule(TransactionCaseWithUserDemo):
             "Debug access-error message should name the blaming rule.",
         )
 
+    def _partner_rule(self, name, domain, groups, composition="grant"):
+        return self.env["ir.rule"].create(
+            {
+                "name": name,
+                "model_id": self.env.ref("base.model_res_partner").id,
+                "domain_force": domain,
+                "groups": [Command.set(groups.ids)],
+                "composition": composition,
+            }
+        )
+
+    def test_a_grant_rule_widens_what_another_grant_rule_denied(self):
+        group_user = self.env.ref("base.group_user")
+        partner = self.env["res.partner"].create({"name": "composition partner"})
+        self._partner_rule("deny", "[('id', '=', False)]", group_user)
+        with self.assertRaises(AccessError):
+            partner.with_user(self.user_demo).check_access("read")
+        self._partner_rule("allow everything", "[]", group_user)
+        partner.with_user(self.user_demo).check_access("read")
+
+    def test_a_restrict_rule_is_not_widened_by_a_grant_rule(self):
+        group_user = self.env.ref("base.group_user")
+        partner = self.env["res.partner"].create({"name": "composition partner"})
+        self._partner_rule("allow everything", "[]", group_user)
+        self._partner_rule(
+            "deny for members", "[('id', '=', False)]", group_user, "restrict"
+        )
+        demo_partner = partner.with_user(self.user_demo)
+        with self.assertRaises(AccessError):
+            demo_partner.check_access("read")
+        blamed = self.env(user=self.user_demo)["ir.rule"]._get_failing(
+            demo_partner, "read"
+        )
+        self.assertEqual(blamed.mapped("name"), ["deny for members"])
+
+    def test_a_restrict_rule_binds_only_its_own_group(self):
+        group_system = self.env.ref("base.group_system")
+        partner = self.env["res.partner"].create({"name": "composition partner"})
+        self._partner_rule(
+            "deny for admins only", "[('id', '=', False)]", group_system, "restrict"
+        )
+        partner.with_user(self.user_demo).check_access("read")
+
 
 class TestIrModelAccess(TransactionCaseWithUserDemo):
     def test_invalid_access_mode(self):
