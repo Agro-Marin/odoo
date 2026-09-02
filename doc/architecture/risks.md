@@ -443,7 +443,7 @@ register held it, so the deletion left most gates stating their reason nowhere
 — the removal commit records that cost against itself. `44abc16805b` replaced
 every dangling `ADR-NNNN` token with the decision text the record had carried,
 and wrote a docstring for each gate module that had cited a record and had none.
-Today **54** of the **79** gate modules under `tooling/architecture/` carry no
+Today **53** of the **79** gate modules under `tooling/architecture/` carry no
 module docstring — a gate module being every `.py` there that is neither a test
 nor a private helper.
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -107,6 +109,50 @@ class MeasureTest(unittest.TestCase):
         self.assertIn("no such directory", str(caught.exception))
 
 
+class AbsenceTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = TemporaryDirectory()
+        self.root = Path(self._tmp.name) / "addons"
+        self.root.mkdir(parents=True)
+        self.addCleanup(self._tmp.cleanup)
+
+    def measure(self):
+        return gate.measure_absent([self.root])
+
+    def test_a_dependency_every_root_supplies_is_not_an_absence(self):
+        write_module(self.root, "supplier")
+        write_module(self.root, "user", depends=["supplier"])
+
+        self.assertEqual(self.measure(), [])
+
+    def test_it_finds_a_dependency_no_root_supplies(self):
+        write_module(self.root, "user", depends=["lives_in_another_checkout"])
+
+        found = self.measure()
+
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].module, "user")
+        self.assertEqual(found[0].dependency, "lives_in_another_checkout")
+
+    def test_an_uninstallable_module_may_name_an_absent_dependency(self):
+        write_module(self.root, "user", depends=["gone"], installable=False)
+
+        self.assertEqual(self.measure(), [])
+
+    def test_a_second_root_supplies_what_the_first_lacks(self):
+        other = self.root.parent / "enterprise"
+        other.mkdir()
+        write_module(self.root, "user", depends=["over_there"])
+        write_module(other, "over_there")
+
+        self.assertEqual(gate.measure_absent([self.root, other]), [])
+
+    def test_removing_that_root_is_what_the_mode_reports(self):
+        write_module(self.root, "user", depends=["over_there"])
+
+        self.assertEqual(len(self.measure()), 1)
+
+
 class ExitCodeTest(unittest.TestCase):
     def setUp(self):
         self._tmp = TemporaryDirectory()
@@ -127,6 +173,32 @@ class ExitCodeTest(unittest.TestCase):
 
     def test_it_exits_two_rather_than_reporting_a_clean_zero_over_nothing(self):
         self.assertEqual(gate.main(["--check", "--roots", str(self.root)]), 2)
+
+    def test_an_absent_dependency_passes_while_the_mode_is_off(self):
+        write_module(self.root, "user", depends=["gone"])
+
+        self.assertEqual(gate.main(["--check", "--roots", str(self.root)]), 0)
+
+    def test_an_absent_dependency_fails_once_the_mode_is_on(self):
+        write_module(self.root, "user", depends=["gone"])
+
+        self.assertEqual(
+            gate.main(["--check", "--require-present", "--roots", str(self.root)]),
+            1,
+        )
+
+    def _count(self, *extra: str) -> str:
+        stream = io.StringIO()
+        with redirect_stdout(stream):
+            gate.main(["--count", "--roots", str(self.root), *extra])
+        return stream.getvalue().strip()
+
+    def test_the_count_sums_both_questions(self):
+        write_module(self.root, "disabled", installable=False)
+        write_module(self.root, "user", depends=["disabled", "gone"])
+
+        self.assertEqual(self._count(), "1")
+        self.assertEqual(self._count("--require-present"), "2")
 
 
 if __name__ == "__main__":
