@@ -4,27 +4,7 @@ import unittest
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from odoo_rust import (
-    batch_cache_fill as _rust_batch_cache_fill,
-)
-from odoo_rust import (
-    batch_cache_filter as _rust_batch_cache_filter,
-)
-from odoo_rust import (
-    batch_cache_get as _rust_batch_cache_get,
-)
-from odoo_rust import (
-    batch_group_ids as _rust_batch_group_ids,
-)
-from odoo_rust import (
-    sort_ids_by_cache as _rust_sort_ids_by_cache,
-)
-from odoo_rust import (
-    sort_ids_by_values as _rust_sort_ids_by_values,
-)
-from odoo_rust import (
-    to_prefetch_ids as _rust_to_prefetch_ids,
-)
+import pytest
 
 from odoo.libs._field_access._fallback import (
     batch_cache_fill,
@@ -36,6 +16,17 @@ from odoo.libs._field_access._fallback import (
     sort_ids_by_values,
     to_prefetch_ids,
 )
+
+odoo_rust = pytest.importorskip(
+    "odoo_rust", exc_type=ImportError
+)  # a parity test needs both sides
+_rust_batch_cache_fill = odoo_rust.batch_cache_fill
+_rust_batch_cache_filter = odoo_rust.batch_cache_filter
+_rust_batch_cache_get = odoo_rust.batch_cache_get
+_rust_batch_group_ids = odoo_rust.batch_group_ids
+_rust_sort_ids_by_cache = odoo_rust.sort_ids_by_cache
+_rust_sort_ids_by_values = odoo_rust.sort_ids_by_values
+_rust_to_prefetch_ids = odoo_rust.to_prefetch_ids
 
 if TYPE_CHECKING:
     from collections.abc import Callable

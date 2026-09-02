@@ -1,7 +1,8 @@
 import typing
 from operator import itemgetter
 
-from odoo_rust import origin_ids as _origin_ids_rust
+from odoo.libs.accel import origin_ids as _origin_ids_rust
+from odoo.libs.accel import origin_ids_python as _origin_ids_python
 
 from .domain import Domain
 
@@ -11,10 +12,6 @@ if typing.TYPE_CHECKING:
     from ._typing import ModelLike
     from .fields.base import Field
     from .models.base import BaseModel
-
-
-def _origin_ids_python(ids: Iterable) -> list[int]:
-    return [oid for id_ in ids if (oid := id_ or getattr(id_, "origin", None))]
 
 
 def _origin_ids(ids: Iterable) -> list[int]:

@@ -1,6 +1,11 @@
 import unittest
 
-from odoo_rust import rows_to_dicts
+import pytest
+
+odoo_rust = pytest.importorskip(
+    "odoo_rust", exc_type=ImportError
+)  # a parity test needs both sides
+rows_to_dicts = odoo_rust.rows_to_dicts
 
 
 def _python_equivalent(names, rows):

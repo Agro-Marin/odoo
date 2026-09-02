@@ -1,5 +1,6 @@
 import os
 import zlib
+from collections.abc import Mapping
 from pathlib import Path
 
 __all__ = ["assert_fresh", "assert_optimised", "source_crc"]
@@ -38,9 +39,9 @@ def assert_fresh(module: object, crate: Path, *, rebuild_hint: str = "") -> None
     was = "predates the build script" if built is None else f"built from {built}"
     raise RuntimeError(
         f"The installed {name!r} extension is stale: it was {was}, but the "
-        f"crate in this checkout is {current}. It is a hard dependency with no "
-        f"fallback, so running on it gives wrong results rather than slow "
-        f"ones. Rebuild it:\n"
+        f"crate in this checkout is {current}. The pure-Python fallbacks step in "
+        f"only when the extension is ABSENT; a stale one is imported and gives "
+        f"wrong results rather than slow ones. Rebuild it:\n"
         f"    maturin build --release --manifest-path "
         f"{crate.name and f'crates/{crate.name}/Cargo.toml'} --out dist\n"
         f"    pip install --force-reinstall --no-deps dist/{name}-*.whl\n"
@@ -48,6 +49,16 @@ def assert_fresh(module: object, crate: Path, *, rebuild_hint: str = "") -> None
         f"{rebuild_hint}"
         f" Set {SKIP_ENV}=1 to bypass this check."
     )
+
+
+REQUIRE_ENV = "ODOO_REQUIRE_NATIVE"
+
+
+def native_required(environ: Mapping[str, str] | None = None) -> bool:
+    """Whether a missing odoo_rust is fatal: explicit ODOO_REQUIRE_NATIVE, else CI."""
+    env = os.environ if environ is None else environ
+    value = env.get(REQUIRE_ENV, env.get("CI", ""))
+    return value.strip().lower() not in ("", "0", "false", "no")
 
 
 def assert_optimised(module: object) -> None:

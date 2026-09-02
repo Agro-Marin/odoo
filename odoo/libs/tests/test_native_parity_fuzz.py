@@ -1,7 +1,6 @@
 import copy
 import random
 
-import odoo_rust as fast
 import pytest
 
 from odoo.libs.tests._native_references import (
@@ -10,6 +9,10 @@ from odoo.libs.tests._native_references import (
     csv_export_ref,
     rows_to_dicts_ref,
 )
+
+fast = pytest.importorskip(
+    "odoo_rust", exc_type=ImportError
+)  # a parity test needs both sides
 
 SEED = 20260828
 

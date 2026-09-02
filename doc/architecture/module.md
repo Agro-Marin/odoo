@@ -238,9 +238,13 @@ freely.
 **Layer 0's permissions are wider than its practice**, and the pairing must not
 be read as a dependency claim. It may use `odoo.tools` and `odoo_rust`; it
 exercises only the first — `primitives.py` takes the `SQL` builder from
-`odoo.tools`, and **no Layer-0 module imports `odoo_rust` at all**. The extension
-enters the ORM at `helpers.py`, `models/mixins/read.py` and
-`runtime/environment.py`.
+`odoo.tools`, and **no Layer-0 module imports `odoo_rust` at all** — nor does
+any other ORM module. The extension enters through one seam, `odoo/libs/accel.py` (and the `odoo/libs/_field_access`
+façade it re-exports), which resolves each accelerated name to the native
+function or its pure-Python twin once at import; the ORM, `db/` and `web` reach
+them from there, so whether a process runs on the extension is decided in one
+place. `odoo/init.py` makes its absence fatal only under `ODOO_REQUIRE_NATIVE`
+or `CI`; elsewhere it warns and runs on the fallbacks.
 
 ### `components/` — the two cache APIs
 

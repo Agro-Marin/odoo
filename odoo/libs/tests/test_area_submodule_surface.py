@@ -31,6 +31,10 @@ DECLARED_SUBMODULE_EXPORTS: dict[str, set[str]] = {
 KNOWN_ACCIDENTAL_LEAF_IMPORTS: dict[str, str] = {
     "datetime.tz": "safe_eval and others take the tz module wholesale",
     "numbers.float_utils": "float helpers imported as a module rather than by name",
+    "_field_access._fallback": (
+        "the pure-Python twins the field-access facade resolves to when odoo_rust "
+        "is absent (odoo/libs/accel.py is the seam)"
+    ),
     "_vendor.sessions": "vendored requests sessions",
     "profiling.nplusone": "profiler wiring",
     "profiling.orm_profiler": "profiler wiring",

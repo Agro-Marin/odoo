@@ -9,14 +9,25 @@ __all__ = [
     "to_prefetch_ids",
 ]
 
-from odoo_rust import (
-    batch_cache_fill,
-    batch_cache_filter,
-    batch_cache_get,
-    batch_group_ids,
-    sort_ids_by_cache,
-    sort_ids_by_values,
-    to_prefetch_ids,
-)
+try:
+    from odoo_rust import (
+        batch_cache_fill,
+        batch_cache_filter,
+        batch_cache_get,
+        batch_group_ids,
+        sort_ids_by_cache,
+        sort_ids_by_values,
+        to_prefetch_ids,
+    )
+except ImportError:
+    from ._fallback import (
+        batch_cache_fill,
+        batch_cache_filter,
+        batch_cache_get,
+        batch_group_ids,
+        sort_ids_by_cache,
+        sort_ids_by_values,
+        to_prefetch_ids,
+    )
 
 from ._fallback import scalar_cache_get

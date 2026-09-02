@@ -9,12 +9,12 @@ from time import monotonic
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, Self
 
 import psycopg
-from odoo_rust import rows_to_dicts as _rows_to_dicts
 from psycopg import IsolationLevel
 from psycopg import sql as _sql
 from psycopg.pq import TransactionStatus as _TxStatus
 
 from odoo import tools
+from odoo.libs.accel import rows_to_dicts as _rows_to_dicts
 from odoo.libs.func import frame_codeinfo
 from odoo.tools import SQL
 from odoo.tools.misc import Callbacks, real_time

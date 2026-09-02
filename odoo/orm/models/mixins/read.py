@@ -3,11 +3,8 @@ import typing
 from collections import defaultdict, deque
 from typing import Self
 
-from odoo_rust import (
-    batch_cache_fill as _batch_cache_fill_rust,
-)
-
 from odoo.exceptions import MissingError
+from odoo.libs._field_access import batch_cache_fill as _batch_cache_fill_rust
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL

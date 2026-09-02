@@ -793,20 +793,23 @@ class TestPermissionIsNotPractice(unittest.TestCase):
         )
         self.assertIn("no Layer-0 module imports `odoo_rust` at all", DOC_FLAT)
 
-    def test_the_named_entry_points_are_where_odoo_rust_arrives(self) -> None:
-        orm = ROOT / "odoo" / "orm"
-        actual = sorted(
-            str(path.relative_to(orm))
-            for path in orm.rglob("*.py")
+    def test_odoo_rust_arrives_only_through_the_libs_seam(self) -> None:
+        core = ROOT / "odoo"
+        imports_it = re.compile(r"^\s*(?:from|import)\s+odoo_rust\b", re.MULTILINE)
+        importers = sorted(
+            str(path.relative_to(core))
+            for path in core.rglob("*.py")
             if "tests" not in path.parts
-            and "odoo_rust" in path.read_text(encoding="utf-8")
+            and imports_it.search(path.read_text(encoding="utf-8"))
         )
         self.assertEqual(
-            actual,
-            ["helpers.py", "models/mixins/read.py", "runtime/environment.py"],
+            importers,
+            ["init.py", "libs/_field_access/__init__.py", "libs/accel.py"],
+            "the extension is imported in one seam plus the bootstrap; a new "
+            "direct import bypasses the fallback the page promises",
         )
-        for name in actual:
-            self.assertIn(f"`{name}`", DOC)
+        self.assertIn("`odoo/libs/accel.py`", DOC)
+        self.assertIn("`odoo/libs/_field_access`", DOC)
 
     def test_the_permission_is_really_granted(self) -> None:
         contract = next(

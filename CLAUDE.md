@@ -31,7 +31,7 @@ Diverged from upstream past the point where merging or cherry-picking between th
 | PostgreSQL | Every CI lane runs 18. |
 | psycopg 3 | `psycopg[binary]>=3.3.4` with `psycopg-pool>=3.3.1` — the only driver `odoo/db/` uses. Never add a `psycopg2` import. |
 | Requirements | `pip install -r requirements.txt -r requirements-addons.txt` for runtime; `requirements-dev.txt` for the gates. The two runtime files split on ownership: `requirements.txt` is what a server process imports whatever is installed, `requirements-addons.txt` is what individual bundled addons own and declare in `external_dependencies`. A development checkout wants both; only a deployment that knows which modules it loads wants the first alone. `requirements-test.txt` pulls in both, so every test lane is unaffected. |
-| `crates/odoo_rust` | Must be built into the environment, with a Rust toolchain on `PATH`. |
+| `crates/odoo_rust` | Build it into the environment, with a Rust toolchain on `PATH`. CI requires it: with `CI=true` or `ODOO_REQUIRE_NATIVE=1` its absence is an `ImportError` at `odoo/init.py`. Elsewhere its absence is a `RuntimeWarning` and the process runs on the pure-Python twins behind `odoo/libs/accel.py` — slower, not wrong. A *stale* build is still fatal (`assert_fresh`). |
 
 ```bash
 cd crates/odoo_rust && maturin develop --release

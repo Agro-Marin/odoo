@@ -2,7 +2,6 @@ import copy
 import timeit
 from types import SimpleNamespace
 
-import odoo_rust as fast
 import pytest
 
 from odoo.libs._field_access._fallback import (
@@ -22,8 +21,11 @@ from odoo.libs.tests._native_references import (
 )
 from odoo.orm.helpers import _origin_ids_python
 
-MAX_RATIO = 0.82
+fast = pytest.importorskip(
+    "odoo_rust", exc_type=ImportError
+)  # a parity test needs both sides
 
+MAX_RATIO = 0.82
 
 slow = SimpleNamespace(
     batch_cache_fill=batch_cache_fill,
@@ -38,7 +40,6 @@ slow = SimpleNamespace(
     rows_to_dicts=rows_to_dicts_ref,
     fast_clone=clone_ref,
 )
-
 
 N = 500
 

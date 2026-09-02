@@ -5,11 +5,11 @@ from collections import defaultdict
 from collections.abc import Collection, Mapping, MutableMapping
 from weakref import ref as weakref_ref
 
-from odoo_rust import rows_to_dicts as _rows_to_dicts
 from psycopg import ProgrammingError
 
 from odoo.db import BaseCursor
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.accel import rows_to_dicts as _rows_to_dicts
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.datetime import utc
 from odoo.libs.profiling import _OrmProfile

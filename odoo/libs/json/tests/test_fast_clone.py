@@ -1,7 +1,12 @@
 import unittest
 from typing import Any
 
-from odoo_rust import fast_clone as _fast_clone
+import pytest
+
+odoo_rust = pytest.importorskip(
+    "odoo_rust", exc_type=ImportError
+)  # a parity test needs both sides
+_fast_clone = odoo_rust.fast_clone
 
 
 def fast_clone(obj: Any) -> Any:

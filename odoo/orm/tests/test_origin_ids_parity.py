@@ -1,8 +1,12 @@
 import pytest
-from odoo_rust import origin_ids as origin_ids_rust
 
 from odoo.orm.helpers import _origin_ids, _origin_ids_python
 from odoo.orm.primitives import NewId
+
+odoo_rust = pytest.importorskip(
+    "odoo_rust", exc_type=ImportError
+)  # a parity test needs both sides
+origin_ids_rust = odoo_rust.origin_ids
 
 
 class _NoOrigin:

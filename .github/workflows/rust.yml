@@ -98,10 +98,11 @@ jobs:
           python - <<'PY'
           import odoo_rust, odoo_lint
 
-          # Every symbol the framework imports without a fallback, per module.
-          # Keep in sync with the `from odoo_rust import ...` / `odoo_lint.`
-          # sites; a symbol landing in the wrong wheel is an ImportError at
-          # startup for the whole server, or a lint gate that cannot run.
+          # Every accelerated symbol the framework resolves through
+          # odoo/libs/accel.py and odoo/libs/_field_access, per module. Each
+          # has a pure-Python twin, but CI sets ODOO_REQUIRE_NATIVE (via CI=true)
+          # so the fallback is unreachable there: a symbol landing in the wrong
+          # wheel is an ImportError at startup, or a lint gate that cannot run.
           required = {
               odoo_rust: [
                   "csv_export",            # addons/web/controllers/export.py

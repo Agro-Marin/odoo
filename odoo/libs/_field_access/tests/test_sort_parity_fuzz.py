@@ -2,7 +2,6 @@ import random
 from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
-from odoo_rust import sort_ids_by_cache, sort_ids_by_values
 
 from odoo.libs._field_access._fallback import (
     sort_ids_by_cache as sort_ids_by_cache_py,
@@ -10,6 +9,12 @@ from odoo.libs._field_access._fallback import (
 from odoo.libs._field_access._fallback import (
     sort_ids_by_values as sort_ids_by_values_py,
 )
+
+odoo_rust = pytest.importorskip(
+    "odoo_rust", exc_type=ImportError
+)  # a parity test needs both sides
+sort_ids_by_cache = odoo_rust.sort_ids_by_cache
+sort_ids_by_values = odoo_rust.sort_ids_by_values
 
 _PENDING = object()
 
