@@ -20,12 +20,35 @@ export const homeMenuService = {
     dependencies: ["action"],
     /** @param {import("@web/env").OdooEnv} env */
     start(env) {
-        const state = reactive({
-            hasHomeMenu: false,
-            hasBackgroundAction: false,
-            toggle,
-        });
         const mutex = new Mutex();
+        class HomeMenuState {
+            hasHomeMenu = false;
+            hasBackgroundAction = false;
+
+            /** @param {boolean} [show] */
+            async toggle(show) {
+                return mutex.exec(async () => {
+                    show = show === undefined ? !state.hasHomeMenu : Boolean(show);
+                    if (show !== state.hasHomeMenu) {
+                        if (show) {
+                            await env.services.action.doAction("menu");
+                        } else {
+                            try {
+                                await env.services.action.restore();
+                            } catch (err) {
+                                if (!(err instanceof ControllerNotFoundError)) {
+                                    throw err;
+                                }
+                            }
+                        }
+                    }
+                    // The next toggle reads the url, and doAction's push is
+                    // debounced, so wait a tick for it to land before returning.
+                    return new Promise((r) => setTimeout(r));
+                });
+            }
+        }
+        const state = reactive(new HomeMenuState());
         class HomeMenuAction extends Component {
             static components = { HomeMenu };
             static target = "current";
@@ -76,29 +99,6 @@ export const homeMenuService = {
         env.bus.addEventListener(AppEvent.HOME_MENU_TOGGLED, () => {
             document.body.classList.toggle("o_home_menu_background", state.hasHomeMenu);
         });
-
-        /** @param {boolean} [show] */
-        async function toggle(show) {
-            return mutex.exec(async () => {
-                show = show === undefined ? !state.hasHomeMenu : Boolean(show);
-                if (show !== state.hasHomeMenu) {
-                    if (show) {
-                        await env.services.action.doAction("menu");
-                    } else {
-                        try {
-                            await env.services.action.restore();
-                        } catch (err) {
-                            if (!(err instanceof ControllerNotFoundError)) {
-                                throw err;
-                            }
-                        }
-                    }
-                }
-                // The next toggle reads the url, and doAction's push is
-                // debounced, so wait a tick for it to land before returning.
-                return new Promise((r) => setTimeout(r));
-            });
-        }
 
         return state;
     },

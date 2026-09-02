@@ -24,7 +24,6 @@ KNOWN_ORPHAN_TEST_DIRS = frozenset(
         "modules",
         "ui/notifications",
         "webclient/barcode",
-        "webclient/mobile",
     }
 )
 
