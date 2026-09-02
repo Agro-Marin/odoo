@@ -7,13 +7,13 @@ from odoo.service._limits import get_memory_over_soft_limit
 
 
 def _proc(rss):
-    return SimpleNamespace(get_memory_rss=lambda: SimpleNamespace(rss=rss))
+    return SimpleNamespace(memory_info=lambda: SimpleNamespace(rss=rss))
 
 
 class TestMemorySoftLimit(unittest.TestCase):
     def test_disabled_limit_skips_the_proc_read(self):
         class Boom:
-            def get_memory_rss(self):
+            def memory_info(self):
                 raise AssertionError("RSS must not be read when the limit is 0")
 
         self.assertIsNone(get_memory_over_soft_limit(Boom(), 0))
@@ -39,3 +39,12 @@ class TestInternalDropIsUngated(unittest.TestCase):
             result = db_service._drop_database("never_exposed_db")
         self.assertFalse(result)
         list_dbs_mock.assert_not_called()
+
+
+class TestMemoryReadUsesTheRealPsutilContract(unittest.TestCase):
+    def test_get_memory_rss_reads_a_real_psutil_process(self):
+        import psutil
+
+        from odoo.service._limits import get_memory_rss
+
+        self.assertGreater(get_memory_rss(psutil.Process()), 0)

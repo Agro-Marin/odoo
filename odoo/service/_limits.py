@@ -62,7 +62,7 @@ def get_job_real_time_budget() -> float:
 
 
 def get_memory_rss(process: Any) -> int:
-    return process.get_memory_rss().rss
+    return process.memory_info().rss
 
 
 def get_memory_over_soft_limit(process: Any, soft_limit: int) -> int | None:
