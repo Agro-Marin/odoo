@@ -508,6 +508,37 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         b.unlink()
         self.assertEqual((a + b + c + d).exists(), a)
 
+    def test_12_recursive_stored_value_survives_a_middle_first_read(self):
+        Rec = self.env["test_orm.recursive"]
+        root = Rec.create({"name": "Root"})
+        chain = [root]
+        for i in range(6):
+            chain.append(Rec.create({"name": f"c{i}", "parent": chain[-1].id}))
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        root.name = "Renamed"
+        mid = len(chain) // 2
+        for i in [mid, *(i for i in range(len(chain)) if i != mid)]:
+            chain[i].display_name
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.env.cr.execute(
+            "SELECT name, display_name FROM test_orm_recursive WHERE id = ANY(%s)",
+            [[rec.id for rec in chain]],
+        )
+        stale = [
+            (name, display_name)
+            for name, display_name in self.env.cr.fetchall()
+            if not display_name.startswith("Renamed")
+        ]
+        self.assertFalse(
+            stale,
+            "a descendant computed while its ancestor was mid-compute stored the "
+            f"ancestor's pre-write value: {stale}",
+        )
+
     def test_12_recursive_tree(self):
         foo = self.env["test_orm.recursive.tree"].create({"name": "foo"})
         self.assertEqual(foo.display_name, "foo()")

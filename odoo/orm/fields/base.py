@@ -1427,7 +1427,14 @@ class Field[T](
                     computed_ids.append(record.id)
 
         record_ids = records._ids
-        expanded = len(record_ids) == 1 and record_ids[0] in to_compute_ids
+        # Never widen the batch from inside another record's compute: a
+        # descendant computed while its ancestor is protected reads the
+        # ancestor's stored, pre-write value and stores it for good.
+        expanded = (
+            len(record_ids) == 1
+            and record_ids[0] in to_compute_ids
+            and not records.env._core.protected_ids(self)
+        )
         if expanded:
             records = records.browse(
                 itertools.islice(
