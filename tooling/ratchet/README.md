@@ -58,8 +58,9 @@ landed; this is the same rule for the workflow-driven gates.
 ## A floor is a claim about a commit
 
 `--update` refuses a dirty tree (`git status --porcelain --untracked-files=all`
-non-empty) and stamps `measured_at` with the HEAD it was measured on, so a floor
-can only be banked from a clean worktree of the commit it names. A check whose
+non-empty, the baselines directory itself excepted, so several floors can be
+banked in one commit) and stamps `measured_at` with the HEAD it was measured
+on, so a floor can only be banked from a clean worktree of the commit it names. A check whose
 floor is stamped at a commit outside HEAD's history exits 2 with "re-measure":
 that count was taken on a tree this branch never had. A stamp git cannot resolve
 stays `UNCHECKED` and is still compared, because unknowable is not wrong.

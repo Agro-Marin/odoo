@@ -122,6 +122,16 @@ class ProvenanceTests(unittest.TestCase):
         self.assertIn("odoo/orm/fields/base.py", err)
         self.assertFalse((self.dir / "mypy.json").exists())
 
+    def test_a_freshly_written_baseline_does_not_count_as_dirty(self):
+        porcelain = " M tooling/ratchet/baselines/mypy.json\n?? tooling/ratchet/baselines/new.json\n"
+        completed = mock.Mock(returncode=0, stdout=porcelain)
+        with mock.patch.object(ratchet.subprocess, "run", return_value=completed):
+            self.assertEqual(ratchet._dirty_paths(), [])
+        porcelain += " M odoo/orm/fields/base.py\n"
+        completed = mock.Mock(returncode=0, stdout=porcelain)
+        with mock.patch.object(ratchet.subprocess, "run", return_value=completed):
+            self.assertEqual(ratchet._dirty_paths(), ["odoo/orm/fields/base.py"])
+
     def test_update_proceeds_when_git_cannot_say_whether_the_tree_is_dirty(self):
         with (
             mock.patch.object(ratchet, "_dirty_paths", return_value=None),

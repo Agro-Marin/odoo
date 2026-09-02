@@ -69,7 +69,15 @@ def _dirty_paths(root: str = "") -> list[str] | None:
         return None
     if out.returncode != 0:
         return None
-    return [line[3:] for line in out.stdout.splitlines() if line.strip()]
+    # The baselines directory is this tool's own output: a floor written a
+    # moment ago moves no gate's count, and banking several floors in one
+    # commit must not be refused by the first of them.
+    own = f"{(HERE / 'baselines').relative_to(ODOO_ROOT)}/" if not root else None
+    return [
+        line[3:]
+        for line in out.stdout.splitlines()
+        if line.strip() and not (own and line[3:].startswith(own))
+    ]
 
 
 def _is_ancestor_of_head(commit: str, root: str = "") -> bool | None:
