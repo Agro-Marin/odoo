@@ -1096,6 +1096,10 @@ class TestTransitiveImportClosure(TransactionCase):
         ]
         self.assertEqual(len(importmaps), 1)
         imports = json.loads(importmaps[0]["text"])["imports"]
+        # "@web/../lib/bootstrap/bootstrap.esm.js" is deliberately absent:
+        # dc1f24fb663 respelled that import as an absolute URL so esbuild's
+        # --external:/web/static/lib/* matches it, and an absolute URL needs
+        # no import-map entry to resolve.
         for spec in ("@web/libs/bootstrap", "@popperjs/core"):
             self.assertIn(spec, imports, msg=f"{spec} missing from import map")
 
@@ -1123,6 +1127,7 @@ class TestTransitiveImportClosure(TransactionCase):
                         ),
                     )
                 elif imported.startswith("/"):
+                    # an absolute URL resolves without the map; walk into it
                     queue.append((imported, imported))
                 else:
                     queue.append((imported, imports.get(imported)))
