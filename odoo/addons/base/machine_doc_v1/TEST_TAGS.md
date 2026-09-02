@@ -5,7 +5,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 ## Quick Reference
 
 ```bash
-# All base tests (3828 methods, 789 classes, 132 files)
+# All base tests (3832 methods, 792 classes, 132 files)
 --test-tags '/base' -u base
 
 # Only post_install tests
@@ -104,7 +104,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 
 ## Test File Reference
 
-### Tagged Files (72 files, 470 classes)
+### Tagged Files (72 files, 473 classes)
 
 | File | Tags | Classes | Tests | Base Class |
 |------|------|---------|-------|------------|
@@ -167,7 +167,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 | `test_res_country.py` | `-at_install`, `post_install` | 2 | 4 | TransactionCase |
 | `test_res_partner.py` | `res_partner`, `res_partner_address`, `post_install`, `-at_install` | 12 | 75 | TransactionCaseWithUserDemo, TransactionCase |
 | `test_res_partner_identifier.py` | `post_install`, `-at_install` | 1 | 17 | TransactionCase |
-| `test_res_partner_merge.py` | `post_install`, `-at_install`, `res_partner_merge` | 7 | 26 | TransactionCase |
+| `test_res_partner_merge.py` | `post_install`, `-at_install`, `res_partner_merge` | 10 | 30 | TransactionCase |
 | `test_res_partner_sync.py` | `res_partner`, `res_partner_sync` | 1 | 10 | TransactionCase |
 | `test_res_users.py` | `post_install`, `-at_install`, `groups` | 27 | 88 | UsersCommonCase, TransactionCase, HttpCase |
 | `test_res_users_apikeys.py` | `post_install`, `-at_install` | 1 | 21 | TransactionCase |
@@ -251,11 +251,11 @@ These run in **both** at_install and post_install phases by default.
 | Metric | Value |
 |--------|-------|
 | Total test files | 132 |
-| Total test classes | 789 |
-| Total test methods | 3828 |
+| Total test classes | 792 |
+| Total test methods | 3832 |
 | Files with @tagged | 72 (55%) |
 | Files without @tagged | 60 (45%) |
-| Classes using post_install | 273 |
+| Classes using post_install | 276 |
 | Unique tags | 30 |
 | Largest test file | test_db_cursor.py (114 classes, 378 tests) |
 
