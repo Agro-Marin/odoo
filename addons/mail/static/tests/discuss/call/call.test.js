@@ -1343,3 +1343,44 @@ test("show warning when blur hardware acceleration is not available", async () =
     await click("[title='Dismiss warning']");
     await contains(".o-discuss-BlurPerformanceWarning-button", { count: 0 });
 });
+
+test("switching tab during a call moves it to picture-in-picture", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    /** @type {Record<string, Function|null>} */
+    const mediaSessionHandlers = {};
+    patchWithCleanup(browser.navigator, {
+        mediaSession: {
+            setActionHandler(action, handler) {
+                mediaSessionHandlers[action] = handler;
+            },
+        },
+    });
+    mockService("discuss.pip_service", {
+        openPip({ context }) {
+            // `rootEl` is only set by the livechat embed, so in the backend the
+            // shape is what matters: `pip_service` reads `context.root.el` to
+            // decide whether it is inside a shadow root.
+            asyncStep(`openPip:${"root" in context ? "shaped" : "unusable"}`);
+        },
+        closePip() {},
+        setup() {},
+        state: { active: false },
+    });
+    await start();
+    await openDiscuss(channelId);
+    await click("[title='Start Call']");
+    await contains(".o-discuss-Call");
+    expect(mediaSessionHandlers["enterpictureinpicture"]).toBeInstanceOf(Function);
+    // the browser asks for PIP because the tab stopped being visible
+    mediaSessionHandlers["enterpictureinpicture"]({
+        enterPictureInPictureReason: "contentoccluded",
+    });
+    await waitForSteps(["openPip:shaped"]);
+    // ...but not when the request comes from anywhere else
+    mediaSessionHandlers["enterpictureinpicture"]({});
+    await waitForSteps([]);
+    await click(".o-discuss-CallActionList button[aria-label='Disconnect']");
+    await contains(".o-discuss-Call", { count: 0 });
+    expect(mediaSessionHandlers["enterpictureinpicture"]).toBe(null);
+});
