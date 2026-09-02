@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { queryFirst } from "@odoo/hoot-dom";
+import { queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     contains,
@@ -237,14 +237,14 @@ test("a save does not rebuild the tag DOM nodes", async () => {
     });
     await animationFrame();
 
-    const before = queryFirst(".o_kanban_record .o_tag");
+    const before = queryOne(".o_kanban_record .o_tag");
     expect(before).toHaveCount(1);
     before.dataset.probeMark = "sentinel";
 
     await contains("[name='flag'] input").click();
     await animationFrame();
 
-    const after = queryFirst(".o_kanban_record .o_tag");
+    const after = queryOne(".o_kanban_record .o_tag");
     expect(after).toBe(before);
     expect(after.dataset.probeMark).toBe("sentinel");
 });

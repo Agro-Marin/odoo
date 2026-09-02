@@ -1,8 +1,8 @@
 {
   "gate": "strict",
   "module": "web",
-  "total": 4629,
-  "note": "tooltip_service, ui_service and session_service left the strict exception list.",
+  "total": 4599,
+  "note": "x2many_field.test.js left the strict exception list: its two errors were the record members 289e8a01272 promoted.",
   "budgets": {
     "addons/web/static/src/components/action_swiper/action_swiper.js": 43,
     "addons/web/static/src/components/autocomplete/autocomplete.js": 35,
@@ -207,7 +207,6 @@
     "addons/web/static/tests/fields/relational/reference/reference_field.test.js": 17,
     "addons/web/static/tests/fields/relational/x2many/many2many_field.test.js": 27,
     "addons/web/static/tests/fields/relational/x2many/one2many_field.test.js": 60,
-    "addons/web/static/tests/fields/relational/x2many/x2many_field.test.js": 1,
     "addons/web/static/tests/fields/selection/badge_selection/badge_selection_field.test.js": 2,
     "addons/web/static/tests/fields/selection/badge_selection_with_filter/badge_selection_with_filter_field.test.js": 3,
     "addons/web/static/tests/fields/selection/priority/priority_field.test.js": 5,

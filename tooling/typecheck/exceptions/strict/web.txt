@@ -203,7 +203,6 @@ addons/web/static/tests/fields/relational/many2one_barcode/many2one_barcode_fiel
 addons/web/static/tests/fields/relational/reference/reference_field.test.js
 addons/web/static/tests/fields/relational/x2many/many2many_field.test.js
 addons/web/static/tests/fields/relational/x2many/one2many_field.test.js
-addons/web/static/tests/fields/relational/x2many/x2many_field.test.js
 addons/web/static/tests/fields/selection/badge_selection/badge_selection_field.test.js
 addons/web/static/tests/fields/selection/badge_selection_with_filter/badge_selection_with_filter_field.test.js
 addons/web/static/tests/fields/selection/priority/priority_field.test.js
