@@ -13,14 +13,14 @@ from odoo.libs.sql import (
     value_to_translated_trigram_pattern,
 )
 from odoo.tools import SQL, html_normalize, html_sanitize
-from odoo.tools.misc import PENDING, SENTINEL, Sentinel
+from odoo.tools.misc import SENTINEL, Sentinel
 from odoo.tools.translate import html_translate
 
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from . import _field_ddl as _ddl
 from . import _field_translation as _translation
 from ._field_translation import LangProxyDict
-from .base import Field, _logger
+from .base import Field, _logger, _prepare_fast_get
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Iterable, MutableMapping
@@ -31,6 +31,22 @@ if typing.TYPE_CHECKING:
     from ..models import BaseModel
     from ..runtime import Environment
     from ._field_stubs import TranslateDialect
+
+
+def _string_from_cache(
+    field: BaseString, value: typing.Any, record: BaseModel
+) -> typing.Any:
+    if callable(field.translate):
+        return field._get_uncached(record, record.env, record._ids[0])
+    return False if value is None else value
+
+
+def _markup_from_cache(
+    field: BaseString, value: typing.Any, record: BaseModel
+) -> typing.Any:
+    if callable(field.translate):
+        return field._get_uncached(record, record.env, record._ids[0])
+    return field.convert_to_record(value, record)
 
 
 class BaseString(Field[str | typing.Literal[False]]):
@@ -44,42 +60,34 @@ class BaseString(Field[str | typing.Literal[False]]):
             kwargs["translate"] = bool(kwargs["translate"])
         super().__init__(string=string, **kwargs)
 
-    @typing.overload
-    def __get__(self, record: None, owner: typing.Any = None) -> typing.Self: ...
-    @typing.overload
-    def __get__(
-        self, record: BaseModel, owner: typing.Any = None
-    ) -> str | typing.Literal[False]: ...
-    @typing.overload
-    def __get__(self, record: object, owner: typing.Any = None) -> typing.Any: ...
+    if typing.TYPE_CHECKING:
+
+        @typing.overload
+        def __get__(self, record: None, owner: typing.Any = None) -> typing.Self: ...
+        @typing.overload
+        def __get__(
+            self, record: BaseModel, owner: typing.Any = None
+        ) -> str | typing.Literal[False]: ...
+        @typing.overload
+        def __get__(self, record: object, owner: typing.Any = None) -> typing.Any: ...
+
+        @override
+        def __get__(
+            self, record: typing.Any, owner: typing.Any = None
+        ) -> typing.Any: ...
+
+    else:
+        __get__ = _prepare_fast_get(_string_from_cache)
 
     @override
-    def __get__(self, record: typing.Any, owner: typing.Any = None) -> typing.Any:
-        if record is None:
-            return self
-        env = record.env
-        if self.groups and not env.su and not record._has_field_access(self, "read"):
-            record._check_field_access(self, "read")
-        ids = record._ids
-        if len(ids) != 1:
-            return super().__get__(record, owner)
-        if callable(self.translate):
-            return super().__get__(record, owner)
-        if self.is_stored_computed and env._core.has_pending_field(self):
-            self.recompute(record)
-        record_id = ids[0]
-        try:
-            value = env.__dict__["_field_cache_memo"][self][record_id]
-        except KeyError:
-            pass
-        else:
-            if value is not PENDING:
-                return False if value is None else value
-        if self._is_translate_fallback_required(record_id):
-            fb_val = self._scalar_translate_fallback(env, record_id)
+    def _get_cache_miss(
+        self, record: BaseModel, env: Environment, record_id: IdType
+    ) -> typing.Any:
+        if _translation.is_fallback_required(self, record_id):
+            fb_val = _translation.scalar_fallback(self, env, record_id)
             if fb_val is not SENTINEL:
-                return False if fb_val is None else fb_val
-        return super().__get__(record, owner)
+                return self.convert_to_record(fb_val, record)
+        return super()._get_cache_miss(record, env, record_id)
 
     def _is_translate_fallback_required(self, record_id: typing.Any) -> bool:
         return _translation.is_fallback_required(self, record_id)
@@ -435,24 +443,7 @@ class Html(BaseString):
     _column_type = ("text", "text")
 
     if not typing.TYPE_CHECKING:
-
-        def __get__(self, record, owner=None):
-            if record is None or len(record._ids) != 1:
-                return Field.__get__(self, record, owner)
-            record_id = record._ids[0]
-            if not self._is_translate_fallback_required(record_id):
-                return Field.__get__(self, record, owner)
-            env = record.env
-            if (
-                self.groups
-                and not env.su
-                and not record._has_field_access(self, "read")
-            ):
-                record._check_field_access(self, "read")
-            fb_val = self._scalar_translate_fallback(env, record_id)
-            if fb_val is not SENTINEL:
-                return self.convert_to_record(fb_val, record)
-            return Field.__get__(self, record, owner)
+        __get__ = _prepare_fast_get(_markup_from_cache)
 
     sanitize: bool = True
     sanitize_overridable: bool = False

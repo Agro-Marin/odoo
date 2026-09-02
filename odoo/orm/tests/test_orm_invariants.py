@@ -150,7 +150,9 @@ def test_scalar_none_value_is_record_independent() -> None:
             assert via_none == via_rec, fname
 
 
-def _fastpath_cache_to_record(field: fields.Field) -> Callable[[Any], Any] | None:
+def _fastpath_cache_to_record(
+    field: fields.Field,
+) -> Callable[[fields.Field, Any, Any], Any] | None:
     for klass in type(field).__mro__:
         fn = klass.__dict__.get("__get__")
         if fn is None:
@@ -164,6 +166,8 @@ def _fastpath_cache_to_record(field: fields.Field) -> Callable[[Any], Any] | Non
 
 _FASTPATH_CACHE_SAMPLES: dict[str, list] = {
     "f_bool": [None, False, True],
+    "f_char": [None, "", "hello"],
+    "f_text": [None, "", "multi\nline"],
     "f_int": [None, 0, 7],
     "f_float": [None, 0.0, 3.5],
     "f_money": [None, 0.0, 3.5],
@@ -185,7 +189,7 @@ def test_scalar_fastpath_lambda_matches_convert_to_record() -> None:
                 continue
             checked.append(fname)
             for v in _FASTPATH_CACHE_SAMPLES[fname]:
-                fast = cache_to_record(v)
+                fast = cache_to_record(field, v, rec)
                 slow = field.convert_to_record(v, rec)
                 assert fast == slow, (
                     f"{fname}: fast-path lambda({v!r})={fast!r} != "

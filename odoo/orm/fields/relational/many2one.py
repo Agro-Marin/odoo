@@ -13,7 +13,6 @@ from ..._recordset import is_recordset
 from ...domain import Domain
 from ...primitives import Command, NewId
 from .. import _field_ddl as _ddl
-from ..base import Field
 from ._base import _Relational
 
 if typing.TYPE_CHECKING:
@@ -34,40 +33,6 @@ class Many2one(_Relational):
     @property
     def is_delegating(self) -> bool:
         return self.delegate
-
-    @typing.overload
-    def __get__(self, record: None, owner: typing.Any = None) -> typing.Self: ...
-    @typing.overload
-    def __get__(self, record: BaseModel, owner: typing.Any = None) -> BaseModel: ...
-    @typing.overload
-    def __get__(self, record: object, owner: typing.Any = None) -> typing.Any: ...
-
-    @override
-    def __get__(
-        self, record: typing.Any, owner: typing.Any = None
-    ) -> BaseModel | typing.Self:
-        if record is None:
-            return self
-        ids = record._ids
-        if len(ids) != 1:
-            return super().__get__(record, owner)
-        env = record.env
-        if self.groups and not env.su and not record._has_field_access(self, "read"):
-            record._check_field_access(self, "read")
-        if self.is_stored_computed and env._core.has_pending_field(self):
-            self.recompute(record)
-        try:
-            value = env.__dict__["_field_cache_memo"][self][ids[0]]
-        except KeyError:
-            pass
-        else:
-            if value is not PENDING:
-                rs = object.__new__(record.pool[self.comodel_name])
-                rs.env = env
-                rs._ids = () if value is None else (value,)
-                rs._prefetch_ids = PrefetchMany2one(record, self)
-                return rs
-        return Field.__get__(self, record, owner)
 
     def __init__(
         self,

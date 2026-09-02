@@ -54,7 +54,7 @@ class TestFieldGetContracts(TransactionCase):
                 hit_value,
                 miss_value,
                 f"{fname}: cache-hit {hit_value!r} != cache-miss {miss_value!r} "
-                "(_prepare_scalar_get closure diverged from convert_to_record)",
+                "(_prepare_fast_get closure diverged from convert_to_record)",
             )
 
     def test_scalar_none_to_falsy(self):

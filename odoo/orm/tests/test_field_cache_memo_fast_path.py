@@ -1,4 +1,5 @@
 import functools
+import pathlib
 
 import pytest
 
@@ -8,11 +9,18 @@ from odoo.orm.runtime.environment import Environment
 
 _MOD = "test_field_cache_memo_fast_path"
 
-_FAST_PATH_SITES = (
-    ("orm/fields/base.py", 2),
-    ("orm/fields/textual.py", 1),
-    ("orm/fields/relational/many2one.py", 1),
-)
+_FIELDS_DIR = pathlib.Path(__file__).resolve().parents[1] / "fields"
+_MEMO_READ = '__dict__["_field_cache_memo"]'
+_THE_ONE_SITE = "base.py"
+
+
+class MemoPartner(models.Model):
+    _name = "memo.partner"
+    _module = _MOD
+    _description = "field cache memo probe, comodel"
+    _log_access = False
+
+    name = fields.Char()
 
 
 class MemoThing(models.Model):
@@ -22,20 +30,23 @@ class MemoThing(models.Model):
     _log_access = False
 
     name = fields.Char()
+    qty = fields.Integer()
+    partner_id = fields.Many2one("memo.partner")
+    blob = fields.Json()
 
 
 def test_the_memo_is_an_instance_dict_cached_property():
     attr = Environment.__dict__.get("_field_cache_memo")
     assert isinstance(attr, functools.cached_property), (
         "Environment._field_cache_memo is no longer a functools.cached_property "
-        f"(got {type(attr).__name__}). Four Layer-1 hot paths read it as "
-        "env.__dict__['_field_cache_memo'] and silently fall back forever if "
+        f"(got {type(attr).__name__}). The Layer-1 fast path reads it as "
+        "env.__dict__['_field_cache_memo'] and silently falls back forever if "
         "that subscript raises."
     )
 
 
 def test_the_memo_actually_lands_in_the_instance_dict():
-    with model_test_env(MemoThing) as env:
+    with model_test_env(MemoPartner, MemoThing) as env:
         assert "_field_cache_memo" not in vars(env), (
             "the memo is populated before first access; this test can no "
             "longer tell warm from cold"
@@ -47,18 +58,21 @@ def test_the_memo_actually_lands_in_the_instance_dict():
         )
 
 
-def test_a_warm_read_does_not_fall_back_to_get_cache(monkeypatch):
-    with model_test_env(MemoThing) as env:
-        model = env["memo.thing"]
-        field = model._fields["name"]
-
-        field._get_cache(env)
+@pytest.mark.parametrize("fname", ["name", "qty", "partner_id", "blob"])
+def test_a_warm_read_does_not_fall_back_to_get_cache(monkeypatch, fname):
+    with model_test_env(MemoPartner, MemoThing) as env:
+        partner = env["memo.partner"].create({"name": "p"})
+        record = env["memo.thing"].create(
+            {"name": "x", "qty": 3, "partner_id": partner.id, "blob": {"a": 1}}
+        )
+        field = record._fields[fname]
+        cold = record[fname]
         assert field in env.__dict__["_field_cache_memo"]
 
         calls = []
-        original = type(field)._get_cache
+        original = fields.Field._get_cache
         monkeypatch.setattr(
-            type(field),
+            fields.Field,
             "_get_cache",
             lambda self, e: (  # type: ignore[func-returns-value]
                 calls.append(self),  # type: ignore[func-returns-value]
@@ -66,22 +80,26 @@ def test_a_warm_read_does_not_fall_back_to_get_cache(monkeypatch):
             )[1],
         )
 
-        field_cache = env.__dict__["_field_cache_memo"][field]
+        warm = record[fname]
 
-        assert field_cache is not None
+        assert warm == cold
         assert calls == [], (
-            "_get_cache was called on a warm read, so the fast path is not being taken"
+            f"_get_cache was called on a warm read of {fname}, so the fast path "
+            "is not being taken"
         )
 
 
-@pytest.mark.parametrize(("relpath", "expected"), _FAST_PATH_SITES)
-def test_the_fast_path_sites_are_where_we_think(relpath, expected):
-    import pathlib
-
-    root = pathlib.Path(__file__).resolve().parents[2]
-    source = (root / relpath).read_text(encoding="utf-8")
-    found = source.count('__dict__["_field_cache_memo"]')
-    assert found == expected, (
-        f"{relpath} has {found} string-key memo reads, expected {expected}. "
-        "Update _FAST_PATH_SITES in the same commit."
+def test_the_fast_path_is_spelled_once():
+    sites = {
+        path.relative_to(_FIELDS_DIR).as_posix(): path.read_text(
+            encoding="utf-8"
+        ).count(_MEMO_READ)
+        for path in sorted(_FIELDS_DIR.rglob("*.py"))
+        if "__pycache__" not in path.parts
+    }
+    sites = {rel: n for rel, n in sites.items() if n}
+    assert sites == {_THE_ONE_SITE: 1}, (
+        f"string-key memo reads: {sites}. The probe lives in _prepare_fast_get "
+        "and nowhere else; route a new fast __get__ through it instead of "
+        "copying the prologue."
     )

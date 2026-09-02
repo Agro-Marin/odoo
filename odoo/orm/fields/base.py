@@ -82,6 +82,38 @@ def _recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
 _logger = logging.getLogger("odoo.fields")
 
 
+def _prepare_fast_get(
+    cache_to_record: Callable[[Field, typing.Any, BaseModel], typing.Any] | None = None,
+) -> Callable[..., typing.Any]:
+    _PENDING = PENDING
+
+    def __get__(
+        self: Field, record: BaseModel | None, owner: type | None = None
+    ) -> typing.Any:
+        if record is None:
+            return self
+        env = record.env
+        if self.groups and not env.su and not record._has_field_access(self, "read"):
+            record._check_field_access(self, "read")
+        ids = record._ids
+        if len(ids) != 1:
+            return self._get_not_singleton(record, owner)
+        if self.is_stored_computed and env._core.has_pending_field(self):
+            self.recompute(record)
+        try:
+            value = env.__dict__["_field_cache_memo"][self][ids[0]]
+        except KeyError:
+            pass
+        else:
+            if value is not _PENDING:
+                if cache_to_record is None:
+                    return self.convert_to_record(value, record)
+                return cache_to_record(self, value, record)
+        return self._get_uncached(record, env, ids[0])
+
+    return __get__
+
+
 _global_seq = itertools.count()
 
 
@@ -582,36 +614,30 @@ class Field[T](
         if self.is_column and dirty:
             env._core.mark_dirty(self, (id_ for id_ in records._ids if id_))
 
-    @typing.overload
-    def __get__(self, record: None, owner: typing.Any = None) -> Self: ...
-    @typing.overload
-    def __get__(self, record: BaseModel, owner: typing.Any = None) -> T: ...
-    @typing.overload
-    def __get__(self, record: object, owner: typing.Any = None) -> typing.Any: ...
+    if typing.TYPE_CHECKING:
 
-    def __get__(self, record: typing.Any, owner: typing.Any = None) -> T | Self:
-        if record is None:
-            return self
+        @typing.overload
+        def __get__(self, record: None, owner: typing.Any = None) -> Self: ...
+        @typing.overload
+        def __get__(self, record: BaseModel, owner: typing.Any = None) -> T: ...
+        @typing.overload
+        def __get__(self, record: object, owner: typing.Any = None) -> typing.Any: ...
 
-        env = record.env
-        if self.groups and not env.su and not record._has_field_access(self, "read"):
-            record._check_field_access(self, "read")
+        def __get__(self, record: typing.Any, owner: typing.Any = None) -> T | Self: ...
 
-        record_ids = record._ids
-        if len(record_ids) != 1:
-            if record_ids:
-                record.check_singleton()
-            value = self.convert_to_cache(False, record, validate=False)
-            return self.convert_to_record(value, record)
+    else:
+        __get__ = _prepare_fast_get()
 
-        if self.is_stored_computed and env._core.has_pending_field(self):
-            self.recompute(record)
+    def _get_not_singleton(self, record: BaseModel, owner: typing.Any = None) -> T:
+        if record._ids:
+            record.check_singleton()
+        value = self.convert_to_cache(False, record, validate=False)
+        return self.convert_to_record(value, record)
 
-        record_id = record_ids[0]
-        try:
-            field_cache = env.__dict__["_field_cache_memo"][self]
-        except KeyError:
-            field_cache = self._get_cache(env)
+    def _get_uncached(
+        self, record: BaseModel, env: Environment, record_id: IdType
+    ) -> T:
+        field_cache = self._get_cache(env)
         try:
             value = field_cache[record_id]
         except KeyError:
@@ -735,34 +761,3 @@ class Field[T](
         self, records: BaseModel, values: typing.Any, domain: DomainType
     ) -> typing.Any:
         return determine(self.group_expand, records, values, domain)
-
-
-def _prepare_scalar_get(
-    cache_to_record: Callable[[typing.Any], typing.Any],
-) -> Callable[..., typing.Any]:
-    _PENDING = PENDING
-    _base_get = Field.__get__
-
-    def __get__(
-        self, record: BaseModel | None, owner: type | None = None
-    ) -> typing.Any:
-        if record is None:
-            return self
-        env = record.env
-        if self.groups and not env.su and not record._has_field_access(self, "read"):
-            record._check_field_access(self, "read")
-        ids = record._ids
-        if len(ids) != 1:
-            return _base_get(self, record, owner)
-        if self.is_stored_computed and env._core.has_pending_field(self):
-            self.recompute(record)
-        try:
-            value = env.__dict__["_field_cache_memo"][self][ids[0]]
-        except KeyError:
-            pass
-        else:
-            if value is not _PENDING:
-                return cache_to_record(value)
-        return _base_get(self, record, owner)
-
-    return __get__

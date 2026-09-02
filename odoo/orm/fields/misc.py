@@ -12,7 +12,7 @@ from odoo.tools.json import orjson_default
 
 from ..primitives import COLLECTION_TYPES, IdType, NewId
 from ._field_sql import PYTHON_INEQUALITY_OPERATOR
-from .base import Field, _prepare_scalar_get
+from .base import Field, _prepare_fast_get
 
 if typing.TYPE_CHECKING:
     from odoo.tools import Query
@@ -45,7 +45,9 @@ class Boolean(Field[bool]):
     falsy_value = False
 
     if not typing.TYPE_CHECKING:
-        __get__ = _prepare_scalar_get(lambda v: False if v is None else v)
+        __get__ = _prepare_fast_get(
+            lambda field, value, record: False if value is None else value
+        )
 
     @override
     def convert_to_column(

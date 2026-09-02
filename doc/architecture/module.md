@@ -469,8 +469,8 @@ skips `tests` packages, because `db/` and `http/` carry test doubles that inheri
 the real mixins (`_FakeRequest`, `_FractionOnly`, `_MetricsCursor`).
 
 For `Field` the units are the mixin composition only. Concrete field types are
-*subclasses* and override base methods freely — `BaseString` overrides 4 of
-`Field`'s 10 cache methods — but that is the override surface, a different graph.
+*subclasses* and override base methods freely — `BaseString` overrides 5 of
+`Field`'s 11 cache methods — but that is the override surface, a different graph.
 
 ### The layering is true of imports and false of the runtime graph
 
@@ -479,15 +479,15 @@ imports. `orm-layer1-below-models-and-runtime` and `orm-models-below-runtime`
 are clean and always will be, because that reach produces no import edge.
 
 **Layer 1 is the heavier consumer on the `Environment` channel; on the
-`Registry` one the two are within one access of each other.** Measured:
+`Registry` one the two are within two accesses of each other.** Measured:
 
 | Channel | Layer 1 (`orm/fields`, `orm/domain`) | Layer 2 (`orm/models`, `orm/registration.py`) |
 |---|---:|---:|
-| `Registry` accesses | 29 | **30** |
-| `pool[<model>]` subscripts | 5 | **5** |
+| `Registry` accesses | 28 | **30** |
+| `pool[<model>]` subscripts | 4 | **5** |
 | distinct `Registry` members | 9 | **15** |
 | unsanctioned `Environment` privates | **4** | 2 |
-| accesses to those privates | **10** | 2 |
+| accesses to those privates | **7** | 2 |
 
 The inversion is one of kind, not of volume: the two reach the Registry about as
 often, and Layer 2 reaches more *distinct* members and has private reaches of its

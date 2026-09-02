@@ -6,11 +6,10 @@ _FIELDS_DIR = pathlib.Path(__file__).resolve().parent.parent / "fields"
 _CANONICAL = 'self.groups and not env.su and not {rec}._has_field_access(self, "read")'
 _ALLOWED = {_CANONICAL.format(rec="record"), _CANONICAL.format(rec="records")}
 
+# One is the fast-path template every __get__ is built from
+# (_prepare_fast_get); the other is the public check_read_access.
 _EXPECTED_SITES = {
-    ("base.py", 3),
-    ("textual.py", 2),
-    ("relational/many2one.py", 1),
-    ("relational/_base.py", 1),
+    ("base.py", 2),
 }
 
 

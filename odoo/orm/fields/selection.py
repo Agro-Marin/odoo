@@ -5,7 +5,7 @@ from typing import override
 from odoo.libs.sql import pg_varchar
 from odoo.tools.misc import SENTINEL, Sentinel, merge_sequences
 
-from .base import Field, _logger, _prepare_scalar_get, determine, resolve_mro
+from .base import Field, _logger, _prepare_fast_get, determine, resolve_mro
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -32,7 +32,9 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
     ondelete: dict[str, OnDeletePolicy] | None = None
 
     if not typing.TYPE_CHECKING:
-        __get__ = _prepare_scalar_get(lambda v: False if v is None else v)
+        __get__ = _prepare_fast_get(
+            lambda field, value, record: False if value is None else value
+        )
 
     def __init__(
         self,

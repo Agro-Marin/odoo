@@ -11,7 +11,7 @@ from odoo.tools import SQL, date_utils
 
 from ..constants import READ_GROUP_NUMBER_GRANULARITY
 from ..parsing import parse_field_expr
-from .base import Field, _logger, _prepare_scalar_get
+from .base import Field, _logger, _prepare_fast_get
 
 
 @functools.cache
@@ -158,7 +158,9 @@ class Date(BaseDate[date]):
     _column_type = ("date", "date")
 
     if not typing.TYPE_CHECKING:
-        __get__ = _prepare_scalar_get(lambda v: False if v is None else v)
+        __get__ = _prepare_fast_get(
+            lambda field, value, record: False if value is None else value
+        )
 
     @staticmethod
     def today(*args) -> date:
@@ -227,7 +229,9 @@ class Datetime(BaseDate[datetime]):
     _column_type = ("timestamp", "timestamp")
 
     if not typing.TYPE_CHECKING:
-        __get__ = _prepare_scalar_get(lambda v: False if v is None else v)
+        __get__ = _prepare_fast_get(
+            lambda field, value, record: False if value is None else value
+        )
 
     @staticmethod
     def now(*args) -> datetime:

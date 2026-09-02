@@ -66,24 +66,14 @@ class _Relational(Field["BaseModel"]):
     bypass_search_access: bool = False
     check_company: bool = False
 
-    @typing.overload
-    def __get__(self, records: None, owner: typing.Any = None) -> typing.Self: ...
-    @typing.overload
-    def __get__(self, records: BaseModel, owner: typing.Any = None) -> BaseModel: ...
-    @typing.overload
-    def __get__(self, records: object, owner: typing.Any = None) -> typing.Any: ...
-
     @override
-    def __get__(
-        self, records: typing.Any, owner: typing.Any = None
-    ) -> BaseModel | typing.Self:
-        if records is None or len(records._ids) <= 1:
-            return super().__get__(records, owner)
+    def _get_not_singleton(
+        self, records: BaseModel, owner: typing.Any = None
+    ) -> BaseModel:
+        if not records._ids:
+            return super()._get_not_singleton(records, owner)
 
         env = records.env
-        if self.groups and not env.su and not records._has_field_access(self, "read"):
-            records._check_field_access(self, "read")
-
         if self.is_stored_computed and env._core.has_pending_field(self):
             self.recompute(records)
 

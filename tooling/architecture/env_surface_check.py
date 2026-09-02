@@ -34,16 +34,16 @@ class Known:
 
 
 _MEMO_REASON = (
-    "Hot-path read of the Field._get_cache memo. Guarded by try/except KeyError "
-    "with a self._get_cache(env) fallback, so an unmaterialised cached_property "
-    "is handled. Debt, not a defect: the __dict__ string-key form is opaque to "
-    "refactoring tools, which is precisely what this checker now compensates for."
+    "Hot-path read of the Field._get_cache memo, in the one place it is spelled: "
+    "_prepare_fast_get builds every fast __get__ from it. Guarded by try/except "
+    "KeyError with a self._get_uncached fallback, so an unmaterialised "
+    "cached_property is handled. Debt, not a defect: the __dict__ string-key form "
+    "is opaque to refactoring tools, which is precisely what this checker now "
+    "compensates for."
 )
 
 KNOWN_VIOLATIONS: tuple[Known, ...] = (
     Known("odoo/orm/fields/base.py", "_field_cache_memo", _MEMO_REASON),
-    Known("odoo/orm/fields/textual.py", "_field_cache_memo", _MEMO_REASON),
-    Known("odoo/orm/fields/relational/many2one.py", "_field_cache_memo", _MEMO_REASON),
     Known(
         "odoo/orm/fields/_field_metadata.py",
         "_field_depends_context",
