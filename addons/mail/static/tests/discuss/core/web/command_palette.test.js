@@ -177,3 +177,18 @@ test("Can create group chat from ctrl-k without any user selected", async () => 
         text: "Mitchell Admin",
     });
 });
+
+test("a partner is found in the command palette by their email address", async () => {
+    const pyEnv = await startServer();
+    const marioUid = pyEnv["res.users"].create({ name: "Mario" });
+    pyEnv["res.partner"].create({
+        name: "Mario",
+        email: "plumber@test.example.com",
+        user_ids: [marioUid],
+    });
+    await start();
+    triggerHotkey("control+k");
+    await insertText(".o_command_palette_search input", "@");
+    await insertText("input[placeholder='Search a conversation']", "plumber");
+    await contains(".o_command_name", { text: "Mario" });
+});
