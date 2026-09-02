@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import logging
+import textwrap
 import typing
 from collections import defaultdict
 from collections.abc import Collection, Iterable, Iterator, Sequence
@@ -2271,9 +2272,17 @@ class MixinMailThread(models.AbstractModel):
         )
         return parents
 
+    # Long enough to identify the record, short enough that a mail client shows
+    # it whole instead of truncating it itself.
+    SUBJECT_MAX_LENGTH = 100
+
     def _message_compute_subject(self) -> str:
         self.check_singleton()
-        return self.display_name
+        return textwrap.shorten(
+            self.display_name or "",
+            width=self.SUBJECT_MAX_LENGTH,
+            placeholder="...",
+        )
 
     def _message_create(self, values_list: list[dict]) -> MailMessage:
         values_list = [

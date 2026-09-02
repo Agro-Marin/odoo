@@ -2104,6 +2104,69 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
             )
         self.assertEqual(msg.subject, "1st line 2nd line")
 
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_subject_shortened_from_record_name(self):
+        """A record whose display_name is huge must not put all of it in the
+        outgoing Subject: header: mail clients truncate it themselves and the
+        reader sees nothing useful. Short names must come through untouched."""
+        long_name = " ".join(["Incidencia de la linea de envasado"] * 8)
+        self.assertGreater(len(long_name), 200, "sanity: the fixture is long")
+        record = (
+            self.env["mail.test.simple"]
+            .with_context(self._test_context)
+            .create({"name": long_name, "email_from": "ignasse@example.com"})
+        )
+        self._reset_mail_context(record)
+        with self.mock_mail_gateway():
+            record.with_user(self.user_employee).message_post(
+                body="<p>Test Body</p>",
+                partner_ids=[self.partner_1.id],
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        self.assertEqual(len(self._new_mails), 1)
+        subject = self._new_mails.subject
+        self.assertLessEqual(
+            len(subject),
+            100,
+            "The outgoing subject must be shortened, not carry the whole display_name",
+        )
+        self.assertTrue(subject.endswith("..."), f"got {subject!r}")
+        self.assertTrue(
+            long_name.startswith(subject[:-3].rstrip()),
+            f"the kept part must be the start of the name, got {subject!r}",
+        )
+
+        # a name that already fits is not rewritten
+        short_record = (
+            self.env["mail.test.simple"]
+            .with_context(self._test_context)
+            .create({"name": "Incidencia 42", "email_from": "ignasse@example.com"})
+        )
+        self._reset_mail_context(short_record)
+        with self.mock_mail_gateway():
+            short_record.with_user(self.user_employee).message_post(
+                body="<p>Test Body</p>",
+                partner_ids=[self.partner_1.id],
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        self.assertEqual(self._new_mails.subject, "Incidencia 42")
+
+    def test_subject_computed_collapses_whitespace(self):
+        """Documented side effect of shortening: a display_name carrying newlines
+        or runs of spaces comes back collapsed even when it is under the limit.
+        The outgoing Subject: header already collapsed newlines (see
+        test_multiline_subject), so this keeps the two paths consistent."""
+        record = (
+            self.env["mail.test.simple"]
+            .with_context(self._test_context)
+            .create({"name": "Primera linea\nSegunda   linea"})
+        )
+        self.assertEqual(
+            record._message_compute_subject(), "Primera linea Segunda linea"
+        )
+
     @mute_logger(
         "odoo.addons.base.models.ir_model", "odoo.addons.mail.models.mail_mail"
     )
