@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import io
 from collections.abc import Iterable, Sequence
+from typing import cast
 
 try:
     import odoo_rust as _native
@@ -58,13 +59,13 @@ def rows_to_dicts_python(names: Sequence[str], rows: Iterable[Sequence]) -> list
     return [dict(zip(names, row, strict=True)) for row in rows]
 
 
-def fast_clone_python(obj: object) -> object:
+def fast_clone_python[T](obj: T) -> T:
     if isinstance(obj, dict):
-        return {key: fast_clone_python(value) for key, value in obj.items()}
+        return cast("T", {key: fast_clone_python(value) for key, value in obj.items()})
     if isinstance(obj, list):
-        return [fast_clone_python(value) for value in obj]
+        return cast("T", [fast_clone_python(value) for value in obj])
     if isinstance(obj, tuple):
-        return tuple(fast_clone_python(value) for value in obj)
+        return cast("T", tuple(fast_clone_python(value) for value in obj))
     return obj
 
 

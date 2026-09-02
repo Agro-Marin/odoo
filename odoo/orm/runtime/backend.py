@@ -139,7 +139,7 @@ class StorageBackend(typing.Protocol):
         model: BaseModel,
         sub_ids: tuple[int, ...],
         Data: BaseModel,
-        Defaults: BaseModel,
+        Defaults: typing.Any,
         Attachment: BaseModel,
     ) -> tuple[BaseModel, BaseModel]: ...
 
@@ -543,7 +543,7 @@ class PostgresBackend:
         model: BaseModel,
         sub_ids: tuple[int, ...],
         Data: BaseModel,
-        Defaults: BaseModel,
+        Defaults: typing.Any,
         Attachment: BaseModel,
     ) -> tuple[BaseModel, BaseModel]:
         env = model.env
@@ -595,7 +595,7 @@ class PostgresBackend:
     def _unlink_default_guard(
         model: BaseModel,
         sub_ids: tuple[int, ...],
-        Defaults: BaseModel,
+        Defaults: typing.Any,
         many2one_fields,
     ) -> None:
         IrModelFields = model.env["ir.model.fields"]
@@ -977,7 +977,7 @@ class InMemoryBackend:
         model: BaseModel,
         sub_ids: tuple[int, ...],
         Data: BaseModel,
-        Defaults: BaseModel,
+        Defaults: typing.Any,
         Attachment: BaseModel,
     ) -> tuple[BaseModel, BaseModel]:
         self.storage.remove_rows(model._table, list(sub_ids))

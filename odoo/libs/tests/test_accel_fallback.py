@@ -53,7 +53,7 @@ class TestTheSeamFallsBack:
     def test_the_four_pure_twins_agree_with_the_extension(self):
         pytest.importorskip("odoo_rust")
         headers = ["a", "b"]  # the native csv_export takes a list of headers
-        rows = [["=x", None], [b"y", False]]
+        rows: list[list[object]] = [["=x", None], [b"y", False]]
         assert accel.csv_export_python(headers, rows) == accel.csv_export(
             headers, [list(r) for r in rows]
         )

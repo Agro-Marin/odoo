@@ -404,7 +404,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         from .runtime.environment import Environment
 
         env = Environment(cr, SUPERUSER_ID, {})
-        cr.transaction.default_env = env
+        env.transaction.default_env = env
 
         model_classes = list(self.models.values())
 
@@ -491,7 +491,7 @@ def model_test_env(
     from .runtime.environment import Environment
 
     env = Environment(cr, SUPERUSER_ID, {})
-    cr.transaction.default_env = env
+    env.transaction.default_env = env
     yield env
 
 

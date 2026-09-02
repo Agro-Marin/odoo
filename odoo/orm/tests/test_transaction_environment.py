@@ -99,13 +99,13 @@ def test_flush_through_an_env_binds_that_env_and_skips_the_profiler_report():
         tx = env.transaction
         user_env = Environment(env.cr, 7, {"probe": True})
         seen = []
+
+        def record_bindings(recompute_fn, flush_fn):
+            seen.append((recompute_fn.__closure__, flush_fn.__closure__))
+            return MagicMock(converged=True, iterations=0)
+
         with patch.object(
-            UnitOfWork,
-            "flush_until_converged",
-            side_effect=lambda recompute_fn, flush_fn: (
-                seen.append((recompute_fn.__closure__, flush_fn.__closure__))
-                or MagicMock(converged=True, iterations=0)
-            ),
+            UnitOfWork, "flush_until_converged", side_effect=record_bindings
         ):
             tx._n1_tracker = MagicMock()
             tx.flush(user_env)

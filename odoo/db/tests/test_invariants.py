@@ -1,6 +1,7 @@
 import contextlib
 import os
 import threading
+import typing
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -20,6 +21,7 @@ class _FakeConn:
         self.info = SimpleNamespace(
             transaction_status=transaction_status, dsn="dbname=x"
         )
+        self._odoo_pool: object = None
 
     def close(self):
         self.closed = True
@@ -449,8 +451,10 @@ class TestBudgetBelongsToAServer(unittest.TestCase):
 class TestASavepointIsNeverOpenedInsideAPipeline(unittest.TestCase):
     def test_savepoint_refuses_pipeline_mode(self):
         cr = cursor.BaseCursor.__new__(cursor.BaseCursor)
-        cr.in_pipeline = True
-        with self.assertRaisesRegex(RuntimeError, "inside cr.pipeline"):
+        with (
+            mock.patch.object(cr, "in_pipeline", True, create=True),
+            self.assertRaisesRegex(RuntimeError, "inside cr.pipeline"),
+        ):
             cr.savepoint()
 
     def test_it_asks_through_getattr_so_a_test_cursor_forwards(self):
@@ -512,10 +516,14 @@ class TestCursorConstructionNeverLeaksAPermit(unittest.TestCase):
 
     def test_the_construction_guard_catches_baseexception(self):
         conn = _FakeConn()
-        conn.cursor = mock.Mock(side_effect=KeyboardInterrupt)
         fake_pool = self._FakePool(conn)
-        with self.assertRaises(KeyboardInterrupt):
-            cursor.Cursor(fake_pool, "db", {"dbname": "db"})
+        with (
+            mock.patch.object(conn, "cursor", side_effect=KeyboardInterrupt),
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            cursor.Cursor(
+                typing.cast("pool.ConnectionPool", fake_pool), "db", {"dbname": "db"}
+            )
         self.assertEqual(
             fake_pool.given_back,
             [(conn, True)],
@@ -545,7 +553,9 @@ class TestCursorConstructionNeverLeaksAPermit(unittest.TestCase):
         conn = _AbortedAfterAStatement()
         fake_pool = self._FakePool(conn)
         with self.assertRaisesRegex(RuntimeError, "after a statement"):
-            cursor.Cursor(fake_pool, "db", {"dbname": "db"})
+            cursor.Cursor(
+                typing.cast("pool.ConnectionPool", fake_pool), "db", {"dbname": "db"}
+            )
         conn.obj.close.assert_called_once()
         self.assertEqual(
             fake_pool.given_back,
@@ -573,8 +583,11 @@ class TestTheProbeAsksItsQuestionOnce(unittest.TestCase):
         reachability = probe.ReachabilityProbe(stats)
         key = frozenset({("dbname", "d")})
         reachability.mark_proven(key)
-        counting = reachability._lock = self._CountingLock()
-        with mock.patch("odoo.db.probe.psycopg.connect") as connect:
+        counting = self._CountingLock()
+        with (
+            mock.patch.object(reachability, "_lock", counting),
+            mock.patch("odoo.db.probe.psycopg.connect") as connect,
+        ):
             reachability.check_connectable(key, "", {"dbname": "d"})
         connect.assert_not_called()
         self.assertEqual(stats.probe_skipped_proven, 1)
