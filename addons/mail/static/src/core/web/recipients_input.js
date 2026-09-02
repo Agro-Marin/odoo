@@ -209,6 +209,42 @@ export class RecipientsInput extends Component {
         ];
     }
 
+    /**
+     * Followers other than self: self is the author, never a notified recipient.
+     *
+     * @returns {number}
+     */
+    get otherFollowersCount() {
+        const followersCount = this.props.thread.followersCount ?? 0;
+        return this.props.thread.selfFollower ? followersCount - 1 : followersCount;
+    }
+
+    /** @returns {string} */
+    get followersBadgeText() {
+        return this.otherFollowersCount === 1
+            ? _t("1 Follower")
+            : _t("%(followersCount)s Followers", {
+                  followersCount: this.otherFollowersCount,
+              });
+    }
+
+    /**
+     * One line per follower, so hovering the badge answers "who exactly?".
+     *
+     * @returns {string}
+     */
+    get followersBadgeTooltip() {
+        return this.props.thread.followers
+            .map((follower) => {
+                const name =
+                    this.props.thread.getPersonaName(follower.partner_id) ||
+                    _t("Unnamed");
+                const email = follower.partner_id.email;
+                return email ? `${name} <${email}>` : name;
+            })
+            .join("\n");
+    }
+
     /** @returns {Object[]} */
     getTagsFromMailThread() {
         const tags = [];
