@@ -2291,7 +2291,7 @@ class TestMemoryLogStrings:
 
     def test_memory_info_returns_rss(self):
         proc = MagicMock()
-        proc.get_memory_rss.return_value = MagicMock(rss=111, vms=999)
+        proc.memory_info.return_value = MagicMock(rss=111, vms=999)
         assert _limits.get_memory_rss(proc) == 111
         assert _limits.get_memory_rss(proc) != 999
 

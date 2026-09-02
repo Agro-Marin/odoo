@@ -1,19 +1,22 @@
+import os
 import unittest
 from types import SimpleNamespace
 from unittest import mock
 
+import psutil
+
 from odoo.service import db as db_service
-from odoo.service._limits import get_memory_over_soft_limit
+from odoo.service._limits import get_memory_over_soft_limit, get_memory_rss
 
 
 def _proc(rss):
-    return SimpleNamespace(get_memory_rss=lambda: SimpleNamespace(rss=rss))
+    return SimpleNamespace(memory_info=lambda: SimpleNamespace(rss=rss))
 
 
 class TestMemorySoftLimit(unittest.TestCase):
     def test_disabled_limit_skips_the_proc_read(self):
         class Boom:
-            def get_memory_rss(self):
+            def memory_info(self):
                 raise AssertionError("RSS must not be read when the limit is 0")
 
         self.assertIsNone(get_memory_over_soft_limit(Boom(), 0))
@@ -26,6 +29,14 @@ class TestMemorySoftLimit(unittest.TestCase):
 
     def test_over_limit_returns_current_rss(self):
         self.assertEqual(get_memory_over_soft_limit(_proc(300), 200), 300)
+
+    def test_the_reader_speaks_psutil_and_not_a_fake(self):
+        # The fakes above answer whatever name the reader asks for, so a rename
+        # of the psutil call inside `get_memory_rss` keeps them green while
+        # every threaded server dies on its first `check_limits`. Measured
+        # 2026-09-01 at 2176e0fd942: `process.get_memory_rss()` on a real
+        # `psutil.Process`, AttributeError, warm server gone in 1.1s.
+        self.assertGreater(get_memory_rss(psutil.Process(os.getpid())), 0)
 
 
 class TestInternalDropIsUngated(unittest.TestCase):
