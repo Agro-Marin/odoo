@@ -1080,6 +1080,24 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run werkzeug-in-addons ratchet
+        id: werkzeug_in_addons
+        # Non-test files under addons/ and odoo/addons/ that import werkzeug
+        # instead of the vocabulary odoo.http exports -- the request, the
+        # response, @route and, since d71f29cc85b, the HTTP exceptions a
+        # controller raises. The unit is FILES: a file is written in one
+        # vocabulary or the other. A ratchet, not a hard zero, because ir.http
+        # overrides that build converters and a routing map keep
+        # werkzeug.routing legitimately.
+        run: |
+          set +e
+          python tooling/architecture/werkzeug_in_addons.py | tee /tmp/werkzeug_in_addons.log
+          python tooling/architecture/werkzeug_in_addons.py --count \
+            | xargs python tooling/ratchet/ratchet.py werkzeug_in_addons --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run SQL IN-placeholder ratchet (core)
         id: sql_in_placeholder
         # ADR-0055. psycopg3 binds server-side, so `IN %s` reaches PostgreSQL as
@@ -2100,6 +2118,12 @@ jobs:
               cat "/tmp/py_x2many_count_$scope.log" 2>/dev/null \
                 || echo "($scope x2many-counter gate did not run)"
             done
+            echo '```'
+            echo ""
+            echo "### Addon files importing werkzeug instead of odoo.http"
+            echo '```'
+            cat /tmp/werkzeug_in_addons.log 2>/dev/null \
+              || echo "(werkzeug-in-addons gate did not run)"
             echo '```'
             echo ""
             echo "### JavaScript (duplication)"

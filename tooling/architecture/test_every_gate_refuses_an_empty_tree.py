@@ -43,6 +43,7 @@ GATES = {
     "py_function_length": ["--count"],
     "py_class_length": ["--count"],
     "py_x2many_count": ["--count"],
+    "werkzeug_in_addons": ["--count"],
     "sql_in_placeholder": ["--count"],
     "py_count_as_boolean": ["--count"],
     "py_hook_arity": ["--count"],

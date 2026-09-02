@@ -30,6 +30,7 @@ def build_parser(
     everything: str,
     siblings: Sequence[str],
     addon_help_tail: str = "",
+    addon_help: str | None = None,
 ) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--count", action="store_true", help="print the count only")
@@ -38,7 +39,9 @@ def build_parser(
     parser.add_argument(
         "--addon",
         default=default_addon,
-        help=_addon_help(default_addon, everything, siblings, addon_help_tail),
+        help=addon_help
+        if addon_help is not None
+        else _addon_help(default_addon, everything, siblings, addon_help_tail),
     )
     return parser
 
@@ -60,9 +63,10 @@ def run(
     summary: Callable[[list], str] | None = None,
     where_for: Callable[[str], str] | None = None,
     addon_help_tail: str = "",
+    addon_help: str | None = None,
 ) -> int:
     args = build_parser(
-        default_addon, everything, siblings, addon_help_tail
+        default_addon, everything, siblings, addon_help_tail, addon_help
     ).parse_args(argv)
 
     if args.addon not in governed:

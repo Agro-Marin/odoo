@@ -1,0 +1,6 @@
+{
+  "count": 110,
+  "measured_at": "d71f29cc85be24e8bece31e4c27a78af3b271e36",
+  "measured_root": "",
+  "note": "Opened at 110 files, measured at d71f29cc85b -- the commit that made the floor reachable. The gate counts non-test files under addons/ and odoo/addons/ that import werkzeug at any scope; the unit is files, because a file is written in one vocabulary or the other. At the parent, c358454af87, the same gate reads 129: d71f29cc85b re-exported the seventeen HTTP exceptions the tree raises from odoo.http and converted the first slice by hand, and 19 files left the count -- 12 mail controllers (attachment, discuss/channel, discuss/gif, discuss/public_page, discuss/rtc, discuss/settings, google_translate, guest, message_reaction, thread, utils, webclient) and 7 web controllers (action, dataset, export, json, json_helpers, openapi, report). By name at 110: Forbidden 32, NotFound 31, bare `import werkzeug` 20, BadRequest 18, `import werkzeug.exceptions` 7, werkzeug.utils 4, Unauthorized 4, werkzeug.routing 3. Not a hard zero: ir.http overrides that build converters and a routing map keep werkzeug.routing legitimately."
+}
