@@ -27,7 +27,7 @@ dashboards.
 | Cron jobs | 3 (escalation, auto-expire, consent) |
 | Test files | 30 (+ `common.py` shared fixtures) |
 | JS files | 16 (7 src + 9 tests) |
-| Migrations | 18 script directories between 19.0.1.0.1 and .24. The missing numbers (.9, .15, .16, .18, .19, .20) **were** released — the manifest bumped through them; they simply needed no script |
+| Migrations | 18 script directories between 1.0.1 and 1.0.24, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20) **were** released — the manifest bumped through them; they simply needed no script |
 
 ## File Inventory
 
@@ -187,7 +187,7 @@ approval/
 |   +-- approver_performance.py       # SQL view: approver stats
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 18 script directories (19.0.1.0.1 .. .24)
++-- migrations/                       # 18 script directories (1.0.1 .. 1.0.24)
 +-- tests/                            # 28 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files

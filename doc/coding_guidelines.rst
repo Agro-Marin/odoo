@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.24
+:Version: 6.25
 :Date: 2026-09-02
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -6485,15 +6485,30 @@ domain over a table-level lock.
 .. code-block::
 
    migrations/
-     19.0.1.1.0/
+     1.1.0/
        pre-migrate.py
        post-migrate.py
 
-The directory name matches the module ``version`` in ``__manifest__.py`` that
-introduces the change. Both forms work: the bare module version (``1.2.0``, the
-common case) or the full ``19.0.1.2.0`` -- Odoo prefixes a bare version with the
-server major at load time. The special ``0.0.0`` directory runs on **every**
-update: first in the ``pre`` stage, last in ``post`` and ``end``.
+The directory name is the module ``version`` in ``__manifest__.py`` that
+introduces the change, **with the series prefix §1.2 requires there stripped**
+-- a manifest at ``19.0.1.2.0`` gets a directory ``1.2.0``, never
+``19.0.1.2.0`` [test_lint lint_migration_series_prefix]. Odoo prefixes a bare
+version with the server major at load time, so the two spellings name the same
+version and, inside one series, select the same scripts. They diverge across one:
+``_is_migration_applicable`` compares only the tail of the installed version for
+a bare directory and the absolute version for a prefixed one, so on a database
+carrying ``18.0.1.30`` a folder ``1.8`` is correctly skipped and ``19.0.1.8``
+runs again. Several bundled directories carry pre-19.0 module versions for
+exactly that comparison, which is why the prefix is the form this tree refuses
+rather than the form it requires.
+
+A directory pinned to an **older** series (``15.0.5.0``) is a different thing
+and stays: it names an absolute version on a multi-series upgrade path. A name
+that matches neither shape is skipped by the loader with a log line nobody
+reads [test_lint lint_migration_version_unreadable].
+
+The special ``0.0.0`` directory runs on **every** update: first in the ``pre``
+stage, last in ``post`` and ``end``.
 
 Scripts are matched on the **stage prefix alone** -- ``name.startswith("pre-")`` /
 ``"post-"`` / ``"end-"`` -- so any suffix runs, ``-migrate.py`` and
@@ -6830,6 +6845,14 @@ One row per change, one clause. The argument lives in the section it moved.
        is a legitimate public RPC contract, and ``noupdate`` is the test for
        whether a server-action rename needs a migration.
 
+   * - 6.25
+     - 2026-09-02
+     - §12.1 names one migration-directory spelling instead of accepting two.
+       The bare module version is the convention and the series prefix is
+       refused: the two agree inside a series and diverge across one, where the
+       prefix re-runs a script the module has already applied. 62 directories
+       were renamed and two ``test_lint`` gates hold it, one for the prefix and
+       one for a name the loader cannot read at all.
    * - 6.24
      - 2026-09-02
      - §2.4's bare census counts leave the prose. A count whose only role is to
