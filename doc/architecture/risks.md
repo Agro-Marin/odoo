@@ -81,22 +81,30 @@ documentation plus the two seam gates, both already in place.
 **What would close it.** Nothing, strictly — the seam is the design. It is
 recorded so the diagram is never read alone.
 
-**Widened 2026-08-09: it is not only Layers 1 and 2.** `odoo/tools/files.py`
-reaches `env.transaction.file_open_tmp_paths` — the `file_open()` sandbox
-allowlist — at 4 sites. `tools/` is the one package whose contract names the
-runtime explicitly (`tools-does-not-reach-the-orm-runtime`), and that contract
-is clean, because the reach arrives through `env` and produces no import edge.
-Neither seam gate reports it either: `_orm_layer_scope.py` scopes both
+**Widened 2026-08-09, and that widening closed 2026-09-01: it was not only
+Layers 1 and 2.** Until 2026-09-01 `odoo/tools/files.py` reached
+`env.transaction.file_open_tmp_paths` — the `file_open()` sandbox allowlist — at
+4 sites. `tools/` is the one package whose contract names the runtime explicitly
+(`tools-does-not-reach-the-orm-runtime`), and that contract was clean
+throughout, because the reach arrived through `env` and produced no import edge.
+Neither seam gate reported it either: `_orm_layer_scope.py` scopes both
 `env_surface_check` and `pool_surface_check` to `orm/*`, so a reach from
-`tools/` is outside what either measures.
+`tools/` was outside what either measured.
 
-The gap is therefore wider than the two layers it was opened against: it covers
-every package holding an `Environment`, and the one place it is *contractually*
-forbidden is the one place nothing looks. Two steps, in order: give
-`_orm_layer_scope.py` a `tools/` scope so the reach is measured, then reconsider
-the owner — `Transaction` holds the field cache, compute engine, unit of work
-and backend, and a temp-path allowlist is on it only because it needs
-request-scoped lifetime.
+The gap was therefore wider than the two layers it was opened against: it
+covered every package holding an `Environment`, and the one place it was
+*contractually* forbidden was the one place nothing looked.
+
+*How the widening was closed.* By taking the second of the two steps recorded
+here and skipping the first. The allowlist never needed the transaction; it
+needed a lifetime — the `with file_open_temporary_directory()` block, on the
+thread that opened it — and a `contextvars.ContextVar` in `tools/files.py`
+gives it exactly that. `Transaction` no longer carries `file_open_tmp_paths`,
+`files.py` reaches the transaction at 0 sites, and `module_view.py` pins that
+zero so the reach cannot return unread. The `tools/` scope for
+`_orm_layer_scope.py` was not added: with nothing in `tools/` holding runtime
+state it would measure a constant zero, which is the doc-gate pin under another
+name. R2 itself stays open — the seam is still the design.
 
 ## R3 — Migration stage is unenforced and unrecoverable
 

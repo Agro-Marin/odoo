@@ -10,6 +10,7 @@ from odoo import release
 from odoo.exceptions import UserError
 from odoo.tests import new_test_user
 from odoo.tools import file_open, file_open_temporary_directory, mute_logger
+from odoo.tools.files import file_open_temporary_paths
 from odoo.tools.translate import TranslationModuleReader
 
 from odoo.addons import __path__ as __addons_path__
@@ -717,7 +718,7 @@ class TestImportModule(odoo.tests.TransactionCase):
                 ).read(),
             )
             tmp_folder = tmp_dir
-        self.assertFalse(self.env.transaction.file_open_tmp_paths)
+        self.assertFalse(file_open_temporary_paths())
         with self.assertRaises(FileNotFoundError):
             file_open(tmp_folder + "/foo/__manifest__.py", "r", env=self.env)
 

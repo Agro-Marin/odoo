@@ -250,7 +250,7 @@ Layer 0  primitives parsing validation constants _typing _protocols ─┘
 | **0** `primitives` `parsing` `validation` `constants` `_typing` `_protocols` | no higher *ORM* layer | Forbidden set is `orm.fields`, `orm.domain`, `orm.models`, `orm.runtime`, `orm.components` **and** the façades `odoo.fields`/`odoo.models`/`odoo.api` — a re-export shim is the obvious way round a rule written only against `odoo.orm.*` |
 | **1** `fields/` `domain/` | Layer 0 | Imports `components/` nowhere |
 | **2** `models/` | Layers 0–1, `components/` | `mixins/recompute.py` → `components.recompute.RecomputeScheduler` |
-| **3** `runtime/` | Layers 0–2, `components/` | Owns the instances: `Transaction` constructs `FieldCache`, `ComputeEngine`, `UnitOfWork`, `OrmCore` |
+| **3** `runtime/` | Layers 0–2, `components/` | Owns the instances: `Transaction` constructs `FieldCache`, `ComputeEngine`, `UnitOfWork`, `OrmCore`, interns every `Environment` and owns the flush policy |
 
 The invariant at every layer is "nothing from the ORM above it", not "nothing
 from `odoo`": all four import `odoo.tools`, `odoo.libs` and `odoo.exceptions`

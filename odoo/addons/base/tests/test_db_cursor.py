@@ -1666,7 +1666,9 @@ class TestComposableQueries(BaseCase):
 
 class TestConnectionInfoFor(BaseCase):
     def test_postgresql_uri(self):
-        db, info = get_connection_info_for_database("postgresql://user:pass@localhost:5432/mydb")
+        db, info = get_connection_info_for_database(
+            "postgresql://user:pass@localhost:5432/mydb"
+        )
         self.assertEqual(db, "mydb")
         self.assertIn("dsn", info)
         self.assertEqual(info["dsn"], "postgresql://user:pass@localhost:5432/mydb")
@@ -3133,9 +3135,11 @@ class TestFlushingSavepointLayering(BaseCase):
             _OrmFlushingSavepoint._restore_orm_state,
             _FlushingSavepoint._restore_orm_state,
         )
-        self.assertIsNot(
+        self.assertIs(
             _OrmFlushingSavepoint._save_orm_state,
             _FlushingSavepoint._save_orm_state,
+            "the ORM savepoint snapshots nothing: default_env is set by the "
+            "transaction's opener, not by whoever constructs an Environment first",
         )
 
     def test_savepoint_restores_orm_state_on_rollback(self):
@@ -3143,7 +3147,7 @@ class TestFlushingSavepointLayering(BaseCase):
 
         class _StubTransaction:
             def __init__(self, reg):
-                self.default_env = "ENV_BEFORE"
+                self.default_env = "ENV_OPENER"
                 self.registry = reg
                 self.envs = []
                 self.cleared = 0
@@ -3167,7 +3171,12 @@ class TestFlushingSavepointLayering(BaseCase):
                 self.assertEqual(cr._savepoint_depth, 1)
                 cr.transaction.default_env = "ENV_DURING"
                 sp.rollback()
-                self.assertEqual(cr.transaction.default_env, "ENV_BEFORE")
+                self.assertEqual(
+                    cr.transaction.default_env,
+                    "ENV_DURING",
+                    "a savepoint rollback restores caches, not the opener's "
+                    "default_env; the code that changes it restores it",
+                )
                 self.assertEqual(cr.transaction.cleared, 1)
                 self.assertEqual(cr.transaction.was_reset, 0)
                 sp.close(rollback=True)
@@ -5100,7 +5109,9 @@ class TestCreateModelTableAndConstraintColumns(BaseCase):
         )
         self.assertEqual(sql_schema.get_column_names_in_constraint(self.cr, diag), [])
         self.assertEqual(
-            sql_schema.get_column_names_in_constraint(self.cr, diag, check_registry=True),
+            sql_schema.get_column_names_in_constraint(
+                self.cr, diag, check_registry=True
+            ),
             ["name", "qty"],
             "only the catalog lookup can tell the user which fields clashed",
         )
@@ -5981,7 +5992,8 @@ class TestCopyFromChoosesEncodingByCost(BaseCase):
             rows = [(1.5, 2.25, 3.125), (0.1, 0.2, 0.3)]
             oids = cr._get_column_type_oids("_cf_num", ["a", "b", "c"])
             self.assertFalse(
-                cr._is_binary_copy_worthwhile(oids), "an all-numeric row must prefer text"
+                cr._is_binary_copy_worthwhile(oids),
+                "an all-numeric row must prefer text",
             )
             cr.copy_from("_cf_num", ["a", "b", "c"], rows, binary=True)
             cr.execute("SELECT a, b, c FROM _cf_num ORDER BY a")

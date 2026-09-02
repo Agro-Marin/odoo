@@ -203,13 +203,27 @@ Cursor ──── transaction ────┬─ registry          the model c
                             ├─ core              OrmCore  ← the curated facade, env._core
                             ├─ unit_of_work      UnitOfWork (the fixpoint loops)
                             ├─ backend           PostgresBackend · InMemoryBackend = DB-free
-                            └─ envs              interned Environments
+                            ├─ envs              interned Environments
+                            └─ default_env       the Environment a cursor-driven flush runs through
 ```
 
 `Environment(cr, uid, context, su)` is **interned** per `(cr, uid, su, context)`:
 constructing one with the same key returns the existing object. Environments are
 cheap and identity-comparable, and any per-request state must live on the
 transaction or the request, never on an `Environment` you happen to hold.
+`Transaction.environment()` is the one place that interns: `Environment.__new__`
+validates its arguments and delegates, so the key (`_EnvironmentSet.key`) and the
+fast path that short-circuits on the last environment handed out
+(`_EnvironmentSet.matches`) sit beside each other, and `Transaction` is per-cursor
+by construction, so nothing re-checks the cursor after a lookup.
+
+`default_env` is the environment a cursor-driven flush runs through and the user
+`_check_sudo_commands` downgrades to. The code that opens a transaction sets it —
+`execute_cr`, `request.update_env()`, the module loader, the cron and job
+runners, the CLI and the test harnesses — and the transaction adopts the first
+environment built for a real user only when no opener did. That adoption is a
+`Transaction` policy, not a constructor side effect: building an `Environment`
+never touches it, and `_OrmFlushingSavepoint` has nothing to snapshot.
 
 **Writes do not reach SQL where you write them.** `create()`/`write()` update the
 field cache, mark ids dirty, and schedule dependent computes; the database sees
@@ -217,13 +231,26 @@ no write until a flush. A flush is a *fixpoint loop*, because recomputing one
 field can dirty another:
 
 ```
-env.flush_all()
-└─ UnitOfWork.flush_until_converged(recompute_fn, flush_fn)  ≤ MAX_FIXPOINT_ITERATIONS (1000)
-   ├─ recompute_fn(field)  → model._recompute_field(field)
-   └─ flush_fn(models)     → model.flush_model()   inside one cr.pipeline()
-                              ├─ _recompute_fields(stored computed fields)
-                              └─ _flush()  pops the dirty ids → UPDATE
+env.flush_all()  ≡  transaction.flush(env)
+└─ Transaction._flush_as(env)   binds the callbacks, reads `tolerant_recompute`, raises, profiles
+   └─ UnitOfWork.flush_until_converged(recompute_fn, flush_fn)  ≤ MAX_FIXPOINT_ITERATIONS (1000)
+      ├─ recompute_fn(field)  → model._recompute_field(field)
+      └─ flush_fn(models)     → model.flush_model()   inside one cr.pipeline()
+                                 ├─ _recompute_fields(stored computed fields)
+                                 └─ _flush()  pops the dirty ids → UPDATE
+
+cr.flush()
+└─ transaction.flush()          through default_env — SUPERUSER, with a warning, when there is none —
+   │                            then the N+1 and ORM profiler reports
+   └─ cr.precommit.run()        interleaved, up to BaseCursor._MAX_FLUSH_PASSES
 ```
+
+The policy lives on `Transaction`: `flush(env)` flushes through the environment
+it is handed and is what `env.flush_all()` delegates to, so the 2,400 addon call
+sites keep their spelling; `flush()` with no argument is the cursor's form,
+which picks the environment and reports the profilers. `BaseCursor.flush()` is
+not a delegate — it owns the precommit hooks and interleaves them with the
+transaction flush until both settle — so its pass limit stays on the cursor.
 
 Non-convergence is an error, not a warning: the loop raises unless the context
 carries `tolerant_recompute`, and `UnitOfWork` carries a stall detector so a loop

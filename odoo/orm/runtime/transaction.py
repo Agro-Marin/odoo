@@ -9,22 +9,27 @@ from odoo.libs.profiling import (
     OrmProfiler,
     _n1_enabled,
     _orm_profiling_enabled,
+    _OrmProfile,
 )
-from odoo.tools import OrderedSet, reset_cached_properties
+from odoo.tools import OrderedSet, frozendict, reset_cached_properties
 
 from ..components.cache import FieldCache
 from ..components.compute import ComputeEngine
 from ..components.core import OrmCore
 from ..components.unit_of_work import UnitOfWork
+from ..primitives import SUPERUSER_ID
 from .backend import POSTGRES_BACKEND, InMemoryBackend
 from .recordset_cache import Cache
 from .registry import Registry
 
 if typing.TYPE_CHECKING:
+    from odoo.db import BaseCursor
+
     from ..fields.base import Field
     from .environment import Environment
 
 _logger = logging.getLogger("odoo.api")
+_orm_cache = logging.getLogger("odoo.orm.cache")
 
 MAX_FIXPOINT_ITERATIONS = 1000
 
@@ -40,6 +45,16 @@ class _EnvironmentSet(WeakSet):
     @staticmethod
     def key(uid: typing.Any, su: bool, context: typing.Any) -> tuple:
         return (uid, su, context)
+
+    @staticmethod
+    def matches(
+        env: Environment, uid: typing.Any, su: bool, context: typing.Any
+    ) -> bool:
+        return (
+            env.uid == uid
+            and env.su == su
+            and (env.context is context or env.context == context)
+        )
 
     def add(self, env: Environment) -> None:
         super().add(env)
@@ -73,7 +88,6 @@ class Transaction:
         "core",
         "default_env",
         "envs",
-        "file_open_tmp_paths",
         "registry",
         "unit_of_work",
     )
@@ -117,22 +131,84 @@ class Transaction:
             OrmProfiler() if _orm_profiling_enabled else None
         )
 
-        self.file_open_tmp_paths: list[str] = []
+    def environment(
+        self, cr: BaseCursor, uid: int | None, context: dict, su: bool = False
+    ) -> Environment:
+        if uid == SUPERUSER_ID:
+            su = True
+        last_ref = self._last_env
+        last = last_ref() if last_ref is not None else None
+        envs = self.envs
+        if last is not None and envs.matches(last, uid, su, context):
+            return last
+        frozen_context = (
+            context if isinstance(context, frozendict) else frozendict(context)
+        )
+        env = envs.get_environment(envs.key(uid, su, frozen_context))
+        if env is None:
+            from .environment import Environment
 
-    def flush(self) -> None:
+            env = Environment._interned(self, cr, uid, frozen_context, su)
+            envs.add(env)
+            self._adopt_default_env(env)
+        self._last_env = weakref_ref(env)
+        return env
+
+    def _adopt_default_env(self, env: Environment) -> None:
+        if self.default_env is None and env.uid and isinstance(env.uid, int):
+            self.default_env = env
+
+    def flush(self, env: Environment | None = None) -> None:
+        if env is not None:
+            self._flush_as(env)
+            return
         if self.default_env is not None:
-            self.default_env.flush_all()
-        elif env := next(iter(self.envs), None):
+            self._flush_as(self.default_env)
+        elif (env := next(iter(self.envs), None)) is not None:
             _logger.warning(
                 "Transaction.flush(): no default_env; flushing as SUPERUSER"
             )
-            from ..primitives import SUPERUSER_ID
-            from .environment import Environment
-
             try:
-                Environment(env.cr, SUPERUSER_ID, {}).flush_all()
+                self._flush_as(self.environment(env.cr, SUPERUSER_ID, {}))
             finally:
                 self.default_env = None
+        self._report_profilers()
+
+    def _flush_as(self, env: Environment) -> None:
+        prof = _OrmProfile(_orm_cache)
+
+        def recompute_fn(field):
+            env[field.model_name]._recompute_field(field)
+
+        def flush_fn(model_names):
+            with env.cr.pipeline():
+                for model_name in model_names:
+                    env[model_name].flush_model()
+
+        result = self.unit_of_work.flush_until_converged(recompute_fn, flush_fn)
+
+        if not result.converged:
+            remaining = result.stalled_fields
+            if env.context.get("tolerant_recompute"):
+                _logger.error(
+                    "flush_all() did not converge after %d iterations. "
+                    "Stalled fields: %s (tolerant mode, continuing)",
+                    result.iterations,
+                    remaining,
+                )
+            else:
+                raise RuntimeError(
+                    f"flush_all() did not converge after "
+                    f"{result.iterations} iterations.  "
+                    f"Stalled fields: {remaining}\n\n"
+                    f"This indicates a circular compute or flush dependency.  "
+                    f"Use context key 'tolerant_recompute' to suppress."
+                )
+
+        prof.stop()
+        prof.report(_orm_cache, "flush_all: %d iterations", result.iterations)
+
+    def _report_profilers(self) -> None:
         if self._n1_tracker is not None:
             self._n1_tracker.report()
             self._n1_tracker.clear()

@@ -105,7 +105,9 @@ def open_environment(
 
     registry_cls = Registry.new if new_registry else Registry
     with registry_cls(db_name).cursor(readonly=readonly) as cr:
-        yield Environment(cr, uid, context)
+        env = Environment(cr, uid, context)
+        env.transaction.default_env = env
+        yield env
 
 
 class Command:

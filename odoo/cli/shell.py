@@ -204,6 +204,7 @@ class Shell(Command):
                 uid = api.SUPERUSER_ID
                 ctx = api.Environment(cr, uid, {})["res.users"].context_get()
                 env = api.Environment(cr, uid, ctx)
+                env.transaction.default_env = env
                 local_vars["env"] = env
                 local_vars["self"] = env.user
                 cr.rollback()

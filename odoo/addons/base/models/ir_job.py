@@ -925,6 +925,7 @@ class IrJob(models.Model):
         cr, job: dict[str, Any]
     ) -> tuple[api.Environment, models.BaseModel]:
         env = api.Environment(cr, job["user_id"], dict(job["context"] or {}))
+        env.transaction.default_env = env
         if not env.user.active and env.uid != SUPERUSER_ID:
             raise TerminalJobError(
                 env._(

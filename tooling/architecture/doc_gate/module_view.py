@@ -261,25 +261,30 @@ class TestToolsReachesTheRuntime(unittest.TestCase):
 
     def test_the_reach_count_is_live(self) -> None:
         self.assertIn(
-            "reaches `env.transaction.file_open_tmp_paths` — the `file_open()` "
+            "reached `env.transaction.file_open_tmp_paths` — the `file_open()` "
             "sandbox allowlist — at 4 sites",
             DOC_FLAT,
         )
-        sites = self.SOURCE.read_text(encoding="utf-8").count(
-            "transaction.file_open_tmp_paths"
-        )
+        self.assertIn("`files.py` reaches the transaction at 0 sites", DOC_FLAT)
+        source = self.SOURCE.read_text(encoding="utf-8")
+        sites = source.count(".transaction")
         self.assertEqual(
-            4,
+            0,
             sites,
-            f"risks.md R2 says 4 tools/ reaches into the transaction; "
-            f"files.py has {sites}",
+            f"risks.md R2 says tools/ no longer reaches into the transaction; "
+            f"files.py has {sites} reach(es)",
         )
+        self.assertIn("ContextVar", source)
+        transaction = (ROOT / "odoo" / "orm" / "runtime" / "transaction.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("file_open_tmp_paths", transaction)
 
     def test_the_import_contract_really_is_clean(self) -> None:
 
         self.assertIn(
-            "that contract is clean, because the reach arrives through `env` "
-            "and produces no import edge",
+            "that contract was clean throughout, because the reach arrived "
+            "through `env` and produced no import edge",
             DOC_FLAT,
         )
         source = self.SOURCE.read_text(encoding="utf-8")

@@ -3,7 +3,6 @@ import logging
 import typing
 from collections import defaultdict
 from collections.abc import Collection, Mapping, MutableMapping
-from weakref import ref as weakref_ref
 
 from psycopg import ProgrammingError
 
@@ -12,7 +11,6 @@ from odoo.exceptions import AccessError, UserError
 from odoo.libs.accel import rows_to_dicts as _rows_to_dicts
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.datetime import utc
-from odoo.libs.profiling import _OrmProfile
 from odoo.tools import (
     SQL,
     OrderedSet,
@@ -62,7 +60,6 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 _logger = logging.getLogger("odoo.api")
-_orm_cache = logging.getLogger("odoo.orm.cache")
 
 
 class _Protecting:
@@ -117,41 +114,24 @@ class Environment(Mapping[str, "BaseModel"]):
                 f"Environment(uid=...) expected int, None or a request "
                 f"placeholder, got bool ({uid!r})"
             )
-        if uid == SUPERUSER_ID:
-            su = True
-
         transaction = cr.transaction
         if transaction is None:
             transaction = cr.transaction = Transaction(Registry(cr.dbname))
+        return transaction.environment(cr, uid, context, su)
 
-        _last_ref = transaction._last_env
-        _last = _last_ref() if _last_ref is not None else None
-        if (
-            _last is not None
-            and _last.cr is cr
-            and _last.uid == uid
-            and _last.su == su
-            and (_last.context is context or _last.context == context)
-        ):
-            return _last
-        frozen_context = (
-            context if isinstance(context, frozendict) else frozendict(context)
-        )
-        envs = transaction.envs
-        env = envs.get_environment(envs.key(uid, su, frozen_context))
-        if env is not None and env.cr is cr:
-            transaction._last_env = weakref_ref(env)
-            return env
-
+    @classmethod
+    def _interned(
+        cls,
+        transaction: Transaction,
+        cr: BaseCursor,
+        uid: int | None,
+        context: frozendict,
+        su: bool,
+    ) -> Environment:
         self = object.__new__(cls)
         self.cr, self.uid, self.su = cr, uid, su
-        self.context = frozen_context
+        self.context = context
         self.transaction = transaction
-
-        envs.add(self)
-        transaction._last_env = weakref_ref(self)
-        if transaction.default_env is None and uid and isinstance(uid, int):
-            transaction.default_env = self
         return self
 
     def __setattr__(self, name: str, value: typing.Any) -> None:
@@ -439,40 +419,7 @@ class Environment(Mapping[str, "BaseModel"]):
         self.transaction.invalidate_field_data()
 
     def flush_all(self) -> None:
-        prof = _OrmProfile(_orm_cache)
-
-        def recompute_fn(field):
-            self[field.model_name]._recompute_field(field)
-
-        def flush_fn(model_names):
-            with self.cr.pipeline():
-                for model_name in model_names:
-                    self[model_name].flush_model()
-
-        result = self.transaction.unit_of_work.flush_until_converged(
-            recompute_fn, flush_fn
-        )
-
-        if not result.converged:
-            remaining = result.stalled_fields
-            if self.context.get("tolerant_recompute"):
-                _logger.error(
-                    "flush_all() did not converge after %d iterations. "
-                    "Stalled fields: %s (tolerant mode, continuing)",
-                    result.iterations,
-                    remaining,
-                )
-            else:
-                raise RuntimeError(
-                    f"flush_all() did not converge after "
-                    f"{result.iterations} iterations.  "
-                    f"Stalled fields: {remaining}\n\n"
-                    f"This indicates a circular compute or flush dependency.  "
-                    f"Use context key 'tolerant_recompute' to suppress."
-                )
-
-        prof.stop()
-        prof.report(_orm_cache, "flush_all: %d iterations", result.iterations)
+        self.transaction.flush(self)
 
     def is_protected(self, field: Field, record: BaseModel) -> bool:
         return self._core.is_protected(field, record.id)

@@ -479,10 +479,24 @@ class TestLifecycleSketches(unittest.TestCase):
 
     def test_environment_interning_claim(self) -> None:
         self.assertIn("is **interned** per `(cr, uid, su, context)`", DOC_FLAT)
-        src = (ROOT / "odoo" / "orm" / "runtime" / "environment.py").read_text(
+        self.assertIn(
+            "`Transaction.environment()` is the one place that interns", DOC_FLAT
+        )
+        transaction = (ROOT / "odoo" / "orm" / "runtime" / "transaction.py").read_text(
             encoding="utf-8"
         )
-        self.assertIn("envs.get_environment(envs.key(uid, su, frozen_context))", src)
+        self.assertIn(
+            "envs.get_environment(envs.key(uid, su, frozen_context))", transaction
+        )
+        self.assertIn("envs.matches(last, uid, su, context)", transaction)
+        env = (ROOT / "odoo" / "orm" / "runtime" / "environment.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("return transaction.environment(cr, uid, context, su)", env)
+        self.assertNotIn(
+            "get_environment(", env, "Environment interns on its own again"
+        )
+        self.assertNotIn("default_env =", env, "Environment sets default_env again")
 
     def test_flush_loop_names_and_cap(self) -> None:
         match = re.search(r"MAX_FIXPOINT_ITERATIONS`? \((\d+)\)", DOC_FLAT)
@@ -515,7 +529,18 @@ class TestLifecycleSketches(unittest.TestCase):
             self.assertRegex(src, re.compile(rf"^    def {name}\b", re.MULTILINE))
         self.assertIn("flush_all()", DOC)
         self.assertRegex(env, re.compile(r"^    def flush_all\b", re.MULTILINE))
+        self.assertIn("self.transaction.flush(self)", env)
+        transaction = (ROOT / "odoo" / "orm" / "runtime" / "transaction.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("transaction.flush(env)", DOC)
+        self.assertRegex(
+            transaction, re.compile(r"^    def flush\(self, env", re.MULTILINE)
+        )
         self.assertIn("`tolerant_recompute`", DOC)
-        self.assertIn('context.get("tolerant_recompute")', env)
+        self.assertIn('context.get("tolerant_recompute")', transaction)
+        self.assertNotIn(
+            "tolerant_recompute", env, "the flush policy is back on Environment"
+        )
         self.assertIn("cr.pipeline()", DOC)
-        self.assertIn("with self.cr.pipeline():", env)
+        self.assertIn("with env.cr.pipeline():", transaction)

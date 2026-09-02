@@ -741,6 +741,7 @@ class _ModuleLoader:
     def open_environment_and_load_base(self) -> None:
         self.report = self.registry._assertion_report
         self.env = api.Environment(self.cr, api.SUPERUSER_ID, {})
+        self.env.transaction.default_env = self.env
         load_module_graph(
             self.env,
             self.graph,

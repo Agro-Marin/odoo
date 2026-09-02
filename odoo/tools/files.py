@@ -5,11 +5,16 @@ import tempfile
 import typing
 from collections.abc import Generator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import IO, Any
 
 import odoo.addons
 from .config import config
+
+_temporary_paths: ContextVar[tuple[str, ...]] = ContextVar(
+    "file_open_temporary_paths", default=()
+)
 
 
 @functools.lru_cache(maxsize=512)
@@ -29,6 +34,10 @@ else:
     Environment = typing.Any
 
 
+def file_open_temporary_paths() -> tuple[str, ...]:
+    return _temporary_paths.get()
+
+
 def file_path(
     file_path: str,
     filter_ext: tuple[str, ...] = ("",),
@@ -36,8 +45,8 @@ def file_path(
     *,
     check_exists: bool = True,
 ) -> str:
-    if env is not None and env.transaction.file_open_tmp_paths:
-        return _file_path_uncached(file_path, filter_ext, env, check_exists)
+    if _temporary_paths.get():
+        return _file_path_uncached(file_path, filter_ext, check_exists)
     return _file_path_resolved(file_path, filter_ext, check_exists)
 
 
@@ -45,7 +54,7 @@ def file_path(
 def _file_path_resolved(
     file_path: str, filter_ext: tuple[str, ...], check_exists: bool
 ) -> str:
-    return _file_path_uncached(file_path, filter_ext, None, check_exists)
+    return _file_path_uncached(file_path, filter_ext, check_exists)
 
 
 def clear_caches() -> None:
@@ -57,7 +66,6 @@ def clear_caches() -> None:
 def _file_path_uncached(
     file_path: str,
     filter_ext: tuple[str, ...],
-    env: Environment | None,
     check_exists: bool,
 ) -> str:
     fp = Path(file_path)
@@ -81,11 +89,10 @@ def _file_path_uncached(
     if not is_abs and (module := sys.modules.get(f"odoo.addons.{parts[0]}")):
         addons_paths = [str(Path(p).parent) for p in module.__path__]
     else:
-        temporary_paths = env.transaction.file_open_tmp_paths if env else []
         addons_paths = [
             *odoo.addons.__path__,
             _root_path(config.root_path),
-            *temporary_paths,
+            *_temporary_paths.get(),
         ]
 
     skip_exists_check = not check_exists and (is_abs or len(addons_paths) == 1)
@@ -128,10 +135,10 @@ def file_open(
 
 
 @contextmanager
-def file_open_temporary_directory(env: Environment) -> Generator[str]:
+def file_open_temporary_directory(env: Environment | None = None) -> Generator[str]:
     with tempfile.TemporaryDirectory() as module_dir:
+        token = _temporary_paths.set((*_temporary_paths.get(), module_dir))
         try:
-            env.transaction.file_open_tmp_paths.append(module_dir)
             yield module_dir
         finally:
-            env.transaction.file_open_tmp_paths.remove(module_dir)
+            _temporary_paths.reset(token)

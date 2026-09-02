@@ -1219,6 +1219,7 @@ class TransactionCase(BaseCase):
         cls.startClassPatcher(cls.close_patcher)
 
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
+        cls.env.transaction.default_env = cls.env
 
         def _crypt_context(self):
             return CryptContext(
@@ -1325,6 +1326,7 @@ class SingleTransactionCase(BaseCase):
             cls.startClassPatcher(cls.freeze_time)
 
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
+        cls.env.transaction.default_env = cls.env
 
     def setUp(self) -> None:
         super().setUp()

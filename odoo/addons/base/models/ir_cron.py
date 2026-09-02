@@ -502,6 +502,7 @@ class IrCron(models.Model):
         deadline: float | None = None,
     ) -> None:
         env = api.Environment(cron_cr, job.user_id, {})
+        env.transaction.default_env = env
         ir_cron = env[cls._name]
 
         ir_cron._remove_triggers_due(job)
@@ -651,6 +652,7 @@ class IrCron(models.Model):
                     "cron_end_time": end_time,
                 },
             )
+            env.transaction.default_env = env
             cron = env[cls._name].browse(job.id)
 
             _logger.info("Job %r (%s) starting", job.cron_name, job.id)
