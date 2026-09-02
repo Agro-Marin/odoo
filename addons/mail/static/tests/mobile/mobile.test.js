@@ -150,7 +150,10 @@ test("click on an odoo link should fold the chat window (mobile)", async () => {
     );
     await click(".o-mail-Composer button[title='Send']");
     await contains(".o-mail-ChatWindow");
-    await click(`a[href="http://${browser.location.host}/odoo.com"]`);
+    // the folded preview now carries the same link, so aim at the message body
+    await click(
+        `.o-mail-Message-richBody a[href="http://${browser.location.host}/odoo.com"]`,
+    );
     await contains(".o-mail-ChatWindow", { count: 0 });
     await contains(".o-mail-ChatBubble", { count: 0 });
     await openListView("discuss.channel", { res_id: channelId });

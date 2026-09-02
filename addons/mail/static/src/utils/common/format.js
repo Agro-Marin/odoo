@@ -15,9 +15,15 @@ import {
     setElementContent,
 } from "@web/core/utils/dom/html";
 import { setAttributes } from "@web/core/utils/dom/xml";
-import { escapeRegExp } from "@web/core/utils/format/strings";
+import { escapeRegExp, nbsp } from "@web/core/utils/format/strings";
 import { getOrigin } from "@web/core/utils/urls";
 const Markup = markup("").constructor;
+const MENTION_CLASSNAMES = new Set([
+    "o_mail_redirect",
+    "o_message_redirect",
+    "o_channel_redirect",
+    "o-discuss-mention",
+]);
 const urlRegexp =
     /\b(?:https?:\/\/\d{1,3}(?:\.\d{1,3}){3}|(?:https?:\/\/|(?:www\.))[-a-z0-9@:%._+~#=\u00C0-\u024F\u1E00-\u1EFF]{1,256}(?:\.{1})?(?:[a-z]{2,13}))\b(?:[-a-z0-9@:%_+~#?&[\]^|{}`\\'$//=\u00C0-\u024F\u1E00-\u1EFF]|[.]*[-a-z0-9@:%_+~#?&[\]^|{}`\\'$//=\u00C0-\u024F\u1E00-\u1EFF]|,(?!$| )|\.(?!$| |\.)|;(?!$| ))*/gi;
 /** @type {RegExp|undefined} */
@@ -530,6 +536,76 @@ export function trimEmptyBlocksAround(content) {
  * @param {*} term
  * @returns {string}
  */
+/**
+ * Inline representation of an html body, for a one-line preview.
+ *
+ * Links and mentions survive as anchors — a preview that swallows a link tells
+ * the reader nothing about what was shared. Everything else collapses to its
+ * text content, so rich markup cannot make the preview grow or misalign.
+ *
+ * @param {string|ReturnType<markup>} htmlString
+ * @returns {string|ReturnType<markup>}
+ */
+export function htmlToHtmlInline(htmlString) {
+    const body = createDocumentFragmentFromContent(htmlString || "").body;
+    const previewBody = body.ownerDocument.createElement("body");
+
+    /** @param {Node} [node] @returns {boolean} */
+    const isBlock = (node) =>
+        node?.nodeType === Node.ELEMENT_NODE && ["DIV", "P"].includes(node.tagName);
+
+    /** @param {HTMLElement} parent @param {string} [text] */
+    const appendText = (parent, text) => {
+        if (text) {
+            parent.append(body.ownerDocument.createTextNode(text));
+        }
+    };
+
+    /** @param {HTMLElement} parent @param {Node[]} nodes */
+    const appendChildren = (parent, nodes) => {
+        for (let index = 0; index < nodes.length; index++) {
+            appendNode(parent, nodes[index]);
+            if (isBlock(nodes[index]) && isBlock(nodes[index + 1])) {
+                // two blocks in a row would run together once flattened
+                appendText(parent, nbsp);
+            }
+        }
+    };
+
+    /** @param {HTMLElement} parent @param {Node} node */
+    const appendNode = (parent, node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            appendText(parent, node.textContent);
+            return;
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return;
+        }
+        if (node.tagName === "BR") {
+            appendText(parent, nbsp);
+            return;
+        }
+        if (node.tagName === "A") {
+            if ([...node.classList].some((cls) => MENTION_CLASSNAMES.has(cls))) {
+                parent.append(node);
+                return;
+            }
+            const href = node.getAttribute("href");
+            if (href) {
+                const link = body.ownerDocument.createElement("a");
+                link.setAttribute("href", href);
+                link.append(body.ownerDocument.createTextNode(href));
+                parent.append(link);
+            }
+            return;
+        }
+        appendChildren(parent, [...node.childNodes]);
+    };
+
+    appendChildren(previewBody, [...body.childNodes]);
+    return htmlTrim(markup(previewBody.innerHTML)) ?? "";
+}
+
 export function cleanTerm(term) {
     return typeof term === "string" ? normalize(term) : "";
 }
