@@ -1,6 +1,6 @@
 {
-  "count": 22306,
-  "measured_at": "89613ec1461481a7ff5c5fdfd82c0bb32a2dcfa6",
+  "count": 22309,
+  "measured_at": "7f154e22d08af01fa51786575f47d65c7b39f741",
   "measured_root": "",
-  "note": "23529 -> 22306 after the Field split, the one fast __get__ and CommandDelta; stamped on the CommandDelta commit after the rebase over the cruft deletion"
+  "note": "O6 moved ten per-type domain optimisations out of orm/domain/optimizations.py onto the field class that owns the type, behind Field._optimize_condition. Properties keeps a nine-line hook and is already 372 lines over budget, so it is charged for all nine (+9); Many2one and the moved bodies are module-level functions and stay under 400. O4 took Field and CreateMixin down 6 between them. 22306 -> 22309."
 }
