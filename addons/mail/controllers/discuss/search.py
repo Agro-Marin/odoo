@@ -23,7 +23,9 @@ class SearchController(http.Controller):
 
     def get_search_store(self, store: Store, search_term: str, limit: int) -> None:
         base_domain = Domain("name", "ilike", search_term) & Domain(
-            "channel_type", "!=", "chat"
+            "channel_type",
+            "in",
+            request.env["discuss.channel"]._types_searchable_by_name(),
         )
         priority_conditions = [
             Domain("is_member", "=", True) & base_domain,

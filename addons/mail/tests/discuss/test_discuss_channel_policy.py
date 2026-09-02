@@ -34,10 +34,20 @@ class TestDiscussChannelTypePolicy(MailCommon):
         }
         self.assertEqual(
             declared,
-            {"chat", "channel", "group"},
-            "A new channel_type was declared without a row in this matrix. Decide "
-            "each policy for it explicitly instead of inheriting a literal.",
+            set(self.Channel._channel_type_policies()),
+            "A channel_type was declared without a policy row. The module that "
+            "adds the type decides each policy for it, in its own "
+            "_channel_type_policies override.",
         )
+
+    def test_the_three_native_rows_are_pinned(self):
+        policies = self.Channel._channel_type_policies()
+        self.assertTrue(policies["chat"].push_icon_is_sender)
+        self.assertEqual(policies["chat"].max_members, 2)
+        self.assertEqual(policies["channel"].email_invite, "public_only")
+        self.assertTrue(policies["channel"].supports_sub_channels)
+        self.assertTrue(policies["group"].member_based_naming)
+        self.assertFalse(policies["group"].supports_group_authorization)
 
     def test_narrating_membership_changes_is_every_type_but_channel(self):
         expected = {"chat": True, "channel": False, "group": True}
@@ -54,9 +64,10 @@ class TestDiscussChannelTypePolicy(MailCommon):
                 self.assertEqual(channel._auto_invites_members_to_call(), invites)
 
     def test_group_authorization_is_channel_only(self):
-        self.assertEqual(
-            self.Channel._types_supporting_group_authorization(), ["channel"]
-        )
+        supported = self.Channel._types_supporting_group_authorization()
+        self.assertIn("channel", supported)
+        self.assertNotIn("chat", supported)
+        self.assertNotIn("group", supported)
 
     def test_the_sql_check_is_built_from_the_policy(self):
         """The CHECK is generated, not a second hand-written copy of the list."""

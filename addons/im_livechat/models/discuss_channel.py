@@ -7,6 +7,7 @@ from odoo.libs.datetime import timezone
 from odoo.libs.filesystem import get_extension
 from odoo.tools import email_normalize, email_split, html2plaintext, plaintext2html
 
+from odoo.addons.mail.models.discuss.discuss_channel import ChannelTypePolicy
 from odoo.addons.mail.tools.discuss import Store
 
 
@@ -775,11 +776,30 @@ class DiscussChannel(models.Model):
             "livechat_member_type",
         ]
 
-    def _types_allowing_seen_infos(self):
-        return super()._types_allowing_seen_infos() + ["livechat"]
-
-    def _types_allowing_unfollow(self):
-        return super()._types_allowing_unfollow() + ["livechat"]
+    @classmethod
+    def _channel_type_policies(cls):
+        return {
+            **super()._channel_type_policies(),
+            "livechat": ChannelTypePolicy(
+                supports_group_authorization=False,
+                narrates_membership_changes=True,
+                auto_invites_members_to_call=True,
+                allows_seen_infos=True,
+                allows_unfollow=True,
+                member_based_naming=False,
+                lazy_loads_members=False,
+                supports_sub_channels=False,
+                has_description=False,
+                default_avatar=None,
+                max_members=None,
+                email_invite="never",
+                push_title="name",
+                push_icon_is_sender=False,
+                searchable_by_name=True,
+                describes_as_channel=False,
+                sub_channel_invites_mentioned=False,
+            ),
+        }
 
     def _action_unfollow(self, partner=None, guest=None, post_leave_message=True):
         super()._action_unfollow(partner, guest, post_leave_message)
