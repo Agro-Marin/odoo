@@ -1469,6 +1469,22 @@ class TestMailMessageAccessBoundaries(MessageAccessCommon):
             "the document is readable, the note is still internal",
         )
 
+    def test_a_share_user_cannot_read_a_forbidden_message_by_attribute(self):
+        note = self.record_portal.message_post(
+            body="internal", subtype_xmlid="mail.mt_note", message_type="comment"
+        )
+        comment = self.record_portal.message_post(
+            body="public", subtype_xmlid="mail.mt_comment", message_type="comment"
+        )
+        Message = self.env["mail.message"].with_user(self.user_portal)
+        Message.invalidate_model()
+        self.assertEqual(Message.browse(comment.id).body, "<p>public</p>")
+        with self.assertRaises(AccessError):
+            Message.browse(note.id).body
+        Message.invalidate_model()
+        with self.assertRaises(AccessError):
+            Message.browse(self.private_note.id).mapped("body")
+
     def test_a_reply_cannot_be_moved_onto_another_document(self):
         message = self.channel.with_user(self.user_employee).message_post(
             body="mine", message_type="comment", subtype_xmlid="mail.mt_comment"

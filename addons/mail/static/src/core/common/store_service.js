@@ -271,23 +271,39 @@ export class Store extends BaseStore {
         }
         log("initialize:first-call");
         this._initializePromise = (async () => {
-            try {
-                await this.fetchStoreData("init_messaging");
-            } catch (error) {
-                if (!(error instanceof ConnectionLostError)) {
-                    this._initializePromise = undefined;
-                    throw error;
-                }
+            for (;;) {
                 try {
-                    await this.fetchStoreData("init_messaging");
-                } catch (retryError) {
-                    this._initializePromise = undefined;
-                    throw retryError;
+                    await Promise.all(
+                        this._getInitialFetchNames().map((name) =>
+                            this.fetchStoreData(name),
+                        ),
+                    );
+                    break;
+                } catch (error) {
+                    if (!(error instanceof ConnectionLostError)) {
+                        this._initializePromise = undefined;
+                        throw error;
+                    }
+                    log("initialize:connection-lost, waiting for the bus");
+                    await this._busReconnected();
                 }
             }
             this.isReady.resolve();
         })();
         return this._initializePromise;
+    }
+
+    /** The store requests batched into the first `/mail/data` round trip. */
+    _getInitialFetchNames() {
+        return ["init_messaging"];
+    }
+
+    _busReconnected() {
+        return new Promise((resolve) =>
+            this.env.services.bus_service.addEventListener("BUS:RECONNECT", resolve, {
+                once: true,
+            }),
+        );
     }
 
     /**

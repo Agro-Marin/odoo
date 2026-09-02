@@ -731,8 +731,15 @@ class MailMessage(models.Model):
                 check(messages)
 
     def fetch(self, field_names: Collection[str] | None = None) -> None:
-        self = self.sudo()
-        return super().fetch(field_names)
+        if not self.env.su and self.env.user.share:
+            if forbidden := self._get_forbidden_access("read"):
+                raise AccessError(
+                    _(
+                        "You cannot read the following messages: %(ids)s",
+                        ids=", ".join(str(mid) for mid in forbidden.ids),
+                    )
+                )
+        return super(MailMessage, self.sudo()).fetch(field_names)
 
     def write(self, vals: ValuesType) -> Literal[True]:
         if not (self.env.su or self.env.user.has_group("base.group_user")):
@@ -872,6 +879,7 @@ class MailMessage(models.Model):
             self.sudo().starred_partner_ids = [
                 Command.unlink(self.env.user.partner_id.id)
             ]
+        Store(bus_channel=self.env.user).add(self).bus_send()
         self.env.user._bus_send(
             "mail.message/toggle_star", {"message_ids": [self.id], "starred": starred}
         )

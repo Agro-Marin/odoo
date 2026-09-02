@@ -356,6 +356,12 @@ export class MailMessage extends models.ServerModel {
                 ],
             });
             const [partner] = ResPartner.read(this.env.user.partner_id);
+            // as the server: the message travels before the toggle, so another tab never holds a stub
+            BusBus._sendone(
+                partner,
+                "mail.record/insert",
+                new mailDataHelpers.Store().add(this.browse(message.id)).get_result(),
+            );
             BusBus._sendone(partner, "mail.message/toggle_star", {
                 message_ids: [message.id],
                 starred: !wasStarred,
@@ -596,9 +602,12 @@ export class MailMessage extends models.ServerModel {
         if (after) {
             domain.push(["id", ">", after]);
         }
-        const messages = this._filter(domain).sort((m1, m2) => m2.id - m1.id);
+        // as the server: the page after `after` is the oldest `limit` messages, then newest first
+        const messages = this._filter(domain).sort((m1, m2) =>
+            after ? m1.id - m2.id : m2.id - m1.id,
+        );
         messages.length = Math.min(messages.length, limit);
-        res.messages = messages;
+        res.messages = messages.sort((m1, m2) => m2.id - m1.id);
         return res;
     }
 

@@ -37,6 +37,60 @@ test("fetchNewMessages keeps thread messages in ascending id order", async () =>
     );
 });
 
+test("fetchNewMessages on a first load keeps a server message between two known ones", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John" });
+    const messageIds = pyEnv["mail.message"].create([
+        { body: "message 1", model: "res.partner", res_id: partnerId },
+        { body: "message 2", model: "res.partner", res_id: partnerId },
+        { body: "message 3", model: "res.partner", res_id: partnerId },
+    ]);
+    await start();
+    const store = getService("mail.store");
+    const thread = store.Thread.insert({ id: partnerId, model: "res.partner" });
+    for (const id of [messageIds[0], messageIds[2]]) {
+        thread.messages.add(
+            store["mail.message"].insert({
+                id,
+                thread: { id: partnerId, model: "res.partner" },
+            }),
+        );
+    }
+    await thread.fetchNewMessages();
+    expect(thread.messages.map((message) => message.id)).toEqual(
+        [...messageIds].sort((id1, id2) => id1 - id2),
+    );
+});
+
+test("a full page of newer messages leaves loadNewer open", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John" });
+    pyEnv["mail.message"].create({
+        body: "first",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    await start();
+    const store = getService("mail.store");
+    const thread = store.Thread.insert({ id: partnerId, model: "res.partner" });
+    await thread.fetchNewMessages();
+    expect(thread.messages).toHaveLength(1);
+    expect(thread.loadNewer).toBe(false);
+    pyEnv["mail.message"].create(
+        Array.from({ length: store.FETCH_LIMIT + 1 }, (_, i) => ({
+            body: `later ${i}`,
+            model: "res.partner",
+            res_id: partnerId,
+        })),
+    );
+    await thread.fetchNewMessages();
+    expect(thread.messages).toHaveLength(1 + store.FETCH_LIMIT);
+    expect(thread.loadNewer).toBe(true);
+    await thread.fetchMoreMessages("newer");
+    expect(thread.messages).toHaveLength(2 + store.FETCH_LIMIT);
+    expect(thread.loadNewer).toBe(false);
+});
+
 test("thread needaction counter decrements when needaction message is deleted", async () => {
     const pyEnv = await startServer();
     pyEnv["res.users"].write(serverState.userId, { notification_type: "inbox" });

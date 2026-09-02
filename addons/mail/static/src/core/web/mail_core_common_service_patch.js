@@ -25,7 +25,12 @@ patch(MailCoreCommon.prototype, {
                 if (wasStarred !== true) {
                     applyCounterDelta(starredBox, "counter", 1, { busId: notifId });
                 }
-                starredBox.messages.add(message);
+                // a message known by id alone is a stub the base handler just inserted
+                if (message.thread) {
+                    starredBox.messages.add(message);
+                } else {
+                    starredBox.isLoaded = false;
+                }
             } else {
                 if (wasStarred !== false) {
                     applyCounterDelta(starredBox, "counter", -1, { busId: notifId });

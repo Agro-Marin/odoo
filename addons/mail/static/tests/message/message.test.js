@@ -19,6 +19,7 @@ import {
     startServer,
     triggerHotkey,
 } from "@mail/../tests/mail_test_helpers";
+import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { LONG_PRESS_DELAY } from "@mail/utils/common/hooks";
 import { describe, expect, test } from "@odoo/hoot";
 import {
@@ -1622,6 +1623,45 @@ test("Toggle star should update starred counter on all tabs", async () => {
         text: "Starred messages",
         contains: [".badge", { text: "1" }],
     });
+});
+
+test("a star toggled elsewhere shows the message in an open Starred mailbox", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "general",
+        channel_type: "channel",
+    });
+    const messageId = pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: "Hello world",
+        model: "discuss.channel",
+        res_id: channelId,
+        message_type: "comment",
+    });
+    await start();
+    await openDiscuss("mail.box_starred");
+    await contains(".o-mail-DiscussSidebar button.o-active", {
+        text: "Starred messages",
+    });
+    // another tab starred it: the server sends the message, then the toggle
+    pyEnv["mail.message"].write([messageId], {
+        starred_partner_ids: [Command.link(serverState.partnerId)],
+    });
+    const [partner] = pyEnv["res.partner"].read(serverState.partnerId);
+    pyEnv["bus.bus"]._sendone(
+        partner,
+        "mail.record/insert",
+        new mailDataHelpers.Store()
+            .add(pyEnv["mail.message"].browse(messageId))
+            .get_result(),
+    );
+    pyEnv["bus.bus"]._sendone(partner, "mail.message/toggle_star", {
+        message_ids: [messageId],
+        starred: true,
+    });
+    await contains(".o-mail-Message", { text: "Hello world" });
+    await contains(".o-mail-Message", { count: 1 });
+    await contains(".o-mail-DiscussSidebar button.o-active .badge", { text: "1" });
 });
 
 test("allow attachment image download on message", async () => {

@@ -53,12 +53,8 @@ const StorePatch = {
     computeGlobalCounter() {
         return this.inbox?.counter ?? 0;
     },
-    async initialize() {
-        await Promise.all([
-            this.fetchStoreData("failures"),
-            this.fetchStoreData("systray_get_activities"),
-            super.initialize(...arguments),
-        ]);
+    _getInitialFetchNames() {
+        return ["failures", "systray_get_activities", ...super._getInitialFetchNames()];
     },
     onPushNotificationDisplayed() {
         super.onPushNotificationDisplayed(...arguments);
