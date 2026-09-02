@@ -145,6 +145,28 @@ test("Display highlighted search in chatter", async () => {
     );
 });
 
+test("Search by author name, highlighted in the header", async () => {
+    patchUiSize({ size: SIZES.XXL });
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    const authorId = pyEnv["res.partner"].create({ name: "Maria Bernal" });
+    pyEnv["mail.message"].create({
+        author_id: authorId,
+        body: "nothing matching in the body",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click("[title='Search Messages']");
+    await insertText(".o_searchview_input", "Maria");
+    triggerHotkey("Enter");
+    await contains(
+        `.o-mail-SearchMessageResult .o-mail-Message-author .${HIGHLIGHT_CLASS}`,
+        { text: "Maria" },
+    );
+});
+
 test("Display multiple highlighted search in chatter", async () => {
     patchUiSize({ size: SIZES.XXL });
     const pyEnv = await startServer();

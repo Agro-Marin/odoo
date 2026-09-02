@@ -39,14 +39,28 @@ export class ChannelMemberList extends Component {
     }
 
     /**
+     * Whether the member responds to a click at all. Here that means opening a
+     * chat, so it needs a user; `discuss/core/web` widens it to any partner,
+     * because there a click opens the avatar card instead.
+     *
+     * @param {import("models").ChannelMember} member
+     * @returns {boolean}
+     */
+    isClickable(member) {
+        return this.canOpenChatWith(member);
+    }
+
+    /**
+     * Whether a chat can be opened with the member, which needs a user.
+     *
      * @param {import("models").ChannelMember} member
      * @returns {boolean}
      */
     canOpenChatWith(member) {
-        return (
+        return Boolean(
             !this.store.inPublicPage &&
-            !member.guest_id &&
-            member.partner_id.main_user_id
+                !member.guest_id &&
+                member.partner_id?.main_user_id
         );
     }
 

@@ -830,10 +830,12 @@ export class Message extends Record {
     }
 
     async unfollow() {
-        if (this.needaction) {
-            await this.setDone();
-        }
         const thread = this.thread;
+        if (this.needaction) {
+            // unfollowing is a per-document action: leaving the rest of the
+            // document's notifications in the inbox contradicts it
+            await thread.markAllMessagesAsRead();
+        }
         await thread.selfFollower.remove();
         this.store.env.services.notification.add(
             _t('You are no longer following "%(thread_name)s".', {

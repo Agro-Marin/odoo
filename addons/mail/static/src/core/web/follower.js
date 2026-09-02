@@ -1,8 +1,9 @@
 /** @odoo-module native */
+import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { FollowerSubtypeDialog } from "@mail/core/web/follower_subtype_dialog";
 import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown";
-import { useService } from "@web/core/utils/hooks";
+import { usePopover } from "@web/ui/popover";
 /**
  * @typedef {Object} Props
  * @property {import("models").Follower} follower
@@ -16,15 +17,25 @@ export class Follower extends Component {
     static components = { DropdownItem };
 
     setup() {
-        this.store = useService("mail.store");
+        // via the registry, not a direct import: `core/` does not depend on
+        // `discuss/` — same shape as `message_patch.js` and `activity.js`
+        this.avatarCard = usePopover(
+            discussComponentRegistry.get("AvatarCardPopover"),
+            { position: "right" },
+        );
     }
 
-    onClickDetails() {
-        this.store.openDocument({
+    /** @param {MouseEvent} ev */
+    onClickDetails(ev) {
+        if (this.avatarCard.isOpen) {
+            return;
+        }
+        // the card is anchored to the clicked item, so the follower list has
+        // to stay open: no `props.close?.()` here
+        this.avatarCard.open(ev.currentTarget, {
             id: this.props.follower.partner_id.id,
             model: "res.partner",
         });
-        this.props.close?.();
     }
 
     async onClickEdit() {

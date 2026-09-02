@@ -78,6 +78,36 @@ test("Close button should close the search panel", async () => {
     await contains(".o-mail-SearchMessageInput", { count: 0 });
 });
 
+test("opening search in chatter hides the attachment box", async () => {
+    // the topbar button that toggles the box is disabled while search is open,
+    // so a box left open before searching would sit on top of the results with
+    // no way to dismiss it
+    patchUiSize({ size: SIZES.XXL });
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    pyEnv["mail.message"].create({
+        body: "not empty",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    pyEnv["ir.attachment"].create({
+        mimetype: "text/plain",
+        name: "A.txt",
+        res_id: partnerId,
+        res_model: "res.partner",
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    // wait for the count: until the attachments land, the button is the
+    // uploader's toggler and clicking it opens a file dialog instead
+    await contains(".o-mail-Chatter [aria-label='Attach files']", { text: "1" });
+    await click(".o-mail-Chatter [aria-label='Attach files']");
+    await contains(".o-mail-AttachmentBox");
+    await click(".o-mail-Chatter-topbar [title='Search Messages']");
+    await contains(".o_searchview");
+    await contains(".o-mail-AttachmentBox", { count: 0 });
+});
+
 test("Search in chatter should be hightligted", async () => {
     patchUiSize({ size: SIZES.XXL });
     const pyEnv = await startServer();

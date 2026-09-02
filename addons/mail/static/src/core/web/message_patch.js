@@ -48,7 +48,9 @@ patch(Message.prototype, {
         };
     },
     hasAuthorClickable() {
-        return this.message.author_id?.main_user_id;
+        // a partner is enough: the card renders one, and external contacts
+        // (email correspondents, livechat visitors) have no user account
+        return this.message.author_id;
     },
     /** @param {MouseEvent} ev */
     onClickAuthor(ev) {
@@ -57,7 +59,8 @@ patch(Message.prototype, {
             const target = ev.currentTarget;
             if (!this.avatarCard.isOpen) {
                 this.avatarCard.open(target, {
-                    id: this.message.author_id.main_user_id.id,
+                    id: this.message.author_id.id,
+                    model: "res.partner",
                 });
             }
         }

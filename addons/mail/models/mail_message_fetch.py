@@ -126,6 +126,7 @@ class MailMessage(models.Model):
             attachment_domain &= Domain("res_model", "=", thread._name) & Domain(
                 "res_id", "=", thread.id
             )
+        author_domain = Domain("name", "ilike", search_term)
         domain = Domain.OR(
             [
                 [
@@ -133,6 +134,23 @@ class MailMessage(models.Model):
                         "attachment_ids",
                         "in",
                         self.env["ir.attachment"].sudo()._search(attachment_domain),
+                    )
+                ],
+                # sudo: res.partner - matching a name only narrows messages the
+                # caller can already read; it never widens the message domain
+                [
+                    (
+                        "author_id",
+                        "in",
+                        self.env["res.partner"].sudo()._search(author_domain),
+                    )
+                ],
+                # sudo: mail.guest - same, for messages written by a guest
+                [
+                    (
+                        "author_guest_id",
+                        "in",
+                        self.env["mail.guest"].sudo()._search(author_domain),
                     )
                 ],
                 [("body", "ilike", search_term)],

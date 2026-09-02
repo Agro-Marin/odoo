@@ -426,3 +426,61 @@ class TestDiscussChannelMember(MailCommon):
                 1,
             ],
         )
+
+    def test_mention_reaches_a_muted_member(self):
+        """Muting a channel must not swallow a direct mention.
+
+        `_get_notification_member_domain` drops muted members from the web push
+        recipients. A mention is addressed to one person, so it has to cross
+        the mute: what mute silences is the rest of the channel.
+        """
+        channel = (
+            self.env["discuss.channel"]
+            .with_user(self.user_1)
+            ._create_channel(group_id=None, name="muted channel")
+        )
+        channel._add_members(users=self.user_2)
+        member_2 = channel.channel_member_ids.filtered(
+            lambda m: m.partner_id == self.user_2.partner_id
+        )
+        member_2.sudo().mute_until_dt = datetime.now() + timedelta(days=1)
+
+        message = channel.with_user(self.user_1).message_post(
+            body="hello",
+            message_type="comment",
+            partner_ids=self.user_2.partner_id.ids,
+            subtype_xmlid="mail.mt_comment",
+        )
+        recipients = channel._notify_get_recipients(
+            message, {"partner_ids": self.user_2.partner_id.ids}
+        )
+        self.assertIn(
+            self.user_2.partner_id.id,
+            [r["id"] for r in recipients if r.get("notif") == "web_push"],
+            "a mentioned member must be pushed even with the channel muted",
+        )
+
+    def test_mute_still_silences_a_plain_message(self):
+        """The other half of the same rule: no mention, no notification."""
+        channel = (
+            self.env["discuss.channel"]
+            .with_user(self.user_1)
+            ._create_channel(group_id=None, name="muted channel 2")
+        )
+        channel._add_members(users=self.user_2)
+        member_2 = channel.channel_member_ids.filtered(
+            lambda m: m.partner_id == self.user_2.partner_id
+        )
+        member_2.sudo().mute_until_dt = datetime.now() + timedelta(days=1)
+
+        message = channel.with_user(self.user_1).message_post(
+            body="hello everyone",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        recipients = channel._notify_get_recipients(message, {"partner_ids": []})
+        self.assertNotIn(
+            self.user_2.partner_id.id,
+            [r["id"] for r in recipients],
+            "a muted member must stay silent when not mentioned",
+        )
