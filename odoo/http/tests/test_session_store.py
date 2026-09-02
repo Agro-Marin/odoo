@@ -26,8 +26,8 @@ def _anon(store):
     return s
 
 
-def test_generate_key_shape_and_prefix_invariant():
-    store = FilesystemSessionStore(session_class=Session)
+def test_generate_key_shape_and_prefix_invariant(tmp_path):
+    store = FilesystemSessionStore(str(tmp_path), session_class=Session)
     key = store.generate_key()
     assert len(key) == 84
     assert store.is_valid_key(key)

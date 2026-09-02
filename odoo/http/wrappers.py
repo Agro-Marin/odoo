@@ -47,6 +47,44 @@ def _prepare_set_cookie_args(
     return expires, max_age, secure, samesite
 
 
+def _set_cookie_on(
+    carrier: Any,
+    key: str,
+    value: str,
+    max_age: int | None,
+    expires: datetime | int | None,
+    path: str | None,
+    domain: str | None,
+    secure: bool | None,
+    httponly: bool,
+    samesite: str | None,
+    partitioned: bool,
+    cookie_type: str,
+) -> None:
+    expires, max_age, secure, samesite = _prepare_set_cookie_args(
+        expires,
+        max_age,
+        cookie_type,
+        secure,
+        samesite,
+    )
+    # unbound call on purpose: the carrier need not be a werkzeug Response,
+    # only duck-type .headers and .max_cookie_size (FutureResponse does)
+    werkzeug.wrappers.Response.set_cookie(
+        carrier,
+        key,
+        value=value,
+        max_age=max_age,
+        expires=expires,
+        path=path,
+        domain=domain,
+        secure=secure,
+        httponly=httponly,
+        samesite=samesite,
+        partitioned=partitioned,
+    )
+
+
 def _prepare_request_property_accessors(attr: str) -> tuple[Any, Any]:
 
     def getter(self: HTTPRequest) -> Any:
@@ -254,24 +292,19 @@ class _Response(werkzeug.wrappers.Response):
         partitioned: bool = False,
         cookie_type: str = "required",
     ) -> None:
-        expires, max_age, secure, samesite = _prepare_set_cookie_args(
-            expires,
-            max_age,
-            cookie_type,
-            secure,
-            samesite,
-        )
-        super().set_cookie(
+        _set_cookie_on(
+            self,
             key,
-            value=value,
-            max_age=max_age,
-            expires=expires,
-            path=path,
-            domain=domain,
-            secure=secure,
-            httponly=httponly,
-            samesite=samesite,
-            partitioned=partitioned,
+            value,
+            max_age,
+            expires,
+            path,
+            domain,
+            secure,
+            httponly,
+            samesite,
+            partitioned,
+            cookie_type,
         )
 
 
@@ -497,24 +530,18 @@ class FutureResponse:
         partitioned: bool = False,
         cookie_type: str = "required",
     ) -> None:
-        expires, max_age, secure, samesite = _prepare_set_cookie_args(
-            expires,
-            max_age,
-            cookie_type,
-            secure,
-            samesite,
-        )
         self._remove_staged_cookie(key)
-        werkzeug.Response.set_cookie(
+        _set_cookie_on(
             self,
             key,
-            value=value,
-            max_age=max_age,
-            expires=expires,
-            path=path,
-            domain=domain,
-            secure=secure,
-            httponly=httponly,
-            samesite=samesite,
-            partitioned=partitioned,
+            value,
+            max_age,
+            expires,
+            path,
+            domain,
+            secure,
+            httponly,
+            samesite,
+            partitioned,
+            cookie_type,
         )

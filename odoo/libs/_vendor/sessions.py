@@ -1,83 +1,28 @@
 import logging
 import os
 import pathlib
-import re
 import tempfile
-from hashlib import sha1
-from os import path
-from os import replace as rename
-from time import time
-
-from werkzeug.datastructures import CallbackDict
 
 from odoo.libs.json import dumps_bytes as _json_dumps
 from odoo.libs.json import loads as _json_loads
 
 _logger = logging.getLogger(__name__)
-_sha1_re = re.compile(r"^[a-f0-9]{40}$")
-
-
-def generate_key(salt=None):
-    if salt is None:
-        salt = repr(salt).encode("ascii")
-    return sha1(
-        b"".join([salt, str(time()).encode("ascii"), os.urandom(30)])
-    ).hexdigest()
-
-
-class ModificationTrackingDict(CallbackDict):
-    __slots__ = ("modified", "on_update")
-
-    def __init__(self, *args, **kwargs):
-        def on_update(self):
-            self.modified = True
-
-        self.modified = False
-        super().__init__(on_update=on_update)
-        dict.update(self, *args, **kwargs)
-
-    def copy(self):
-        missing = object()
-        result = object.__new__(self.__class__)
-        for name in self.__slots__:
-            val = getattr(self, name, missing)
-            if val is not missing:
-                setattr(result, name, val)
-        return result
-
-    def __copy__(self):
-        return self.copy()
-
-
-class Session(ModificationTrackingDict):
-
-    __slots__ = (*ModificationTrackingDict.__slots__, "sid", "new")
-
-    def __init__(self, data, sid, new=False):
-        super().__init__(data)
-        self.sid = sid
-        self.new = new
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__} {dict.__repr__(self)}{'*' if self.should_save else ''}>"
-
-    @property
-    def should_save(self):
-        return self.modified
 
 
 class SessionStore:
 
-    def __init__(self, session_class=None):
-        if session_class is None:
-            session_class = Session
+    def __init__(self, session_class):
         self.session_class = session_class
 
     def is_valid_key(self, key):
-        return _sha1_re.match(key) is not None
+        raise NotImplementedError(
+            f"{type(self).__name__} must define the session key format"
+        )
 
     def generate_key(self, salt=None):
-        return generate_key(salt)
+        raise NotImplementedError(
+            f"{type(self).__name__} must define the session key format"
+        )
 
     def new(self):
         return self.session_class({}, self.generate_key(), True)
@@ -100,16 +45,8 @@ _fs_transaction_suffix = ".__wz_sess"
 
 class FilesystemSessionStore(SessionStore):
 
-    def __init__(
-        self,
-        path=None,
-        session_class=None,
-        renew_missing=False,
-        mode=0o644,
-    ):
+    def __init__(self, path, session_class, renew_missing=False, mode=0o600):
         super().__init__(session_class)
-        if path is None:
-            path = tempfile.gettempdir()
         self.path = path
         self.renew_missing = renew_missing
         self.mode = mode

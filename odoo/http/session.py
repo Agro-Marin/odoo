@@ -6,7 +6,6 @@ import os
 import re
 import time
 from collections.abc import Iterable, Iterator
-from hashlib import sha512
 from pathlib import Path
 from stat import S_ISREG
 from typing import Any
@@ -50,15 +49,6 @@ def prepare_session_dir(path: str) -> str:
 
 
 class FilesystemSessionStore(sessions.FilesystemSessionStore):
-    def __init__(
-        self,
-        path: str | None = None,
-        session_class: type | None = None,
-        renew_missing: bool = False,
-        mode: int = 0o600,
-    ) -> None:
-        super().__init__(path, session_class, renew_missing, mode)
-
     def get_session_filename(self, sid: str) -> str:
         if not self.is_valid_key(sid):
             raise ValueError(f"Invalid session id {sid!r}")
@@ -179,9 +169,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                     path.unlink()
 
     def generate_key(self, salt: bytes | None = None) -> str:
-        key = str(time.time()).encode() + os.urandom(64)
-        hash_key = sha512(key).digest()[:-1]
-        return base64.urlsafe_b64encode(hash_key).decode("utf-8")
+        return base64.urlsafe_b64encode(os.urandom(63)).decode("ascii")
 
     def is_valid_key(self, key: str) -> bool:
         return _base64_urlsafe_re.match(key) is not None

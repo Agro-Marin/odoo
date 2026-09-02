@@ -102,62 +102,79 @@ class Dispatcher(ABC):
         routing = rule.endpoint.routing
         self.request.session.can_save &= routing.get("save_session", True)
 
-        httprequest = self.request.httprequest
-        set_header = self.request.future_response.headers.set
-        cors = routing.get("cors")
-        credentials = bool(routing.get("cors_credentials"))
-        vary: list[str] = []
-
-        if cors:
-            if callable(cors):
-                vary.append("Origin")
-                allow_origin = cors(self.request)
-            else:
-                allow_origin = cors
-            if credentials:
-                if "Origin" not in vary:
-                    vary.append("Origin")
-                origin = httprequest.headers.get("Origin")
-                if origin and allow_origin == origin:
-                    set_header("Access-Control-Allow-Credentials", "true")
-                else:
-                    allow_origin = None
-            if allow_origin:
-                set_header("Access-Control-Allow-Origin", allow_origin)
-                set_header(
-                    "Access-Control-Allow-Methods",
-                    ", ".join(_get_cors_methods(self.cors_allowed_methods, routing)),
-                )
-                expose = routing.get("cors_expose_headers")
-                if expose:
-                    set_header(
-                        "Access-Control-Expose-Headers",
-                        expose if isinstance(expose, str) else ", ".join(expose),
-                    )
-
-        is_preflight = bool(cors) and httprequest.method == "OPTIONS"
+        is_preflight = (
+            bool(routing.get("cors")) and self.request.httprequest.method == "OPTIONS"
+        )
+        vary = self._stage_cors_headers(routing)
         if is_preflight:
-            set_header("Access-Control-Max-Age", CORS_MAX_AGE)
-            allow_headers = routing.get("cors_allow_headers")
-            if allow_headers is None:
-                set_header(
-                    "Access-Control-Allow-Headers",
-                    httprequest.headers.get("Access-Control-Request-Headers")
-                    or CORS_DEFAULT_ALLOWED_HEADERS,
-                )
-                vary.append("Access-Control-Request-Headers")
-            else:
-                set_header(
-                    "Access-Control-Allow-Headers",
-                    allow_headers
-                    if isinstance(allow_headers, str)
-                    else ", ".join(allow_headers),
-                )
-
+            vary += self._stage_preflight_headers(routing)
         if vary:
-            set_header("Vary", ", ".join(vary))
+            self.request.future_response.headers.set("Vary", ", ".join(vary))
 
-        if httprequest.method == "OPTIONS" and (
+        self._answer_options_request(routing, is_preflight)
+        self._apply_max_content_length(rule, routing)
+
+    def _stage_cors_headers(
+        self, routing: collections.abc.Mapping[str, Any]
+    ) -> list[str]:
+        cors = routing.get("cors")
+        if not cors:
+            return []
+
+        set_header = self.request.future_response.headers.set
+        vary: list[str] = []
+        if callable(cors):
+            vary.append("Origin")
+            allow_origin = cors(self.request)
+        else:
+            allow_origin = cors
+        if routing.get("cors_credentials"):
+            if "Origin" not in vary:
+                vary.append("Origin")
+            origin = self.request.httprequest.headers.get("Origin")
+            if origin and allow_origin == origin:
+                set_header("Access-Control-Allow-Credentials", "true")
+            else:
+                allow_origin = None
+        if allow_origin:
+            set_header("Access-Control-Allow-Origin", allow_origin)
+            set_header(
+                "Access-Control-Allow-Methods",
+                ", ".join(_get_cors_methods(self.cors_allowed_methods, routing)),
+            )
+            expose = routing.get("cors_expose_headers")
+            if expose:
+                set_header(
+                    "Access-Control-Expose-Headers",
+                    expose if isinstance(expose, str) else ", ".join(expose),
+                )
+        return vary
+
+    def _stage_preflight_headers(
+        self, routing: collections.abc.Mapping[str, Any]
+    ) -> list[str]:
+        set_header = self.request.future_response.headers.set
+        set_header("Access-Control-Max-Age", CORS_MAX_AGE)
+        allow_headers = routing.get("cors_allow_headers")
+        if allow_headers is None:
+            set_header(
+                "Access-Control-Allow-Headers",
+                self.request.httprequest.headers.get("Access-Control-Request-Headers")
+                or CORS_DEFAULT_ALLOWED_HEADERS,
+            )
+            return ["Access-Control-Request-Headers"]
+        set_header(
+            "Access-Control-Allow-Headers",
+            allow_headers
+            if isinstance(allow_headers, str)
+            else ", ".join(allow_headers),
+        )
+        return []
+
+    def _answer_options_request(
+        self, routing: collections.abc.Mapping[str, Any], is_preflight: bool
+    ) -> None:
+        if self.request.httprequest.method == "OPTIONS" and (
             is_preflight or "OPTIONS" not in (routing.get("methods") or ())
         ):
             werkzeug.exceptions.abort(
@@ -166,6 +183,9 @@ class Dispatcher(ABC):
                 )
             )
 
+    def _apply_max_content_length(
+        self, rule: Any, routing: collections.abc.Mapping[str, Any]
+    ) -> None:
         if "max_content_length" in routing:
             max_content_length = routing["max_content_length"]
             if callable(max_content_length):

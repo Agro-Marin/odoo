@@ -35,7 +35,7 @@ KNOWN_ACCIDENTAL_LEAF_IMPORTS: dict[str, str] = {
         "the pure-Python twins the field-access facade resolves to when odoo_rust "
         "is absent (odoo/libs/accel.py is the seam)"
     ),
-    "_vendor.sessions": "vendored requests sessions",
+    "_vendor.sessions": "vendored werkzeug sessions",
     "profiling.nplusone": "profiler wiring",
     "profiling.orm_profiler": "profiler wiring",
 }
