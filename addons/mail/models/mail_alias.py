@@ -226,11 +226,7 @@ class MailAlias(models.Model):
 
     @api.model
     def _alias_model_accepts_mail(self, model: models.BaseModel) -> bool:
-        return (
-            not model._abstract
-            and not model._transient
-            and hasattr(model, "message_new")
-        )
+        return self.env["mixin.mail.gateway"]._mail_is_gateway_target(model)
 
     @api.constrains("alias_model_id")
     def _check_alias_model_accepts_mail(self) -> None:

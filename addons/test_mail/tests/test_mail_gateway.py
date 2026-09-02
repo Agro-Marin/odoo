@@ -5440,3 +5440,35 @@ class TestMailGatewayRegressions(MailGatewayCommon):
             ),
             "but only its own -- `a_b@` must not also match `axb@`",
         )
+
+
+@tagged("mail_gateway")
+class TestMailGatewayNonThreadTarget(MailGatewayCommon):
+    """An alias owner that implements the two gateway hooks takes mail whether
+    or not it is a thread: the alias constraint and the router ask one question."""
+
+    def test_an_alias_owner_without_a_thread_still_receives_mail(self):
+        owner = self.env["mail.test.gateway.nothread"].create(
+            {
+                "name": "The list",
+                "alias_name": "list",
+                "alias_domain_id": self.mail_alias_domain.id,
+                "alias_contact": "everyone",
+            }
+        )
+        self.assertEqual(owner.alias_id.alias_force_thread_id, owner.id)
+        self.assertTrue(self.env["mail.alias"]._alias_model_accepts_mail(owner))
+        self.assertEqual(
+            self.env["mixin.mail.thread"]._routing_get_alias_model(owner._name)._name,
+            "mixin.mail.thread",
+            "no routing hook of its own, so the mixin's checks apply",
+        )
+        with self.mock_mail_gateway():
+            self.format_and_process(
+                MAIL_TEMPLATE,
+                self.email_from,
+                f"list@{self.alias_domain}",
+                subject="To the list",
+                target_model=owner._name,
+            )
+        self.assertEqual(owner.received_subjects, "To the list")
