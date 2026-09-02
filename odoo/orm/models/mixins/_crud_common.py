@@ -1,14 +1,6 @@
 import logging
-import os
 
 from ...primitives import LOG_ACCESS_COLUMNS, SUPERUSER_ID
-
-COPY_THRESHOLD = int(os.environ.get("ODOO_COPY_THRESHOLD", "10"))
-COPY_DISABLED = os.environ.get("ODOO_DISABLE_COPY", "").lower() in (
-    "1",
-    "true",
-    "yes",
-)
 
 _BAD_NAMES = frozenset({"id", "parent_path"})
 _BAD_NAMES_LOG = _BAD_NAMES | frozenset(LOG_ACCESS_COLUMNS)

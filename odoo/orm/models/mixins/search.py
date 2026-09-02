@@ -3,9 +3,7 @@ import logging
 import typing
 from typing import Self
 
-from odoo.exceptions import LockError
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
-from odoo.tools import SQL, Query, partition
 
 from ... import decorators as api
 from ..._typing import (
@@ -13,7 +11,7 @@ from ..._typing import (
     ValuesType,
 )
 from ...domain import Domain
-from ...primitives import COLLECTION_TYPES, NewId
+from ...primitives import COLLECTION_TYPES
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
@@ -309,22 +307,6 @@ class SearchMixin(_ModelStubs):
     def lock_for_update(self, *, allow_referencing: bool = False) -> None:
         self.env.backend.lock_for_update(self, allow_referencing=allow_referencing)
 
-    def _lock_for_update_sql(self, *, allow_referencing: bool = False) -> None:
-        ids = {id_ for id_ in self._ids if id_}
-        if not ids:
-            return
-        query = Query(self.env, self._table, self._table_sql)
-        query.add_where(
-            SQL("%s = ANY(%s)", SQL.identifier(self._table, "id"), list(ids))
-        )
-        if allow_referencing:
-            lock_sql = SQL("FOR NO KEY UPDATE SKIP LOCKED")
-        else:
-            lock_sql = SQL("FOR UPDATE SKIP LOCKED")
-        rows = self.env.execute_query(SQL("%s %s", query.select(), lock_sql))
-        if len(rows) != len(ids):
-            raise LockError(self.env._("Cannot grab a lock on records"))
-
     @api.private
     def try_lock_for_update(
         self, *, allow_referencing: bool = False, limit: int | None = None
@@ -332,28 +314,3 @@ class SearchMixin(_ModelStubs):
         return self.env.backend.try_lock_for_update(
             self, allow_referencing=allow_referencing, limit=limit
         )
-
-    def _try_lock_for_update_sql(
-        self, *, allow_referencing: bool = False, limit: int | None = None
-    ) -> Self:
-        new_ids, ids = partition(lambda i: isinstance(i, NewId), self._ids)
-        if limit is not None and len(new_ids) >= limit:
-            return self.browse(new_ids[:limit])
-        if not ids:
-            return self
-        if limit is not None:
-            query = self.browse(ids)._as_query(ordered=True)
-            query.limit = limit - len(new_ids)
-        else:
-            query = Query(self.env, self._table, self._table_sql)
-            query.add_where(
-                SQL("%s = ANY(%s)", SQL.identifier(self._table, "id"), list(ids))
-            )
-        if allow_referencing:
-            lock_sql = SQL("FOR NO KEY UPDATE SKIP LOCKED")
-        else:
-            lock_sql = SQL("FOR UPDATE SKIP LOCKED")
-        sql = SQL("%s %s", query.select(), lock_sql)
-        real_ids = (id_ for [id_] in self.env.execute_query(sql))
-        valid_ids = {*real_ids, *new_ids}
-        return self.browse(i for i in self._ids if i in valid_ids)

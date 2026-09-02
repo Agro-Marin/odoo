@@ -6,7 +6,7 @@ from typing import Self
 from odoo.exceptions import MissingError
 from odoo.libs._field_access import batch_cache_fill as _batch_cache_fill_rust
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
-from odoo.tools import SQL, OrderedSet
+from odoo.tools import OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
 
 from ... import decorators as api
@@ -18,7 +18,6 @@ from ._model_stubs import _ModelStubs
 if typing.TYPE_CHECKING:
     from collections.abc import Collection, Sequence
 
-    from ..._typing import BaseModel
     from ...fields.base import Field
     from ...tools import Query
 
@@ -382,67 +381,6 @@ class ReadMixin(_ModelStubs):
             (column_fields if field.column_type else other_fields).add(field)
 
         return self.env.backend.fetch(self, query, column_fields, other_fields)
-
-    def _fetch_query_sql(
-        self,
-        query: Query,
-        column_fields: typing.Iterable[Field],
-        other_fields: typing.Iterable[Field],
-    ) -> Self:
-        prof = _OrmProfile(_orm_read)
-        context = self.env.context
-        column_fields = OrderedSet(column_fields)
-        other_fields = OrderedSet(other_fields)
-
-        if column_fields:
-            sql_terms = [SQL.identifier(self._table, "id")]
-            for field in column_fields:
-                sql = self._field_to_sql(self._table, field.name, query)
-                if field.is_binary and (
-                    context.get("bin_size") or context.get("bin_size_" + field.name)
-                ):
-                    sql = SQL("pg_size_pretty(length(%s)::bigint)", sql)
-                elif not field.translate:
-                    to_flush = (f for f in sql.to_flush if f != field)
-                    sql = SQL("%s", sql, to_flush=to_flush)
-                sql_terms.append(sql)
-
-            rows = self.env.execute_query(query.select(*sql_terms))
-            prof.mark("sql")
-
-            if not rows:
-                return self.browse()
-
-            column_values = zip(*rows, strict=False)
-            ids = next(column_values)
-            fetched = self.browse(ids)
-
-            for field, values in zip(column_fields, column_values, strict=True):
-                if field.is_stored_computed:
-                    field._clear_dead_pending(fetched)
-                field._insert_cache(fetched, values)
-            prof.mark("cache")
-        else:
-            fetched = self.browse(query)
-            prof.mark("sql")
-            prof.mark("cache")
-
-        if fetched:
-            records = typing.cast("BaseModel", fetched)
-            for field in other_fields:
-                field.read(records)
-
-        prof.stop("other")
-        prof.report(
-            _orm_read,
-            "_fetch_query %s: %d col + %d other fields -> %d rows",
-            self._name,
-            len(column_fields),
-            len(other_fields),
-            len(fetched),
-        )
-
-        return fetched
 
     def get_metadata(self) -> list[ValuesType]:
 

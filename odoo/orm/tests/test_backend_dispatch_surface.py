@@ -21,20 +21,21 @@ DISPATCH_SITES: dict[tuple[str, str], str] = {
         "guarded by backend.supports_parent_store"
     ),
     ("models/mixins/read.py", "_fetch_query"): (
-        "LOSSY: the SQL branch applies bin_size / bin_size_<field> "
-        "(pg_size_pretty) and to_flush bookkeeping; backend.fetch() does not"
+        "LOSSY: PostgresBackend.fetch applies bin_size / bin_size_<field> "
+        "(pg_size_pretty) and to_flush bookkeeping; InMemoryBackend.fetch "
+        "does not"
     ),
     ("models/mixins/write.py", "_execute_update"): (
-        "LOSSY: the SQL branch merges jsonb translations "
+        "LOSSY: PostgresBackend.update_rows merges jsonb translations "
         "(COALESCE(...jsonb_build_object('en_US', ...)) || expr) and handles "
-        "company_dependent columns; backend.update_rows() does neither"
+        "company_dependent columns; InMemoryBackend.update_rows does neither"
     ),
     ("models/mixins/write.py", "_parent_store_update_prepare"): (
         "guarded by backend.supports_parent_store"
     ),
     ("models/mixins/unlink.py", "_unlink_process_batch"): (
-        "LOSSY: the SQL path collects ir.model.data + ir.attachment rows and "
-        "runs the many2one_company_dependents ir.default cleanup; "
+        "LOSSY: PostgresBackend.delete collects ir.model.data + ir.attachment "
+        "rows and runs the many2one_company_dependents ir.default cleanup; "
         "InMemoryBackend.delete() returns two EMPTY recordsets and does "
         "neither. It IS now passed the Defaults recordset -- extracting "
         "PostgresBackend showed the port's signature was missing an argument "
@@ -150,6 +151,56 @@ def test_lossy_sites_are_spelled_out():
     for site, note in DISPATCH_SITES.items():
         if note.startswith("LOSSY"):
             assert len(note) > 60, f"{site}: LOSSY note must say what is lost"
+
+
+# What a model still turns into SQL itself: a field, an order or a related path
+# becomes SQL *text* here, and Domain._to_sql and read_group call these too.
+# The statements that move rows -- INSERT, UPDATE, DELETE, SELECT ... FOR
+# UPDATE, the m2m-table writes -- are the backend's, on both implementors.
+QUERY_COMPILERS = frozenset(
+    {
+        "_field_to_sql",
+        "_order_to_sql",
+        "_order_field_to_sql",
+        "_traverse_related_sql",
+        "_table_sql",
+    }
+)
+
+
+def _mixin_sql_methods() -> set[str]:
+    found: set[str] = set()
+    for path in sorted((_ORM_DIR / "models" / "mixins").rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.FunctionDef) and node.name.endswith("_sql"):
+                found.add(node.name)
+    return found
+
+
+def test_the_mixins_hold_no_row_io_sql():
+    row_io = sorted(_mixin_sql_methods() - QUERY_COMPILERS)
+    assert not row_io, (
+        f"row I/O SQL is back on the model mixins: {row_io}. It belongs on "
+        f"PostgresBackend, so that env.backend is the whole persistence port "
+        f"and not a dispatch table into the model; a query compiler goes in "
+        f"QUERY_COMPILERS instead."
+    )
+    assert _mixin_sql_methods() >= QUERY_COMPILERS, (
+        "QUERY_COMPILERS names a method the mixins no longer define"
+    )
+
+
+def test_postgres_backend_calls_only_query_compilers_on_the_model():
+    import inspect
+
+    from odoo.orm.runtime.backend import PostgresBackend
+
+    called = set(re.findall(r"model\.(_\w+_sql)\(", inspect.getsource(PostgresBackend)))
+    dispatched_back = sorted(called - QUERY_COMPILERS)
+    assert not dispatched_back, (
+        f"PostgresBackend dispatches back into the model for {dispatched_back}: "
+        f"the SQL side of the port is a dispatch table again"
+    )
 
 
 _NUMBER_WORDS = {

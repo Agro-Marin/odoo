@@ -1135,9 +1135,10 @@ meanings -- a business method that deletes records is ``_remove_*``, never
      - convergence on a source of truth elsewhere (§2.4.12)
    * - ``fetch``
      - the ORM read operation that loads stored values into the cache. The
-       public ``fetch()`` and its internals ``_fetch_field`` / ``_fetch_query``
-       / ``_fetch_query_sql`` are **one** contract, so they are renamed together
-       or not at all (§2.4.11); ``_get_query`` would promise a ``Query`` return
+       public ``fetch()``, its internals ``_fetch_field`` / ``_fetch_query``
+       and the port's ``backend.fetch`` are **one** contract, so they are
+       renamed together or not at all (§2.4.11); ``_get_query`` would promise
+       a ``Query`` return
    * - ``flush_``
      - the ORM operation -- ``flush_model``, ``flush_recordset``
    * - ``_evict_``
@@ -3183,7 +3184,7 @@ not a type-checker, not a test tier, not ``grep -r --include=*.py``.
 **``field`` is a ``Field``; a field's name is ``field_name``**
 ``[gate doc_restated_counts]``. A parameter name is the only type statement most
 call sites ever see. **92** parameters annotated ``field_name`` are ``str`` and
-**0** are a ``Field``, against ``field``'s **106** ``Field`` and **17** ``str``.
+**0** are a ``Field``, against ``field``'s **108** ``Field`` and **17** ``str``.
 One direction is clean; the other is the backlog. The ORM breaks the rule in the
 package that states it, and ``lifecycle.py``'s
 ``_get_placeholder_filename(self, field: str)`` is *bound by name*, so its

@@ -1,6 +1,5 @@
 import logging
 import typing
-from collections import defaultdict
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
@@ -208,122 +207,8 @@ class _QueryMixin(_ModelStubs):
             self, domain, offset, limit, order, check_access=check_access, prof=prof
         )
 
-    def _search_sql(
-        self,
-        domain: Domain,
-        offset: int | None,
-        limit: int | None,
-        order: str | None,
-        *,
-        check_access: bool,
-        prof: typing.Any = None,
-    ) -> Query:
-        if prof is None:
-            prof = _OrmProfile(_orm_read)
-        query = Query(self.env, self._table, self._table_sql)
-        if not domain.is_true():
-            query.add_where(
-                domain._to_sql(typing.cast("BaseModel", self), self._table, query)
-            )
-        prof.mark("domain")
-
-        if check_access:
-            self_sudo = self.sudo().with_context(active_test=False)
-            sec_domain = self.env["ir.rule"]._get_domain_accessible_records(
-                self._name, "read"
-            )
-            sec_domain = sec_domain.optimize_full(self_sudo)
-            if sec_domain.is_false():
-                return self.browse()._as_query()
-            if not sec_domain.is_true():
-                query.add_where(sec_domain._to_sql(self_sudo, self._table, query))
-        prof.mark("rules")
-
-        if order:
-            query.order = self._order_to_sql(order, query) or SQL.identifier(
-                self._table, "id"
-            )
-
-        if limit is not None and limit is not False:
-            query.limit = 1 if limit is True else limit
-        if offset is not None and offset is not False:
-            query.offset = 1 if offset is True else offset
-
-        prof.stop("query")
-        prof.report(_orm_read, "_search %s", self._name)
-        return query
-
     def _as_query(self, ordered: bool = True) -> Query:
         return self.env.backend.as_query(self, ordered)
-
-    def _as_query_sql(self, ordered: bool = True) -> Query:
-        query = Query(self.env, self._table, self._table_sql)
-        query.set_result_ids(self._ids, ordered)
-        return query
-
-    def _read_m2m_pairs_sql(
-        self, relation: str, column1: str, column2: str, ids: typing.Collection[int]
-    ) -> list[tuple[int, int]]:
-        sql_id1 = SQL.identifier(relation, column1)
-        sql_id2 = SQL.identifier(relation, column2)
-        rows = self.env.execute_query(
-            SQL(
-                "SELECT %s, %s FROM %s WHERE %s = ANY(%s)",
-                sql_id1,
-                sql_id2,
-                SQL.identifier(relation),
-                sql_id1,
-                list(ids),
-            )
-        )
-        return [(id1, id2) for id1, id2 in rows]
-
-    def _link_m2m_pairs_sql(
-        self,
-        relation: str,
-        column1: str,
-        column2: str,
-        pairs: typing.Iterable[tuple[int, int]],
-    ) -> None:
-        self.env.cr.execute(
-            SQL(
-                "INSERT INTO %s (%s, %s) VALUES %s ON CONFLICT DO NOTHING",
-                SQL.identifier(relation),
-                SQL.identifier(column1),
-                SQL.identifier(column2),
-                SQL(", ").join(pairs),
-            )
-        )
-
-    def _unlink_m2m_pairs_sql(
-        self,
-        relation: str,
-        column1: str,
-        column2: str,
-        pairs: typing.Iterable[tuple[int, int]],
-    ) -> None:
-        xs_to_ys: dict[frozenset, set] = defaultdict(set)
-        y_to_xs: dict[typing.Any, set] = defaultdict(set)
-        for x, y in pairs:
-            y_to_xs[y].add(x)
-        for y, xs in y_to_xs.items():
-            xs_to_ys[frozenset(xs)].add(y)
-        self.env.cr.execute(
-            SQL(
-                "DELETE FROM %s WHERE %s",
-                SQL.identifier(relation),
-                SQL(" OR ").join(
-                    SQL(
-                        "%s = ANY(%s) AND %s = ANY(%s)",
-                        SQL.identifier(column1),
-                        list(xs),
-                        SQL.identifier(column2),
-                        list(ys),
-                    )
-                    for xs, ys in xs_to_ys.items()
-                ),
-            )
-        )
 
     def _traverse_related_sql(
         self, alias: str, field: Field, query: Query
@@ -387,9 +272,3 @@ class _QueryMixin(_ModelStubs):
             return self
         valid_ids = {*self.env.backend.existing_ids(self, ids), *new_ids}
         return self.browse(i for i in self._ids if i in valid_ids)
-
-    def _existing_ids_sql(self, ids: typing.Iterable[int]) -> set[int]:
-        ids = list(ids)
-        query = Query(self.env, self._table, self._table_sql)
-        query.add_where(SQL("%s = ANY(%s)", SQL.identifier(self._table, "id"), ids))
-        return {id_ for [id_] in self.env.execute_query(query.select())}

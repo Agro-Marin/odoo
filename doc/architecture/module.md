@@ -571,9 +571,15 @@ seam, not an import.**
 | framework ↔ addon models | string key (`env["res.users"]`), never an import | — |
 
 **`env.backend` is non-optional and has two implementors**: `PostgresBackend`
-adapts the port to the model's own `_*_sql` methods; `runtime/backend.py`'s
-`InMemoryBackend` adapts it to `DictBackend` (ADR-0011 + its 2026-08-08
-amendment). Production CRUD sniffs the test backend neither via
+owns the SQL — every `INSERT`, `UPDATE`, `DELETE`, locking `SELECT` and
+m2m-table statement the CRUD mixins used to hold as `_*_sql` methods is a
+method of the backend taking the model as its argument; `runtime/backend.py`'s
+`InMemoryBackend` adapts the same port to `DictBackend` (ADR-0011 + its
+2026-08-08 amendment). The mixins call the port and nothing else, so the two
+implementors read side by side in one file, and what stays on the model is
+query *compilation* — `_field_to_sql`, `_order_to_sql`, `_traverse_related_sql`
+— which `Domain._to_sql` and `read_group` call too.
+Production CRUD sniffs the test backend neither via
 `transaction.storage` nor via a null check. Until 2026-08-08 a null
 `env.backend` *was* the PostgreSQL implementation — an unnamed branch at fifteen
 sites across nine files, which left the Protocol describing only the test double

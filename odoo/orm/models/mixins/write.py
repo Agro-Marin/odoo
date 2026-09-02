@@ -1,9 +1,5 @@
 import typing
 from collections import defaultdict
-from collections.abc import Callable
-from datetime import date, datetime
-from decimal import Decimal
-from itertools import batched
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
@@ -12,24 +8,11 @@ from odoo.libs.sql import SQL
 from odoo.tools.translate import _
 
 from ..._typing import ValuesType
-from ...primitives import UPDATE_BATCH_SIZE
 from ._crud_common import (
     _orm_crud,
     bad_field_names,
 )
 from ._model_stubs import _ModelStubs
-
-_UNIFORM_UPDATE_TYPES = (
-    type(None),
-    bool,
-    bytes,
-    date,
-    datetime,
-    Decimal,
-    float,
-    int,
-    str,
-)
 
 
 class _WriteFieldPlan(typing.NamedTuple):
@@ -288,106 +271,6 @@ class WriteMixin(_ModelStubs):
 
     def _execute_update(self, fnames: tuple[str, ...], rows: list[tuple]) -> None:
         self.env.backend.update_rows(self, fnames, rows)
-
-    def _update_rows_sql(self, fnames: tuple[str, ...], rows: list[tuple]) -> None:
-        if (values := self._uniform_update_values(fnames, rows)) is not None:
-            self._update_rows_uniform_sql(fnames, [row[0] for row in rows], values)
-            return
-        for sub_rows in batched(rows, UPDATE_BATCH_SIZE, strict=False):
-            self._update_rows_values_sql(fnames, sub_rows)
-
-    def _uniform_update_values(
-        self, fnames: tuple[str, ...], rows: list[tuple]
-    ) -> tuple | None:
-        if len(rows) < 2:
-            return None
-        values = rows[0][1:]
-        if not all(isinstance(value, _UNIFORM_UPDATE_TYPES) for value in values):
-            return None
-        if any(row[1:] != values for row in rows):
-            return None
-        return values
-
-    def _update_assignments_sql(
-        self, fnames: tuple[str, ...], value_sql: Callable[[int, str, SQL, SQL], SQL]
-    ) -> tuple[list[SQL], list[SQL]]:
-        columns = []
-        assignments = []
-        for index, fname in enumerate(fnames):
-            field = self._fields[fname]
-            column_type = field.column_type
-            if not field.is_column or column_type is None:
-                raise RuntimeError(
-                    f"_execute_update: {field} is not a stored column field"
-                )
-            column = SQL.identifier(fname)
-            cast = SQL(column_type[1])  # noqa: E8501  from the field declaration
-            expr = value_sql(index, fname, column, cast)
-            if field.translate is True:
-                expr = SQL(
-                    """CASE WHEN %(expr)s IS NULL THEN NULL ELSE
-                        COALESCE(%(table)s.%(column)s, jsonb_build_object(
-                            'en_US', jsonb_path_query_first(%(expr)s, '$.*')
-                        )) || %(expr)s
-                    END""",
-                    table=SQL.identifier(self._table),
-                    column=column,
-                    expr=expr,
-                )
-            if field.company_dependent:
-                fallbacks = self.env["ir.default"]._get_field_column_fallbacks(
-                    self._name, fname
-                )
-                expr = SQL(
-                    """(SELECT jsonb_object_agg(d.key, d.value)
-                    FROM jsonb_each(COALESCE(%(table)s.%(column)s, '{}'::jsonb) || %(expr)s) d
-                    JOIN jsonb_each(%(fallbacks)s) f
-                    ON d.key = f.key AND d.value != f.value)""",
-                    table=SQL.identifier(self._table),
-                    column=column,
-                    expr=expr,
-                    fallbacks=fallbacks,
-                )
-            columns.append(column)
-            assignments.append(SQL("%s = %s", column, expr))
-        return columns, assignments
-
-    def _update_rows_values_sql(
-        self, fnames: tuple[str, ...], rows: tuple[tuple, ...] | list[tuple]
-    ) -> None:
-        columns, assignments = self._update_assignments_sql(
-            fnames,
-            lambda _index, _fname, column, cast: SQL('"__tmp".%s::%s', column, cast),
-        )
-        self.env.cr.execute(
-            SQL(
-                """ UPDATE %(table)s
-                SET %(assignments)s
-                FROM (VALUES %(values)s) AS "__tmp"("id", %(columns)s)
-                WHERE %(table)s."id" = "__tmp"."id"
-            """,
-                table=SQL.identifier(self._table),
-                assignments=SQL(", ").join(assignments),
-                values=SQL(", ").join(rows),
-                columns=SQL(", ").join(columns),
-            )
-        )
-
-    def _update_rows_uniform_sql(
-        self, fnames: tuple[str, ...], ids: list[int], values: tuple
-    ) -> None:
-        _columns, assignments = self._update_assignments_sql(
-            fnames,
-            lambda index, _fname, _column, cast: SQL("%s::%s", values[index], cast),
-        )
-        self.env.cr.execute(
-            SQL(
-                """UPDATE %(table)s SET %(assignments)s WHERE "id" = ANY(%(ids)s)""",
-                table=SQL.identifier(self._table),
-                assignments=SQL(", ").join(assignments),
-                ids=ids,
-            )
-        )
 
     def _parent_store_update_prepare(self, vals_list: list[ValuesType]) -> Self:
         if not self._parent_store:

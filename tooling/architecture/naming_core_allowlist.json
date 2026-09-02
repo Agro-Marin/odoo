@@ -4,7 +4,6 @@
     "fetch": "reserved -- the ORM read operation that loads stored values into the cache (§2.4.3)",
     "_fetch_field": "reserved -- fetch()'s internals are one contract with it, renamed together or not at all",
     "_fetch_query": "reserved -- as _fetch_field; _get_query would promise a Query return",
-    "_fetch_query_sql": "reserved -- as _fetch_field",
     "append_paths": "reserved -- both halves of the _append_ reservation hold: an ordered list, and an addition at its end, beside an insert_paths that takes the index",
     "ensure_db_endpoint": "noun -- ensure_db is the route flag declared in addons/web, not a verb",
     "register_ensure_db_paths": "noun -- as ensure_db_endpoint",

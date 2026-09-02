@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
-from odoo.orm.models.mixins.write import WriteMixin
 from odoo.orm.primitives import UPDATE_BATCH_SIZE
+from odoo.orm.runtime.backend import PostgresBackend
 from odoo.tests import TransactionCase, tagged
 
 
@@ -11,20 +11,20 @@ class UniformUpdateCase(TransactionCase):
         self.plain = self._plain_text_column("test_orm.message")
         self.uniform_calls = []
         self.values_calls = []
-        uniform_origin = WriteMixin._update_rows_uniform_sql
-        values_origin = WriteMixin._update_rows_values_sql
+        uniform_origin = PostgresBackend._update_rows_uniform
+        values_origin = PostgresBackend._update_rows_values
         case = self
 
-        def uniform_spy(records, fnames, ids, values):
-            case.uniform_calls.append((records._name, fnames, len(ids)))
-            return uniform_origin(records, fnames, ids, values)
+        def uniform_spy(backend, model, fnames, ids, values):
+            case.uniform_calls.append((model._name, fnames, len(ids)))
+            return uniform_origin(backend, model, fnames, ids, values)
 
-        def values_spy(records, fnames, rows):
-            case.values_calls.append((records._name, fnames, len(rows)))
-            return values_origin(records, fnames, rows)
+        def values_spy(backend, model, fnames, rows):
+            case.values_calls.append((model._name, fnames, len(rows)))
+            return values_origin(backend, model, fnames, rows)
 
-        self.patch(WriteMixin, "_update_rows_uniform_sql", uniform_spy)
-        self.patch(WriteMixin, "_update_rows_values_sql", values_spy)
+        self.patch(PostgresBackend, "_update_rows_uniform", uniform_spy)
+        self.patch(PostgresBackend, "_update_rows_values", values_spy)
 
     def _plain_text_column(self, model_name):
         for field in self.env[model_name]._fields.values():

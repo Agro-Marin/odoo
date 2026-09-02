@@ -49,7 +49,7 @@ from odoo.db.reaper import get_checked_out_count as reaper_checked_out
 from odoo.db.utils import get_connection_info_for_database
 from odoo.exceptions import ConcurrencyError
 from odoo.modules.registry import Registry
-from odoo.orm.models.mixins._crud_common import COPY_THRESHOLD
+from odoo.orm.runtime.backend import COPY_THRESHOLD
 from odoo.service.db import exp_drop
 from odoo.service.transaction import retrying
 from odoo.tests import common

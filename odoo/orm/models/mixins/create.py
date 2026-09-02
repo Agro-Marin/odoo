@@ -13,13 +13,10 @@ from ..._typing import ValuesType
 from ...helpers import own_class_memo
 from ...primitives import (
     INSERT_BATCH_SIZE,
-    SQL_DEFAULT,
     Command,
 )
 from ._crud_common import (
     _BAD_NAMES_LOG,
-    COPY_DISABLED,
-    COPY_THRESHOLD,
     _orm_crud,
     bad_field_names,
 )
@@ -428,19 +425,6 @@ class CreateMixin(_ModelStubs):
             if core.get_field_data_or_none(field) is not None:
                 field._invalidate_cache(env, ids)
 
-    def _prepare_insert_rows(
-        self, stored_list: list, columns: list[str], col_fields: list[Field]
-    ) -> list[tuple]:
-        return [
-            tuple(
-                field.convert_to_column_insert(stored[fname], self, stored)
-                if fname in stored
-                else None
-                for fname, field in zip(columns, col_fields, strict=True)
-            )
-            for stored in stored_list
-        ]
-
     @api.model
     def _create(self, data_list: list[ValuesType]) -> Self:
         if not data_list:
@@ -508,68 +492,6 @@ class CreateMixin(_ModelStubs):
         prof.stop("trigger")
         prof.report(_orm_crud, "_create %s: %d records", self._name, len(records))
         return records
-
-    def _create_rows_sql(
-        self,
-        stored_list: list[ValuesType],
-        columns: list[str],
-        col_fields: list[Field],
-    ) -> list[int]:
-        cr = self.env.cr
-        ids: list[int] = []
-        use_copy = (
-            not COPY_DISABLED
-            and col_fields
-            and len(stored_list) >= COPY_THRESHOLD
-            and not cr.in_pipeline
-        )
-        subprof = _OrmProfile(_orm_crud)
-
-        if use_copy:
-            copy_rows = self._prepare_insert_rows(stored_list, columns, col_fields)
-            batch_ids = cr.copy_from(
-                self._table,
-                columns,
-                copy_rows,
-                returning_ids=True,
-                binary=True,
-            )
-            ids.extend(batch_ids)
-            subprof.stop()
-            subprof.report(
-                _orm_crud,
-                "_create %s: %d records via COPY (%d columns)",
-                self._name,
-                len(stored_list),
-                len(columns),
-            )
-        else:
-            if col_fields:
-                rows: list[tuple] = self._prepare_insert_rows(
-                    stored_list, columns, col_fields
-                )
-            else:
-                columns = ["id"]
-                rows = [(SQL_DEFAULT,) for _ in stored_list]
-
-            cr.execute(
-                SQL(
-                    'INSERT INTO %s (%s) VALUES %s RETURNING "id"',
-                    SQL.identifier(self._table),
-                    SQL(", ").join(map(SQL.identifier, columns)),
-                    SQL(", ").join(SQL("(%s)", SQL(", ").join(row)) for row in rows),
-                )
-            )
-            ids.extend(id_ for (id_,) in cr.fetchall())
-            subprof.stop()
-            subprof.report(
-                _orm_crud,
-                "_create %s: %d records via INSERT (%d columns)",
-                self._name,
-                len(stored_list),
-                len(columns),
-            )
-        return ids
 
     def _populate_create_cache(
         self, ids: list[int], data_list: list[dict]

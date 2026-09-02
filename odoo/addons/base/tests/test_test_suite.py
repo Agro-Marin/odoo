@@ -17,7 +17,7 @@ from unittest import SkipTest, skip
 from unittest.mock import patch
 
 from odoo.db import Cursor
-from odoo.orm.models.mixins._crud_common import COPY_THRESHOLD
+from odoo.orm.runtime.backend import COPY_THRESHOLD
 from odoo.tests import browser
 from odoo.tests.benchmark import compare_results, compute_stats
 from odoo.tests.case import TestCase
