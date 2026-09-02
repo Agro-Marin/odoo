@@ -349,7 +349,19 @@ export class SuggestionService {
 
     /** @param {import("models").Thread} [thread] */
     sortPartnerSuggestionsContext(thread) {
-        return {};
+        /**
+         * Highest message id each partner authored in this thread. Messages are
+         * ordered oldest first, so the last one seen for an author wins.
+         *
+         * @type {Map<number, number>}
+         */
+        const latestMessageIdByAuthorId = new Map();
+        for (const { author_id, id } of thread?.messages || []) {
+            if (author_id) {
+                latestMessageIdByAuthorId.set(author_id.id, id);
+            }
+        }
+        return { latestMessageIdByAuthorId };
     }
 
     /**
