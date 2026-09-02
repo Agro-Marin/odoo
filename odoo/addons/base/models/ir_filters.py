@@ -1,4 +1,5 @@
 import ast
+import json
 from typing import Any, Self
 
 from odoo import api, fields, models
@@ -171,41 +172,65 @@ class IrFilters(models.Model):
     @api.model
     def _check_serialized_vals(self, vals: dict[str, Any]) -> None:
         self._check_domain_expression(vals.get("domain"))
-        for fname, types, label in (
-            ("context", (dict,), "dict"),
-            ("sort", (list, tuple), "list"),
-        ):
-            raw = vals.get(fname)
-            if raw is None or isinstance(raw, types):
-                parsed = raw
-            elif not isinstance(raw, str):
+        self._check_context_expression(vals.get("context"))
+        self._check_sort_expression(vals.get("sort"))
+
+    @api.model
+    def _check_context_expression(self, raw: Any) -> None:
+        if raw is None or isinstance(raw, dict):
+            return
+        if not isinstance(raw, str):
+            raise ValidationError(
+                self.env._(
+                    "Filter %(field)s must be a %(type)s.", field="context", type="dict"
+                )
+            )
+        try:
+            parsed = ast.literal_eval(raw)
+        except (ValueError, SyntaxError) as e:
+            raise ValidationError(
+                self.env._(
+                    "Invalid filter %(field)s: %(error)s", field="context", error=e
+                )
+            ) from e
+        if not isinstance(parsed, dict):
+            raise ValidationError(
+                self.env._(
+                    "Filter %(field)s must be a %(type)s.", field="context", type="dict"
+                )
+            )
+
+    @api.model
+    def _check_sort_expression(self, raw: Any) -> None:
+        if raw is None:
+            return
+        if isinstance(raw, (list, tuple)):
+            parsed = list(raw)
+        elif not isinstance(raw, str):
+            raise ValidationError(
+                self.env._(
+                    "Filter %(field)s must be a %(type)s.", field="sort", type="list"
+                )
+            )
+        else:
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as e:
                 raise ValidationError(
                     self.env._(
-                        "Filter %(field)s must be a %(type)s.", field=fname, type=label
+                        "Invalid filter %(field)s: %(error)s", field="sort", error=e
+                    )
+                ) from e
+            if not isinstance(parsed, list):
+                raise ValidationError(
+                    self.env._(
+                        "Filter %(field)s must be a %(type)s.",
+                        field="sort",
+                        type="list",
                     )
                 )
-            else:
-                try:
-                    parsed = ast.literal_eval(raw)
-                except (ValueError, SyntaxError) as e:
-                    raise ValidationError(
-                        self.env._(
-                            "Invalid filter %(field)s: %(error)s", field=fname, error=e
-                        )
-                    ) from e
-                if not isinstance(parsed, types):
-                    raise ValidationError(
-                        self.env._(
-                            "Filter %(field)s must be a %(type)s.",
-                            field=fname,
-                            type=label,
-                        )
-                    )
-            if fname == "sort" and parsed is not None:
-                if not all(isinstance(item, str) for item in parsed):
-                    raise ValidationError(
-                        self.env._("Filter sort must be a list of strings.")
-                    )
+        if not all(isinstance(item, str) for item in parsed):
+            raise ValidationError(self.env._("Filter sort must be a list of strings."))
 
     @api.model
     def _check_domain_expression(self, raw: Any) -> None:
