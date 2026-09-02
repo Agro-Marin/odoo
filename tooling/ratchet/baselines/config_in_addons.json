@@ -1,0 +1,6 @@
+{
+  "count": 104,
+  "measured_at": "3b1cc80be38ad73551e0991e61ed7b465eef2653",
+  "measured_root": "",
+  "note": "first floor: 104 references to the process-global odoo.tools.config in non-test files under addons/ and odoo/addons/, measured by tooling/architecture/config_in_addons.py at this commit, where http/ and service/ read HttpSettings and ServerSettings instead. The unit is references, not files -- nine reads in one file are nine couplings and the migration lands per read."
+}
