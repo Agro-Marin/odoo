@@ -98,14 +98,58 @@ class ProvenanceTests(unittest.TestCase):
         self.dir = Path(self._tmp.name)
         self._patch = mock.patch.object(ratchet, "BASELINES_DIR", self.dir)
         self._patch.start()
+        self._clean = mock.patch.object(ratchet, "_dirty_paths", return_value=[])
+        self._clean.start()
         self.addCleanup(self._tmp.cleanup)
         self.addCleanup(self._patch.stop)
+        self.addCleanup(self._clean.stop)
 
     def _run(self, argv):
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
             code = ratchet.run(argv)
         return code, out.getvalue(), err.getvalue()
+
+    def test_update_refuses_a_dirty_tree(self):
+        with mock.patch.object(
+            ratchet, "_dirty_paths", return_value=["odoo/orm/fields/base.py"]
+        ):
+            code, _, err = self._run(
+                ["mypy", "--count", "10", "--update", "--note", "n"]
+            )
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("dirty tree", err)
+        self.assertIn("odoo/orm/fields/base.py", err)
+        self.assertFalse((self.dir / "mypy.json").exists())
+
+    def test_update_proceeds_when_git_cannot_say_whether_the_tree_is_dirty(self):
+        with (
+            mock.patch.object(ratchet, "_dirty_paths", return_value=None),
+            mock.patch.object(ratchet, "_head_commit", return_value=""),
+        ):
+            code, _, _ = self._run(["mypy", "--count", "10", "--update", "--note", "n"])
+        self.assertEqual(code, EXIT_OK)
+
+    def test_a_check_against_an_orphaned_floor_is_refused_in_both_modes(self):
+        (self.dir / "mypy.json").write_text(
+            '{"count": 5, "note": "n", "measured_at": "deadbeef"}\n'
+        )
+        for mode in ("exact", "no-increase"):
+            with mock.patch.object(ratchet, "_is_ancestor_of_head", return_value=False):
+                code, out, err = self._run(["mypy", "--count", "5", "--mode", mode])
+            self.assertEqual(code, EXIT_USAGE, mode)
+            self.assertIn("ORPHANED-BASE", err)
+            self.assertIn("Re-measure", err)
+            self.assertEqual(out, "")
+
+    def test_an_unanswerable_stamp_is_still_compared(self):
+        (self.dir / "mypy.json").write_text(
+            '{"count": 5, "note": "n", "measured_at": "deadbeef"}\n'
+        )
+        with mock.patch.object(ratchet, "_is_ancestor_of_head", return_value=None):
+            code, out, _ = self._run(["mypy", "--count", "5"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("== baseline", out)
 
     def test_update_stamps_the_commit_it_was_measured_against(self):
         with mock.patch.object(ratchet, "_head_commit", return_value="cafe1234"):
@@ -182,8 +226,11 @@ class CliTests(unittest.TestCase):
         self._tmp = TemporaryDirectory()
         self._patch = mock.patch.object(ratchet, "BASELINES_DIR", Path(self._tmp.name))
         self._patch.start()
+        self._clean = mock.patch.object(ratchet, "_dirty_paths", return_value=[])
+        self._clean.start()
 
     def tearDown(self):
+        self._clean.stop()
         self._patch.stop()
         self._tmp.cleanup()
 

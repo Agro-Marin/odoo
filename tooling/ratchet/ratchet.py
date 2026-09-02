@@ -33,6 +33,23 @@ def _head_commit() -> str:
     return out.stdout.strip() if out.returncode == 0 else ""
 
 
+def _dirty_paths() -> list[str] | None:
+    """Paths the working tree changes against HEAD, or None if git cannot say."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(HERE), "status", "--porcelain", "--untracked-files=all"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except OSError, subprocess.SubprocessError:
+        return None
+    if out.returncode != 0:
+        return None
+    return [line[3:] for line in out.stdout.splitlines() if line.strip()]
+
+
 def _is_ancestor_of_head(commit: str) -> bool | None:
     """True/False, or None when git cannot answer (no git, unknown object)."""
     if not commit:
@@ -223,6 +240,19 @@ def run(argv: list[str] | None = None) -> int:
         return EXIT_USAGE
 
     if args.update:
+        dirty = _dirty_paths()
+        if dirty:
+            # A floor is a claim about a commit.  Banking one from a tree that
+            # differs from HEAD records a count nobody can reproduce from the
+            # commit the stamp names -- and on a shared checkout it banks other
+            # people's uncommitted work as this branch's debt.
+            print(
+                f"error: refusing to bank {args.gate!r} from a dirty tree "
+                f"({len(dirty)} changed or untracked path(s), e.g. {dirty[0]!r}). "
+                f"Measure on a clean worktree of the commit you mean to stamp.",
+                file=sys.stderr,
+            )
+            return EXIT_USAGE
         note = (
             args.note if args.note is not None else (existing.note if existing else "")
         )
@@ -233,6 +263,19 @@ def run(argv: list[str] | None = None) -> int:
         old = f" (was {existing.count})" if existing else ""
         print(f"{verb} baseline {path.name}: count={args.count}{old}")
         return EXIT_OK
+
+    if existing is not None and _is_ancestor_of_head(existing.measured_at) is False:
+        # The stamp names a commit this branch's history does not contain: the
+        # count was measured on a tree this branch never had, so comparing the
+        # live count against it answers nothing.  Re-measure and re-bank.
+        print(
+            f"error: {args.gate}'s floor was banked at {existing.measured_at[:12]}, "
+            f"which is not in HEAD's history (ORPHANED-BASE). Re-measure on a clean "
+            f"worktree of HEAD and re-bank with --update; a comparison against "
+            f"that floor is not a reading.",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
 
     verdict = evaluate(args.gate, args.count, existing or HARD_ZERO, args.mode)
     if existing is None and not verdict.ok:
