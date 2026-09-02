@@ -13,9 +13,10 @@ import {
     triggerHotkey,
 } from "@mail/../tests/mail_test_helpers";
 import { HIGHLIGHT_CLASS } from "@mail/core/common/message_search_hook";
+import { SEARCH_DEBOUNCE_DELAY } from "@mail/core/common/search_message_input";
 import { expect, mockTouch, mockUserAgent, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
-import { tick } from "@odoo/hoot-mock";
+import { advanceTime, tick } from "@odoo/hoot-mock";
 import { serverState } from "@web/../tests/web_test_helpers";
 
 defineMailModels();
@@ -342,4 +343,49 @@ test("Search a message containing single quotes", async () => {
     await insertText(".o_searchview_input", "can't");
     triggerHotkey("Enter");
     await contains(".o-mail-SearchMessagesPanel .o-mail-Message");
+});
+
+test.tags("desktop");
+test("Typing searches without pressing Enter", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: "This is a message",
+        attachment_ids: [],
+        message_type: "comment",
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message");
+    await click("button[title='Search Messages']");
+    await insertText(".o_searchview_input", "message");
+    await advanceTime(SEARCH_DEBOUNCE_DELAY);
+    await contains(".o-mail-SearchMessagesPanel .o-mail-Message");
+});
+
+test.tags("desktop");
+test("Clearing the input drops the results without closing the panel", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: "This is a message",
+        attachment_ids: [],
+        message_type: "comment",
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message");
+    await click("button[title='Search Messages']");
+    await insertText(".o_searchview_input", "message");
+    await advanceTime(SEARCH_DEBOUNCE_DELAY);
+    await contains(".o-mail-SearchMessagesPanel .o-mail-Message");
+    await click("i[aria-label='Clear Search']");
+    await contains(".o-mail-SearchMessagesPanel .o-mail-Message", { count: 0 });
+    await contains(".o-mail-SearchMessagesPanel");
 });
