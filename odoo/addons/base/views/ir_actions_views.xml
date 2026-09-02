@@ -934,7 +934,7 @@
         <field name="model_id" ref="model_res_config" />
         <field name="state">code</field>
         <field
-            name="code">config = model.next() or {}
+            name="code">config = model._next_todo_action() or {}
 if config.get('type') not in ('ir.actions.act_window_close',):
     action = config</field>
     </record>
