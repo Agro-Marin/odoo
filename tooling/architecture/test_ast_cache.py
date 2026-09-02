@@ -5,12 +5,14 @@ import sys
 from pathlib import Path
 
 import pytest
+from _repo_root import find_odoo_root
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import _ast_cache
 
 HERE = Path(__file__).resolve().parent
+ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_ast_cache")
 SAMPLE = HERE / "_ast_cache.py"
 
 
@@ -59,7 +61,7 @@ def test_a_lenient_reader_reuses_the_strict_tree():
 
 def test_a_strict_decode_failure_is_never_served_to_a_lenient_reader(bad_bytes):
     _ast_cache.enable()
-    with pytest.raises(UnicodeDecodeError):
+    with pytest.raises(_ast_cache.SourceUnreadable):
         _ast_cache.parse_file(bad_bytes)
     tree = _ast_cache.parse_file(bad_bytes, errors="ignore")
     assert isinstance(tree, ast.Module)
@@ -68,7 +70,7 @@ def test_a_strict_decode_failure_is_never_served_to_a_lenient_reader(bad_bytes):
 def test_a_lenient_tree_is_never_served_to_a_strict_reader(bad_bytes):
     _ast_cache.enable()
     assert isinstance(_ast_cache.parse_file(bad_bytes, errors="ignore"), ast.Module)
-    with pytest.raises(UnicodeDecodeError):
+    with pytest.raises(_ast_cache.SourceUnreadable):
         _ast_cache.parse_file(bad_bytes)
 
 
@@ -101,7 +103,7 @@ def test_a_syntax_error_is_reraised_every_time(tmp_path):
     bad.write_text("def (:\n", encoding="utf-8")
     _ast_cache.enable()
     for _ in range(3):
-        with pytest.raises(SyntaxError):
+        with pytest.raises(_ast_cache.SourceUnreadable):
             _ast_cache.parse_file(bad)
 
 
@@ -113,7 +115,7 @@ def test_a_reraised_failure_does_not_accumulate_traceback(tmp_path):
     for _ in range(3):
         try:
             _ast_cache.parse_file(bad)
-        except SyntaxError as exc:
+        except _ast_cache.SourceUnreadable as exc:
             depth = 0
             tb = exc.__traceback__
             while tb is not None:
@@ -125,8 +127,40 @@ def test_a_reraised_failure_does_not_accumulate_traceback(tmp_path):
 
 def test_a_missing_file_raises_oserror():
     _ast_cache.enable()
-    with pytest.raises(OSError):
+    with pytest.raises(_ast_cache.SourceUnreadable) as raised:
         _ast_cache.parse_file(HERE / "does_not_exist.py")
+    assert isinstance(raised.value.cause, OSError)
+
+
+def test_every_failure_names_the_path(tmp_path):
+    bad = tmp_path / "bad.py"
+    bad.write_text("def (:\n", encoding="utf-8")
+    with pytest.raises(_ast_cache.SourceUnreadable) as raised:
+        _ast_cache.parse_file(bad)
+    assert str(bad) in str(raised.value)
+    with pytest.raises(_ast_cache.SourceUnreadable) as raised:
+        _ast_cache.parse_source("def (:\n", bad)
+    assert str(bad) in str(raised.value)
+    with pytest.raises(_ast_cache.SourceUnreadable) as raised:
+        _ast_cache.literal_file(bad)
+    assert str(bad) in str(raised.value)
+
+
+def test_the_opt_out_hands_the_failure_back_instead_of_raising(tmp_path):
+    bad = tmp_path / "bad.py"
+    bad.write_text("def (:\n", encoding="utf-8")
+    tree, failure = _ast_cache.parse_file_or_failure(bad)
+    assert tree is None
+    assert isinstance(failure, _ast_cache.SourceUnreadable)
+    assert str(bad) in str(failure)
+    tree, failure = _ast_cache.parse_file_or_failure(SAMPLE)
+    assert failure is None
+    assert isinstance(tree, ast.Module)
+
+
+def test_literal_file_reads_a_manifest():
+    manifest = ROOT / "odoo" / "addons" / "base" / "__manifest__.py"
+    assert isinstance(_ast_cache.literal_file(manifest), dict)
 
 
 def test_clear_drops_the_cache():

@@ -7,6 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import _ast_cache
 import py_shadowed_member as gate
 
 
@@ -142,8 +143,9 @@ def test_the_same_name_in_two_different_classes_is_not_a_shadow(tmp_path):
     assert found == []
 
 
-def test_a_file_that_does_not_parse_is_skipped_not_counted(tmp_path):
-    assert scan_source(tmp_path, "class A:\n    def (\n") == []
+def test_a_file_that_does_not_parse_is_reported_not_skipped(tmp_path):
+    with pytest.raises(_ast_cache.SourceUnreadable):
+        scan_source(tmp_path, "class A:\n    def (\n")
 
 
 def test_an_empty_tree_raises_rather_than_reporting_zero(tmp_path):

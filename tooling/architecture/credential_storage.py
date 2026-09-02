@@ -16,6 +16,9 @@ from _repo_root import (
     sibling_repo_paths,
 )
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="credential_storage")
 ALLOWLIST = Path(__file__).with_name("credential_storage_allowlist.json")
 
@@ -254,10 +257,7 @@ def findings() -> list[Finding]:
             module = path.relative_to(root).parts[0]
             if module == VAULT_MODULE:
                 continue
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-            except SyntaxError:
-                continue
+            tree = _ast_cache.parse_file(path)
             hashed = _hashed_field_names(tree)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.ClassDef) or _is_transient(node):

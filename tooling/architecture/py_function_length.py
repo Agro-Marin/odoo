@@ -13,6 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _sources
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_function_length")
 
 SCOPE = ROOT / "odoo"
@@ -71,10 +74,7 @@ def measure(
             )
     found: list[LongFunction] = []
     for path in files:
-        try:
-            tree = ast.parse(path.read_bytes())
-        except SyntaxError:
-            continue
+        tree = _ast_cache.parse_file(path)
         for node in ast.walk(tree):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue

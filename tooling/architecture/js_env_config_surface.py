@@ -13,6 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _consumer_scopes
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_env_config_surface")
 WEB = ROOT / "addons" / "web"
 CONTRACT = WEB / "static" / "src" / "views" / "view_config.js"
@@ -109,10 +112,7 @@ def measure(consumer_roots=CONSUMER_ROOTS) -> tuple[dict[str, set[str]], int]:
     unanalysable = 0
     for scope, root in _named_roots(consumer_roots):
         for path in _js_files(root):
-            try:
-                source = path.read_text(encoding="utf8")
-            except UnicodeDecodeError, OSError:
-                continue
+            source = _ast_cache.read_source(path)
             if "env.config" not in source:
                 continue
             keys, analysable = keys_in(source)

@@ -156,10 +156,7 @@ def measure(root: Path | None = None) -> list[Violation]:
     allowed = load_allowlist()
     found: list[Violation] = []
     for path in files:
-        try:
-            tree = _ast_cache.parse_file(path)
-        except SyntaxError, UnicodeDecodeError:
-            continue
+        tree = _ast_cache.parse_file(path)
         for node in ast.walk(tree):
             if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue
@@ -189,10 +186,7 @@ def candidates(root: Path | None = None) -> list[Violation]:
     allowed = load_allowlist()
     found: list[Violation] = []
     for path in core_files(root):
-        try:
-            tree = _ast_cache.parse_file(path)
-        except SyntaxError, UnicodeDecodeError:
-            continue
+        tree = _ast_cache.parse_file(path)
         for node in ast.walk(tree):
             if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue

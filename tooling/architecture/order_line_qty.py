@@ -13,6 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="order_line_qty")
 
 FIELD = "product_uom_qty"
@@ -88,10 +91,7 @@ def _subscript_model(node: ast.AST) -> str | None:
 
 
 def _scan(path: Path, rel: str, out: dict[tuple[str, int], Write]) -> None:
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except SyntaxError, UnicodeDecodeError:
-        return
+    tree = _ast_cache.parse_file(path)
 
     def record(lineno: int, kind: str, value: str) -> None:
         out.setdefault((rel, lineno), Write(rel, lineno, kind, value))

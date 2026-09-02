@@ -12,6 +12,9 @@ from js_imports import collect_imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root, sibling_repos_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="cross_repo_coherence")
 SIBLING_REPOS_ROOT = sibling_repos_root(ROOT)
 
@@ -132,10 +135,7 @@ def find_dangling(
             continue
         for spec, old_path in removed.items():
             for path in _consumer_js_files_importing(repo, spec):
-                try:
-                    src = path.read_text(encoding="utf-8")
-                except UnicodeDecodeError, OSError:  # pragma: no cover
-                    continue
+                src = _ast_cache.read_source(path)
                 for imp, lineno in collect_imports(src):
                     if imp in (spec, f"{spec}.js"):
                         dangling.append(
@@ -207,10 +207,7 @@ def find_dangling_names(
             continue
         for spec, path in changed.items():
             for consumer in _consumer_js_files_importing_any(repo, spec):
-                try:
-                    source = nec.strip_comments(consumer.read_text(encoding="utf-8"))
-                except OSError, UnicodeDecodeError:  # pragma: no cover
-                    continue
+                source = nec.strip_comments(_ast_cache.read_source(consumer))
                 for brace_body, imported_spec in nec.NAMED_IMPORT_RE.findall(source):
                     if imported_spec not in (spec, f"{spec}.js"):
                         continue

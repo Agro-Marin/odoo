@@ -8,6 +8,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 # No record yet. ADRs are a work in progress in this fork and this gate does not
 # wait on one; `UNRECORDED_GATES` is where that is declared rather than hidden.
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="format_literals")
@@ -52,13 +55,6 @@ def python_files(root: Path):
         yield path
 
 
-def parse(path: Path) -> ast.Module | None:
-    try:
-        return ast.parse(path.read_text(encoding="utf-8"))
-    except SyntaxError, UnicodeDecodeError, OSError:
-        return None
-
-
 def declared_formats(roots: list[Path]) -> dict[str, str]:
     """Every registered format, as mimetype -> canonical extension.
 
@@ -68,9 +64,7 @@ def declared_formats(roots: list[Path]) -> dict[str, str]:
     declared: dict[str, str] = {}
     for root in roots:
         for path in python_files(root):
-            tree = parse(path)
-            if tree is None:
-                continue
+            tree = _ast_cache.parse_file(path)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):
                     continue
@@ -136,9 +130,7 @@ def measure(roots: list[Path]) -> list[Finding]:
     found: list[Finding] = []
     for root in roots:
         for path in python_files(root):
-            tree = parse(path)
-            if tree is None:
-                continue
+            tree = _ast_cache.parse_file(path)
             relative = _relative(path)
             for scope in _scopes(tree):
                 declaring = any(

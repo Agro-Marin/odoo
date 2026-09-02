@@ -3,6 +3,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
+import _ast_cache
 import py_hook_arity as pha
 
 
@@ -131,10 +132,12 @@ class TestMeasure(unittest.TestCase):
         )
         self.assertEqual([f.hook for f in found], ["depends/depends_context"])
 
-    def test_an_unparseable_file_is_skipped_not_fatal(self):
+    def test_an_unparseable_file_is_reported_not_skipped(self):
         path = self.tmp / "broken.py"
         path.write_text("def (:\n")
-        self.assertEqual(pha.measure([path]), [])
+        with self.assertRaises(_ast_cache.SourceUnreadable) as caught:
+            pha.measure([path])
+        self.assertIn(str(path), str(caught.exception))
 
 
 class TestScopes(unittest.TestCase):

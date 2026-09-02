@@ -23,6 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _sources
 from _repo_root import find_odoo_root, sibling_repos_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_docstring_at_runtime")
 
 SCOPE = ROOT / "odoo"
@@ -102,10 +105,7 @@ def measure(
             )
     found: list[Offence] = []
     for path in files:
-        try:
-            tree = ast.parse(path.read_bytes())
-        except SyntaxError:
-            continue
+        tree = _ast_cache.parse_file(path)
         parents: dict[int, ast.AST] = {}
         for node in ast.walk(tree):
             for child in ast.iter_child_nodes(node):

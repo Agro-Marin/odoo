@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import _ast_cache
 import external_dependency_pins as edp
 
 
@@ -169,14 +170,17 @@ class TheGateRefusesToReportNothing(PinCase):
 
         self.assertEqual([f.dependency for f in findings], ["requests"])
 
-    def test_an_unparseable_manifest_is_skipped_not_crashed_on(self):
+    def test_an_unparseable_manifest_is_reported_not_skipped(self):
         self.tree.requirements(addons="requests==2.34.2\n")
         self.tree.module(self.tree.core / "addons", "good", ["requests"])
         broken = self.tree.core / "addons" / "broken"
         broken.mkdir()
-        (broken / "__manifest__.py").write_text("{'name': unclosed")
+        manifest = broken / "__manifest__.py"
+        manifest.write_text("{'name': unclosed")
 
-        self.assertEqual(self.measure(), [])
+        with self.assertRaises(_ast_cache.SourceUnreadable) as caught:
+            self.measure()
+        self.assertIn(str(manifest), str(caught.exception))
 
 
 if __name__ == "__main__":

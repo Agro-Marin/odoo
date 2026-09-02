@@ -45,7 +45,6 @@ where that judgement is recorded when it is made.
 
 from __future__ import annotations
 
-import ast
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -54,6 +53,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _count_gate
 import _sources
 from _repo_root import find_odoo_root, sibling_repos_root
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="bridge_budget")
 
@@ -103,10 +105,7 @@ class Bridge:
 
 
 def _read_manifest(path: Path) -> dict | None:
-    try:
-        value = ast.literal_eval(path.read_text(encoding="utf-8"))
-    except SyntaxError, ValueError, UnicodeDecodeError:
-        return None
+    value = _ast_cache.literal_file(path)
     return value if isinstance(value, dict) else None
 
 

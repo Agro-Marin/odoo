@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import _ast_cache
 import _doc_measures
 
 ROOT = _doc_measures.ROOT
@@ -72,10 +73,7 @@ def _rule_table_gates(tests: Path) -> set[str]:
     source = tests / "_rules.py"
     if not source.is_file():
         return set()
-    try:
-        tree = ast.parse(source.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return set()
+    tree = _ast_cache.parse_file(source)
     gates: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):

@@ -16,6 +16,9 @@ from _repo_root import (
     sibling_repo_paths,
 )
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="exchange_vocabulary")
 ALLOWLIST = Path(__file__).with_name("exchange_vocabulary_allowlist.json")
 
@@ -97,10 +100,7 @@ def findings() -> list[Finding]:
             module = _module_of(path, root)
             if not EXCHANGE_TOKENS.search(f"{module}/{path.name}"):
                 continue
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-            except SyntaxError:
-                continue
+            tree = _ast_cache.parse_file(path)
             for node in ast.walk(tree):
                 if not (
                     isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)

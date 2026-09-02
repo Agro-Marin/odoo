@@ -15,6 +15,7 @@ import ratchet
 from _repo_root import find_odoo_root
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "architecture"))
+import _ast_cache
 import _consumer_scopes
 
 HERE = Path(__file__).resolve().parent
@@ -111,10 +112,7 @@ def _forwarding_params(tree: ast.Module) -> dict[str, int]:
 def asserted_gates() -> set[str]:
     found: set[str] = set()
     for path in _py_consumer_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except SyntaxError:
-            continue
+        tree = _ast_cache.parse_file(path)
         found |= _rule_gates(tree)
         forwarding = _forwarding_params(tree)
         for node in ast.walk(tree):

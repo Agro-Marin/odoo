@@ -9,6 +9,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _consumer_scopes
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_public_surface")
 
 GOVERNED_ADDONS = ("web", "mail")
@@ -77,10 +80,7 @@ def measure_detailed(
                 continue
             if _is_addon_internal(path, addon):
                 continue
-            try:
-                source = path.read_text(encoding="utf8")
-            except UnicodeDecodeError, OSError:
-                continue
+            source = _ast_cache.read_source(path)
             slot = 1 if "/static/tests/" in text else 0
             prefix = specifier_prefix(addon)
             for spec in imported_specifiers(source):

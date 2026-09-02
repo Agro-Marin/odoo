@@ -26,6 +26,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="layer_check")
 PKG_ROOT = ROOT / "odoo"
 
@@ -650,11 +653,7 @@ def check(files: list[Path] | None = None) -> tuple[list[Violation], list[Violat
     known: list[Violation] = []
     for path in files if files is not None else iter_source_files():
         module = module_name_for(path)
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError) as exc:  # pragma: no cover
-            print(f"warning: could not parse {path}: {exc}", file=sys.stderr)
-            continue
+        tree = _ast_cache.parse_file(path)
         collector = _ImportCollector(module=module, is_init=path.name == "__init__.py")
         collector.visit(tree)
         for v in violations_for(

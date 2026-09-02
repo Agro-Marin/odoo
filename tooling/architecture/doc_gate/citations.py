@@ -4,6 +4,7 @@ import ast
 import re
 import unittest
 
+import _ast_cache
 import _doc_measures
 import js_layer_check
 import layer_check
@@ -176,10 +177,7 @@ class TestReferencedArtifacts(unittest.TestCase):
         names: set[str] = set()
         tests = ROOT / "odoo" / "addons" / "test_lint" / "tests"
         for path in tests.rglob("*.py"):
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-            except SyntaxError:
-                continue
+            tree = _ast_cache.parse_file(path)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):
                     continue

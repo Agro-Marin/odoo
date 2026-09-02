@@ -1,8 +1,13 @@
 import ast
 import inspect
 import os
+import sys
 import textwrap
 from collections import defaultdict
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "architecture"))
+import _ast_cache
 
 TARGET = os.environ.get("DEPENDS_TARGET", "/addons/")
 SKIP_PATHS = ("/test_", "/addons/test", "_test/")
@@ -151,10 +156,7 @@ class _Reads(ast.NodeVisitor):
         if key in self.inlined:
             return
         self.inlined.add(key)
-        try:
-            tree = ast.parse(textwrap.dedent(source))
-        except SyntaxError:
-            return
+        tree = _ast_cache.parse_source(textwrap.dedent(source), path)
         func = tree.body[0]
         if not getattr(func, "args", None) or not func.args.args:
             return
@@ -250,10 +252,7 @@ def audit(env):
             if key in seen:
                 continue
             seen.add(key)
-            try:
-                tree = ast.parse(textwrap.dedent(source))
-            except SyntaxError:
-                continue
+            tree = _ast_cache.parse_source(textwrap.dedent(source), source_file)
             func = tree.body[0]
             self_name = func.args.args[0].arg if func.args.args else "self"
             reads = _Reads(env, model, self_name)

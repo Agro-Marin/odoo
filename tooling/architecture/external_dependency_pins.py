@@ -1,5 +1,4 @@
 import argparse
-import ast
 import json
 import re
 import sys
@@ -8,6 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="external_dependency_pins")
 
@@ -64,10 +66,7 @@ def _manifests(root: Path):
     for path in sorted(root.rglob("__manifest__.py")):
         if "node_modules" in path.parts:
             continue
-        try:
-            manifest = ast.literal_eval(path.read_text(encoding="utf-8"))
-        except SyntaxError, ValueError:
-            continue
+        manifest = _ast_cache.literal_file(path)
         if isinstance(manifest, dict):
             yield path, manifest
 

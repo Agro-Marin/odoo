@@ -13,6 +13,9 @@ from js_imports import strip_comments
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="named_export_coherence")
 
 NAMED_IMPORT_RE = re.compile(
@@ -184,10 +187,7 @@ def find_unsatisfied(roots: list[Path], addons_roots: list[Path]) -> list[Unsati
         for js_file in sorted(_scan_files(root)):
             if "/lib/" in str(js_file):
                 continue
-            try:
-                source = strip_comments(js_file.read_text(encoding="utf-8"))
-            except OSError, UnicodeDecodeError:  # pragma: no cover
-                continue
+            source = strip_comments(_ast_cache.read_source(js_file))
             for brace_body, spec in NAMED_IMPORT_RE.findall(source):
                 target = resolver.resolve(spec, js_file)
                 if target is None:

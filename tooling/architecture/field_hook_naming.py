@@ -221,10 +221,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
     definitions: collections.Counter[str] = collections.Counter()
     domain_methods: dict[str, tuple[str, int]] = {}
     for path in files:
-        try:
-            tree = _ast_cache.parse_file(path)
-        except SyntaxError, UnicodeDecodeError:
-            continue
+        tree = _ast_cache.parse_file(path)
         display = _sources.display(path, ROOT)
         for model, attr, method, field, line in _field_hooks(tree):
             seen[model, attr, method].setdefault(field, (display, line))
@@ -276,10 +273,7 @@ def inverse_spellings(roots: list[Path] | None = None) -> tuple[int, int]:
     inverse = setter = 0
     seen: set[tuple[str, str]] = set()
     for path in nv._python_files(roots):
-        try:
-            tree = _ast_cache.parse_file(path)
-        except SyntaxError, UnicodeDecodeError:
-            continue
+        tree = _ast_cache.parse_file(path)
         for _model, attr, method, field, _line in _field_hooks(tree):
             if attr != "inverse" or (method, field) in seen:
                 continue
@@ -322,10 +316,7 @@ def unbound_prefixes(roots: list[Path] | None = None) -> tuple[int, int]:
     definitions: collections.Counter[str] = collections.Counter()
     bound: set[str] = set(_BOUND_BY_CONVENTION)
     for path in files:
-        try:
-            tree = _ast_cache.parse_file(path)
-        except SyntaxError, UnicodeDecodeError:
-            continue
+        tree = _ast_cache.parse_file(path)
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef) and nv.is_model_class(node):
                 for stmt in node.body:

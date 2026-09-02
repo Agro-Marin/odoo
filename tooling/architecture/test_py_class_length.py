@@ -3,6 +3,7 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+import _ast_cache
 import py_class_length as gate
 import pytest
 
@@ -43,9 +44,11 @@ class TestMeasure:
         path = _write(tmp_path, "a.py", src)
         assert sorted(c.what for c in gate.measure([path])) == ["Inner", "Outer"]
 
-    def test_a_syntax_error_is_skipped_not_raised(self, tmp_path):
+    def test_a_syntax_error_is_reported_not_skipped(self, tmp_path):
         path = _write(tmp_path, "a.py", "class Broken(:\n    pass\n")
-        assert gate.measure([path]) == []
+        with pytest.raises(_ast_cache.SourceUnreadable) as raised:
+            gate.measure([path])
+        assert str(path) in str(raised.value)
 
     def test_results_are_longest_first(self, tmp_path):
         a = _write(tmp_path, "a.py", _class_of(gate.MAX_LINES // 3 + 2, "A"))

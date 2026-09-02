@@ -48,6 +48,9 @@ import _count_gate
 import _sources
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="config_in_addons")
 
 BUNDLED_TREES = ("addons", "odoo/addons")
@@ -213,10 +216,7 @@ def measure(
             )
     found: list[ConfigReference] = []
     for path in files:
-        try:
-            tree = ast.parse(path.read_bytes())
-        except SyntaxError:
-            continue
+        tree = _ast_cache.parse_file(path)
         shown = _sources.display(path, ROOT)
         found.extend(
             ConfigReference(shown, line, shape) for line, shape in references_in(tree)

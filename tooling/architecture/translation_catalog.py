@@ -20,6 +20,9 @@ import _sources
 import doc_measured
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="translation_catalog")
 
 ADDON_ROOTS = (ROOT / "odoo" / "addons", ROOT / "addons")
@@ -147,10 +150,7 @@ def reword_cost(source: str, module_dir: Path, msgids: set[str]) -> Cost | None:
 
 
 def iter_gettext_literals(path: Path) -> list[tuple[int, str]]:
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-    except SyntaxError, UnicodeDecodeError:
-        return []
+    tree = _ast_cache.parse_file(path)
     found = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not node.args:

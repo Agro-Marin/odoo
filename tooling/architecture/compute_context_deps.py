@@ -14,6 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _sources
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="compute_context_deps")
 SCAN_ROOTS = ("odoo", "addons")
 
@@ -200,10 +203,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
 
     found: list[Violation] = []
     for path in files:
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except SyntaxError, UnicodeDecodeError:
-            continue
+        tree = _ast_cache.parse_file(path)
         for node in ast.walk(tree):
             if not isinstance(node, ast.FunctionDef):
                 continue

@@ -4,8 +4,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from _repo_root import find_odoo_root
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_gate_launcher")
 GATE = ROOT / "tooling" / "gate"
 
 

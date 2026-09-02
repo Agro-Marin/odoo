@@ -1,6 +1,7 @@
 import ast
 from pathlib import Path
 
+import _ast_cache
 import pytest
 from _repo_root import (
     ODOO_MARKER,
@@ -50,10 +51,7 @@ def _parent_hops(node, known: dict) -> int | None:
 
 
 def _lands_on(path: Path, target: Path) -> list[int]:
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return []
+    tree = _ast_cache.parse_file(path)
 
     known: dict[str, int] = {}
     for node in tree.body:
@@ -159,6 +157,7 @@ class TestEveryToolAgrees:
         ("architecture", "named_export_coherence"): "ROOT",
         ("architecture", "cross_repo_coherence"): "ROOT",
         ("architecture", "compute_context_deps"): "ROOT",
+        ("architecture", "config_in_addons"): "ROOT",
         ("architecture", "edi_vocabulary"): "ROOT",
         ("architecture", "payment_vocabulary"): "ROOT",
         ("architecture", "py_addon_imports"): "ROOT",
@@ -189,6 +188,9 @@ class TestEveryToolAgrees:
         ("architecture", "py_function_length"): "ROOT",
         ("architecture", "py_hook_arity"): "ROOT",
         ("architecture", "py_x2many_count"): "ROOT",
+        ("architecture", "bridge_budget"): "ROOT",
+        ("architecture", "py_class_length"): "ROOT",
+        ("architecture", "werkzeug_in_addons"): "ROOT",
         ("architecture", "sql_in_placeholder"): "ROOT",
         ("architecture", "py_count_as_boolean"): "ROOT",
         ("architecture", "py_shadowed_member"): "ROOT",
@@ -207,6 +209,7 @@ class TestEveryToolAgrees:
         ("architecture", "js_registry_layering"): "ROOT",
         ("architecture", "js_service_shape"): "ROOT",
         ("architecture", "js_suite_parity"): "ROOT",
+        ("architecture", "js_ts_check"): "ROOT",
         ("architecture", "js_template_binding"): "ROOT",
         ("architecture", "js_vacuous_assertions"): "ROOT",
         ("architecture", "naming_core_vocabulary"): "ROOT",

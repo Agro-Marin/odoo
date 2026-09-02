@@ -92,10 +92,7 @@ def declared_models() -> dict[str, tuple[str | None, str]]:
         for path in sorted(root.glob("*/**/*.py")):
             if "__pycache__" in path.parts or "tests" in path.parts:
                 continue
-            try:
-                tree = _ast_cache.parse_file(path)
-            except SyntaxError, UnicodeDecodeError, OSError:
-                continue
+            tree = _ast_cache.parse_file(path)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.ClassDef):
                     continue

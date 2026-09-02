@@ -16,6 +16,9 @@ import _consumer_scopes
 import doc_measured
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_extension_surface")
 WEB = ROOT / "addons" / "web"
 PINNED = Path(__file__).resolve().parent / "extension_surface_web.txt"
@@ -210,10 +213,7 @@ class Index:
             for path in root.rglob("*.js"):
                 if _skip(path):
                     continue
-                try:
-                    source = path.read_text(encoding="utf8")
-                except UnicodeDecodeError, OSError:
-                    continue
+                source = _ast_cache.read_source(path)
                 if len(source) / (source.count("\n") + 1) > 300:
                     continue
                 resolved = path.resolve()
@@ -496,10 +496,7 @@ def unresolved(points, web_src=None) -> list[str]:
     for path in src.rglob("*.js"):
         if _skip(path):
             continue
-        try:
-            source = path.read_text(encoding="utf8")
-        except UnicodeDecodeError, OSError:
-            continue
+        source = _ast_cache.read_source(path)
         for name, info in scan_file(source)["classes"].items():
             declared.setdefault(name, set()).update(info["methods"])
     missing = []

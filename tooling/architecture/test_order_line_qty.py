@@ -1,3 +1,4 @@
+import _ast_cache
 import order_line_qty as olq
 import pytest
 
@@ -99,8 +100,10 @@ def test_one_line_is_reported_once(tmp_path):
     )
 
 
-def test_a_file_that_does_not_parse_is_skipped(tmp_path):
-    assert not _measure(tmp_path, "def (:\n", name="broken.py")
+def test_a_file_that_does_not_parse_is_reported_not_skipped(tmp_path):
+    with pytest.raises(_ast_cache.SourceUnreadable) as raised:
+        _measure(tmp_path, "def (:\n", name="broken.py")
+    assert "broken.py" in str(raised.value)
 
 
 def test_a_missing_root_is_refused(tmp_path):

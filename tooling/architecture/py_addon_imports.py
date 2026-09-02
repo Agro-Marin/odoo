@@ -8,6 +8,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root, sibling_repos_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_addon_imports")
 SIBLING_REPOS_ROOT = sibling_repos_root(ROOT)
 
@@ -96,10 +99,7 @@ def find_unresolved(
     out: list[Unresolved] = []
     for root in scan_roots:
         for path in _scan_files(root):
-            try:
-                tree = ast.parse(path.read_text(errors="replace"))
-            except SyntaxError:
-                continue
+            tree = _ast_cache.parse_file(path)
             out.extend(
                 Unresolved(str(path), module)
                 for module in sorted(_imported_modules(tree))

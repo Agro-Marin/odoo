@@ -27,6 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _sources
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_unresolved_calls")
 
 SCOPES = (ROOT / "odoo", ROOT / "addons")
@@ -128,11 +131,8 @@ def measure(
     trees: list[tuple[Path, ast.Module, list[str]]] = []
 
     for path in files:
-        text = path.read_text(encoding="utf-8", errors="replace")
-        try:
-            tree = ast.parse(text)
-        except SyntaxError:
-            continue
+        text = path.read_text(encoding="utf-8")
+        tree = _ast_cache.parse_source(text, path)
         trees.append((path, tree, text.splitlines()))
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):

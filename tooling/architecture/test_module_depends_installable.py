@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import _ast_cache
 import module_depends_installable as gate
 
 
@@ -82,15 +83,16 @@ class MeasureTest(unittest.TestCase):
 
         self.assertEqual({o.dependency for o in self.measure()}, {"a", "b"})
 
-    def test_an_unparseable_manifest_is_skipped_rather_than_fatal(self):
+    def test_an_unparseable_manifest_is_reported_rather_than_skipped(self):
         write_module(self.root, "fine")
         broken = self.root / "broken"
         broken.mkdir()
-        (broken / "__manifest__.py").write_text(
-            "{ this is not python", encoding="utf-8"
-        )
+        manifest = broken / "__manifest__.py"
+        manifest.write_text("{ this is not python", encoding="utf-8")
 
-        self.assertEqual(self.measure(), [])
+        with self.assertRaises(_ast_cache.SourceUnreadable) as caught:
+            self.measure()
+        self.assertIn(str(manifest), str(caught.exception))
 
     def test_it_refuses_a_tree_with_no_manifests(self):
         with self.assertRaises(RuntimeError) as caught:

@@ -201,11 +201,28 @@ jobs:
         # C901 (its only rule) and set max-complexity — three settings that
         # cancel out — while the two branch-complexity rules each justified their
         # suppression by naming the other, both being off.
+        #
+        # E902 rides along, and is not a widening of what this floor is about.
+        # A CLI `--select` REPLACES the config's, so `--select C901` runs ruff
+        # with pycodestyle off — and E902 (IOError) is the only rule that fires
+        # on a file ruff could not decode. Measured 2026-09-02 against this
+        # exact command: an undecodable file makes ruff print
+        # `warning: Failed to lint <path>: stream did not contain valid UTF-8`
+        # on STDERR and exit 0, and `--statistics` (whose stderr this step
+        # discards) reports the same count as if the file did not exist. The
+        # `2>/dev/null` is not the defect and dropping it would not fix it — a
+        # warning on stderr cannot reach a count parsed from stdout. Naming E902
+        # in the select is what turns the unreadable file into a finding: the
+        # same probe then reports `E902 stream did not contain valid UTF-8` and
+        # exits 1. A syntax error was already caught either way (ruff reports
+        # `invalid-syntax` under any select); an undecodable file was caught by
+        # nothing. The floor does not move: no such file exists in the tree
+        # today, measured over every .py under odoo/ and addons/.
         run: |
           set +e
-          ruff check odoo/ --no-cache --select C901 --output-format=concise | tee /tmp/c901.log
+          ruff check odoo/ --no-cache --select C901,E902 --output-format=concise | tee /tmp/c901.log
           set -e
-          C901_COUNT=$(ruff check odoo/ --no-cache --select C901 --statistics 2>/dev/null | awk '{s+=$1} END {print s+0}')
+          C901_COUNT=$(ruff check odoo/ --no-cache --select C901,E902 --statistics 2>/dev/null | awk '{s+=$1} END {print s+0}')
           echo "count=${C901_COUNT}" >> "$GITHUB_OUTPUT"
 
       - name: Enforce C901 ratchet
@@ -221,11 +238,16 @@ jobs:
         # unbounded. Its own floor, not a widened scope on c901: the two trees
         # move for different reasons, and one bucket would let an addons cleanup
         # mask a core regression.
+        #
+        # E902 for the reason the `odoo/` step above sets out, and it matters
+        # more here: this is the ONLY ruff invocation that reads `addons/`, so
+        # until E902 was named, an undecodable file anywhere under the bundled
+        # modules was seen by no lint gate at all.
         run: |
           set +e
-          ruff check addons/ --no-cache --select C901 --output-format=concise | tee /tmp/c901-addons.log
+          ruff check addons/ --no-cache --select C901,E902 --output-format=concise | tee /tmp/c901-addons.log
           set -e
-          C901_ADDONS_COUNT=$(ruff check addons/ --no-cache --select C901 --statistics 2>/dev/null | awk '{s+=$1} END {print s+0}')
+          C901_ADDONS_COUNT=$(ruff check addons/ --no-cache --select C901,E902 --statistics 2>/dev/null | awk '{s+=$1} END {print s+0}')
           echo "count=${C901_ADDONS_COUNT}" >> "$GITHUB_OUTPUT"
 
       - name: Enforce C901 addons ratchet

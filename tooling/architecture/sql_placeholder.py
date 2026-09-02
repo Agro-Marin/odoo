@@ -9,6 +9,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="sql_placeholder")
 
 SCAN_ROOTS = ("addons", "odoo", "tools", "tooling")
@@ -184,10 +187,7 @@ def measure(roots: list[Path]) -> tuple[list[Finding], int]:
     findings: list[Finding] = []
     execute_sites = 0
     for path in _python_files(roots):
-        try:
-            tree = ast.parse(path.read_bytes())
-        except SyntaxError, ValueError:
-            continue
+        tree = _ast_cache.parse_file(path)
         exempt = _exempt_literals(tree) | _exempt_sql_constants(tree)
         for node in ast.walk(tree):
             if isinstance(node, ast.Constant) and isinstance(node.value, str):

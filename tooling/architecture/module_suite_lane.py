@@ -12,6 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="module_suite_lane")
 
 MANIFEST = "__manifest__.py"
@@ -42,20 +45,14 @@ class Offence:
 
 
 def _read_manifest(path: Path) -> dict | None:
-    try:
-        value = ast.literal_eval(path.read_text(encoding="utf-8"))
-    except SyntaxError, ValueError, UnicodeDecodeError:
-        return None
+    value = _ast_cache.literal_file(path)
     return value if isinstance(value, dict) else None
 
 
 def _test_methods(directory: Path) -> int:
     total = 0
     for path in sorted(directory.glob("tests/**/*.py")):
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except SyntaxError, UnicodeDecodeError:
-            continue
+        tree = _ast_cache.parse_file(path)
         total += sum(
             1
             for node in ast.walk(tree)

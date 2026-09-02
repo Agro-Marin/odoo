@@ -12,6 +12,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="facade_surface_check")
 
 FACADES: tuple[str, ...] = (
@@ -140,10 +143,7 @@ def check(roots: tuple[Path, ...] = (REPO_ROOT,)) -> Report:
     scanned = 0
     for root in roots:
         for path in _iter_python_files(root):
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-            except SyntaxError:
-                continue
+            tree = _ast_cache.parse_file(path)
             scanned += 1
             relative = path.relative_to(root.parent if root.name else root)
             for node in ast.walk(tree):

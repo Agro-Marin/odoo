@@ -7,6 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
 from js_imports import strip_comments
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_registry_layering")
@@ -245,10 +248,7 @@ def resolve_keyed(
     exported: dict[tuple[str, str], str] = {}
     for path in files:
         rel = path.relative_to(WEB_SRC).as_posix()
-        try:
-            src = strip_comments(path.read_text(encoding="utf-8"))
-        except UnicodeDecodeError, OSError:  # pragma: no cover
-            continue
+        src = strip_comments(_ast_cache.read_source(path))
         texts.append((rel, src))
         for m in CATEGORY_ADD_RE.finditer(src):
             registrars[(m.group(1), m.group(2))] = rel

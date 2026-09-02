@@ -466,10 +466,7 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
     render_prefixed = 0
     bodies: dict[str, set[str]] = collections.defaultdict(set)
     for path in files:
-        try:
-            tree = _ast_cache.parse_file(path)
-        except SyntaxError, UnicodeDecodeError:
-            continue
+        tree = _ast_cache.parse_file(path)
         parts = set(path.parts)
         if {"models", "wizard", "wizards"} & parts and "addons" in parts:
             module_level_helpers += sum(
@@ -665,10 +662,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
 
     out: list[Violation] = []
     for path in files:
-        try:
-            tree = _ast_cache.parse_file(path)
-        except SyntaxError, UnicodeDecodeError:
-            continue
+        tree = _ast_cache.parse_file(path)
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef) or not is_model_class(node):
                 continue

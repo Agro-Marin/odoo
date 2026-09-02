@@ -1,10 +1,14 @@
-import ast
 import inspect
 import logging
 import os
+import sys
 import textwrap
+from pathlib import Path
 
 import depends_audit
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "architecture"))
+import _ast_cache
 
 _logger = logging.getLogger(__name__)
 
@@ -50,10 +54,9 @@ def audit(env):
             if key in seen:
                 continue
             seen.add(key)
-            try:
-                tree = ast.parse(textwrap.dedent(source))
-            except SyntaxError:
-                continue
+            tree = _ast_cache.parse_source(
+                textwrap.dedent(source), f"{src_file}:{lineno}"
+            )
             func = tree.body[0]
             self_name = func.args.args[0].arg if func.args.args else "self"
             reads = depends_audit._Reads(env, model, self_name)

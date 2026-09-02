@@ -10,6 +10,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import tsconfig_paths
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "architecture"))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_tsconfig_paths")
 TSCONFIG = ROOT / "tsconfig.json"
 
@@ -45,10 +48,7 @@ def _aliases_imported() -> Counter:
             text = path.as_posix()
             if any(skip in text for skip in SKIP):
                 continue
-            try:
-                source = path.read_text(encoding="utf8")
-            except UnicodeDecodeError, OSError:
-                continue
+            source = _ast_cache.read_source(path)
             for alias in IMPORT_ALIAS.findall(source):
                 used[alias] += 1
     return used

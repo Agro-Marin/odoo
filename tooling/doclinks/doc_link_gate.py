@@ -17,6 +17,9 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "architecture"))
+import _ast_cache
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="doc_link_gate")
 
 DEFAULT_BASELINE_PATH = (
@@ -216,10 +219,7 @@ def scan(
     violations: list[Violation] = []
     files = _glob_files(globs, excludes)
     for source_file in files:
-        try:
-            content = source_file.read_text(encoding="utf-8")
-        except OSError, UnicodeDecodeError:
-            continue
+        content = _ast_cache.read_source(source_file)
         for line, raw_path in _extract_refs(content):
             if _is_placeholder(raw_path):
                 continue

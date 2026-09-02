@@ -14,6 +14,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="libs_facade_check")
 LIBS = REPO_ROOT / "odoo" / "libs"
 
@@ -180,11 +183,7 @@ def check(files: list[Path] | None = None) -> Report:
     allowed = areas()
     for path in files:
         report.scanned += 1
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError) as exc:  # pragma: no cover
-            print(f"warning: could not parse {path}: {exc}", file=sys.stderr)
-            continue
+        tree = _ast_cache.parse_file(path)
         for module, lineno in imported_modules(tree):
             if module in allowed:
                 continue

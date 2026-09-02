@@ -13,6 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _consumer_scopes
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_action_surface")
 
 CONTRACT = ROOT / "addons/web/static/src/webclient/actions/action_service_contract.js"
@@ -122,10 +125,7 @@ def find_reaches(
             rel = path.relative_to(root).as_posix()
             if "/static/tests/" in f"/{rel}":
                 continue
-            try:
-                text = path.read_text(encoding="utf-8")
-            except OSError, UnicodeDecodeError:
-                continue
+            text = _ast_cache.read_source(path)
             scanned += 1
             in_actions = rel.startswith(ACTIONS_SUBTREE)
             if not in_actions and "action" not in text:

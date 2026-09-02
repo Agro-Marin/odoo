@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import _ast_cache
 import py_addon_imports as gate
 
 HERE = Path(__file__).resolve().parent
@@ -98,9 +99,11 @@ class TestScanning:
         )
         assert gate.find_unresolved([tmp_path / "scan"], [tmp_path / "addons"]) == []
 
-    def test_a_file_that_does_not_parse_is_skipped_not_fatal(self, tmp_path):
+    def test_a_file_that_does_not_parse_is_reported_not_skipped(self, tmp_path):
         _addon(tmp_path / "addons", "sale")
-        assert _scan(tmp_path, "def (\n") == []
+        with pytest.raises(_ast_cache.SourceUnreadable) as raised:
+            _scan(tmp_path, "def (\n")
+        assert ".py" in str(raised.value)
 
     def test_findings_are_sorted_by_file_then_module(self, tmp_path):
         _addon(tmp_path / "addons", "sale")

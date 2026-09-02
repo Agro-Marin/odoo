@@ -35,6 +35,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root, sibling_repos_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_ts_check")
 
 SOURCE_SUFFIXES = (".js", ".mjs")
@@ -249,10 +252,7 @@ def measure(roots: list[Path], addon: str | None = None) -> list[Unchecked]:
         )
         if ignores[root].ignores(relative):
             continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError, UnicodeDecodeError:
-            continue
+        text = _ast_cache.read_source(path)
         if not is_checked(text):
             found.append(Unchecked(relative))
     return sorted(found)

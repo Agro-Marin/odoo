@@ -131,10 +131,7 @@ def dispatch_names() -> tuple[int, ...]:
     def count(root: Path) -> int:
         total = 0
         for path in naming_vocabulary._python_files([root]):
-            try:
-                tree = _ast_cache.parse_file(path, errors="ignore")
-            except SyntaxError:
-                continue
+            tree = _ast_cache.parse_file(path, errors="ignore")
             for node in ast.walk(tree):
                 if not (
                     isinstance(node, ast.Call)
@@ -163,10 +160,7 @@ def field_param_typing() -> tuple[int, ...]:
     for path in naming_vocabulary._python_files(
         [ROOT / r for r in naming_vocabulary.SCAN_ROOTS]
     ):
-        try:
-            tree = _ast_cache.parse_file(path, errors="ignore")
-        except SyntaxError:
-            continue
+        tree = _ast_cache.parse_file(path, errors="ignore")
         for node in ast.walk(tree):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
@@ -226,10 +220,7 @@ def constraint_name_spellings() -> tuple[int, ...]:
     for path in naming_vocabulary._python_files(
         [ROOT / r for r in naming_vocabulary.SCAN_ROOTS]
     ):
-        try:
-            tree = _ast_cache.parse_file(path, errors="ignore")
-        except SyntaxError:
-            continue
+        tree = _ast_cache.parse_file(path, errors="ignore")
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue

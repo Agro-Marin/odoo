@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import _ast_cache
 import py_function_length as pfl
 
 
@@ -56,9 +57,11 @@ class TestMeasure(unittest.TestCase):
         found = pfl.measure([_write(self.tmp, "a.py", outer)])
         self.assertEqual({f.what for f in found}, {"outer", "inner"})
 
-    def test_a_syntax_error_is_skipped_not_raised(self):
+    def test_a_syntax_error_is_reported_not_skipped(self):
         path = _write(self.tmp, "a.py", "def f(:\n")
-        self.assertEqual(pfl.measure([path]), [])
+        with self.assertRaises(_ast_cache.SourceUnreadable) as caught:
+            pfl.measure([path])
+        self.assertIn(str(path), str(caught.exception))
 
     def test_results_are_longest_first(self):
         path = _write(

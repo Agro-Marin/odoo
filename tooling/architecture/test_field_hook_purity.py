@@ -7,6 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import _ast_cache
 import field_hook_purity as gate
 
 MODEL = """
@@ -115,12 +116,15 @@ class TestRefusals:
         with pytest.raises(RuntimeError, match="empty scan"):
             gate.measure([tmp_path / "empty"])
 
-    def test_a_file_that_does_not_parse_is_skipped(self, tmp_path):
+    def test_a_file_that_does_not_parse_is_reported_not_skipped(self, tmp_path):
         root = tmp_path / "addons" / "probe" / "models"
         root.mkdir(parents=True)
-        (root / "broken.py").write_text("def (\n", encoding="utf-8")
+        broken = root / "broken.py"
+        broken.write_text("def (\n", encoding="utf-8")
         (root / "ok.py").write_text(MODEL.format(body="    pass\n"), encoding="utf-8")
-        assert gate.measure([tmp_path / "addons"]) == []
+        with pytest.raises(_ast_cache.SourceUnreadable) as raised:
+            gate.measure([tmp_path / "addons"])
+        assert str(broken) in str(raised.value)
 
 
 class TestTheTreeItGuards:

@@ -9,6 +9,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="mail_hook_keyword_check")
 
 FRAMEWORK_DIR = Path("addons/mail/models")
@@ -74,10 +77,7 @@ def measure(
 
     trees: dict[Path, ast.AST] = {}
     for path in _python_files(roots):
-        try:
-            trees[path] = ast.parse(path.read_text(errors="ignore"))
-        except SyntaxError:
-            continue
+        trees[path] = _ast_cache.parse_file(path)
 
     base_hooks: dict[str, set[str]] = defaultdict(set)
     overrides: dict[str, list[tuple[Path, int, set[str], bool]]] = defaultdict(list)

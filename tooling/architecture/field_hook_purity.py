@@ -105,10 +105,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
     callers: dict[tuple[str, str], set[str]] = collections.defaultdict(set)
 
     for path in production:
-        try:
-            tree = _ast_cache.parse_file(path)
-        except SyntaxError, UnicodeDecodeError:
-            continue
+        tree = _ast_cache.parse_file(path)
         display = _sources.display(path, ROOT)
         for model, attr, method, field, line in fh._field_hooks(tree):
             hooks[model, method].add(attr)

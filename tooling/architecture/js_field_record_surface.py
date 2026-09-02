@@ -15,11 +15,12 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
 import _consumer_scopes
 import doc_measured
-from _repo_root import find_odoo_root
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_field_record_surface")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
@@ -57,11 +58,8 @@ def widget_files() -> list[Path]:
             parts = path.parts
             if "node_modules" in parts or "lib" in parts or "tests" in parts:
                 continue
-            try:
-                if "standardFieldProps" in path.read_text(encoding="utf8"):
-                    found.append(path)
-            except UnicodeDecodeError, OSError:
-                continue
+            if "standardFieldProps" in _ast_cache.read_source(path):
+                found.append(path)
     return sorted(found)
 
 

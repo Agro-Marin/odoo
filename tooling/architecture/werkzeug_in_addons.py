@@ -35,6 +35,9 @@ import _count_gate
 import _sources
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="werkzeug_in_addons")
 
 BUNDLED_TREES = ("addons", "odoo/addons")
@@ -98,10 +101,7 @@ def measure(
             )
     found: list[ToolkitImport] = []
     for path in files:
-        try:
-            tree = ast.parse(path.read_bytes())
-        except SyntaxError:
-            continue
+        tree = _ast_cache.parse_file(path)
         names = _toolkit_names(tree)
         if names:
             found.append(ToolkitImport(_sources.display(path, ROOT), names))

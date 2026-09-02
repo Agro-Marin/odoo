@@ -13,6 +13,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import doc_measured
 from _repo_root import find_odoo_root
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
 from env_model_surface_check import (
     _MODEL_RE,
     ENV_MODEL_ACCESSORS,
@@ -356,11 +359,7 @@ def check(files: list[Path] | None = None) -> Report:
     report = Report()
     framework_members = base_model_members()
     for path in files if files is not None else iter_scope_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError) as exc:  # pragma: no cover
-            print(f"warning: could not parse {path}: {exc}", file=sys.stderr)
-            continue
+        tree = _ast_cache.parse_file(path)
         report.files_scanned += 1
         collector = _MemberCollector(framework_members)
         collector.bind(tree)

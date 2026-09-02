@@ -9,6 +9,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="env_model_surface_check")
 CORE = REPO_ROOT / "odoo"
 
@@ -205,11 +208,7 @@ def iter_scope_files() -> list[Path]:
 def check(files: list[Path] | None = None) -> Report:
     report = Report()
     for path in files if files is not None else iter_scope_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError) as exc:  # pragma: no cover
-            print(f"warning: could not parse {path}: {exc}", file=sys.stderr)
-            continue
+        tree = _ast_cache.parse_file(path)
         collector = _EnvModelCollector()
         collector.visit(tree)
         rel = path.relative_to(REPO_ROOT).as_posix()

@@ -12,6 +12,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_cycle_check")
 CORE = REPO_ROOT / "odoo"
 
@@ -156,11 +159,7 @@ def build_graph(files: list[Path] | None = None):
     edge_lines: dict[tuple[str, str], int] = {}
     for path in files:
         name = module_name_for(path)
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError) as exc:  # pragma: no cover
-            print(f"warning: could not parse {path}: {exc}", file=sys.stderr)
-            continue
+        tree = _ast_cache.parse_file(path)
         collector = _ModuleLevelImports(name, path.name == "__init__.py")
         collector.visit(tree)
         for target, lineno in collector.found:

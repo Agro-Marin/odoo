@@ -7,6 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import _ast_cache
 import exchange_vocabulary as gate
 
 FIELD = """
@@ -128,7 +129,9 @@ class TestFindings:
         monkeypatch.setattr(gate, "load_allowlist", dict)
         assert gate.offenders() == []
 
-    def test_unparseable_python_does_not_stop_the_scan(self, tmp_path, monkeypatch):
+    def test_unparseable_python_stops_the_scan_and_names_the_file(
+        self, tmp_path, monkeypatch
+    ):
         root = self._tree(
             tmp_path,
             monkeypatch,
@@ -136,10 +139,11 @@ class TestFindings:
             "account_move.py",
             FIELD.format(name="state", values=_values("to_send", "acked")),
         )
-        (root / "l10n_zz_edi" / "models" / "broken_edi.py").write_text(
-            "def (:", encoding="utf-8"
-        )
-        assert [finding.key for finding in gate.offenders()] == ["l10n_zz_edi.state"]
+        broken = root / "l10n_zz_edi" / "models" / "broken_edi.py"
+        broken.write_text("def (:", encoding="utf-8")
+        with pytest.raises(_ast_cache.SourceUnreadable) as raised:
+            gate.offenders()
+        assert str(broken) in str(raised.value)
 
     def test_findings_come_back_sorted(self, tmp_path, monkeypatch):
         root = tmp_path / "addons"

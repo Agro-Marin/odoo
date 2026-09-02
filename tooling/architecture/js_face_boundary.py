@@ -9,6 +9,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import _sources
 from _repo_root import SIBLING_REPOS, find_odoo_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_face_boundary")
 WEB = ROOT / "addons" / "web"
 WEB_SRC = WEB / "static" / "src"
@@ -77,10 +80,7 @@ def _reaches(consumer_roots, web_src: Path, collect) -> list[dict[str, object]]:
                 continue
             if _is_web_internal(path, web_root):
                 continue
-            try:
-                source = path.read_text(encoding="utf8")
-            except UnicodeDecodeError, OSError:
-                continue
+            source = _ast_cache.read_source(path)
             for spec, line in collect(source):
                 if not spec.startswith("@web/") or spec.startswith("@web/../"):
                     continue

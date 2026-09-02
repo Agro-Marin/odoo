@@ -24,6 +24,9 @@ import _count_gate
 import _sources
 from _repo_root import find_odoo_root, sibling_repos_root
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_shadowed_member")
 
 SCOPE = ROOT / "odoo"
@@ -96,10 +99,7 @@ def _members(body: list[ast.stmt]) -> list[tuple[str, int, str]]:
 
 
 def scan(path: Path, display: str) -> list[Offence]:
-    try:
-        tree = ast.parse(path.read_bytes())
-    except SyntaxError:
-        return []
+    tree = _ast_cache.parse_file(path)
     found = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
