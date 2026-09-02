@@ -6,6 +6,7 @@ import {
     defineMailModels,
     dragenterFiles,
     dropFiles,
+    insertText,
     listenStoreFetch,
     makeMockRtcNetwork,
     mockGetMedia,
@@ -1342,4 +1343,24 @@ test("show warning when blur hardware acceleration is not available", async () =
     ).toBeVisible();
     await click("[title='Dismiss warning']");
     await contains(".o-discuss-BlurPerformanceWarning-button", { count: 0 });
+});
+
+test("meeting chat panel excludes the call notifications of its own session", async () => {
+    await start();
+    await openDiscuss();
+    await click("[title='New Meeting']");
+    // Outside the meeting view the call notice is part of the channel history.
+    await click("[title='Exit Fullscreen']");
+    await contains(".o-mail-NotificationMessage");
+    await click("[title='Fullscreen']");
+    await contains(".o-mail-Meeting");
+    await click("[title='Chat']");
+    // Post from the meeting composer and wait for it: without something the
+    // panel HAS rendered, asserting the absence of the notice only proves the
+    // thread had not loaded yet.
+    await insertText(".o-mail-Meeting .o-mail-Composer-input", "hola");
+    await triggerHotkey("Enter");
+    await contains(".o-mail-Meeting .o-mail-Message:contains('hola')");
+    await contains(".o-mail-Meeting .o-mail-NotificationMessage", { count: 0 });
+    await contains(".o-mail-ActionPanel-header:contains('In call messages')");
 });
