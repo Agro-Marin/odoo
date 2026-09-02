@@ -832,6 +832,28 @@ class TestLoginCooldown(TransactionCase):
             ):
                 pass
 
+    @mute_logger("odoo.addons.base.models.res_users")
+    def test_change_password_is_rate_limited(self):
+        """change_password verifies the current password, so it must go through
+        the same cooldown as login: after the threshold even a correct old
+        password is refused, without spending another PBKDF2."""
+        target = self.env["res.users"].create(
+            {
+                "name": "Cooldown Target",
+                "login": "cooldown_target",
+                "password": "correct-horse-battery",
+            }
+        )
+        as_target = self.env["res.users"].with_user(target)
+        with patch(self._REQUEST, self._request("7.7.7.7")):
+            for _ in range(2):
+                with self.assertRaises(AccessDenied):
+                    as_target.change_password("wrong", "irrelevant")
+            with self.assertRaises(AccessDenied):
+                as_target.change_password(
+                    "correct-horse-battery", "a-brand-new-password"
+                )
+
     def test_success_resets_counter(self):
         users = self.env["res.users"]
         with patch(self._REQUEST, self._request("8.8.4.4")):

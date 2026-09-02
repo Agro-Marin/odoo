@@ -28,7 +28,9 @@ class ResUsersIdentitycheck(models.TransientModel):
                 "password": self.env.context.get("password"),
                 "type": "password",
             }
-            self.env.user._check_credentials(credential, {"interactive": True})
+            user = self.env.user
+            with user._assert_can_auth(user=user.id):
+                user._check_credentials(credential, {"interactive": True})
         except AccessDenied:
             raise UserError(
                 _(

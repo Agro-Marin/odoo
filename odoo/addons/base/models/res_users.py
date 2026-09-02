@@ -1183,7 +1183,8 @@ class ResUsers(models.Model):
             "password": old_passwd,
             "type": "password",
         }
-        user._check_credentials(credential, {"interactive": True})
+        with self._assert_can_auth(user=user.id):
+            user._check_credentials(credential, {"interactive": True})
 
         user._change_password(new_passwd)
         return True
