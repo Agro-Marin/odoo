@@ -129,6 +129,24 @@ def stored_translations(field: BaseString, record: ModelLike) -> dict[str, str] 
     return res[0] if res else None
 
 
+def stored_translations_multi(
+    field: BaseString, records: ModelLike, dirty_ids: typing.Any
+) -> dict[typing.Any, dict[str, str] | None]:
+    pending = records.filtered(lambda rec: rec.id in (dirty_ids or ()))
+    if pending:
+        pending.flush_recordset([field.name])
+    cr = records.env.cr
+    cr.execute(
+        SQL(
+            "SELECT id, %s FROM %s WHERE id IN %s",
+            SQL.identifier(field.name),
+            SQL.identifier(records._table),
+            tuple(records._ids),
+        )
+    )
+    return dict(cr.fetchall())
+
+
 def edit_translations_value(
     field: BaseString, value: typing.Any, record: ModelLike
 ) -> typing.Any:
@@ -423,11 +441,18 @@ def mark_dirty_model_term_translation(
     new_translations_list: list[dict[str, typing.Any]] = []
     new_terms = set(field.get_trans_terms(cache_value))
     delay_translations = records.env.context.get("delay_translations")
+    stored_by_id: dict[typing.Any, dict[str, str] | None] = {}
+    if new_terms:
+        real_records = records.filtered("id")
+        if real_records:
+            stored_by_id = stored_translations_multi(
+                field, real_records, records.env._core.get_dirty(field)
+            )
     for record in records:
         if not new_terms:
             new_translations_list.append({"en_US": cache_value, lang: cache_value})
             continue
-        stored = field._get_stored_translations(record)
+        stored = stored_by_id.get(record.id)
         if not stored:
             new_translations_list.append({"en_US": cache_value, lang: cache_value})
             continue

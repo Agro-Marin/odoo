@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from odoo import fields, models
+from odoo.orm.fields import _field_translation
 from odoo.orm.model_test_env import model_test_env
 
 _MOD = "test_term_translation_missing_en_us"
@@ -36,7 +37,11 @@ def test_write_over_legacy_row_without_en_us():
         doc = env["ttl.doc"].create({"name": "d"})
         field = doc._fields["body"]
         legacy = {"fr_FR": "Bonjour"}
-        with patch.object(field, "_get_stored_translations", return_value=legacy):
+        with patch.object(
+            _field_translation,
+            "stored_translations_multi",
+            return_value={doc.id: legacy},
+        ):
             field._mark_dirty_model_term_translation(doc, "Hello", "de_DE")
         cache = field._get_cache(doc.with_context(prefetch_langs=True).env)
         assert cache[doc.id] == {"fr_FR": "Hello", "de_DE": "Hello"}

@@ -340,7 +340,6 @@ class RecomputeMixin(_ModelStubs):
         model = self
         env = self.env
         cls = type(model)
-        _no_prefetch = ()
 
         id_to_fields: dict[int, list] = defaultdict(list)
         for field, ids in dirty_field_ids.items():
@@ -363,7 +362,10 @@ class RecomputeMixin(_ModelStubs):
                         record = _new(cls)
                         record.env = env
                         record._ids = (id_,)
-                        record._prefetch_ids = _no_prefetch
+                        # the batch as prefetch: a conversion that misses the
+                        # cache (Monetary reading currency_id) then fetches
+                        # once per batch instead of once per record
+                        record._prefetch_ids = some_ids
                         vals = {}
                         for f in id_to_fields[id_]:
                             col_val = f.get_column_update(record)
