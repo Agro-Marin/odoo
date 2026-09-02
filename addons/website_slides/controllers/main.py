@@ -608,7 +608,6 @@ class WebsiteSlides(WebsiteProfile):
             {
                 "achievements": achievements,
                 "users": users,
-                "top3_users": tools.lazy(self._get_top3_users),
                 "challenges": challenges,
                 "challenges_done": challenges_done,
                 "search_tags": request.env["slide.channel.tag"],
@@ -2210,6 +2209,9 @@ class WebsiteSlides(WebsiteProfile):
             file_size = len(post["binary_content"]) * 3 / 4  # base64
             if (file_size / 1024.0 / 1024.0) > 25:
                 return {"error": _("File is too big. File size cannot exceed 25MB")}
+
+        if not post.get("channel_id"):
+            return {"error": _("No course given, please contact the administrator.")}
 
         values = {
             fname: post[fname]

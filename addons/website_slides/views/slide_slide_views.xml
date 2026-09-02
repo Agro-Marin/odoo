@@ -337,7 +337,7 @@
                             </aside>
                             <main>
                                 <field name="name" class="fw-bolder fs-5" />
-                                <field name="channel_id" class="text-mutex" />
+                                <field name="channel_id" class="text-muted" />
                                 <field
                                     name="tag_ids"
                                     widget="many2many_tags"

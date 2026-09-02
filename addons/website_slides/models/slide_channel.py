@@ -504,7 +504,6 @@ class SlideChannel(models.Model):
 
     @api.depends("activity_ids.request_partner_id")
     @api.depends_context("uid")
-    @api.model
     def _compute_has_requested_access(self):
         requested_cids = (
             self.sudo()

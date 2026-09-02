@@ -5,10 +5,6 @@
         <!-- CHANNEL 0: Basics of Gardening -->
         <!-- ================================================== -->
         <!-- Note that admin is already member due to auto subscribe -->
-        <record id="slide_channel_0_partner_demo" model="slide.channel.partner">
-            <field name="channel_id" ref="website_slides.slide_channel_demo_0_gard_0" />
-            <field name="partner_id" ref="base.partner_demo" />
-        </record>
         <record id="slide_channel_0_partner_demo_portal" model="slide.channel.partner">
             <field name="channel_id" ref="website_slides.slide_channel_demo_0_gard_0" />
             <field name="partner_id" ref="base.partner_demo_portal" />
@@ -128,7 +124,7 @@
             <field name="channel_id" ref="website_slides.slide_channel_demo_1_gard1" />
             <field name="partner_id" ref="base.partner_demo" />
         </record>
-        <record id="slide_slide_1_0_partner_demo" model="slide.slide.partner">
+        <record id="slide_slide_1_0_partner_demo_portal" model="slide.slide.partner">
             <field name="slide_id" ref="website_slides.slide_slide_demo_1_0" />
             <field name="partner_id" ref="base.partner_demo" />
             <field name="vote">1</field>

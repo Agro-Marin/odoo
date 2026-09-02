@@ -308,7 +308,7 @@ class SlideSlide(models.Model):
     embed_ids = fields.One2many(
         "slide.embed", "slide_id", string="External Slide Embeds"
     )
-    embed_count = fields.Integer("# of Embeds", compute="_compute_embed_count")
+    embed_count = fields.Integer("# of Embed Views", compute="_compute_embed_count")
     slide_views = fields.Integer(
         "# of Website Views", store=True, compute="_compute_slide_views"
     )
