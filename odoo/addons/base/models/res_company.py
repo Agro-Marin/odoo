@@ -625,6 +625,7 @@ class ResCompany(models.Model):
             "active",
             "sequence",
             "partner_id",
+            "user_ids",
         }
 
     @api.model

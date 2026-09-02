@@ -238,7 +238,9 @@ class ResGroups(models.Model):
     ) -> Any:
         if order and order.startswith("full_name"):
             groups = super().search(domain)
-            groups = groups.sorted("full_name", reverse=order.endswith("DESC"))
+            groups = groups.sorted(
+                "full_name", reverse=order.strip().upper().endswith("DESC")
+            )
             groups = groups[offset : offset + limit] if limit else groups[offset:]
             return groups._as_query(order)
         return super()._search(domain, offset, limit, order, **kwargs)

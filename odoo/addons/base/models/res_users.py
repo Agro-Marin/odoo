@@ -28,7 +28,7 @@ from odoo.http import DEFAULT_LANG, request
 from odoo.libs.datetime import all_timezones
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.json import dumps as json_dumps
-from odoo.libs.password import CryptContext
+from odoo.libs.password import _MAX_ROUNDS, CryptContext
 from odoo.tools import (
     SQL,
     email_domain_extract,
@@ -279,7 +279,7 @@ class ResUsers(models.Model):
         return CryptContext(
             ["pbkdf2_sha512", "plaintext"],
             deprecated=["auto"],
-            pbkdf2_sha512__rounds=max(MIN_ROUNDS, configured),
+            pbkdf2_sha512__rounds=min(_MAX_ROUNDS, max(MIN_ROUNDS, configured)),
         )
 
     def _check_company_domain(self, companies: Self | str | None) -> Domain:

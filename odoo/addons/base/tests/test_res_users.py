@@ -1910,3 +1910,15 @@ class TestCryptContextConfiguration(TransactionCase):
         with mute_logger("odoo.addons.base.models.res_users"):
             context = self.env["res.users"]._crypt_context()
         self.assertTrue(context.hash("Ru!Rounds1234"))
+
+    def test_rounds_above_the_backend_maximum_still_authenticate(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "password.hashing.rounds", "20000000"
+        )
+        self.env.registry.clear_cache("stable")
+        context = self.env["res.users"]._crypt_context()
+        hashed = context.hash("Ru!Rounds9999")
+        self.assertTrue(
+            context.verify("Ru!Rounds9999", hashed),
+            "a rounds value above the backend cap must not lock users out",
+        )

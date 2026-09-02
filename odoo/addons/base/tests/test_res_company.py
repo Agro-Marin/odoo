@@ -220,3 +220,29 @@ class TestCompanyPublicUser(TransactionCase):
             "The public user must be found by its per-company login even when "
             "it is not a member of base.group_public (RC-L3).",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestCompanyMembershipCache(TransactionCase):
+    def test_company_side_user_ids_write_invalidates_user_company_cache(self):
+        user = self.env["res.users"].create(
+            {
+                "name": "Membership Probe",
+                "login": "membership_probe",
+                "company_ids": [Command.set(self.env.company.ids)],
+                "company_id": self.env.company.id,
+            }
+        )
+        other = self.env["res.company"].create({"name": "Extra Co"})
+        other.write({"user_ids": [Command.link(user.id)]})
+        self.assertIn(
+            other.id,
+            user._get_company_ids(),
+            "linking a user from the company side must refresh _get_company_ids",
+        )
+        other.write({"user_ids": [Command.unlink(user.id)]})
+        self.assertNotIn(
+            other.id,
+            user._get_company_ids(),
+            "unlinking a user from the company side must refresh _get_company_ids",
+        )
