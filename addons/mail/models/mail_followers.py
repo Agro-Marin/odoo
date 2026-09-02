@@ -162,7 +162,9 @@ _MAIL_DOC_READS = {
 
 class MailFollowers(models.Model):
     _name = "mail.followers"
-    _log_access = False
+    # Audited: who subscribed whom, and when. `_create_followers` writes its rows
+    # with a raw bulk INSERT, so it has to stamp the log-access columns itself.
+    _log_access = True
     _description = "Document Followers"
 
     res_model = fields.Char("Related Document Model Name", required=True)
@@ -450,19 +452,28 @@ class MailFollowers(models.Model):
             subtype_ids_by_key[(vals["res_id"], vals["partner_id"])] = [
                 sid for command in vals.get("subtype_ids") or () for sid in command[2]
             ]
+        # The log-access columns are spelled out because this INSERT bypasses the
+        # ORM, which is what would otherwise fill them (see `_add_default_values`).
+        # Without them the audit trail is NULL on the only path that creates
+        # followers. `self` and not `sudo_self`, so the row names the real user.
         rows = self.env.execute_query(
             SQL(
                 """
-            INSERT INTO mail_followers (res_model, res_id, partner_id)
-                 SELECT * FROM unnest(%(res_models)s::varchar[],
-                                      %(res_ids)s::int[],
-                                      %(partner_ids)s::int[])
+            INSERT INTO mail_followers (res_model, res_id, partner_id,
+                                        create_uid, create_date,
+                                        write_uid, write_date)
+                 SELECT *, %(uid)s, %(now)s, %(uid)s, %(now)s
+                   FROM unnest(%(res_models)s::varchar[],
+                               %(res_ids)s::int[],
+                               %(partner_ids)s::int[])
             ON CONFLICT DO NOTHING
               RETURNING id, res_id, partner_id
         """,
                 res_models=res_models,
                 res_ids=res_ids,
                 partner_ids=partner_ids,
+                uid=self.env.uid,
+                now=self.env.cr.now(),
                 to_flush=self._fields_read_by(_FOLLOWER_WRITES),
             )
         )
