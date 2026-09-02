@@ -245,6 +245,11 @@ class ThreadController(http.Controller):
             raise NotFound
         record.check_access("read")
         subtypes = record._mail_get_message_subtypes()
+        if follower.partner_id.partner_share:
+            # a share partner never receives an internal message, so offering to
+            # subscribe them to an internal subtype promises a notification that
+            # cannot arrive
+            subtypes = subtypes.filtered(lambda subtype: not subtype.internal)
         store = Store().add(subtypes, ["name"]).add(follower, ["subtype_ids"])
         return {
             "store_data": store.get_result(),

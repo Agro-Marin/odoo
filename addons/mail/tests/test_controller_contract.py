@@ -72,6 +72,58 @@ class TestMailControllerContract(MailControllerCommon):
             "reading subscription data for a follower that is gone",
         )
 
+    def test_read_subscription_data_hides_internal_subtypes_from_a_portal_follower(
+        self,
+    ):
+        """A share partner cannot see internal messages, so offering to
+        subscribe them to an internal subtype promises a notification that will
+        never arrive."""
+        portal_partner = self.env["res.partner"].create(
+            {"email": "portal.follower@test.example.com", "name": "Portal Follower"}
+        )
+        self.env["res.users"].create(
+            {
+                "group_ids": [(6, 0, [self.env.ref("base.group_portal").id])],
+                "login": "portal_follower",
+                "name": "Portal Follower",
+                "partner_id": portal_partner.id,
+            }
+        )
+        self.assertTrue(portal_partner.partner_share)
+        self.record.message_subscribe(partner_ids=portal_partner.ids)
+        follower = self.record.message_follower_ids.filtered(
+            lambda f: f.partner_id == portal_partner
+        )
+        self.authenticate("contract_user", "contract_user")
+        result = self.call_jsonrpc(
+            "/mail/read_subscription_data", {"follower_id": follower.id}
+        )
+        offered = self.env["mail.message.subtype"].browse(result["subtype_ids"])
+        self.assertTrue(offered, "the portal follower is still offered something")
+        self.assertFalse(
+            offered.filtered("internal"),
+            "an internal subtype was offered to a share partner",
+        )
+
+    def test_read_subscription_data_keeps_internal_subtypes_for_an_employee(self):
+        follower = self.record.message_follower_ids.filtered(
+            lambda f: f.partner_id == self.contract_user.partner_id
+        )
+        if not follower:
+            self.record.message_subscribe(partner_ids=self.contract_user.partner_id.ids)
+            follower = self.record.message_follower_ids.filtered(
+                lambda f: f.partner_id == self.contract_user.partner_id
+            )
+        self.authenticate("contract_user", "contract_user")
+        result = self.call_jsonrpc(
+            "/mail/read_subscription_data", {"follower_id": follower.id}
+        )
+        offered = self.env["mail.message.subtype"].browse(result["subtype_ids"])
+        self.assertTrue(
+            offered.filtered("internal"),
+            "an internal user must keep seeing internal subtypes",
+        )
+
     def test_thread_messages_on_an_unreachable_thread(self):
         self.assertRejected(
             "/mail/thread/messages",
