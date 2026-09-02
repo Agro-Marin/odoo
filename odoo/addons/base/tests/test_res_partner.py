@@ -606,6 +606,36 @@ class TestPartnerWriteContract(TransactionCase):
         self.assertEqual(first.website, "http://example.com")
         self.assertEqual(second.website, "http://example.com")
 
+    def test_write_only_runs_the_parent_sync_for_fields_it_syncs(self):
+        """The parent/commercial sync consults parent_id, type, the address
+        fields and the commercial fields; writing anything else must not snapshot
+        it (an attachment-backed image is the expensive case) nor run the sync."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Sync Parent", "is_company": True})
+        child = Partner.create(
+            {"name": "Sync Child", "parent_id": parent.id, "type": "contact"}
+        )
+
+        seen = []
+        original = type(Partner)._fields_sync
+
+        def spy(self, values):
+            seen.append(set(values))
+            return original(self, values)
+
+        self.patch(type(Partner), "_fields_sync", spy)
+
+        child.write({"comment": "<p>note</p>", "function": "CEO", "phone": "123"})
+        self.assertEqual(seen, [], "a non-synced write must not run the parent sync")
+
+        child.write({"vat": "BE0477472701"})
+        self.assertTrue(seen, "a commercial-field write must still run the sync")
+        self.assertTrue(
+            all(fields == {"vat"} for fields in seen),
+            "the sync must be handed only the changed commercial field",
+        )
+        self.assertEqual(parent.vat, "BE0477472701", "vat must propagate to the parent")
+
     def test_create_does_not_mutate_the_values_it_is_given(self):
         Partner = self.env["res.partner"]
         parent = Partner.create({"name": "Mutation Co", "is_company": True})
