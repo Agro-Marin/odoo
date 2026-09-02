@@ -6,7 +6,7 @@
 
 ## Running the checks
 
-The sixty-nine blocking checkers do **not** share one CLI, and a loop that
+The seventy blocking checkers do **not** share one CLI, and a loop that
 assumes they do fails on twenty-one of them.
 
 **Forty-three are contract gates.** Each takes bare for a human-readable
@@ -19,7 +19,7 @@ python tooling/architecture/layer_check.py --check   # CI mode: exit 1 on new vi
 python tooling/architecture/layer_check.py --json    # machine-readable
 ```
 
-**Twenty-six are count ratchets.** `js_function_length`, `py_function_length`, `py_class_length`, `py_hook_arity`,
+**Twenty-seven are count ratchets.** `js_function_length`, `py_function_length`, `py_class_length`, `py_hook_arity`,
 `py_x2many_count`, `werkzeug_in_addons`, `sql_in_placeholder`, `py_count_as_boolean`,
 `py_shadowed_member`, `naming_vocabulary`, `naming_core_vocabulary`,
 `field_hook_naming`, `field_hook_purity`, `js_service_shape`,
@@ -27,11 +27,11 @@ python tooling/architecture/layer_check.py --json    # machine-readable
 `js_eager_mock_fixture`, `py_unresolved_calls`, `order_line_qty` and `bridge_budget` implement no
 `--check` at all — the twenty-one a `--check` loop breaks on. They print a number under `--count` and hand it
 to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
-`js_forced_render` and `translation_catalog` also implement `--check`, but CI
-drives them as ratchets, so they belong to this group. Run any of the twenty-four bare
+`js_forced_render`, `js_ts_check` and `translation_catalog` also implement `--check`, but CI
+drives them as ratchets, so they belong to this group. Run any of the twenty-five bare
 and it reports without enforcing.
 
-Forty-three plus twenty-six is sixty-nine. All three figures derive from the
+Forty-three plus twenty-seven is seventy. All three figures derive from the
 workflow, by the assertion that divides its own list; so does the membership of
 the loop below (`test_the_reproduce_loop_is_exactly_the_contract_gates`) and,
 since a gate governing several scopes gets a CI step per scope, the scoped
@@ -104,6 +104,7 @@ js_service_shape   jsserviceshape
 js_forced_render   jsforcedrender
 js_vacuous_assertions jsvacuous
 js_eager_mock_fixture jseagerfixture
+js_ts_check        jstscheck
 js_duplication     jsduplication
 translation_catalog translations
 py_unresolved_calls unresolved_calls
@@ -112,8 +113,8 @@ orphan_depends     orphandepends
 module_suite_lane  suite_lane
 EOF
 
-# The two loops above run each checker once, at its default scope: 69 of the
-# workflow's 100 steps. A gate governing several scopes gets one step per scope,
+# The two loops above run each checker once, at its default scope: 70 of the
+# workflow's 101 steps. A gate governing several scopes gets one step per scope,
 # and these are the other 31. The rows are the workflow's own argv, left/right of
 # the pipe, because a scope is not always spelled `--addon` and the flag is not
 # always `--count`: `js_private_access` counts a second tree with
@@ -173,7 +174,7 @@ prefix on a `[FAIL]` before concluding this tree is broken.
 ## Quality gates beyond the boundaries
 
 The Python boundary checker is one gate among several. The
-`Architecture Boundaries` workflow runs **sixty-nine** blocking checkers, after
+`Architecture Boundaries` workflow runs **seventy** blocking checkers, after
 `pytest tooling/architecture/` self-tests them:
 
 | Gate | What it locks |
@@ -211,6 +212,7 @@ The Python boundary checker is one gate among several. The
 | `js_duplication.py` | the web addon's duplicated JS, as byte-exact runs of 9+ significant lines — the one property the other JS gates cannot see, because a copied block is structurally identical to a block that belongs where it is |
 | `js_vacuous_assertions.py` | a zero-count HOOT assertion naming a class no non-test file declares — the one assertion shape a wrong selector cannot be told from a passing test |
 | `js_eager_mock_fixture.py` | a mock fixture mutating another addon's model at module scope — hoot imports every test file during collection and model definitions are job-scoped per test, so such a statement runs for every suite in the bundle EXCEPT the one that wrote it. Fifty of these cost 37 scoped failures across twelve POS addons; a hard zero with no baseline file |
+| `js_ts_check.py` | how much client source is actually type-checked, as the count of `static/src` files carrying no leading `// @ts-check`. `tsconfig.json` sets `allowJs` with `strict`, `noImplicitAny` and `strictNullChecks` all false, so the directive is the only thing that decides whether a file's JSDoc is enforced — and a file without it reports zero errors to `typecheck.yml`'s aggregate whether it is clean or wrong, which is why that floor cannot see this boundary move in either direction. The ignore list is read out of `eslint.config.mjs` rather than restated |
 | `py_function_length.py` | the core's Python function-length budget — ratchets *excess lines* over 90, not the offender count, because splitting one long function raises the count while lowering the excess |
 | `py_class_length.py` | the class-length budget, the mass a function budget cannot see — a class of short methods; ratchets *excess lines* over 400 per class summed over offenders, the unit `py_function_length.py` uses and for the same reason, in the same scopes (`pyclasslen` for the core, `pyclasslen_addons` for the bundled tree as one number, `--mode no-increase`) |
 | `werkzeug_in_addons.py` | a non-test addon file importing werkzeug instead of the vocabulary `odoo.http` exports — the request, the response, `@route` and the HTTP exceptions a controller raises. 129 files did at the commit before the exceptions were re-exported, restating the framework's one WSGI-toolkit dependency in every module that serves a page. Ratchets the file count, because a file is written in one vocabulary or the other; not a hard zero, because an `ir.http` override that builds converters and a routing map keeps `werkzeug.routing` legitimately |
@@ -313,7 +315,7 @@ retirement log is the last place to keep one. A backticked path in this repo
 asserts the file exists, so only *where on the page* a name sits distinguishes a
 citation from an assertion.
 
-### Checkers outside the sixty-nine
+### Checkers outside the seventy
 
 Five more block without appearing in the table, enforced by the
 `pytest tooling/architecture/` step rather than a `--check` invocation of their
@@ -325,8 +327,8 @@ produces it). Each carries a real-tree test —
 `test_the_real_tree_holds_the_property_today`,
 `test_the_surface_matches_the_committed_baseline`, and for the last one
 `test_every_prose_figure_is_fresh` — so a violation fails the self-test step,
-which is blocking. **Sixty-nine run as steps of their own and five block through
-the self-test: seventy-four in all.** The membership of this list is derived rather
+which is blocking. **Seventy run as steps of their own and five block through
+the self-test: seventy-five in all.** The membership of this list is derived rather
 than kept: `GATES` in
 `test_every_gate_refuses_an_empty_tree.py` is the roster, and it is compared
 against the workflow's, so a gate can be in neither list only by being in no
@@ -338,7 +340,7 @@ which is the failure the paragraph describes: the roster in
 already called it a gate, and this page — the operator's manual for exactly this
 machinery — said three.
 
-`cross_repo_coherence.py` is a seventy-fifth checker and the only one outside CI: it
+`cross_repo_coherence.py` is a seventy-sixth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub
 checks out this repo alone and the check needs the sibling checkouts. Opt-in per
 clone — `pre-commit install --hook-type pre-push`.
@@ -351,7 +353,7 @@ Eleven and not eight, which is what counting only the table above would give:
 the self-test rather than a step of their own, and `cross_repo_coherence` is the
 third.
 
-**One-hundred** is how many steps CI runs the sixty-nine in, each step invoking
+**One-hundred-and-one** is how many steps CI runs the seventy in, each step invoking
 exactly one checker; the self-test is the step above them all. The two figures
 differ because a gate governing several scopes gets one step per scope —
 `py_function_length` alone accounts for eight.
@@ -379,8 +381,8 @@ so every cleanup is locked in.
 `ratchet.py <gate> --count N` with no `baselines/<gate>.json` passes at 0 and
 fails on anything above it, in either mode, naming the file it did not find;
 `--update` is what opens a floor, and `--list` reads only the files, so it stays
-a list of debt rather than of every contract. Thirty-six of the counts the
-workflows hand to `ratchet.py` are held that way: **eslint, jsfunclen_stock, jsfunclen_product, pyfunclen_loyalty, pyfunclen_tests, py_x2many_count_mail, py_x2many_count_stock, py_x2many_count_project, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, py_hook_arity, py_hook_arity_addons, py_shadowed_member, py_shadowed_member_enterprise, py_shadowed_member_agromarin, py_shadowed_member_design-themes, jsserviceshape_account, jsserviceshape_stock, jseagerfixture, naming_design-themes, mypy_cli, mypy_tests, orderlineqty_agromarin, orderlineqty_design-themes, mypy_core_rest, naming_core, py_count_as_boolean_tests, py_hook_arity_tests, py_x2many_count_tests and sql_in_placeholder_tests**.
+a list of debt rather than of every contract. Thirty-seven of the counts the
+workflows hand to `ratchet.py` are held that way: **eslint, jstscheck, jsfunclen_stock, jsfunclen_product, pyfunclen_loyalty, pyfunclen_tests, py_x2many_count_mail, py_x2many_count_stock, py_x2many_count_project, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, py_hook_arity, py_hook_arity_addons, py_shadowed_member, py_shadowed_member_enterprise, py_shadowed_member_agromarin, py_shadowed_member_design-themes, jsserviceshape_account, jsserviceshape_stock, jseagerfixture, naming_design-themes, mypy_cli, mypy_tests, orderlineqty_agromarin, orderlineqty_design-themes, mypy_core_rest, naming_core, py_count_as_boolean_tests, py_hook_arity_tests, py_x2many_count_tests and sql_in_placeholder_tests**.
 Each was born at zero, so the file it once carried recorded no debt and no
 move — a contract wearing ratchet JSON, and `--list` reported it as a floor to
 drive down. `assert_ratchet` under `test_lint` has read an absent baseline as
@@ -539,9 +541,9 @@ stated once above and a second copy of it drifts.
 ### The limits of "enforced"
 
 **The integration gate is the only lane that runs addon tests in Python.** All
-sixty-nine boundary checkers are structural and DB-free: they read import graphs,
+seventy boundary checkers are structural and DB-free: they read import graphs,
 call graphs, reached-member sets and documents. A change can satisfy all
-sixty-nine, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
+seventy, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
 (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
 2026-08 while every gate and both DB-free tiers stayed green. Read a green
 boundary job as "the structure holds", never as "the framework works".

@@ -28,6 +28,7 @@ GATES = {
     "js_self_bridge": ["--check"],
     "js_shadow_root": ["--check"],
     "js_forced_render": ["--check"],
+    "js_ts_check": ["--check"],
     "js_suite_parity": ["--check"],
     "js_context_narrowing": ["--check"],
     "named_export_coherence": ["--check"],

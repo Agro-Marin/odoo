@@ -18,7 +18,7 @@ a question — those live at the bottom of the view that owns the subject, under
 | R1 | `Registry._relation_reflections` has an undeclared lifetime | High | 2026-08-08 | **2026-08-09** |
 | R2 | The layering is true of imports and false of the runtime graph | Medium | 2026-08-08 | — |
 | R3 | Migration stage (`pre`/`post`) is unenforced and unrecoverable | High | 2026-08-08 | — |
-| R4 | "Enforced" means structural only — 69 gates cannot see behaviour | High | 2026-08-08 | — |
+| R4 | "Enforced" means structural only — 70 gates cannot see behaviour | High | 2026-08-08 | — |
 | R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 | **2026-08-14** |
 | R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 | — |
 | R7 | Every measured figure is single-process | Medium | 2026-08-08 | **2026-08-28** |
@@ -119,7 +119,7 @@ needs the previous representation and is filed as `post-` has nothing to read.
 [`scenarios.md`](scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
 
 **Cost.** Silent data loss on upgrade of a populated database. Not caught by any
-gate — all 69 are structural and DB-free — and not caught by either DB-free test
+gate — all 70 are structural and DB-free — and not caught by either DB-free test
 tier.
 
 **Narrowed 2026-08-09: the syntactic half is caught, the semantic half is the
@@ -175,9 +175,9 @@ why this entry stays open at High rather than closing on the test above.
 
 ## R4 — "Enforced" means structural only
 
-**What.** The 69 boundary checkers read import graphs, call graphs,
+**What.** The 70 boundary checkers read import graphs, call graphs,
 reached-member sets and documents. None executes the framework. A change can
-satisfy all 69 and both DB-free tiers and still be wrong.
+satisfy all 70 and both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming
 `OrmCore`'s slots (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed
@@ -443,7 +443,7 @@ register held it, so the deletion left most gates stating their reason nowhere
 — the removal commit records that cost against itself. `44abc16805b` replaced
 every dangling `ADR-NNNN` token with the decision text the record had carried,
 and wrote a docstring for each gate module that had cited a record and had none.
-Today **54** of the **77** gate modules under `tooling/architecture/` carry no
+Today **54** of the **78** gate modules under `tooling/architecture/` carry no
 module docstring — a gate module being every `.py` there that is neither a test
 nor a private helper.
 

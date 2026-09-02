@@ -1452,6 +1452,25 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run @ts-check adoption ratchet
+        id: js_ts_check
+        # tsconfig.json sets allowJs with strict, noImplicitAny and
+        # strictNullChecks all false, so what a client file is actually checked
+        # against is decided by its own `// @ts-check` line and nowhere else. A
+        # file without it is parsed and believed: it contributes zero to the tsc
+        # floor whether it is clean or wrong, so typecheck.yml's aggregate
+        # cannot see this boundary move in either direction. web carried 819 of
+        # its 821 static/src files across it by hand with nothing holding the
+        # ground behind them.
+        run: |
+          set +e
+          python tooling/architecture/js_ts_check.py --top 0 | tee /tmp/js_ts_check.log
+          python tooling/architecture/js_ts_check.py --count \
+            | xargs python tooling/ratchet/ratchet.py jstscheck --count
+          rc=$?
+          set -e
+          exit $rc
+
       - name: Run EDI vocabulary gate
         id: edi_vocabulary
         # "EDI" names three unrelated things here -- fiscal clearance,
