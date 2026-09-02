@@ -24,19 +24,6 @@ class ResCompany(models.Model):
     _rec_names_search = ["code", "name"]
     _parent_store = True
 
-    def copy(self, default: ValuesType | None = None) -> Self:
-        raise UserError(
-            self.env._(
-                "Duplicating a company is not allowed. Please create a new company instead."
-            )
-        )
-
-    def _default_logo(self) -> bytes:
-        return _get_default_logo()
-
-    def _default_currency_id(self) -> models.Model:
-        return self.env.user.company_id.currency_id
-
     partner_id = fields.Many2one(
         "res.partner",
         string="Partner",
@@ -80,7 +67,7 @@ class ResCompany(models.Model):
     logo = fields.Binary(
         related="partner_id.image_1920",
         string="Company Logo",
-        default=_default_logo,
+        default=lambda self: self._default_logo(),
         readonly=False,
     )
     bank_ids = fields.One2many(
@@ -327,6 +314,12 @@ class ResCompany(models.Model):
                             )
                         )
 
+    def _default_logo(self) -> bytes:
+        return _get_default_logo()
+
+    def _default_currency_id(self) -> models.Model:
+        return self.env.user.company_id.currency_id
+
     def _sanitize_vals(self, vals: dict[str, Any]) -> dict[str, Any]:
         if "code" not in vals:
             return vals
@@ -452,6 +445,13 @@ class ResCompany(models.Model):
         if company_address_fields_upd:
             self.invalidate_model(company_address_fields)
         return res
+
+    def copy(self, default: ValuesType | None = None) -> Self:
+        raise UserError(
+            self.env._(
+                "Duplicating a company is not allowed. Please create a new company instead."
+            )
+        )
 
     def unlink(self) -> bool:
         res = super().unlink()
