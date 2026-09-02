@@ -40,6 +40,9 @@ class WebsiteProfile(http.Controller):
         Raises a Not Found Exception when the profile does not exist
         """
         user_sudo = request.env["res.users"].sudo().browse(user_id)
+        if not user_sudo.exists():
+            raise request.not_found()
+
         # User can access - no matter what - his own profile
         if user_sudo.id == request.env.user.id:
             return user_sudo, False
@@ -47,9 +50,6 @@ class WebsiteProfile(http.Controller):
         # Profile being published is more specific than general karma requirement (check it first!)
         if not user_sudo.website_published:
             return False, _("This profile is private!")
-        elif not user_sudo.exists():
-            raise request.not_found()
-
         elif request.env.user.karma < request.website.karma_profile_min:
             return False, _("Not have enough karma to view other users' profile.")
         return user_sudo, False
