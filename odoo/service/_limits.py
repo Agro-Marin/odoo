@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Any
 
-from .settings import INHERIT_FROM_CRON, current
+from odoo.tools.config import config
 
 _logger = logging.getLogger("odoo.service.server")
 
@@ -28,18 +28,19 @@ counter, so the base was the offset and neither was written down.
 base, and `base=2` is what reproduces this curve exactly.
 """
 
+INHERIT_FROM_CRON = -1
+
 
 def _is_inherited_from_cron(limit: int) -> bool:
     return limit <= INHERIT_FROM_CRON
 
 
 def _get_inherited_budget(*keys: str) -> int:
-    settings = current()
-    limit: int = getattr(settings, keys[0])
+    limit = config[keys[0]]
     for key in keys[1:]:
         if not _is_inherited_from_cron(limit):
             break
-        limit = getattr(settings, key)
+        limit = config[key]
     return limit
 
 
@@ -61,6 +62,7 @@ def get_job_real_time_budget() -> float:
 
 
 def get_memory_rss(process: Any) -> int:
+    # psutil's own API, not ours: memory_info() must not be swept into a rename.
     return process.memory_info().rss
 
 

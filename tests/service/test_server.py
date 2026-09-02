@@ -2286,6 +2286,14 @@ class TestMemoryLogStrings:
         assert _limits.get_memory_rss(proc) == 111
         assert _limits.get_memory_rss(proc) != 999
 
+    def test_reads_rss_off_a_real_psutil_process(self):
+        # Unmocked on purpose: the helper binds to psutil's memory_info(),
+        # and a rename that sweeps that call breaks every server flavour at
+        # startup while every mocked test stays green (2176e0fd942 did).
+        import psutil
+
+        assert _limits.get_memory_rss(psutil.Process()) > 0
+
 
 @pytest.fixture
 def event_server(srv):
