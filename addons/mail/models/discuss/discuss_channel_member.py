@@ -833,6 +833,7 @@ class DiscussChannelMember(models.Model):
         this method exists to avoid.
         """
         channel_data = {}
+        invited = self.browse()
         for member in self:
             channel = member.channel_id
             store = Store(bus_channel=member._bus_channel())
@@ -850,7 +851,52 @@ class DiscussChannelMember(models.Model):
             }
             if not member.is_self and not self.env.user._is_public():
                 payload["invited_by_user_id"] = self.env.user.id
+                invited += member
             member._bus_send("discuss.channel/joined", payload)
+        if not invite_to_rtc_call:
+            invited._push_notify_invited()
+
+    def _push_notify_invited(self) -> None:
+        """Push the invitation to the invitee's device.
+
+        The OS-level counterpart of the "You have been invited to #x" toast, not
+        its replacement: the toast only reaches someone who happens to be looking
+        at the tab, and the push only reaches someone who subscribed to them.
+
+        Restricted to real channels. A chat is created by the act of opening it,
+        so an invitation push there would fire on every new conversation before a
+        single word has been said; the first message pushes on its own.
+        """
+        for channel, members in self.grouped("channel_id").items():
+            if channel.channel_type != "channel":
+                continue
+            devices, private_key, public_key = (
+                channel._web_push_get_partners_parameters(members.partner_id.ids)
+            )
+            if not devices:
+                continue
+            inviter = self.env.user.partner_id
+            payload_by_lang = {}
+            for lang in {partner.lang for partner in devices.partner_id}:
+                channel_lang = channel.with_context(lang=lang)
+                payload_by_lang[lang] = {
+                    "title": channel_lang.display_name,
+                    "options": {
+                        "body": channel_lang.env._(
+                            "%(user)s has invited you to this channel",
+                            user=inviter.display_name,
+                        ),
+                        "icon": f"/web/image/discuss.channel/{channel.id}/avatar_128",
+                        "data": {
+                            "action": "mail.action_discuss",
+                            "model": "discuss.channel",
+                            "res_id": channel.id,
+                        },
+                    },
+                }
+            channel._web_push_send_notification(
+                devices, private_key, public_key, payload_by_lang=payload_by_lang
+            )
 
     def _get_persona_name(self) -> str:
         """The member's display name, partner first, never a falsy sentinel.

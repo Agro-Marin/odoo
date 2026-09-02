@@ -1380,3 +1380,21 @@ class TestChannelInternals(MailCommon, HttpCase):
         self.assertEqual(
             new_msg.partner_ids, self.test_channel.channel_member_ids.partner_id
         )
+
+    @mute_logger("odoo.models.unlink")
+    def test_an_invitation_to_a_channel_reaches_the_invitee_as_a_push(self):
+        """The toast only exists while the invitee is looking at the tab."""
+        self._setup_push_devices_for_partners(self.partner_employee)
+        with self.mock_push_to_end_point():
+            self.test_channel._add_members(users=self.user_employee)
+            self.assertPushNotification(
+                title=self.test_channel.display_name,
+                body_content="has invited you to this channel",
+            )
+
+    @mute_logger("odoo.models.unlink")
+    def test_a_member_who_adds_themselves_gets_no_push(self):
+        self._setup_push_devices_for_partners(self.env.user.partner_id)
+        with self.mock_push_to_end_point():
+            self.test_channel._add_members(users=self.env.user)
+            self.assertNoPushNotification()
