@@ -509,7 +509,13 @@ class MailActivity(models.Model):
             if self.activity_type_id.summary:
                 self.summary = self.activity_type_id.summary
 
-            self.user_id = self.activity_type_id.default_user_id or self.env.user
+            # The type carries *defaults*; one that names no assignee has
+            # nothing to say about who is assigned, so a choice the user already
+            # made stands -- same rule as `summary` and `note` above and below.
+            if self.activity_type_id.default_user_id:
+                self.user_id = self.activity_type_id.default_user_id
+            elif not self.user_id:
+                self.user_id = self.env.user
             self.date_deadline = self.activity_type_id._get_date_deadline(self.user_id)
             if self.activity_type_id.default_note:
                 self.note = self.activity_type_id.default_note
