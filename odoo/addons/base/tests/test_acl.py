@@ -838,6 +838,21 @@ class TestResGroupsCacheInvalidation(TransactionCaseWithUserDemo):
         self.assertIn(granter.id, admin._get_group_ids())
 
 
+class TestResGroupsFullNameOrder(TransactionCaseWithUserDemo):
+    def test_full_name_desc_is_case_insensitive(self):
+        Groups = self.env["res.groups"]
+        ascending = Groups.search([], order="full_name").mapped("full_name")
+        self.assertTrue(len(ascending) > 1, "precondition: several groups exist")
+        for spec in ("full_name desc", "full_name DESC", "full_name Desc"):
+            with self.subTest(order=spec):
+                descending = Groups.search([], order=spec).mapped("full_name")
+                self.assertEqual(
+                    descending,
+                    list(reversed(ascending)),
+                    "any spelling of a descending sort must reverse the order",
+                )
+
+
 class TestFieldDescriptionCachePerGroupSet(TransactionCaseWithUserDemo):
     @classmethod
     def setUpClass(cls):

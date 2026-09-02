@@ -635,6 +635,7 @@ class ResCompany(models.Model):
             "active",
             "sequence",
             "partner_id",
+            "user_ids",
         }
 
     def action_all_company_branches(self) -> dict[str, Any]:
