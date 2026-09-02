@@ -1,6 +1,6 @@
 from typing import Literal, Self
 
-from odoo import api, fields, models, tools
+from odoo import _, api, exceptions, fields, models, tools
 from odoo.api import ValuesType
 
 
@@ -60,12 +60,69 @@ class MailMessageSubtype(models.Model):
         return super().create(vals_list)
 
     def write(self, vals: ValuesType) -> Literal[True]:
+        self._check_master_data_config(vals)
         self.env.registry.clear_cache()
         return super().write(vals)
 
     def unlink(self) -> Literal[True]:
         self.env.registry.clear_cache()
         return super().unlink()
+
+    def _check_master_data_config(self, vals: ValuesType) -> None:
+        """Refuse to unpin the configuration the master subtypes are relied on for."""
+        model_info = self._get_model_info_by_xmlid()
+        pinned_fnames = {fname for pinned in model_info.values() for fname in pinned}
+        if not pinned_fnames & vals.keys():
+            return
+        modified = self.browse()
+        for xml_id, pinned in model_info.items():
+            subtype = self.env.ref(xml_id, raise_if_not_found=False)
+            if not subtype or subtype not in self:
+                continue
+            if any(
+                # beware of '' vs False for a void res_model
+                (vals[fname] or False) != (value or False)
+                for fname, value in pinned.items()
+                if fname in vals
+            ):
+                modified += subtype
+        if modified:
+            raise exceptions.UserError(
+                _(
+                    "You cannot modify %(subtype_names)s as their configuration is required in various apps.",
+                    subtype_names=", ".join(subtype.name for subtype in modified),
+                )
+            )
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_master_data(self) -> None:
+        master_data = self.browse()
+        for xml_id in self._get_model_info_by_xmlid():
+            subtype = self.env.ref(xml_id, raise_if_not_found=False)
+            if subtype and subtype in self:
+                master_data += subtype
+        if master_data:
+            raise exceptions.UserError(
+                _(
+                    "You cannot delete %(subtype_names)s as they are required in various apps.",
+                    subtype_names=", ".join(subtype.name for subtype in master_data),
+                )
+            )
+
+    @api.model
+    def _get_model_info_by_xmlid(self) -> dict:
+        """Configuration the master subtypes must keep: every chatter reads them.
+
+        'comment' backs 'Send a message' and must stay model agnostic and
+        readable by portal users; 'note' backs 'Log a note' and must stay model
+        agnostic and internal; 'activities' is posted when marking an activity
+        as done, where only the model matters.
+        """
+        return {
+            "mail.mt_comment": {"res_model": False, "internal": False},
+            "mail.mt_note": {"res_model": False, "internal": True},
+            "mail.mt_activities": {"res_model": False},
+        }
 
     @tools.ormcache("model_name")
     def _get_auto_subscription_subtypes(self, model_name: str) -> tuple:
