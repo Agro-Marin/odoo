@@ -464,7 +464,7 @@ are clean and always will be, because that reach produces no import edge.
 
 The inversion is one of kind, not of volume: the two reach the Registry about as
 often, and Layer 2 reaches more *distinct* members and has private reaches of its
-own (`_get_field_triggers`, `_init_modules`, `_database_translated_fields`,
+own (`_get_field_triggers`, `_database_translated_fields`,
 `_database_company_dependent_fields`).
 
 **These figures rose when the checker learned to follow a local.**
@@ -503,7 +503,7 @@ they were named:
 | Was | `_post_init_queue`, `_foreign_keys`, `_relation_reflections`, `_is_install` created in `init_models`' `try:` and `del`-eted in its `finally:` — alive only for that call. Layer 1 (`fields/relational/many2many.py`) wrote to the third, which worked solely because `update_db` runs inside the window. |
 | Caught by | nothing. No declaration of the ordering; an `AttributeError` at module-install time was the only signal. |
 | Now | one `InitModelsPhase` (`orm/runtime/_init_phase.py`) behind `Registry.init_phase`, a property that raises a `RuntimeError` naming the window when closed. Layer 1 calls `pool.add_relation_reflection(...)`. |
-| Still open | `registration.py` reads `Registry._init_modules` to ask whether an install is in flight — same shape, pinned in `pool_surface_check.py`, same remediation: a public predicate. |
+| Closed 2026-09-02 | `registration.py` read `Registry._init_modules` to ask whether an install is in flight — same shape, pinned in `pool_surface_check.py`. The set is the modules the loader has brought up, read by base, `web`, `website` and the service layer alike, so it is public now: `Registry.loaded_modules`, and the pin is gone. |
 
 [`risks.md`](risks.md) R1, the register's first closed entry.
 

@@ -225,7 +225,7 @@ def test_uninstall(args: argparse.Namespace) -> None:
 
 def test_standalone(args: argparse.Namespace) -> None:
     registry = Registry(args.database)
-    for module_name in registry._init_modules:
+    for module_name in registry.loaded_modules:
         odoo.tests.loader.get_test_modules(module_name)
 
     requested = [tag.strip() for tag in args.standalone.split(",") if tag.strip()]

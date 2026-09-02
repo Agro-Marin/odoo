@@ -301,7 +301,7 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _get_translation_frontend_modules_name(cls):
         mods = super()._get_translation_frontend_modules_name()
-        installed = request.registry._init_modules.union(
+        installed = request.registry.loaded_modules.union(
             odoo.tools.config["server_wide_modules"]
         )
         return mods + [

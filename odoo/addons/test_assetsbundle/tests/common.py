@@ -56,7 +56,7 @@ class AddonManifestPatched(TransactionCase):
         self.installed_modules = {"base", "test_assetsbundle"}
         self.manifests = Manifests(odoo.modules.Manifest.for_addon)
 
-        self.patch(self.env.registry, "_init_modules", self.installed_modules)
+        self.patch(self.env.registry, "loaded_modules", self.installed_modules)
         self.patch(
             odoo.modules.Manifest,
             "for_addon",

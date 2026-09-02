@@ -23,7 +23,7 @@ class WebClient(http.Controller):
         if mods is None:
             mods = odoo.tools.config["server_wide_modules"]
             if request.db:
-                mods = request.env.registry._init_modules.union(mods)
+                mods = request.env.registry.loaded_modules.union(mods)
 
         translations_per_module = {}
         for addon_name in mods:
@@ -54,7 +54,7 @@ class WebClient(http.Controller):
         if mods:
             mods = mods.split(",")
         else:
-            mods = request.env.registry._init_modules.union(
+            mods = request.env.registry.loaded_modules.union(
                 odoo.tools.config["server_wide_modules"]
             )
 

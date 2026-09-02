@@ -408,7 +408,7 @@ class IrAsset(models.Model):
     @api.model
     def _get_addons_installed(self) -> frozenset[str]:
         return frozenset(
-            self.env.registry._init_modules.union(tools.config["server_wide_modules"])
+            self.env.registry.loaded_modules.union(tools.config["server_wide_modules"])
         )
 
     def _resolve_paths(

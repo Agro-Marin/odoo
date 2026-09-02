@@ -349,7 +349,7 @@ class IrHttp(models.AbstractModel):
     @tools.ormcache("key", cache="routing")
     def routing_map(self, key: str | None = None) -> werkzeug.routing.Map:
         _logger.info("Generating routing map for key %s", key)
-        installed = self.pool._init_modules.union(
+        installed = self.pool.loaded_modules.union(
             odoo.tools.config["server_wide_modules"]
         )
         mods = sorted(installed)

@@ -53,18 +53,6 @@ class Known:
 KNOWN_VIOLATIONS: tuple[Known, ...] = (
     Known(
         "odoo/orm/registration.py",
-        "_init_modules",
-        "Model setup asks whether a module install is in flight before adding "
-        "manual (ir.model.fields) fields. Registry.__init__ creates the set and "
-        "the loader fills it, so this is the same lifecycle coupling "
-        "_relation_reflections had before it was fixed: registration runs "
-        "INSIDE registry setup and "
-        "reads its host's in-progress state. Fix is a public predicate "
-        "(`Registry.is_initialising_modules()`), which also documents the "
-        "ordering contract that is currently implicit.",
-    ),
-    Known(
-        "odoo/orm/registration.py",
         "_database_translated_fields",
         "Reflection data the Registry loaded from ir_model_fields, consumed by "
         "_patch_translate_field to keep a field's translate= in step with what "

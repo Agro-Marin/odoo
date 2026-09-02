@@ -49,7 +49,7 @@ def run_tests(
         env.cr.rollback()
 
     if not modules:
-        modules = sorted(env.registry._init_modules)
+        modules = sorted(env.registry.loaded_modules)
 
     if reload_tests:
         _clear_loaded_test_modules()

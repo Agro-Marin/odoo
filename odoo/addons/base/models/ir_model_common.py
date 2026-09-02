@@ -32,7 +32,7 @@ def access_mode_columns(alias: str) -> dict[str, SQL]:
 
 
 def unloaded_module_clause(registry: Any, model: str, alias: str) -> SQL:
-    loaded_modules = list(registry._init_modules)
+    loaded_modules = list(registry.loaded_modules)
     if not registry._init or not loaded_modules:
         return SQL("")
     return SQL(

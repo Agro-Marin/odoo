@@ -75,7 +75,7 @@ class Session(http.Controller):
 
     @http.route("/web/session/modules", type="jsonrpc", auth="user", readonly=True)
     def modules(self) -> list[str]:
-        return list(request.env.registry._init_modules)
+        return list(request.env.registry.loaded_modules)
 
     @http.route("/web/session/check", type="jsonrpc", auth="user", readonly=True)
     def check(self) -> None:

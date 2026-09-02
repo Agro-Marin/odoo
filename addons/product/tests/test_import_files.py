@@ -173,7 +173,7 @@ class TestImportFiles(TransactionCase):
         val_ids = self.env["product.attribute.value"].search([]).ids
 
         test_file = "product/static/xls/test_import_product_without_values.xls"
-        addons = tuple(self.env.registry._init_modules) + (
+        addons = tuple(self.env.registry.loaded_modules) + (
             self.env.context.get("install_module"),
         )
         if "stock" in addons:

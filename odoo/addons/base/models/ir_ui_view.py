@@ -742,7 +742,7 @@ class IrUiView(models.Model):
                 else:
                     stack.append(child)
 
-        if self.pool._init and sibling_primary_views and self.pool._init_modules:
+        if self.pool._init and sibling_primary_views and self.pool.loaded_modules:
             sibling_primary_views = sibling_primary_views._filter_loaded_views(
                 include_loaded_xmlids=True
             )
@@ -1108,7 +1108,7 @@ class IrUiView(models.Model):
         if not ids_to_check:
             return self
         install_module = self.env.context.get("install_module")
-        loaded_modules = list(self.pool._init_modules)
+        loaded_modules = list(self.pool.loaded_modules)
         if install_module:
             loaded_modules.append(install_module)
         query = self._get_filter_xmlid_query()

@@ -449,7 +449,7 @@ class _PackageLoader:
         self.module._update_translations(overwrite=overwrite)
 
     def mark_module_loaded(self) -> None:
-        self.registry._init_modules.add(self.name)
+        self.registry.loaded_modules.add(self.name)
 
     def run_post_init_hook(self) -> None:
         if self.operation == "install":
@@ -589,7 +589,7 @@ def load_module_graph(
 
     try:
         for index, package in enumerate(graph, 1):
-            if package.name in registry._init_modules:
+            if package.name in registry.loaded_modules:
                 continue
             _PackageLoader(
                 env,

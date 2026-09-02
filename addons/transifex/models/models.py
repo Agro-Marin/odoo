@@ -37,7 +37,7 @@ class Base(models.AbstractModel):
             return translations, context
 
         module = external_id.split('.')[0]
-        if module not in self.pool._init_modules:
+        if module not in self.pool.loaded_modules:
             return translations, context
 
         for translation in translations:

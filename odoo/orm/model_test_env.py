@@ -225,7 +225,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
 
         self.model_graph = ModelGraph()
 
-        self._init_modules = False
+        self.loaded_modules = False
         self._database_translated_fields: dict[str, str] = {}
         self._database_company_dependent_fields: dict[str, str] = {}
         self.many2many_relations: defaultdict[

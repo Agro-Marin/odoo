@@ -11,7 +11,7 @@ def registry():
     reg = MagicMock()
     reg.cursor.return_value = nullcontext(MagicMock())
     reg.updated_modules = ["updated_one", "updated_two"]
-    reg._init_modules = {"zeta", "alpha"}
+    reg.loaded_modules = {"zeta", "alpha"}
     reg._assertion_report.testsRun = 0
     return reg
 
@@ -54,7 +54,7 @@ class TestWhichModulesThePostInstallSuiteRunsFor:
     def test_a_plain_boot_tests_every_installed_module_in_a_stable_order(
         self, registry, loader
     ):
-        """`_init_modules` is a set; an unordered suite is an unreproducible run."""
+        """`loaded_modules` is a set; an unordered suite is an unreproducible run."""
         fake, _suite, _seed = loader
 
         lifecycle._run_post_install_tests(registry, update_module=False)

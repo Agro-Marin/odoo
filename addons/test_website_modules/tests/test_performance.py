@@ -410,7 +410,7 @@ class TestWebsiteAllPerformance(
             "website_page": 1,
         }
 
-        addons = tuple(self.env.registry._init_modules) + (
+        addons = tuple(self.env.registry.loaded_modules) + (
             self.env.context.get("install_module"),
         )
         if "website_helpdesk" in addons:

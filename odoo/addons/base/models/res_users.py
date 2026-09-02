@@ -576,7 +576,7 @@ class ResUsers(models.Model):
 
     @api.constrains("group_ids", "active")
     def _check_at_least_one_administrator(self) -> None:
-        if not self.env.registry._init_modules:
+        if not self.env.registry.loaded_modules:
             return
         has_admin = (
             self.env["res.users"]
@@ -1356,7 +1356,7 @@ class ResUsers(models.Model):
     @api.model
     def _warn_unresolved_group(self, group_ext_id: str) -> None:
         module = group_ext_id.split(".", 1)[0]
-        if module not in self.env.registry._init_modules:
+        if module not in self.env.registry.loaded_modules:
             return
         if group_ext_id in _UNRESOLVED_GROUPS_WARNED:
             return

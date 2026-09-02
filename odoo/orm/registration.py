@@ -219,7 +219,7 @@ def setup_model_classes(env: Environment):
 
     _prepare_setup(registry["ir.model"])
 
-    if registry._init_modules:
+    if registry.loaded_modules:
         _add_manual_models(env)
 
     models_classes = list(registry.values())
@@ -276,7 +276,7 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
     _collect_and_install_fields(model_cls, env)
 
     registry = get_registry_of_model(model_cls)
-    if registry._init_modules:
+    if registry.loaded_modules:
         _add_manual_fields(model_cls, env)
 
     _check_inherits(model_cls)

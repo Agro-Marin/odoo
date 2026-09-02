@@ -255,7 +255,7 @@ class Registry(
 
         self._reinit_modules: set[str] = set()
 
-        self._init_modules: set[str] = set()
+        self.loaded_modules: set[str] = set()
         self.updated_modules: list[str] = []
         self.loaded_xmlids: set[str] = set()
         self._xmlid_recorder: set[str] | None = None

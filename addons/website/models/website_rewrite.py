@@ -42,7 +42,7 @@ class WebsiteRoute(models.Model):
         ir_http = self.env["ir.http"]
         tocreate = []
         paths = {rec.path: rec for rec in self.search([])}
-        for url, endpoint in ir_http._generate_routing_rules(self.pool._init_modules):
+        for url, endpoint in ir_http._generate_routing_rules(self.pool.loaded_modules):
             if "GET" in (endpoint.routing.get("methods") or ["GET"]):
                 if paths.get(url):
                     paths.pop(url)

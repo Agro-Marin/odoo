@@ -83,7 +83,7 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
     t0 = time.time()
     t0_sql = db.sql_counter
     module_names = (
-        registry.updated_modules if update_module else sorted(registry._init_modules)
+        registry.updated_modules if update_module else sorted(registry.loaded_modules)
     )
     _logger.info("Starting post tests")
     tests_before = registry._assertion_report.testsRun
