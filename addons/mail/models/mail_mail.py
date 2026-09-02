@@ -459,7 +459,9 @@ class MailMail(models.Model):
             _logger.exception("Failed processing mail queue")
 
     @api.model
-    def _get_domain_pending_email_notifications(self, mail_ids: list[int]) -> list[tuple]:
+    def _get_domain_pending_email_notifications(
+        self, mail_ids: list[int]
+    ) -> list[tuple]:
         return [
             ("notification_type", "=", "email"),
             ("mail_mail_id", "in", mail_ids),
@@ -855,12 +857,13 @@ class MailMail(models.Model):
 
     def _link_instead_of_attach(self, body: str, attachments: IrAttachment) -> str:
         attachments.generate_access_token()
-        return tools.mail.add_html_content(
+        # Prepended, not appended: a recipient who does not scroll past the
+        # signature never sees links parked at the bottom of the mail.
+        return tools.mail.prepend_html_content(
             body,
             self.env["ir.qweb"]._render(
                 "mail.mail_attachment_links", {"attachments": attachments}
             ),
-            plaintext=False,
         )
 
     def _prepare_recipient_groups(
