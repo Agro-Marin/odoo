@@ -11,6 +11,9 @@ from odoo.orm.domain.ast import Domain, DomainCondition
 class _StubField:
     determine_domain: typing.Any = None
 
+    def _optimize_condition(self, condition, model, level):
+        return condition
+
     def __init__(self, name, ftype="integer", *, relational=False, comodel=None):
         self.name = name
         self.type = ftype
@@ -51,92 +54,6 @@ class _StubModel:
 
     def sudo(self):
         return self
-
-
-class TestM2oBypassComodelIdLookup(unittest.TestCase):
-    def _rewrite(self, outer_op, sub_op, sub_value):
-        condition = DomainCondition(
-            "rel", outer_op, DomainCondition("id", sub_op, sub_value)
-        )
-        return optimizations._optimize_m2o_bypass_comodel_id_lookup(
-            condition, _StubModel()
-        )
-
-    IN_SET = OrderedSet([1, 2, False])
-    OUT_SET = OrderedSet([1, 2])
-    SUB = Domain("a", "=", 7)
-
-    def test_any_id_in(self):
-        result = self._rewrite("any!", "in", self.IN_SET)
-        self.assertEqual(list(result), [("rel", "in", [1, 2])])
-
-    def test_any_id_not_in(self):
-        result = self._rewrite("any!", "not in", self.OUT_SET)
-        self.assertEqual(list(result), [("rel", "not in", [1, 2, False])])
-
-    def test_any_id_any(self):
-        result = self._rewrite("any!", "any!", self.SUB)
-        self.assertEqual(list(result), [("rel", "any!", [("a", "=", 7)])])
-
-    def test_any_id_not_any(self):
-        result = self._rewrite("any!", "not any!", self.SUB)
-        self.assertEqual(
-            list(result),
-            ["&", ("rel", "!=", False), ("rel", "not any!", [("a", "=", 7)])],
-        )
-
-    def test_not_any_id_in(self):
-        result = self._rewrite("not any!", "in", self.IN_SET)
-        self.assertEqual(list(result), [("rel", "not in", [1, 2])])
-
-    def test_not_any_id_not_in(self):
-        result = self._rewrite("not any!", "not in", self.OUT_SET)
-        self.assertEqual(list(result), [("rel", "in", [1, 2, False])])
-
-    def test_not_any_id_any(self):
-        result = self._rewrite("not any!", "any!", self.SUB)
-        self.assertEqual(list(result), [("rel", "not any!", [("a", "=", 7)])])
-
-    def test_not_any_id_not_any(self):
-        result = self._rewrite("not any!", "not any!", self.SUB)
-        self.assertEqual(
-            list(result),
-            ["|", ("rel", "=", False), ("rel", "any!", [("a", "=", 7)])],
-        )
-
-    def test_non_bang_any_is_untouched(self):
-        condition = DomainCondition(
-            "rel", "any", DomainCondition("id", "in", self.IN_SET)
-        )
-        result = optimizations._optimize_m2o_bypass_comodel_id_lookup(
-            condition, _StubModel()
-        )
-        self.assertIs(result, condition)
-
-    def test_non_id_subdomain_is_untouched(self):
-        condition = DomainCondition(
-            "rel", "any!", DomainCondition("a", "in", self.OUT_SET)
-        )
-        result = optimizations._optimize_m2o_bypass_comodel_id_lookup(
-            condition, _StubModel()
-        )
-        self.assertIs(result, condition)
-
-    def test_unsupported_suboperator_is_untouched(self):
-        condition = DomainCondition("rel", "any!", DomainCondition("id", ">", 5))
-        result = optimizations._optimize_m2o_bypass_comodel_id_lookup(
-            condition, _StubModel()
-        )
-        self.assertIs(result, condition)
-
-    def test_non_condition_subdomain_is_untouched(self):
-        condition = DomainCondition(
-            "rel", "any!", Domain("a", "=", 1) & Domain("a", "=", 2)
-        )
-        result = optimizations._optimize_m2o_bypass_comodel_id_lookup(
-            condition, _StubModel()
-        )
-        self.assertIs(result, condition)
 
 
 class TestAnyWithRights(unittest.TestCase):

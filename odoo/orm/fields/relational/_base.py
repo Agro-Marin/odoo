@@ -12,13 +12,17 @@ from operator import attrgetter
 from typing import override
 
 from odoo.exceptions import AccessError, MissingError
-from odoo.tools import SQL, OrderedSet, Query, unique
+from odoo.tools import SQL, OrderedSet, Query, partition, unique
 from odoo.tools.misc import PENDING, SENTINEL, unquote
 
 from ..._recordset import is_recordset
 from ...constants import READ_GROUP_NUMBER_GRANULARITY
 from ...domain import Domain
-from ...domain.constants import SUBDOMAIN_OPERATORS
+from ...domain.ast import DomainCondition, OptimizationLevel
+from ...domain.constants import (
+    NEGATIVE_CONDITION_OPERATORS,
+    SUBDOMAIN_OPERATORS,
+)
 from ...primitives import COLLECTION_TYPES, PREFETCH_MAX, Command, IdType, NewId
 from ..base import Field, _logger
 from ._commands import CommandDelta
@@ -66,6 +70,47 @@ class _Relational(Field["BaseModel"]):
     domain: DomainType = []
     bypass_search_access: bool = False
     check_company: bool = False
+
+    @override
+    def _optimize_condition(
+        self, condition: DomainCondition, model: BaseModel, level: OptimizationLevel
+    ) -> Domain:
+        if level != OptimizationLevel.BASIC:
+            return condition
+        operator = condition.operator
+        value = condition.value
+        positive_operator = NEGATIVE_CONDITION_OPERATORS.get(operator, operator)
+        any_operator = "any" if positive_operator == operator else "not any"
+        if operator.endswith("like"):
+            return DomainCondition(
+                condition.field_expr,
+                any_operator,
+                DomainCondition("display_name", positive_operator, value),
+            )
+        if operator[0] in ("<", ">") and (
+            isinstance(value, (str, bool, *COLLECTION_TYPES)) or is_recordset(value)
+        ):
+            raise condition._prepare_condition_error(
+                "Inequality on a relational field is only supported against a "
+                "single record id",
+                error=TypeError,
+            )
+        if positive_operator != "in" or not isinstance(value, COLLECTION_TYPES):
+            return condition
+        if not any(isinstance(v, str) for v in value):
+            return condition
+        str_values, other_values = partition(lambda v: isinstance(v, str), value)
+        domain: Domain = DomainCondition(
+            condition.field_expr,
+            any_operator,
+            DomainCondition("display_name", positive_operator, str_values),
+        )
+        if other_values:
+            if positive_operator == operator:
+                domain |= DomainCondition(condition.field_expr, operator, other_values)
+            else:
+                domain &= DomainCondition(condition.field_expr, operator, other_values)
+        return domain
 
     @override
     def _get_not_singleton(
@@ -268,6 +313,27 @@ class _Relational(Field["BaseModel"]):
 class _RelationalMulti(_Relational):
     write_sequence = 20
     is_x2many = True
+
+    @override
+    def _optimize_condition(
+        self, condition: DomainCondition, model: BaseModel, level: OptimizationLevel
+    ) -> Domain:
+        domain = super()._optimize_condition(condition, model, level)
+        if domain != condition:
+            return domain
+        if level == OptimizationLevel.BASIC and condition.operator in (
+            ">",
+            "<",
+            ">=",
+            "<=",
+        ):
+            raise condition._prepare_condition_error(
+                "Cannot use an ordering comparison on the to-many field %r; "
+                "use 'any' with a sub-domain",
+                condition.field_expr,
+                error=TypeError,
+            )
+        return condition
 
     @override
     def _update_inverse(self, records: BaseModel, value: BaseModel) -> None:

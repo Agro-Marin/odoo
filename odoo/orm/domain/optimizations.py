@@ -4,14 +4,10 @@ import operator
 import typing
 import warnings
 from collections.abc import Set as AbstractSet
-from datetime import UTC, date, datetime, time, timedelta
 
 from odoo.exceptions import MissingError
-from odoo.libs.datetime import utc
 from odoo.tools import SQL, OrderedSet, partition, str2bool
-from odoo.tools.date_utils import parse_date_expression, parse_iso_date
 
-from .._recordset import is_recordset
 from ..primitives import COLLECTION_TYPES
 from .ast import (
     _FALSE_DOMAIN,
@@ -39,7 +35,6 @@ if typing.TYPE_CHECKING:
     from collections.abc import Collection
 
     from ..models import BaseModel
-    from ..runtime import Environment
 
 _logger = logging.getLogger("odoo.domains")
 
@@ -343,44 +338,6 @@ def _optimize_like_str(condition, model):
     return DomainCondition(condition.field_expr, condition.operator, str(value))
 
 
-@field_type_optimization(["many2one", "one2many", "many2many"])
-def _optimize_relational_name_search(condition, model):
-    operator = condition.operator
-    value = condition.value
-    positive_operator = NEGATIVE_CONDITION_OPERATORS.get(operator, operator)
-    any_operator = "any" if positive_operator == operator else "not any"
-    if operator.endswith("like"):
-        return DomainCondition(
-            condition.field_expr,
-            any_operator,
-            DomainCondition("display_name", positive_operator, value),
-        )
-    if operator[0] in ("<", ">") and (
-        isinstance(value, (str, bool, *COLLECTION_TYPES)) or is_recordset(value)
-    ):
-        raise condition._prepare_condition_error(
-            "Inequality on a relational field is only supported against a "
-            "single record id",
-            error=TypeError,
-        )
-    if positive_operator != "in" or not isinstance(value, COLLECTION_TYPES):
-        return condition
-    if not any(isinstance(v, str) for v in value):
-        return condition
-    str_values, other_values = partition(lambda v: isinstance(v, str), value)
-    domain: Domain = DomainCondition(
-        condition.field_expr,
-        any_operator,
-        DomainCondition("display_name", positive_operator, str_values),
-    )
-    if other_values:
-        if positive_operator == operator:
-            domain |= DomainCondition(condition.field_expr, operator, other_values)
-        else:
-            domain &= DomainCondition(condition.field_expr, operator, other_values)
-    return domain
-
-
 _NOT_A_NUMBER = object()
 
 
@@ -436,32 +393,6 @@ def _optimize_numeric_comparand(condition, model):
             "Cannot compare the numeric field %r with a non-numeric value",
             condition.field_expr,
         )
-    if coerced is value:
-        return condition
-    return DomainCondition(condition.field_expr, operator, coerced)
-
-
-@field_type_optimization(["char", "text", "html"])
-def _optimize_textual_comparand(condition, model):
-    operator = condition.operator
-    if (
-        operator not in ("in", "not in", ">", "<", ">=", "<=")
-        or "." in condition.field_expr
-    ):
-        return condition
-
-    def coerce(value):
-        if value is None or isinstance(value, (str, bool, bytes, bytearray, SQL)):
-            return value
-        return str(value)
-
-    value = condition.value
-    if isinstance(value, COLLECTION_TYPES):
-        coerced = [coerce(v) for v in value]
-        if coerced == list(value):
-            return condition
-        return DomainCondition(condition.field_expr, operator, OrderedSet(coerced))
-    coerced = coerce(value)
     if coerced is value:
         return condition
     return DomainCondition(condition.field_expr, operator, coerced)
@@ -543,37 +474,6 @@ def _optimize_boolean_in_all(condition, model):
     return condition
 
 
-def _value_to_date(
-    value: object,
-    env: Environment,
-    iso_only: bool = False,
-) -> date | str | OrderedSet | SQL | typing.Literal[False] | None:
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date) or value is False:
-        return value
-    if isinstance(value, str):
-        if iso_only:
-            try:
-                parsed: date = parse_iso_date(value)
-            except ValueError:
-                parse_date_expression(value, env)
-                return value
-        else:
-            parsed = parse_date_expression(value, env)
-        return _value_to_date(parsed, env)
-    if isinstance(value, COLLECTION_TYPES):
-        return OrderedSet(_value_to_date(v, env=env, iso_only=iso_only) for v in value)
-    if isinstance(value, SQL):
-        warnings.warn(
-            "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return value
-    raise ValueError(f"Failed to cast {value!r} into a date")
-
-
 @operator_optimization([">", "<", ">=", "<="])
 def _optimize_inequality_against_null(condition, model):
     value = condition.value
@@ -596,249 +496,6 @@ def _optimize_inequality_against_collection(condition, model):
             condition.field_expr,
             condition.operator,
             error=TypeError,
-        )
-    return condition
-
-
-@field_type_optimization(["one2many", "many2many"])
-def _optimize_x2many_inequality(condition, model):
-    if condition.operator in (">", "<", ">=", "<="):
-        raise condition._prepare_condition_error(
-            "Cannot use an ordering comparison on the to-many field %r; "
-            "use 'any' with a sub-domain",
-            condition.field_expr,
-            error=TypeError,
-        )
-    return condition
-
-
-@field_type_optimization(["date"])
-def _optimize_type_date(condition, model):
-    operator = condition.operator
-    if (
-        operator not in ("in", "not in", ">", "<", "<=", ">=")
-        or "." in condition.field_expr
-    ):
-        return condition
-    value = _value_to_date(condition.value, model.env, iso_only=True)
-    if value is False and operator[0] in ("<", ">"):
-        return _FALSE_DOMAIN
-    return DomainCondition(condition.field_expr, operator, value)
-
-
-@field_type_optimization(["date"], level=OptimizationLevel.DYNAMIC_VALUES)
-def _optimize_type_date_relative(condition, model):
-    operator = condition.operator
-    value = condition.value
-    if (
-        operator not in ("in", "not in", ">", "<", "<=", ">=")
-        or "." in condition.field_expr
-        or not isinstance(value, (str, OrderedSet))
-        or (
-            isinstance(value, OrderedSet) and not any(isinstance(v, str) for v in value)
-        )
-    ):
-        return condition
-    value = _value_to_date(value, model.env)
-    return DomainCondition(condition.field_expr, operator, value)
-
-
-def _value_to_datetime(
-    value: object,
-    env: Environment,
-    iso_only: bool = False,
-) -> tuple[datetime | str | OrderedSet | SQL | typing.Literal[False], bool]:
-    if isinstance(value, datetime):
-        if value.tzinfo:
-            value = value.astimezone(UTC).replace(tzinfo=None)
-        return value, False
-    if value is False:
-        return False, True
-    if isinstance(value, str):
-        if iso_only:
-            try:
-                parsed: date = parse_iso_date(value)
-            except ValueError:
-                _dt, is_date = _value_to_datetime(
-                    parse_date_expression(value, env), env
-                )
-                return value, is_date
-        else:
-            parsed = parse_date_expression(value, env)
-        return _value_to_datetime(parsed, env)
-    if isinstance(value, date):
-        tz = None if value.year in (1, 9999) else env.tz
-        if tz == utc:
-            tz = None
-        value = datetime.combine(value, time.min, tz)
-        if tz is not None:
-            value = value.astimezone(UTC).replace(tzinfo=None)
-        return value, True
-    if isinstance(value, COLLECTION_TYPES):
-        if not value:
-            return OrderedSet(), True
-        converted, is_date = zip(
-            *(_value_to_datetime(v, env=env, iso_only=iso_only) for v in value),
-            strict=False,
-        )
-        return OrderedSet(converted), all(is_date)
-    if isinstance(value, SQL):
-        warnings.warn(
-            "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return value, False
-    raise ValueError(f"Failed to cast {value!r} into a datetime")
-
-
-def _end_of_local_day(start: datetime, env: Environment) -> datetime:
-    tz = env.tz
-    if tz is None or tz == utc:
-        return start + timedelta(days=1)
-    local_date = start.replace(tzinfo=UTC).astimezone(tz).date()
-    end, _is_date = _value_to_datetime(local_date + timedelta(days=1), env)
-    if not isinstance(end, datetime):
-        raise TypeError(f"a date did not convert to a datetime: {end!r}")
-    return end
-
-
-@field_type_optimization(["datetime"])
-def _optimize_type_datetime(condition, model):
-    field_expr = condition.field_expr
-    operator = condition.operator
-    if operator not in ("in", "not in", ">", "<", "<=", ">=") or "." in field_expr:
-        return condition
-    value = condition.value
-    dates: set = set()
-    if isinstance(value, COLLECTION_TYPES):
-        pairs = [_value_to_datetime(v, model.env, iso_only=True) for v in value]
-        value = OrderedSet(v for v, _is_date in pairs)
-        dates = {v for v, is_date in pairs if is_date and isinstance(v, datetime)}
-        is_date = False
-    else:
-        value, is_date = _value_to_datetime(value, model.env, iso_only=True)
-
-    if operator[0] in ("<", ">"):
-        if value is False:
-            return _FALSE_DOMAIN
-        if not isinstance(value, datetime):
-            return condition
-        if is_date:
-            if operator == ">":
-                try:
-                    value = _end_of_local_day(value, model.env)
-                except OverflowError:
-                    return _FALSE_DOMAIN
-                operator = ">="
-            elif operator == "<=":
-                try:
-                    value = _end_of_local_day(value, model.env)
-                except OverflowError:
-                    return DomainCondition(field_expr, "!=", False)
-                operator = "<"
-
-    if operator in ("in", "not in") and isinstance(value, COLLECTION_TYPES):
-        day_values = OrderedSet(v for v in value if v in dates)
-        if day_values:
-
-            def whole_day(v: datetime) -> Domain:
-                try:
-                    end = _end_of_local_day(v, model.env)
-                except OverflowError:
-                    return DomainCondition(field_expr, ">=", v)
-                return DomainCondition(field_expr, ">=", v) & DomainCondition(
-                    field_expr, "<", end
-                )
-
-            domain = DomainOr.apply(whole_day(v) for v in day_values)
-            if exact := OrderedSet(v for v in value if v not in day_values):
-                domain |= DomainCondition(field_expr, "in", exact)
-            if operator == "not in":
-                domain = ~domain
-            return domain
-
-    if operator == condition.operator and (
-        value is condition.value
-        or (value.__class__ is condition.value.__class__ and value == condition.value)
-    ):
-        return condition
-    return DomainCondition(field_expr, operator, value)
-
-
-@field_type_optimization(["datetime"], level=OptimizationLevel.DYNAMIC_VALUES)
-def _optimize_type_datetime_relative(condition, model):
-    operator = condition.operator
-    value = condition.value
-    if (
-        operator not in ("in", "not in", ">", "<", "<=", ">=")
-        or "." in condition.field_expr
-        or not isinstance(value, (str, OrderedSet))
-        or (
-            isinstance(value, OrderedSet) and not any(isinstance(v, str) for v in value)
-        )
-    ):
-        return condition
-    env = model.env
-
-    def _resolve(v):
-        return parse_date_expression(v, env) if isinstance(v, str) else v
-
-    if isinstance(value, OrderedSet):
-        resolved = OrderedSet(_resolve(v) for v in value)
-    else:
-        resolved = _resolve(value)
-    return DomainCondition(condition.field_expr, operator, resolved)
-
-
-@field_type_optimization(["properties"], level=OptimizationLevel.DYNAMIC_VALUES)
-def _optimize_properties_date_datetime(condition, model):
-    operator = condition.operator
-    if (
-        operator not in ("in", "not in", ">", "<", "<=", ">=")
-        or condition.field_expr.count(".") != 1
-        or not isinstance(condition.value, (str, OrderedSet))
-    ):
-        return condition
-    definition = model.get_property_definition(condition.field_expr)
-    property_type = definition.get("type")
-
-    if property_type == "date":
-        value = _value_to_date(condition.value, model.env)
-    elif property_type == "datetime":
-        value, _ = _value_to_datetime(condition.value, model.env)
-    else:
-        return condition
-    if isinstance(value, COLLECTION_TYPES):
-        value = OrderedSet(
-            str(item) if isinstance(item, (date, datetime)) else item for item in value
-        )
-    elif isinstance(value, (date, datetime)):
-        value = str(value)
-
-    return DomainCondition(condition.field_expr, operator, value)
-
-
-@field_type_optimization(["binary"])
-def _optimize_type_binary_attachment(condition, model):
-    field = condition._field(model)
-    operator = condition.operator
-    value = condition.value
-    if field.attachment:
-        is_existence_check = (
-            operator in ("in", "not in")
-            and isinstance(value, COLLECTION_TYPES)
-            and set(value) == {False}
-        )
-        if not is_existence_check:
-            raise condition._prepare_condition_error(
-                "Binary field stored in attachment, accepts only existence "
-                "check (('field', 'in', [False]) or its negation)"
-            )
-    if operator.endswith("like"):
-        raise condition._prepare_condition_error(
-            "Cannot use like operators with binary fields",
-            error=NotImplementedError,
         )
     return condition
 
@@ -953,35 +610,6 @@ def _optimize_any_with_rights(condition, model):
         return DomainCondition(
             condition.field_expr, condition.operator + "!", condition.value
         )
-    return condition
-
-
-@field_type_optimization(["many2one"], level=OptimizationLevel.FULL)
-def _optimize_m2o_bypass_comodel_id_lookup(condition, model):
-    operator = condition.operator
-    if (
-        operator in ("any!", "not any!")
-        and isinstance(subdomain := condition.value, DomainCondition)
-        and subdomain.field_expr == "id"
-        and (suboperator := subdomain.operator) in ("in", "not in", "any!", "not any!")
-    ):
-        val = subdomain.value
-        domain: Domain
-        match suboperator:
-            case "in":
-                domain = DomainCondition(condition.field_expr, "in", val - {False})
-            case "not in":
-                domain = DomainCondition(condition.field_expr, "not in", val | {False})
-            case "any!":
-                domain = DomainCondition(condition.field_expr, "any!", val)
-            case "not any!":
-                domain = DomainCondition(
-                    condition.field_expr, "!=", False
-                ) & DomainCondition(condition.field_expr, "not any!", val)
-        if operator == "not any!":
-            domain = ~domain
-        return domain
-
     return condition
 
 

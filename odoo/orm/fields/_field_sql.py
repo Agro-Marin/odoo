@@ -19,6 +19,7 @@ from ._field_stubs import _FieldStubs
 
 if typing.TYPE_CHECKING:
     from .._typing import BaseModel, Field, ModelLike
+    from ..domain.ast import DomainCondition, OptimizationLevel
 
     M = typing.TypeVar("M", bound=BaseModel)
 
@@ -99,6 +100,11 @@ class _FieldSqlMixin(_FieldStubs):
 
     def _inequality_comparand(self, value: typing.Any, model: BaseModel) -> typing.Any:
         return self.convert_to_cache(value, model) or self.falsy_value
+
+    def _optimize_condition(
+        self, condition: DomainCondition, model: BaseModel, level: OptimizationLevel
+    ) -> Domain:
+        return condition
 
     def condition_to_sql(
         self,

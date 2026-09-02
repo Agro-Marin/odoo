@@ -1,16 +1,26 @@
 import functools
 import typing
-from datetime import UTC, date, datetime, time
+import warnings
+from datetime import UTC, date, datetime, time, timedelta
 from typing import override
 
 from odoo.libs.datetime import TIMEZONE_ALIASES, all_timezones, utc
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT as DATE_FORMAT
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT as DATETIME_FORMAT
-from odoo.tools import SQL, date_utils
+from odoo.tools import SQL, OrderedSet, date_utils
+from odoo.tools.date_utils import parse_date_expression, parse_iso_date
 
 from ..constants import READ_GROUP_NUMBER_GRANULARITY
+from ..domain.ast import (
+    _FALSE_DOMAIN,
+    Domain,
+    DomainCondition,
+    DomainOr,
+    OptimizationLevel,
+)
 from ..parsing import parse_field_expr
+from ..primitives import COLLECTION_TYPES
 from .base import Field, _logger, _prepare_fast_get
 
 
@@ -48,9 +58,115 @@ if typing.TYPE_CHECKING:
 
     from .._typing import ModelLike
     from ..models import BaseModel
+    from ..runtime import Environment
 
 DATE_LENGTH = len(date.today().strftime(DATE_FORMAT))
 DATETIME_LENGTH = len(datetime.now().strftime(DATETIME_FORMAT))
+
+_TEMPORAL_COMPARISON_OPERATORS = ("in", "not in", ">", "<", "<=", ">=")
+
+
+def _value_to_date(
+    value: object,
+    env: Environment,
+    iso_only: bool = False,
+) -> date | str | OrderedSet | SQL | typing.Literal[False] | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date) or value is False:
+        return value
+    if isinstance(value, str):
+        if iso_only:
+            try:
+                parsed: date = parse_iso_date(value)
+            except ValueError:
+                parse_date_expression(value, env)
+                return value
+        else:
+            parsed = parse_date_expression(value, env)
+        return _value_to_date(parsed, env)
+    if isinstance(value, COLLECTION_TYPES):
+        return OrderedSet(_value_to_date(v, env=env, iso_only=iso_only) for v in value)
+    if isinstance(value, SQL):
+        warnings.warn(
+            "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return value
+    raise ValueError(f"Failed to cast {value!r} into a date")
+
+
+def _value_to_datetime(
+    value: object,
+    env: Environment,
+    iso_only: bool = False,
+) -> tuple[datetime | str | OrderedSet | SQL | typing.Literal[False], bool]:
+    if isinstance(value, datetime):
+        if value.tzinfo:
+            value = value.astimezone(UTC).replace(tzinfo=None)
+        return value, False
+    if value is False:
+        return False, True
+    if isinstance(value, str):
+        if iso_only:
+            try:
+                parsed: date = parse_iso_date(value)
+            except ValueError:
+                _dt, is_date = _value_to_datetime(
+                    parse_date_expression(value, env), env
+                )
+                return value, is_date
+        else:
+            parsed = parse_date_expression(value, env)
+        return _value_to_datetime(parsed, env)
+    if isinstance(value, date):
+        tz = None if value.year in (1, 9999) else env.tz
+        if tz == utc:
+            tz = None
+        value = datetime.combine(value, time.min, tz)
+        if tz is not None:
+            value = value.astimezone(UTC).replace(tzinfo=None)
+        return value, True
+    if isinstance(value, COLLECTION_TYPES):
+        if not value:
+            return OrderedSet(), True
+        converted, is_date = zip(
+            *(_value_to_datetime(v, env=env, iso_only=iso_only) for v in value),
+            strict=False,
+        )
+        return OrderedSet(converted), all(is_date)
+    if isinstance(value, SQL):
+        warnings.warn(
+            "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return value, False
+    raise ValueError(f"Failed to cast {value!r} into a datetime")
+
+
+def _end_of_local_day(start: datetime, env: Environment) -> datetime:
+    tz = env.tz
+    if tz is None or tz == utc:
+        return start + timedelta(days=1)
+    local_date = start.replace(tzinfo=UTC).astimezone(tz).date()
+    end, _is_date = _value_to_datetime(local_date + timedelta(days=1), env)
+    if not isinstance(end, datetime):
+        raise TypeError(f"a date did not convert to a datetime: {end!r}")
+    return end
+
+
+def _is_relative_temporal_value(condition: DomainCondition) -> bool:
+    value = condition.value
+    return (
+        condition.operator in _TEMPORAL_COMPARISON_OPERATORS
+        and "." not in condition.field_expr
+        and isinstance(value, (str, OrderedSet))
+        and (
+            not isinstance(value, OrderedSet) or any(isinstance(v, str) for v in value)
+        )
+    )
 
 
 class BaseDate[T: date](Field[T | typing.Literal[False]]):
@@ -162,6 +278,28 @@ class Date(BaseDate[date]):
             lambda field, value, record: False if value is None else value
         )
 
+    @override
+    def _optimize_condition(
+        self, condition: DomainCondition, model: BaseModel, level: OptimizationLevel
+    ) -> Domain:
+        operator = condition.operator
+        if level == OptimizationLevel.BASIC:
+            if (
+                operator not in _TEMPORAL_COMPARISON_OPERATORS
+                or "." in condition.field_expr
+            ):
+                return condition
+            value = _value_to_date(condition.value, model.env, iso_only=True)
+            if value is False and operator[0] in ("<", ">"):
+                return _FALSE_DOMAIN
+            return DomainCondition(condition.field_expr, operator, value)
+        if level == OptimizationLevel.DYNAMIC_VALUES and _is_relative_temporal_value(
+            condition
+        ):
+            value = _value_to_date(condition.value, model.env)
+            return DomainCondition(condition.field_expr, operator, value)
+        return condition
+
     @staticmethod
     def today(*args) -> date:
         return date.today()
@@ -232,6 +370,96 @@ class Datetime(BaseDate[datetime]):
         __get__ = _prepare_fast_get(
             lambda field, value, record: False if value is None else value
         )
+
+    @override
+    def _optimize_condition(
+        self, condition: DomainCondition, model: BaseModel, level: OptimizationLevel
+    ) -> Domain:
+        if level == OptimizationLevel.BASIC:
+            return self._optimize_datetime_comparand(condition, model)
+        if level == OptimizationLevel.DYNAMIC_VALUES and _is_relative_temporal_value(
+            condition
+        ):
+            env = model.env
+
+            def resolve(v):
+                return parse_date_expression(v, env) if isinstance(v, str) else v
+
+            value = condition.value
+            resolved = (
+                OrderedSet(resolve(v) for v in value)
+                if isinstance(value, OrderedSet)
+                else resolve(value)
+            )
+            return DomainCondition(condition.field_expr, condition.operator, resolved)
+        return condition
+
+    @staticmethod
+    def _optimize_datetime_comparand(
+        condition: DomainCondition, model: BaseModel
+    ) -> Domain:
+        field_expr = condition.field_expr
+        operator = condition.operator
+        if operator not in _TEMPORAL_COMPARISON_OPERATORS or "." in field_expr:
+            return condition
+        value = condition.value
+        dates: set = set()
+        if isinstance(value, COLLECTION_TYPES):
+            pairs = [_value_to_datetime(v, model.env, iso_only=True) for v in value]
+            value = OrderedSet(v for v, _is_date in pairs)
+            dates = {v for v, is_date in pairs if is_date and isinstance(v, datetime)}
+            is_date = False
+        else:
+            value, is_date = _value_to_datetime(value, model.env, iso_only=True)
+
+        if operator[0] in ("<", ">"):
+            if value is False:
+                return _FALSE_DOMAIN
+            if not isinstance(value, datetime):
+                return condition
+            if is_date:
+                if operator == ">":
+                    try:
+                        value = _end_of_local_day(value, model.env)
+                    except OverflowError:
+                        return _FALSE_DOMAIN
+                    operator = ">="
+                elif operator == "<=":
+                    try:
+                        value = _end_of_local_day(value, model.env)
+                    except OverflowError:
+                        return DomainCondition(field_expr, "!=", False)
+                    operator = "<"
+
+        if operator in ("in", "not in") and isinstance(value, COLLECTION_TYPES):
+            day_values = OrderedSet(v for v in value if v in dates)
+            if day_values:
+
+                def whole_day(v: datetime) -> Domain:
+                    try:
+                        end = _end_of_local_day(v, model.env)
+                    except OverflowError:
+                        return DomainCondition(field_expr, ">=", v)
+                    return DomainCondition(field_expr, ">=", v) & DomainCondition(
+                        field_expr, "<", end
+                    )
+
+                domain = DomainOr.apply(whole_day(v) for v in day_values)
+                if exact := OrderedSet(v for v in value if v not in day_values):
+                    domain |= DomainCondition(field_expr, "in", exact)
+                if operator == "not in":
+                    domain = ~domain
+                return domain
+
+        if operator == condition.operator and (
+            value is condition.value
+            or (
+                value.__class__ is condition.value.__class__
+                and value == condition.value
+            )
+        ):
+            return condition
+        return DomainCondition(field_expr, operator, value)
 
     @staticmethod
     def now(*args) -> datetime:

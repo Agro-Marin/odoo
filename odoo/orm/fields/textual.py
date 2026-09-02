@@ -12,10 +12,11 @@ from odoo.libs.sql import (
     pg_varchar,
     value_to_translated_trigram_pattern,
 )
-from odoo.tools import SQL, html_normalize, html_sanitize
+from odoo.tools import SQL, OrderedSet, html_normalize, html_sanitize
 from odoo.tools.misc import SENTINEL, Sentinel
 from odoo.tools.translate import html_translate
 
+from ..domain.ast import Domain, DomainCondition, OptimizationLevel
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from . import _field_ddl as _ddl
 from . import _field_translation as _translation
@@ -31,6 +32,12 @@ if typing.TYPE_CHECKING:
     from ..models import BaseModel
     from ..runtime import Environment
     from ._field_stubs import TranslateDialect
+
+
+def _string_comparand(value: typing.Any) -> typing.Any:
+    if value is None or isinstance(value, (str, bool, bytes, bytearray, SQL)):
+        return value
+    return str(value)
 
 
 def _string_from_cache(
@@ -53,6 +60,30 @@ class BaseString(Field[str | typing.Literal[False]]):
     translate: bool | TranslateDialect = False
     size = None
     is_text = True
+
+    @override
+    def _optimize_condition(
+        self, condition: DomainCondition, model: BaseModel, level: OptimizationLevel
+    ) -> Domain:
+        operator = condition.operator
+        if (
+            level != OptimizationLevel.BASIC
+            or operator not in ("in", "not in", ">", "<", ">=", "<=")
+            or "." in condition.field_expr
+        ):
+            return condition
+
+        value = condition.value
+        if isinstance(value, COLLECTION_TYPES):
+            coerced = [_string_comparand(v) for v in value]
+            if coerced == list(value):
+                return condition
+            return DomainCondition(condition.field_expr, operator, OrderedSet(coerced))
+        coerced = _string_comparand(value)
+        if coerced is value:
+            return condition
+        return DomainCondition(condition.field_expr, operator, coerced)
+
     falsy_value = ""
 
     def __init__(self, string: str | Sentinel = SENTINEL, **kwargs: typing.Any) -> None:

@@ -1,7 +1,10 @@
+import ast
 import contextlib
+from pathlib import Path
 
 import pytest
 
+from odoo.orm.domain import optimizations
 from odoo.orm.domain.ast import (
     _OPTIMIZATION_KEY_KIND,
     _OPTIMIZATIONS_FOR,
@@ -9,6 +12,7 @@ from odoo.orm.domain.ast import (
 )
 from odoo.orm.domain.constants import ACCEPTED_CONDITION_OPERATORS
 from odoo.orm.domain.optimizations import field_type_optimization, operator_optimization
+from odoo.orm.fields._field_sql import _FieldSqlMixin
 from odoo.orm.fields.base import Field
 
 
@@ -88,3 +92,78 @@ def test_an_empty_key_list_is_refused_on_both_doors():
 
 def test_the_field_type_registry_is_populated():
     assert len(Field._by_type__) >= 15, Field._by_type__
+
+
+_KEPT_FIELD_TYPE_DISPATCH = frozenset(
+    {
+        ("boolean",),
+        ("integer", "float", "monetary"),
+        ("many2one", "many2one_reference", "one2many", "many2many"),
+    }
+)
+
+_FIELD_TYPES_OWNED_BY_A_FIELD_CLASS = frozenset(
+    {
+        "binary",
+        "char",
+        "date",
+        "datetime",
+        "html",
+        "many2many",
+        "many2one",
+        "one2many",
+        "properties",
+        "text",
+    }
+)
+
+
+def _field_type_dispatch_in_optimizations() -> set[tuple[str, ...]]:
+    source = Path(optimizations.__file__).read_text(encoding="utf-8")
+    registrations: set[tuple[str, ...]] = set()
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        callee = node.func
+        name = (
+            callee.attr
+            if isinstance(callee, ast.Attribute)
+            else getattr(callee, "id", "")
+        )
+        if name != "field_type_optimization" or not node.args:
+            continue
+        registrations.add(
+            tuple(
+                element.value
+                for element in ast.walk(node.args[0])
+                if isinstance(element, ast.Constant) and isinstance(element.value, str)
+            )
+        )
+    return registrations
+
+
+def test_every_field_type_dispatch_left_in_optimizations_is_deliberately_kept():
+    dispatched = _field_type_dispatch_in_optimizations()
+    assert dispatched == set(_KEPT_FIELD_TYPE_DISPATCH), (
+        f"optimizations.py registers field-type optimisations for "
+        f"{sorted(dispatched)}; the deliberately-kept set is "
+        f"{sorted(_KEPT_FIELD_TYPE_DISPATCH)}. Per-type semantics belong on the "
+        f"owning field class, through Field._optimize_condition; the registry keeps "
+        f"only what no single field class owns - 'boolean' because ast.py looks that "
+        f"key up for any field with is_boolean rather than type == 'boolean', the "
+        f"numeric trio because Integer, Float and Monetary are unrelated Field "
+        f"subclasses, and the relational quartet because it spans _Relational and "
+        f"Many2oneReference, which subclasses Integer"
+    )
+
+
+def test_the_moved_field_types_are_owned_by_a_field_class():
+    for field_type in sorted(_FIELD_TYPES_OWNED_BY_A_FIELD_CLASS):
+        field_class = Field._by_type__[field_type]
+        assert (
+            field_class._optimize_condition is not _FieldSqlMixin._optimize_condition
+        ), (
+            f"{field_class.__name__} answers for field type {field_type!r} but does "
+            f"not override _optimize_condition, so its per-type domain semantics are "
+            f"dispatched by nothing"
+        )

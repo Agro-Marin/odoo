@@ -4,6 +4,7 @@ import json
 import typing
 import uuid
 from collections import abc, defaultdict
+from datetime import date, datetime
 from operator import attrgetter
 from typing import override
 
@@ -16,10 +17,12 @@ from odoo.tools.misc import frozendict, has_list_types
 
 from .._recordset import is_recordset
 from ..domain import Domain
+from ..domain.ast import DomainCondition, OptimizationLevel
 from ..parsing import parse_field_expr
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from ..validation import regex_alphanumeric
 from .base import Field, _logger
+from .temporal import _value_to_date, _value_to_datetime
 
 if typing.TYPE_CHECKING:
     from odoo.tools import Query
@@ -35,6 +38,35 @@ def check_property_field_value_name(property_name: str) -> None:
         property_name
     ):
         raise ValueError(f"Wrong property field value name {property_name!r}.")
+
+
+def _optimize_property_temporal_comparand(
+    condition: DomainCondition, model: BaseModel
+) -> Domain:
+    operator = condition.operator
+    if (
+        operator not in ("in", "not in", ">", "<", ">=", "<=")
+        or condition.field_expr.count(".") != 1
+        or not isinstance(condition.value, (str, OrderedSet))
+    ):
+        return condition
+    definition = model.get_property_definition(condition.field_expr)
+    property_type = definition.get("type")
+
+    if property_type == "date":
+        value = _value_to_date(condition.value, model.env)
+    elif property_type == "datetime":
+        value, _ = _value_to_datetime(condition.value, model.env)
+    else:
+        return condition
+    if isinstance(value, COLLECTION_TYPES):
+        value = OrderedSet(
+            str(item) if isinstance(item, (date, datetime)) else item for item in value
+        )
+    elif isinstance(value, (date, datetime)):
+        value = str(value)
+
+    return DomainCondition(condition.field_expr, operator, value)
 
 
 RELATIONAL_PROPERTY_TYPES = frozenset(("many2one", "many2many"))
@@ -58,6 +90,15 @@ class Properties(Field):
     definition_record_field: str | None = None
 
     _description_definition_record = property(attrgetter("definition_record"))
+
+    @override
+    def _optimize_condition(
+        self, condition: DomainCondition, model: BaseModel, level: OptimizationLevel
+    ) -> Domain:
+        if level != OptimizationLevel.DYNAMIC_VALUES:
+            return condition
+        return _optimize_property_temporal_comparand(condition, model)
+
     _description_definition_record_field = property(
         attrgetter("definition_record_field")
     )

@@ -938,6 +938,9 @@ class DomainCondition(Domain):
             domain = opt(self, model)
             if domain != self:
                 return domain
+        domain = field._optimize_condition(self, model, level)
+        if domain != self:
+            return domain
         for opt in optimizations.get(field.type, ()):
             domain = opt(self, model)
             if domain != self:

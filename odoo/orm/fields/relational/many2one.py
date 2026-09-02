@@ -11,6 +11,7 @@ from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 
 from ..._recordset import is_recordset
 from ...domain import Domain
+from ...domain.ast import DomainCondition, OptimizationLevel
 from ...primitives import Command, NewId
 from .. import _field_ddl as _ddl
 from ._base import _Relational
@@ -20,6 +21,34 @@ if typing.TYPE_CHECKING:
     from ...models import BaseModel
 
     OnDelete = typing.Literal["cascade", "set null", "restrict"]
+
+
+def _optimize_comodel_id_lookup(condition: DomainCondition) -> Domain | None:
+    operator = condition.operator
+    if (
+        operator not in ("any!", "not any!")
+        or not isinstance(subdomain := condition.value, DomainCondition)
+        or subdomain.field_expr != "id"
+        or (suboperator := subdomain.operator)
+        not in ("in", "not in", "any!", "not any!")
+    ):
+        return None
+    val = subdomain.value
+    domain: Domain
+    match suboperator:
+        case "in":
+            domain = DomainCondition(condition.field_expr, "in", val - {False})
+        case "not in":
+            domain = DomainCondition(condition.field_expr, "not in", val | {False})
+        case "any!":
+            domain = DomainCondition(condition.field_expr, "any!", val)
+        case "not any!":
+            domain = DomainCondition(
+                condition.field_expr, "!=", False
+            ) & DomainCondition(condition.field_expr, "not any!", val)
+    if operator == "not any!":
+        domain = ~domain
+    return domain
 
 
 class Many2one(_Relational):
@@ -33,6 +62,16 @@ class Many2one(_Relational):
     @property
     def is_delegating(self) -> bool:
         return self.delegate
+
+    @override
+    def _optimize_condition(
+        self, condition: DomainCondition, model: BaseModel, level: OptimizationLevel
+    ) -> Domain:
+        if level == OptimizationLevel.FULL:
+            domain = _optimize_comodel_id_lookup(condition)
+            if domain is not None:
+                return domain
+        return super()._optimize_condition(condition, model, level)
 
     def __init__(
         self,

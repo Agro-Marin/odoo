@@ -1456,7 +1456,7 @@ class TestDomainEdgeCases(TransactionCase):
         self.assertIn("custom", repr(combined))
 
     def test_value_to_datetime_empty_collection(self):
-        from odoo.orm.domain.optimizations import _value_to_datetime
+        from odoo.orm.fields.temporal import _value_to_datetime
 
         value, is_date = _value_to_datetime([], env=self.env, iso_only=False)
         self.assertEqual(list(value), [])

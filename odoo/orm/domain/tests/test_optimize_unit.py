@@ -1,8 +1,6 @@
 import types
 import typing
 import unittest
-from datetime import date, datetime
-from unittest.mock import patch
 
 from odoo.libs.collections import OrderedSet
 from odoo.libs.datetime import utc
@@ -27,6 +25,9 @@ def _as_model(stub: object) -> BaseModel:
 
 class _StubField:
     determine_domain: typing.Any = None
+
+    def _optimize_condition(self, condition, model, level):
+        return condition
 
     _PREDICATES_BY_TYPE = {
         "is_many2one": frozenset({"many2one"}),
@@ -291,6 +292,9 @@ class TestOptimizerInvariants(unittest.TestCase):
 
 class TestOptimizeModelScoping(unittest.TestCase):
     class _Field:
+        def _optimize_condition(self, condition, model, level):
+            return condition
+
         def __init__(self, name, ftype, model_name):
             self.name = name
             self.type = ftype
@@ -371,113 +375,6 @@ class TestBooleanSearchableTautology(unittest.TestCase):
         result = Domain("flag", "in", [True]).optimize_full(_as_model(model))
         self.assertEqual(calls, [("in", [True])])
         self.assertEqual(list(result), [("a", "in", [1])])
-
-
-class TestDatetimeEqualityGranularity(unittest.TestCase):
-    def test_eq_datetime_is_exact(self):
-        self.assertEqual(
-            _opt(Domain("dt", "=", datetime(2024, 1, 1, 10, 30, 15, 123456))),
-            [("dt", "in", [datetime(2024, 1, 1, 10, 30, 15, 123456)])],
-        )
-
-    def test_eq_date_expands_to_whole_day(self):
-        self.assertEqual(
-            _opt(Domain("dt", "=", date(2024, 1, 1))),
-            [
-                "&",
-                ("dt", "<", datetime(2024, 1, 2)),
-                ("dt", ">=", datetime(2024, 1, 1)),
-            ],
-        )
-
-    def test_eq_iso_date_string_expands_to_whole_day(self):
-        self.assertEqual(
-            _opt(Domain("dt", "=", "2024-01-01")),
-            [
-                "&",
-                ("dt", "<", datetime(2024, 1, 2)),
-                ("dt", ">=", datetime(2024, 1, 1)),
-            ],
-        )
-
-    def test_neq_date_is_whole_day_complement(self):
-        self.assertEqual(
-            _opt(Domain("dt", "!=", date(2024, 1, 1))),
-            [
-                "|",
-                "|",
-                ("dt", "in", [False]),
-                ("dt", "<", datetime(2024, 1, 1)),
-                ("dt", ">=", datetime(2024, 1, 2)),
-            ],
-        )
-
-    def test_in_mixed_date_and_datetime_granularities(self):
-        self.assertEqual(
-            _opt(Domain("dt", "in", [date(2024, 1, 1), datetime(2024, 3, 4, 5, 6, 7)])),
-            [
-                "|",
-                ("dt", "in", [datetime(2024, 3, 4, 5, 6, 7)]),
-                "&",
-                ("dt", "<", datetime(2024, 1, 2)),
-                ("dt", ">=", datetime(2024, 1, 1)),
-            ],
-        )
-
-    def test_eq_max_date_has_no_upper_bound(self):
-        self.assertEqual(
-            _opt(Domain("dt", "=", date(9999, 12, 31))),
-            [("dt", ">=", datetime(9999, 12, 31))],
-        )
-
-    def test_eq_today_resolves_to_whole_day(self):
-        with patch.object(
-            optimizations, "parse_date_expression", return_value=date(2024, 1, 5)
-        ):
-            self.assertEqual(
-                list(Domain("dt", "=", "today").optimize_full(_as_model(_StubModel()))),
-                [
-                    "&",
-                    ("dt", "<", datetime(2024, 1, 6)),
-                    ("dt", ">=", datetime(2024, 1, 5)),
-                ],
-            )
-
-    def test_eq_lt_gt_date_partition_the_axis(self):
-        d = date(2024, 1, 1)
-        self.assertEqual(
-            _opt(Domain("dt", "<", d)), [("dt", "<", datetime(2024, 1, 1))]
-        )
-        self.assertEqual(
-            _opt(Domain("dt", ">", d)), [("dt", ">=", datetime(2024, 1, 2))]
-        )
-
-
-class TestRelativePassSkipsWithoutStrings(unittest.TestCase):
-    def test_datetime_set_without_strings_is_same_object(self):
-        condition = DomainCondition("dt", "in", OrderedSet([datetime(2024, 1, 1)]))
-        result = optimizations._optimize_type_datetime_relative(condition, _StubModel())
-        self.assertIs(result, condition)
-
-    def test_date_set_without_strings_is_same_object(self):
-        condition = DomainCondition("d", "in", OrderedSet([date(2024, 1, 1)]))
-        result = optimizations._optimize_type_date_relative(condition, _StubModel())
-        self.assertIs(result, condition)
-
-    def test_set_with_string_still_resolves(self):
-        condition = DomainCondition(
-            "dt", "in", OrderedSet(["today", datetime(2024, 3, 4, 5, 6, 7)])
-        )
-        with patch.object(
-            optimizations, "parse_date_expression", return_value=date(2024, 1, 5)
-        ):
-            result = optimizations._optimize_type_datetime_relative(
-                condition, _StubModel()
-            )
-        self.assertIsNot(result, condition)
-        self.assertEqual(
-            list(result.value), [date(2024, 1, 5), datetime(2024, 3, 4, 5, 6, 7)]
-        )
 
 
 class TestSubdomainNestingGuardCaseInsensitive(unittest.TestCase):
@@ -664,19 +561,3 @@ class TestBasicPassesSkipNoOpRebuild(unittest.TestCase):
         result = optimizations._optimize_boolean_in(condition, _StubModel())
         self.assertIsNot(result, condition)
         self.assertEqual(set(result.value), {True, False})
-
-    def test_datetime_scalar_already_converted_is_same_object(self):
-        condition = DomainCondition("dt", ">=", datetime(2024, 1, 1))
-        result = optimizations._optimize_type_datetime(condition, _StubModel())
-        self.assertIs(result, condition)
-
-    def test_datetime_set_without_datetimes_is_same_object(self):
-        condition = DomainCondition("dt", "in", OrderedSet([False]))
-        result = optimizations._optimize_type_datetime(condition, _StubModel())
-        self.assertIs(result, condition)
-
-    def test_datetime_conversion_still_rebuilds(self):
-        condition = DomainCondition("dt", ">", date(2024, 1, 1))
-        result = optimizations._optimize_type_datetime(condition, _StubModel())
-        self.assertIsNot(result, condition)
-        self.assertEqual((result.operator, result.value), (">=", datetime(2024, 1, 2)))

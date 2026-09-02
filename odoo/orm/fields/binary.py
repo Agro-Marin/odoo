@@ -13,6 +13,8 @@ from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import SQL, human_size
 from odoo.tools.image import image_process
 
+from ..domain.ast import Domain, DomainCondition, OptimizationLevel
+from ..primitives import COLLECTION_TYPES
 from .base import Field
 
 if typing.TYPE_CHECKING:
@@ -38,6 +40,32 @@ class Binary(Field[bytes | typing.Literal[False]]):
     @property
     def is_attachment_backed(self) -> bool:
         return self.attachment
+
+    @override
+    def _optimize_condition(
+        self, condition: DomainCondition, model: BaseModel, level: OptimizationLevel
+    ) -> Domain:
+        if level != OptimizationLevel.BASIC:
+            return condition
+        operator = condition.operator
+        value = condition.value
+        if self.attachment:
+            is_existence_check = (
+                operator in ("in", "not in")
+                and isinstance(value, COLLECTION_TYPES)
+                and set(value) == {False}
+            )
+            if not is_existence_check:
+                raise condition._prepare_condition_error(
+                    "Binary field stored in attachment, accepts only existence "
+                    "check (('field', 'in', [False]) or its negation)"
+                )
+        if operator.endswith("like"):
+            raise condition._prepare_condition_error(
+                "Cannot use like operators with binary fields",
+                error=NotImplementedError,
+            )
+        return condition
 
     bin_size_field: str = ""
 

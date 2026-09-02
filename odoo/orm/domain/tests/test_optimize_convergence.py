@@ -10,6 +10,9 @@ _FALSY_BY_TYPE = {"char": "", "integer": 0, "boolean": False}
 
 
 class _Field:
+    def _optimize_condition(self, condition, model, level):
+        return condition
+
     def __init__(self, name, ftype, model_name):
         self.name = name
         self.type = ftype
