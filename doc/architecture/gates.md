@@ -533,25 +533,35 @@ stated once above and a second copy of it drifts.
 
 ### The limits of "enforced"
 
-**The integration gate is the only lane that runs addon tests.** All sixty-six
-boundary checkers are structural and DB-free: they read import graphs, call
-graphs, reached-member sets and documents. A change can satisfy all sixty-six,
-and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
+**The integration gate is the only lane that runs addon tests in Python.** All
+sixty-six boundary checkers are structural and DB-free: they read import graphs,
+call graphs, reached-member sets and documents. A change can satisfy all
+sixty-six, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
 (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
 2026-08 while every gate and both DB-free tiers stayed green. Read a green
 boundary job as "the structure holds", never as "the framework works".
 
-**No lane runs the JS suites.** `WebSuite` and `MobileWebSuite` in
-`addons/web/tests/test_js.py` are addon tests like any other, and the integration
-lane does not name them — `grep -rn 'WebSuite' .github/workflows/` finds nothing.
-The HOOT suites are a local gate, driven by `tooling/hoot`, which makes that
-runner's own advice (verify under both presets, gate on the per-preset count
-rather than the exit code) the whole of the enforcement. The cost is not
-hypothetical: a `mobile`-tagged test in `@web/ui/dialog_service` sat failing from
-the day it landed, invisible because the desktop preset skips it by tag and
-nothing else ran it at all. `./hoot` now prints when a selection owns tests the
-preset does not execute, which is a nudge and not a gate — read a green local run
-as "the suites you selected, under the preset you chose".
+**The JS suites have their own lane** (`.github/workflows/js_tests.yml`, added
+2026-09-01). Until then no lane ran them: `WebSuite` and `MobileWebSuite` in
+`addons/web/tests/test_js.py` are addon tests like any other, every integration
+lane is `--stop-after-init` and most are `--no-http`, so both classes skipped
+themselves at `setUpClass` and were reported as skipped, never as a pass and
+never as a failure. The HOOT suites were a local gate, driven by `tooling/hoot`,
+which made that runner's own advice the whole of the enforcement. The cost was
+not hypothetical: a `mobile`-tagged test in `@web/ui/dialog_service` sat failing
+from the day it landed, invisible because the desktop preset skips it by tag and
+nothing else ran it at all, and `@hr/m2x_avatar_employee` failed 6 of 11 for as
+long as nothing ran it.
+
+The lane runs `tooling/hoot/hoot-shard` — the same plan `WebSuite` runs, read
+from `test_js.py` rather than restated, one suite per page load — **under both
+presets**, desktop and mobile, each against its own shard databases, because the
+two presets select by tag and neither set is a superset of the other. Each pass
+is gated on its own passed-test **count** as well as on the runner's exit code:
+a suite contributing zero tests under a preset is not an error to the runner,
+so a plan that narrowed to nothing would otherwise read as PASS. `./hoot` still
+prints when a local selection owns tests the preset does not execute; that is
+the nudge, and the lane is now the gate.
 
 A suite outside the lane is a suite nobody runs. When you add a test addon, add
 it to the lane — **with its own database.** The suites interfere: `test_http`

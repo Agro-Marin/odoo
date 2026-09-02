@@ -1,0 +1,310 @@
+name: JS Tests (HOOT)
+
+# THE lane the gates page said did not exist. `ls .github/workflows/` was 18
+# files and not one of them ran a HOOT suite: lint.yml runs eslint,
+# typecheck.yml runs tsc, asset_lint.yml checks that the bundles assemble, and
+# the only `hoot` outside a comment was unit_tests.yml listing `tooling/hoot`
+# as a PYTEST path -- the runner's own Python selftests, not a JS run. All 25
+# odoo-bin calls in integration_tests.yml are `--stop-after-init` and 23 of
+# them `--no-http`, so `WebSuite` and `MobileWebSuite`
+# (addons/web/tests/test_js.py) were HttpCases skipped at setUpClass, reported
+# as skipped, never as a pass and never as a failure.
+#
+# The cost was on the books before this lane: `@hr/m2x_avatar_employee` failed
+# 6 of 11 and had been able to for as long as nothing ran it (CLAUDE.md §4,
+# 2026-08-31), and a `mobile`-tagged test in `@web/ui/dialog_service` sat
+# failing from the day it landed because the desktop preset skips it by tag.
+# A red lane is what makes those visible; a suite outside a lane is a suite
+# nobody runs.
+#
+# HOW IT RUNS. Through the warm runner, `tooling/hoot/hoot-shard`, not through
+# `odoo-bin --test-tags web_js`. Both execute the same suites -- hoot-shard
+# reads its plan from `web/tests/test_js.py` and
+# `WebSuite.test_shard_runner_covers_ci` fails the build if the plan stops
+# covering a file CI runs -- but the `web_js` tag is estimated at 1-2 hours
+# serial (addons/web/machine_doc_v1/TEST_TAGS.md) while the shard runner
+# measured the whole desktop pass at 16,169 tests in 361 s wall at `-j 4` and
+# the mobile pass at 2,332 in 134 s (2026-09-01, on a detached worktree at
+# 63a06d2ca21 with `odoo/addons,addons` as the scope, i.e. this lane's).
+# Each shard boots its own database and warm server and runs one suite per
+# page load (`hoot --isolate`), which is what gives CI's answer: batched
+# suites fail deterministically on tests that pass alone and mask real
+# failures that a solo run surfaces (tooling/hoot/README.md).
+#
+# TWO PASSES, not one. Tests are selected by tag, not directory, and the two
+# presets execute different sets -- neither a superset of the other. The
+# desktop pass runs everything not tagged `mobile`; the mobile pass resizes
+# Chrome to 375x667 with touch on, sends `-headless`, and is scoped to the
+# files that own a mobile test, exactly as `MobileWebSuite._run_hoot` scopes
+# it. The mobile pass is how the `dialog_service` failure above would have
+# been caught.
+#
+# ONE SHARD PER CORE, and nothing else on the box. The local mobile pass
+# reported one failure, `@web/views/form/form_view/button in form view and
+# long willStart`, while a fifth server and a module install ran beside the
+# four shards; alone it passes, and so does its whole file (331). The README
+# records the same shape -- 4 desktop and 1 mobile failures from CPU
+# contention that did not reproduce idle -- which is why the shard count is
+# pinned to the runner's core count rather than left to hoot-shard's default.
+#
+# THE COUNT FLOORS are the guard, not the exit code alone. A suite contributing
+# zero tests under a preset is not an error to the runner -- it fails closed
+# only when the WHOLE selection matches nothing -- so a narrowed plan, a
+# suite that stopped resolving, or a server that died between suites all
+# read as PASS with fewer tests. Each pass therefore greps its own
+# `TOTAL: N failed / M passed` line and fails under a floor set well below
+# the measured count, so a collection change fails loudly rather than by one
+# test. Raise a floor deliberately when the scope legitimately grows.
+#
+# Chrome: ubuntu-latest ships google-chrome-stable, which is the first name
+# `odoo/tests/browser.py` looks for. Dart Sass comes from `npm ci` -- the
+# bundle build needs it and no apt package provides it. `psql` is what the
+# runner uses to create, inspect and drop its shard databases.
+
+on:
+  # Mainline re-verification: run both passes on every push to a protected
+  # branch, so a JS regression cannot land via a direct commit or merge-skew
+  # without CI catching it post-merge.
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    paths:
+      # Every addon's `static/` reaches the unit-test bundle: most manifests
+      # contribute to `web.assets_unit_tests`, so a HOOT run bundles nearly the
+      # whole tree, and a change under any addon can fail a suite another
+      # addon owns. Both addon roots, whole.
+      - 'addons/**'
+      - 'odoo/**'
+      - 'tooling/hoot/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'eslint.config.mjs'
+      - 'crates/**'
+      - 'requirements*.txt'
+      - '.github/workflows/js_tests.yml'
+
+permissions:
+  contents: read
+
+env:
+  # Shards per pass. hoot-shard defaults to the CPU count; the hosted runner
+  # has 4 cores and each shard is one Odoo server plus one Chrome.
+  SHARDS: 4
+  # Per-shard wall clock, seconds. Local at -j 4 is ~311 s wall for the whole
+  # desktop pass; the hosted runner is slower and the first run of each shard
+  # database adds a one-time web install, so this sits at four times that.
+  SHARD_TIMEOUT: 1500
+  # Floors for the count gates below, on PASSED tests. Desktop measured
+  # 16,169 passed and mobile 2,332 (see the header); both floors sit well
+  # under the reading so that a suite dropping out of the plan fails, not a
+  # single deleted test -- @html_editor alone is over a third of desktop.
+  DESKTOP_COUNT_FLOOR: 14000
+  MOBILE_COUNT_FLOOR: 2000
+
+jobs:
+  hoot:
+    name: HOOT desktop + mobile (hoot-shard)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # hoot_lib reaches PostgreSQL two ways: odoo-bin through the conf written
+      # below, and `psql` directly (create / list / drop the shard databases)
+      # with only `-U $PGUSER`, so libpq's own variables point that at the
+      # service container.
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: odoo
+      PGPASSWORD: odoo
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build + install the odoo_rust extension
+        # The ORM hot paths hard-import odoo_rust -- no fallback -- and every
+        # warm server is a real odoo-bin.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'maturin>=1.0,<2.0'
+          maturin build --release --manifest-path crates/odoo_rust/Cargo.toml --out dist
+          python -m pip install --no-index --find-links dist odoo_rust
+
+      - name: Install system + Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev libcairo2-dev \
+            postgresql-client
+          pip install --quiet -r requirements-test.txt
+
+      - name: Install JS dependencies (Dart Sass)
+        # `sass-embedded` in package.json is the only source of the compiler
+        # the bundle build needs; node_modules is gitignored.
+        run: npm ci
+
+      - name: Confirm a browser is present
+        # The runner drives Chrome through odoo's own ChromeBrowser CDP driver.
+        # Missing, every suite would report the same failure -- name the cause.
+        run: |
+          for name in google-chrome-stable google-chrome chromium chromium-browser; do
+            if command -v "$name" >/dev/null 2>&1; then
+              echo "browser: $name ($("$name" --version))"
+              exit 0
+            fi
+          done
+          echo "::error::no Chrome or Chromium on PATH; the HOOT suites need one"
+          exit 1
+
+      - name: Write the runner's odoo config
+        # hoot_lib resolves its config from the workspace beside the checkout;
+        # CI checks this repository out alone, so hand it one explicitly.
+        # Same addons scope as integration_tests.yml: odoo/addons and addons,
+        # nothing from a sibling repository. template0 for the C-collation
+        # reason recorded in that workflow's header.
+        run: |
+          cat > /tmp/hoot-ci.conf <<CONF
+          [options]
+          addons_path = ${GITHUB_WORKSPACE}/odoo/addons,${GITHUB_WORKSPACE}/addons
+          data_dir = /tmp/hoot-ci-data
+          db_host = localhost
+          db_port = 5432
+          db_user = odoo
+          db_password = odoo
+          db_template = template0
+          http_interface = 127.0.0.1
+          workers = 0
+          log_level = info
+          CONF
+          {
+            echo "ODOO_CONF=/tmp/hoot-ci.conf"
+            echo "ODOO_VENV_PYTHON=$(python -c 'import sys; print(sys.executable)')"
+          } >> "$GITHUB_ENV"
+
+      - name: Run the desktop pass
+        # `set -o pipefail` so the runner's exit code survives the tee: it is 1
+        # on any failed test and on any shard that ended other than PASS/WARN
+        # (a dead server is reported VOID, not folded into the failures).
+        working-directory: tooling/hoot
+        run: |
+          set -o pipefail
+          ./hoot-shard -j "${SHARDS}" --preset desktop \
+            --db-prefix ci_hoot_desktop --timeout "${SHARD_TIMEOUT}" \
+            2>&1 | tee /tmp/hoot-desktop.log
+
+      - name: Assert the desktop pass actually ran
+        # `TOTAL: N failed / M passed in …` is hoot-shard's own summary line.
+        if: always()
+        run: |
+          RAN=$(grep -oE 'TOTAL: [0-9]+ failed / [0-9]+ passed' /tmp/hoot-desktop.log \
+                | tail -1 | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+')
+          FAILED=$(grep -oE 'TOTAL: [0-9]+ failed' /tmp/hoot-desktop.log \
+                | tail -1 | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no TOTAL line in the desktop log — hoot-shard did not report a count"
+            exit 1
+          fi
+          echo "desktop: $FAILED failed, $RAN passed (floor: ${DESKTOP_COUNT_FLOOR} passed)"
+          if [ "$RAN" -lt "${DESKTOP_COUNT_FLOOR}" ]; then
+            echo "::error::only $RAN desktop tests passed, below the floor of"
+            echo "::error::${DESKTOP_COUNT_FLOOR} — a suite dropped out of the plan, or a"
+            echo "::error::shard died, rather than tests failing. Raise the floor"
+            echo "::error::deliberately if the scope legitimately shrank."
+            exit 1
+          fi
+
+      - name: Run the mobile pass
+        # Its own shard databases: the desktop servers are still warm on their
+        # ports and a second plan against the same prefix would try to reuse
+        # them with a different browser size.
+        if: always()
+        working-directory: tooling/hoot
+        run: |
+          set -o pipefail
+          ./hoot-shard -j "${SHARDS}" --preset mobile \
+            --db-prefix ci_hoot_mobile --timeout "${SHARD_TIMEOUT}" \
+            2>&1 | tee /tmp/hoot-mobile.log
+
+      - name: Assert the mobile pass actually ran
+        if: always()
+        run: |
+          RAN=$(grep -oE 'TOTAL: [0-9]+ failed / [0-9]+ passed' /tmp/hoot-mobile.log \
+                | tail -1 | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+')
+          FAILED=$(grep -oE 'TOTAL: [0-9]+ failed' /tmp/hoot-mobile.log \
+                | tail -1 | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no TOTAL line in the mobile log — hoot-shard did not report a count"
+            exit 1
+          fi
+          echo "mobile: $FAILED failed, $RAN passed (floor: ${MOBILE_COUNT_FLOOR} passed)"
+          if [ "$RAN" -lt "${MOBILE_COUNT_FLOOR}" ]; then
+            echo "::error::only $RAN mobile tests passed, below the floor of"
+            echo "::error::${MOBILE_COUNT_FLOOR} — the plan narrowed to nothing, or a"
+            echo "::error::shard died. A drop to ~0 means _mobile_suites_under found no"
+            echo "::error::file owning a mobile test."
+            exit 1
+          fi
+
+      - name: Stop the warm servers
+        # They are detached (start_new_session) and would otherwise outlive the
+        # step; the job ends anyway, but the server logs are what name a
+        # failure and this keeps them readable in the summary below.
+        if: always()
+        working-directory: tooling/hoot
+        run: ./hoot-shard --stop || true
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "## HOOT (hoot-shard, ${SHARDS} shards per pass)"
+            echo ""
+            echo "| Pass | Result line |"
+            echo "|------|-------------|"
+            echo "| desktop | $(grep -oE 'TOTAL: .*' /tmp/hoot-desktop.log | tail -1 || echo 'no TOTAL line') |"
+            echo "| mobile | $(grep -oE 'TOTAL: .*' /tmp/hoot-mobile.log | tail -1 || echo 'no TOTAL line') |"
+            echo ""
+            echo "Floors: desktop ${DESKTOP_COUNT_FLOOR} passed · mobile ${MOBILE_COUNT_FLOOR} passed"
+            echo ""
+            for log in /tmp/hoot-desktop.log /tmp/hoot-mobile.log; do
+              if grep -q '^FAILED:' "$log"; then
+                echo "### $(basename "$log" .log)"
+                echo '```'
+                sed -n '/^FAILED:/,$p' "$log" | head -100
+                echo '```'
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

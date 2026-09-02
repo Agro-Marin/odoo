@@ -173,8 +173,9 @@ satisfy all 66 and both DB-free tiers and still be wrong.
 addon tests in 2026-08 while every gate and both tiers stayed green.
 
 **Cost.** A green boundary job reads as "the framework works" when it means "the
-structure holds". The integration lane is the only one that runs addon tests,
-and it runs twenty-five suites.
+structure holds". Two lanes execute addon tests: the integration lane is the only
+one that runs addon tests in Python, and it runs twenty-five suites; the JS lane
+(`js_tests.yml`, added 2026-09-01) runs the HOOT suites under both presets.
 
 **What would close it.** Broadening the integration lane is the only lever;
 adding structural gates cannot reach this class of defect by construction.

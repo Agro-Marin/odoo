@@ -391,6 +391,26 @@ class TestTheEnforcedClaimIsBounded(unittest.TestCase):
         self.assertIn("postgres:18", yaml)
         self.assertIn("only lane that runs addon tests", DOC_FLAT)
 
+    JS = ROOT / ".github" / "workflows" / "js_tests.yml"
+
+    def test_the_js_lane_exists_and_runs_both_presets(self) -> None:
+        # The page said "No lane runs the JS suites" for as long as it was
+        # true. Now that one does, pin what the page claims about it: the
+        # runner, both presets, and a count gate per pass -- each of which
+        # is a thing the page says this lane does, and each of which a
+        # later edit could drop while the page kept saying so.
+        yaml = self.JS.read_text(encoding="utf-8")
+        self.assertIn("hoot-shard", yaml)
+        for preset in ("desktop", "mobile"):
+            self.assertIn(f"--preset {preset}", yaml, f"the {preset} pass is gone")
+            self.assertRegex(
+                yaml,
+                rf"{preset.upper()}_COUNT_FLOOR",
+                f"the {preset} pass no longer gates on its count",
+            )
+        self.assertIn("js_tests.yml", DOC)
+        self.assertIn("under both presets", DOC_FLAT)
+
     def test_every_installed_module_is_named_by_the_page(self) -> None:
         yaml = self.INTEGRATION.read_text(encoding="utf-8")
         installs = re.findall(r"^  (?:\w+_)?INSTALL: (.+)$", yaml, re.MULTILINE)
