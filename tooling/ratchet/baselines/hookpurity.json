@@ -1,5 +1,6 @@
 {
-  "count": 16,
-  "measured_at": "24f92b0f744fe7664a897896eb4ab25bf1f647ae",
-  "note": "Re-measured at 24f92b0f744 after a rebase orphaned the previous stamp b7b596cd004; count unchanged (16). Measured on a clean detached worktree of that commit: python tooling/architecture/field_hook_purity.py --count, as architecture.yml runs it.\n\nRe-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
+  "count": 12,
+  "measured_at": "8f4a84e81517082ea9f85bce41f01c5a7dc36aaa",
+  "measured_root": "",
+  "note": "Rebase onto origin/19.0-marin resolved this floor to the replayed branch's side, 16, when origin had already banked 12 at 3cfc16542e7 and the merged tree measures 12. field_hook_purity.py --count reads 12 on a clean tree at this commit, and test_field_hook_purity::test_the_repository_measures_at_or_under_its_floor was red at 16 until this. The four offenders origin closed are origin's work, not this branch's; the branch moves this gate by nothing. gates.md and coding_guidelines.rst state the same 12 as prose figures, re-derived in the parent commit."
 }

@@ -1,6 +1,6 @@
 {
-  "count": 244,
-  "measured_at": "8cf39e5d30b2300c5f1fa59f3c7a0a8dcdc7a53f",
+  "count": 206,
+  "measured_at": "8f4a84e81517082ea9f85bce41f01c5a7dc36aaa",
   "measured_root": "",
-  "note": "Re-stamped at a branch commit: the previous measured_at was a commit git cannot resolve, so --list showed UNCHECKED and the enforcing path could not tell a verified base from an unverifiable one. The count is unchanged -- 244 measured on a clean detached worktree of the stamped commit, the same number the floor already carried -- so this moves provenance, not debt.\n\nRe-derived at HEAD. The previous 245 was measured in the shared workspace checkout while it was dirty, so one offender that existed only in a working tree was banked as if it were at HEAD; a clean detached worktree of HEAD and the checkout both measure 244. exact mode fails in the too-low direction, so the stale floor was a standing red."
+  "note": "Rebase resolution set this to the replayed side (244); origin had 206 and the merged tree measures 206. field_hook_naming.py --count on a clean tree at this commit reads 206."
 }

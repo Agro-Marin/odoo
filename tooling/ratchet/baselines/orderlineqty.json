@@ -1,5 +1,6 @@
 {
-  "count": 36,
-  "measured_at": "24f92b0f744fe7664a897896eb4ab25bf1f647ae",
-  "note": "Re-measured at 24f92b0f744 after a rebase orphaned the previous stamp b7b596cd004; moved 40 -> 36. Diffed as a set against the current script run in a detached worktree at b7b596cd004 (40 there, to the unit): the four that left are all in sale_project's tests -- test_reinvoice.py:561 (assign product_uom_qty = 3.0) and test_sale_project.py:24, :30 and :48 (create product_uom_qty = 1) -- and they left with a0dfef39986, '[FIX] project, sale_project: four tests wrote fields this fork made computed or newly constrained'. Nothing else moved: sale_project 6 -> 2, every other module identical. Command: python tooling/architecture/order_line_qty.py --count, as architecture.yml runs it.\n\nRe-measured after rebasing this branch onto origin/19.0-marin (214 upstream commits). Neither side's floor described the merged tree: both had driven counts down independently from a common base, so every one of these had to be re-derived rather than merged. Measured at HEAD in the workspace checkout; mypy per section 9.3 in a detached worktree with mypy==2.3.0 alone."
+  "count": 34,
+  "measured_at": "8f4a84e81517082ea9f85bce41f01c5a7dc36aaa",
+  "measured_root": "",
+  "note": "Rebase resolution set this to the replayed side (36); origin had 34 and the merged tree measures 34. order_line_qty.py --count on a clean tree at this commit reads 34."
 }

@@ -1,6 +1,6 @@
 {
-  "count": 86,
-  "measured_at": "8cf39e5d30b2300c5f1fa59f3c7a0a8dcdc7a53f",
+  "count": 59,
+  "measured_at": "8f4a84e81517082ea9f85bce41f01c5a7dc36aaa",
   "measured_root": "",
-  "note": "Re-stamped at a branch commit: the previous measured_at was a commit git cannot resolve, so --list showed UNCHECKED and the enforcing path could not tell a verified base from an unverifiable one. The count is unchanged -- 86 measured on a clean detached worktree of the stamped commit, the same number the floor already carried -- so this moves provenance, not debt.\n\nRe-derived at HEAD, same cause as the fieldhooks move: 87 was banked off a dirty shared checkout, a clean worktree of HEAD and the checkout both measure 86."
+  "note": "Rebase resolution set this to the replayed side (86); origin had 59 and the merged tree measures 59. compute_context_deps.py --count on a clean tree at this commit reads 59."
 }
