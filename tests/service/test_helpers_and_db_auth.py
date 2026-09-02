@@ -50,3 +50,12 @@ class TestInternalDropIsUngated(unittest.TestCase):
             result = db_service._drop_database("never_exposed_db")
         self.assertFalse(result)
         list_dbs_mock.assert_not_called()
+
+
+class TestMemoryReadUsesTheRealPsutilContract(unittest.TestCase):
+    def test_get_memory_rss_reads_a_real_psutil_process(self):
+        import psutil
+
+        from odoo.service._limits import get_memory_rss
+
+        self.assertGreater(get_memory_rss(psutil.Process()), 0)
