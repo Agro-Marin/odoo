@@ -20,6 +20,7 @@ carry the detailed invariants — this file is the map.
 | `leaks.py` | `CheckoutTracker`: which connections are out, since when, from which thread and borrow site | yes |
 | `breaker.py` | `CircuitBreaker`: failure gating with exponential backoff for an optional endpoint (the read replica) | yes |
 | `lag.py` | `ReplicaLagGate` + `LAG_SQL`: sampled apply-lag ceiling that demotes stale reads to the primary | yes |
+| `replica.py` | `ReplicaRouter`: the primary `Connection`, the optional readonly one, the `CircuitBreaker` and the `ReplicaLagGate` composed into one decision — which connection serves a cursor request, and the mode (`ro` / `ro->rw` / `rw`) it decided; `REPLICA_RETRY_TIME`, the breaker's cooldown ceiling; `is_readonly_cursor_enabled`. Was the body of `Registry.cursor` | no |
 | `bulk.py` | `_BulkAccessMixin`: `copy_from` (COPY, optional binary + pre-generated ids), `execute_values` | no |
 | `savepoint.py` | `Savepoint` / `_FlushingSavepoint` (ORM state restore is injected by `odoo.orm.runtime.savepoint`) | yes |
 | `ddl.py` | DDL keyword detection + client-side param inlining (`$N` is rejected in DDL positions) | yes |
@@ -159,8 +160,9 @@ carry the detailed invariants — this file is the map.
   host/port/user/password/sslmode are overridable via `db_replica_*`, each
   falling back to the primary's `db_*` when unset, so a replica with its own
   role is expressible (only host/port used to be, and the inherited credentials
-  failed with nothing to explain why). `Registry.cursor(readonly=True)` gates
-  the replica behind a `CircuitBreaker`: the flat 20-minute demotion it replaces
+  failed with nothing to explain why). `ReplicaRouter.cursor(readonly=True)` —
+  what `Registry.cursor` delegates to — gates the replica behind a
+  `CircuitBreaker`: the flat 20-minute demotion it replaces
   cost that long for a transient blip and never re-checked, where the breaker
   opens for a second and doubles to the same 20-minute ceiling, so the worst
   case is unchanged and a blip recovers immediately. Measured against a real
@@ -773,8 +775,9 @@ carry the detailed invariants — this file is the map.
   depth accounting, `bulk`'s argument validation and encoding cost model,
   `utils`' DSN/maintenance-db resolution, `budget`/`stats` accounting, `reaper`
   policy and throttle, `leaks` checkout bookkeeping, `breaker` backoff schedule,
-  `lag` ceiling and its sampling, one budget per resolved endpoint in
-  `budget_endpoints`)
+  `lag` ceiling and its sampling, `replica` routing — which connection a
+  cursor request lands on and the mode it reports, against two fake
+  connections — one budget per resolved endpoint in `budget_endpoints`)
   plus the two that only need stand-ins — `pool` (budget clamps and sharing,
   idle-pool reaping, permit accounting, reachability proof, close/drain
   matching, against a fake `psycopg_pool.ConnectionPool`) and `lifecycle`
@@ -786,9 +789,10 @@ carry the detailed invariants — this file is the map.
   borrow behaviour against an unreachable host — lives in the integration
   suite.
 - **Tier 2 (real `import odoo`, no DB)** —
-  `odoo/orm/tests/test_replica_breaker.py`: how `Registry.cursor(readonly=True)`
-  gates a failing or lagging replica, since the breaker and the lag gate live
-  here but their only caller is the ORM registry.
+  `odoo/orm/tests/test_replica_breaker.py`: that `Registry.cursor` hands the
+  decision to its `ReplicaRouter` and records the mode it came back with on
+  the worker thread, and nothing more — the breaker and the lag gate are
+  exercised through the router in `odoo/db/tests/test_replica.py`.
 - **A concurrency test must not take its cursors from `registry().cursor()`.**
   Under `--test-enable` that returns an `odoo.tests.cursor.TestCursor`, and
   every `TestCursor` for a database serialises on one lock

@@ -130,10 +130,12 @@ independent servers under-used both.
 
 **The replica is optional and self-demoting.** Lag is sampled, and reads that
 would be too stale go to the primary instead of being served wrong. The breaker
-backs off exponentially to a ceiling of `_REPLICA_RETRY_TIME` (20 minutes),
-which the table above does not list because it is not `db/`'s: `db/breaker.py`
-owns the `CircuitBreaker`, `orm/runtime/registry.py` owns the constant and
-constructs the breaker with it. It was previously a *flat* 20-minute window, so
+backs off exponentially to a ceiling of `REPLICA_RETRY_TIME` (20 minutes),
+which the table above does not list because it is not the resilience tier's:
+`db/breaker.py` owns the `CircuitBreaker`, and `db/replica.py` — connectivity,
+since it holds the two connections — owns the constant and constructs the
+breaker with it inside the `ReplicaRouter` that `Registry.cursor` delegates
+to. It was previously a *flat* 20-minute window, so
 a single transient failure cost 20 minutes of full primary load with nothing
 re-checking; it is now the maximum a doubling backoff reaches, so a blip recovers
 in about a second while the worst case is unchanged.

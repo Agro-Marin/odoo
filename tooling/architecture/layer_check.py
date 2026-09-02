@@ -294,6 +294,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "odoo.db.bulk",
             "odoo.db.lifecycle",
             "odoo.db.endpoints",
+            "odoo.db.replica",
         ),
         allow=(),
         rationale=(

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Final, Protocol, TextIO, cast
 import werkzeug.serving
 
 from . import db, release, tools
+from .db.replica import is_readonly_cursor_enabled
 from .db.schema import column_exists
 from .libs.colors import BLUE, DEFAULT, GREEN, RED, WHITE, YELLOW, colorize
 from .libs.json import dumps as json_dumps
@@ -158,13 +159,13 @@ class PerfFilter(logging.Filter):
             perf_record.perf_info = "%s %s %s" % self.format_perf(
                 query_count, query_time, remaining_time
             )
-            if tools.config["db_replica_host"] or "replica" in tools.config["dev_mode"]:
+            if is_readonly_cursor_enabled():
                 cursor_mode = worker.cursor_mode
                 perf_record.perf_info = (
                     f"{perf_record.perf_info} {self.format_cursor_mode(cursor_mode)}"
                 )
             del worker.query_count
-        elif tools.config["db_replica_host"] or "replica" in tools.config["dev_mode"]:
+        elif is_readonly_cursor_enabled():
             perf_record.perf_info = "- - - -"
         else:
             perf_record.perf_info = "- - -"

@@ -27,7 +27,9 @@ odoo/
 │   ├── [foundation]   errors, dsn, utils
 │   ├── [connectivity] pool, cursor, ddl, schema, savepoint, schema_cache,
 │   │                  bulk, lifecycle,
-│   │                  endpoints (the endpoint-keyed pool/budget registry)
+│   │                  endpoints (the endpoint-keyed pool/budget registry),
+│   │                  replica (routes a cursor request to the replica or
+│   │                  the primary through the breaker and the lag gate)
 │   └── [resilience]   breaker (circuit breaker w/ backoff + single prober),
 │                      lag (replica apply-lag ceiling, db_replica_max_lag),
 │                      budget (process-wide connection semaphore),
@@ -300,7 +302,7 @@ definition that runs.
 | `orm-seams-stay-below-models-and-runtime` | `orm/_recordset` & `orm/decorators` must not import `orm/models` or `orm/runtime` | ✅ clean |
 | `facade-boundary` | addon code (`odoo/addons/**` **and** the repo-root `addons/**`) must not import `odoo.orm.*` (use `odoo.api`/`odoo.fields`/`odoo.models`) | ✅ clean |
 | `core-does-not-depend-on-addons` | core packages must not import `odoo.addons.<module>` (bare `odoo.addons` for `__path__` discovery is fine) | ✅ 0 new, 2 pinned rules |
-| `db-resilience-below-connectivity` | `db/` `[resilience]` (breaker, lag, budget, leaks, reaper, probe, metrics, stats) must not import `[connectivity]` (pool, cursor, ddl, schema, savepoint, schema_cache, bulk, lifecycle, endpoints) | ✅ clean |
+| `db-resilience-below-connectivity` | `db/` `[resilience]` (breaker, lag, budget, leaks, reaper, probe, metrics, stats) must not import `[connectivity]` (pool, cursor, ddl, schema, savepoint, schema_cache, bulk, lifecycle, endpoints, replica) | ✅ clean |
 | `http-features-below-serving` | `http/` `[features]` (openapi, `_params`, geoip, constants, exceptions, `_protocols`) must not import `[serving]` | ✅ clean |
 | `orm-below-the-serving-tier` | `odoo/orm/**` must not import `odoo.service`, `odoo.http` or `odoo.cli` — the serving tier runs on the ORM, never the reverse | ✅ clean |
 | `transaction-primitive-is-transport-agnostic` | `odoo/service/transaction.py` must not import `odoo.http` — the transport injects a `RetryParticipant` instead (ADR-0003's seam shape) | ✅ clean |
@@ -354,14 +356,16 @@ per composition. Measured by a live run of that gate:
 |---|---:|---:|---:|---:|---|
 | `BaseModel` (`orm/models/`) | 31 | 105 | 0 | 4 | no |
 | `Field` (`orm/fields/`) | 5 | 8 | 0 | 1 | **yes** |
-| `Registry` (`orm/runtime/`) | 6 | 9 | 0 | 0 | **yes** |
+| `Registry` (`orm/runtime/`) | 6 | 9 | 0 | 0 | no |
 | `Request` (`http/request_class.py`) | 4 | 1 | 0 | 8 | no |
 | `Cursor` (`db/cursor.py`) | 3 | 3 | 0 | 5 | **yes** |
 
 The last column is the shape claim, not a line count: a root larger than all its
 leaves put together is a composition that has not actually been decomposed.
-`BaseModel` is the target — its root is a fraction of its leaves — and three of
-the other four still invert it. Line counts are deliberately not tabulated: they
+`BaseModel` is the target — its root is a fraction of its leaves — and two of
+the other four still invert it. `Registry` stopped inverting it when replica
+routing left for `db/replica.py`, by a margin of a few lines: the shape claim
+holds, the fraction does not yet. Line counts are deliberately not tabulated: they
 move on every edit and carry no architectural signal the direction does not.
 
 **Read `cyclic_edges` and `unowned_shared_state` as a pair, never `cyclic_edges`

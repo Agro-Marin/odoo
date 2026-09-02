@@ -2226,7 +2226,6 @@ class TestDroppedDBRecovery(BaseCase):
     def test_check_signaling_cleans_up_after_db_drop(self):
         reg = object.__new__(Registry)
         reg.db_name = self.DB_NAME
-        reg._db_readonly = None
         Registry.registries[self.DB_NAME] = reg
         self.addCleanup(Registry.delete, self.DB_NAME)
 
@@ -2245,7 +2244,6 @@ class TestDroppedDBRecovery(BaseCase):
     def test_check_signaling_keeps_registry_on_pool_error(self):
         reg = object.__new__(Registry)
         reg.db_name = self.DB_NAME
-        reg._db_readonly = None
         Registry.registries[self.DB_NAME] = reg
         self.addCleanup(Registry.delete, self.DB_NAME)
 
@@ -2262,7 +2260,6 @@ class TestDroppedDBRecovery(BaseCase):
     def test_check_signaling_keeps_registry_when_caller_provides_cursor(self):
         reg = object.__new__(Registry)
         reg.db_name = self.DB_NAME
-        reg._db_readonly = None
         reg.registry_sequence = -1
         Registry.registries[self.DB_NAME] = reg
         self.addCleanup(Registry.delete, self.DB_NAME)

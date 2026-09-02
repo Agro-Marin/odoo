@@ -1,270 +1,125 @@
 import typing
 
-import psycopg
 import pytest
 
-import odoo.db
-from odoo.db.breaker import CircuitBreaker
-from odoo.db.lag import ReplicaLagGate
+from odoo.db.replica import ReplicaRouter
 from odoo.libs.worker_thread import current_worker_thread
-from odoo.orm.runtime.registry import _REPLICA_RETRY_TIME, Registry
+from odoo.orm.runtime.registry import Registry
+
+
+class _Cursor:
+    def __init__(self, label):
+        self.label = label
+
+    def close(self):
+        pass
 
 
 class _Conn:
-    def __init__(self, label, fails=False):
+    def __init__(self, label):
         self.label = label
-        self.fails = fails
-        self.attempts = 0
 
     def cursor(self):
-        self.attempts += 1
-        if self.fails:
-            raise psycopg.OperationalError(f"{self.label} is down")
-        return f"{self.label}-cursor"
+        return _Cursor(self.label)
 
 
-def _make_registry(*, replica_fails=False, with_replica=True, max_lag=0.0):
+class _Router(ReplicaRouter):
+    __slots__ = ("decisions",)
+
+    def __init__(self, decisions):
+        super().__init__(typing.cast("typing.Any", _Conn("primary")))
+        self.decisions = list(decisions)
+
+    def cursor(self, readonly=False):
+        cr, mode = self.decisions.pop(0)
+        return typing.cast("typing.Any", cr), mode
+
+
+def _make_registry(*decisions):
     reg = object.__new__(Registry)
     reg.db_name = "_breaker_db"
-    reg._db = typing.cast("typing.Any", _Conn("primary"))
-    reg._db_readonly = typing.cast(
-        "typing.Any", _Conn("replica", fails=replica_fails) if with_replica else None
-    )
-    reg._replica_breaker = CircuitBreaker(max_cooldown=_REPLICA_RETRY_TIME)
-    reg._replica_lag = ReplicaLagGate(max_lag)
+    reg._replica = _Router(decisions)
     return reg
 
 
-def test_a_healthy_replica_serves_readonly_cursors():
-    reg = _make_registry()
+def test_the_registry_hands_back_whatever_the_router_decided():
+    reg = _make_registry(("replica-cursor", "ro"), ("primary-cursor", "rw"))
     assert reg.cursor(readonly=True) == "replica-cursor"
-    assert reg._replica_breaker.closed
+    assert reg.cursor() == "primary-cursor"
 
 
-def test_no_replica_configured_uses_the_primary():
-    reg = _make_registry(with_replica=False)
-    assert reg.cursor(readonly=True) == "primary-cursor"
-
-
-def test_readwrite_never_touches_the_replica():
-    reg = _make_registry()
-    assert reg.cursor(readonly=False) == "primary-cursor"
-    assert reg._db_readonly.attempts == 0
-
-
-def test_a_failing_replica_falls_back_and_opens_the_breaker():
-    reg = _make_registry(replica_fails=True)
-    assert reg.cursor(readonly=True) == "primary-cursor"
-    assert not reg._replica_breaker.closed
-    assert reg._replica_breaker.failures == 1
-
-
-def test_a_downed_replica_is_not_re_attempted_while_the_breaker_is_open():
-    reg = _make_registry(replica_fails=True)
-    for _ in range(20):
-        assert reg.cursor(readonly=True) == "primary-cursor"
-    assert reg._db_readonly.attempts == 1
-
-
-def test_it_recovers_without_waiting_out_the_ceiling():
-    reg = _make_registry(replica_fails=True)
-    reg.cursor(readonly=True)
-    assert reg._db_readonly.attempts == 1
-
-    reg._db_readonly.fails = False
-    reg._replica_breaker._opened_at -= reg._replica_breaker.initial_cooldown + 1
-
-    assert reg.cursor(readonly=True) == "replica-cursor"
-    assert reg._replica_breaker.closed, "a working probe must close the breaker"
-    assert reg._replica_breaker.failures == 0, "and reset the backoff"
-
-
-def test_repeated_failures_do_not_exceed_the_old_flat_window():
-    reg = _make_registry(replica_fails=True)
-    breaker = reg._replica_breaker
-    for _ in range(40):
-        breaker._opened_at -= breaker.max_cooldown + 1
-        reg.cursor(readonly=True)
-    assert breaker.cooldown_remaining <= _REPLICA_RETRY_TIME
-
-
-def test_pool_errors_are_treated_as_replica_failures():
-
-    class _PoolFail(_Conn):
-        def cursor(self):
-            self.attempts += 1
-            raise odoo.db.PoolError("no connection")
-
-    reg = _make_registry()
-    reg._db_readonly = _PoolFail("replica")
-    assert reg.cursor(readonly=True) == "primary-cursor"
-    assert not reg._replica_breaker.closed
-
-
-def test_the_cursor_mode_marker_records_the_demotion():
-    reg = _make_registry(replica_fails=True)
+def test_a_replica_decision_is_recorded_on_the_request_thread():
+    reg = _make_registry(("primary-cursor", "ro->rw"), ("replica-cursor", "ro"))
     thread = current_worker_thread()
     thread.cursor_mode = "unset"
     try:
         reg.cursor(readonly=True)
         assert thread.cursor_mode == "ro->rw"
-        reg._db_readonly.fails = False
-        reg._replica_breaker.record_success()
         reg.cursor(readonly=True)
         assert thread.cursor_mode == "ro"
     finally:
         del thread.cursor_mode
 
 
-def test_the_flat_retry_window_is_gone():
+def test_a_primary_decision_leaves_the_request_mode_alone():
+    reg = _make_registry(("primary-cursor", "rw"), ("primary-cursor", "rw"))
+    thread = current_worker_thread()
+    thread.cursor_mode = "unset"
+    try:
+        reg.cursor()
+        reg.cursor(readonly=True)
+        assert thread.cursor_mode == "unset"
+    finally:
+        del thread.cursor_mode
+
+
+def test_outside_a_request_no_mode_is_written():
+    reg = _make_registry(("replica-cursor", "ro"))
+    thread = current_worker_thread()
+    assert not hasattr(thread, "cursor_mode")
+    reg.cursor(readonly=True)
+    assert not hasattr(thread, "cursor_mode")
+
+
+def test_the_registry_holds_no_replica_state_of_its_own():
     reg = _make_registry()
-    assert not hasattr(reg, "_db_readonly_failed_time"), (
-        "the flat 20-minute demotion was replaced by the breaker"
-    )
+    for gone in (
+        "_db",
+        "_db_readonly",
+        "_db_readonly_failed_time",
+        "_replica_breaker",
+        "_replica_lag",
+        "_sample_replica_lag",
+    ):
+        assert not hasattr(reg, gone), (
+            f"{gone} is the ReplicaRouter's now; the registry keeps only the "
+            f"thread's cursor mode"
+        )
+
+
+def test_the_real_router_is_what_init_builds(monkeypatch):
+    import odoo.db
+    from odoo.orm.runtime import registry as registry_module
+
+    connections = []
+
+    def fake_connect(db_name, readonly=False):
+        connections.append((db_name, readonly))
+        return _Conn("replica" if readonly else "primary")
+
+    monkeypatch.setattr(odoo.db, "db_connect", fake_connect)
+    monkeypatch.setattr(registry_module, "is_readonly_cursor_enabled", lambda: True)
+    monkeypatch.setitem(registry_module.config.options, "db_replica_max_lag", 12.0)
+    monkeypatch.setattr(Registry, "_probe_capabilities", lambda self, cr, name: None)
+
+    reg = object.__new__(Registry)
+    reg.init("_router_db")
+
+    assert isinstance(reg._replica, ReplicaRouter)
+    assert connections == [("_router_db", False), ("_router_db", True)]
+    assert reg._replica.lag.max_lag == 12.0
+    assert reg._replica.readonly is not None
 
 
 if __name__ == "__main__":
     pytest.main([__file__])
-
-
-class _LagConn(_Conn):
-    def __init__(self, label, lag=0.0):
-        super().__init__(label)
-        self.lag = lag
-        self.queries = 0
-
-    def cursor(self):
-        self.attempts += 1
-        return _LagCursor(self)
-
-
-class _LagCursor:
-    def __init__(self, conn):
-        self._conn = conn
-        self.closed = False
-
-    def execute(self, *args, **kwargs):
-        self._conn.queries += 1
-
-    def fetchone(self):
-        return (self._conn.lag,)
-
-    def close(self):
-        self.closed = True
-
-
-def _lag_registry(lag, max_lag):
-    reg = _make_registry(max_lag=max_lag)
-    reg._db_readonly = _LagConn("replica", lag=lag)
-    return reg
-
-
-def test_a_current_replica_serves_reads():
-    reg = _lag_registry(lag=1.0, max_lag=30.0)
-    assert isinstance(reg.cursor(readonly=True), _LagCursor)
-    assert reg._replica_lag.is_replica_usable()
-
-
-def test_a_lagging_replica_is_demoted_to_the_primary():
-    reg = _lag_registry(lag=120.0, max_lag=30.0)
-    assert reg.cursor(readonly=True) == "primary-cursor"
-    assert not reg._replica_lag.is_replica_usable()
-
-
-def test_the_rejected_replica_cursor_is_closed_not_leaked():
-    reg = _lag_registry(lag=120.0, max_lag=30.0)
-    conn = reg._db_readonly
-    opened = []
-    original = conn.cursor
-
-    def spy():
-        cr = original()
-        opened.append(cr)
-        return cr
-
-    conn.cursor = spy
-    reg.cursor(readonly=True)
-    assert opened and all(cr.closed for cr in opened)
-
-
-def test_a_disabled_ceiling_never_queries_for_lag():
-    reg = _lag_registry(lag=9999.0, max_lag=0.0)
-    reg.cursor(readonly=True)
-    assert reg._db_readonly.queries == 0, "db_replica_max_lag=0 must cost nothing"
-
-
-def test_the_verdict_is_cached_between_samples():
-    reg = _lag_registry(lag=1.0, max_lag=120.0)
-    for _ in range(10):
-        reg.cursor(readonly=True)
-    assert reg._db_readonly.queries == 1, "one measurement per sample interval"
-
-
-def test_a_demoted_gate_recovers_when_the_replica_catches_up():
-    reg = _lag_registry(lag=120.0, max_lag=30.0)
-    reg._replica_lag.sample_interval = 0.0
-    assert reg.cursor(readonly=True) == "primary-cursor"
-    reg._db_readonly.lag = 2.0
-    assert isinstance(reg.cursor(readonly=True), _LagCursor)
-    assert reg._replica_lag.is_replica_usable()
-
-
-def test_an_unreadable_measurement_does_not_demote():
-    class _Boom(_LagConn):
-        def cursor(self):
-            self.attempts += 1
-            cr = _LagCursor(self)
-            cr.execute = lambda *a, **k: (_ for _ in ()).throw(  # type: ignore[method-assign]
-                RuntimeError("boom")
-            )
-            return cr
-
-    reg = _make_registry(max_lag=30.0)
-    reg._db_readonly = _Boom("replica")
-    assert isinstance(reg.cursor(readonly=True), _LagCursor)
-    assert reg._replica_lag.is_replica_usable()
-
-
-def test_a_lag_demotion_does_not_consume_the_breakers_probe():
-    reg = _lag_registry(lag=120.0, max_lag=30.0)
-    breaker = reg._replica_breaker
-    breaker.record_failure()
-    breaker._opened_at -= breaker.initial_cooldown + 1
-
-    lag = reg._replica_lag
-    lag.record(120.0)
-    lag.acquire_sample_interval()
-    lag.sample_interval = 1e9
-    assert not lag.is_replica_usable() and not lag.acquire_sample_interval(), "demoted, no sample due"
-
-    assert reg.cursor(readonly=True) == "primary-cursor"
-    assert breaker._probing_since == 0.0, "the probe claim must be untouched"
-    assert breaker.acquire_attempt(), "a real probe must still be grantable"
-
-
-def test_enabling_tests_is_what_opens_a_readonly_connection():
-    from unittest import mock
-
-    from odoo.orm.runtime import registry as registry_module
-
-    base: dict[str, typing.Any] = {
-        "db_replica_host": None,
-        "test_enable": False,
-        "dev_mode": [],
-    }
-
-    def _with(**overrides):
-        return mock.patch.object(registry_module, "config", base | overrides)
-
-    with _with():
-        assert registry_module.is_readonly_cursor_enabled() is False, (
-            "a plain deployment must not open a second connection"
-        )
-
-    for key, value in (
-        ("db_replica_host", "replica.example"),
-        ("test_enable", True),
-        ("dev_mode", ["replica"]),
-    ):
-        with _with(**{key: value}):
-            assert registry_module.is_readonly_cursor_enabled() is True, key
