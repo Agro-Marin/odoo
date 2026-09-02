@@ -36,7 +36,7 @@ class WebsiteForm(form.WebsiteForm):
                 pass
             else:
                 record = data.get("record", {})
-                phone_fields = request.env[model_name]._phone_get_number_fields()
+                phone_fields = request.env[model_name]._get_phone_number_fields()
                 country = request.env["res.country"].browse(record.get("country_id"))
                 contact_country = country if country.exists() else self._get_country()
                 for phone_field in phone_fields:

@@ -175,7 +175,7 @@ class MailingMailing(models.Model):
             phone_fields = ['phone_sanitized']
         else:
             phone_fields = [
-                fname for fname in target._phone_get_number_fields()
+                fname for fname in target._get_phone_number_fields()
                 if fname in target._fields and target._fields[fname].store
             ]
             partner_fields = target._mail_get_partner_fields()

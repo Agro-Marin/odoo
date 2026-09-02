@@ -57,12 +57,12 @@ class MixinMailThreadPhone(models.AbstractModel):
         """Return stored phone fields to include in phone_mobile_search lookups.
 
         phone_sanitized (E164-normalized) is added alongside the raw
-        _phone_get_number_fields so that searching by a normalized number
+        _get_phone_number_fields so that searching by a normalized number
         (e.g. "+3212345678") also matches records whose raw numbers are
         stored in a different format (e.g. "012345678", "003212345678")."""
         phone_fields = [
             fname
-            for fname in self._phone_get_number_fields()
+            for fname in self._get_phone_number_fields()
             if fname in self._fields and self._fields[fname].store
         ]
         phone_fields.append("phone_sanitized")
@@ -190,7 +190,7 @@ class MixinMailThreadPhone(models.AbstractModel):
     @api.depends(lambda self: self._phone_get_sanitize_triggers())
     def _compute_phone_sanitized(self):
         self._assert_phone_field()
-        number_fields = self._phone_get_number_fields()
+        number_fields = self._get_phone_number_fields()
         for record in self:
             for fname in number_fields:
                 sanitized = record._phone_format(fname=fname)
@@ -217,7 +217,7 @@ class MixinMailThreadPhone(models.AbstractModel):
             if numbers
             else set()
         )
-        number_fields = self._phone_get_number_fields()
+        number_fields = self._get_phone_number_fields()
         for record in self:
             record.phone_sanitized_blacklisted = record.phone_sanitized in blacklist
             phone_blacklisted = False
@@ -257,17 +257,17 @@ class MixinMailThreadPhone(models.AbstractModel):
         return [("id", "in", [r[0] for r in res])]
 
     def _assert_phone_field(self):
-        if not hasattr(self, "_phone_get_number_fields"):
+        if not hasattr(self, "_get_phone_number_fields"):
             raise UserError(_("Invalid primary phone field on model %s", self._name))
         if not any(
             fname in self and self._fields[fname].type == "char"
-            for fname in self._phone_get_number_fields()
+            for fname in self._get_phone_number_fields()
         ):
             raise UserError(_("Invalid primary phone field on model %s", self._name))
 
     def _phone_get_sanitize_triggers(self):
         """Return the field names that should retrigger phone sanitization on change (number fields, country field, stored partner fields)."""
-        res = self._phone_get_number_fields()
+        res = self._get_phone_number_fields()
         # no phone field -> no number to format
         if res:
             res += (

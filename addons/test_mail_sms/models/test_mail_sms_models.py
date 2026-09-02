@@ -21,7 +21,7 @@ class MailTestSms(models.Model):
     customer_id = fields.Many2one("res.partner", "Customer")
     country_id = fields.Many2one("res.country")
 
-    def _phone_get_number_fields(self):
+    def _get_phone_number_fields(self):
         return ["phone_nbr", "mobile_nbr"]
 
 
@@ -50,7 +50,7 @@ class MailTestSmsBl(models.Model):
         ):
             phone_record.phone_nbr = phone_record.customer_id.phone
 
-    def _phone_get_number_fields(self):
+    def _get_phone_number_fields(self):
         return ["phone_nbr", "mobile_nbr"]
 
 
@@ -87,7 +87,7 @@ class MailTestSmsBlOptout(models.Model):
     customer_id = fields.Many2one("res.partner", "Customer")
     opt_out = fields.Boolean()
 
-    def _phone_get_number_fields(self):
+    def _get_phone_number_fields(self):
         return ["phone_nbr", "mobile_nbr"]
 
     def _mailing_get_opt_out_list_sms(self, mailing):

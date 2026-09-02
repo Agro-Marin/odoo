@@ -16,7 +16,7 @@ class BaseModel(models.AbstractModel):
             customer, force its number to found field number or fallback on customer fields;
 
         :param force_field: either give a specific field to find phone number, either
-            generic heuristic is used to find one based on :meth:`_phone_get_number_fields`;
+            generic heuristic is used to find one based on :meth:`_get_phone_number_fields`;
         :param partner_fallback: if no value found in the record, check its customer
             values based on :meth:`_mail_get_partners`;
 
@@ -46,7 +46,7 @@ class BaseModel(models.AbstractModel):
                         'partner_store': ...,
 
                         # field in which the number has been found (generally
-                        # mobile or phone, see _phone_get_number_fields);
+                        # mobile or phone, see _get_phone_number_fields);
                         'field_store': ...,
                     }
                     for record in self
@@ -54,7 +54,7 @@ class BaseModel(models.AbstractModel):
 
         """
         result = dict.fromkeys(self.ids, False)
-        tocheck_fields = [force_field] if force_field else self._phone_get_number_fields()
+        tocheck_fields = [force_field] if force_field else self._get_phone_number_fields()
         for record in self:
             all_numbers = [record[fname] for fname in tocheck_fields if fname in record]
             all_partners = record._mail_get_partners()[record.id]
@@ -76,7 +76,7 @@ class BaseModel(models.AbstractModel):
             elif all_partners and partner_fallback:
                 partner = self.env['res.partner']
                 for partner in all_partners:
-                    for fname in self.env['res.partner']._phone_get_number_fields():
+                    for fname in self.env['res.partner']._get_phone_number_fields():
                         valid_number = partner._phone_format(fname=fname)
                         if valid_number:
                             break

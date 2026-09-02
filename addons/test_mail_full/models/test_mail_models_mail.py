@@ -129,7 +129,7 @@ class MailTestRating(models.Model):
                 or False
             )
 
-    def _phone_get_number_fields(self):
+    def _get_phone_number_fields(self):
         return ["phone_nbr"]
 
     def _rating_apply_get_default_subtype_id(self):

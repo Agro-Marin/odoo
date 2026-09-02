@@ -6,18 +6,6 @@ class HrEmployee(models.Model):
 
     @api.model
     def report_party_convergence(self):
-        """What converging work_contact_id with the user's partner would do.
-
-        An employee can hold two partner rows for one person --
-        the work contact, and the partner behind their login user -- and the
-        dissolution needs them to be one. That is a deduplication, not a column
-        copy, so this reports what a migration WOULD do and writes nothing.
-
-        Read it before running any convergence. The counts are the safe part;
-        `conflicting` is the list a human has to decide about, because the two
-        rows may hold different values for the same field and no rule can say
-        which is right.
-        """
         report = {
             "total": 0,
             "already_converged": 0,
@@ -66,7 +54,6 @@ class HrEmployee(models.Model):
 
     @api.model
     def print_party_convergence(self):
-        """The same report, as text, for reading in odoo-bin shell."""
         r = self.report_party_convergence()
         lines = [
             "employees                : %s" % r["total"],
@@ -90,24 +77,6 @@ class HrEmployee(models.Model):
 
     @api.model
     def converge_party_rows(self, limit=None):
-        """Merge the two partner rows where they do not disagree. Refuses the rest.
-
-        The write half of report_party_convergence(). It acts
-        ONLY on employees the report calls safe_to_merge -- the two rows hold no
-        conflicting value -- and leaves every conflicting one untouched. Where
-        the rows disagree, no rule can say which is right, so a human decides
-        and this does not.
-
-        The merge itself goes through base.partner.merge.automatic.wizard._merge
-        rather than repointing work_contact_id by hand: that is what already
-        knows to move every foreign key, reparent children, fold bank accounts
-        and refuse a merge between a contact and its own ancestor. Reproducing
-        any of that here would be a second implementation to keep in step.
-
-        The user's partner is the destination. It is the row that survives
-        elsewhere -- it is what res.users points at, what mail addresses, and
-        what the identifier record rule tests against user.partner_id.
-        """
         report = self.report_party_convergence()
         entries = report["safe_to_merge"][: limit or None]
         Merge = self.env["base.partner.merge.automatic.wizard"].sudo()

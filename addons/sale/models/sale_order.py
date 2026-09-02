@@ -1057,7 +1057,7 @@ class SaleOrder(models.Model):
             elif self.state == "draft":
                 access_opt["title"] = _("View Quotation")
 
-    def _phone_get_number_fields(self):
+    def _get_phone_number_fields(self):
         return []
 
     def _track_finalize(self):

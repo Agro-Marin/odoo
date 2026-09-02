@@ -348,6 +348,8 @@ class MixinOrder(models.AbstractModel):
         return self._order_type
 
     def _domain_partner_id(self):
+        if self._abstract:
+            return []
         return self.env["res.partner.tag"]._get_domain_partner_allowed(
             self._get_order_type(),
         )

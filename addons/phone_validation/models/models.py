@@ -11,7 +11,7 @@ class Base(models.AbstractModel):
     # ------------------------------------------------------------
 
     @api.model
-    def _phone_get_number_fields(self):
+    def _get_phone_number_fields(self):
         """Return the fields likely to hold a phone number on the record (e.g. 'mobile', 'phone')."""
         return [
             number_fname for number_fname in ("mobile", "phone") if number_fname in self
@@ -60,10 +60,10 @@ class Base(models.AbstractModel):
         """Format and return number. This number can be found using a field
         (in which case self should be a singleton recordet), or directly given
         if the formatting itself is what matter. Field name can be found
-        automatically using :meth:`_phone_get_number_fields`.
+        automatically using :meth:`_get_phone_number_fields`.
 
         :param str fname: if number is not given, fname indicates the field to
-          use to find the number; otherwise use :meth:`_phone_get_number_fields`.;
+          use to find the number; otherwise use :meth:`_get_phone_number_fields`.;
         :param str number: number to format (in which case fields-based computation
           is skipped);
         :param <res.country> country: country used for formatting number; otherwise
@@ -82,7 +82,7 @@ class Base(models.AbstractModel):
             # if no number is given, having a singletong recordset is mandatory to
             # always have a number as input
             self.check_singleton()
-            fnames = self._phone_get_number_fields() if not fname else [fname]
+            fnames = self._get_phone_number_fields() if not fname else [fname]
             # Keep `fname in self and self[fname]`: `self` is a recordset (field-membership `in`
             # + `self[fname]` access), NOT a dict — RUF019's self.get(fname) rewrite would crash.
             number = next(

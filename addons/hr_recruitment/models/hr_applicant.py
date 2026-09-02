@@ -789,7 +789,7 @@ class HrApplicant(models.Model):
         for applicant in self:
             applicant.user_id = applicant.job_id.user_id.id
 
-    def _phone_get_number_fields(self):
+    def _get_phone_number_fields(self):
         return ["partner_phone"]
 
     @api.depends("stage_id.hired_stage")

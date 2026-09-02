@@ -9,7 +9,7 @@ class ResUsers(models.Model):
         numbers_to_blacklist = {}  # numbers to blacklist and the related user
         if post.get('request_blacklist'):
             for user in self:
-                for fname in self._phone_get_number_fields():
+                for fname in self._get_phone_number_fields():
                     number = user._phone_format(fname=fname)
                     if number:
                         numbers_to_blacklist[number] = user
