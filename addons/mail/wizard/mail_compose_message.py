@@ -19,6 +19,7 @@ from odoo.tools.mail import (
 )
 from odoo.tools.misc import clean_context
 
+from odoo.addons.mail.tools.html_body import remove_quoted_reply
 from odoo.addons.mail.tools.parser import parse_res_ids
 from odoo.addons.mail.tools.recipients import prepare_recipient_data
 
@@ -963,9 +964,15 @@ class MailComposeMessage(models.TransientModel):
                 _("Template creation from composer requires a valid model.")
             )
         model_id = self.env["ir.model"]._get_id(self.model)
+        # A reply composed from the chatter carries the quoted conversation. The
+        # template must not archive someone else's mail, but the composer keeps
+        # showing what the user is about to send.
+        body_html = self.body
+        if body_html and (cleaned := remove_quoted_reply(body_html)) is not None:
+            body_html = cleaned
         values = {
             "name": self.template_name,
-            "body_html": self.body,
+            "body_html": body_html,
             "model_id": model_id,
             "use_default_to": True,
             "user_id": self.env.uid,
@@ -988,7 +995,10 @@ class MailComposeMessage(models.TransientModel):
                 attachments.write({"res_model": template._name, "res_id": template.id})
                 template.attachment_ids = self.attachment_ids
 
-        self.write({"template_id": template.id})
+        # `_compute_body` depends on `template_id`, so selecting the template we
+        # just created would pull its cleaned body back into the composer. Write
+        # the body the user is still looking at in the same call.
+        self.write({"template_id": template.id, "body": self.body})
         return _reopen(
             self,
             self.id,
