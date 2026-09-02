@@ -34,9 +34,7 @@ class RoutesLinter(TransactionCase):
                     )
                     offenders.append(f"{endpoint}: {pformat(useless_overrides)}")
 
-            return _prepare_route_fragment(
-                controller_cls, submethod, merged_routing
-            )
+            return _prepare_route_fragment(controller_cls, submethod, merged_routing)
 
         installed_modules = set(
             self.env["ir.module.module"]
@@ -47,9 +45,7 @@ class RoutesLinter(TransactionCase):
             )
             .mapped("name")
         )
-        with patch(
-            "odoo.http.routing._prepare_route_fragment", extended_check
-        ):
+        with patch("odoo.http.routing._prepare_route_fragment", extended_check):
             for _ in http._generate_routing_rules(installed_modules, nodb_only=False):
                 pass
         _logger.info("checked %s endpoint(s)", checked)

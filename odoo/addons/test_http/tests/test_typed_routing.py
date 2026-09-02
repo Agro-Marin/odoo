@@ -110,14 +110,10 @@ class TestTypedParams(BaseCase):
             pass
 
         merged = {"auth": "user", "methods": None, "routes": []}
-        merged.update(
-            _prepare_route_fragment(FakeController, parent, merged)
-        )
+        merged.update(_prepare_route_fragment(FakeController, parent, merged))
         self.assertTrue(merged["typed"])
 
-        merged.update(
-            _prepare_route_fragment(FakeController, child, merged)
-        )
+        merged.update(_prepare_route_fragment(FakeController, child, merged))
         self.assertTrue(merged["typed"], "the override must inherit parameter coercion")
 
     def test_override_can_opt_out_of_typed(self):
@@ -133,9 +129,7 @@ class TestTypedParams(BaseCase):
             pass
 
         merged = {"auth": "user", "methods": None, "routes": [], "typed": True}
-        merged.update(
-            _prepare_route_fragment(FakeController, child, merged)
-        )
+        merged.update(_prepare_route_fragment(FakeController, child, merged))
         self.assertFalse(merged["typed"])
 
     def test_merge_never_writes_specs_on_the_shared_wrapper(self):
