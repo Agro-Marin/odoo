@@ -478,6 +478,12 @@ class TraversalMixin(_ModelStubs):
         chain.reverse()
         return chain
 
+    def _root(self) -> Self:
+        self.check_singleton()
+        for root_id in self._ancestor_ids(include_self=True):
+            return self.browse(root_id)
+        return self
+
     def _descendant_ids(self, include_self: bool = False) -> OrderedSet[int]:
         if not self.ids:
             return OrderedSet()

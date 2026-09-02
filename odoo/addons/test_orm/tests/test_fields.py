@@ -4540,6 +4540,18 @@ class TestParentStore(TransactionCaseWithUserDemo):
                 f"path and walk disagree below category {index}",
             )
 
+    def test_root(self):
+        self.assertEqual(self.cats(9)._root(), self.cats(0))
+        self.assertEqual(self.cats(4)._root(), self.cats(0))
+        self.assertEqual(self.cats(0)._root(), self.cats(0))
+
+    def test_root_of_a_record_with_no_path_yet(self):
+        draft = self.cats().new({"name": "draft", "parent": self.cats(6).id})
+        self.assertFalse(draft.parent_path)
+        self.assertEqual(draft._root(), self.cats(0))
+        orphan = self.cats().new({"name": "orphan"})
+        self.assertEqual(orphan._root(), orphan)
+
     def test_descendant_ids(self):
         self.assertEqual(
             sorted(self.cats(3)._descendant_ids()),

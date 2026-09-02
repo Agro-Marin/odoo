@@ -106,9 +106,7 @@ class HrDepartment(models.Model):
     @api.depends("parent_path")
     def _compute_master_department_id(self):
         for dept in self:
-            dept.master_department_id = (
-                int(dept.parent_path.split("/")[0]) if dept.parent_path else dept.id
-            )
+            dept.master_department_id = dept._root()
 
     @api.depends_context("allowed_company_ids")
     @api.depends("member_ids")

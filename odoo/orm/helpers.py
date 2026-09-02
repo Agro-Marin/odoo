@@ -73,11 +73,8 @@ def to_record_ids(arg) -> list[int]:
 
 
 def _ancestor_company_ids(self: BaseModel, company_ids: list[int]) -> list[int]:
-    return [
-        int(parent)
-        for rec in self.env["res.company"].sudo().browse(company_ids)
-        for parent in rec.parent_path.split("/")[:-1]
-    ]
+    companies = self.env["res.company"].sudo().browse(company_ids)
+    return list(companies._ancestor_ids(include_self=True))
 
 
 def check_company_domain_parent_of(

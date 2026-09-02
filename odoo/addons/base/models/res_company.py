@@ -462,9 +462,7 @@ class ResCompany(models.Model):
     def _compute_hierarchy(self) -> None:
         for company in self.with_context(active_test=False):
             company.parent_ids = (
-                self.browse([int(id) for id in company.parent_path.split("/") if id])
-                if company.parent_path
-                else company
+                self.browse(company._ancestor_ids(include_self=True)) or company
             )
             company.root_id = company.parent_ids[0]
 
