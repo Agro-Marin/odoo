@@ -38,7 +38,8 @@ Each rule carries a bracketed label naming what catches it.
    * - ``[fixer NAME]``
      - A behaviour-preserving fixer owns the formatting. Run it; do not hand-edit.
    * - ``[ratchet NAME]``
-     - A committed floor in ``tooling/ratchet/baselines/`` holds the count.
+     - A committed floor in ``tooling/ratchet/baselines/`` holds the count;
+       with no file, the count is held at zero.
    * - ``[gate NAME]``
      - A ``tooling/`` gate checks it exactly, both directions. Where the gate
        rewrites the text (``doc_restated_counts`` for prose figures), run it.
@@ -141,8 +142,10 @@ Thirteen of the floors, to fix the shape of the set:
 The directory holds many more, including per-addon scopes of the same script
 (``jsfunclen_mail``, ``py_x2many_count_stock``) and per-repository scopes the
 siblings' own workflows run (``naming_enterprise``).
-``tooling/ratchet/baselines/`` is the authoritative list -- one JSON per gate, and
-the directory is the count. No number is written here on purpose:
+``tooling/ratchet/baselines/`` is the authoritative list of *debt* -- one JSON
+per floor above zero, and the directory is the count. A gate with no file is a
+hard zero: ``ratchet.py`` passes it at 0 and fails it above, and ``--update``
+is what opens a floor. No number is written here on purpose:
 
 .. code-block:: bash
 
@@ -166,7 +169,8 @@ Consequences:
   ADR-0034 is the Python counterpart), with pre-existing ones pinned in
   ``KNOWN_CYCLES`` / ``KNOWN_VIOLATIONS`` with a rationale. ``test_lint``'s own
   floors are in ``baselines/`` too, read by ``assert_ratchet`` and named
-  ``lint_<rule>``; a baseline that is absent means a floor of zero.
+  ``lint_<rule>``; a baseline that is absent means a floor of zero there as
+  everywhere else.
 
 Each gate runs on ``pull_request`` and on ``push`` to ``19.0-marin`` / ``19.0``.
 

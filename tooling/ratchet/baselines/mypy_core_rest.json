@@ -1,5 +1,0 @@
-{
-  "count": 0,
-  "measured_at": "a1b37ae209c2fbdde47d20bdbdad4fd70e3cd6dd",
-  "note": "Opens at zero. This scope -- the three ORM facades, _monkeypatches and the seven top-level modules -- was named by no mypy lane until now, which reads identically to a clean scope from --list: a scope nothing measures and a scope measuring zero both show no errors. It held 40: 15 in _monkeypatches, 25 in logutils.py/exceptions.py/_testing_bootstrap.py. All 40 fixed rather than banked. One was a live defect and not a typing nit: PostgreSQLHandler called tools.sql.column_exists after 025bfb53b19 deleted odoo/tools/sql.py, inside contextlib.suppress(Exception), so the AttributeError was swallowed on every boot and _support_metadata was pinned to False. odoo/upgrade_code is NOT here -- it needs path mode and has its own floor, mypy_upgrade_code. odoo/upgrade is in no lane at all: it holds a .gitkeep and no Python. tooling/typecheck/test_py_scope_coverage.py holds the union of the lanes equal to the tree."
-}

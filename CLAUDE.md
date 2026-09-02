@@ -186,7 +186,7 @@ Linter and formatter config, with the rationale for every suppression.
 
 - `ruff check` is **not** expected to be clean: CI runs it as a ratchet against a committed floor (`tooling/ratchet/baselines/`), and **a ratchet fails in both directions** — lowering a count without committing the new floor fails the build too.
 - `pyfunclen_addons` is the single exception, invoked `--mode no-increase` because the bundled-addons tree is too wide to hold still; argument in *The ratchets*.
-- Ruff is one of several ratcheted gates. **The baselines directory is the list and `tooling/ratchet/ratchet.py --list` is the reading** — no file states how many there are or what they hold, because a restated floor is a second copy that drifts. The guide's table is a deliberate sample, not the membership.
+- Ruff is one of several ratcheted gates. **The baselines directory is the list of debt and `tooling/ratchet/ratchet.py --list` is the reading** — no file states how many there are or what they hold, because a restated floor is a second copy that drifts. The guide's table is a deliberate sample, not the membership. A gate a workflow hands to `ratchet.py` with no baseline file is a **hard zero**: it passes at 0 and fails above, and `--update` is what opens a floor.
 - Per-gate scope, commands and the `--update` recipe: *The ratchets* in the guide, the canonical account. It also covers the trap that the ruff floor measures `odoo/`, not `addons/`.
 - Not in the guide: `.github/workflows/ruff.yml` lints **`tooling/` and `tests/` at a hard zero** in a separate blocking step, with no floor to absorb a new finding.
 

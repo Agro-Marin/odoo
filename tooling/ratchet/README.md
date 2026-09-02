@@ -42,6 +42,19 @@ Floors live in `baselines/<gate>.json` — one small file per gate so the state 
 reviewable in the diff, not buried in CI logs. A PR that changes a count must
 move its floor in the same commit.
 
+## A gate with no baseline is a hard zero
+
+`ratchet.py <gate> --count N` with no `baselines/<gate>.json` passes at 0 and
+fails on anything above it, in either mode, naming the file it did not find.
+The file records *debt* — a count above zero and the note saying what moved
+it — so a count born at zero has nothing to record: it is a contract, and a
+JSON holding `0` for it only made `--list` report a contract as a floor to
+drive down. `--update` is the one way to open a floor where there is none,
+and the note has to argue why the contract becomes debt. `--list` reads the
+files and nothing else, so it stays a list of debt. `assert_ratchet` under
+`odoo/addons/test_lint/tests` has read an absent baseline as zero since it
+landed; this is the same rule for the workflow-driven gates.
+
 ## Wired gates
 
 **`baselines/` is the list and `--list` is the reading.** No file states how
@@ -59,7 +72,9 @@ makes that true rather than aspirational: a workflow step running
 `ratchet.py <gate> --count`, or an `assert_ratchet` call under
 `odoo/addons/test_lint/tests`, or -- for a floor whose name carries a sibling
 repository's suffix -- that repository's own `architecture.yml`. A baseline
-none of the three reads fails the suite by name.
+none of the three reads fails the suite by name. The same suite runs every
+workflow invocation that has no file against the committed directory and
+pins that it passes at 0 and fails at 1.
 
 `freethreading.yml` is a pass/fail correctness run, not a count, so it is not a
 ratchet.

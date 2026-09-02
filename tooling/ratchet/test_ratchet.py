@@ -193,10 +193,38 @@ class CliTests(unittest.TestCase):
             code = ratchet.run(argv)
         return code, out.getvalue(), err.getvalue()
 
-    def test_first_check_without_baseline_is_usage_error(self):
-        code, _, err = self._run(["mypy", "--count", "10"])
-        self.assertEqual(code, EXIT_USAGE)
-        self.assertIn("no baseline", err)
+    def test_a_gate_with_no_baseline_is_held_at_zero(self):
+        for mode in ("exact", "no-increase"):
+            code, out, _ = self._run(["mypy", "--count", "0", "--mode", mode])
+            self.assertEqual(code, EXIT_OK, mode)
+            self.assertIn("== baseline", out)
+
+    def test_a_count_above_zero_with_no_baseline_fails_and_names_the_missing_file(
+        self,
+    ):
+        for mode in ("exact", "no-increase"):
+            code, out, _ = self._run(["mypy", "--count", "1", "--mode", mode])
+            self.assertEqual(code, EXIT_DRIFT, mode)
+            self.assertIn("mypy.json", out)
+            self.assertIn("contract, not debt", out)
+            self.assertIn("--update", out)
+        self.assertFalse((ratchet.BASELINES_DIR / "mypy.json").exists())
+
+    def test_a_missing_baseline_is_zero_in_json_output_too(self):
+        code, out, _ = self._run(["mypy", "--count", "3", "--json"])
+        self.assertEqual(code, EXIT_DRIFT)
+        payload = json.loads(out)
+        self.assertEqual(payload["baseline"], 0)
+        self.assertEqual(payload["status"], "regressed")
+        self.assertIn("mypy.json", payload["message"])
+
+    def test_update_still_opens_a_floor_where_there_was_none(self):
+        code, out, _ = self._run(["mypy", "--count", "3", "--update", "--note", "n"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("created", out)
+        self.assertEqual(Baseline.load("mypy").count, 3)
+        code, _, _ = self._run(["mypy", "--count", "3"])
+        self.assertEqual(code, EXIT_OK)
 
     def test_update_then_check_cycle(self):
         code, out, _ = self._run(["mypy", "--count", "1969", "--update", "--note", "n"])

@@ -7,7 +7,7 @@ import argparse
 import json
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -86,6 +86,21 @@ class Baseline:
             encoding="utf-8",
         )
         return path
+
+
+# A gate with no baseline file is held at zero.  The file records debt -- a
+# count above zero and what moved it -- so a count born at zero has nothing to
+# record, and `--list` stays a list of debt rather than of every contract.
+HARD_ZERO = Baseline(count=0)
+
+
+def hard_zero_hint(gate: str, count: int) -> str:
+    return (
+        f"{gate} has no {baseline_path(gate).name}, so its floor is zero: a "
+        f"contract, not debt. Fix the finding. Opening a floor instead "
+        f"(ratchet.py {gate} --count {count} --update --note '...') turns the "
+        f"contract into debt, and the note has to argue why."
+    )
 
 
 def baseline_path(gate: str) -> Path:
@@ -219,15 +234,12 @@ def run(argv: list[str] | None = None) -> int:
         print(f"{verb} baseline {path.name}: count={args.count}{old}")
         return EXIT_OK
 
-    if existing is None:
-        print(
-            f"error: no baseline for {args.gate!r}. Set one with:\n"
-            f"  ratchet.py {args.gate} --count {args.count} --update",
-            file=sys.stderr,
+    verdict = evaluate(args.gate, args.count, existing or HARD_ZERO, args.mode)
+    if existing is None and not verdict.ok:
+        verdict = replace(
+            verdict,
+            message=f"{verdict.message}\n{hard_zero_hint(args.gate, args.count)}",
         )
-        return EXIT_USAGE
-
-    verdict = evaluate(args.gate, args.count, existing, args.mode)
     if args.json:
         print(json.dumps(asdict(verdict), indent=2, sort_keys=True))
     else:

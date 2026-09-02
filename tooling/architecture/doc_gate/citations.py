@@ -235,17 +235,32 @@ class TestReferencedArtifacts(unittest.TestCase):
             | self._gates_sibling_py_lint_drives(on_disk)
         )
         self.assertTrue(driven, "no workflow drives ratchet.py; the regex has rotted")
-        self.assertEqual(
-            driven,
-            on_disk,
-            "a baseline exists that no workflow drives, or a workflow drives a "
-            "gate with no baseline",
+        self.assertLessEqual(
+            on_disk, driven, "a baseline exists that no workflow drives"
         )
         self.assertEqual(listed, on_disk, "the page's gate list is stale")
         self.assertEqual(
             NUMBER_WORDS[match.group(1)],
             len(on_disk),
             "the ratchet gate list and the count in front of it disagree",
+        )
+        # A gate a workflow hands to ratchet.py with no file is a hard zero, and
+        # the page enumerates those too, from the same derivation.
+        held = (self._gates_the_workflows_drive() | set(self.SIBLING_DRIVEN)) - on_disk
+        match = re.search(
+            r"([\w-]+) of the counts the\s+workflows hand to `ratchet\.py` are "
+            r"held that way: \*\*([^*]+)\*\*",
+            DOC,
+        )
+        self.assertIsNotNone(match, "the hard-zero gate list is no longer stated")
+        listed_held = {
+            n.strip() for n in match.group(2).replace(" and ", ", ").split(",")
+        }
+        self.assertEqual(listed_held, held, "the page's hard-zero gate list is stale")
+        self.assertEqual(
+            NUMBER_WORDS[match.group(1).lower()],
+            len(held),
+            "the hard-zero gate list and the count in front of it disagree",
         )
 
     def test_named_source_paths_exist(self) -> None:

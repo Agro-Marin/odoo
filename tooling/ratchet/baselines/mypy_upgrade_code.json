@@ -1,5 +1,0 @@
-{
-  "count": 0,
-  "measured_at": "a1b37ae209c2fbdde47d20bdbdad4fd70e3cd6dd",
-  "note": "Opens at zero, in PATH mode. -p odoo.upgrade_code parsed the directory and none of its nine scripts -- their stems (18.5-00-domain-dynamic-dates and the like) are not importable module names -- and reported success for it, so this scope had been measured by nothing. In path mode it held 31. Several were latent crashes on inputs that parse, not typing nits: negating a non-numeric Constant, .value on a non-Constant datetime.time argument, DictReader.fieldnames of None reaching DictWriter, and data_file_module_name annotated FileManager (which has no .path) in two scripts."
-}

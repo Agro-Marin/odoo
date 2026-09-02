@@ -996,8 +996,8 @@ jobs:
         # directory. py_function_length already carries its own `tests` lane
         # (pyfunclen_tests) for exactly this reason; this is that precedent
         # applied to the gate beside it. Measured at zero over all 19 modules
-        # when it landed, so the floor opens at zero and any new site fails on
-        # its own.
+        # when it landed, so it is a hard zero with no baseline file and any
+        # new site fails on its own.
         run: |
           set +e
           python tooling/architecture/py_x2many_count.py --addon tests | tee /tmp/py_x2many_count_tests.log
@@ -1056,8 +1056,8 @@ jobs:
         # ADR-0055. psycopg3 binds server-side, so `IN %s` reaches PostgreSQL as
         # `IN $N` and is a syntax error for every value type. It works only
         # through `SQL()`, whose tuple branch expands it into `(%s, %s, ...)`.
-        # Floored at ZERO: both defects that prompted the gate are fixed, and a
-        # zero floor is what refuses the first one back.
+        # A hard zero with no baseline file: both defects that prompted the
+        # gate are fixed, and zero is what refuses the first one back.
         run: |
           set +e
           python tooling/architecture/sql_in_placeholder.py | tee /tmp/sql_in_placeholder_core.log
@@ -1088,8 +1088,8 @@ jobs:
         # directory. py_function_length already carries its own `tests` lane
         # (pyfunclen_tests) for exactly this reason; this is that precedent
         # applied to the gate beside it. Measured at zero over all 19 modules
-        # when it landed, so the floor opens at zero and any new site fails on
-        # its own.
+        # when it landed, so it is a hard zero with no baseline file and any
+        # new site fails on its own.
         run: |
           set +e
           python tooling/architecture/sql_in_placeholder.py --addon tests | tee /tmp/sql_in_placeholder_tests.log
@@ -1121,9 +1121,11 @@ jobs:
         id: py_count_as_boolean
         # ADR-0057. A `search_count` whose answer is only a yes or a no scans the
         # whole table to decide whether the first row exists. O(rows) against
-        # O(1), and the fix is one keyword: `limit=1`. Floored at today's count
-        # rather than zero -- 83 sites across four checkouts is a sweep the
-        # floor comes down behind, not a single commit.
+        # O(1), and the fix is one keyword: `limit=1`. The bundled and sibling
+        # trees were floored at their count -- 83 sites across four checkouts
+        # is a sweep the floor comes down behind, not a single commit -- and
+        # every scope has since reached zero, so none carries a baseline file:
+        # each is a hard zero.
         run: |
           set +e
           python tooling/architecture/py_count_as_boolean.py | tee /tmp/py_count_as_boolean_core.log
@@ -1154,8 +1156,8 @@ jobs:
         # directory. py_function_length already carries its own `tests` lane
         # (pyfunclen_tests) for exactly this reason; this is that precedent
         # applied to the gate beside it. Measured at zero over all 19 modules
-        # when it landed, so the floor opens at zero and any new site fails on
-        # its own.
+        # when it landed, so it is a hard zero with no baseline file and any
+        # new site fails on its own.
         run: |
           set +e
           python tooling/architecture/py_count_as_boolean.py --addon tests | tee /tmp/py_count_as_boolean_tests.log
@@ -1172,8 +1174,8 @@ jobs:
         # one is either a TypeError waiting for the hook to fire or -- far more
         # often -- a decorator a refactor left on a helper while splitting the
         # real hook out from under it. That second shape is silent: the compute
-        # stops re-running and every other gate stays green. Floored at zero
-        # because the tree is at zero: a contract, not debt.
+        # stops re-running and every other gate stays green. A hard zero with
+        # no baseline file, because the tree is at zero: a contract, not debt.
         run: |
           set +e
           python tooling/architecture/py_hook_arity.py | tee /tmp/py_hook_arity_core.log
@@ -1204,8 +1206,8 @@ jobs:
         # directory. py_function_length already carries its own `tests` lane
         # (pyfunclen_tests) for exactly this reason; this is that precedent
         # applied to the gate beside it. Measured at zero over all 19 modules
-        # when it landed, so the floor opens at zero and any new site fails on
-        # its own.
+        # when it landed, so it is a hard zero with no baseline file and any
+        # new site fails on its own.
         run: |
           set +e
           python tooling/architecture/py_hook_arity.py --addon tests | tee /tmp/py_hook_arity_tests.log
@@ -1221,8 +1223,8 @@ jobs:
         # body silently wins -- Python keeps the last -- and ruff's F811 does
         # not see it, because the default dummy-variable-rgx drops every
         # leading-underscore name and an Odoo model method is always one.
-        # Floored at zero for the core package: its single offender goes in the
-        # commit that adds this.
+        # A hard zero with no baseline file for the core package: its single
+        # offender went in the commit that added this.
         run: |
           set +e
           python tooling/architecture/py_shadowed_member.py | tee /tmp/py_shadowed_member_core.log
@@ -1314,8 +1316,9 @@ jobs:
         id: js_funclen_stock
         # The fourth tree, and the first to arrive at zero: its single offender
         # (`getBarChartConfig`, 94 lines) was split in the same change that
-        # onboarded the gate, so this floor guards new code from the start rather
-        # than recording debt someone has to come back for.
+        # onboarded the gate, so it is a hard zero with no baseline file,
+        # guarding new code from the start rather than recording debt someone
+        # has to come back for.
         run: |
           set +e
           python tooling/architecture/js_function_length.py --addon stock | tee /tmp/js_funclen_stock.log
@@ -1328,7 +1331,8 @@ jobs:
       - name: Run JS function-length ratchet (product)
         id: js_funclen_product
         # The fifth tree. Onboarded at zero: `product/static/src` has no function
-        # over the 80-line budget, so this floor guards new code from the start.
+        # over the 80-line budget, so it is a hard zero with no baseline file,
+        # guarding new code from the start.
         run: |
           set +e
           python tooling/architecture/js_function_length.py --addon product | tee /tmp/js_funclen_product.log
@@ -1494,8 +1498,8 @@ jobs:
         # report -- which is the evidence for a checker rather than a third
         # reading. What survives the vocabulary in core is an argued allowlist
         # rather than a floor, because a floor would let the next one in
-        # silently; the floor of six it does carry is odoo/tests, left to the
-        # sweep already running in that tree, and goes when that lands.
+        # silently. The count is a hard zero with no baseline file: the six in
+        # odoo/tests it once carried went with the sweep in that tree.
         run: |
           set +e
           python tooling/architecture/naming_core_vocabulary.py \
@@ -1690,10 +1694,11 @@ jobs:
 
       - name: Run JS service-shape ratchet (account)
         id: js_serviceshape_account
-        # Pinned at zero, which is where account already stands: `account_move` is
-        # a class three POS modules patch through its prototype, and
-        # `accountNotification` returns nothing at all. The floor exists so the
-        # next service added here cannot arrive as an object literal.
+        # A hard zero with no baseline file, which is where account already
+        # stands: `account_move` is a class three POS modules patch through its
+        # prototype, and `accountNotification` returns nothing at all. The gate
+        # exists so the next service added here cannot arrive as an object
+        # literal.
         run: |
           set +e
           python tooling/architecture/js_service_shape.py --addon account | tee /tmp/js_serviceshape_account.log

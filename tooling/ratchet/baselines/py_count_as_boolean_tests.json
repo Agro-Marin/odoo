@@ -1,5 +1,0 @@
-{
-  "count": 0,
-  "measured_at": "9fd17d12b89ae946b41825e4e9d33d67cd3959c4",
-  "note": "Re-banked at a reachable commit after this branch was rebased onto origin/19.0-marin. --list had flagged it as banked at a commit that is not in HEAD history: the rebase replaced every commit on this side, so each measured_at named an object no longer reachable. Re-measured on the merged tree rather than carried over. Measured 0 on the merged tree, and checked for vacuity rather than assumed -- the scan reaches its files and these gates raise on an empty walk."
-}

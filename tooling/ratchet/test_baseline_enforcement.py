@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import ast
+import io
 import json
 import re
 import sys
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import ratchet
 from _repo_root import find_odoo_root
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "architecture"))
@@ -171,14 +174,32 @@ def test_every_floor_is_read_by_some_consumer(gate):
     )
 
 
-@pytest.mark.parametrize("gate", sorted(invoked_gates()))
-def test_every_workflow_invocation_names_a_recorded_floor(gate):
-    assert gate in recorded_floors(), (
-        f"a workflow runs `ratchet.py {gate} --count`, which has no "
-        f"baselines/{gate}.json. That lane exits 2 on `error: no baseline`; if "
-        f"the name is a typo, the floor it meant to move is still drifting "
-        f"under its real name."
+def _run_ratchet(argv: list[str]) -> int:
+    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+        return ratchet.run(argv)
+
+
+def test_some_workflow_invocation_has_no_floor():
+    assert invoked_gates() - recorded_floors(), (
+        "every gate a workflow hands to ratchet.py carries a baseline file; "
+        "the hard-zero check below would then verify nothing"
     )
+
+
+@pytest.mark.parametrize("gate", sorted(invoked_gates() - recorded_floors()))
+def test_every_workflow_invocation_without_a_floor_is_a_hard_zero(gate):
+    # Against the committed baselines directory, not a fixture: what is pinned
+    # is that THIS gate, as CI names it, passes at zero and fails above it.
+    for mode in ("exact", "no-increase"):
+        assert _run_ratchet([gate, "--count", "0", "--mode", mode]) == ratchet.EXIT_OK
+        assert _run_ratchet([gate, "--count", "1", "--mode", mode]) == (
+            ratchet.EXIT_DRIFT
+        ), (
+            f"a workflow runs `ratchet.py {gate} --count` with no "
+            f"baselines/{gate}.json, and a count of 1 does not fail. A gate "
+            f"with no file is a contract at zero; if it can hold debt it needs "
+            f"a file, opened with --update and a note."
+        )
 
 
 def test_every_sibling_scoped_floor_has_a_lane_to_be_read_by():

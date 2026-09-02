@@ -197,7 +197,7 @@ jobs:
         # check, and a bootstrap_config whose str|None return was assigned
         # straight into a str field by five of its six callers.
         #
-        # THE FLOOR OPENS AT ZERO, so this scope has no fungible slack at all
+        # A HARD ZERO WITH NO BASELINE FILE, so this scope has no fungible slack at all
         # and any new error fails on its own. --verbose is for the per-file
         # lock step below, which needs cli's "LOG:  Parsing" lines to tell a
         # file it found clean from a file it never opened.
@@ -234,7 +234,7 @@ jobs:
         # test_lint AST rule. It was clean on all of those when this landed; it
         # measured 250 mypy errors, in 13 of its 14 modules.
         #
-        # THE FLOOR OPENS AT ZERO, as cli's did: all 250 were fixed rather than
+        # A HARD ZERO WITH NO BASELINE FILE, as cli's: all 250 were fixed rather than
         # banked, so this scope has no fungible slack and any new error fails on
         # its own. --verbose is for the per-file lock step below.
         run: |
@@ -271,7 +271,7 @@ jobs:
         # else in CI could see it -- the suppression makes it invisible at
         # runtime and the module is imported by every process.
         #
-        # THE FLOOR OPENS AT ZERO, as cli's and tests' did: all 40 were fixed
+        # A HARD ZERO WITH NO BASELINE FILE, as cli's and tests': all 40 were fixed
         # rather than banked. tooling/typecheck/test_py_scope_coverage.py is
         # what keeps the union of these ten scopes equal to the tree, so a new
         # core package cannot repeat the gap.
@@ -310,7 +310,7 @@ jobs:
         # A separate step because mypy refuses `-p` and a path together
         # ("May only specify one of: module/package, files, or command").
         #
-        # THE FLOOR OPENS AT ZERO. Several of the 31 were latent crashes rather
+        # A HARD ZERO WITH NO BASELINE FILE. Several of the 31 were latent crashes rather
         # than typing nits, all on inputs that parse: negating a non-numeric
         # Constant, .value on a non-Constant argument, a DictReader.fieldnames
         # of None, and data_file_module_name annotated FileManager -- which has
