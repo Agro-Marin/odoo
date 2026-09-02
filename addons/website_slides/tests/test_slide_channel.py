@@ -293,6 +293,29 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
             f'Impossible to send emails. Select a "Share Template" for courses {channel_without_template.name} first',
         )
 
+    def test_add_slide_without_channel_returns_error(self):
+        """A POST missing (or with a falsy) ``channel_id`` used to 500 with an
+        uncaught ``KeyError`` (the post-values dict-comprehension drops falsy
+        keys, then the route indexed ``values["channel_id"]`` directly). It
+        must instead behave like the route's other bad-input cases and
+        return a clean ``{"error": ...}`` payload.
+        """
+        self.authenticate("admin", "admin")
+        response = self.call_jsonrpc(
+            "/slides/add_slide",
+            {
+                "name": "Test name",
+                "slide_category": "video",
+                "source_type": "external",
+                "video_url": "test",
+            },
+            headers={"Content-Type": "application/json"},
+        )
+        self.assertEqual(
+            response,
+            {"error": "No course given, please contact the administrator."},
+        )
+
     @users("user_manager")
     def test_slides_prepare_preview(self):
         """Ensure archived slides are not used during slide preview.
@@ -546,6 +569,65 @@ class TestSequencing(slides_common.SlidesCase):
                 self.slide_3.id,
                 self.category.id,
                 self.slide_2.id,
+            ],
+        )
+
+    @users("user_officer")
+    def test_move_category_slides_to_new_category(self):
+        """`_move_category_slides`'s `new_category` branch has no direct
+        caller (`slide.slide.unlink` always passes `False`) but is kept as
+        part of the method's documented meaning; exercise it directly so a
+        future regression there is caught instead of only being noticed if
+        and when a caller is added.
+        """
+        channel = self.env["slide.channel"].create({"name": "Test Move Category"})
+        category_a = self.env["slide.slide"].create(
+            {
+                "name": "Category A",
+                "channel_id": channel.id,
+                "is_category": True,
+                "sequence": 1,
+            }
+        )
+        slide_a1 = self.env["slide.slide"].create(
+            {"name": "A1", "channel_id": channel.id, "sequence": 2}
+        )
+        slide_a2 = self.env["slide.slide"].create(
+            {"name": "A2", "channel_id": channel.id, "sequence": 3}
+        )
+        category_b = self.env["slide.slide"].create(
+            {
+                "name": "Category B",
+                "channel_id": channel.id,
+                "is_category": True,
+                "sequence": 4,
+            }
+        )
+        slide_b1 = self.env["slide.slide"].create(
+            {"name": "B1", "channel_id": channel.id, "sequence": 5}
+        )
+        category_c = self.env["slide.slide"].create(
+            {
+                "name": "Category C",
+                "channel_id": channel.id,
+                "is_category": True,
+                "sequence": 6,
+            }
+        )
+        channel.invalidate_recordset()
+        self.assertEqual(category_a.slide_ids, slide_a1 | slide_a2)
+
+        channel._move_category_slides(category_a, category_c)
+        channel.invalidate_recordset()
+        self.assertEqual(
+            [s.id for s in channel.slide_ids],
+            [
+                category_a.id,
+                category_b.id,
+                slide_b1.id,
+                slide_a1.id,
+                slide_a2.id,
+                category_c.id,
             ],
         )
 
