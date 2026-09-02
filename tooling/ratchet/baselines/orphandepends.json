@@ -1,5 +1,6 @@
 {
   "count": 8,
-  "measured_at": "9ad2dee9e740b60e0e788edb65bbff4988851801",
-  "note": "First bank of the orphaned-@api.depends gate. Eight methods carry @api.depends that no field wires, in fleet, mrp, maintenance, hr, pos_sale, pos_self_order and l10n_account_withholding_tax. account.move.line's was the ninth and is fixed in 6e5bc8b00fb; the rest each need a decision about what the field was meant to be, which is not the work of installing the check."
+  "measured_at": "8cf39e5d30b2300c5f1fa59f3c7a0a8dcdc7a53f",
+  "measured_root": "",
+  "note": "Re-stamped at a branch commit: the previous measured_at was a commit git cannot resolve, so --list showed UNCHECKED and the enforcing path could not tell a verified base from an unverifiable one. The count is unchanged -- 8 measured on a clean detached worktree of the stamped commit, the same number the floor already carried -- so this moves provenance, not debt.\n\nFirst bank of the orphaned-@api.depends gate. Eight methods carry @api.depends that no field wires, in fleet, mrp, maintenance, hr, pos_sale, pos_self_order and l10n_account_withholding_tax. account.move.line's was the ninth and is fixed in 6e5bc8b00fb; the rest each need a decision about what the field was meant to be, which is not the work of installing the check."
 }
