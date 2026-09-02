@@ -54,9 +54,6 @@ class ResourceCalendarAttendance(models.Model):
         "A specific value of 24:00 is interpreted as 23:59:59.999999.",
     )
     hour_to = fields.Float(string="Work to", default=0, required=True)
-    # For the hour duration, the compute function is used to compute the value
-    # unambiguously, while the duration in days is computed for the default
-    # value based on the day_period but can be manually overridden.
     duration_hours = fields.Float(
         compute="_compute_duration_hours",
         inverse="_inverse_duration_hours",
@@ -104,31 +101,8 @@ class ResourceCalendarAttendance(models.Model):
 
     @api.constrains("week_type", "display_type", "calendar_id")
     def _check_week_type(self):
-        """A line on a two-weeks calendar must say which week it belongs to.
-
-        Nothing used to require it, and an unset ``week_type`` is not inert —
-        it makes the calendar contradict itself.  ``_attendance_intervals_batch``
-        buckets by ``int(attendance.week_type)``, and ``int(False)`` is ``0``,
-        so the line silently becomes a first-week line and *does* produce work
-        intervals; ``_get_working_hours`` meanwhile files it under the ``False``
-        key, which ``_works_on_date`` never reads for a two-weeks calendar, so
-        that same day reads as **not** worked.  ``_check_overlap`` also runs
-        once per week type, so the line's overlaps are validated by neither
-        pass.
-
-        The form view assigns ``week_type`` from the section order
-        (``_onchange_attendance_ids``); this covers the paths that do not go
-        through it — ``load``, XML data, the ORM and external API.
-        """
         for attendance in self:
             if attendance.calendar_id.two_weeks_calendar and not attendance.week_type:
-                # Section rows are covered too, not exempted.  A section *is* the
-                # week marker the form sorts the other lines against, so one that
-                # names no week is meaningless -- and it used to be worse than
-                # meaningless: ``_compute_display_name`` indexes a {"0", "1"} map
-                # with ``week_type`` and raised ``KeyError: False`` on every read,
-                # including the working-hours list, which renders ``display_name``
-                # for each row.
                 raise ValidationError(
                     self.env._(
                         "%(name)s: a line on a 2 weeks calendar must belong"
@@ -139,7 +113,6 @@ class ResourceCalendarAttendance(models.Model):
 
     @api.constrains("hour_from", "hour_to")
     def _check_hours(self):
-        """Enforce hour bounds and ordering for API/import creates."""
         for attendance in self:
             if attendance.display_type:
                 continue
@@ -169,30 +142,19 @@ class ResourceCalendarAttendance(models.Model):
 
     @api.onchange("hour_from", "hour_to")
     def _onchange_hours(self):
-        # avoid negative or after midnight
         self.hour_from = min(self.hour_from, 23.99)
         self.hour_from = max(self.hour_from, 0.0)
         self.hour_to = min(self.hour_to, 24)
         self.hour_to = max(self.hour_to, 0.0)
 
-        # avoid wrong order
         self.hour_to = max(self.hour_to, self.hour_from)
 
     @api.model
     def get_week_type(self, date: date) -> int:
-        # week_type is defined by
-        #  * counting the number of days from January 1 of year 1
-        #    (extrapolated to dates prior to the first adoption of the Gregorian calendar)
-        #  * converted to week numbers and then the parity of this number is asserted.
-        # It ensures that an even week number always follows an odd week number. With classical week number,
-        # some years have 53 weeks. Therefore, two consecutive odd week number follow each other (53 --> 1).
         return int(math.floor((date.toordinal() - 1) / 7) % 2)
 
     @api.depends("hour_from", "hour_to", "day_period")
     def _compute_duration_hours(self):
-        # Compute unconditionally: the old ``filtered("hour_to")`` skip kept a
-        # stale duration when ``hour_to`` was cleared back to 0 (e.g. through
-        # the API), leaving duration_hours > 0 on a 0-0 line.
         for attendance in self:
             attendance.duration_hours = (
                 max(0.0, attendance.hour_to - attendance.hour_from)
@@ -238,10 +200,6 @@ class ResourceCalendarAttendance(models.Model):
         section_names = {"0": self.env._("First week"), "1": self.env._("Second week")}
         section_info = {True: self.env._("this week"), False: self.env._("other week")}
         for record in self.filtered(lambda l: l.display_type == "line_section"):
-            # ``_check_week_type`` now requires a week on every line of a 2 weeks
-            # calendar, but that constraint only fires on write: rows predating it
-            # must stay *readable*, or the very list a user would open to repair
-            # them raises instead of rendering.  Hence ``.get`` and not ``[]``.
             week_name = section_names.get(record.week_type)
             if not week_name:
                 record.display_name = self.env._("Unassigned week")

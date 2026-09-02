@@ -20,7 +20,6 @@ class ResUsers(models.Model):
     def write(self, vals: ValuesType) -> bool:
         rslt = super().write(vals)
 
-        # If the timezone of the admin user gets set on their first login, also update the timezone of the default working calendar
         if (
             vals.get("tz")
             and len(self) == 1
@@ -33,10 +32,6 @@ class ResUsers(models.Model):
             elif default_calendar := self.env.ref(
                 "resource.resource_calendar_std", False
             ):
-                # env.ref(..., False) yields None, not an empty recordset, so
-                # assigning through it raised AttributeError once the xmlid was
-                # gone (deleted demo data, a pruned data record) instead of
-                # quietly skipping the convenience update.
                 default_calendar.tz = vals["tz"]
 
         return rslt

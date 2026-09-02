@@ -75,7 +75,6 @@ class ResourceCalendarLeaves(models.Model):
             and not res.get("date_from")
             and not res.get("date_to")
         ):
-            # Then we give the current day and we search the begin and end hours for this day in resource.calendar of the current company
             today = Datetime.now()
             calendar = self.env.company.resource_calendar_id
             if "calendar_id" in res:
@@ -96,9 +95,6 @@ class ResourceCalendarLeaves(models.Model):
 
     @api.depends("calendar_id", "resource_id.company_id")
     def _compute_company_id(self):
-        # The resource's company beats env.company: a leave created for a
-        # resource of company B while acting in company A must belong to B,
-        # or B's users cannot even see it (multi-company rule).
         for leave in self:
             leave.company_id = (
                 leave.calendar_id.company_id
@@ -108,19 +104,6 @@ class ResourceCalendarLeaves(models.Model):
 
     @api.depends("date_from")
     def _compute_date_to(self):
-        # Resolve the reference timezone *per leave*: the acting user's tz (or an
-        # explicit context tz) wins, otherwise fall back to this leave's own
-        # calendar.  The previous single ``self.company_id.resource_calendar_id``
-        # lookup was a multi-record hazard (``Expected singleton`` for a batch
-        # spanning several companies) and, during ``precompute`` on create,
-        # ``company_id`` still holds its default (``env.company``) rather than the
-        # leave's real company — so it end-dated every leave in the wrong tz.  The
-        # leave's own ``calendar_id`` is provided in vals and carries a required
-        # ``tz``, making it the reliable, correct source.
-        # Context tz first, then the user's own: an explicit context tz is how
-        # a caller states "interpret this in that timezone", so it must win
-        # over the acting user's profile rather than be a fallback for it —
-        # which is what the paragraph above already claimed the code did.
         user_tz_name = self.env.context.get("tz") or self.env.user.tz
         for leave in self:
             if not leave.date_from or (

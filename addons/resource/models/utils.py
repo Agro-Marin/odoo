@@ -2,9 +2,6 @@ from collections.abc import Callable
 
 from odoo.fields import Domain
 
-# Default hour per day value. The one should
-# only be used when the one from the calendar
-# is not available.
 HOURS_PER_DAY = 8
 
 
@@ -13,23 +10,6 @@ def filter_domain_leaf(
     field_check: Callable[[str], bool],
     field_name_mapping: dict[str, str] | None = None,
 ) -> Domain:
-    """
-    filter_domain_leaf only keeps the leaves of a domain that verify a given check. Logical operators that involve
-    a leaf that is undetermined (because it does not pass the check) are ignored.
-
-    each operator is a logic gate:
-    - '&' and '|' take two entries and can be ignored if one of them (or the two of them) is undetermined
-    -'!' takes one entry and can be ignored if this entry is undetermined
-
-    params:
-        - domain: the domain that needs to be filtered
-        - field_check: the function that the field name used in the leaf needs to verify to keep the leaf
-        - field_name_mapping: dictionary of the form {'field_name': 'new_field_name', ...}. Occurrences of 'field_name'
-          in the first element of domain leaves will be replaced by 'new_field_name'. This is useful when adapting a
-          domain from one model to another when some field names do not match the names of the corresponding fields in
-          the new model.
-    returns: The filtered version of the domain
-    """
     field_name_mapping = field_name_mapping or {}
 
     def adapt_condition(condition, ignored):

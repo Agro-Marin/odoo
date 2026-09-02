@@ -13,16 +13,6 @@
         <field name="perm_unlink" eval="False" />
     </record>
 
-    <!--
-        An employee may only manage the time off of the resource that IS them.
-        The previous `('resource_id.user_id', 'in', [False, user.id])` was
-        copied from the read rule above, where the `False` legitimately covers
-        company-wide time off.  Here the first clause already excluded global
-        records, so the `False` matched every resource with no user account —
-        machines, rooms, vehicles and unlinked employee resources — letting any
-        internal user create, edit and delete their time off.  That data drives
-        MRP scheduling, appointment availability and the planning gantt.
-    -->
     <record id="resource_calendar_leaves_rule_group_user_modify" model="ir.rule">
         <field name="name">resource.calendar.leaves: employee modifies own</field>
         <field name="model_id" ref="model_resource_calendar_leaves" />
@@ -31,12 +21,6 @@
         <field name="perm_read" eval="False" />
     </record>
 
-    <!--
-        Managers keep full write access.  Narrowing the rule above without
-        widening this one would have locked everyone below group_system out of
-        machine and room time off, since group rules are OR-ed and this was the
-        only other write path.
-    -->
     <record id="resource_calendar_leaves_rule_group_admin_modify" model="ir.rule">
         <field name="name">resource.calendar.leaves: admin modifies any</field>
         <field name="model_id" ref="model_resource_calendar_leaves" />
@@ -57,34 +41,6 @@
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
     </record>
 
-    <!--
-        NOT DONE ON PURPOSE: a multi-company rule on `resource.calendar` and
-        `resource.calendar.attendance`.
-
-        These are the only company-owned models in this module without one
-        (`resource.resource`, the time off and the reservations all have one).
-        The gap is narrower than it looks: `action_resource_calendar_form`
-        already carries `['|', ('company_id','=',False), ('company_id','in',
-        allowed_company_ids)]`, so the menu itself is company-filtered and the
-        exposure is limited to paths that bypass that action — a direct
-        search/read RPC, or another view onto the model.
-
-        The obvious `[('company_id', 'in', company_ids + [False])]` was still
-        tried, and reverted: working schedules are read as *reference data*
-        well outside the reader's own company. `hr_holidays` computes a leave's
-        duration through `resource.mixin._list_work_time_per_day` as the acting
-        user, so the rule made an employee unable to read their own working
-        calendar and `hr_holidays` `test_get_mandatory_days` failed with an
-        AccessError on `resource.calendar`. That upstream reaches for an action
-        domain rather than a rule here looks like the same conclusion.
-
-        Closing this therefore needs a decision, not a rule: either the
-        schedule-computation entry points in this module read the calendar
-        definition with `sudo()` (authorisation belonging to the consumer
-        record, not to the timetable it is measured against), or every
-        cross-company reader is audited one by one. Both are larger than a
-        security-file change and neither should be smuggled in as one.
-    -->
     <record id="resource_reservation_rule_multi_company" model="ir.rule">
         <field name="name">resource.reservation: multi-company rule</field>
         <field name="model_id" ref="model_resource_reservation" />

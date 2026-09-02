@@ -1,5 +1,3 @@
-"""`resource.calendar.attendance.display_name` reads `display_type`."""
-
 from odoo.tests import TransactionCase, tagged
 
 

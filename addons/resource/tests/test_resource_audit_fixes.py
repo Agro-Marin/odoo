@@ -1,10 +1,3 @@
-"""Regression tests for the resource audit round.
-
-Each class pins one defect that was reproduced against a live database before
-being fixed; the docstrings record the observed wrong value so a regression is
-recognisable rather than merely red.
-"""
-
 from datetime import UTC, datetime
 
 from lxml import etree
@@ -17,17 +10,9 @@ from odoo.tools import mute_logger
 
 @tagged("post_install", "-at_install")
 class TestPlanDaysEndOfDay(TransactionCase):
-    """``plan_days`` returned the end of the n-th day's FIRST attendance block.
-
-    On the stock 8-12 / 13-17 calendar that is lunchtime: ``plan_days(1)`` gave
-    Mon 12:00 where ``plan_hours(8)`` gave Mon 17:00.  The backward branch was
-    the mirror image, returning 13:00 (the afternoon's start) instead of 08:00.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Default attendances: Mon-Fri 8-12, 12-13 lunch, 13-17.
         cls.calendar = cls.env["resource.calendar"].create(
             {"name": "Audit 40h", "tz": "UTC"}
         )
@@ -47,7 +32,6 @@ class TestPlanDaysEndOfDay(TransactionCase):
                 )
 
     def test_plan_days_agrees_with_plan_hours(self):
-        """The two planners must not disagree on where a working day ends."""
         for days in (1, 2, 3, 5):
             with self.subTest(days=days):
                 self.assertEqual(
@@ -67,14 +51,11 @@ class TestPlanDaysEndOfDay(TransactionCase):
                 )
 
     def test_plan_days_edge_cases_preserved(self):
-        """Zero, unsatisfiable and fractional requests keep their semantics."""
         self.assertEqual(self.calendar.plan_days(0, self.monday), self.monday)
         self.assertFalse(self.calendar.plan_days(3000, self.monday))
         self.assertFalse(self.calendar.plan_days(0.0002, self.monday))
 
     def test_plan_days_spans_multiple_scan_windows(self):
-        """The day boundary must survive the 14-day window seam."""
-        # 20 working days is 4 calendar weeks, i.e. past the first window.
         self.assertEqual(
             self.calendar.plan_days(20, self.monday),
             self.calendar.plan_hours(20 * 8, self.monday),
@@ -83,14 +64,6 @@ class TestPlanDaysEndOfDay(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAllocatedPercentageBounds(TransactionCase):
-    """A negative ``allocated_percentage`` disarmed conflict detection.
-
-    The cumulative sweep sums the percentages, so a -100% row covering a slot
-    made ``100 - 100 + 100 = 100``, which is not ``> 100``: the double booking
-    reported ``schedule_overlap_count == 0`` and slipped past a reservation
-    whose ``enforcement_mode`` was ``hard``.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -112,10 +85,6 @@ class TestAllocatedPercentageBounds(TransactionCase):
 
     @mute_logger("odoo.db.cursor")
     def test_negative_percentage_rejected(self):
-        # The table CHECK is what rejects this, and it fires during the INSERT
-        # — before any Python constraint would — so the raw violation is the
-        # error a direct create sees.  The web client renders the constraint's
-        # declared message instead.
         with self.assertRaises(CheckViolation), self.env.cr.savepoint(flush=False):
             self._reservation("negative", allocated_percentage=-100.0)
 
@@ -129,14 +98,6 @@ class TestAllocatedPercentageBounds(TransactionCase):
         self.assertTrue(self._reservation("full", allocated_percentage=100.0))
 
     def test_hard_enforcement_cannot_be_cancelled_out(self):
-        """A row predating the constraint must still not disarm ``hard``.
-
-        The clamp in the overlap sweep is what guarantees this for databases
-        upgraded before ``migrations/1.4`` ran.  Reproduce such a row by
-        dropping the constraint inside the test transaction (which rolls back).
-        """
-        # Park a harmless 0% row over the whole day first, so that neither it
-        # nor the hard booking conflicts while the constraint is still on.
         umbrella = self.env["resource.reservation"].create(
             {
                 "name": "umbrella",
@@ -163,12 +124,6 @@ class TestAllocatedPercentageBounds(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestReservationCalendarOverride(TransactionCase):
-    """``resource_calendar_id`` was honoured without a resource, ignored with one.
-
-    A booking on a resource whose calendar was overridden to a 4 h/day calendar
-    still reported the resource's own 8 h.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -222,7 +177,6 @@ class TestReservationCalendarOverride(TransactionCase):
         self.assertEqual(reservation.allocated_hours, 8.0)
 
     def test_override_still_honoured_without_a_resource(self):
-        """The behaviour that already worked must not regress."""
         reservation = self.env["resource.reservation"].create(
             {
                 "name": "calendar only",
@@ -253,14 +207,6 @@ class TestReservationCalendarOverride(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestTwoWeeksWeekType(TransactionCase):
-    """A two-weeks calendar accepted a line with no ``week_type``.
-
-    ``int(False)`` is ``0``, so the line produced first-week work intervals
-    while ``_works_on_date`` — which keys on the ``False`` bucket — reported
-    that same day as not worked, and ``_check_overlap`` validated it in neither
-    week.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -289,7 +235,6 @@ class TestTwoWeeksWeekType(TransactionCase):
             line.week_type = False
 
     def test_sections_may_keep_their_own_week_type(self):
-        """Section rows are UX only and must stay writable."""
         sections = self.calendar.attendance_ids.filtered(
             lambda a: a.display_type == "line_section"
         )
@@ -314,14 +259,6 @@ class TestTwoWeeksWeekType(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCalendarlessIntervalApi(TransactionCase):
-    """An empty calendar failed two different, opaque ways.
-
-    ``_leave_intervals`` raised ``KeyError: False`` because the calendar-level
-    key was only published when ``self`` was truthy, and the leave domain then
-    carried no calendar filter at all — an empty recordset swept every leave in
-    the database.
-    """
-
     def test_leave_intervals_on_empty_calendar_is_empty(self):
         start = datetime(2025, 1, 6).replace(tzinfo=UTC)
         end = datetime(2025, 1, 7).replace(tzinfo=UTC)
@@ -357,13 +294,6 @@ class TestCalendarlessIntervalApi(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestOriginDisplayAccess(TransactionCase):
-    """``origin_display`` published the name of unreadable source records.
-
-    Reservations are the shared booking ledger and every internal user may read
-    them, so resolving the source's ``display_name`` unconditionally handed out
-    the title of records the reader has no rights to.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -394,8 +324,6 @@ class TestOriginDisplayAccess(TransactionCase):
         )
 
     def test_unreadable_source_falls_back_to_raw_reference(self):
-        # ir.mail_server is group_system only, so a plain internal user must
-        # not learn its name through a reservation.
         server = self.env["ir.mail_server"].create(
             {"name": "secret smtp", "smtp_host": "h"}
         )
@@ -429,18 +357,6 @@ class TestOriginDisplayAccess(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestResourceAdminAccess(TransactionCase):
-    """``resource.resource`` was the only model here a sysadmin could not edit.
-
-    The module ships ``menu_resource_resource`` under Settings > Technical >
-    Resource, pointing at a ``list,form`` action — but ``base.group_system``
-    held read-only rights, so the New button and every save raised AccessError.
-    Its siblings (calendar, attendance, time off, reservation) all grant the
-    group full CRUD; only this one did not, so the menu promised something the
-    ACL refused. Consumer modules (``hr``, ``mrp``) grant their own groups
-    write access, which is why the gap stayed invisible wherever one of them
-    was installed.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -494,18 +410,6 @@ class TestResourceAdminAccess(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestViewAvatarFields(TransactionCase):
-    """``avatar_field`` must name a field that exists on the related model.
-
-    The Resource Time Off calendar asked for ``image_128`` on
-    ``resource.resource``, which has ``avatar_128`` and never had an
-    ``image_128``.  Nothing validates the attribute — the ORM only checks
-    ``<field name=...>`` nodes — so the view loaded fine and the calendar
-    filter panel simply requested
-    ``/web/image/resource.resource/<id>/image_128`` and rendered a broken
-    image for every resource.  This walks the module's own views so a typo
-    fails a test instead of a pixel.
-    """
-
     def test_module_views_reference_real_avatar_fields(self):
         view_ids = (
             self.env["ir.model.data"]
@@ -538,14 +442,6 @@ class TestViewAvatarFields(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestViewNodeNames(TransactionCase):
-    """Named nodes must be unique inside a view, or inheritance targets the wrong one.
-
-    The working-time form gave all three notebook pages ``name="working_hours"``
-    — the single-week page and both two-week pages.  ``//page[@name=...]`` is
-    the normal way to extend a page, and it resolves to the first match, so any
-    module trying to reach the Week 2 page silently patched the Week 1 one.
-    """
-
     def _module_views(self):
         view_ids = (
             self.env["ir.model.data"]
@@ -569,7 +465,6 @@ class TestViewNodeNames(TransactionCase):
                 )
 
     def test_form_views_have_at_most_one_header(self):
-        """A placeholder <header/> collides with inheritors adding their own."""
         for view in self._module_views():
             root = etree.fromstring(view.arch_db)
             if root.tag != "form":
@@ -584,16 +479,6 @@ class TestViewNodeNames(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSwitchBasedOnDuration(TransactionCase):
-    """Turning duration-based off corrupted a two-weeks calendar.
-
-    ``switch_based_on_duration`` materialised the default attendances and only
-    then called ``_get_two_weeks_attendance()``, which reads them back and
-    returns ``Command.create`` for the duplicates.  Assigning commands to an
-    x2many appends, and nothing cleared the originals, so the calendar kept
-    both: 45 working times instead of 30, the 15 extras belonging to neither
-    week and inflating ``hours_per_week``.
-    """
-
     def _counts(self, calendar):
         lines = calendar.attendance_ids.filtered(lambda a: not a.display_type)
         return {
@@ -612,9 +497,9 @@ class TestSwitchBasedOnDuration(TransactionCase):
         self.assertEqual(before["week_less"], 0)
         hours_before = calendar.hours_per_week
 
-        calendar.switch_based_on_duration()  # on
+        calendar.switch_based_on_duration()
         self.env.flush_all()
-        calendar.switch_based_on_duration()  # off
+        calendar.switch_based_on_duration()
         self.env.flush_all()
 
         after = self._counts(calendar)
@@ -624,7 +509,6 @@ class TestSwitchBasedOnDuration(TransactionCase):
         self.assertEqual(calendar.hours_per_week, hours_before)
 
     def test_duration_round_trip_on_a_single_week_calendar(self):
-        """The plain path must keep behaving exactly as before."""
         calendar = self.env["resource.calendar"].create(
             {"name": "Single week", "tz": "UTC"}
         )

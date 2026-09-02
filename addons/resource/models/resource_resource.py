@@ -62,15 +62,6 @@ class ResourceResource(models.Model):
     email = fields.Char(related="user_id.email")
     phone = fields.Char(related="user_id.phone")
 
-    # Deliberately NOT ``check_company``.  The pairing it would forbid -- a
-    # resource of one company on another's calendar -- looks like an integrity
-    # hole, and enforcing it was tried and reverted: working schedules are
-    # shared reference data (``security/resource_security.xml`` reaches the same
-    # conclusion for the record rule), so the check made ordinary operations
-    # fail, moving an employee between companies among them.  A company-less
-    # calendar is likewise offered to everyone, which the widened domain now
-    # says out loud -- it read ``= company_id`` and hid the "Visible to all"
-    # schedules the calendar form invites users to create.
     calendar_id = fields.Many2one(
         "resource.calendar",
         string="Working Time",
@@ -108,7 +99,6 @@ class ResourceResource(models.Model):
                     .resource_calendar_id.id
                 )
             if not values.get("tz"):
-                # retrieve timezone on user or calendar
                 tz = (
                     self.env["res.users"].browse(values.get("user_id")).tz
                     or self.env["resource.calendar"]
@@ -158,17 +148,6 @@ class ResourceResource(models.Model):
         end: datetime,
         compute_leaves: bool = True,
     ) -> dict[Self, tuple[datetime | None, datetime | None]]:
-        """Adjust the given start and end datetimes to the closest effective hours encoded
-        in the resource calendar. Only attendances in the same day as `start` and `end` are
-        considered (respectively). If no attendance is found during that day, the closest hour
-        is None.
-        e.g. simplified example:
-             given two attendances: 8am-1pm and 2pm-5pm, given start=9am and end=6pm
-             resource._adjust_to_calendar(start, end)
-             >>> {resource: (8am, 5pm)}
-        :return: Closest matching start and end of working periods for each resource
-        :rtype: dict(resource, tuple(datetime | None, datetime | None))
-        """
         revert_start_tz = to_timezone(start.tzinfo)
         revert_end_tz = to_timezone(end.tzinfo)
         start = localized(start)
@@ -176,11 +155,6 @@ class ResourceResource(models.Model):
         result = {}
         for resource in self:
             resource_tz = timezone(resource.tz)
-            # Localize into per-iteration names.  Rebinding the outer ``start``
-            # / ``end`` here worked only because ``astimezone`` preserves the
-            # instant; it left every later resource reading a value already
-            # converted for the previous one, which is a trap for any future
-            # edit that derives a wall-clock value before re-converting.
             local_start = start.astimezone(resource_tz)
             local_end = end.astimezone(resource_tz)
             search_range = [
@@ -215,10 +189,6 @@ class ResourceResource(models.Model):
     def _get_unavailable_intervals(
         self, start: datetime, end: datetime
     ) -> dict[int, Intervals]:
-        """Compute the intervals during which employee is unavailable with hour granularity between start and end
-        Note: this method is used in enterprise (forecast and planning)
-
-        """
         start_datetime = localized(start)
         end_datetime = localized(end)
         resource_mapping = {}
@@ -243,22 +213,13 @@ class ResourceResource(models.Model):
         end: datetime,
         default_company: Self | None = None,
     ) -> dict[int | bool, dict]:
-        """Gets a dict of dict with resource's id as first key and resource's calendar as secondary key
-        The value is the validity interval of the calendar for the given resource.
-
-        Here the validity interval for each calendar is the whole interval but it's meant to be overriden in further modules
-        handling resource's employee contracts.
-        """
         if not (start.tzinfo and end.tzinfo):
             raise ValueError("start and end datetimes must be timezone-aware")
-        resource_calendars_within_period = defaultdict(
-            lambda: defaultdict(Intervals)
-        )  # keys are [resource id:integer][calendar:self.env['resource.calendar']]
+        resource_calendars_within_period = defaultdict(lambda: defaultdict(Intervals))
         default_calendar = (
             default_company and default_company.resource_calendar_id
         ) or self.env.company.resource_calendar_id
         if not self:
-            # if no resource, add the company resource calendar.
             resource_calendars_within_period[False][default_calendar] = Intervals(
                 [(start, end, self.env["resource.calendar.attendance"])]
             )
@@ -280,13 +241,6 @@ class ResourceResource(models.Model):
         calendars: tuple | None = None,
         compute_leaves: bool = True,
     ) -> tuple[dict[int, Intervals], dict[int, Intervals]]:
-        """Gets the valid work intervals of the resource following their calendars between ``start`` and ``end``
-
-        This methods handle the eventuality of a resource having multiple resource calendars, see _get_calendars_validity_within_period method
-        for further explanation.
-
-        For flexible calendars and fully flexible resources: -> return the whole interval
-        """
         if not (start.tzinfo and end.tzinfo):
             raise ValueError("start and end datetimes must be timezone-aware")
         resource_calendar_validity_intervals = {}
@@ -298,25 +252,21 @@ class ResourceResource(models.Model):
             self.sudo()._get_calendars_validity_within_period(start, end)
         )
         for resource in self:
-            # For each resource, retrieve its calendar and their validity intervals
             for calendar in resource_calendar_validity_intervals[resource.id]:
                 calendar_resources[calendar] |= resource
         for calendar in calendars or []:
             calendar_resources[calendar] |= self.env["resource.resource"]
         for calendar, resources in calendar_resources.items():
-            # for fully flexible resource, return the whole interval
             if not calendar:
                 for resource in resources:
                     resource_work_intervals[resource.id] |= Intervals(
                         [(start, end, self.env["resource.calendar.attendance"])]
                     )
                 continue
-            # For each calendar used by the resources, retrieve the work intervals for every resources using it
             work_intervals_batch = calendar._work_intervals_batch(
                 start, end, resources=resources, compute_leaves=compute_leaves
             )
             for resource in resources:
-                # Make the conjunction between work intervals and calendar validity
                 resource_work_intervals[resource.id] |= (
                     work_intervals_batch[resource.id]
                     & resource_calendar_validity_intervals[resource.id][calendar]
@@ -326,7 +276,6 @@ class ResourceResource(models.Model):
         return resource_work_intervals, calendar_work_intervals
 
     def _is_fully_flexible(self) -> bool:
-        """employee has a fully flexible schedule has no working calendar set"""
         self.check_singleton()
         return not self.calendar_id
 
@@ -334,9 +283,6 @@ class ResourceResource(models.Model):
         return {resource: resource.calendar_id for resource in self}
 
     def _is_flexible(self) -> bool:
-        """An employee is considered flexible if the field flexible_hours is True on the calendar
-        or the employee is not assigned any calendar, in which case is considered as Fully flexible.
-        """
         self.check_singleton()
         return self._is_fully_flexible() or (
             self.calendar_id and self.calendar_id.flexible_hours
@@ -361,11 +307,6 @@ class ResourceResource(models.Model):
             )
 
         for tz, resources in resources_per_tz.items():
-            # Iterate on a local ``day`` rather than rebinding the ``start``
-            # parameter: the old code worked only because ``start_date`` and
-            # ``end_date`` had already been read off it, and any later edit that
-            # reached for ``start`` would have found a date where a datetime was
-            # declared.
             day = start_date
             ranges = []
             while day <= end_date:
@@ -402,7 +343,7 @@ class ResourceResource(models.Model):
 
         calendars_within_period_per_resource = defaultdict(
             lambda: defaultdict(Intervals)
-        )  # keys are [resource id:integer][calendar:self.env['resource.calendar']]
+        )
         for resource in self:
             calendars_within_period_per_resource[resource.id][resource.calendar_id] = (
                 resource_default_work_intervals[resource.id]
@@ -412,28 +353,6 @@ class ResourceResource(models.Model):
 
     @api.model
     def _flexible_week_key(self, day: date) -> tuple[int, int]:
-        """Return the week bucket a flexible resource's hour budget belongs to.
-
-        This is the **single authority** for that bucket.  The
-        ``hours_per_week`` dictionaries produced by
-        :meth:`_get_flexible_resource_valid_work_intervals` are read and
-        decremented by ``hr_holidays``, ``planning`` and ``project_enterprise``,
-        so producer and consumers must agree on the key or the lookups silently
-        miss and the weekly cap stops applying.  Every one of them calls this.
-
-        The value is the **ISO week** — deterministic and locale-free.  It used
-        to be derived from the acting user's locale, which made it a display
-        preference: the same booking reported 48h or 40h depending on
-        ``res.lang.week_start``, and the wrong figure was then stored.  Worse,
-        the two sides disagreed on *which* locale — this model keyed off
-        ``res.lang.week_start`` while ``hr_holidays`` keyed off babel's
-        ``locale.first_week_day``; they coincide for stock locales but diverge
-        the moment someone edits the language, at which point leave hours stop
-        being subtracted at all.
-
-        ISO (Monday-anchored) also matches the module's own week model, where
-        ``resource.calendar.attendance.dayofweek`` numbers Monday as ``'0'``.
-        """
         return day.isocalendar()[:2]
 
     def _format_leave(
@@ -452,7 +371,6 @@ class ResourceResource(models.Model):
         while leave_start_day <= leave_end_day:
             if not self._is_fully_flexible():
                 hours = self.calendar_id.hours_per_day
-                # only days inside the original period
                 if leave_start_day >= start_day and leave_start_day <= end_day:
                     resource_hours_per_day[self.id][leave_start_day] -= hours
                 year_and_week = self._flexible_week_key(leave_start_day)
@@ -490,8 +408,6 @@ class ResourceResource(models.Model):
 
         start_day, end_day = start.date(), end.date()
 
-        # Monday-anchored, to match ``_flexible_week_key``: the widened range
-        # below must cover exactly the weeks the budget is bucketed by.
         delta = relativedelta(weekday=MO(-1))
         week_start_date = start + delta
         week_end_date = end + delta + relativedelta(days=6)
@@ -514,7 +430,6 @@ class ResourceResource(models.Model):
             )
         )
         for resource in self:
-            # For each resource, retrieve their calendars validity intervals
             for calendar, work_intervals in resource_calendar_validity_intervals[
                 resource.id
             ].items():
@@ -532,25 +447,18 @@ class ResourceResource(models.Model):
             duration_per_day = defaultdict(float)
             resource_intervals = resource_work_intervals.get(resource.id, Intervals())
             for interval_start, interval_end, _dummy in resource_intervals:
-                # thanks to default periods structure, start and end should be in same day (with a same timezone !!)
                 day = interval_start.date()
-                # custom timeoff can divide a day to > 1 intervals
                 duration_per_day[day] += (
                     interval_end - interval_start
                 ).total_seconds() / 3600
 
             for day, hours in duration_per_day.items():
                 day_working_hours = min(hours, resource.calendar_id.hours_per_day)
-                # only days inside the original period
                 if day >= start_day and day <= end_day:
                     resource_hours_per_day[resource.id][day] = day_working_hours
 
                 year_week = self._flexible_week_key(day)
                 if year_week <= end_week_key:
-                    # Cap weekly hours to the flexible calendar's weekly budget
-                    # (single source of truth; falls back to the full-time
-                    # equivalent when hours_per_week is unset for a flexible
-                    # calendar).
                     cap = resource.calendar_id._get_flexible_hours_per_week()
                     resource_hours_per_week[resource.id][year_week] = min(
                         cap,
@@ -575,10 +483,6 @@ class ResourceResource(models.Model):
                         continue
 
                     ranges_to_remove = []
-                    # Iterate the Intervals itself, not its private ``_items``
-                    # store: the public iteration yields the same tuples
-                    # without pinning this module to the internals of
-                    # ``odoo.libs.intervals``.
                     for leave in leaves:
                         resource_by_id[resource_id]._format_leave(
                             leave,
@@ -618,16 +522,12 @@ class ResourceResource(models.Model):
         if self._is_fully_flexible():
             return round(sum_intervals(intervals), 2)
 
-        # start and end for each Interval have the same day thanks to schedule_intervals_per_resource_id format for flexible employees
-        # 2 intervals can cover the same day, in case of custom timeoff at the middle of the day
         duration_per_day = dict(flexible_resources_hours_per_day)
         duration_per_week = dict(flexible_resources_hours_per_week)
 
         interval_duration_per_day = defaultdict(float)
-        # days with custom time off can divide a day to many intervals
         for start, end, _dummy in intervals:
             if end.time() == time.max:
-                # flex resource intervals are formatted in days, each day from min time to max time, when getting the difference, one microsecond is lost
                 duration = (
                     end + timedelta(microseconds=1) - start
                 ).total_seconds() / 3600

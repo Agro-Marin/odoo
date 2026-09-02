@@ -16,13 +16,6 @@ class Partner extends models.Model {
     ];
 }
 
-// The section label lives on `display_name`, exactly as it does on the real
-// `resource.calendar.attendance` (see resource_calendar_attendance_views.xml).
-// This fixture used to declare a `title` field instead, matching the renderer's
-// `titleField = "title"` -- so the pair agreed with each other and with nothing
-// else, and the test stayed green while every real section header rendered
-// blank. A fixture that invents the field under test cannot catch this class of
-// bug; mirroring the real model is the point.
 class LinesSections extends models.Model {
     _name = "lines_sections";
 
@@ -75,8 +68,6 @@ test("basic rendering", async () => {
 });
 
 test("section row shows its label rather than an empty band", async () => {
-    // The regression this locks down: a section header that renders as a blank
-    // grey row because the renderer looked for a column that is not in the list.
     await mountView({ type: "form", resModel: "partner", resId: 1, arch: ARCH });
     expect(".o_data_row:first").toHaveText("firstSectionTitle");
     expect(".o_data_row:first").not.toHaveText("");

@@ -34,11 +34,7 @@
         <field name="name">resource.calendar.form</field>
         <field name="model">resource.calendar</field>
         <field name="arch" type="xml">
-            <!-- No empty <header/> here on purpose: it renders nothing, and
-                inheriting modules add their own with
-                <xpath expr="//sheet" position="before"> (as
-                l10n_mx_edi_payslip does), which next to a placeholder header
-                yields two status bars in one form. -->
+
             <form string="Working Time">
                 <sheet string="Working Time">
                     <widget

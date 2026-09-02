@@ -6,9 +6,6 @@ from odoo.tests.common import TransactionCase
 
 class TestResourceCalendar(TransactionCase):
     def test_fully_flexible_attendance_interval_duration(self):
-        """
-        Test that the duration of a fully flexible attendance interval is correctly computed.
-        """
         calendar = self.env["resource.calendar"].create(
             {
                 "name": "Standard Calendar",
@@ -18,17 +15,17 @@ class TestResourceCalendar(TransactionCase):
         resource = self.env["resource.resource"].create(
             {
                 "name": "Wade Wilson",
-                "calendar_id": False,  # Fully-flexible because no calendar is set
-                "tz": "America/New_York",  # -04:00 UTC offset in the summer
+                "calendar_id": False,
+                "tz": "America/New_York",
             }
         )
         self.env["resource.calendar.attendance"].create(
             {
                 "name": "TEMP",
                 "calendar_id": calendar.id,
-                "dayofweek": "2",  # Wednesday
-                "hour_from": 14,  # 18:00 UTC
-                "hour_to": 17,  # 21:00 UTC
+                "dayofweek": "2",
+                "hour_from": 14,
+                "hour_to": 17,
             }
         )
         UTC = timezone("UTC")
@@ -38,10 +35,6 @@ class TestResourceCalendar(TransactionCase):
             start_dt, end_dt, resource
         )
         start, end, attendance = result_per_resource_id[resource.id]._items[0]
-        # For a flexible resource, we expect the output times to match the
-        # input times exactly, since the resource has no fixed calendar.
-        # Further, the dummy attendance that is created should have a duration
-        # equal to the difference between the start and end times.
         self.assertEqual(
             start, start_dt, "Output start time should match the input start time"
         )
@@ -60,9 +53,6 @@ class TestResourceCalendar(TransactionCase):
         )
 
     def test_flexible_calendar_attendance_interval_duration(self):
-        """
-        Test that the duration of an attendance interval for flexible calendar is correctly computed.
-        """
         flexible_calendar = self.env["resource.calendar"].create(
             {
                 "name": "Flexible Calendar",
@@ -74,8 +64,6 @@ class TestResourceCalendar(TransactionCase):
             }
         )
 
-        # Case 1: get attendances for the full week.
-        # Expected: 7-7-7-7-2 (30 hours total)
         expected_hours = [7, 7, 7, 7, 2]
 
         start_dt = datetime(2025, 6, 2, 0, 0, 0).astimezone(UTC)
@@ -98,7 +86,6 @@ class TestResourceCalendar(TransactionCase):
             ],
         )
 
-        # Case 2: check attendances are all contained between start_dt and end_dt
         start_dt = datetime(2025, 6, 2, 11, 0, 0).astimezone(UTC)
         end_dt = datetime(2025, 6, 7, 13, 0, 0).astimezone(UTC)
         result_per_resource_id = flexible_calendar._attendance_intervals_batch(

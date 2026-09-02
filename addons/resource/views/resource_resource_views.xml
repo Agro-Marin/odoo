@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- RESOURCE.RESOURCE -->
     <record id="view_resource_resource_search" model="ir.ui.view">
         <field name="name">resource.resource.search</field>
         <field name="model">resource.resource</field>

@@ -1,10 +1,3 @@
-"""Regression tests for the resource hardening pass.
-
-Each class pins one defect that the previous suite did not cover.  The
-docstrings state the *observed wrong behaviour*, so a future change that
-reintroduces it fails with an explanation rather than a bare assertion.
-"""
-
 from datetime import UTC, date, datetime, timedelta
 
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -13,16 +6,6 @@ from odoo.tests.common import TransactionCase, new_test_user
 
 
 class TestFlexibleAttendanceSynthesis(TransactionCase):
-    """Pins the synthesized schedule of a flexible calendar.
-
-    The fill is greedy from the window start on purpose (a Tue→Sat question
-    credits five working days), which also means the result is not additive
-    across sub-windows.  Both properties are asserted here so that a future
-    change to either is a deliberate, visible decision rather than a silent
-    drift — switching to calendar-week anchoring, for instance, shortens every
-    mid-week leave and breaks ``hr_holidays``.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -50,24 +33,10 @@ class TestFlexibleAttendanceSynthesis(TransactionCase):
                 )
 
     def test_fill_is_greedy_from_the_window_start(self):
-        """A mid-week window is credited its own days, not the week's leftovers.
-
-        ``hr_holidays.test_undefined_working_hours`` depends on this: a
-        Tue→Sat request for a 40h/week flexible employee is five days off, and
-        anchoring the budget on the calendar Monday would silently make it
-        four.
-        """
         tuesday, sunday = datetime(2025, 3, 4), datetime(2025, 3, 9)
         self.assertAlmostEqual(self._hours(tuesday, sunday), 40.0, places=2)
 
     def test_not_additive_across_sub_windows(self):
-        """Documents the known cost of the greedy fill.
-
-        Each sub-window restarts the weekly budget, so summing parts exceeds
-        the whole.  Consumers that partition a period (two adjacent
-        reservations covering one week, a month-by-month report) over-count,
-        and must ask once over the full range instead.
-        """
         monday, thursday = datetime(2025, 3, 3), datetime(2025, 3, 6)
         next_monday = datetime(2025, 3, 10)
         whole = self._hours(monday, next_monday)
@@ -81,7 +50,6 @@ class TestFlexibleAttendanceSynthesis(TransactionCase):
         )
 
     def test_dst_transition_keeps_one_block_per_day(self):
-        """Day stepping must not drift across a DST switch."""
         brussels = timezone("Europe/Brussels")
         calendar = self.env["resource.calendar"].create(
             {
@@ -102,16 +70,6 @@ class TestFlexibleAttendanceSynthesis(TransactionCase):
 
 
 class TestFlexibleWeekKeyIsDeterministic(TransactionCase):
-    """The flexible weekly budget must not depend on a display preference.
-
-    The bucket used to come from the acting user's locale, so the very same
-    booking stored 48h under a Sunday-start language and 40h under a
-    Monday-start one.  Worse, the producer keyed off ``res.lang.week_start``
-    while ``hr_holidays`` keyed off babel's ``locale.first_week_day`` — two
-    different sources that only coincide by accident, and when they diverge
-    the leave hours stop being subtracted at all.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -158,8 +116,6 @@ class TestFlexibleWeekKeyIsDeterministic(TransactionCase):
 
     def test_week_key_is_iso_and_locale_free(self):
         Resource = self.env["resource.resource"]
-        # Sun 2025-03-09 and Mon 2025-03-10 are different ISO weeks; a
-        # Sunday-anchored bucket would group them together.
         self.assertEqual(Resource._flexible_week_key(date(2025, 3, 9)), (2025, 10))
         self.assertEqual(Resource._flexible_week_key(date(2025, 3, 10)), (2025, 11))
         for week_start in ("1", "7"):
@@ -193,15 +149,6 @@ class TestFlexibleWeekKeyIsDeterministic(TransactionCase):
 
 
 class TestUnavailableIntervalsFlexible(TransactionCase):
-    """Flexible resources must always appear in the unavailability mapping.
-
-    The key was only written when the resource had leaves, so a flexible
-    resource with a clean calendar vanished from the result: the singular
-    helper raised KeyError, and gantt consumers reading it through
-    ``.get(resource.id, company_leaves)`` silently painted the *company's*
-    unavailability onto an available resource.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -260,8 +207,6 @@ class TestUnavailableIntervalsFlexible(TransactionCase):
 
 
 class TestPlanDaysHonoursResource(TransactionCase):
-    """``plan_days`` accepted no resource, so resource leaves were invisible."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -299,13 +244,6 @@ class TestPlanDaysHonoursResource(TransactionCase):
 
 
 class TestReservationCompanyIntegrity(TransactionCase):
-    """A reservation must belong to the booked resource's company.
-
-    It defaulted to ``env.company``, so a user acting in company B could book
-    a company-A resource; the multi-company rule then hid that booking from
-    company A, whose users saw the slot as free.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -336,7 +274,6 @@ class TestReservationCompanyIntegrity(TransactionCase):
         self.assertEqual(reservation.company_id, self.company_a)
 
     def test_mismatched_company_is_rejected(self):
-        """``_check_company_auto`` turns the field flags into a real barrier."""
         with self.assertRaises(UserError):
             self.env["resource.reservation"].create(
                 {
@@ -350,13 +287,6 @@ class TestReservationCompanyIntegrity(TransactionCase):
 
 
 class TestHardEnforcementProtectsItsSlot(TransactionCase):
-    """A 'hard' reservation is a claim against everyone, not just itself.
-
-    Only the record being written used to be validated, so a *soft* booking —
-    the default every consumer creates — could be created on, or rescheduled
-    into, a hard reservation's window without complaint.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -411,7 +341,6 @@ class TestHardEnforcementProtectsItsSlot(TransactionCase):
             )
 
     def test_partial_allocations_still_fit(self):
-        """The claim is cumulative, not exclusive: 50% + 50% remains legal."""
         self.Reservation.create(
             {
                 "name": "Half hard",
@@ -460,8 +389,6 @@ class TestHardEnforcementProtectsItsSlot(TransactionCase):
 
 
 class TestOverlapSweep(TransactionCase):
-    """The sweep must stay correct after being rewritten as a boundary walk."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -486,7 +413,6 @@ class TestOverlapSweep(TransactionCase):
         )
 
     def test_cumulative_three_way_conflict(self):
-        """3 x 50% = 150% conflicts even though no single pair exceeds 100%."""
         first = self._make(6, 8, 17, pct=50.0)
         self._make(6, 8, 17, pct=50.0)
         self._make(6, 8, 17, pct=50.0)
@@ -512,7 +438,6 @@ class TestOverlapSweep(TransactionCase):
         self.assertEqual(first.schedule_overlap_count, 0)
 
     def test_distant_history_is_not_scanned(self):
-        """Old bookings outside the window must not enter the computation."""
         self.Reservation.create(
             [
                 {
@@ -530,8 +455,6 @@ class TestOverlapSweep(TransactionCase):
 
 
 class TestAllocatedHoursBatching(TransactionCase):
-    """Batching must not change the numbers it produces."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -599,13 +522,6 @@ class TestAllocatedHoursBatching(TransactionCase):
 
 
 class TestLeaveSecurityRule(TransactionCase):
-    """Employees may only manage their *own* time off.
-
-    The rule matched `user_id in [False, user.id]` after already excluding
-    global records, so every resource without a user account — machines,
-    rooms, unlinked employees — was writable by any internal user.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

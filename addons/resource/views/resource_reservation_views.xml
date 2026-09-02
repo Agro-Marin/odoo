@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- List view -->
     <record id="resource_reservation_view_list" model="ir.ui.view">
         <field name="name">resource.reservation.list</field>
         <field name="model">resource.reservation</field>
         <field name="arch" type="xml">
-            <!-- Conflict detection is the point of this shared ledger, so an
-                over-allocated booking must be visible without opening it. -->
+
             <list
                 string="Reservations"
                 decoration-danger="schedule_overlap_count &gt; 0">
@@ -28,7 +26,6 @@
         </field>
     </record>
 
-    <!-- Form view -->
     <record id="resource_reservation_view_form" model="ir.ui.view">
         <field name="name">resource.reservation.form</field>
         <field name="model">resource.reservation</field>
@@ -77,7 +74,6 @@
         </field>
     </record>
 
-    <!-- Search view -->
     <record id="resource_reservation_view_search" model="ir.ui.view">
         <field name="name">resource.reservation.search</field>
         <field name="model">resource.reservation</field>
@@ -103,10 +99,7 @@
                     string="Work Orders"
                     domain="[('res_model', '=', 'mrp.workorder')]" />
                 <separator />
-                <!-- The reason this shared ledger exists is to make a resource
-                    booked twice over findable. That was only possible one
-                    record at a time until schedule_overlap_count became
-                    searchable. -->
+
                 <filter
                     name="in_conflict"
                     string="In Conflict"
@@ -147,7 +140,6 @@
         </field>
     </record>
 
-    <!-- Calendar view -->
     <record id="resource_reservation_view_calendar" model="ir.ui.view">
         <field name="name">resource.reservation.calendar</field>
         <field name="model">resource.reservation</field>
@@ -167,7 +159,6 @@
         </field>
     </record>
 
-    <!-- Action: All Reservations -->
     <record id="action_resource_reservation" model="ir.actions.act_window">
         <field name="name">Reservations</field>
         <field name="res_model">resource.reservation</field>
@@ -184,7 +175,6 @@
         </field>
     </record>
 
-    <!-- Action: My Schedule -->
     <record id="action_resource_my_schedule" model="ir.actions.act_window">
         <field name="name">My Schedule</field>
         <field name="res_model">resource.reservation</field>

@@ -1,26 +1,3 @@
-"""Recompute what the 1.4 ``allocated_percentage`` clamp invalidated.
-
-``pre-migrate`` clamps out-of-range percentages with raw SQL, which cannot
-refresh the stored ``allocated_hours`` derived from them — nor the
-``allocated_hours`` aggregate the consumer records carry through
-``mixin.resource.scheduling``.  Both are repaired here, from the ids
-``pre-migrate`` parked in its scratch table.
-
-The two halves use different tools on purpose:
-
-* the reservations go through the ORM, because their ``allocated_hours``
-  depends on the resource calendar and only ``_compute_allocated_hours``
-  knows how to read it;
-* the consumers are updated in SQL, because their models are **not in the
-  registry yet**.  Odoo loads modules in dependency order, so while
-  ``resource``'s own post-migrate runs, every module that consumes the mixin
-  (``project`` and friends) is still unloaded — ``env['project.task']`` would
-  raise.  The 1.2 script hits the same wall and simply logs "unknown model";
-  the aggregate is a plain ``SUM`` over the ledger, so SQL can do it exactly.
-
-No scratch table means nothing was out of range, which is the expected case.
-"""
-
 import logging
 
 from odoo import SUPERUSER_ID, api
@@ -32,12 +9,6 @@ SCRATCH_TABLE = "_resource_mig_1_4_clamped"
 
 
 def _refresh_consumer_aggregates(cr, res_ids_by_model):
-    """Re-sum ``allocated_hours`` on the consumers of the clamped rows.
-
-    Mirrors ``resource.scheduling.mixin._compute_allocated_hours``: the sum of
-    the record's *active* reservations (``reservation_ids`` drops archived rows
-    on read).
-    """
     for model_name, res_ids in res_ids_by_model.items():
         cr.execute("SELECT model FROM ir_model WHERE model = %s", (model_name,))
         if not cr.fetchone():

@@ -14,7 +14,7 @@ export class ResourceAvatarField extends ImageField {
 }
 
 registry.category("fields").add("resource_avatar", {
-    ...imageField, // includes extractProps, supportedOptions, etc.
+    ...imageField,
     component: ResourceAvatarField,
     fieldDependencies: [
         ...imageField.fieldDependencies,

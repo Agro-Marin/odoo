@@ -1,19 +1,3 @@
-"""Re-run the resource 1.2 stale-aggregate repair with the corrected logic.
-
-The stale-aggregate step of ``migrations/1.2/post-migrate.py`` originally
-recomputed ``allocated_hours`` for archived consumers under
-``active_test=False``, which re-stored the pre-archive (stale) sum instead of
-clearing it — the bug was fixed in place in the 1.2 script itself, but a
-database that already ran 1.2 before the fix landed would never run it
-again (Odoo skips a migration script whose version is not greater than the
-already-installed one), leaving the contradictory aggregate forever.
-
-Re-run the corrected repair unconditionally at 1.3, regardless of whether
-1.2 ran the broken or the fixed version: recomputing under normal (not
-``active_test=False``) context is idempotent, so this is a no-op wherever
-1.2 already applied it correctly.
-"""
-
 import logging
 
 from odoo import SUPERUSER_ID, api

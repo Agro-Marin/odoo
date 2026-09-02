@@ -1,23 +1,3 @@
-"""Clamp ``allocated_percentage`` into 0..100 before the CHECK lands.
-
-``resource.reservation.allocated_percentage`` gained
-``CHECK(allocated_percentage >= 0 AND allocated_percentage <= 100)`` in 1.4.
-A value outside that range is not merely untidy: the cumulative overlap sweep
-in ``_compute_schedule_overlap_count`` *adds these numbers up*, so a negative
-row cancels a real booking, zeroes ``schedule_overlap_count`` and lets a
-reservation slip past ``enforcement_mode = 'hard'`` unnoticed.
-
-This runs **pre**-migrate so the repair happens before Odoo tries to add the
-constraint: an ALTER TABLE that fails on existing rows is only logged as a
-warning, which would leave the table permanently unconstrained.
-
-Rows are clamped rather than deleted — a reservation is a mirror of a consumer
-record, and dropping it would silently un-book work that still exists.  The
-clamped ids are parked in a scratch table for ``post-migrate`` to recompute
-``allocated_hours`` from (a raw UPDATE cannot), and the affected consumers are
-logged so the discrepancy can be reconciled by hand.
-"""
-
 import logging
 
 from odoo.tools import SQL
@@ -28,16 +8,6 @@ SCRATCH_TABLE = "_resource_mig_1_4_clamped"
 
 
 def _backfill_week_type(cr):
-    """Give every two-weeks working time a week, as 1.4 now requires.
-
-    ``resource.calendar.attendance.week_type`` was never enforced, and an unset
-    one is not inert: ``_attendance_intervals_batch`` buckets on
-    ``int(week_type)`` and ``int(False)`` is ``0``, so the line already behaved
-    as a first-week line — while ``_works_on_date`` reported that same day as
-    not worked.  Materialising the ``'0'`` it was already being treated as
-    therefore changes no schedule; it only makes the two agree, and stops the
-    new constraint from firing on the next unrelated edit of an old calendar.
-    """
     cr.execute(
         SQL(
             """
@@ -92,8 +62,6 @@ def migrate(cr, version):
             high,
         )
 
-    # Hand the affected ids to post-migrate: the clamp changes the stored,
-    # computed ``allocated_hours``, and the aggregate the consumer carries.
     cr.execute(SQL("DROP TABLE IF EXISTS %s", SQL.identifier(SCRATCH_TABLE)))
     cr.execute(
         SQL(

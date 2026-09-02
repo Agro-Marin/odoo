@@ -1,9 +1,3 @@
-"""Regression tests for the defects found in the second-pass audit.
-
-Each test names the failure it locks down; every one of them fails on the
-code as it stood before the accompanying fix.
-"""
-
 from datetime import UTC, datetime
 
 from odoo import fields
@@ -33,12 +27,7 @@ class TestResourceSecondPass(TransactionCase):
             }
         )
 
-    # ------------------------------------------------------------------
-    # Zero-length attendances are not overlaps
-    # ------------------------------------------------------------------
-
     def test_single_zero_length_attendance_is_not_an_overlap(self):
-        """One line cannot overlap anything, whatever its duration."""
         calendar = self.env["resource.calendar"].create(
             {
                 "name": "zero",
@@ -62,7 +51,6 @@ class TestResourceSecondPass(TransactionCase):
         self.assertEqual(len(calendar.attendance_ids), 1)
 
     def test_duration_based_zero_day_does_not_brick_the_calendar(self):
-        """A 0-hour day must be accepted and must not poison later edits."""
         calendar = self.env["resource.calendar"].create(
             {"name": "duration", "company_id": self.company.id, "tz": "UTC"}
         )
@@ -74,7 +62,6 @@ class TestResourceSecondPass(TransactionCase):
         calendar.flush_recordset()
         self.assertEqual(attendance.hour_from, attendance.hour_to)
 
-        # The poisoning symptom: any *subsequent* edit used to raise.
         calendar.attendance_ids = [
             Command.create(
                 {
@@ -89,7 +76,6 @@ class TestResourceSecondPass(TransactionCase):
         calendar.flush_recordset()
 
     def test_real_overlap_is_still_rejected(self):
-        """The relaxation must not blind the check to genuine overlaps."""
         calendar = self.env["resource.calendar"].create(
             {
                 "name": "overlapping",
@@ -121,10 +107,6 @@ class TestResourceSecondPass(TransactionCase):
             ]
             calendar.flush_recordset()
 
-    # ------------------------------------------------------------------
-    # Sections must name their week, and must stay readable if they don't
-    # ------------------------------------------------------------------
-
     def test_section_without_week_type_is_rejected(self):
         calendar = self.env["resource.calendar"].create(
             {"name": "2w", "company_id": self.company.id, "tz": "UTC"}
@@ -145,8 +127,6 @@ class TestResourceSecondPass(TransactionCase):
             )
 
     def test_legacy_section_without_week_type_still_reads(self):
-        """Rows predating the constraint must remain readable, or the list a
-        user would open to repair them raises instead of rendering."""
         calendar = self.env["resource.calendar"].create(
             {"name": "2w legacy", "company_id": self.company.id, "tz": "UTC"}
         )
@@ -155,22 +135,15 @@ class TestResourceSecondPass(TransactionCase):
         section = calendar.attendance_ids.filtered(
             lambda a: a.display_type == "line_section"
         )[0]
-        # Bypass the ORM the way a pre-fix row would exist in the table.
         self.env.cr.execute(
             "UPDATE resource_calendar_attendance SET week_type = NULL WHERE id = %s",
             (section.id,),
         )
         section.invalidate_recordset()
-        self.assertTrue(section.display_name)  # used to raise KeyError: False
-
-    # ------------------------------------------------------------------
-    # Fully flexible resources measure in days, not wall-clock hours
-    # ------------------------------------------------------------------
+        self.assertTrue(section.display_name)
 
     def test_fully_flexible_five_days_counts_five_days(self):
         resource = self._resource(name="Fully flexible", calendar_id=False)
-        # Mon 2026-03-02 08:00 -> Fri 2026-03-06 17:00, the shape hr_holidays
-        # hands down for a five-working-day absence.
         data = self.calendar._get_attendance_intervals_days_data(
             self.calendar._attendance_intervals_batch(
                 datetime(2026, 3, 2, 8, 0).replace(tzinfo=UTC),
@@ -186,7 +159,6 @@ class TestResourceSecondPass(TransactionCase):
         )
 
     def test_fully_flexible_availability_is_unchanged(self):
-        """The day-by-day split must not shrink what the resource is free for."""
         resource = self._resource(name="Still free", calendar_id=False)
         start = datetime(2026, 3, 2, 0, 0).replace(tzinfo=UTC)
         end = datetime(2026, 3, 7, 0, 0).replace(tzinfo=UTC)
@@ -203,7 +175,6 @@ class TestResourceSecondPass(TransactionCase):
         )
 
     def test_fully_flexible_partial_day_is_a_fraction_of_a_working_day(self):
-        """Part of a day is a fraction of an 8-hour day, not of a 24-hour one."""
         resource = self._resource(name="Part day", calendar_id=False)
         data = self.calendar._get_attendance_intervals_days_data(
             self.calendar._attendance_intervals_batch(
@@ -212,11 +183,9 @@ class TestResourceSecondPass(TransactionCase):
                 resource,
             )[resource.id]
         )
-        # 4 hours against the calendar's 8-hour day. The old model said 4/24.
         self.assertEqual(data["days"], 0.5)
 
     def test_fully_flexible_long_day_is_capped_at_one_day(self):
-        """Covering 16 hours of one day is one day, not two."""
         resource = self._resource(name="Long day", calendar_id=False)
         data = self.calendar._get_attendance_intervals_days_data(
             self.calendar._attendance_intervals_batch(
@@ -228,10 +197,8 @@ class TestResourceSecondPass(TransactionCase):
         self.assertEqual(data["days"], 1.0)
 
     def test_fully_flexible_day_count_survives_dst(self):
-        """A 23-hour and a 25-hour day each still count as one day."""
         resource = self._resource(name="DST", calendar_id=False, tz="Europe/Brussels")
         brussels = timezone("Europe/Brussels")
-        # 2026-03-29 is the European spring-forward (23-hour day).
         start = datetime(2026, 3, 28, 0, 0).replace(tzinfo=brussels)
         end = datetime(2026, 3, 31, 0, 0).replace(tzinfo=brussels)
         data = self.calendar._get_attendance_intervals_days_data(
@@ -239,31 +206,12 @@ class TestResourceSecondPass(TransactionCase):
         )
         self.assertEqual(data["days"], 3.0)
 
-    # ------------------------------------------------------------------
-    # Whichever mixin owns allocated_percentage is the one that triggers on it
-    # ------------------------------------------------------------------
-
     def test_allocation_mixin_triggers_on_allocated_percentage(self):
-        """The field's owner declares the trigger, and only its owner.
-
-        ``allocated_percentage`` moved to ``mixin.resource.allocation`` when
-        allocation semantics were split out of the projection: a consumer that
-        declines the allocation mixin does not have the field, so the
-        projection mixin naming it would be a trigger on something that may not
-        exist. Every consumer of the allocation mixin forwards it into
-        ``_get_reservation_vals_list``, so the trigger belongs beside the
-        declaration -- a consumer left to remember it got a mirror reservation
-        stuck at the old percentage with nothing to indicate it.
-        """
         projection = self.env["mixin.resource.scheduling"]._get_fields_sync_trigger()
         self.assertNotIn("allocated_percentage", projection)
 
         allocation = self.env["mixin.resource.allocation"]._get_fields_sync_trigger()
         self.assertIn("allocated_percentage", allocation)
-
-    # ------------------------------------------------------------------
-    # An explicit calendar overrides the resource's, flexible included
-    # ------------------------------------------------------------------
 
     def test_calendar_override_applies_to_a_flexible_resource(self):
         flexible = self.env["resource.calendar"].create(
@@ -292,7 +240,7 @@ class TestResourceSecondPass(TransactionCase):
             reservation.date_start,
             reservation.date_end,
             resource=resource,
-            calendar=self.calendar,  # a 40 h/week fixed schedule
+            calendar=self.calendar,
         )
         self.assertNotEqual(
             native,
@@ -300,10 +248,6 @@ class TestResourceSecondPass(TransactionCase):
             "an explicit calendar must override the resource's own, on every path",
         )
         self.assertEqual(overridden, 40.0)
-
-    # ------------------------------------------------------------------
-    # Conflicts are searchable
-    # ------------------------------------------------------------------
 
     def _conflicting_pair(self):
         resource = self._resource(name="Double booked")
@@ -350,14 +294,6 @@ class TestResourceSecondPass(TransactionCase):
             )
             self.assertEqual(found, reservation)
 
-    # ------------------------------------------------------------------
-    # Records sharing a resource are all answered for
-    # ------------------------------------------------------------------
-
-    # ------------------------------------------------------------------
-    # The company check guards the field that can actually disagree
-    # ------------------------------------------------------------------
-
     def test_cross_company_leave_is_rejected(self):
         other_company = self.env["res.company"].create({"name": "Other SP Co"})
         other_calendar = self.env["resource.calendar"].create(
@@ -378,17 +314,12 @@ class TestResourceSecondPass(TransactionCase):
         self.assertIn("compan", str(caught.exception).lower())
 
     def test_company_less_calendar_is_valid_for_any_resource(self):
-        """A calendar with no company is shared reference data, not a mismatch."""
         shared = self.env["resource.calendar"].create(
             {"name": "shared", "company_id": False, "tz": "UTC"}
         )
         resource = self._resource(name="Shared cal", calendar_id=shared.id)
         resource.flush_recordset()
         self.assertEqual(resource.calendar_id, shared)
-
-    # ------------------------------------------------------------------
-    # Global leaves reach resources whose company is unset
-    # ------------------------------------------------------------------
 
     def _global_leave(self, calendar):
         return self.env["resource.calendar.leaves"].create(
@@ -410,14 +341,6 @@ class TestResourceSecondPass(TransactionCase):
         )
 
     def test_company_less_resource_sees_global_leaves(self):
-        """A shared ("Visible to all") calendar is the reachable form of this.
-
-        ``check_company`` now keeps a company-less resource off a company's
-        calendar, so the case that remains -- and that the form's "Visible to
-        all" placeholder invites -- is a shared calendar carrying a holiday that
-        was stamped with the acting company. An unset company on the resource
-        means "not scoped", not "scoped to nobody", so the holiday must apply.
-        """
         shared_calendar = self.env["resource.calendar"].create(
             {"name": "shared cal", "company_id": False, "tz": "UTC"}
         )
@@ -439,13 +362,6 @@ class TestResourceSecondPass(TransactionCase):
         )
 
     def test_a_leave_cannot_be_stranded_in_another_company(self):
-        """The mismatch the reader used to have to tolerate is now unreachable.
-
-        A leave whose resource and calendar disagree about the company was
-        accepted, and was then invisible to that company's users *and* to the
-        resource itself. Rejecting it at the source beats teaching every reader
-        to cope with it.
-        """
         other_company = self.env["res.company"].create({"name": "Stranded Co"})
         other_calendar = self.env["resource.calendar"].create(
             {"name": "stranded", "company_id": other_company.id, "tz": "UTC"}
@@ -462,7 +378,6 @@ class TestResourceSecondPass(TransactionCase):
             ).flush_recordset()
 
     def test_global_leave_still_stops_at_a_company_boundary(self):
-        """The relaxation must not leak holidays across two named companies."""
         other_company = self.env["res.company"].create({"name": "Boundary Co"})
         other_calendar = self.env["resource.calendar"].create(
             {"name": "boundary", "company_id": other_company.id, "tz": "UTC"}
@@ -491,10 +406,6 @@ class TestResourceSecondPass(TransactionCase):
         leave.flush_recordset()
         self.assertEqual(leave.company_id, self.company)
 
-    # ------------------------------------------------------------------
-    # work_resources_count reacts to its resources
-    # ------------------------------------------------------------------
-
     def test_work_resources_count_reacts_to_new_resources(self):
         calendar = self.env["resource.calendar"].create(
             {"name": "counted", "company_id": self.company.id, "tz": "UTC"}
@@ -503,23 +414,7 @@ class TestResourceSecondPass(TransactionCase):
         self._resource(name="Counted", calendar_id=calendar.id)
         self.assertEqual(calendar.work_resources_count, 1)
 
-    # ------------------------------------------------------------------
-    # Orphan reservations are collected
-    # ------------------------------------------------------------------
-
-    # ------------------------------------------------------------------
-    # Smaller repairs
-    # ------------------------------------------------------------------
-
     def test_two_weeks_explanation_agrees_with_the_section_labels(self):
-        """The sentence and the labels beneath it must name the same week.
-
-        Both now read the date through the *user's* timezone. The explanation
-        used to use the server's, so on the two sides of midnight the form
-        contradicted itself. Kiritimati (UTC+14) and Midway (UTC-11) are 25
-        hours apart, so on any given run at least one of them is on a different
-        calendar day from the server.
-        """
         calendar = self.env["resource.calendar"].create(
             {"name": "explained", "company_id": self.company.id, "tz": "UTC"}
         )
@@ -540,13 +435,6 @@ class TestResourceSecondPass(TransactionCase):
             )
 
     def test_calendar_tz_default_survives_a_missing_admin_xmlid(self):
-        """A default that raises would make the model uncreatable.
-
-        The old default called ``env.ref("base.user_admin")`` unguarded, so a
-        database where that xmlid has been pruned could not create a calendar at
-        all. Here the whole fallback chain is forced down to the admin lookup and
-        the lookup is made to fail, exactly as an absent record would.
-        """
         self.env.user.tz = False
         calendar_model = self.env["resource.calendar"].with_context(tz=False)
 

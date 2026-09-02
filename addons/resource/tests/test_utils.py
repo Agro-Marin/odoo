@@ -131,7 +131,6 @@ class TestExpression(TransactionCase):
                 results, [Domain(expected) for expected in expected_results[idx]]
             )
 
-        # Testing field mapping 1
         self.assertEqual(
             Domain("field4", "!=", "test"),
             utils.filter_domain_leaf(
@@ -148,10 +147,6 @@ class TestExpression(TransactionCase):
         )
 
     def test_resource_calendar_leave_compute_date_to(self):
-        """
-        Test date_to is computed when date_from is changed,
-        except when it already has a valid value.
-        """
         date_from = Datetime.from_string("2024-05-01 00:00:00")
         date_to = Datetime.from_string("2024-05-03 23:59:59")
         leave = self.env["resource.calendar.leaves"].create(
@@ -172,11 +167,6 @@ class TestExpression(TransactionCase):
         )
 
     def test_resource_creation_with_date_from(self):
-        """
-        Test resource creation with a date_from.
-        AssertError is raised when date_from is not provided.
-        """
-
         with self.assertRaises(AssertionError):
             with Form(self.env["resource.calendar.leaves"]) as res:
                 res.date_from = False

@@ -5,8 +5,6 @@ from odoo.tools.date_utils import localized, sum_intervals
 
 
 class MixinResourceSchedulingTools(models.AbstractModel):
-    """Calendar-aware scheduling helpers shared by scheduling consumers."""
-
     _name = "mixin.resource.scheduling.tools"
     _description = "Resource Scheduling Helpers"
 
@@ -19,19 +17,6 @@ class MixinResourceSchedulingTools(models.AbstractModel):
         compute_leaves=True,
         leave_domain=None,
     ):
-        """Compute working hours between two datetimes using the resource calendar.
-
-        Handles timezone conversion, flexible resources, regular resources,
-        and no-resource fallback (raw timedelta).
-
-        :param date_start: datetime (naive = UTC assumed, or timezone-aware)
-        :param date_end: datetime
-        :param resource: optional ``resource.resource`` singleton
-        :param calendar: optional ``resource.calendar`` (overrides resource's)
-        :param compute_leaves: whether to subtract leaves (default True)
-        :param leave_domain: optional domain for leave filtering
-        :return: float (hours)
-        """
         self.check_singleton()
         if not date_start or not date_end or date_end <= date_start:
             return 0.0
@@ -52,14 +37,6 @@ class MixinResourceSchedulingTools(models.AbstractModel):
 
         if resource._is_flexible():
             if calendar and calendar != resource.calendar_id:
-                # An explicit calendar overrides the resource's own -- including
-                # here.  This branch used to ignore the argument entirely, so a
-                # reservation whose ``resource_calendar_id`` had been pointed at a
-                # different schedule silently kept measuring against the flexible
-                # one, and the docstring's promise held on every path but this.
-                # Measuring a flexible resource against a *fixed* override is the
-                # whole point of the override: the caller is saying "bill this
-                # against that timetable".
                 return calendar.get_work_hours_count(
                     start_utc,
                     end_utc,
@@ -88,13 +65,6 @@ class MixinResourceSchedulingTools(models.AbstractModel):
         return sum_intervals(work_intervals[resource.id])
 
     def _scheduling_snap_to_calendar(self, date_start, date_end, calendar=None):
-        """Snap start/end to the nearest work interval boundaries.
-
-        :param date_start: datetime
-        :param date_end: datetime
-        :param calendar: optional ``resource.calendar`` override
-        :return: tuple ``(snapped_start, snapped_end)`` as naive UTC datetimes
-        """
         self.check_singleton()
         cal = calendar or self._scheduling_resolve_calendar()
         if not cal or not date_start or not date_end:
@@ -120,17 +90,6 @@ class MixinResourceSchedulingTools(models.AbstractModel):
         calendar=None,
         leave_domain=None,
     ):
-        """Compute end datetime by planning forward N working hours from start.
-
-        Inverse of ``_scheduling_get_work_hours``.
-
-        :param hours: float — working hours to plan (0 returns ``date_start``)
-        :param date_start: datetime — start point
-        :param resource: optional ``resource.resource`` singleton
-        :param calendar: optional ``resource.calendar`` override
-        :param leave_domain: optional domain for leave filtering
-        :return: datetime (end, naive UTC) or ``False`` if hours can't be planned
-        """
         self.check_singleton()
         if hours is None or not date_start:
             return False
@@ -154,14 +113,6 @@ class MixinResourceSchedulingTools(models.AbstractModel):
         return False
 
     def _scheduling_resolve_calendar(self, resource=None):
-        """Resolve the best calendar for this record.
-
-        Resolution order:
-        1. resource's calendar (if resource provided)
-        2. record's ``resource_calendar_id`` field (if present on model)
-        3. record's ``company_id`` calendar (if ``company_id`` field exists)
-        4. current company's calendar
-        """
         self.check_singleton()
         if resource and resource.calendar_id:
             return resource.calendar_id

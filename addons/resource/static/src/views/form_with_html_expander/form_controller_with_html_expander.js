@@ -19,9 +19,7 @@ export class FormControllerWithHTMLExpander extends FormController {
 
     get modelParams() {
         const modelParams = super.modelParams;
-        // `lifecycleHooks` is a getter on the MODEL (`relational_model.js:253`,
-        // returning `this.hooks.lifecycle`); the params object this reads has
-        // only `hooks.lifecycle`, so the shorter spelling is `undefined` here.
+
         const onRootLoaded = modelParams.hooks.lifecycle.onRootLoaded;
         modelParams.hooks.lifecycle.onRootLoaded = async () => {
             if (onRootLoaded) {

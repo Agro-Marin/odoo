@@ -19,7 +19,6 @@ export class FormRendererWithHtmlExpander extends FormRenderer {
     setup() {
         super.setup();
         if (!this.uiService) {
-            // Should be defined in FormRenderer
             this.uiService = useService("ui");
         }
         const ref = useRef("compiled_view_root");

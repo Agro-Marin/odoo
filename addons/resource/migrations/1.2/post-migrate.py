@@ -1,29 +1,3 @@
-"""Repair resource.reservation data damaged by bugs fixed in resource 1.2.
-
-Three defects could corrupt the reservation ledger before this version:
-
-1. **Orphans** — ``resource.scheduling.mixin.unlink`` searched reservations
-   without ``active_test=False``, so deleting an archived consumer (the
-   common archive → cleanup flow) left its archived reservations behind
-   forever, pointing at a nonexistent record.
-
-2. **Mirror drift** — the reconcile helper was blind to archived
-   reservations, so an archived row next to a live consumer (or an active
-   duplicate created beside an archived twin) could leave ``active`` out of
-   sync with the consumer's state.
-
-3. **Stale aggregates** — the consumer's stored ``allocated_hours`` now
-   depends on ``reservation_ids.active`` (archived consumers read 0);
-   values stored before this version still hold the pre-archive sums.
-   Repaired in ``migrations/1.3/post-migrate.py``, NOT here: this script's
-   original stale-aggregate step shipped with an ``active_test=False`` bug
-   that re-stored the stale sum, and databases that already ran it would
-   never re-run an in-place fix — so the corrected repair lives solely at
-   1.3, which every affected database still has ahead of it.
-
-Both repairs here are idempotent; re-running this migration is a no-op.
-"""
-
 import logging
 
 from odoo import SUPERUSER_ID, api
@@ -43,8 +17,6 @@ def migrate(cr, version):
 
     for model_name in model_names:
         if model_name not in env:
-            # Consumer module uninstalled: keep the rows; origin_display
-            # already falls back to the raw "model,id" reference.
             _logger.info(
                 "resource 1.2: skipping reservations of unknown model %s.",
                 model_name,
@@ -55,7 +27,6 @@ def migrate(cr, version):
             continue
         table = SQL.identifier(Model._table)
 
-        # 1) Orphans: consumer record no longer exists.
         cr.execute(
             SQL(
                 """
@@ -74,8 +45,6 @@ def migrate(cr, version):
                 model_name,
             )
 
-        # 2) Mirror repair: reservation.active must equal the consumer's
-        # active state (models without an active column are always live).
         active_field = Model._fields.get("active")
         if active_field and active_field.store:
             cr.execute(
@@ -98,6 +67,3 @@ def migrate(cr, version):
                     cr.rowcount,
                     model_name,
                 )
-
-        # 3) Stale stored aggregates: repaired in migrations/1.3/post-migrate.py
-        # (sole owner — see module docstring).
