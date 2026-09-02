@@ -1,5 +1,6 @@
 {
-  "count": 36,
-  "measured_at": "8395c5e9be21ee97cea88eddb09e027d035e2fe0",
-  "note": "37 -> 36, unattributed, and banked rather than left red.\n\nThe tree measures 36 at HEAD on a clean checkout -- verified in a `git archive` tree at e1e6327b6a4, so it is not local. The floor of 37 was banked with a note reading \"38 -> 37 ... the floor was already at 38 from another session, so this banks that 38 minus the one counted here\", which is a floor derived by arithmetic against another session own number rather than read off the tree. One of the two is off by one and there is nothing on disk that says which; the finding that would name it is a `_()` around a developer exception message that no longer exists anywhere in the corpus.\n\nBanking the measured value is what makes the gate mean something again. It is a one-unit correction, not a repayment, and it is recorded as such."
+  "count": 35,
+  "measured_at": "a478f45e32a79f589008bf87d3f99a7acfaaf550",
+  "measured_root": "",
+  "note": "36 -> 35. Measured 35 at ed3f9ee3523 and 35 at da60a50f82a with identical finding sets, so the floor was stale before today's work; the unit that left is older than this branch's re-bank and is not attributed here."
 }

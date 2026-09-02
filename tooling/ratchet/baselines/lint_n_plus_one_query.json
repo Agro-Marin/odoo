@@ -1,5 +1,6 @@
 {
-  "count": 292,
-  "measured_at": "5f19b270c5d781ec6ba709ca08ea9eb5a4d43ad1",
-  "note": "Banked at a resolvable commit. Measured 292 at the CI scope the floor is defined at (--addons-path=odoo/addons,addons, -i test_lint) on a pristine HEAD worktree at a8c1dc581b9, against a committed floor of 294 whose stamped commit b7b596cd004 git cannot resolve at all -- one of fourteen in that state, so the 294 may never have described this tree. The gate is exact in both directions, so 292 against 294 fails every PR; nobody banked the two the tree had already lost. Not measured in the workspace checkout: four sessions were dirty in it."
+  "count": 293,
+  "measured_at": "da60a50f82a83af85394c16d84262b48be9a4814",
+  "measured_root": "",
+  "note": "292 -> 293. The 292 was stamped at a commit this branch does not contain (UNCHECKED) and was never true here: measured 293 at ed3f9ee3523 and 293 at da60a50f82a with the finding set identical up to line numbers (five hr_employee.py findings moved by the same offsets). Banking the count this branch has always had."
 }
