@@ -377,6 +377,32 @@ class TestChangesSchema(unittest.TestCase):
     def test_no_semicolon_never_pays_for_a_split(self):
         self.assertFalse(_is_schema_change("SELECT " + "x" * 10_000, None))
 
+    def test_creating_a_sequence_changes_no_schema_anyone_cached(self):
+        for qs in (
+            'CREATE SEQUENCE "ir_sequence_12" INCREMENT BY %s START WITH %s',
+            "create sequence s",
+            "CREATE TEMPORARY SEQUENCE s",
+            "CREATE UNLOGGED SEQUENCE s",
+            "-- new sequence\nCREATE SEQUENCE s",
+        ):
+            with self.subTest(qs=qs):
+                self.assertEqual(_get_ddl_keyword(qs), "CREATE", qs)
+                self.assertFalse(self._check(qs), qs)
+
+    def test_every_other_create_still_reports(self):
+        for qs in (
+            "CREATE TABLE t (id int)",
+            "CREATE INDEX i ON t (a)",
+            "CREATE OR REPLACE VIEW v AS SELECT 1",
+            "CREATE SEQUENCES_IS_NOT_A_KEYWORD s",
+        ):
+            with self.subTest(qs=qs):
+                self.assertTrue(self._check(qs), qs)
+
+    def test_a_sequence_in_the_tail_is_exempt_too(self):
+        self.assertFalse(self._check("SELECT 1; CREATE SEQUENCE s"))
+        self.assertTrue(self._check("SELECT 1; CREATE TABLE t (id int)"))
+
 
 if __name__ == "__main__":
     unittest.main()

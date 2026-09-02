@@ -187,13 +187,43 @@ class TestSchemaCacheClearsHaveDistinctCallSites(unittest.TestCase):
             "cursor already took is still held",
         )
 
-    def test_transaction_boundaries_and_savepoint_rollback_clear_everything(self):
-        for method in ("commit", "_rollback", "_on_rollback_to_savepoint"):
+    def test_transaction_boundaries_clear_everything(self):
+        for method in ("commit", "_rollback"):
             with self.subTest(method=method):
                 self.assertEqual(
                     _calls_on(getattr(cursor.Cursor, method), "_schema_cache"),
                     {"clear"},
                 )
+
+    def test_savepoint_rollback_keeps_the_catalog_facts_unless_ddl_ran(self):
+        self.assertEqual(
+            _calls_on(cursor.Cursor._on_rollback_to_savepoint, "_schema_cache"),
+            {"invalidate_catalog_facts"},
+            "a column type cannot change without DDL, and DDL sets "
+            "_schema_changed, so the facts are dropped only under that flag",
+        )
+        source = textwrap.dedent(
+            inspect.getsource(cursor.Cursor._on_rollback_to_savepoint)
+        )
+        self.assertIn(
+            "self._schema_cache.locked_tables.clear()",
+            source,
+            "the rollback releases the locks taken inside the savepoint, so "
+            "the ledger goes unconditionally",
+        )
+        guards = [
+            node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.If)
+        ]
+        self.assertEqual(len(guards), 1, "one guard, over the catalog facts alone")
+        self.assertEqual(
+            {
+                node.attr
+                for node in ast.walk(guards[0].test)
+                if isinstance(node, ast.Attribute)
+            },
+            {"_schema_changed"},
+            "the guard reads the DDL flag and nothing else",
+        )
 
 
 class TestCursorSatisfiesItsMixinContracts(unittest.TestCase):

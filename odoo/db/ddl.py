@@ -28,6 +28,12 @@ _DDL_PREFIXES: frozenset[str] = (
 _SCHEMA_CHANGING_DDL: frozenset[str] = frozenset({"CREATE", "ALTER", "DROP", "DO"})
 
 
+_RE_CREATE_SEQUENCE = _re.compile(
+    r"^\s*(?:(?:--[^\n]*\n|/\*.*?\*/)\s*)*"
+    r"CREATE\s+(?:(?:TEMP|TEMPORARY|UNLOGGED)\s+)?SEQUENCE\b",
+    _re.IGNORECASE | _re.DOTALL,
+)
+
 _RE_ROLLBACK_TO_SAVEPOINT = _re.compile(
     r"^\s*(?:(?:--[^\n]*\n|/\*.*?\*/)\s*)*" r"ROLLBACK\s+TO\b",
     _re.IGNORECASE | _re.DOTALL,
@@ -58,13 +64,20 @@ def _get_ddl_keyword(qs: str) -> str | None:
     return classify_statement(qs)[0]
 
 
+def _is_schema_changing_statement(qs: str, leading: str | None) -> bool:
+    if leading not in _SCHEMA_CHANGING_DDL:
+        return False
+    return leading != "CREATE" or _RE_CREATE_SEQUENCE.match(qs) is None
+
+
 def _is_schema_change(qs: str, leading: str | None) -> bool:
-    if leading in _SCHEMA_CHANGING_DDL:
+    if _is_schema_changing_statement(qs, leading):
         return True
     if ";" not in qs:
         return False
     return any(
-        _get_ddl_keyword(part) in _SCHEMA_CHANGING_DDL for part in qs.split(";")[1:]
+        _is_schema_changing_statement(part, _get_ddl_keyword(part))
+        for part in qs.split(";")[1:]
     )
 
 
