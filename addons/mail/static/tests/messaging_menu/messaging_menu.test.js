@@ -1475,3 +1475,40 @@ test("user notification from inbox redirect to discuss inbox", async () => {
         ".o-mail-Message.o-highlighted .o-mail-Message-body:text('Hello world!')",
     );
 });
+
+test("mention in a muted channel still shows its counter in the messaging menu", async () => {
+    // muting a channel hides its unread state, but a mention is addressed to
+    // one person: it has to stay visible
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_type: "channel",
+        name: "Muted Channel",
+        channel_member_ids: [
+            Command.create({
+                mute_until_dt: "9999-12-31 23:59:59",
+                partner_id: serverState.partnerId,
+            }),
+        ],
+    });
+    const messageId = pyEnv["mail.message"].create({
+        body: "@Mitchell Admin please look",
+        model: "discuss.channel",
+        needaction: true,
+        partner_ids: [serverState.partnerId],
+        res_id: channelId,
+    });
+    pyEnv["mail.notification"].create({
+        mail_message_id: messageId,
+        notification_status: "sent",
+        notification_type: "inbox",
+        res_partner_id: serverState.partnerId,
+    });
+    await start();
+    await click(".o_menu_systray i[aria-label='Messages']");
+    await contains(".o-mail-NotificationItem", {
+        contains: [
+            [".o-mail-NotificationItem-name", { text: "Muted Channel" }],
+            [".o-mail-NotificationItem-counter", { text: "1" }],
+        ],
+    });
+});

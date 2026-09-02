@@ -798,6 +798,9 @@ class DiscussChannel(models.Model):
             & (
                 Domain("mute_until_dt", "=", False)
                 | Domain("mute_until_dt", "<=", fields.Datetime.now())
+                # a mention is addressed to one person, so it crosses the
+                # mute: what mute silences is the rest of the channel
+                | Domain("partner_id", "in", pids)
             )
             & Domain("partner_id.user_ids.manual_im_status", "!=", "busy")
             & (

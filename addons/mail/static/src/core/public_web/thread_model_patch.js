@@ -11,7 +11,9 @@ patch(Thread.prototype, {
             this.self_member_id?.custom_notifications ||
             this.store.settings.channel_notifications;
         if (
-            !this.self_member_id?.mute_until_dt &&
+            // a mention crosses the mute: what mute silences is the rest of
+            // the channel, not someone addressing you by name
+            (!this.self_member_id?.mute_until_dt || message.isSelfMentioned) &&
             !this.store.self.im_status?.includes("busy") &&
             (this.channel_type !== "channel" ||
                 (this.channel_type === "channel" &&
