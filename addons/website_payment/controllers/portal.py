@@ -62,6 +62,15 @@ class PaymentPortal(payment_portal.PaymentPortal):
     def donation_transaction(
         self, amount, currency_id, partner_id, access_token, minimum_amount=0, **kwargs
     ):
+        """Override of `payment` to not use `partner_id`/`access_token` for authorization.
+
+        Unlike the parent route, the donor's partner is always re-derived server-side (the
+        current user's partner if logged in, otherwise the website's public partner), and
+        `access_token` is not checked against `payment_utils.check_access_token`: the donation
+        amount can be changed by the visitor after the token was generated (see the recompute
+        below), so validating it against the current amount would reject legitimate amount
+        changes as if they were tampering.
+        """
         if float(amount) < float(minimum_amount):
             raise ValidationError(
                 _("Donation amount must be at least %.2f.", float(minimum_amount))
