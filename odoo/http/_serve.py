@@ -179,21 +179,25 @@ class _RequestServeMixin(RequestState):
             readonly = readonly(rule.endpoint.func.__self__, rule, args)
         return functools.partial(self._serve_ir_http, rule, args), bool(readonly)
 
-    def _serve_readwrite(self, serve_func: Any) -> Response:
+    def _serve_readwrite(
+        self, serve_func: Any, participant: RequestRetryParticipant
+    ) -> Response:
         env = self.env
         assert env is not None, "a database-bound request has an environment"
         try:
-            return retrying(serve_func, env=env)
+            return retrying(serve_func, env=env, participant=participant)
         except Exception as exc:
             self._update_served_exception(exc)
             raise
 
-    def _serve_readonly(self, serve_func: Any) -> Any:
+    def _serve_readonly(
+        self, serve_func: Any, participant: RequestRetryParticipant
+    ) -> Any:
         current_worker_thread().cursor_mode = "ro"
         env = self.env
         assert env is not None, "a database-bound request has an environment"
         try:
-            return retrying(serve_func, env=env)
+            return retrying(serve_func, env=env, participant=participant)
         except psycopg.errors.ReadOnlySqlTransaction as exc:
             _logger.warning(
                 "%s, retrying with a read/write cursor — readonly route "
@@ -206,7 +210,7 @@ class _RequestServeMixin(RequestState):
                 exc_info=True,
             )
             current_worker_thread().cursor_mode = "ro->rw"
-            RequestRetryParticipant(self).on_rollback(exc)
+            participant.on_rollback(exc)
             rewind_uploaded_files(self.httprequest, cause=exc)
             return _PROMOTE
         except Exception as exc:
@@ -242,10 +246,11 @@ class _RequestServeMixin(RequestState):
                 cr, self.session.uid, self.session.context or {}
             )
             serve_func, readonly = self._select_serve_target_and_mode(registry)
+            participant = RequestRetryParticipant(self)
 
             promoted = False
             if readonly and cr.readonly:
-                served = self._serve_readonly(serve_func)
+                served = self._serve_readonly(serve_func, participant)
                 if served is not _PROMOTE:
                     return served
                 promoted = True
@@ -259,7 +264,7 @@ class _RequestServeMixin(RequestState):
                 self._reset_for_replay(cr)
             else:
                 self.env = env(cr=cr)
-            return self._serve_readwrite(serve_func)
+            return self._serve_readwrite(serve_func, participant)
         except HTTPException as exc:
             if exc.code is not None:
                 raise

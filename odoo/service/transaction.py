@@ -52,13 +52,6 @@ class RetryParticipant(typing.Protocol):
     def is_uncommitted_warning_suppressed(self) -> bool: ...
 
 
-def _no_participant() -> RetryParticipant | None:
-    return None
-
-
-current_retry_participant: Callable[[], RetryParticipant | None] = _no_participant
-
-
 def _reset_env_state(env: Environment) -> None:
     if env.cr.closed:
         return
@@ -105,9 +98,11 @@ def _commit_and_signal_changes(env: Environment) -> None:
             env.registry.signal_changes()
 
 
-def retrying[T](func: Callable[[], T], env: Environment) -> T:
-    participant = current_retry_participant()
-
+def retrying[T](
+    func: Callable[[], T],
+    env: Environment,
+    participant: RetryParticipant | None = None,
+) -> T:
     try:
         for tryno in range(1, MAX_TRIES_ON_CONCURRENCY_FAILURE + 1):
             tryleft = MAX_TRIES_ON_CONCURRENCY_FAILURE - tryno
@@ -183,5 +178,6 @@ __all__ = (
     "MAX_TRIES_ON_CONCURRENCY_FAILURE",
     "PG_CONCURRENCY_ERRORS_TO_RETRY",
     "PG_CONCURRENCY_EXCEPTIONS_TO_RETRY",
+    "RetryParticipant",
     "retrying",
 )

@@ -38,6 +38,8 @@ from .transaction import (
 if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor
 
+    from .transaction import RetryParticipant
+
 _logger = logging.getLogger(__name__)
 
 
@@ -204,7 +206,13 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
 
 
 def execute_cr(
-    cr: BaseCursor, uid: int, obj: str, method: str, args: list | tuple, kw: dict
+    cr: BaseCursor,
+    uid: int,
+    obj: str,
+    method: str,
+    args: list | tuple,
+    kw: dict,
+    participant: RetryParticipant | None = None,
 ) -> typing.Any:
     cr.reset()
     env = api.Environment(cr, uid, {})
@@ -216,7 +224,7 @@ def execute_cr(
         )
     thread = current_worker_thread()
     thread.rpc_model_method = f"{obj}.{method}"
-    result = retrying(partial(call_kw, recs, method, args, kw), env)
+    result = retrying(partial(call_kw, recs, method, args, kw), env, participant)
     result = _force_lazy_values(result)
     if result is None:
         _logger.debug("The method %s of the object %s returned `None`.", method, obj)

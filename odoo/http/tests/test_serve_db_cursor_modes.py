@@ -112,7 +112,7 @@ def _run(this, env, retrying_side_effect):
 
 def test_without_a_replica_a_readonly_route_runs_read_write():
     this, env = _make(readonly_route=True, replica=False)
-    served = _run(this, env, lambda func, env: func())
+    served = _run(this, env, lambda func, env, participant=None: func())
 
     assert served == "served"
     assert current_worker_thread().cursor_mode == "rw"
@@ -125,7 +125,7 @@ def test_without_a_replica_a_readonly_route_runs_read_write():
 
 def test_with_a_replica_a_readonly_route_stays_on_the_readonly_cursor():
     this, env = _make(readonly_route=True, replica=True)
-    served = _run(this, env, lambda func, env: func())
+    served = _run(this, env, lambda func, env, participant=None: func())
 
     assert served == "served"
     assert current_worker_thread().cursor_mode == "ro"
@@ -137,7 +137,7 @@ def test_a_write_from_a_readonly_route_is_promoted_and_replayed():
     this, env = _make(readonly_route=True, replica=True)
     attempts = []
 
-    def retrying(func, env):
+    def retrying(func, env, participant=None):
         attempts.append(1)
         if len(attempts) == 1:
             raise psycopg.errors.ReadOnlySqlTransaction("cannot execute UPDATE ")
@@ -175,7 +175,7 @@ def test_a_promotion_rewinds_the_uploaded_files_before_the_replay():
     this.httprequest.files = werkzeug.datastructures.MultiDict({"f": upload})
     attempts = []
 
-    def retrying(func, env):
+    def retrying(func, env, participant=None):
         attempts.append(1)
         if len(attempts) == 1:
             raise psycopg.errors.ReadOnlySqlTransaction("cannot execute UPDATE ")
@@ -189,7 +189,7 @@ def test_a_promotion_rewinds_the_uploaded_files_before_the_replay():
 
 def test_a_read_write_route_with_a_replica_swaps_to_a_read_write_cursor():
     this, env = _make(readonly_route=False, replica=True)
-    served = _run(this, env, lambda func, env: func())
+    served = _run(this, env, lambda func, env, participant=None: func())
 
     assert served == "served"
     assert current_worker_thread().cursor_mode == "rw"

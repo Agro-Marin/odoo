@@ -2,10 +2,6 @@ from __future__ import annotations
 
 import typing
 
-import odoo.service.transaction as _transaction
-from odoo.service.transaction import RetryParticipant
-
-from .core import request as _current_request
 from .helpers import rewind_uploaded_files
 
 
@@ -29,13 +25,3 @@ class RequestRetryParticipant:
 
     def is_uncommitted_warning_suppressed(self) -> bool:
         return bool(getattr(self._request, "database_detached", False))
-
-
-def resolve_retry_participant() -> RetryParticipant | None:
-    request = _current_request
-    if not request:
-        return None
-    return RequestRetryParticipant(request)
-
-
-_transaction.current_retry_participant = resolve_retry_participant

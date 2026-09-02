@@ -956,10 +956,8 @@ class _RecordingParticipant:
 
 
 @pytest.fixture
-def participant(tx, monkeypatch):
-    recorder = _RecordingParticipant()
-    monkeypatch.setattr(tx, "current_retry_participant", lambda: recorder)
-    return recorder
+def participant():
+    return _RecordingParticipant()
 
 
 class TestRetryParticipantHooks:
@@ -980,7 +978,7 @@ class TestRetryParticipantHooks:
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_backoff.delay.return_value = 0.0
-            assert mod.retrying(func, mock_env) == "ok"
+            assert mod.retrying(func, mock_env, participant=participant) == "ok"
 
         assert participant.rollbacks == [exc]
         assert participant.retries == [exc]
@@ -1002,7 +1000,7 @@ class TestRetryParticipantHooks:
             raise exc
 
         with pytest.raises(ValidationError):
-            mod.retrying(func, mock_env)
+            mod.retrying(func, mock_env, participant=participant)
 
         assert participant.rollbacks == [exc]
         assert participant.retries == []
@@ -1017,7 +1015,7 @@ class TestRetryParticipantHooks:
             raise exc
 
         with pytest.raises(psycopg.OperationalError):
-            mod.retrying(func, mock_env)
+            mod.retrying(func, mock_env, participant=participant)
 
         assert participant.rollbacks == [exc]
         assert participant.retries == []
@@ -1037,7 +1035,7 @@ class TestRetryParticipantHooks:
         ):
             mock_backoff.delay.return_value = 0.0
             with pytest.raises(psycopg.errors.SerializationFailure):
-                mod.retrying(func, mock_env)
+                mod.retrying(func, mock_env, participant=participant)
 
         assert len(participant.rollbacks) == tx.MAX_TRIES_ON_CONCURRENCY_FAILURE
         assert len(participant.retries) == tx.MAX_TRIES_ON_CONCURRENCY_FAILURE - 1
@@ -1054,7 +1052,7 @@ class TestRetryParticipantHooks:
                 raise exc
             return "ok"
 
-        assert tx.current_retry_participant() is None
+        assert not hasattr(tx, "current_retry_participant")
         with (
             patch("odoo.service.transaction.time"),
             patch("odoo.service.transaction.backoff") as mock_backoff,
@@ -1070,14 +1068,14 @@ class TestUncommittedWarningSuppression:
         participant.suppress = True
         mock_env.cr.closed = True
         with patch.object(tx._logger, "warning") as warn:
-            mod.retrying(lambda: "done", mock_env)
+            mod.retrying(lambda: "done", mock_env, participant=participant)
         warn.assert_not_called()
 
     def test_otherwise_the_warning_is_emitted(self, mod, tx, mock_env, participant):
         participant.suppress = False
         mock_env.cr.closed = True
         with patch.object(tx._logger, "warning") as warn:
-            mod.retrying(lambda: "done", mock_env)
+            mod.retrying(lambda: "done", mock_env, participant=participant)
         warn.assert_called_once()
 
 
@@ -1163,7 +1161,8 @@ class TestExecuteCr:
     def test_the_call_is_routed_through_retrying(self, mod, owns_rpc_model_method):
         _result, _cr, env, retry = self._run(mod)
         retry.assert_called_once()
-        thunk, passed_env = retry.call_args.args
+        thunk, passed_env, participant = retry.call_args.args
+        assert participant is None, "the RPC path runs with no retry participant"
         assert passed_env is env
         assert thunk.func is mod.call_kw
         assert thunk.args[1:] == ("read", [[1]], {})

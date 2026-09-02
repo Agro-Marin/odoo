@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from odoo.http._retry import RequestRetryParticipant, resolve_retry_participant
+from odoo.http._retry import RequestRetryParticipant
 
 
 def _request(**kwargs):
@@ -79,6 +79,9 @@ class TestUncommittedWarningSuppression:
         assert not RequestRetryParticipant(request).is_uncommitted_warning_suppressed()
 
 
-class TestResolution:
-    def test_off_request_there_is_no_participant(self):
-        assert resolve_retry_participant() is None
+class TestNoAmbientParticipant:
+    def test_importing_http_installs_nothing_on_the_transaction_primitive(self):
+        import odoo.http  # noqa: F401  the import is the side effect under test
+        import odoo.service.transaction as tx
+
+        assert not hasattr(tx, "current_retry_participant")

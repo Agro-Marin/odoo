@@ -112,8 +112,6 @@ from .application import (
 
 from odoo.modules.registry import Registry
 
-from . import _retry as _retry
-
 __all__ = [
     "CORS_MAX_AGE",
     "CSRF_TOKEN_MAX_AGE",
