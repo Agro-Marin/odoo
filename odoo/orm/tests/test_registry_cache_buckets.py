@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from odoo.orm.runtime.registry import (
+from odoo.orm.runtime._registry_signaling import (
     _SIGNALING_TABLES,
     CACHES_BY_KEY,
     REGISTRY_CACHES,

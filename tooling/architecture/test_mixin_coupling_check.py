@@ -400,6 +400,7 @@ class TestRegistryComposition(unittest.TestCase):
                 "_registry_models",
                 "_registry_init_phase",
                 "_registry_capabilities",
+                "_registry_signaling",
             },
             set(self.units),
         )
@@ -417,6 +418,7 @@ class TestRegistryComposition(unittest.TestCase):
             "_registry_models",
             "_registry_init_phase",
             "_registry_capabilities",
+            "_registry_signaling",
         ):
             self.assertEqual(
                 {},
@@ -520,6 +522,7 @@ class TestUnownedSharedState(unittest.TestCase):
             ("_registry_fields", "_init_field_state"),
             ("_registry_schema", "_init_schema_state"),
             ("_registry_capabilities", "_probe_capabilities"),
+            ("_registry_signaling", "_init_signaling_state"),
         ):
             src = (runtime / f"{module}.py").read_text(encoding="utf-8")
             self.assertIn(f"def {hook}(", src, f"{module} lost its init hook")

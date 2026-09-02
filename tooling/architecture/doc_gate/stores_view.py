@@ -87,9 +87,9 @@ class TestSignallingTables(unittest.TestCase):
         )
 
     def test_the_runtime_derives_the_tables_rather_than_listing_them(self) -> None:
-        registry = (ROOT / "odoo" / "orm" / "runtime" / "registry.py").read_text(
-            encoding="utf-8"
-        )
+        registry = (
+            ROOT / "odoo" / "orm" / "runtime" / "_registry_signaling.py"
+        ).read_text(encoding="utf-8")
         self.assertIn('for cache_name in ["registry", *CACHES_BY_KEY]', registry)
 
 

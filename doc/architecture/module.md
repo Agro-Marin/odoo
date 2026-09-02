@@ -356,7 +356,7 @@ per composition. Measured by a live run of that gate:
 |---|---:|---:|---:|---:|---|
 | `BaseModel` (`orm/models/`) | 31 | 105 | 0 | 4 | no |
 | `Field` (`orm/fields/`) | 5 | 8 | 0 | 1 | **yes** |
-| `Registry` (`orm/runtime/`) | 6 | 9 | 0 | 0 | no |
+| `Registry` (`orm/runtime/`) | 7 | 10 | 0 | 0 | no |
 | `Request` (`http/request_class.py`) | 4 | 1 | 0 | 8 | no |
 | `Cursor` (`db/cursor.py`) | 3 | 3 | 0 | 5 | **yes** |
 
@@ -364,8 +364,10 @@ The last column is the shape claim, not a line count: a root larger than all its
 leaves put together is a composition that has not actually been decomposed.
 `BaseModel` is the target — its root is a fraction of its leaves — and two of
 the other four still invert it. `Registry` stopped inverting it when replica
-routing left for `db/replica.py`, by a margin of a few lines: the shape claim
-holds, the fraction does not yet. Line counts are deliberately not tabulated: they
+routing left for `db/replica.py` and cross-process signalling for its own
+leaf (`_registry_signaling`): the root that remains is lifecycle, model setup
+and the cursor-opening entry points, and each of those entry points hands the
+mechanism to a leaf. Line counts are deliberately not tabulated: they
 move on every edit and carry no architectural signal the direction does not.
 
 **Read `cyclic_edges` and `unowned_shared_state` as a pair, never `cyclic_edges`

@@ -1,12 +1,9 @@
 from ..components.model_graph import TriggerTree
 from .recordset_cache import Cache
 from .environment import Environment
-from .registry import (
-    CACHES_BY_KEY,
-    REGISTRY_CACHES,
-    DummyRLock,
-    Registry,
-)
+from odoo.tools.constants import CACHES_BY_KEY, REGISTRY_CACHES
+
+from .registry import DummyRLock, Registry
 from .transaction import MAX_FIXPOINT_ITERATIONS, Transaction
 
 from . import savepoint as _savepoint

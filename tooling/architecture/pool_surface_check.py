@@ -26,6 +26,7 @@ REGISTRY_SOURCES: tuple[Path, ...] = (
     CORE / "orm" / "runtime" / "_registry_models.py",
     CORE / "orm" / "runtime" / "_registry_capabilities.py",
     CORE / "orm" / "runtime" / "_registry_init_phase.py",
+    CORE / "orm" / "runtime" / "_registry_signaling.py",
     CORE / "orm" / "runtime" / "_registry_stubs.py",
 )
 
@@ -37,6 +38,7 @@ REGISTRY_CLASSES: frozenset[str] = frozenset(
         "_RegistryModelsMixin",
         "_RegistryInitPhaseMixin",
         "_RegistryCapabilitiesMixin",
+        "_RegistrySignalingMixin",
     }
 )
 

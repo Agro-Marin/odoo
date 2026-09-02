@@ -6,12 +6,8 @@ import pytest
 
 import odoo.db
 from odoo.orm.runtime import registry as registry_module
-from odoo.orm.runtime.registry import (
-    _SIGNALING_TABLES,
-    CACHES_BY_KEY,
-    Registry,
-    _RegistryCaches,
-)
+from odoo.orm.runtime._registry_signaling import _SIGNALING_TABLES, _RegistryCaches
+from odoo.orm.runtime.registry import CACHES_BY_KEY, Registry
 
 
 def _make_registry(db_name, registry_sequence, cache_sequence, *, ready=True):
