@@ -135,7 +135,7 @@ def file_open(
 
 
 @contextmanager
-def file_open_temporary_directory(env: Environment | None = None) -> Generator[str]:
+def file_open_temporary_directory(env: object = None) -> Generator[str]:
     with tempfile.TemporaryDirectory() as module_dir:
         token = _temporary_paths.set((*_temporary_paths.get(), module_dir))
         try:
