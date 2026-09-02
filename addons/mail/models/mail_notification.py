@@ -100,7 +100,9 @@ class MailNotification(models.Model):
         for vals in vals_list:
             if vals.get("is_read"):
                 vals["read_date"] = fields.Datetime.now()
-        return super().create(vals_list)
+        notifications = super().create(vals_list)
+        notifications.mail_message_id._invalidate_notification_state()
+        return notifications
 
     def write(self, vals: ValuesType) -> Literal[True]:
         if (
@@ -111,7 +113,15 @@ class MailNotification(models.Model):
             )
         if vals.get("is_read"):
             vals["read_date"] = fields.Datetime.now()
-        return super().write(vals)
+        res = super().write(vals)
+        if vals.keys() & {
+            "is_read",
+            "notification_status",
+            "res_partner_id",
+            "mail_message_id",
+        }:
+            self.mail_message_id._invalidate_notification_state()
+        return res
 
     @api.model
     def _gc_notifications(self, max_age_days: int = 180) -> tuple:

@@ -575,7 +575,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
                 )
             )
 
-        with self.assertQueryCount(admin=38, employee=38):
+        with self.assertQueryCount(admin=39, employee=39):
             composer._action_send_mail()
 
     @users("admin", "employee")
@@ -710,7 +710,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
                 .create({})
             )
 
-        with self.assertQueryCount(admin=34, employee=34):
+        with self.assertQueryCount(admin=36, employee=36):
             composer._action_send_mail()
 
         # notifications
@@ -752,7 +752,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
                 .create({})
             )
 
-        with self.assertQueryCount(admin=42, employee=42):
+        with self.assertQueryCount(admin=45, employee=45):
             composer._action_send_mail()
 
         # notifications
@@ -1004,7 +1004,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
     def test_message_post_one_email_notification(self):
         record = self.env["mail.test.simple"].create({"name": "Test"})
 
-        with self.assertQueryCount(admin=30, employee=30):
+        with self.assertQueryCount(admin=31, employee=30):
             record.message_post(
                 body=Markup("<p>Test Post Performances with an email ping</p>"),
                 partner_ids=self.customer.ids,
@@ -1693,7 +1693,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
                 .create({})
             )
 
-        with self.assertQueryCount(admin=92, employee=92):
+        with self.assertQueryCount(admin=93, employee=93):
             messages_as_sudo = test_records.message_post_with_source(
                 "test_mail.mail_template_simple_test",
                 render_values={"partner": self.user_emp_inbox.partner_id},
@@ -2459,7 +2459,7 @@ class TestMessageToStorePerformance(BaseMailPerformance):
             [{"model": record._name, "res_id": record.id} for record in records]
         )
 
-        with self.assertQueryCount(employee=3):
+        with self.assertQueryCount(employee=4):
             res = Store().add(messages).get_result()
             self.assertEqual(len(res["mail.message"]), 6)
 

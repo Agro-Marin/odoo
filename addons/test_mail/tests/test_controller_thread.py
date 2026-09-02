@@ -191,3 +191,35 @@ class TestMessageController(MailControllerThreadCommon):
             files={"ufile": b""},
         )
         self.assertEqual(response.status_code, 200)
+
+
+@tagged("-at_install", "post_install", "mail_controller")
+class TestMessagePostEnvelope(MailControllerThreadCommon):
+    """The route, not the client, decides the envelope of a share user's post."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env["mail.test.access.public"].create({"name": "Envelope"})
+
+    def _post_as(self, user, **post_data):
+        self._authenticate_pseudo_user(user)
+        return self._message_post(self.record, {"body": "hello", **post_data}, {})
+
+    def test_a_share_user_cannot_post_an_internal_note_nor_an_email(self):
+        message = self._post_as(
+            self.user_portal, subtype_xmlid="mail.mt_note", message_type="email"
+        )
+        self.assertEqual(message.subtype_id, self.env.ref("mail.mt_comment"))
+        self.assertEqual(message.message_type, "comment")
+        self.assertFalse(message.is_internal)
+        self.assertTrue(
+            message.with_user(self.user_portal).has_access("read"),
+            "the author can read what they posted",
+        )
+
+    def test_an_internal_user_keeps_the_envelope_they_asked_for(self):
+        message = self._post_as(
+            self.user_employee, subtype_xmlid="mail.mt_note", message_type="comment"
+        )
+        self.assertEqual(message.subtype_id, self.env.ref("mail.mt_note"))

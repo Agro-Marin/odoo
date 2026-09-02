@@ -301,6 +301,9 @@ class ThreadController(http.Controller):
             res["partner_ids"] = self._get_message_partner_ids(post_data, thread)
         if from_create:
             res.setdefault("message_type", "comment")
+        if not request.env.user._is_internal():
+            res["message_type"] = "comment"
+            res["subtype_xmlid"] = "mail.mt_comment"
         return res
 
     def _get_message_partner_ids(self, post_data: dict, thread: models.Model) -> list:
@@ -364,14 +367,15 @@ class ThreadController(http.Controller):
         store = Store()
         request.update_context(message_post_store=store)
         self._update_context_from_client(context)
-        request.env["mail.canned.response"]._register_usage(
-            kwargs.get("canned_response_ids")
-        )
         thread = self._get_thread_with_access_for_post(
             thread_model, thread_id, **kwargs
         )
         if not thread:
             raise NotFound
+        if request.env.user._is_internal():
+            request.env["mail.canned.response"]._register_usage(
+                kwargs.get("canned_response_ids")
+            )
         if not self._has_post_write_access(thread):
             thread = thread.with_context(
                 mail_post_autofollow_author_skip=True, mail_post_autofollow=False

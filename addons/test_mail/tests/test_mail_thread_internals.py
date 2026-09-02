@@ -2795,3 +2795,44 @@ class TestBaseMailHooks(MailCommon):
             arch.get("string"), self.env["mail.test.activity"]._description
         )
         self.assertTrue(arch.findall(".//templates/div[@t-name='activity-box']/field"))
+
+
+@tagged("mail_thread", "post_install", "-at_install")
+class TestNotificationStateCache(MailCommon):
+    """`message_needaction*` and `message_has_error*` are computed from
+    notifications and must follow them within the transaction."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env["mail.test.simple"].create({"name": "Cache"})
+
+    def test_needaction_follows_set_message_done(self):
+        message = self.record.message_post(
+            body="ping",
+            partner_ids=self.partner_employee.ids,
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        as_employee = self.record.with_user(self.user_employee)
+        self.assertEqual(as_employee.message_needaction_counter, 1)
+        self.assertTrue(as_employee.message_needaction)
+        message.with_user(self.user_employee).set_message_done()
+        self.assertEqual(as_employee.message_needaction_counter, 0)
+        self.assertFalse(as_employee.message_needaction)
+
+    def test_has_error_follows_the_notification_status(self):
+        message = self.record.with_user(self.user_employee).message_post(
+            body="ping",
+            partner_ids=self.partner_admin.ids,
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        as_employee = self.record.with_user(self.user_employee)
+        self.assertFalse(as_employee.message_has_error)
+        self.assertEqual(as_employee.message_has_error_counter, 0)
+        message.notification_ids.sudo().write(
+            {"notification_status": "exception", "failure_type": "unknown"}
+        )
+        self.assertTrue(as_employee.message_has_error)
+        self.assertEqual(as_employee.message_has_error_counter, 1)

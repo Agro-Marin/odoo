@@ -43,7 +43,14 @@ class MailMessage(models.Model):
         if format_reply:
             store.add(
                 self.sudo().filtered(lambda message: message.channel_id),
-                Store.One("parent_id", format_reply=False),
+                Store.One(
+                    "parent_id",
+                    format_reply=False,
+                    predicate=lambda message: (
+                        message.parent_id.model == message.model
+                        and message.parent_id.res_id == message.res_id
+                    ),
+                ),
             )
 
     def _bus_channel(self) -> models.Model:
