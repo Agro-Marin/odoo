@@ -159,9 +159,6 @@ class MixinOrderLineAmount(models.AbstractModel):
                 line.product_uom_qty = line.product_qty
 
     def _check_write_derived_quantity(self, write_vals):
-        # Key presence, not truthiness: `{"product_uom_qty": 0}` is the shape that
-        # desynchronises the two fields most quietly -- it lands 0 in the derived
-        # column while `product_qty` keeps the quantity that was actually ordered.
         if "product_uom_qty" not in write_vals:
             return
         raise ValueError(
@@ -192,6 +189,10 @@ class MixinOrderLineAmount(models.AbstractModel):
     @api.depends("product_id", "product_uom_id", "product_qty", "display_type")
     def _compute_price_and_discount(self):
         force_recompute = self.env.context.get("force_price_recomputation")
+        origin_shadows = {
+            origin.id: (origin.price_unit_auto, origin.discount_auto)
+            for origin in self._origin
+        }
         for line in self:
             if line.display_type:
                 line.price_unit = False
@@ -204,6 +205,12 @@ class MixinOrderLineAmount(models.AbstractModel):
             auto_price, auto_discount = line._get_auto_price_and_discount()
             old_price_shadow = line.price_unit_auto
             old_discount_shadow = line.discount_auto
+            if not old_price_shadow or not old_discount_shadow:
+                saved_price, saved_discount = origin_shadows.get(
+                    line._origin.id, (0.0, 0.0)
+                )
+                old_price_shadow = old_price_shadow or saved_price
+                old_discount_shadow = old_discount_shadow or saved_discount
             line.price_unit_auto = auto_price
             line.discount_auto = auto_discount
             if line._should_update_price(auto_price, old_price_shadow, force_recompute):
