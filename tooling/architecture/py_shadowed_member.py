@@ -1,4 +1,16 @@
 #!/usr/bin/env python3
+"""A class body defines each member once.
+
+A second `def`, nested `class` or assignment of a name already bound in the
+same class body is a defect: Python keeps the last, so the earlier definition
+never runs and nothing in the file says so -- the shape a parallel edit
+produces at opposite ends of a long class. `ruff`'s F811 does not see it,
+because its default dummy-variable regex drops every leading-underscore name
+and an Odoo model method is always one. Scope is the class body, not the
+module: `test_orm` and `test_inherit` redefine module-level classes on
+purpose, and `@overload`, `@property` accessors and `singledispatch.register`
+redefine a name by design and are not shadows.
+"""
 
 from __future__ import annotations
 
@@ -126,7 +138,10 @@ def main(argv: list[str] | None = None) -> int:
         argv,
         script="py_shadowed_member.py",
         gate="py_shadowed_member",
-        headline="A class body defines each member once (ADR-0062, {where})",
+        headline=(
+            "A class body defines each member once, since Python silently keeps "
+            "the last ({where})"
+        ),
         unit="shadowed member(s)",
         default_addon=DEFAULT_ADDON,
         everything=ALL_ADDONS,

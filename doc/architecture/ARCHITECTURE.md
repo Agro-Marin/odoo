@@ -61,8 +61,8 @@ a reason.
 | **Horizontal scale** | N processes with no shared memory | database-mediated registry/cache signaling |
 | **Write throughput** | a loop that touches 10k records must not issue 10k `UPDATE`s | deferred writes; the flush fixpoint loop; `cr.pipeline()` |
 | **Correctness under contention** | concurrent requests must not corrupt or silently lose writes | `retrying()` on serialization/deadlock; savepoints; the RO→RW promotion |
-| **Testability without a database** | the hardest logic must be exercisable in milliseconds | `orm/components/` as pure Python; `InMemoryBackend` (ADR-0011) |
-| **A refactorable core** | internal layout must move without breaking hundreds of addons | the façade boundary (ADR-0008) and the layer contracts (ADR-0001, ADR-0005) |
+| **Testability without a database** | the hardest logic must be exercisable in milliseconds | `orm/components/` as pure Python; `InMemoryBackend` behind the `env.backend` port |
+| **A refactorable core** | internal layout must move without breaking hundreds of addons | the façade boundary and the layer contracts, each held at zero in CI |
 
 The last is this fork's addition and the reason `tooling/architecture/` exists.
 Upstream treats the core's internal shape as fixed; `19.0-marin` treats it as
@@ -76,7 +76,7 @@ Each buys something above. An argument appealing to one is already settled.
 | Non-goal | What it buys |
 |---|---|
 | **Merge-compatibility with upstream Odoo** | `19.0-marin` never merges from `19.0` (*Scope and precedence*, `doc/coding_guidelines.rst`), so "it complicates the upstream merge" is not a cost this fork pays — which is what makes core refactoring affordable |
-| **Stability of core internals** | the *façade* is the public surface — `odoo.api` / `odoo.fields` / `odoo.models`, each with an explicit `__all__` (ADR-0008); everything behind it is free to move (ADR-0001, ADR-0005) |
+| **Stability of core internals** | the *façade* is the public surface — `odoo.api` / `odoo.fields` / `odoo.models`, each with an explicit `__all__`; everything behind it is free to move, and the layer contracts say in which direction |
 | **Business behaviour in the core** | behaviour belonging to a business process belongs in an addon |
 | **A build step that freezes shape** | the contributor set is unknown until the module graph is loaded, so nothing resolves at import time |
 | **Database-driver portability** | psycopg 3 only — `odoo/db/` imports `psycopg` exclusively, and psycopg2 is not a declared dependency, so a stray import fails anywhere provisioned from `requirements.txt`, CI included, rather than compiling a branch that can never run. A developer virtualenv that installed it for some other reason is the exception, and there the absence does not bite |

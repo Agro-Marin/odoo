@@ -82,8 +82,8 @@ def migrate(cr, version):
             (MODEL,),
         )
         # `ir.actions.server` stores Python in a database column, and the UI edits
-        # it, so the shipped data files are only the half a grep can see
-        # (ADR-0056). Scope it to actions bound to the payment.
+        # it, so the shipped data files are only the half a grep can see.
+        # Scope it to actions bound to the payment.
         cr.execute(
             f"""
             UPDATE ir_act_server a

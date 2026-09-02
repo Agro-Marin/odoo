@@ -22,9 +22,9 @@ exact, and it drifts in both directions for different reasons:
 The second is the one that rots quietly, which is why this gate exists. Both
 directions fail here, and the finding names the file and the member.
 
-ADR-0022 is the record: an object that crosses a boundary by value is an
-interface, and is declared and pinned like one. It named three such objects --
-archInfo, env.config, the field record -- each with its own pin. `ListGridContext`
+The rule is older than this gate: an object that crosses a boundary by value is
+an interface, and is declared and pinned like one. Three such objects already
+carry a pin -- archInfo, env.config, the field record. `ListGridContext`
 is a fourth, and `Pick<>` is already the declaration its consumers write; this is
 the gate that makes tree and declaration disagree fail.
 

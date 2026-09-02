@@ -4,7 +4,8 @@
 # Every assertion DERIVES its expected value from the package and then checks
 # that the docs agree. No expected value is written down here: a literal in this
 # script would be a second copy of the tree, drifting independently of the
-# first. Rule: `doc/coding_guidelines.rst` §1.4. Rationale: ADR-0043.
+# first. Rule: `doc/coding_guidelines.rst` §1.4, a figure is gated or frozen,
+# never bare.
 #
 # WHY THIS ONE WAS LAST. `machine_doc.yml` discovered harnesses under
 # `odoo/addons` and `addons`, and this package is under neither. So the document

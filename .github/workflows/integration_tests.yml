@@ -452,7 +452,7 @@ env:
   # others -- "Odoo S.A., AgroMarin", "ACSONE SA/NV, Odoo Community Association
   # (OCA), AgroMarin". That is the second way the author heuristic failed in one
   # day; the first was `base_order`, which says "Odoo Community" and names
-  # AgroMarin nowhere. ADR-0079 rejected author-based scoping for exactly this,
+  # AgroMarin nowhere. Author-based scoping was rejected for exactly this,
   # and `module_suite_lane` finds them because it asks whether a lane names a
   # module rather than whether the module is ours. 68 tests, all passing.
   API_AI_INSTALL: api_ai

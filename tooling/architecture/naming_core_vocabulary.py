@@ -4,11 +4,12 @@
 it reports on methods declared on `models.Model` and its siblings and on nothing
 else. That is the right population for the addon floor it feeds -- an addon is
 model classes and little else -- and it is the wrong one for `odoo/`, which is
-overwhelmingly module-level functions and plain classes. ADR-0082 swept core by
-hand for exactly that reason and ADR-0083 swept it again, three days later, over
-a population the first sweep's measurement could not see.
+overwhelmingly module-level functions and plain classes. Core was swept by hand
+for exactly that reason when the vocabulary was extended to every function in
+it, and swept again three days later -- the assemble verbs losing their
+carve-out -- over a population the first sweep's measurement could not see.
 
-This gate is the checker ADR-0082's Enforcement sketched and ADR-0083 argued had
+This gate is the checker the first sweep sketched and the second argued had
 become owed. It differs from its sibling in three ways, each of which is why a
 `--roots` flag on the sibling would not have done:
 
@@ -19,8 +20,8 @@ become owed. It differs from its sibling in three ways, each of which is why a
   Here the population is small enough to have been read.
 * **It flags a bare assemble verb.** `classify` partitions on the first token
   and returns `None` when there is no remainder, so `make()` and `_build()` are
-  invisible to every rule in §2.4. Seven of ADR-0083's forty-five were spelled
-  that way.
+  invisible to every rule in §2.4. Seven of the second sweep's forty-five were
+  spelled that way.
 
 Bare verbs from the rest of the abolished table are **not** flagged, and the
 line is drawn there on purpose. There is no reading under which a bare `make()`
@@ -35,8 +36,8 @@ survivors are an allowlist naming each one and why, never a floor. A floor would
 let the next one in silently; an entry has to be argued.
 
 The floor is not zero and the difference matters. It stands at six, all of them
-in `odoo/tests`: ADR-0083 swept every other part of core and left the framework
-tree to a sweep already running inside it, because colliding head-on with a live
+in `odoo/tests`: the second sweep took every other part of core to zero and left
+the framework tree to a sweep already running inside it, because colliding with a live
 rename is worse than a floor. That is the one population here that is debt
 rather than a survivor, it is one commit from gone, and the allowlist is not the
 place to put it -- `test_naming_core_vocabulary` pins the six by NAME so a new
@@ -249,7 +250,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(v) for v in found], indent=2))
         return 0
 
-    print("Method vocabulary over every function in odoo/ (ADR-0083)")
+    print("Method vocabulary over every function in odoo/")
     print("=" * 72)
     for item in found if args.top == 0 else found[: args.top]:
         print(f"  {item}")

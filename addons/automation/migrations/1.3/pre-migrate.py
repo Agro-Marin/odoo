@@ -45,7 +45,7 @@ def migrate(cr, version):
     if renamed:
         _logger.info(
             "automation 1.3: renamed %s webhook gate column(s) onto "
-            "mixin.inbound.gate's names (ADR-0017); values preserved",
+            "mixin.inbound.gate's names; values preserved",
             renamed,
         )
 

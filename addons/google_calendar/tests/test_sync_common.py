@@ -29,7 +29,7 @@ def patch_api(func):
 @patch.object(ResUsers, '_get_google_calendar_token', lambda user: 'dummy-token')
 class TestSyncGoogle(EncryptionKeyCase, HttpCase):
     """`EncryptionKeyCase` first: a user's Google OAuth tokens rest in
-    `credential.credential` (ADR-0081), which refuses to store anything without
+    `credential.credential`, which refuses to store anything without
     ODOO_API_ENCRYPTION_KEY. It supplies one per class rather than leaving a key
     installed for the rest of the process.
     """

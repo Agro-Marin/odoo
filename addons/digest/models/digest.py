@@ -847,7 +847,7 @@ class DigestDigest(models.Model):
 
         Sending to a mailbox nobody reads is the spam this slows down. One
         ``_read_group`` for the whole recordset, not one ``search_count`` per
-        digest: the count was only ever compared against zero (ADR-0057) and
+        digest: the count was only ever compared against zero and
         the loop made the cron's cost linear in the number of digests.
         """
         now = fields.Datetime.now()

@@ -1,6 +1,6 @@
 r"""Pre-migration: merge hr.employee.category into res.partner.category.
 
-ADR-0086 step 6. The two models were one vocabulary written twice --
+The two models were one vocabulary written twice --
 ``hr.employee.category`` inherits ``mixin.tag``, ``res.partner.category`` became
 ``mixin.tag.nested`` in the same commit -- so this moves the rows and repoints the
 join table rather than adding a second tag concept.

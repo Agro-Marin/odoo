@@ -5,8 +5,9 @@ from odoo.db import schema
 _logger = logging.getLogger(__name__)
 
 # The §2.4 sweep of the core `db` package. Source is rewritten by the ordinary
-# upgrade; a database also holds Python in columns, and ADR-0056 established
-# both that this is a binding of the third kind and which columns hold it. The
+# upgrade; a database also holds Python in columns, and the ``_for_xml_id``
+# rename established both that this is a binding of the third kind and which
+# columns hold it. The
 # shape, the anchoring and the survivor report are 1.23's, which swept the rest
 # of core -- read that script first, this one only carries a different list.
 _STORED_PYTHON = (

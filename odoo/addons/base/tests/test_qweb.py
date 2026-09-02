@@ -3355,7 +3355,7 @@ class TestQWebHelpers(TransactionCase):
         compile_context = self._context(context={"snippet-key": "abc"})
         msg = (
             "subscripting is what made the two namespaces indistinguishable; "
-            "its absence is ADR-0063's decision, not an omission"
+            "its absence is the compile context's design, not an omission"
         )
         with self.assertRaises(TypeError, msg=msg):
             compile_context["ref_name"]

@@ -1,4 +1,18 @@
 #!/usr/bin/env python3
+"""A call resolves to something this checkout defines.
+
+Every `x._name(...)` whose `_name` no `def`, `class`, attribute assignment or
+string literal (`__slots__`, `getattr`) in scope binds is reported, and the
+count is ratcheted. A method renamed without its callers, or a caller written
+against a method that never existed, is syntactically fine, imports nothing
+and reaches no boundary, so every other gate is blind to it and Python says
+nothing until the line runs -- which for a latent path can be never. Dunders
+are out of scope, and EXTERNAL names attributes reached on an object this
+scan cannot see the class of; an entry there is a claim about the receiver,
+checked at the call site before it is added. The floor is the count, not
+zero: what the ratchet buys immediately is that the next rename cannot add
+one.
+"""
 
 from __future__ import annotations
 
@@ -232,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(c) for c in found], indent=2))
         return 0
 
-    print("Calls to methods this checkout defines nowhere (ADR-0058)")
+    print("Calls to methods this checkout defines nowhere")
     print("=" * 72)
     shown = found if args.top == 0 else found[: args.top]
     for item in shown:

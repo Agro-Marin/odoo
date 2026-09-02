@@ -4,7 +4,7 @@ _logger = logging.getLogger(__name__)
 
 
 def migrate(cr, version):
-    """Move each user's Google OAuth tokens into the vault (ADR-0081).
+    """Move each user's Google OAuth tokens into the vault.
 
     The columns are dropped rather than nulled: a nulled column still sits in
     every backup taken before it was nulled. Needs ODOO_API_ENCRYPTION_KEY, and

@@ -30,8 +30,9 @@ def test_nothing_marks_it_deprecated():
     source = pathlib.Path(inspect.getfile(Cache)).read_text(encoding="utf-8")
     assert "@api.deprecated" not in source and "DeprecationWarning" not in source, (
         "env.cache is marked deprecated. If that is now the intent it needs "
-        "a superseding ADR and a migration for the addon call sites, not a "
-        "decorator -- ADR-0010 costed that migration and dropped it."
+        "a migration for the addon call sites, not a decorator -- that "
+        "migration was costed when env._core became the id-level access "
+        "point, and dropped."
     )
 
 
@@ -71,7 +72,7 @@ def test_the_two_surfaces_stay_at_different_levels():
     assert not core_recordset, (
         f"OrmCore method(s) now take a recordset: {core_recordset}. It is the "
         f"id-level facade; if it grows recordset-level entry points it starts "
-        f"duplicating env.cache, and ADR-0010's reasoning needs revisiting."
+        f"duplicating env.cache, and the two-level design needs revisiting."
     )
 
 

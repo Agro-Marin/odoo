@@ -1,4 +1,17 @@
 #!/usr/bin/env python3
+"""A hook the ORM calls takes no arguments.
+
+`@api.depends`, `@api.depends_context`, `@api.constrains`, `@api.onchange` and
+`@api.ondelete` mark methods the framework calls with nothing but `self`. A
+parameter beyond that is either a `TypeError` waiting for the hook to fire or
+-- far more often -- a decorator a refactor left on a helper while splitting
+the real hook out from under it, and that second shape is silent: the compute
+stops re-running and every other gate stays green. Both are counted; the
+report labels them `TypeError` and `masked` so the fatal ones can be taken
+first. A tree invariant rather than a diff-time check, so it holds for anyone
+who reads the tree. `@api.model` and its siblings describe how a method is
+called, not that the framework calls it unprompted, and are out of scope.
+"""
 
 from __future__ import annotations
 
@@ -163,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
         argv,
         script="py_hook_arity.py",
         gate="py_hook_arity",
-        headline="ORM hooks the framework cannot call (ADR-0077, {where})",
+        headline="ORM hooks declaring a parameter the framework never passes ({where})",
         unit="hook(s)",
         default_addon=DEFAULT_ADDON,
         everything=ALL_ADDONS,

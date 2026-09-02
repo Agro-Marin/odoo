@@ -1,5 +1,5 @@
 {
-  "note": "What survives the method vocabulary in the core package odoo/, one entry per name with the reason it is not a violation. ADR-0082 established that this is a list and not a package boundary; ADR-0083 kept it one. There is no --update: an entry is argued, never banked. A name here must be reachable by the gate -- an entry no definition answers to is dead weight, and test_naming_core_vocabulary asserts none is.",
+  "note": "What survives the method vocabulary in the core package odoo/, one entry per name with the reason it is not a violation. The core sweep established that this is a list and not a package boundary; the assemble-verb sweep kept it one. There is no --update: an entry is argued, never banked. A name here must be reachable by the gate -- an entry no definition answers to is dead weight, and test_naming_core_vocabulary asserts none is.",
   "names": {
     "fetch": "reserved -- the ORM read operation that loads stored values into the cache (§2.4.3)",
     "_fetch_field": "reserved -- fetch()'s internals are one contract with it, renamed together or not at all",

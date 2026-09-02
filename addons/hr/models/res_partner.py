@@ -65,8 +65,8 @@ class ResPartner(models.Model):
         }
 
     def _get_all_addr(self):
-        # An employee's home address is a private child of their work contact
-        # (ADR-0086 step 4), so this reads the child's own address rather than
+        # An employee's home address is a private child of their work contact,
+        # so this reads the child's own address rather than
         # six prefixed columns on the employee. It keeps the "employee" contact
         # type the ISO20022 and batch-payment callers already expect, and still
         # puts the home address first.

@@ -8,7 +8,7 @@ class HrEmployee(models.Model):
     def report_party_convergence(self):
         """What converging work_contact_id with the user's partner would do.
 
-        ADR-0086 step 5. An employee can hold two partner rows for one person --
+        An employee can hold two partner rows for one person --
         the work contact, and the partner behind their login user -- and the
         dissolution needs them to be one. That is a deduplication, not a column
         copy, so this reports what a migration WOULD do and writes nothing.
@@ -92,7 +92,7 @@ class HrEmployee(models.Model):
     def converge_party_rows(self, limit=None):
         """Merge the two partner rows where they do not disagree. Refuses the rest.
 
-        ADR-0086 step 5, the write half of report_party_convergence(). It acts
+        The write half of report_party_convergence(). It acts
         ONLY on employees the report calls safe_to_merge -- the two rows hold no
         conflicting value -- and leaves every conflicting one untouched. Where
         the rows disagree, no rule can say which is right, so a human decides

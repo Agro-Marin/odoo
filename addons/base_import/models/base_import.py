@@ -318,7 +318,7 @@ def read_xlsx_rows(data, options):
 class _SpreadsheetReader(BaseReader):
     """A workbook read as `rows`, for every consumer of the format layer.
 
-    ADR-0078 put these here rather than in `libs/documents` because xlrd,
+    These live here rather than in `libs/documents` because xlrd,
     openpyxl and odfpy are optional and this module is where they are declared.
     The registry reads the first sheet: choosing one is a conversation with a
     person, which `base_import.import` has and a strategy reading a document

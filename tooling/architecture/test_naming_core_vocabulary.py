@@ -63,7 +63,7 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
 
     def test_an_assemble_verb_is_reported_without_a_payload_suffix(self):
         # The whole reason this gate is not a --roots flag on the sibling:
-        # nv.classify returns None here, and ADR-0083 renamed 38 of these.
+        # nv.classify returns None here, and the assemble-verb sweep renamed 38.
         self.assertIsNone(nv.classify("_build_server"))
         hit = ncv.classify_name("_build_server")
         self.assertIsNotNone(hit)
@@ -181,7 +181,7 @@ class TestItCatchesAPlantedRegression(unittest.TestCase):
 
 class TestRealTree(unittest.TestCase):
     def test_nothing_outside_the_framework_tree_is_left(self):
-        # ADR-0083 took every part of the core package except odoo/tests to zero
+        # The assemble-verb sweep took the whole core package but odoo/tests to zero
         # on this vocabulary, and left that tree to the sweep already running
         # inside it. The COUNT of what remains there is the naming_core floor's
         # job -- it is six at the time of writing and goes to zero the moment

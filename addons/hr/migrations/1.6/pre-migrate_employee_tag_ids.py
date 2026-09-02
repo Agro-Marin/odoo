@@ -1,7 +1,7 @@
 r"""Pre-migration: ``hr.employee.category_ids`` becomes ``hr.employee.tag_ids``.
 
 The employee side of the field rename that base 1.27 makes on ``res.partner``.
-ADR-0086 step 6 merged ``hr.employee.category`` into ``res.partner.category``,
+The employee-tag merge folded ``hr.employee.category`` into ``res.partner.category``,
 and 1.26 renamed that model to ``res.partner.tag`` -- so this field pointed at a
 tag model under a category name, and ``res.users.category_ids`` related onto it.
 

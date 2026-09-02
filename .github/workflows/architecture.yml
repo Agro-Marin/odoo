@@ -35,7 +35,7 @@ on:
       # here — so a PR touching only those ran no gate at all and was caught,
       # if at all, by the post-merge `push:` trigger, i.e. after the
       # merge-blocking check had already reported nothing. That is the same
-      # failure ADR-0009 recorded and fixed once already.
+      # failure the mainline-gating audit recorded and fixed once already.
       #
       # `odoo/**` + `addons/**` costs a few over-triggers (the job is ~1 min)
       # and makes the whole class unrepresentable. test_ci_path_filter_covers_
@@ -294,7 +294,7 @@ jobs:
 
       - name: Run odoo.libs façade check
         id: libs_facade
-        # The mirror of ADR-0008's facade-boundary, for the dependency-free
+        # The mirror of layer_check's facade-boundary, for the dependency-free
         # utility layer. That contract stops addons importing odoo.orm.*;
         # nothing stopped them importing odoo.libs internals, and 124 leaf-module
         # paths had accumulated -- which made libs/'s FILE LAYOUT public API
@@ -428,7 +428,7 @@ jobs:
 
       - name: Run installable-dependency check
         id: module_depends_installable
-        # ADR-0064. Marking a module `installable: False` is how a replacement
+        # Marking a module `installable: False` is how a replacement
         # holds against the next module update, and it silently strands every
         # module that depends on it: the graph drops the dependent with one
         # WARNING, leaves it in state `to install`, and odoo-bin exits 0. No
@@ -547,8 +547,8 @@ jobs:
         # dev clones that ran tooling/install-hooks.sh to get the pre-push
         # cross_repo_coherence hook. Intra-repo drift is fully covered here.
         #
-        # ADR-0072: that pre-push hook now asks the NAME question too, not only
-        # the whole-module one. It has to, and ADR-0031's claim that a name is
+        # That pre-push hook now asks the NAME question too, not only the
+        # whole-module one. It has to, and the older claim that a name is
         # "answerable inside one repository" is what this step's scope made
         # false: a core export renamed under a sibling's import is a link-time
         # error this run cannot see, because the importer is in a tree CI did
@@ -611,7 +611,7 @@ jobs:
         # the other direction at all -- an unused property in a `Pick<>` is
         # legal -- so a consumer keeps claiming a dependency it dropped and the
         # report overstates the coupling forever. That is the half that rots
-        # quietly, and it is why this gate exists. ADR-0022.
+        # quietly, and it is why this gate exists.
         run: |
           set +e
           python tooling/architecture/js_context_narrowing.py --table \
@@ -664,7 +664,7 @@ jobs:
         # the server through `useService("orm" | "field" | "name")` or `rpc`
         # instead, and every one passes that contract. This pins the SITES,
         # shrink-only in both directions, so the count cannot grow quietly and
-        # a migration cannot be banked twice. ADR-0046.
+        # a migration cannot be banked twice.
         run: |
           set +e
           python tooling/architecture/js_component_data_access.py \
@@ -680,7 +680,7 @@ jobs:
         # twelve of components/ carry one and seventeen do not while being
         # imported from outside web the same way. Measured: every directory is
         # reached through exactly one module either way, so the split is history
-        # rather than design. This pins the seventeen, shrink-only. ADR-0047.
+        # rather than design. This pins the seventeen, shrink-only.
         run: |
           set +e
           python tooling/architecture/js_component_face.py \
@@ -777,7 +777,7 @@ jobs:
 
       - name: Run unresolved-call ratchet
         id: unresolved_calls
-        # ADR-0058. Asks the one question the written-form gates cannot: does this
+        # Asks the one question the written-form gates cannot: does this
         # call resolve to anything the checkout defines? A rename that lands the
         # definition and forgets a caller is invisible to ruff, C901 and
         # naming_vocabulary, and Python says nothing until the line runs -- which
@@ -811,7 +811,7 @@ jobs:
 
       - name: Run suite-in-a-lane ratchet
         id: suite_lane
-        # ADR-0079. Counts modules that ship tests no workflow names in
+        # Counts modules that ship tests no workflow names in
         # `--test-tags`. Tags and not installs: `sale` is installed by the
         # base_order lane so that suite's registry holds what its tests reach
         # for, and `sale`'s own tests do not run there -- counting installs
@@ -989,7 +989,7 @@ jobs:
 
       - name: Run x2many-counter ratchet (core)
         id: py_x2many_count
-        # ADR-0052. Counters that count by hand: `len(record.x_ids)` in a
+        # Counters that count by hand: `len(record.x_ids)` in a
         # `_compute*`, and `search_count` inside a loop over `self`. The unit is
         # the OFFENDER COUNT, not excess lines as `pyfunclen` above uses --
         # there is nothing to split here, each site is one declaration that was
@@ -1100,7 +1100,7 @@ jobs:
 
       - name: Run SQL IN-placeholder ratchet (core)
         id: sql_in_placeholder
-        # ADR-0055. psycopg3 binds server-side, so `IN %s` reaches PostgreSQL as
+        # psycopg3 binds server-side, so `IN %s` reaches PostgreSQL as
         # `IN $N` and is a syntax error for every value type. It works only
         # through `SQL()`, whose tuple branch expands it into `(%s, %s, ...)`.
         # A hard zero with no baseline file: both defects that prompted the
@@ -1166,7 +1166,7 @@ jobs:
 
       - name: Run count-as-boolean ratchet (core)
         id: py_count_as_boolean
-        # ADR-0057. A `search_count` whose answer is only a yes or a no scans the
+        # A `search_count` whose answer is only a yes or a no scans the
         # whole table to decide whether the first row exists. O(rows) against
         # O(1), and the fix is one keyword: `limit=1`. The bundled and sibling
         # trees were floored at their count -- 83 sites across four checkouts
@@ -1216,7 +1216,7 @@ jobs:
 
       - name: Run hook-arity ratchet (core)
         id: py_hook_arity
-        # ADR-0077. The ORM calls @api.depends / depends_context / constrains /
+        # The ORM calls @api.depends / depends_context / constrains /
         # onchange / ondelete with NO arguments, so a parameter beyond `self` on
         # one is either a TypeError waiting for the hook to fire or -- far more
         # often -- a decorator a refactor left on a helper while splitting the
@@ -1266,7 +1266,7 @@ jobs:
 
       - name: Run shadowed-member ratchet (core)
         id: py_shadowed_member
-        # ADR-0062. A second `def` of a name already bound in the same class
+        # A second `def` of a name already bound in the same class
         # body silently wins -- Python keeps the last -- and ruff's F811 does
         # not see it, because the default dummy-variable-rgx drops every
         # leading-underscore name and an Odoo model method is always one.
@@ -1315,8 +1315,8 @@ jobs:
         # The one property none of the other JS gates can see: a copied block is
         # structurally identical to a block that belongs where it is, so it
         # passes layering, privates, service shape and the rest. Byte-exact runs
-        # only -- a window hash scores a prefix as a duplicate and overstates it
-        # (ADR-0045). Indexes windows before comparing, so it is 0.3s rather
+        # only -- a window hash scores a prefix as a duplicate and overstates it.
+        # Indexes windows before comparing, so it is 0.3s rather
         # than the 78s a naive quadratic pass costs.
         run: |
           set +e
@@ -1405,7 +1405,7 @@ jobs:
 
       - name: Run vacuous zero-count assertion ratchet
         id: js_vacuous
-        # ADR-0044. `expect(".o_x").toHaveCount(0)` where `.o_x` is a class the
+        # `expect(".o_x").toHaveCount(0)` where `.o_x` is a class the
         # tree never declares passes for a reason unrelated to the behaviour it
         # was written to guard, and keeps passing when that behaviour regresses.
         run: |
@@ -1419,7 +1419,7 @@ jobs:
 
       - name: Run eager mock-fixture gate
         id: js_eager_fixture
-        # ADR-0067. Hoot imports every test file in the bundle during
+        # Hoot imports every test file in the bundle during
         # collection and model definitions are job-scoped per test, so a
         # fixture written at module scope runs for every suite EXCEPT the one
         # that wrote it. Fifty of these cost 37 scoped failures across twelve
@@ -1435,7 +1435,7 @@ jobs:
 
       - name: Run EDI vocabulary gate
         id: edi_vocabulary
-        # ADR-0048. "EDI" names three unrelated things here -- fiscal clearance,
+        # "EDI" names three unrelated things here -- fiscal clearance,
         # partner interchange, document import -- and only the middle one is
         # interchange. The word has already produced a refactor proposal that
         # would have made fifteen modules, `purchase` among them, depend on an
@@ -1444,8 +1444,8 @@ jobs:
         # Default-deny rather than a ratchet, and over module names only: the
         # tree opens at zero unlisted, so there is no debt to amortise, and a
         # module's models and fields inherit its prefix anyway. `l10n_*` is
-        # exempt by rule -- ADR-0048 records why renaming l10n_mx_edi was
-        # considered and rejected.
+        # exempt by rule: its names are Odoo ecosystem identifiers, which is why
+        # renaming l10n_mx_edi was considered and rejected.
         run: |
           set +e
           python tooling/architecture/edi_vocabulary.py --check
@@ -1455,7 +1455,7 @@ jobs:
 
       - name: Run credential storage gate
         id: credential_storage
-        # ADR-0081. `credential.credential` encrypts at rest, fingerprints for
+        # `credential.credential` encrypts at rest, fingerprints for
         # comparison without decrypting, access-logs every read and rate-limits
         # it -- and 19 modules found it while 105 did not. 163 stored Char/Text
         # fields hold somebody else's secret in the clear, 77 of those modules
@@ -1477,7 +1477,7 @@ jobs:
 
       - name: Run exchange vocabulary gate
         id: exchange_vocabulary
-        # ADR-0080. One lifecycle, not forty-seven. An AST pass over every
+        # One lifecycle, not forty-seven. An AST pass over every
         # `*state` Selection in a module that talks to a counterparty found 47
         # distinct vocabularies over 76 fields, all spelling the same five
         # phases -- and `l10n_mx_edi.state`'s sixteen values are
@@ -1499,7 +1499,7 @@ jobs:
 
       - name: Run payment vocabulary gate
         id: payment_vocabulary
-        # ADR-0070. "Payment" names nine unrelated things here, five of them
+        # "Payment" names nine unrelated things here, five of them
         # called "payment method". The pair that misleads is method against
         # channel: a capability against that capability wired to a journal and
         # an outstanding account. Until 2026-08-26 the two shipped the identical
@@ -1540,7 +1540,7 @@ jobs:
         # The sibling above is a floor over model classes; this one runs over
         # every function in the core package `odoo/`, which is
         # overwhelmingly module-level functions and plain classes it cannot see.
-        # ADR-0082 and ADR-0083 swept core by hand twice, three days apart, the
+        # Core was swept by hand twice, three days apart, the
         # second time over 45 definitions the first sweep's measurement could not
         # report -- which is the evidence for a checker rather than a third
         # reading. What survives the vocabulary in core is an argued allowlist
@@ -1607,7 +1607,7 @@ jobs:
       - name: Run field-hook naming ratchet
         id: field_hooks
         # doc/coding_guidelines.rst §2.4 fixes the prefix of a compute, search,
-        # inverse or default method; ADR-0049 fixes what follows it. Decidable
+        # inverse or default method; the field-hook rule fixes what follows it. Decidable
         # where the _get_/_prepare_ split is not -- the field name and the
         # method name are in the same call -- so it is counted rather than left
         # to review. Two shapes: a hook serving one field and not named
@@ -1640,7 +1640,7 @@ jobs:
           exit $rc
       - name: Run orphaned @api.depends ratchet
         id: orphan_depends
-        # ADR-0085. @api.depends is read off the method a field names as its
+        # @api.depends is read off the method a field names as its
         # compute; on any other method it is accepted by Python, by ruff and by
         # the registry, and does nothing. The field it was meant for then
         # declares no dependency and answers with whatever it computed first.
@@ -1657,7 +1657,7 @@ jobs:
           exit $rc
       - name: Run field-hook purity ratchet
         id: hook_purity
-        # ADR-0051. ADR-0049 fixes what a hook is called; this asks whether it is
+        # The naming ratchet above fixes what a hook is called; this asks whether it is
         # a hook at all. A compute is a declaration, so one that production code
         # also calls by hand has a dependency graph its callers are compensating
         # for -- a split, not a rename, and so a separate count.
@@ -1895,7 +1895,8 @@ jobs:
 
       - name: Run OWL template binding gate
         id: js_template_binding
-        # Blocking, hard zero. ADR-0032 applied to a fourth string edge: a
+        # Blocking, hard zero. What the XML names, some JavaScript must provide,
+        # applied to a fourth string edge: a
         # template names a member and some JavaScript must provide it. `tsc` and
         # `eslint` do not read .xml at all, and `xml_reference_coherence` asks a
         # different question of different files (view arch -> JS registries).
@@ -2112,7 +2113,7 @@ jobs:
             cat /tmp/js_funclen_mail.log 2>/dev/null || echo "(mail gate did not run)"
             echo '```'
             echo ""
-            echo "### Counters that count by hand (ADR-0052)"
+            echo "### Counters that count by hand, not fields.Count"
             echo '```'
             for scope in core addons mail account stock project; do
               cat "/tmp/py_x2many_count_$scope.log" 2>/dev/null \

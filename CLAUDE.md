@@ -78,7 +78,7 @@ Some modules carry a `machine_doc_v<N>/` directory (e.g. `machine_doc_v1/`) with
 
 ### Figures are gated or frozen, never bare
 
-You read these first, so their numbers become your premises (`doc/coding_guidelines.rst` §1.4, ADR-0043).
+You read these first, so their numbers become your premises (`doc/coding_guidelines.rst` §1.4).
 
 | Kind | Meaning |
 |---|---|

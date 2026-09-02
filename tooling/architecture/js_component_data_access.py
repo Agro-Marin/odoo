@@ -1,3 +1,15 @@
+"""A presentational component takes its data as props.
+
+A module under `addons/web/static/src/components/` does not acquire data at
+runtime: data arrives as props, or through a hook the consumer supplies. The
+gate counts `useService("orm" | "field" | "name")` and direct `rpc` calls under
+that directory and compares the set against PINNED, shrink-only in both
+directions -- a site not on the list fails, and a site that stops fetching must
+leave the list in the same commit, so the debt cannot be paid once and re-spent.
+A list of sites rather than a count: a number says eleven exist, a list says
+which, so removing one is a task rather than an investigation.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -102,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"    {key}")
         print(
             "\nA component under components/ takes its data as props, or "
-            "through a\nhook its consumer supplies — see ADR-0046. If this one "
+            "through a\nhook its consumer supplies. If this one "
             "genuinely must\nfetch, add it to PINNED with the reason in the "
             "commit message."
         )

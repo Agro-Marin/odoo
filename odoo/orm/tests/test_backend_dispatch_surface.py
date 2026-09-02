@@ -52,7 +52,7 @@ DISPATCH_SITES: dict[tuple[str, str], str] = {
     ("fields/reference.py", "_reference_exists"): (
         "BACKEND-SNIFF: `env.backend is None` gates a prefetch SELECT, i.e. it "
         "reads as 'am I on PostgreSQL?'.  This is the inline test-backend sniff "
-        "ADR-0011 set out to remove, renamed from transaction.storage"
+        "the persistence port set out to remove, renamed from transaction.storage"
     ),
     ("fields/relational/many2many.py", "read"): "equivalent",
     ("fields/relational/many2many.py", "_apply_relation_delta"): "equivalent",
@@ -107,7 +107,7 @@ def test_dispatch_surface_matches_the_pinned_inventory():
         f"new env.backend dispatch site(s): {added}. Each one is a place the "
         f"in-memory and SQL persistence paths may diverge. Add it to "
         f"DISPATCH_SITES with a note stating whether the two branches are "
-        f"behaviourally equivalent, and say so in ADR-0011."
+        f"behaviourally equivalent."
     )
     assert not removed, (
         f"env.backend dispatch site(s) gone: {removed}. Good news, but pin it: "
@@ -123,8 +123,8 @@ def test_layer1_dispatch_stays_explicitly_enumerated():
     }
     assert layer1 == pinned_layer1, (
         f"Layer-1 env.backend dispatch changed: {sorted(layer1 ^ pinned_layer1)}. "
-        f"ADR-0011 scopes the persistence port to the model mixins; a new "
-        f"Layer-1 dispatch widens the port's blast radius past its own ADR."
+        f"The persistence port is scoped to the model mixins; a new Layer-1 "
+        f"dispatch widens its blast radius past that scope."
     )
 
 

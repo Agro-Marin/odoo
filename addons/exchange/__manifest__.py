@@ -35,7 +35,8 @@ rejected, expired. They are separate fields because they are separate facts:
 an annulment that failed is ``intent=annul, state=rejected``, not a value in
 the issuing field.
 
-ADR-0080.
+An exchange has a counterparty, a lifecycle and a journal, and none of the
+three is a localisation.
 """,
     "author": "AgroMarin",
     "license": "LGPL-3",

@@ -5,8 +5,8 @@
 # that the docs agree. No expected value is written down here: a literal in
 # this script would be a second copy of the tree, drifting independently of
 # the first, which is why `addons/mail`'s harness is quarantined (CLAUDE.md §4)
-# rather than trusted. Rule: `doc/coding_guidelines.rst` §1.4. Rationale:
-# ADR-0043.
+# rather than trusted. Rule: `doc/coding_guidelines.rst` §1.4, a figure is
+# gated or frozen, never bare.
 #
 # WHY THIS MODULE NEEDS ONE. `machine_doc_v1/` is the first thing CLAUDE.md
 # tells a session to read, so its numbers become premises. Held by nothing,

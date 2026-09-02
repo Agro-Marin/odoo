@@ -31,7 +31,7 @@ class MixinOauth2MailProvider(models.AbstractModel):
 
     active = fields.Boolean(default=True)
 
-    # ADR-0081: every provider's tokens rest in credential.credential, and the
+    # Every provider's tokens rest in credential.credential, and the
     # plumbing is here rather than in each provider mixin because the shape is
     # identical -- an access token, a refresh token, and an expiry that is not a
     # secret. Gmail and Outlook keep their own field NAMES, which are part of

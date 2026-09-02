@@ -5,9 +5,9 @@
 # claim in these docs gets a code-reality assertion, and each is paired with a
 # doc-consistency assertion so code<->doc drift fails loud at CI time.
 #
-# INVARIANT (round 4, coding_guidelines.rst §1.4 / ADR-0043): a figure the DOCS
+# INVARIANT (round 4, coding_guidelines.rst §1.4): a figure the DOCS
 # state is DERIVED here and the doc is asserted to cite it -- `assert_doc_cites`,
-# the same reasoning as ADR-0041's `doc_restated_counts.py --update` for
+# the same reasoning as `doc_restated_counts.py --update` for
 # `doc/architecture/`. Reach for it in the commit that MOVES the tree; a figure
 # goes stale there, not in the run that notices.
 #

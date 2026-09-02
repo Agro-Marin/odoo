@@ -141,7 +141,7 @@ assert_grep "model-page route present" '/model/' "$WEB/controllers/model_page.py
 
 # ------- JS surface -------
 # Derived and asserted against every site that states them, never a literal
-# here (ADR-0043): a literal only ever pins the script to itself, and says
+# here: a literal only ever pins the script to itself, and says
 # nothing about whether the documents still agree with the tree. Each citation
 # gets its own anchored pattern, for the reason spelled out below: the check is
 # an EXISTENCE test, so a loose pattern is satisfied by whichever site is still

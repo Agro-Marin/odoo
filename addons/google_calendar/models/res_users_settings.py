@@ -14,7 +14,7 @@ class ResUsersSettings(models.Model):
 
     # Google Calendar tokens and synchronization information.
     #
-    # ADR-0081: the two tokens rest in credential.credential, encrypted,
+    # The two tokens rest in credential.credential, encrypted,
     # access-logged and rate-limited, and the fields become doors onto it so
     # every reader and the session_info blacklist are unchanged. The validity is
     # not a secret and stays a column of its own.

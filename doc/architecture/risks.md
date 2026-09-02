@@ -182,8 +182,8 @@ adding structural gates cannot reach this class of defect by construction.
 
 ## R5 — Two ADRs describe a subsystem the repository has never contained — **CLOSED 2026-08-14**
 
-**What.** ADR-0012 (attachment storage layers) and ADR-0013 (content placement)
-sat at `Accepted` for a week while naming a subsystem that does not exist, then
+**What.** The attachment-storage-layers and content-placement records of the
+decision register (itself since deleted) sat at `Accepted` for a week while naming a subsystem that does not exist, then
 at `Proposed` for a fortnight while nobody built it.
 
 **Evidence.** The decision register, and each record's own Amendments section. The
@@ -218,7 +218,7 @@ mean:
 | following `web`'s own module renames | 222 | `web` dissolved `services/` in b6c0619c571, so `@web/services/user` became `@web/core/user` and `browser`/`datetime`/`popover` moved with it; `agromarin` followed in 0aa8c0f5 |
 | removing specifiers backed by no module | 219 | |
 | `date_range` entered at the `@web/core/tree` face | **218** | `in_range_providers` was reached directly by the only consumer outside `web`; the face republishes it, so the file stops being surface |
-| `fields/field_options` published | **219** | the shared `supportedOptions` entries, reached by `html_editor` and `analytic`; one option descriptor had been written out twelve times across ten files, so this is a specifier bought deliberately to delete duplication (ADR-0045) |
+| `fields/field_options` published | **219** | the shared `supportedOptions` entries, reached by `html_editor` and `analytic`; one option descriptor had been written out twelve times across ten files, so this is a specifier bought deliberately to delete duplication |
 | the search bar split, and one selector newly reached | **221** | `adfb8afce15` gave `purchase_stock` and `product` real accessors instead of reaching around the search model, and split `search_bar` into `search_bar` and `search_bar_toggler` — one pinned specifier becoming two is +1 with no new exposure — while `components/record_selectors/avatar_models` is a genuinely new one specifier |
 | **today** | **225 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
 

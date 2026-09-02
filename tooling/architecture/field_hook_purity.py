@@ -1,3 +1,15 @@
+"""A field hook does one job; the ones that are also called by hand are counted.
+
+The method a field names as its `compute=`, `search=`, `inverse=`, `default=`
+or `domain=` is a declaration the ORM acts on. When production code also calls
+it directly, its dependency graph is something its callers compensate for. The
+remedy is a split -- the hook keeps its name and delegates to a helper the
+other callers use -- so this is counted apart from the naming gate: a rename
+would leave every finding exactly where it was. Calls from tests do not count,
+and nothing is exempted, `_compute_display_name` included. Ratcheted, not
+blocked: every unit can be lowered by splitting a method.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -159,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(v) for v in found], indent=2))
         return 0
 
-    print("Field-hook purity (ADR-0051: a hook does one job)")
+    print("Field-hook purity: a hook does one job")
     print("=" * 72)
     shown = found if args.top == 0 else found[: args.top]
     for item in shown:

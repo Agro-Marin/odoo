@@ -4,10 +4,10 @@ from odoo.db import schema
 
 _logger = logging.getLogger(__name__)
 
-# ADR-0082 renamed every abolished-verb definition in the core package. Source is
-# rewritten by the ordinary upgrade; a database also holds Python in columns, and
-# ADR-0056 established both that this is a binding of the third kind and which
-# columns hold it.
+# The §2.4 sweep renamed every abolished-verb definition in the core package.
+# Source is rewritten by the ordinary upgrade; a database also holds Python in
+# columns, and the ``_for_xml_id`` rename established both that this is a
+# binding of the third kind and which columns hold it.
 _STORED_PYTHON = (
     ("ir_act_server", "code"),
     ("ir_actions_server_history", "code"),

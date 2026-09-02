@@ -3,7 +3,7 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestPartyConvergence(TransactionCase):
-    """ADR-0086 step 5 reports before it writes.
+    """Party convergence reports before it writes.
 
     An employee can carry two partner rows for one person -- the work contact,
     and the partner behind their login user. Converging them is a

@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
+"""The core's layer contracts, evaluated over runtime imports and held at zero.
 
+Each Contract names a source package, the packages it may not import, and the
+exceptions. Only runtime imports count: `if TYPE_CHECKING:` blocks never
+execute and so cannot create a cycle, and relative imports are resolved to
+absolute dotted paths before matching. The ORM is four layers with one
+downward dependency direction (primitives, parsing and validation; then fields
+and domain; then models; then runtime); `libs/` imports no `odoo.*`; `db/`
+never imports the ORM and is handed what it needs instead; addons reach the
+ORM through the `odoo.api` / `odoo.fields` / `odoo.models` facades and never
+`odoo.orm.*`, which is what lets the core's internal layout move without
+breaking hundreds of addons. The contracts are drift-zero: a new crossing
+fails CI.
+"""
 
 from __future__ import annotations
 
@@ -97,7 +110,7 @@ CONTRACTS: tuple[Contract, ...] = (
         rationale=(
             "odoo/libs/ imports no odoo.* except odoo.libs, so it stays reusable and "
             "testable in isolation. Third-party packages and odoo_rust are allowed; "
-            "read the name as libs-is-odoo-free. See ADR-0004."
+            "read the name as libs-is-odoo-free."
         ),
     ),
     Contract(
@@ -206,8 +219,8 @@ CONTRACTS: tuple[Contract, ...] = (
         allow=(),
         rationale=(
             "retrying() is a transaction primitive and must not reach odoo.http. The "
-            "transport injects a RetryParticipant, the shape ADR-0003 uses to give db/ "
-            "its flushing savepoint."
+            "transport injects a RetryParticipant, the same shape by which the ORM "
+            "hands db/ its flushing savepoint."
         ),
     ),
     Contract(

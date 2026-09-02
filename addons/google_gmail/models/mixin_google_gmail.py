@@ -37,7 +37,7 @@ class MixinGoogleGmail(models.AbstractModel):
 
     _SERVICE_SCOPE = GMAIL.scope
 
-    # Doors onto `oauth2_credential_id` (ADR-0081). The names stay: they are in
+    # Doors onto `oauth2_credential_id`, not stores. The names stay: they are in
     # the views and in every caller.
     google_gmail_refresh_token = fields.Char(
         string='Refresh Token', groups='base.group_system', copy=False,

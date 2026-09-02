@@ -2,7 +2,8 @@
 <odoo>
 
     <!--
-        Employee tags and contact tags are one vocabulary (ADR-0086 step 6).
+        Employee tags and contact tags are one vocabulary, since
+        hr.employee.category was folded into res.partner.tag.
         The action stays in hr so the Employees > Configuration > Tags menu
         keeps working; what it opens is res.partner.tag.
     -->

@@ -3,7 +3,7 @@
 #
 # Read-only by default. `--update` rewrites the figures that
 # `assert_doc_cites` derives, so nobody retypes a digit — the same
-# reasoning as ADR-0041's `doc_restated_counts.py --update` for
+# reasoning as `doc_restated_counts.py --update` for
 # `doc/architecture/`. Reach for it in the commit that MOVES the tree;
 # a figure goes stale there, not in the run that notices.
 #
@@ -770,7 +770,7 @@ assert_doc_cites "ARCHITECTURE.md File Counts: Hoot suites" "$HOOT_JS" \
 # comment above disambiguated the gate away from it and stopped there, which
 # left that row checked by nothing -- it still said 680/622 against a real
 # 735/674 when this assertion was added. Anchor it on its own row so both
-# copies are pinned; ADR-0041's rule is one measurement, asserted wherever it
+# copies are pinned; the rule is one measurement, asserted wherever it
 # is cited, not one measurement and one copy nobody reads.
 assert_doc_cites "ARCHITECTURE.md static/tests row: JS files and Hoot suites" \
     "$TESTS_JS $HOOT_JS" \

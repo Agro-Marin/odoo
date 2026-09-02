@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+"""A count asked only whether it is nonzero takes a limit.
+
+A `search_count` whose result is consumed by an `if`, a `not`, a `bool()` or a
+comparison against 0 scans the whole table to decide whether the first row
+exists. `limit=1` makes the result 0 or 1 and none of those consumers can tell
+the difference, so the rewrite is one keyword and O(rows) becomes O(1). A
+count used inside a larger expression is excluded, because the value escapes
+there; where the number itself is wanted, an unlimited `search_count` is
+correct and stays.
+"""
 
 from __future__ import annotations
 
@@ -149,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
         argv,
         script="py_count_as_boolean.py",
         gate="py_count_as_boolean",
-        headline="Counts asked only whether they are nonzero (ADR-0057, {where})",
+        headline="Counts asked only whether they are nonzero, with no limit ({where})",
         unit="site(s)",
         default_addon=DEFAULT_ADDON,
         everything=ALL_ADDONS,

@@ -18,7 +18,8 @@ Models
 * ``ai.model`` -- holds what the model name decides: cost per token, context
   window, output cap, vision, function calling, accuracy and speed. A provider
   names one of its own as ``default_model_id``, and that is the model
-  ``AIOrchestrator`` ranks on and ``_resolve_model`` runs. ADR-0039.
+  ``AIOrchestrator`` ranks on and ``_resolve_model`` runs: cost and capability
+  follow the model name, not the API key.
 * ``ai.use.case.tag`` -- provider classification: vision, reasoning, speed,
   budget, long context, OCR, embeddings, audio
 
@@ -43,7 +44,7 @@ Orchestration
 * ``execute_with_fallback`` walks ``ai.model.fallback_model_ids``. A hop may stay
   on one vendor -- a smaller model on a key already held -- or cross to another.
   Nothing seeds a chain: acceptable degradation is a deployment's to state.
-  ADR-0040.
+  The chain is of models, not of vendors, so every hop names what will run.
 
 Clients
 -------

@@ -52,7 +52,7 @@ odoo/
 │   │   _prefork, _worker, _watcher, wsgi, _cron, lifecycle,
 │   │   _factory (picks and runs a server), _process_state (its two globals)
 │   ├── db/         Database management, the /web/database/manager service
-│   │               (ADR-0014). Reads downward:
+│   │               (five modules in one-way order). Reads downward:
 │   │               rpc -> {restore -> {lifecycle, listing}, dump -> listing,
 │   │                       lifecycle -> listing}
 │   └── transaction (the retrying() primitive), model, security, common,
@@ -206,7 +206,7 @@ Addon code imports **`odoo.api`, `odoo.fields`, `odoo.models`** — never
 `odoo.orm.*`. Each is an `__init__.py` re-export shim with an explicit
 `__all__`, which is what lets the ORM's internal layout move without breaking
 addon imports. `facade-boundary` fails CI on any runtime `odoo.orm.*` import
-under either addon tree (`if TYPE_CHECKING:` exempt). ADR-0008.
+under either addon tree (`if TYPE_CHECKING:` exempt).
 
 The serving tier has the same rule in a different shape. `odoo.http` and
 `odoo.service` are packages whose public door is the package itself —
@@ -270,7 +270,8 @@ or `CI`; elsewhere it warns and runs on the fallbacks.
 ### `components/` — the two cache APIs
 
 The cache/compute/unit-of-work engine. Pure Python apart from `odoo.libs`
-(`model_graph.py` imports `Collector`), collaborators injected (ADR-0002).
+(`model_graph.py` imports `Collector`), collaborators injected rather than
+imported.
 
 Two cache APIs, at different abstraction levels. **Both are sanctioned.**
 
@@ -282,11 +283,9 @@ Two cache APIs, at different abstraction levels. **Both are sanctioned.**
 `env.cache` is **not** a legacy wrapper over `_core`. It is what saves a caller
 from knowing that a context-dependent field is stored `{cache_key: {id: value}}`
 rather than `{id: value}`, or that a term-translated one is reached through a
-`LangProxyDict`. ADR-0010 **dropped** its own step 4 (retire `env.cache`) for
-that reason: a mechanical rewrite onto `_core` would have mishandled those
-layouts and coupled addon code to private field helpers. Where the ADR's
-*Context* and its *Implementation status* disagree, the code agrees with the
-Implementation status.
+`LangProxyDict`. The plan to retire `env.cache` in favour of `_core` was
+**dropped** for that reason: a mechanical rewrite onto `_core` would have
+mishandled those layouts and coupled addon code to private field helpers.
 
 The raw objects stay private to `Transaction` (`_cache_store`,
 `_compute_engine`).
@@ -312,7 +311,7 @@ definition that runs.
 | `libs-is-dependency-free` | `odoo/libs/**` must not import `odoo.*` (except `odoo.libs`) | ✅ clean |
 | `db-is-orm-agnostic` | `odoo/db/**` must not import `odoo.orm/models/fields/api` | ✅ clean |
 | `tools-does-not-reach-the-orm-runtime` | `odoo/tools/**` must not import `odoo.orm.runtime` (Layers 0–1 stay allowed) | ✅ clean |
-| `tools-stays-below-the-serving-tier` | `odoo/tools/**` must not import `odoo.http` **at module scope**; an import inside a function is the sanctioned form (ADR-0075) | ✅ clean |
+| `tools-stays-below-the-serving-tier` | `odoo/tools/**` must not import `odoo.http` **at module scope**; an import inside a function is the sanctioned form, because the contract bounds what the layer costs to *load*, not what it may use | ✅ clean |
 | `orm-helpers-and-registration-stay-below-runtime` | `orm/helpers.py` & `orm/registration.py` must not import `orm/runtime` | ✅ clean |
 | `orm-components-are-pure-python` | `odoo/orm/components/**` must not import `odoo.*` (except `odoo.libs`) | ✅ clean |
 | `orm-layer0-is-foundational` | Layer-0 (`primitives`, `parsing`, `validation`, `constants`, `_typing`, `_protocols`) imports no higher ORM layer | ✅ clean |
@@ -324,8 +323,8 @@ definition that runs.
 | `db-resilience-below-connectivity` | `db/` `[resilience]` (breaker, lag, budget, leaks, reaper, probe, metrics, stats) must not import `[connectivity]` (pool, cursor, ddl, schema, savepoint, schema_cache, bulk, lifecycle, endpoints, replica) | ✅ clean |
 | `http-features-below-serving` | `http/` `[features]` (openapi, `_params`, geoip) and `[foundation]` (constants, exceptions, `_protocols`) must not import `[serving]` | ✅ clean |
 | `orm-below-the-serving-tier` | `odoo/orm/**` must not import `odoo.service`, `odoo.http` or `odoo.cli` — the serving tier runs on the ORM, never the reverse | ✅ clean |
-| `transaction-primitive-is-transport-agnostic` | `odoo/service/transaction.py` must not import `odoo.http` — the transport injects a `RetryParticipant` instead (ADR-0003's seam shape) | ✅ clean |
-| `root-modules-are-foundational` | `odoo/exceptions.py` & `odoo/release.py` must not import `odoo.*` except `odoo.libs` (ADR-0016). **Not** `logutils.py`, which imports `db`/`tools` and is a consumer of the stack | ✅ clean |
+| `transaction-primitive-is-transport-agnostic` | `odoo/service/transaction.py` must not import `odoo.http` — the transport injects a `RetryParticipant` instead, the shape by which `db/` receives its flushing savepoint | ✅ clean |
+| `root-modules-are-foundational` | `odoo/exceptions.py` & `odoo/release.py` must not import `odoo.*` except `odoo.libs`. **Not** `logutils.py`, which imports `db`/`tools` and is a consumer of the stack | ✅ clean |
 
 **The eight original boundaries are clean at zero** — no tolerated exceptions.
 The gate is **drift-zero**: any *new* crossing fails CI. A genuinely unavoidable
@@ -581,20 +580,19 @@ Every downward-only rule has a counterpart seam that lets the lower layer still
 be *driven* by the upper one. **Adding a cross-layer dependency means adding a
 seam, not an import.**
 
-| Seam | Mechanism | ADR |
-|---|---|---|
-| `db/` ↔ ORM | `orm/runtime/savepoint.py` assigns `_OrmFlushingSavepoint` to `BaseCursor._flushing_savepoint_cls` at import, so `db/` never imports the ORM | 0003 |
-| `components/` ↔ runtime | `FieldCache`/`ComputeEngine` take callbacks for SQL and recompute, so the engine never imports `Environment` | 0002 |
-| Layer 1 ↔ `BaseModel` | the model layer injects `BaseModel` into `orm/_recordset.py` via `set_base_model()`, so `fields/` and `domain/` recognise recordsets without importing Layer 2 | 0001 |
-| CRUD ↔ persistence | the model mixins dispatch row I/O through `env.backend` | 0011 |
-| framework ↔ addon models | string key (`env["res.users"]`), never an import | — |
+| Seam | Mechanism |
+|---|---|
+| `db/` ↔ ORM | `orm/runtime/savepoint.py` assigns `_OrmFlushingSavepoint` to `BaseCursor._flushing_savepoint_cls` at import, so `db/` never imports the ORM |
+| `components/` ↔ runtime | `FieldCache`/`ComputeEngine` take callbacks for SQL and recompute, so the engine never imports `Environment` |
+| Layer 1 ↔ `BaseModel` | the model layer injects `BaseModel` into `orm/_recordset.py` via `set_base_model()`, so `fields/` and `domain/` recognise recordsets without importing Layer 2 |
+| CRUD ↔ persistence | the model mixins dispatch row I/O through `env.backend` |
+| framework ↔ addon models | string key (`env["res.users"]`), never an import |
 
 **`env.backend` is non-optional and has two implementors**: `PostgresBackend`
 owns the SQL — every `INSERT`, `UPDATE`, `DELETE`, locking `SELECT` and
 m2m-table statement the CRUD mixins used to hold as `_*_sql` methods is a
 method of the backend taking the model as its argument; `runtime/backend.py`'s
-`InMemoryBackend` adapts the same port to `DictBackend` (ADR-0011 + its
-2026-08-08 amendment). The mixins call the port and nothing else, so the two
+`InMemoryBackend` adapts the same port to `DictBackend`. The mixins call the port and nothing else, so the two
 implementors read side by side in one file, and what stays on the model is
 query *compilation* — `_field_to_sql`, `_order_to_sql`, `_traverse_related_sql`
 — which `Domain._to_sql` and `read_group` call too.

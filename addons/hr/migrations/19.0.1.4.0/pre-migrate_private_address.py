@@ -1,6 +1,6 @@
 r"""Pre-migration: move the six private_* address columns onto a child partner.
 
-ADR-0086 step 4. The columns become non-stored `related` fields onto
+The columns become non-stored `related` fields onto
 ``private_address_id``, so this has to run BEFORE the ORM drops them -- a
 post-migration would find the data already gone.
 

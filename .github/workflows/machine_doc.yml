@@ -15,7 +15,8 @@ name: Machine Docs
 # BLOCKING by design, and with no ratchet. A factcheck assertion is not debt to
 # ramp down: it either describes the tree or it does not, and every one of them
 # derives its expected value from the filesystem, so a passing run costs nothing
-# to keep passing. Rule: `doc/coding_guidelines.rst` §1.4. Rationale: ADR-0042.
+# to keep passing. Rule: `doc/coding_guidelines.rst` §1.4, a figure is gated or
+# frozen, never bare.
 #
 # To soften to warn-only during a transition, set `continue-on-error: true`.
 

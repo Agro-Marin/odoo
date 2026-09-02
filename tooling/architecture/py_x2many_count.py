@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+"""A count of an x2many is a field, not a compute.
+
+`fields.Count("line_ids")` declares the count and picks the strategy per
+call: `len()` for a new record or one whose lines are already in cache, one
+`_read_group` or relation-table `GROUP BY` otherwise, so the decision is an
+implementation detail of the field rather than one taken by hand in every
+module. This gate reports the hand-written forms -- `len(record.x_ids)`
+inside a `_compute*`, and `search_count` inside a loop over `self` -- and
+ratchets the offender count rather than excess lines: there is nothing to
+split, each site is one declaration that was not written.
+"""
 
 from __future__ import annotations
 
@@ -171,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         argv,
         script="py_x2many_count.py",
         gate="py_x2many_count",
-        headline="Counters that count by hand (ADR-0052, {where})",
+        headline="Counters that count by hand, not fields.Count ({where})",
         unit="counter(s)",
         default_addon=DEFAULT_ADDON,
         everything=ALL_ADDONS,

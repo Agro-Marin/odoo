@@ -6,7 +6,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# ADR-0056: a method name written into stored Python is a binding no checkout
+# A method name written into stored Python is a binding no checkout
 # holds, whatever its leading underscore says. These are mail 1.26's renames.
 #
 # Three of the renames are deliberately absent. `_compute_im_status`,

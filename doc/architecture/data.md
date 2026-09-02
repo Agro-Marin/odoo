@@ -115,9 +115,10 @@ row still references.
 
 They are alternatives, not layers, and which one is used is a per-attachment
 decision, and one column carries both *which store* and *which key* — which
-is why nothing can map a store back to the content it holds. ADR-0012 and
-ADR-0013 proposed to change that and were withdrawn on 2026-08-14 with the
-seam as described here.
+is why nothing can map a store back to the content it holds. Two proposals --
+an object-store layering with a key policy, and a placement row per copy of an
+attachment's content -- set out to change that and were withdrawn on
+2026-08-14 with the seam as described here.
 **Any backup that captures PostgreSQL without the filestore, or the reverse,
 captures a torn state** — the most common way a restored database comes back
 subtly broken.

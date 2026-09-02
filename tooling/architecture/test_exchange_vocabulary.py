@@ -174,8 +174,8 @@ class TestRefusals:
         source = Path(gate.__file__).read_text(encoding="utf-8")
         assert 'add_argument("--update"' not in source, (
             "a flag that rewrote the allowlist to whatever the tree holds would "
-            "let the next vocabulary in silently -- ADR-0048 settled this for "
-            "edi_vocabulary and the argument transfers"
+            "let the next vocabulary in silently -- edi_vocabulary is default-deny "
+            "for the same reason and the argument transfers"
         )
 
 

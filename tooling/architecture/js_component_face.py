@@ -1,3 +1,15 @@
+"""A component directory imported from outside `web` is entered at a face.
+
+Outside consumers enter at `@web/components/<name>`; what the directory keeps
+behind that module is the directory's business, and a face lets it move a file
+without touching three repositories. `js_face_boundary` refuses an import that
+reaches past a face, but a face is discovered rather than declared, so nothing
+said when a directory needed one. This gate does: a directory reached from
+outside `web` without a face fails unless it is in PINNED_FACELESS, and that
+pin is shrink-only -- a directory that gains a face leaves it in the same
+commit.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -101,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"    components/{directory}")
         print(
             "\nAdd components/<name>.js re-exporting what the directory offers, "
-            "and\nhave the outside consumers enter there — see ADR-0047. A face "
+            "and\nhave the outside consumers enter there. A face "
             "lets the\ndirectory move a file without touching three repositories."
         )
     if faced_now:

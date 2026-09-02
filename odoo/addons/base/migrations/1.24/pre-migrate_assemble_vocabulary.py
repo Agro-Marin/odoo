@@ -6,8 +6,8 @@ _logger = logging.getLogger(__name__)
 
 # The sibling of base 1.23's rewrite, on the same three columns and for the same
 # reason: source is rewritten by the ordinary upgrade, a database also holds
-# Python in columns, and ADR-0056 established both that this is a binding of the
-# third kind and which columns hold it. What is new is the population -- the
+# Python in columns, and the ``_for_xml_id`` rename established both that this
+# is a binding of the third kind and which columns hold it. What is new is the population -- the
 # assemble verbs the ratchet could not see, §2.4.7.
 _STORED_PYTHON = (
     ("ir_act_server", "code"),

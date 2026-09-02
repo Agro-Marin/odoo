@@ -1,5 +1,5 @@
 {
-  "note": "Models whose _name carries 'payment' as a dotted component, each annotated with which of ADR-0068's nine senses it is -- or 'domain qualifier' where 'payment' qualifies a different head noun. `l10n_*` is exempt by rule and is not listed. Add an entry only with the category that justifies it; there is no --update.",
+  "note": "Models whose _name carries 'payment' as a dotted component, each annotated with which of the nine senses of the word it is -- or 'domain qualifier' where 'payment' qualifies a different head noun. `l10n_*` is exempt by rule and is not listed. Add an entry only with the category that justifies it; there is no --update.",
   "categories": [
     "settlement",
     "provider transaction",
@@ -20,7 +20,7 @@
     "account.payment.method": "method -- a capability: a code and a direction",
     "account.payment.register": "wizard -- builds settlements from invoices",
     "account.payment.register.withholding.line": "wizard -- a withholding line the register wizard carries",
-    "account.payment.term": "due schedule -- kept, though it is not a payment: ADR-0068 records why",
+    "account.payment.term": "due schedule -- kept, though it is not a payment: 'payment terms' is the industry's own name for a due schedule",
     "account.payment.term.line": "due schedule -- one step of one",
     "account.payment.withholding.line": "settlement -- a withholding line of one",
     "account.return.payment.wizard": "wizard",

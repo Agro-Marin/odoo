@@ -11,7 +11,8 @@ XML by the upgrade itself and needs nothing.
 
 The old spelling carried its own mechanism in its name — ``search_`` said "this
 field exists to be searched" — which forced the search hook to be spelled
-``_search_search_date_category`` under ADR-0049. Naming the field for what it
+``_search_search_date_category`` under the rule that a hook is named for its
+field. Naming the field for what it
 holds makes the existing ``_search_date_category`` correct as it stands, and
 joins the vocabulary ``stock/models/mixin_date_category.py`` already uses
 (``date_category_to_domain``, ``get_date_category``).

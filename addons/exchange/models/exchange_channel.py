@@ -39,7 +39,8 @@ class ExchangeChannel(models.Model):
         required=True,
         default="authority",
         index=True,
-        help="ADR-0048's three categories, on the record rather than in a "
+        help="The three things 'EDI' names -- fiscal clearance, partner "
+        "interchange, document import -- on the record rather than in a "
         "module name. Only 'partner' is interchange in the strict sense.",
     )
 

@@ -1,4 +1,4 @@
 {
   "count": 25,
-  "note": "Function-length budget raised 80 -> 90 (ADR-0025). This floor is RE-MEASURED at the new budget, not improved: no function was split or shortened for it. Measured in a detached worktree at HEAD with only this change applied, so the shared dirty tree is not in the reading."
+  "note": "Function-length budget raised 80 -> 90, one number for both trees. This floor is RE-MEASURED at the new budget, not improved: no function was split or shortened for it. Measured in a detached worktree at HEAD with only this change applied, so the shared dirty tree is not in the reading."
 }

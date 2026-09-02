@@ -4,7 +4,7 @@ The model was a tag in everything except its name. It inherits
 ``mixin.tag.nested``, describes itself as a tag, labels its own reverse field
 "Child Tags", and ``res.partner`` presents it as "Tags" -- while its three
 sibling nested tags (``tag.tag``, ``crm.tag``, ``srm.tag``) all agree on
-``*.tag``. ADR-0086 step 6 then merged ``hr.employee.category`` into it, so
+``*.tag``. The employee-tag merge then folded ``hr.employee.category`` into it, so
 "partner category" stopped describing either half of the vocabulary it holds.
 
 THE TARGET NAME WAS OCCUPIED, AND ON EXISTING DATABASES IT STILL IS.

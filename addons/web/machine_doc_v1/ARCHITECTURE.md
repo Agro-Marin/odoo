@@ -120,9 +120,9 @@ is an internal.
 Enforced by `tooling/architecture/`: `js_face_boundary.py` (no import reaches
 past a face into a fronted directory), `js_component_face.py` (which directories
 under `components/` must HAVE one — a face is discovered rather than declared, so
-the boundary gate says nothing about that; ADR-0047), `js_component_data_access.py`
+the boundary gate says nothing about that), `js_component_data_access.py`
 (no component acquires data at runtime — the pinned sites can only shrink;
-ADR-0046), `js_public_surface.py` (the pinned surface
+so the debt cannot be paid once and re-spent), `js_public_surface.py` (the pinned surface
 in `public_surface_web.txt` can only shrink), `js_layer_cohesion.py`,
 `js_import_resolution.py`, `js_private_access.py`, `js_cycle_check.py`,
 `js_self_bridge.py` (no module resolves itself through the loader — a generated
@@ -131,11 +131,11 @@ name-based and graph-based gate above stays green on it),
 `js_shadow_root.py` (every shadow root is attached through `attachShadowRoot`,
 which marks its host: there is no `:has-shadow-root` selector and no event on
 attach, so an unmarked host is one that `getTabableElements` and every other
-root-crossing helper steps over in silence; ADR-0069),
+root-crossing helper steps over in silence),
 `js_suite_parity.py` (every source directory has a matching test directory),
 `js_context_narrowing.py` (a `Pick<>` over a context bag names exactly what its
 file reaches — over-declaring is invisible to tsc, so a consumer otherwise keeps
-claiming a dependency it dropped; ADR-0022) and
+claiming a dependency it dropped) and
 `js_function_length.py`, `js_layer_check.py` (the Feature-Sliced layering above),
 `js_registry_layering.py` (the same contract for dependencies mediated by a
 registry rather than an import), `js_deployment_layers.py` (which bundle a module

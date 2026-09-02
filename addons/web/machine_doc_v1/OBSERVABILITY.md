@@ -211,7 +211,7 @@ were given one category per *event kind* — `service.start` vs `service.started
 
 FROZEN at `6216a09c231`, on a 270-module database, `/odoo?odoo-trace=1` loaded as
 `admin` in headless Chrome. Re-derivable only by running that page, so it is
-pinned to a base commit rather than gated (§1.4, ADR-0043) — **do not "correct"
+pinned to a base commit rather than gated (§1.4) — **do not "correct"
 these to current values**, the comparisons below rest on this base.
 
 Split into namespace and category columns rather than written as
@@ -506,7 +506,6 @@ reference the code, so deleting code first turns a tidy removal into a red lane.
 * `useRenderCounter` and the 14 hand-placed probes, which predate the campaign.
 
 **Then:** decide per page whether a figure it cites should be re-derived from a
-surviving mechanism or frozen to the commit that measured it — §1.4 and
-ADR-0043. A figure whose probe is gone and that is not frozen is a figure
+surviving mechanism or frozen to the commit that measured it — §1.4. A figure whose probe is gone and that is not frozen is a figure
 nothing holds. The two readings on this page are already frozen; anything that
 quoted them elsewhere is not.

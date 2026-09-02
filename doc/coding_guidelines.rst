@@ -55,7 +55,9 @@ The ratchets
 
 ``ruff check`` is not clean and CI does not require it to be. Countable gates are
 *ratchets*: a total measured against a committed floor in
-``tooling/ratchet/baselines/``. Rationale: ADR-0006.
+``tooling/ratchet/baselines/``. Rationale: a baseline nothing enforces is a
+comment, and a floor turns any gate reducible to one number into a one-way
+contract that locks every improvement in.
 
 **A ratchet fails in both directions.** ``ratchet.py`` defaults to ``exact``, so
 an improvement fails the build as a regression does. Commit the new floor in the
@@ -165,8 +167,9 @@ Consequences:
   without fixing anything -- move it as deliberately as the floor, and say so in
   the baseline note.
 * **The architecture gate is not a ratchet.** Layer crossings and JS import
-  cycles are held at zero (``tooling/architecture/js_cycle_check.py``, ADR-0019;
-  ADR-0034 is the Python counterpart), with pre-existing ones pinned in
+  cycles are held at zero (``tooling/architecture/js_cycle_check.py``;
+  ``py_cycle_check.py`` is the Python counterpart, since a permitted direction
+  on every edge does not rule out a loop), with pre-existing ones pinned in
   ``KNOWN_CYCLES`` / ``KNOWN_VIOLATIONS`` with a rationale. ``test_lint``'s own
   floors are in ``baselines/`` too, read by ``assert_ratchet`` and named
   ``lint_<rule>``; a baseline that is absent means a floor of zero there as
@@ -247,7 +250,8 @@ The AST rules. ``_rules.RULES`` is the registry; ``_py_scan`` is the engine.
      - ``UNIQUE`` declared over a ``translate=True`` column (§2.9.8)
    * - ``shadowed-definition``
      - ``E8513``
-     - A class body defining the same member twice (ADR-0062)
+     - A class body defining the same member twice; Python silently keeps the
+       last
    * - ``noqa-rationale``
      - --
      - ``# noqa`` without a written rationale (§*Suppressing a rule*)
@@ -407,7 +411,12 @@ backward compatibility, and "upstream does it this way" settles no argument abou
 correctness, performance or design. Nothing is merged or cherry-picked from
 ``19.0``; a useful upstream fix is re-implemented by hand. Before calling an
 inherited behaviour a bug, check whether a test pins it deliberately.
-Rationale: ADR-0018.
+Rationale: upstream is a baseline, not a ceiling. ``19.0`` is a read-only
+mirror kept to be diffed against, mergeability is not a design constraint, and
+the objections that presuppose one -- "this complicates the upstream merge",
+"upstream does it this way", "this increases divergence" -- are void rather
+than outweighed. The costs that count are behavioural regressions, test
+breakage and migration for stored data.
 
 Change protocol
 ---------------
@@ -574,7 +583,7 @@ Adoption is partial. Apply the rule to files you create or substantially rework.
 A module may carry a ``machine_doc_v<N>/`` directory: the machine-readable map of
 its routes, models, architecture, conventions and test tags. It is the first thing
 read before touching the module, so its figures are adopted as premises. **A wrong
-number here is worse than no number.** Rationale: ADR-0043.
+number here is worse than no number.**
 
 **Every figure is gated or frozen. A bare figure is a defect** ``[review]``.
 
@@ -651,8 +660,9 @@ this repo alone.
 **Reach the ORM through the public façade** ``[test_lint test_orm_import]``.
 Addon runtime code imports from ``odoo.api``, ``odoo.fields``, ``odoo.models``,
 never from ``odoo.orm``, whose internals the fork restructures freely. Test files
-are exempt by location. ADR-0008 argues the boundary; ADR-0009 records how its
-scope was closed.
+are exempt by location. The boundary is what lets the ORM's internal layout move
+without breaking hundreds of addons, and it covers both addon trees: the first
+wiring scanned ``odoo/addons`` alone and left seven live bypasses in ``addons/``.
 
 **Format what you write, not the file around it** ``[review]``. Every repo's
 ``.pre-commit-config.yaml`` runs ``ruff-format`` after ``ruff-check --fix`` and is
@@ -880,7 +890,7 @@ Defaults that must remain overridable use ``lambda self:``:
      - ``_default_warehouse_id``
    * - Domain
      - ``_domain_<field>`` bound; ``_get_domain_<what>`` free-standing
-     - ``_domain_child_ids``, ``_get_domain_modules_to_load`` (ADR-0054)
+     - ``_domain_child_ids``, ``_get_domain_modules_to_load``
    * - Selection
      - ``_selection_<values>``
      - ``_selection_target_model`` -- named for the values, not the field: one
@@ -898,7 +908,8 @@ field: ``_<attr>_<field>``, spelled in full -- ``_default_category_id``, not
 **A domain is its own family** ``[ratchet fieldhooks]``. A domain feeds
 ``search()`` and a field's ``domain=``, never ``create()``/``write()``. Bound:
 ``_domain_<field>``. Free-standing: ``_get_domain_<what>``. ``_search_*`` is
-exempt -- a domain is a search hook's contract. ADR-0054, superseding ADR-0050.
+exempt -- a domain is a search hook's contract. The object leads and the family
+marker sits next to the verb; an earlier rule asked only for a ``_domain`` suffix.
 
 **And the converse: a ``_get_domain_*`` returns a ``Domain``** ``[review]``. The
 free-standing form is a promise about the **return**, not a topic label, so a
@@ -914,7 +925,8 @@ though ``collection_head_order`` scores both ``tail``.
 
 **A hook does one job** ``[ratchet hookpurity]``. 12 are not hooks at all: the
 declaring model also calls them on ``self`` (calls from tests do not count). Split
-it -- the hook keeps the name and delegates to a helper. ADR-0051, ADR-0049.
+it -- the hook keeps the name and delegates to a helper. The finding survives
+any renaming, which is why it is counted apart from the naming rule above.
 
 **A hook's prefix is reserved for hooks** ``[review]``. ``_compute_``,
 ``_search_``, ``_inverse_``, ``_default_``, ``_onchange_``, ``_domain_`` and
@@ -1060,8 +1072,8 @@ and 103 groups of methods share a byte-identical body under different names.
 **Every figure in this section is measured, not stated**
 ``[gate doc_restated_counts]``. The population is the 25,368 non-test methods
 declared on a model class **in this repository** -- the population
-``naming_vocabulary.py`` ratchets. The census stops here (ADR-0033), so every
-figure is a floor.
+``naming_vocabulary.py`` ratchets. The census stops here, so every figure is a
+floor.
 
 .. list-table::
    :header-rows: 1
@@ -1179,7 +1191,8 @@ sequence, and an addition that lands at its end. ``naming_vocabulary.py`` keeps
 so the reservation is ``[review]`` and widens no gate.
 
 **The reservation binds public names too**, and three are left as found because
-renaming them is owed ADR-0053's weighing and one change across every repository:
+renaming them is owed a public-surface weighing and one change across every
+repository:
 ``ir.actions.server``'s ``create_action`` and ``unlink_action``, which perform
 neither operation they name, and ``ir.cron``'s ``method_direct_trigger``.
 
@@ -1260,8 +1273,8 @@ those tokens belong to a noun or a field name.
   is ``_compile_with_esbuild`` and ``_compile_with_esbuild_locked``.
 
 **A public method drops the underscore, not the verb** ``[review]``. The public
-form of a getter is ``get_*``, of a payload builder ``prepare_*``, down the table
-(ADR-0053). **A public rename is weighed differently**: an RPC caller leaves no
+form of a getter is ``get_*``, of a payload builder ``prepare_*``, down the table.
+**A public rename is weighed differently**: an RPC caller leaves no
 trace in any tree a gate can scan, so weigh it as a public-surface change, give it
 and rewrite every repository in one
 change or none. **A rename that cannot be completed inside the workspace is not
@@ -1285,7 +1298,8 @@ serialisation -- is evidence the missing underscore was an oversight, since the
 one call that would make it a public contract raises rather than returns. So is a
 **required** parameter no JSON-RPC request can carry: a recordset, a
 ``fields.Field``, a ``Callable``, an ``Environment``, a cursor. Making such a
-method private *removes* a surface, so ADR-0053's weighing does not apply. Where
+method private *removes* a surface, so the public-rename weighing does not apply.
+Where
 ``model_member_surface_check.py`` pins the name, the pin moves in the same change
 or the gate fails both ways.
 
@@ -2655,8 +2669,9 @@ dangerous of the two, because nothing about it looks wrong.**
 
 **Adoption** ``[ratchet naming]``. As with §2.2, apply the vocabulary to methods
 you create or substantially rework. ``naming_vocabulary.py`` counts definitions
-still using an abolished verb and feeds the shared ratchet; ADR-0033 argues why
-this section is counted rather than blocked. The sibling repositories carry their
+still using an abolished verb and feeds the shared ratchet; this section is
+counted rather than blocked because a backlog this size would fail every build
+and the gate would be off within a week. The sibling repositories carry their
 own floors (``naming_enterprise``, ``naming_agromarin``,
 ``naming_design-themes``), measured with ``--roots`` from their cross-repo
 ``architecture.yml`` and held ``--mode no-increase``; the census figures in this
@@ -2817,30 +2832,21 @@ wrong. **Rewrite a load-bearing citation; leave a historical one; and where a
 citation is in a repository you are not touching, say which.**
 
 **A record that may not be edited is a fourth category, and it looks like the
-first** ``[review]``. An ADR naming a method, or a machine doc citing one, is
-inside the workspace and greppable, so a sweep sorts it into
-*greppable-and-rewritable* and rewrites it. It must not: §10 makes an accepted
-record immutable -- it is superseded, never edited -- and §1.4 makes a machine-doc
-figure gated or **frozen**, and a frozen reading must not be "corrected" to a
-current value. ``restore.py``'s ``_unpack_budget`` and ``_extract_members_bounded``
-are named in ADR-0014's table, and ``job_thread`` and ``http_spawn`` are cited in
+first** ``[review]``. A machine doc citing a method is inside the workspace and
+greppable, so a sweep sorts it into *greppable-and-rewritable* and rewrites it.
+It must not where the citation is frozen: §1.4 makes a machine-doc figure gated
+or **frozen**, and a frozen reading must not be "corrected" to a current value.
+``job_thread`` and ``http_spawn`` are cited in
 ``addons/base/machine_doc_v1/MODEL_MAP.md`` and
 ``odoo/tests/machine_doc_v1/conventions.md``. **The discriminator is whether the
 document naming it may be rewritten, not whether a grep finds it** -- and the
 same phrase answers the vault: §14 makes ``research/``, ``plans/`` and
 ``workspaces/`` dated records of a moment and ``reference/<topic>/``
-maintained-current, so rewrite a ``reference/`` hit and leave the others.
+maintained-current, so rewrite a ``reference/`` hit and leave the others. (The
+decision register that once made an accepted record the paradigm case of this
+category was deleted; the category is carried by frozen figures and dated vault
+records alone.)
 
-* **"Left as found" is not available for an ADR** ``[review]``, and the tree says
-  so within a minute. ``test_adr_coherence.py::TestReferencedNamesExist`` fails
-  on any symbol an ADR names that no ``def`` in the tree defines, so renaming
-  ``_merge_absorbs_source_values`` broke ADR-0061 in Tier 1 immediately. §10 and
-  that gate pull opposite ways, and the gate's own message names the
-  reconciliation: *correct the reference in an Amendments section*.
-  **Immutability is about the argument, not about a symbol's spelling** --
-  updating a name so a citation resolves is the pointer maintenance this section
-  requires of every rename, and what may not be edited is the reasoning, the
-  decision, and any frozen figure. Append the amendment; say what moved.
 * **Rot is expected of a dated record; inversion is not** ``[review]``. Leaving a
   ``research/`` hit is right where the record's **verdict** still holds against
   the tree -- a REFUTED finding whose four citations have gone stale is a dated
@@ -2864,7 +2870,7 @@ database column**: **111** distinct private method names are reached that way fr
 shipped files are only the half a grep can see, since the field is edited in the
 UI. **The question is not public against private, but whether a name is written
 down anywhere this workspace cannot rewrite.** ``_for_xml_id`` is the case, and it
-is taken (ADR-0056): 535 places over 351 files in three repositories, plus a
+is taken: 535 places over 351 files in three repositories, plus a
 pre-migration rewriting the name in every column that holds Python. **A rename of
 this kind is not finished when the tree is green.**
 
@@ -2982,7 +2988,7 @@ a model it resolved at runtime, and any model defining that name answers.
 report's record: 19 classes in this repository implement it, related to each other
 and to the caller by nothing but the spelling. ``res.config.settings`` does the
 same to ``get_values`` and ``set_values``, at 12 and 20. None is declared as an
-interface, and all three counts stop at this repository (ADR-0033) while the
+interface, and all three counts stop at this repository while the
 contract does not. Before renaming a method whose name looks conventional rather
 than invented, grep the *framework* for a bare call of it. **Give a new one of
 these an ``AbstractModel`` to inherit, so the contract has a declaration site.**
@@ -3667,9 +3673,9 @@ aimed at internals. ``project.project.check_features_enabled`` returned
 ``dict[str, bool]``, never raised, and was called over RPC by two form
 controllers: it is a read, and it is ``get_features_enabled``. **Ask what the
 method does on failure before believing its prefix** -- where the answer is
-*returns something*, the prefix is wrong whatever the underscore. ADR-0053 already
-licenses the public spelling, so the rename owes the workspace-wide rewrite, not a
-new record. **§2.4.19 is the converse and must be read with this one**: a public
+*returns something*, the prefix is wrong whatever the underscore. The vocabulary
+already licenses the public spelling, so the rename owes the workspace-wide
+rewrite and nothing more. **§2.4.19 is the converse and must be read with this one**: a public
 ``check_*`` that returns nothing and *only* raises is correct, and privatising it
 would break the client that calls it to receive the error.
 
@@ -6391,8 +6397,7 @@ module's own test suite:
   unresolvable specifier, and a failed build is served as an empty one -- so a
   module moved inside ``web`` blanks the web client of every database carrying an
   addon that still imports the old path. In a *test* file the same specifier
-  registers no suite at all, so the run reports fewer tests rather than an error
-  (ADR-0023).
+  registers no suite at all, so the run reports fewer tests rather than an error.
 * **A bundle rendered by ``t-call-assets`` must be declared under the manifest's
   ``esm`` key if it carries ES-module sources** ``[test_lint test_esm_bundles]``.
   Undeclared, it is concatenated as legacy JS and every module-syntax file in it
@@ -7445,7 +7450,7 @@ Every new model ships explicit access rules ``[review]``. A model with no
   ``fields_get`` report the field readonly, so no arch change is needed. **Delete
   the node's ``readonly`` attribute when converting one** -- an explicit
   ``readonly`` in the arch replaces the server's verdict instead of combining with
-  it. ADR-0065.
+  it.
 * **Gate a decision, not a structural attribute** ``[review]``. ``write_groups``
   refuses ``create`` as well as ``write``, and ``create`` checks ``default_*``
   context keys too, so a field every creator must supply -- a price, a category,
@@ -7459,7 +7464,7 @@ Every new model ships explicit access rules ``[review]``. A model with no
   from everyone and ``groups="!module.group_typo"`` shows it to everyone, in
   silence. The gate holds this at zero over the checkout's own modules and leaves
   a reference into a module this checkout does not carry alone -- that is the
-  optional-dependency idiom. ADR-0068.
+  optional-dependency idiom.
 
 10.9 Configuration and secrets
 ------------------------------
@@ -7581,7 +7586,7 @@ list-view page it is the slowest of the three, ``search_count()`` in a loop
 included. **Do not convert one to ``_read_group`` by hand** -- on a form view,
 where the lines have been read anyway, ``len()`` is the fastest of the three, and
 a new record's lines are in cache and in no table. ``fields.Count("line_ids")``
-takes that branch per call. Measurements: ADR-0052.
+takes that branch per call.
 
 Iterating a recordset prefetches for the whole set, which is usually what you
 want. For a large set processed one record at a time, ``with_prefetch([])`` stops
@@ -7927,8 +7932,8 @@ line against free stock. ``stock.move.product_uom_qty`` is unrelated and
 unchanged: a real, writable field there.
 
 Counted by ``tooling/architecture/order_line_qty.py`` and ratcheted as
-``orderlineqty`` rather than made to raise, on ADR-0033's argument: the floor is
-frozen where it stands and driven down module by module. A raise is where it
+``orderlineqty`` rather than made to raise, on the naming count's argument: the
+floor is frozen where it stands and driven down module by module. A raise is where it
 ends.
 
 Appendix B — References
@@ -8456,7 +8461,7 @@ One row per change, one clause. The argument lives in the section it moved.
        ``make`` / ``compose`` / ``construct`` only on a payload suffix, which
        left 45 definitions in ``odoo/`` that a reading found and no count did,
        seven of them a bare verb. New gate ``naming_core_vocabulary``, over
-       every function rather than over model classes. ADR-0083.
+       every function rather than over model classes.
    * - 6.8
      - 2026-08-29
      - §2.5: ``service/__init__.py`` and ``service/db/`` are no longer
@@ -8479,13 +8484,12 @@ One row per change, one clause. The argument lives in the section it moved.
      - 2026-08-26
      - §10.8: a group reference must resolve -- an external id no group answers
        to reads as "not a member", so a typo hides a node from everyone and a
-       negated typo shows it to everyone. ADR-0068.
+       negated typo shows it to everyone.
    * - 6.5
      - 2026-08-25
      - §10.8 gains ``write_groups``: a field everyone reads and only some may
        change had no spelling, and the computed boolean feeding
        ``readonly="not flag"`` that five places reached for enforces nothing.
-       ADR-0065.
    * - 6.4
      - 2026-08-25
      - A fourth Tier-2 path, ``tests/framework``: the facade ``__all__`` gate and
@@ -8536,8 +8540,9 @@ One row per change, one clause. The argument lives in the section it moved.
      - §2.2.1: mixins are named ``mixin.<what they add>`` -- prefix, not suffix.
    * - 5.36
      - 2026-08-20
-     - §2.4: a domain builder leads with its object (ADR-0054, superseding
-       ADR-0050), plus four bindings no checker reaches.
+     - §2.4: a domain builder leads with its object -- ``_get_domain_<what>``
+       replaces the bare ``_domain`` suffix -- plus four bindings no checker
+       reaches.
    * - 5.35
      - 2026-08-20
      - §2.4: an error is built here and raised there; a canonical verb can be
@@ -8589,21 +8594,21 @@ One row per change, one clause. The argument lives in the section it moved.
    * - 5.22
      - 2026-08-18
      - §2.4's figures are derived rather than stated, through
-       ``doc_restated_counts.py`` (ADR-0041); the census is re-scoped to this
+       ``doc_restated_counts.py``; the census is re-scoped to this
        repository.
    * - 5.21
      - 2026-08-18
-     - §1.4: a machine-doc figure is gated or frozen, never bare (ADR-0043).
+     - §1.4: a machine-doc figure is gated or frozen, never bare.
    * - 5.20
      - 2026-08-17
      - §7.2, §7.3: the task ID and the PR stop being mandatory.
    * - 5.19
      - 2026-08-15
-     - §12.2: a removed Many2many keeps its relation table forever (ADR-0039).
+     - §12.2: a removed Many2many keeps its relation table forever.
    * - 5.18
      - 2026-08-15
      - §12.2: a removed field's column goes in the same upgrade, and the harvest
-       cannot be split across versions (ADR-0040).
+       cannot be split across versions.
    * - 5.17
      - 2026-08-17
      - The ratchets: adds ``pyfunclen_addons``, the first ``--mode no-increase``

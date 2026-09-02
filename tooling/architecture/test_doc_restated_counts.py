@@ -53,8 +53,8 @@ class ReportedValues(unittest.TestCase):
 
     def test_a_padded_figure_is_reported_padded(self):
         problems = self._one(
-            "ADR-0012 records it",
-            r"ADR-(\d+)\s+records",
+            "item 0012 records it",
+            r"item (\d+)\s+records",
             (7,),
             drc._padded,
         )
@@ -136,7 +136,7 @@ class EveryFigureRoundTrips(unittest.TestCase):
                 "counts 3 things",
                 r"counts\s+([\d,]+)\s+things",
             ),
-            (drc._padded, (7,), "ADR-0001 says", r"ADR-(\d+)\s+says"),
+            (drc._padded, (7,), "item 0001 says", r"item (\d+)\s+says"),
             (drc._rounded, (1234,), "about 3 sites", r"about\s+([\d,]+)\s+sites"),
             (drc._tenths, (221,), "it is 1.0 %", r"it\s+is\s+([\d.]+)\s*%"),
         ):

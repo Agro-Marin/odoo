@@ -114,7 +114,7 @@ class DeliveryCarrier(models.Model):
         "Max Weight",
         help="If the total weight of the order is over this weight, the method won't be available.",
     )
-    # ADR-0081: every carrier's secrets rest in credential.credential, and the
+    # Every carrier's secrets rest in credential.credential, and the
     # plumbing is here rather than in each carrier module because the shape
     # repeats twenty-two times across ten of them. The carriers keep their own
     # field NAMES -- they are in the views and in every request builder -- and

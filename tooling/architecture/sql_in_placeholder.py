@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+"""`IN` over a bound value goes through the SQL builder, with a tuple.
+
+psycopg 3 binds server-side, so an `IN %s` handed straight to `cr.execute`
+reaches PostgreSQL as `IN $N` and is a syntax error for every value type. The
+spelling works only through `SQL()`, whose tuple branch expands it into
+`(%s, %s, ...)`; a list there is not expanded, and where a list is what the
+caller has the operator is `= ANY(%s)`. The gate reports a query text with
+`IN %s` executed without the builder, and an `SQL()` given a list. A hard
+zero on every scope: both defects that prompted it are fixed, and zero is
+what refuses the first one back.
+"""
 
 from __future__ import annotations
 
@@ -198,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
         argv,
         script="sql_in_placeholder.py",
         gate="sql_in_placeholder",
-        headline="`IN %s` bound to a value (ADR-0055, {where})",
+        headline="`IN %s` reaching psycopg without the SQL builder ({where})",
         unit="site(s)",
         default_addon=DEFAULT_ADDON,
         everything=ALL_ADDONS,

@@ -22,7 +22,7 @@ Separating them is the whole module.
 ------------
 Where formats collapse. It lives in ``odoo.libs.documents``, because deciding
 what bytes are has no business knowledge in it and every framework in this tree
-was answering it separately (ADR-0078). This module registers the readers whose
+was answering it separately. This module registers the readers whose
 libraries it owns -- PDF text, page images, barcodes -- and gets the rest.
 
 Holds the bytes and derives ``text``, ``images``,

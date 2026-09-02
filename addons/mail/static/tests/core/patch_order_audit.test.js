@@ -147,7 +147,7 @@ test("every live double-patch is consciously allowlisted", () => {
     // it is the argument for removing the advisory, not a live figure.
     //
     // Staleness is a cross-repo *static* fact, the same shape as the one
-    // js_private_access.py asks (ADR-0028): answering it needs a patch index
+    // js_private_access.py asks: answering it needs a patch index
     // spanning odoo + enterprise + agromarin + design-themes, not a bundle.
     // `tooling/patchorder/patchorder.py` is that sweep: run it before adding
     // to or trusting this list. It reads the entries below rather than

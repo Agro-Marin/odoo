@@ -4,7 +4,8 @@
 # Every assertion DERIVES its expected value from the module and then checks
 # that the docs agree. No expected value is written down here: a literal in this
 # script would be a second copy of the tree, drifting independently of the
-# first. Rule: `doc/coding_guidelines.rst` §1.4. Rationale: ADR-0043.
+# first. Rule: `doc/coding_guidelines.rst` §1.4, a figure is gated or frozen,
+# never bare.
 #
 # WHY THIS MODULE NEEDS ONE. It is the module CLAUDE.md calls strategic, and it
 # was the least protected. Every one of these was live on 2026-08-26, found by

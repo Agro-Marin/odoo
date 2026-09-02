@@ -28,7 +28,7 @@ on:
   # This gate was the only blocking one of the four with no `push:` trigger,
   # so a direct commit or a merge skew that dangled a reference was caught by
   # nothing until the next PR happened to touch a `.md`. That is exactly the
-  # bypass ADR-0009 closed elsewhere, left open here. No path filter on
+  # bypass the mainline `push:` triggers closed elsewhere, left open here. No path filter on
   # purpose: mainline is always re-checked in full.
   push:
     branches: ['19.0-marin', '19.0']

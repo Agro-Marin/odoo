@@ -59,7 +59,7 @@ class TestWhatCounts:
 
 
 class TestTheFourExclusions:
-    """Each is in ADR-0081's decision, so each is asserted rather than assumed.
+    """The vault rule carves each of these out itself, so each is asserted, not assumed.
 
     A gate that fired on any of these would be argued down rather than obeyed.
     """

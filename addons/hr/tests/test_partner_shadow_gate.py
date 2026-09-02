@@ -5,8 +5,9 @@ MAGIC = frozenset(
     {"id", "create_date", "create_uid", "write_date", "write_uid", "display_name"}
 )
 
-# The names hr.employee shadows on res.partner today, with what ADR-0086 says
-# becomes of each. Shrinking this set is step 7; growing it is the regression
+# The names hr.employee shadows on res.partner today, with what the
+# employee-as-a-role design says becomes of each. Shrinking this set is the
+# remaining work; growing it is the regression
 # this test exists to catch.
 KEEP_SHADOWED = frozenset(
     {
@@ -15,8 +16,8 @@ KEEP_SHADOWED = frozenset(
         "user_id",  # the login account, not the partner's Salesperson
         "company_id",  # employment is company-scoped; the party is company-less
         "active",  # ending an employment must not archive the person
-        # An employee's tags are not their contact's tags. ADR-0086 step 6
-        # merged the two VOCABULARIES into res.partner.tag but deliberately kept
+        # An employee's tags are not their contact's tags. The tag merge
+        # folded the two VOCABULARIES into res.partner.tag but deliberately kept
         # two ASSIGNMENTS: employee_tag_rel beside
         # res_partner_res_partner_tag_rel. The collision is newly visible rather
         # than new -- these were category_ids and category_id until the field
@@ -58,7 +59,7 @@ EXPECTED = (
 
 @tagged("post_install", "-at_install")
 class TestPartnerShadowGate(TransactionCase):
-    """ADR-0086: a field hr.employee declares itself is NOT delegated.
+    """A field hr.employee declares itself is NOT delegated.
 
     `_add_inherited_fields` skips any name the child already declares and logs
     nothing, so once hr.employee delegates to res.partner every name in this set

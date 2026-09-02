@@ -235,7 +235,7 @@ The loop still issues *reads*: prefetch `SELECT`s land where the field is first
 touched. Measured, a 10,000-record write loop issues 20 statements before the
 flush and 100 at it ([`qualities.md`](qualities.md#scenario-1--write-throughput)).
 
-Row I/O at the bottom goes through `env.backend`, the ADR-0011 port described
+Row I/O at the bottom goes through `env.backend`, the persistence port described
 under **Seams** — which is what lets the whole ORM run against `InMemoryBackend`
 with no database. **`backend` is non-optional and has two implementors**, which
 is why the sketch above names one rather than leaving it unset: until 2026-08-08

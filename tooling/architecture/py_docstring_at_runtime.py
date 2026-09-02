@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+"""Runtime code does not depend on a docstring being present.
+
+Prose is stripped from `odoo/`, `tests/` and `tooling/` by policy, so code
+that reads `__doc__` where a `None` would raise breaks the moment the strip
+reaches it: `upgrade_code` could not print `--help` and `base_sparse_field`
+could not be imported. Text a user or an operator will read is stored in an
+attribute -- `Command.description` -- which is data and which no strip
+removes. A docstring may still be read as a fallback, because `None` flowing
+into an `or` costs nothing.
+"""
 
 from __future__ import annotations
 
@@ -117,7 +127,7 @@ SCOPES = (DEFAULT_ADDON, ALL_ADDONS, *SIBLING_SCOPES)
 
 def _render(by_scope: dict[str, list[Offence]]) -> str:
     lines = [
-        "Runtime code that breaks when a docstring is None (ADR-0076)",
+        "Runtime code that breaks when a docstring is None",
         "=" * 72,
     ]
     total = 0
@@ -130,7 +140,7 @@ def _render(by_scope: dict[str, list[Offence]]) -> str:
         lines += [
             f"{total} site(s) would raise once the docstring is gone.",
             "Read the text from an attribute the strip cannot remove, or",
-            'write `(x.__doc__ or "")`.  See ADR-0076.',
+            'write `(x.__doc__ or "")`: a docstring is a fallback, never the source.',
         ]
     else:
         lines.append("No runtime code depends on a docstring. \u2713")

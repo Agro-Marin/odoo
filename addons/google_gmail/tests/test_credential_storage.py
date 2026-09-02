@@ -1,4 +1,4 @@
-"""The Gmail tokens rest in the vault; the fields are doors (ADR-0081)."""
+"""The Gmail tokens rest in the vault; the fields are doors, not stores."""
 
 from odoo.tests import TransactionCase, tagged
 

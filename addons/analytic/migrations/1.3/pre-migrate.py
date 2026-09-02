@@ -1,8 +1,8 @@
 r"""Pre-migration: ``fiscal_year_search`` is now ``from_last_fiscal_year``.
 
 ``account.analytic.line`` carried a search-only Boolean whose name said only that
-it existed to be searched. Under ADR-0049 the canonical spelling of its hook was
-therefore ``_search_fiscal_year_search``, and the stutter is the symptom rather
+it existed to be searched. Under the rule that a hook is named for its field the
+canonical spelling of its hook was therefore ``_search_fiscal_year_search``, and the stutter is the symptom rather
 than the defect: the name described the mechanism, which the declaration already
 states two lines down in ``store=False`` and ``search=``.
 

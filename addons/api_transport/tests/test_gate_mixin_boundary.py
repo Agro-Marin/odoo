@@ -55,9 +55,9 @@ class TestGateMixinBoundary(TransactionCase):
         self.assertFalse(
             leaked,
             f"the gate acquired {leaked}, which is channel bookkeeping or "
-            f"dispatch. ADR-0017 accepts a shared mixin only because it carries "
+            f"dispatch. The shared gate mixin was accepted only because it carries "
             f"neither; widening it here retroactively vindicates the objection "
-            f"the record overruled.",
+            f"that was overruled.",
         )
 
     def test_outbound_endpoints_do_not_carry_admission_controls(self):

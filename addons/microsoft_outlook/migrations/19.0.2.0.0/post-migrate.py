@@ -9,7 +9,7 @@ LABEL = "Outlook"
 
 
 def migrate(cr, version):
-    """Move each mail server's Outlook tokens into the vault (ADR-0081).
+    """Move each mail server's Outlook tokens into the vault.
 
     Two tables, because the fields come from a mixin that `ir.mail_server` and
     `fetchmail.server` both inherit. The columns are dropped rather than nulled:
