@@ -84,7 +84,8 @@ def _is_host_blocked(hostname: str | None) -> bool:
     except ValueError:
         return False
     return (
-        ip.is_private
+        not ip.is_global
+        or ip.is_private
         or ip.is_loopback
         or ip.is_link_local
         or ip.is_reserved

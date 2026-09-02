@@ -108,6 +108,17 @@ class TestReportUrlFetcher(TransactionCase):
             with self.subTest(host=host):
                 self.assertFalse(_is_host_blocked(host))
 
+    def test_carrier_grade_nat_and_other_non_global_literals_are_blocked(self):
+        """CGNAT (100.64.0.0/10) is neither is_private nor is_reserved, so the
+        plain classification let it through; a report resource must not be able
+        to reach it or any other non-global literal."""
+        for host in ("100.64.0.1", "100.127.255.254"):
+            with self.subTest(host=host):
+                self.assertTrue(_is_host_blocked(host))
+        self.assertFalse(
+            _is_host_blocked("8.8.8.8"), "a real public address must still resolve"
+        )
+
     def test_loopback_names_are_blocked_without_resolving(self):
         for host in (
             "localhost",
