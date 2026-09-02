@@ -200,11 +200,6 @@ msgid "ID"
 msgstr ""
 
 #. module: l10n_tr_nilvera
-#: model:ir.model.fields,help:l10n_tr_nilvera.field_res_config_settings__l10n_tr_nilvera_vat
-msgid "Identification Number for selected type"
-msgstr ""
-
-#. module: l10n_tr_nilvera
 #: model_terms:ir.ui.view,arch_db:l10n_tr_nilvera.res_config_settings_view_form
 msgid "Incoming Invoices Journal"
 msgstr ""
@@ -704,4 +699,3 @@ msgid ""
 "country format. You can use '/' to indicate that the partner is not subject "
 "to tax."
 msgstr ""
-

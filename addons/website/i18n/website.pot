@@ -9041,16 +9041,6 @@ msgid ""
 msgstr ""
 
 #. module: website
-#: model:ir.model.fields,help:website.field_website_controller_page__active
-#: model:ir.model.fields,help:website.field_website_page__active
-msgid ""
-"If this view is inherited,\n"
-"* if True, the view always extends its parent\n"
-"* if False, the view currently does not extend its parent but can be enabled\n"
-"         "
-msgstr ""
-
-#. module: website
 #. odoo-javascript
 #: code:addons/website/static/src/components/dialog/seo.js:0
 msgid ""
@@ -12042,21 +12032,6 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/website/static/src/xml/website.cookies_bar.xml:0
 msgid "Only allow essential cookies"
-msgstr ""
-
-#. module: website
-#: model:ir.model.fields,help:website.field_website_controller_page__mode
-#: model:ir.model.fields,help:website.field_website_page__mode
-msgid ""
-"Only applies if this view inherits from an other one (inherit_id is not False/Null).\n"
-"\n"
-"* if extension (default), if this view is requested the closest primary view\n"
-"is looked up (via inherit_id), then all views inheriting from it with this\n"
-"view's model are applied\n"
-"* if primary, the closest primary view is fully resolved (even if it uses a\n"
-"different model than this one), then this view's inheritance specs\n"
-"(<xpath/>) are applied, and the result is used as if it were this view's\n"
-"actual arch.\n"
 msgstr ""
 
 #. module: website
@@ -19593,11 +19568,6 @@ msgid "to"
 msgstr ""
 
 #. module: website
-#: model:ir.model.constraint,message:website.constraint_website_controller_page_unique_name_slugified
-msgid "url should be unique"
-msgstr ""
-
-#. module: website
 #. odoo-javascript
 #: code:addons/website/static/src/xml/website_form_editor.xml:0
 #: model:ir.model.fields,field_description:website.field_res_config_settings__website_id
@@ -20800,4 +20770,3 @@ msgstr ""
 #: model:ir.model.constraint,message:website.constraint_website_controller_page_unique_name_slugified
 msgid "url should be unique per website"
 msgstr ""
-

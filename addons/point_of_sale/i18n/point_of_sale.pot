@@ -274,30 +274,6 @@ msgid "99.99"
 msgstr ""
 
 #. module: point_of_sale
-#: model:mail.template,body_html:point_of_sale.email_template_pos_receipt
-msgid ""
-"<div style=\"margin: 0; padding: 0; font-size: 14px;\">\n"
-"                    <t t-set=\"client_name\" t-value=\"object.partner_id.name\"/>\n"
-"                    <t t-set=\"store_name\" t-value=\"object.config_id.name\"/>\n"
-"                    <t t-set=\"tz\" t-value=\"object.env.user.tz\"/>\n"
-"                    <t t-set=\"lg\" t-value=\"object.partner_id.lang or user.lang\"/>\n"
-"                    <div>\n"
-"                        <t t-if=\"client_name\">Hello <t t-out=\"client_name\">Client name</t>,</t>\n"
-"                        <t t-else=\"\">Hello,</t>\n"
-"                    </div>\n"
-"                    <br/>\n"
-"                    <div>Thank you for purchasing from <t t-out=\"store_name\">Store name</t>!</div>\n"
-"                    <div>Attached, you will find your receipt for the purchase of <span><t t-out=\"format_datetime(dt=object.date_order, tz=tz, dt_format=&quot;EEEE d MMMM&quot;,                          lang_code=lg) or ''\">date</t> <t t-out=\"format_time(time=object.date_order, tz=tz, time_format='short',                          lang_code=lg)\">time</t>.</span>\n"
-"                    </div>\n"
-"                    <br/>\n"
-"                    <div>With kind regards,</div>\n"
-"                    <br/>\n"
-"                    <t t-out=\"store_name\">Store name</t>\n"
-"                </div>\n"
-"            "
-msgstr ""
-
-#. module: point_of_sale
 #: model_terms:ir.ui.view,arch_db:point_of_sale.res_config_settings_view_form
 msgid ""
 "<i class=\"fa fa-info-circle me-1\" title=\"This setting is common to all "
@@ -2627,11 +2603,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_order_line__customer_note
 #: model_terms:ir.ui.view,arch_db:point_of_sale.view_pos_pos_form
 msgid "Customer Note"
-msgstr ""
-
-#. module: point_of_sale
-#: model:ir.model.fields,help:point_of_sale.field_pos_order__access_url
-msgid "Customer Portal URL"
 msgstr ""
 
 #. module: point_of_sale
@@ -8270,11 +8241,6 @@ msgid ""
 msgstr ""
 
 #. module: point_of_sale
-#: model:ir.model,name:point_of_sale.model_stock_move
-msgid "Stock Move"
-msgstr ""
-
-#. module: point_of_sale
 #: model:ir.model,name:point_of_sale.model_stock_rule
 msgid "Stock Rule"
 msgstr ""
@@ -9858,18 +9824,6 @@ msgid ""
 msgstr ""
 
 #. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_pos_order__website_message_ids
-#: model:ir.model.fields,field_description:point_of_sale.field_pos_session__website_message_ids
-msgid "Website Messages"
-msgstr ""
-
-#. module: point_of_sale
-#: model:ir.model.fields,help:point_of_sale.field_pos_order__website_message_ids
-#: model:ir.model.fields,help:point_of_sale.field_pos_session__website_message_ids
-msgid "Website communication history"
-msgstr ""
-
-#. module: point_of_sale
 #. odoo-javascript
 #: code:addons/point_of_sale/static/src/customer_display/customer_display.xml:0
 msgid "Weighing Product:"
@@ -10873,4 +10827,3 @@ msgstr ""
 #: code:addons/point_of_sale/static/src/customer_display/customer_display.xml:0
 msgid "x"
 msgstr ""
-

@@ -1553,11 +1553,6 @@ msgid ""
 msgstr ""
 
 #. module: l10n_gr_edi
-#: model:ir.model,name:l10n_gr_edi.model_account_tax
-msgid "ETA tax codes mixin"
-msgstr ""
-
-#. module: l10n_gr_edi
 #: model_terms:ir.ui.view,arch_db:l10n_gr_edi.res_config_settings_form_inherit_l10n_gr_edi
 msgid "Electronic Invoicing - myDATA"
 msgstr ""
@@ -2160,4 +2155,3 @@ msgstr ""
 #: code:addons/l10n_gr_edi/models/exchange_protocol_mydata.py:0
 msgid "myDATA refused the document without saying why."
 msgstr ""
-

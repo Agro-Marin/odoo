@@ -351,11 +351,6 @@ msgid "Employee"
 msgstr ""
 
 #. module: hr_work_entry
-#: model:ir.model,name:hr_work_entry.model_hr_version
-msgid "Employee Contract"
-msgstr ""
-
-#. module: hr_work_entry
 #: model:ir.model.fields,field_description:hr_work_entry.field_hr_work_entry__version_id
 msgid "Employee Record"
 msgstr ""
@@ -1407,4 +1402,3 @@ msgstr ""
 #: code:addons/hr_work_entry/models/hr_work_entry.py:0
 msgid "You can't split a validated work entry."
 msgstr ""
-

@@ -980,11 +980,6 @@ msgid "Icon to indicate an exception activity."
 msgstr ""
 
 #. module: l10n_in
-#: model:ir.model.fields,help:l10n_in.field_res_config_settings__l10n_in_gstin
-msgid "Identification Number for selected type"
-msgstr ""
-
-#. module: l10n_in
 #: model:ir.model.fields,help:l10n_in.field_l10n_in_pan_entity__message_needaction
 msgid "If checked, new messages require your attention."
 msgstr ""
@@ -2478,16 +2473,6 @@ msgid "View Journal Item(s)"
 msgstr ""
 
 #. module: l10n_in
-#: model:ir.model.fields,field_description:l10n_in.field_l10n_in_pan_entity__website_message_ids
-msgid "Website Messages"
-msgstr ""
-
-#. module: l10n_in
-#: model:ir.model.fields,help:l10n_in.field_l10n_in_pan_entity__website_message_ids
-msgid "Website communication history"
-msgstr ""
-
-#. module: l10n_in
 #: model:ir.model,name:l10n_in.model_l10n_in_withhold_wizard
 msgid "Withhold Wizard"
 msgstr ""
@@ -2612,4 +2597,3 @@ msgid ""
 "country format. You can use '/' to indicate that the partner is not subject "
 "to tax."
 msgstr ""
-

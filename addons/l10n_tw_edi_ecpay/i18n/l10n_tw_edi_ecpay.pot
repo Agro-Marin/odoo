@@ -379,11 +379,6 @@ msgid "ECpay e-invoice carrier"
 msgstr ""
 
 #. module: l10n_tw_edi_ecpay
-#: model:ir.model,name:l10n_tw_edi_ecpay.model_account_tax
-msgid "ETA tax codes mixin"
-msgstr ""
-
-#. module: l10n_tw_edi_ecpay
 #: model:ir.model.fields.selection,name:l10n_tw_edi_ecpay.selection__account_move__l10n_tw_edi_carrier_type__4
 msgid "EasyCard"
 msgstr ""
@@ -975,4 +970,3 @@ msgstr ""
 #: model:ir.model,name:l10n_tw_edi_ecpay.model_account_tax
 msgid "Tax"
 msgstr ""
-

@@ -820,11 +820,6 @@ msgid "Sale Price"
 msgstr ""
 
 #. module: delivery
-#: model:ir.model,name:delivery.model_sale_order
-msgid "Sales Order"
-msgstr ""
-
-#. module: delivery
 #: model:ir.model,name:delivery.model_sale_order_line
 msgid "Sales Order Line"
 msgstr ""
@@ -1136,4 +1131,3 @@ msgstr ""
 #: code:addons/delivery/models/sale_order.py:0
 msgid "The pickup location is missing required information: %s"
 msgstr ""
-

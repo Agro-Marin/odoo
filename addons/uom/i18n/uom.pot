@@ -185,11 +185,6 @@ msgid ""
 msgstr ""
 
 #. module: uom
-#: model:ir.model.constraint,message:uom.constraint_uom_uom_factor_gt_zero
-msgid "The conversion ratio for a unit of measure cannot be 0!"
-msgstr ""
-
-#. module: uom
 #. odoo-python
 #: code:addons/uom/models/uom_uom.py:0
 msgid ""
@@ -404,4 +399,3 @@ msgstr ""
 #: model:uom.uom,name:uom.product_uom_meter
 msgid "m"
 msgstr ""
-

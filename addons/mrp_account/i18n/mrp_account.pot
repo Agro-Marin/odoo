@@ -461,11 +461,6 @@ msgid "Show Valuation"
 msgstr ""
 
 #. module: mrp_account
-#: model:ir.model,name:mrp_account.model_stock_move
-msgid "Stock Move"
-msgstr ""
-
-#. module: mrp_account
 #: model:ir.model,name:mrp_account.model_stock_account_stock_valuation_report
 msgid "Stock Valuation"
 msgstr ""
@@ -635,4 +630,3 @@ msgstr ""
 #: model:ir.model,name:mrp_account.model_stock_move
 msgid "Stock Move Ewaybill"
 msgstr ""
-

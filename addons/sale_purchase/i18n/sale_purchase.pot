@@ -189,12 +189,6 @@ msgid "Subcontract Service"
 msgstr ""
 
 #. module: sale_purchase
-#: model:ir.model.fields,field_description:sale_purchase.field_purchase_order__has_sale_order
-msgid ""
-"Technical field for whether the purchase order has associated sale orders"
-msgstr ""
-
-#. module: sale_purchase
 #. odoo-python
 #: code:addons/sale_purchase/models/sale_order_line.py:0
 msgid ""
@@ -280,4 +274,3 @@ msgstr ""
 msgid ""
 "Technical field: whether the purchase order has associated sale orders."
 msgstr ""
-

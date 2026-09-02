@@ -46,11 +46,6 @@ msgid ""
 msgstr ""
 
 #. module: hr
-#: model:ir.actions.report,print_report_name:hr.hr_employee_print_badge
-msgid "'Badge - %s' % (object.name).replace('/', '')"
-msgstr ""
-
-#. module: hr
 #: model_terms:ir.ui.view,arch_db:hr.hr_contract_template_form_view
 msgid "/ month"
 msgstr ""
@@ -4934,22 +4929,6 @@ msgid ""
 msgstr ""
 
 #. module: hr
-#: model:ir.model.fields,field_description:hr.field_hr_department__website_message_ids
-#: model:ir.model.fields,field_description:hr.field_hr_employee__website_message_ids
-#: model:ir.model.fields,field_description:hr.field_hr_job__website_message_ids
-#: model:ir.model.fields,field_description:hr.field_hr_version__website_message_ids
-msgid "Website Messages"
-msgstr ""
-
-#. module: hr
-#: model:ir.model.fields,help:hr.field_hr_department__website_message_ids
-#: model:ir.model.fields,help:hr.field_hr_employee__website_message_ids
-#: model:ir.model.fields,help:hr.field_hr_job__website_message_ids
-#: model:ir.model.fields,help:hr.field_hr_version__website_message_ids
-msgid "Website communication history"
-msgstr ""
-
-#. module: hr
 #: model_terms:hr.job,website_description:hr.job_consultant
 #: model_terms:hr.job,website_description:hr.job_developer
 #: model_terms:hr.job,website_description:hr.job_hrm
@@ -5569,4 +5548,3 @@ msgstr ""
 #: model:ir.model,name:hr.model_mixin_hr
 msgid "mixin.hr"
 msgstr ""
-

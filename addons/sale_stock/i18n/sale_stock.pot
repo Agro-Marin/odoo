@@ -614,7 +614,6 @@ msgid "Sales Analysis Report"
 msgstr ""
 
 #. module: sale_stock
-#: model:ir.model,name:sale_stock.model_sale_order
 #: model:ir.model.fields,field_description:sale_stock.field_stock_picking__sale_id
 msgid "Sales Order"
 msgstr ""
@@ -689,11 +688,6 @@ msgstr ""
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__delivery_status__started
 #: model_terms:ir.ui.view,arch_db:sale_stock.portal_my_orders
 msgid "Started"
-msgstr ""
-
-#. module: sale_stock
-#: model:ir.model,name:sale_stock.model_stock_move
-msgid "Stock Move"
 msgstr ""
 
 #. module: sale_stock
@@ -1276,4 +1270,3 @@ msgstr ""
 #: code:addons/sale_stock/report/sale_delivery_line_match.py:0
 msgid "You must select at least one delivery move to match."
 msgstr ""
-

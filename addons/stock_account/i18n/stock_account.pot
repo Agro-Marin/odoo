@@ -868,9 +868,6 @@ msgid "Stock Journal"
 msgstr ""
 
 #. module: stock_account
-#: model:ir.model,name:stock_account.model_stock_move
-#: model:ir.model.fields,field_description:stock_account.field_account_bank_statement_line__stock_move_ids
-#: model:ir.model.fields,field_description:stock_account.field_account_move__stock_move_ids
 #: model:ir.model.fields.selection,name:stock_account.selection__stock_avco_report__res_model_name__stock_move
 msgid "Stock Move"
 msgstr ""
@@ -1125,11 +1122,6 @@ msgid ""
 msgstr ""
 
 #. module: stock_account
-#: model:ir.model.fields,field_description:stock_account.field_stock_move__account_move_id
-msgid "stock_move_id"
-msgstr ""
-
-#. module: stock_account
 #: model_terms:ir.ui.view,arch_db:stock_account.stock_account_report_invoice_document
 msgid "units"
 msgstr ""
@@ -1256,4 +1248,3 @@ msgid ""
 "You cannot enable lot valuation because the following products have on-hand quantities without a lot/serial number:\n"
 "%s"
 msgstr ""
-

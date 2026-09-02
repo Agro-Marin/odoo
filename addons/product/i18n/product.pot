@@ -544,12 +544,6 @@ msgid "Add to products"
 msgstr ""
 
 #. module: product
-#: model:ir.model.fields,help:product.field_product_product__uom_ids
-#: model:ir.model.fields,help:product.field_product_template__uom_ids
-msgid "Additional packagings for this product which can be used for sales"
-msgstr ""
-
-#. module: product
 #: model:product.attribute.value,name:product.pav_brand_adidas
 msgid "Adidas"
 msgstr ""
@@ -1548,7 +1542,6 @@ msgstr ""
 
 #. module: product
 #: model:ir.model.fields,help:product.field_product_pricelist_item__name
-#: model:ir.model.fields,help:product.field_product_pricelist_item__price
 msgid "Explicit rule name for this pricelist line."
 msgstr ""
 
@@ -3013,11 +3006,6 @@ msgid "Product Label 4x7 (PDF)"
 msgstr ""
 
 #. module: product
-#: model:ir.model,name:product.model_report_product_report_producttemplatelabel_dymo
-msgid "Product Label Report"
-msgstr ""
-
-#. module: product
 #: model:ir.model,name:product.model_report_product_report_producttemplatelabel2x7
 msgid "Product Label Report 2x7"
 msgstr ""
@@ -3413,11 +3401,6 @@ msgid "Sales Prices"
 msgstr ""
 
 #. module: product
-#: model:ir.model.fields,field_description:product.field_product_product__lst_price
-msgid "Sales Price"
-msgstr ""
-
-#. module: product
 #: model:product.attribute.value,name:product.pav_brand_samsung
 msgid "Samsung"
 msgstr ""
@@ -3703,13 +3686,6 @@ msgid ""
 "to prorate the price of this combo with respect to the other combos in a "
 "combo product. This heuristic ensures that whatever product the user chooses"
 " in a combo, it will always be the same price."
-msgstr ""
-
-#. module: product
-#: model:ir.model.fields,help:product.field_product_category__product_count
-msgid ""
-"The number of products under this category (Does not consider the children "
-"categories)"
 msgstr ""
 
 #. module: product
@@ -5204,4 +5180,3 @@ msgstr ""
 #: code:addons/product/wizard/product_merge.py:0
 msgid "You have to specify a filter for your selection."
 msgstr ""
-
