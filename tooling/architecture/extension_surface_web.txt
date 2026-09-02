@@ -5,15 +5,20 @@
 ActionManager.doAction  odoo  :triage
 ActionMenus.getActionItems  odoo  :triage
 AutoComplete.autoCompleteRootClass  odoo  :triage
+AutoComplete.cancel  odoo  :triage
 AutoComplete.dropdownOptions  odoo  :triage
+AutoComplete.loadOptions  odoo  :triage
+AutoComplete.makeOption  odoo  :triage
 AutoComplete.onInput  odoo  :keep
 AutoComplete.onInputFocus  odoo  :triage
+AutoComplete.selectOption  odoo  :triage
 AutoComplete.setup  odoo  :keep
 AutoComplete.targetDropdown  odoo  :triage
 BadgeField.badgeClass  enterprise  :triage
 BinaryField.onFileDownload  odoo  :triage
 BinaryField.setup  odoo enterprise  :keep
 BinaryField.update  enterprise  :triage
+BooleanFavoriteField.update  odoo  :triage
 BooleanField.onChange  odoo enterprise  :keep
 BooleanField.setup  odoo enterprise  :keep
 BurgerMenu.setup  odoo enterprise  :keep
@@ -382,12 +387,12 @@ RelationalModel.DynamicGroupList  odoo  :triage
 RelationalModel.DynamicRecordList  odoo  :triage
 RelationalModel.Record  odoo enterprise  :keep
 RelationalModel._loadData  odoo  :promote
-RelationalModel._updateSimilarRecords  odoo  :promote
 RelationalModel.hasData  enterprise  :triage
 RelationalModel.load  odoo enterprise agromarin  :keep
 RelationalModel.loadGroupedList  odoo  :triage
 RelationalModel.services  odoo agromarin  :keep
 RelationalModel.setup  odoo enterprise agromarin  :keep
+RelationalModel.updateSimilarRecords  odoo  :keep
 RelationalModel.webReadGroup  odoo  :keep
 RelationalModel.withCache  odoo enterprise  :keep
 RelationalRecord.setup  odoo  :keep
@@ -477,5 +482,6 @@ X2ManyField.getFormActionContext  odoo  :triage
 X2ManyField.isMany2Many  odoo  :keep
 X2ManyField.onAdd  odoo enterprise  :keep
 X2ManyField.openRecord  enterprise  :keep
+X2ManyField.openRecord  odoo  :triage
 X2ManyField.rendererProps  odoo enterprise  :keep
 X2ManyField.setup  odoo enterprise  :keep
