@@ -212,6 +212,21 @@ function generateMentionElement({ className, id, model, text }) {
 }
 
 /**
+ * The text a partner is mentioned by: the name they carry in this thread, their
+ * display name, or -- for a contact imported with an email and nothing else --
+ * the email itself. Single source of truth: the suggestion list, the mention
+ * link and the validation that keeps a mention alive must all agree on it, or a
+ * partner is offered under one label and mentioned under another.
+ *
+ * @param {import("models").ResPartner} partner
+ * @param {import("models").Thread} [thread]
+ * @returns {string}
+ */
+export function partnerMentionLabel(partner, thread) {
+    return thread?.getPersonaName?.(partner) || partner.displayName || partner.email;
+}
+
+/**
  * @param {import("models").ResPartner} partner
  * @param {import("models").Thread} thread
  */
@@ -220,7 +235,7 @@ export function generatePartnerMentionElement(partner, thread) {
         className: "o_mail_redirect",
         id: partner.id,
         model: "res.partner",
-        text: `@${thread?.getPersonaName(partner) ?? partner.name}`,
+        text: `@${partnerMentionLabel(partner, thread)}`,
     });
 }
 
@@ -274,7 +289,7 @@ function generateMentionsLinks(
     const mentions = [];
     for (const partner of partners) {
         mentions.push({
-            text: `@${thread?.getPersonaName(partner) ?? partner.name}`,
+            text: `@${partnerMentionLabel(partner, thread)}`,
             placeholder: `@-mention-partner-${partner.id}`,
             link: generatePartnerMentionElement(partner, thread),
         });

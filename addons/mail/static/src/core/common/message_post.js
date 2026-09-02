@@ -1,5 +1,8 @@
 /** @odoo-module native */
-import { generateEmojisOnHtml } from "@mail/utils/common/format";
+import {
+    generateEmojisOnHtml,
+    partnerMentionLabel,
+} from "@mail/utils/common/format";
 import { createDocumentFragmentFromContent, isMarkup } from "@web/core/utils/dom/html";
 import { renderToElement } from "@web/core/utils/render";
 
@@ -85,11 +88,10 @@ export function getMentionsFromText(
             : `#${thread.displayName}`;
         return segments.some((segment) => segment.includes(mention));
     });
-    validMentions.partners = mentionedPartners.filter((partner) =>
-        segments.some((segment) =>
-            segment.includes(`@${thread?.getPersonaName?.(partner) ?? partner.name}`),
-        ),
-    );
+    validMentions.partners = mentionedPartners.filter((partner) => {
+        const label = partnerMentionLabel(partner, thread);
+        return label && segments.some((segment) => segment.includes(`@${label}`));
+    });
     validMentions.roles = mentionedRoles.filter((role) =>
         segments.some((segment) => segment.includes(`@${role.name}`)),
     );

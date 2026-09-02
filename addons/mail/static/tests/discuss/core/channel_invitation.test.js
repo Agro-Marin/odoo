@@ -270,3 +270,32 @@ test("Active dialog retains focus over invite input", async () => {
     await contains(".o-discuss-ChannelInvitation");
     await contains("button:focus", { text: "Use Camera" });
 });
+
+test("a partner with no name is offered last, not first", async () => {
+    const pyEnv = await startServer();
+    const namelessPartnerId = pyEnv["res.partner"].create({
+        email: "aaa.nameless@odoo.com",
+        name: "",
+    });
+    pyEnv["res.users"].create({ partner_id: namelessPartnerId });
+    const namedPartnerId = pyEnv["res.partner"].create({
+        email: "zzz.named@odoo.com",
+        name: "Zoe Named",
+    });
+    pyEnv["res.users"].create({ partner_id: namedPartnerId });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "TestChannel",
+        channel_member_ids: [Command.create({ partner_id: serverState.partnerId })],
+        channel_type: "channel",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await click(".o-mail-DiscussContent-header button[title='Invite People']");
+    await contains(".o-discuss-ChannelInvitation-selectable", {
+        text: "Zoe Named",
+        before: [
+            ".o-discuss-ChannelInvitation-selectable",
+            { text: "aaa.nameless@odoo.com" },
+        ],
+    });
+});

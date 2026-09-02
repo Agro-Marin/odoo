@@ -1325,3 +1325,76 @@ class TestChannelInternals(MailCommon, HttpCase):
             self.env.user.partner_id.id,
         ]
         self.assertCountEqual(actual_member_ids, expected_member_ids)
+
+    @mute_logger("odoo.models.unlink")
+    def test_the_general_channel_deletes_like_any_other(self):
+        general = self.env.ref("mail.channel_all_employees")
+        general.unlink()
+        self.assertFalse(general.exists())
+
+    @mute_logger("odoo.models.unlink")
+    def test_the_publisher_warranty_cron_survives_a_deleted_general_channel(self):
+        """The guard in `update.py` is what makes the deletion safe: the cron
+        looks the channel up by xmlid and must tolerate its absence."""
+        self.env.ref("mail.channel_all_employees").unlink()
+        contract = self.env["publisher_warranty.contract"]
+        with patch.object(
+            type(contract),
+            "_get_sys_logs",
+            lambda self: {"messages": ["a message from the publisher"]},
+        ):
+            self.assertTrue(contract.update_notification(cron_mode=True))
+
+    @mute_logger("odoo.models.unlink")
+    def test_the_here_mention_only_reaches_members_who_are_online(self):
+        self.test_channel._add_members(
+            users=self.user_employee | self.user_employee_nomail
+        )
+        # `im_status` is a non-stored compute with no inverse here, so presence
+        # has to be created rather than written.
+        self.env["mail.presence"]._update_presence(self.user_employee)
+        self.assertEqual(self.user_employee.im_status, "online")
+        self.assertEqual(self.user_employee_nomail.im_status, "offline")
+        with self.mock_mail_gateway():
+            new_msg = self.test_channel.message_post(
+                body="Test",
+                special_mentions=["here"],
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        self.assertEqual(new_msg.partner_ids, self.partner_employee)
+
+    @mute_logger("odoo.models.unlink")
+    def test_the_everyone_mention_still_reaches_offline_members(self):
+        """The `here` filter must not narrow `everyone`."""
+        self.test_channel._add_members(
+            users=self.user_employee | self.user_employee_nomail
+        )
+        with self.mock_mail_gateway():
+            new_msg = self.test_channel.message_post(
+                body="Test",
+                special_mentions=["everyone"],
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        self.assertEqual(
+            new_msg.partner_ids, self.test_channel.channel_member_ids.partner_id
+        )
+
+    @mute_logger("odoo.models.unlink")
+    def test_an_invitation_to_a_channel_reaches_the_invitee_as_a_push(self):
+        """The toast only exists while the invitee is looking at the tab."""
+        self._setup_push_devices_for_partners(self.partner_employee)
+        with self.mock_push_to_end_point():
+            self.test_channel._add_members(users=self.user_employee)
+            self.assertPushNotification(
+                title=self.test_channel.display_name,
+                body_content="has invited you to this channel",
+            )
+
+    @mute_logger("odoo.models.unlink")
+    def test_a_member_who_adds_themselves_gets_no_push(self):
+        self._setup_push_devices_for_partners(self.env.user.partner_id)
+        with self.mock_push_to_end_point():
+            self.test_channel._add_members(users=self.env.user)
+            self.assertNoPushNotification()

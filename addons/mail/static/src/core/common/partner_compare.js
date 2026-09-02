@@ -82,11 +82,25 @@ partnerCompareRegistry.add(
      * @param {import("models").ResPartner} p2
      * @param {Object} context
      * @param {*} context.searchTerm
+     * @param {*} [context.thread]
      * @returns {number|undefined}
      */
-    (p1, p2, { searchTerm }) => {
-        const cleanedName1 = cleanTerm(p1.name);
-        const cleanedName2 = cleanTerm(p2.name);
+    (p1, p2, { searchTerm, thread }) => {
+        const name1 = thread?.getPersonaName(p1) || p1.displayName;
+        const name2 = thread?.getPersonaName(p2) || p2.displayName;
+        // neither has a name to compare: leave the decision to the next rule
+        if (!name1 && !name2) {
+            return undefined;
+        }
+        // a partner with a name comes before one without
+        if (name1 && !name2) {
+            return -1;
+        }
+        if (!name1 && name2) {
+            return 1;
+        }
+        const cleanedName1 = cleanTerm(name1);
+        const cleanedName2 = cleanTerm(name2);
         if (
             cleanedName1.startsWith(searchTerm) &&
             !cleanedName2.startsWith(searchTerm)
@@ -99,12 +113,7 @@ partnerCompareRegistry.add(
         ) {
             return 1;
         }
-        if (cleanedName1 < cleanedName2) {
-            return -1;
-        }
-        if (cleanedName1 > cleanedName2) {
-            return 1;
-        }
+        return name1.localeCompare(name2) || undefined;
     },
     { sequence: 50 },
 );
@@ -119,6 +128,17 @@ partnerCompareRegistry.add(
      * @returns {number|undefined}
      */
     (p1, p2, { searchTerm }) => {
+        // neither has an email to compare: leave the decision to the next rule
+        if (!p1.email && !p2.email) {
+            return undefined;
+        }
+        // a partner with an email comes before one without
+        if (p1.email && !p2.email) {
+            return -1;
+        }
+        if (!p1.email && p2.email) {
+            return 1;
+        }
         const cleanedEmail1 = cleanTerm(p1.email);
         const cleanedEmail2 = cleanTerm(p2.email);
         if (
@@ -133,12 +153,7 @@ partnerCompareRegistry.add(
         ) {
             return 1;
         }
-        if (cleanedEmail1 < cleanedEmail2) {
-            return -1;
-        }
-        if (cleanedEmail1 > cleanedEmail2) {
-            return 1;
-        }
+        return p1.email.localeCompare(p2.email) || undefined;
     },
     { sequence: 55 },
 );

@@ -95,8 +95,10 @@ class Publisher_WarrantyContract(AbstractModel):
                     _("Error during communication with the publisher warranty server.")
                 ) from None
             user = self.env["res.users"].sudo().browse(SUPERUSER_ID)
-            poster = self.sudo().env.ref("mail.channel_all_employees")
-            for message in result["messages"]:
+            poster = self.sudo().env.ref(
+                "mail.channel_all_employees", raise_if_not_found=False
+            )
+            for message in result["messages"] if poster else []:
                 with contextlib.suppress(Exception):
                     poster.message_post(
                         body=message,

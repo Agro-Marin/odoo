@@ -1486,3 +1486,24 @@ test("keyboard selection in suggestion list survives an unrelated re-render", as
     await animationFrame();
     await contains(".o-mail-NavigableList-active", { text: "TestPartner2" });
 });
+
+test("[text composer] a partner with an email and no name can be mentioned", async () => {
+    const pyEnv = await startServer();
+    const email = "nameless@test.example.com";
+    const partnerId = pyEnv["res.partner"].create({ email, name: "" });
+    pyEnv["res.users"].create({ partner_id: partnerId });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "general",
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: partnerId }),
+        ],
+    });
+    await start();
+    await openDiscuss(channelId);
+    await insertText(".o-mail-Composer-input", "@nameless");
+    await click(`.o-mail-Composer-suggestion:contains(${email})`);
+    await contains(".o-mail-Composer-input", { value: `@${email} ` });
+    await click(".o-mail-Composer [title='Send']");
+    await contains(".o-mail-Message .o_mail_redirect", { text: `@${email}` });
+});

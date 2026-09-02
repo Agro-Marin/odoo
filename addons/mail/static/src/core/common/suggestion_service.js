@@ -279,11 +279,11 @@ export class SuggestionService {
         const partners = this.getPartnerSuggestions(thread);
         const suggestions = [];
         for (const partner of partners) {
-            if (!partner.name) {
-                continue;
-            }
+            // a partner imported from an address book may carry an email and no
+            // name at all; matching on the email is the only way to reach them
+            const name = thread?.getPersonaName(partner) || partner.displayName;
             if (
-                cleanTerm(partner.name).includes(cleanedSearchTerm) ||
+                (name && cleanTerm(name).includes(cleanedSearchTerm)) ||
                 (partner.email && cleanTerm(partner.email).includes(cleanedSearchTerm))
             ) {
                 suggestions.push(partner);

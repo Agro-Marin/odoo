@@ -1448,7 +1448,40 @@ export class Rtc extends Record {
                 },
             ),
         );
+        this._registerAutoPipHandler();
         this.channel?.focusAvailableVideo();
+    }
+
+    /**
+     * Let the browser move the call into picture-in-picture on its own when the
+     * tab stops being visible, so switching tab mid-call no longer makes the
+     * call disappear. Only "contentoccluded" is acted on: the same handler is
+     * what the browser calls when the user asks for PIP from its own UI, and
+     * that path already goes through our own button.
+     *
+     * `setActionHandler` throws for an action the browser does not know, and
+     * "enterpictureinpicture" is not universal; failing to register it just
+     * leaves the previous behaviour in place.
+     */
+    _registerAutoPipHandler() {
+        try {
+            browser.navigator.mediaSession.setActionHandler(
+                "enterpictureinpicture",
+                ({ enterPictureInPictureReason }) => {
+                    if (enterPictureInPictureReason === "contentoccluded") {
+                        this.openPip({ context: { root: { el: this.rootEl } } });
+                    }
+                },
+            );
+        } catch {
+            return;
+        }
+        this.cleanups.push(() =>
+            browser.navigator.mediaSession.setActionHandler(
+                "enterpictureinpicture",
+                null,
+            ),
+        );
     }
 
     newLogs() {

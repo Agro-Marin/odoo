@@ -522,6 +522,9 @@ class MixinMailActivity(models.AbstractModel):
     def action_reschedule_my_next_nextweek(self) -> None:
         self._my_next_activities().action_reschedule_nextweek()
 
+    def action_reschedule_my_next_customdate(self, date_deadline: str | date) -> None:
+        self._my_next_activities().action_reschedule_customdate(date_deadline)
+
     def _activity_type_from_xmlid(self, xmlid: str) -> MailActivityType:
         ModelData = self.env["ir.model.data"].sudo()
         model, res_id = ModelData._xmlid_to_res_model_res_id(xmlid)
