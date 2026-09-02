@@ -8,8 +8,7 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { describe, expect, test } from "@odoo/hoot";
-import { Deferred } from "@odoo/hoot-mock";
+import { describe, test } from "@odoo/hoot";
 import {
     asyncStep,
     mockService,
@@ -61,26 +60,24 @@ test("base rendering editable", async () => {
     await contains("[title='Remove this follower']");
 });
 
-test("click on partner follower details", async () => {
+test("click on partner follower details opens their avatar card", async () => {
     const pyEnv = await startServer();
-    const [threadId, partnerId] = pyEnv["res.partner"].create([{}, {}]);
+    const [threadId, partnerId] = pyEnv["res.partner"].create([
+        {},
+        { name: "Follower Partner" },
+    ]);
     pyEnv["mail.followers"].create({
         is_active: true,
         partner_id: partnerId,
         res_id: threadId,
         res_model: "res.partner",
     });
-    const openFormDef = new Deferred();
     mockService("action", {
         doAction(action) {
-            if (action?.res_id !== partnerId) {
-                return super.doAction(...arguments);
+            if (action?.res_id === partnerId) {
+                asyncStep("do_action");
             }
-            asyncStep("do_action");
-            expect(action.res_id).toBe(partnerId);
-            expect(action.res_model).toBe("res.partner");
-            expect(action.type).toBe("ir.actions.act_window");
-            openFormDef.resolve();
+            return super.doAction(...arguments);
         },
     });
     await start();
@@ -89,8 +86,11 @@ test("click on partner follower details", async () => {
     await contains(".o-mail-Follower");
     await contains(".o-mail-Follower-details");
     await click(".o-mail-Follower-details:first");
-    await openFormDef;
-    await waitForSteps(["do_action"]);
+    // the card is shown next to the follower list, which stays open: reading
+    // a name and an email no longer costs leaving the record
+    await contains(".o_avatar_card:contains('Follower Partner')");
+    await contains(".o-mail-Follower");
+    await waitForSteps([]);
 });
 
 test("click on edit follower", async () => {
