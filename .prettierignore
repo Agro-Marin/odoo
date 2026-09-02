@@ -64,8 +64,6 @@ addons/web/static/src/components/emoji_picker/emoji_data.js
 # Legacy code (only top-level adapters are linted)
 addons/web/static/src/legacy/**
 !addons/web/static/src/legacy/*.js
-web_enterprise/static/src/legacy/**
-!web_enterprise/static/src/legacy/*.js
 web_studio/static/src/legacy/**
 !web_studio/static/src/legacy/*.js
 web_cohort/static/src/legacy/**
@@ -75,7 +73,6 @@ addons/base_import/static/src/legacy/**
 
 # Legacy tests
 addons/web/static/tests/**/legacy/*
-web_enterprise/static/tests/**/legacy/*
 web_studio/static/tests/**/legacy/*
 web_cohort/static/tests/legacy/**
 web_gantt/static/tests/legacy/**
