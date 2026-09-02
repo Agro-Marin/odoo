@@ -547,7 +547,6 @@ class MailMail(models.Model):
         self._notify_notification_status_change(failed | was_failing)
 
     def _record_unreached_notifications(self, unreached: MailNotification) -> None:
-        self.check_singleton()
         by_address = unreached.filtered(lambda notif: not notif.res_partner_id)
         if by_address:
             by_address.sudo().write(

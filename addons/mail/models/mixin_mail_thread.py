@@ -2634,20 +2634,8 @@ class MixinMailThread(models.AbstractModel):
     ) -> frozenset[int]:
         if not partner_ids:
             return frozenset()
-        return frozenset(
-            pid
-            for [pid] in self.env.execute_query(
-                SQL(
-                    """
-                    SELECT res_partner_id
-                      FROM mail_message_res_partner_starred_rel
-                     WHERE mail_message_id = %s AND res_partner_id = ANY(%s)
-                    """,
-                    message.id,
-                    list(partner_ids),
-                    to_flush=_to_flush(self.env["mail.message"], "starred_partner_ids"),
-                )
-            )
+        return frozenset(message.sudo().starred_partner_ids.ids) & frozenset(
+            partner_ids
         )
 
     def _notify_thread_by_email(

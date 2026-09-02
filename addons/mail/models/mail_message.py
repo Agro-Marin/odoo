@@ -383,19 +383,24 @@ class MailMessage(models.Model):
     @api.depends("starred_partner_ids")
     @api.depends_context("uid")
     def _compute_starred(self) -> None:
-        self.env["mail.message"].flush_model(["starred_partner_ids"])
-        rows = self.env.execute_query(
-            SQL(
-                """ SELECT mail_message_id
-                    FROM mail_message_res_partner_starred_rel
-                    WHERE mail_message_id = ANY(%s) AND res_partner_id = %s """,
-                self.ids,
-                self.env.user.partner_id.id,
+        partner = self.env.user.partner_id
+        field = self._fields["starred_partner_ids"]
+        cached = self.filtered(lambda message: self.env.cache.contains(message, field))
+        for message in cached:
+            message.starred = partner in message.sudo().starred_partner_ids
+        if uncached := self - cached:
+            rows = self.env.execute_query(
+                SQL(
+                    """ SELECT mail_message_id
+                        FROM mail_message_res_partner_starred_rel
+                        WHERE mail_message_id = ANY(%s) AND res_partner_id = %s """,
+                    uncached.ids,
+                    partner.id,
+                )
             )
-        )
-        starred_ids = {mid for [mid] in rows}
-        for message in self:
-            message.starred = message.id in starred_ids
+            starred_ids = {mid for [mid] in rows}
+            for message in uncached:
+                message.starred = message.id in starred_ids
 
     @api.model
     def _search_starred(self, operator: str, operand: Any) -> list | NotImplementedType:
@@ -440,6 +445,11 @@ class MailMessage(models.Model):
                 return message
         elif message.sudo(False).has_access(mode):
             return message
+
+        if not self.env.user._is_internal() and message.sudo(
+            False
+        )._get_forbidden_internal(mode):
+            return self.browse()
 
         if message.res_id and message._is_thread_model():
             thread_su = self.env[message.model].browse(message.res_id).sudo()
@@ -736,6 +746,8 @@ class MailMessage(models.Model):
             raise AccessError(
                 _("Only administrators can modify 'model' and 'res_id' fields.")
             )
+        if vals.get("parent_id") and not self.env.is_system():
+            self._check_parent_on_same_document(vals["parent_id"])
         if record_changed or "message_type" in vals:
             self._invalidate_documents()
         res = super().write(vals)
@@ -744,6 +756,14 @@ class MailMessage(models.Model):
         if "notification_ids" in vals or record_changed:
             self._invalidate_documents()
         return res
+
+    def _check_parent_on_same_document(self, parent_id: int) -> None:
+        parent = self.sudo().browse(parent_id)
+        for message in self.sudo():
+            if (parent.model, parent.res_id) != (message.model, message.res_id):
+                raise AccessError(
+                    _("A message can only reply to a message of the same document.")
+                )
 
     def unlink(self) -> Literal[True]:
         if not self:
@@ -986,8 +1006,22 @@ class MailMessage(models.Model):
             message_type = self.message_type
         return message_type != "user_notification"
 
+    _NOTIFICATION_STATE_FIELD_NAMES = (
+        "message_needaction",
+        "message_needaction_counter",
+        "message_has_error",
+        "message_has_error_counter",
+    )
+
+    def _invalidate_notification_state(self) -> None:
+        for model_name in set(self.mapped("model")):
+            if self._is_thread_model_name(model_name):
+                self.env[model_name].invalidate_model(
+                    self._NOTIFICATION_STATE_FIELD_NAMES
+                )
+
     def _invalidate_documents(self) -> None:
-        fnames = ["message_ids", "message_needaction", "message_needaction_counter"]
+        fnames = ["message_ids", *self._NOTIFICATION_STATE_FIELD_NAMES]
         self.flush_recordset(["model", "res_id"])
         ids_by_model = defaultdict(OrderedSet)
         for record in self:

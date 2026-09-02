@@ -9,6 +9,7 @@ from odoo.tests import HttpCase, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
+from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.test_mail.models.mail_test_access import MailTestAccess
 from odoo.addons.test_mail.models.test_mail_models import MailTestSimple
 
@@ -1405,3 +1406,93 @@ class TestMessageSubModelAccess(MessageAccessCommon):
             msg="Portal cannot read notifications unless they are the recipient or the author",
         ):
             notifications.read(["is_read"])
+
+
+@tagged("mail_message", "security", "post_install", "-at_install")
+class TestMailMessageAccessBoundaries(MessageAccessCommon):
+    """The rule's neighbours: what surrounds the forward/backward spellings."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.channel = cls.env["discuss.channel"].create(
+            {
+                "name": "Boundaries",
+                "channel_type": "channel",
+                "channel_partner_ids": [(4, cls.user_employee.partner_id.id)],
+            }
+        )
+        cls.private_note = cls.record_admin.message_post(
+            body="private note", subtype_xmlid="mail.mt_note", message_type="comment"
+        )
+
+    def _as_guest(self, guest):
+        public_user = self.env.ref("base.public_user")
+        return self.env(user=public_user.id, context={"guest": guest})
+
+    def test_the_public_user_is_not_the_owner_of_what_visitors_post_through_it(self):
+        author, other = self.env["mail.guest"].create([{"name": "A"}, {"name": "B"}])
+        message = (
+            self.channel.with_env(self._as_guest(author))
+            .sudo()
+            .message_post(
+                body="from a visitor",
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+                author_id=False,
+                author_guest_id=author.id,
+            )
+        )
+        self.assertEqual(message.create_uid, self.env.ref("base.public_user"))
+        for env in (
+            self._as_guest(other),
+            self.env(user=self.env.ref("base.public_user").id),
+        ):
+            with self.subTest(guest=env.context.get("guest")):
+                as_stranger = env["mail.message"].browse(message.id)
+                self.assertFalse(as_stranger.has_access("read"))
+                self.assertFalse(env["mail.message"].search([("id", "=", message.id)]))
+
+    def test_an_internal_message_stays_forbidden_through_the_document_fallback(self):
+        note = self.record_portal.message_post(
+            body="internal", subtype_xmlid="mail.mt_note", message_type="comment"
+        )
+        comment = self.record_portal.message_post(
+            body="public", subtype_xmlid="mail.mt_comment", message_type="comment"
+        )
+        Message = self.env["mail.message"].with_user(self.user_portal)
+        self.assertTrue(Message.browse(comment.id).has_access("read"))
+        self.assertEqual(Message._get_with_access(comment.id, mode="read"), comment)
+        self.assertFalse(Message.browse(note.id).has_access("read"))
+        self.assertFalse(
+            Message._get_with_access(note.id, mode="read"),
+            "the document is readable, the note is still internal",
+        )
+
+    def test_a_reply_cannot_be_moved_onto_another_document(self):
+        message = self.channel.with_user(self.user_employee).message_post(
+            body="mine", message_type="comment", subtype_xmlid="mail.mt_comment"
+        )
+        as_author = message.with_user(self.user_employee)
+        self.assertFalse(
+            self.private_note.with_user(self.user_employee).has_access("read")
+        )
+        with self.assertRaises(AccessError):
+            as_author.write({"parent_id": self.private_note.id})
+        sibling = self.channel.message_post(
+            body="sibling", message_type="comment", subtype_xmlid="mail.mt_comment"
+        )
+        as_author.write({"parent_id": sibling.id})
+        self.assertEqual(message.parent_id, sibling)
+
+    def test_the_store_does_not_serialise_a_parent_from_another_document(self):
+        message = self.channel.with_user(self.user_employee).message_post(
+            body="mine", message_type="comment", subtype_xmlid="mail.mt_comment"
+        )
+        message.sudo().write({"parent_id": self.private_note.id})
+        result = Store().add(message.with_user(self.user_employee)).get_result()
+        self.assertEqual(
+            [row["id"] for row in result["mail.message"]],
+            [message.id],
+            "a parent on another document is not part of the reply's payload",
+        )

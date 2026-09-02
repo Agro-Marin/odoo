@@ -116,6 +116,7 @@ class MailMessage(models.Model):
     def _get_search_allowed_ids(self, rows: list[tuple], pid: int) -> set[int]:
         direct_allowed = set()
         model_ids = defaultdict(lambda: defaultdict(set))
+        creator_uid = self._get_creator_uid_for_access()
         for (
             id_,
             model,
@@ -125,7 +126,7 @@ class MailMessage(models.Model):
             create_uid,
             partner_id,
         ) in rows:
-            if pid in (author_id, partner_id) or create_uid == self.env.uid:
+            if pid in (author_id, partner_id) or create_uid == creator_uid:
                 direct_allowed.add(id_)
             elif model and res_id and message_type != "user_notification":
                 model_ids[model][res_id].add(id_)
@@ -285,13 +286,17 @@ class MailMessage(models.Model):
 
         return {values["id"]: values for values in self.env.execute_query_dict(query)}
 
+    def _get_creator_uid_for_access(self) -> int | None:
+        return None if self.env.user._is_public() else self.env.uid
+
     def _discard_own_messages(self, remaining: dict, operation: str) -> None:
         partner_id = self.env.user.partner_id.id
+        creator_uid = self._get_creator_uid_for_access()
         for mid, message in list(remaining.items()):
             if operation == "read":
                 accessible = (
                     message.get("author_id") == partner_id
-                    or message.get("create_uid") == self.env.uid
+                    or message.get("create_uid") == creator_uid
                 )
             elif operation == "write":
                 accessible = message.get("author_id") == partner_id
