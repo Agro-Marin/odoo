@@ -4,7 +4,7 @@
 import { useEffect } from "@odoo/owl";
 import { useActiveElementScope } from "@web/core/utils/active_element_scope";
 import { useService } from "@web/core/utils/hooks";
-/** @import { CommandOptions } from "./command_service.js" */
+/** @import { CommandOptions } from "@web/ui/commands/command_service" */
 
 /**
  * @param {string} name
