@@ -1292,18 +1292,13 @@ class StockLocation(models.Model):
         )
         if not location:
             return view_location_ids
-        parent_paths = [
-            path
-            for path in self.browse(view_location_ids).mapped("parent_path")
-            if path
-        ]
+        views = set(view_location_ids)
         return {
             candidate.id
             for candidate in self.browse(
                 get_context_record_ids(self.env, "stock.location", location),
             )
-            if candidate.parent_path
-            and any(candidate.parent_path.startswith(path) for path in parent_paths)
+            if views & set(candidate._ancestor_ids(include_self=True))
         }
 
     def _get_domains_move_destination(self, leaf) -> tuple[Domain, Domain]:

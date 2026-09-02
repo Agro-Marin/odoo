@@ -994,7 +994,7 @@ class DocumentsDocument(models.Model):
                 if owner_id_in_default:
                     children_default.update(owner_id=default["owner_id"])
 
-                if new_folder.parent_path.startswith(old_folder.parent_path):
+                if new_folder._is_descendant_of(old_folder):
                     raise UserError(
                         _(
                             "You cannot copy a folder into itself or into one of its own descendants."

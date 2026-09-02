@@ -450,19 +450,20 @@ class TraversalMixin(_ModelStubs):
 
     def _ancestor_ids(self, include_self: bool = False) -> OrderedSet[int]:
         result: OrderedSet[int] = OrderedSet()
-        unresolved = self.browse()
+        unresolved: list[BaseModel] = []
         has_path = "parent_path" in self._fields
         for record in self:
+            rec = typing.cast("BaseModel", record)
             # A record that exists only in cache -- what an onchange builds --
             # carries no parent_path, so its chain has to be walked instead.
-            path = record.parent_path if has_path else None
+            path = rec["parent_path"] if has_path else None
             if path:
                 ids = [int(label) for label in path.split("/") if label]
                 result.update(ids if include_self else ids[:-1])
             else:
-                unresolved |= record
-        for record in unresolved:
-            result.update(record._ancestor_ids_by_walking(include_self))
+                unresolved.append(rec)
+        for rec in unresolved:
+            result.update(rec._ancestor_ids_by_walking(include_self))
         return result
 
     def _ancestor_ids_by_walking(self, include_self: bool) -> list[int]:

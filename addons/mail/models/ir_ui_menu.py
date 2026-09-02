@@ -42,16 +42,11 @@ class IrUiMenu(models.Model):
                     and action.type == "ir.actions.act_window"
                     and action.res_model == res_model
                     and all(
-                        int(menu_id) in visible_menu_ids
-                        for menu_id in menu.parent_path.split("/")
-                        if menu_id
+                        menu_id in visible_menu_ids
+                        for menu_id in menu._ancestor_ids(include_self=True)
                     )
                 ),
                 key=_menu_sort_key,
                 default=(None, None),
             )[0]
-            return (
-                int(menu_sudo.parent_path[: menu_sudo.parent_path.index("/")])
-                if menu_sudo
-                else None
-            )
+            return menu_sudo._root().id if menu_sudo else None

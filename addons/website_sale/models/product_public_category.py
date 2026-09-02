@@ -94,12 +94,9 @@ class ProductPublicCategory(models.Model):
     @api.depends("parent_path")
     def _compute_parents_and_self(self):
         for category in self:
-            if category.parent_path:
-                category.parents_and_self = self.env["product.public.category"].browse(
-                    [int(p) for p in category.parent_path.split("/")[:-1]]
-                )
-            else:
-                category.parents_and_self = category
+            category.parents_and_self = (
+                self.browse(category._ancestor_ids(include_self=True)) or category
+            )
 
     @api.depends("parents_and_self")
     def _compute_display_name(self):
