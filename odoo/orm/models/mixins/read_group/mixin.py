@@ -206,9 +206,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 if self._can_groupby_spec_duplicate_rows(self, spec)
             )
 
-        if many2many_groupby_specs and self._read_group_is_dedup_required(
-            aggregates
-        ):
+        if many2many_groupby_specs and self._read_group_is_dedup_required(aggregates):
             if self._read_grouping_sets_split_m2m(
                 domain,
                 grouping_sets,

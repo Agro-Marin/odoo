@@ -476,7 +476,9 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
 
 def _setup_fields(model_cls: type[BaseModel], env: Environment):
     bad_fields = []
-    many2one_company_dependents = get_registry_of_model(model_cls).many2one_company_dependents
+    many2one_company_dependents = get_registry_of_model(
+        model_cls
+    ).many2one_company_dependents
     model = model_cls(env, (), ())
     for name, field in model_cls._fields.items():
         try:

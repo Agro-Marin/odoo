@@ -133,7 +133,9 @@ class SearchMixin(_ModelStubs):
             [self._rec_name] if self._rec_name else []
         )
         search_fnames = [
-            fname for fname in search_fnames if not self._is_rec_names_search_cyclic(fname)
+            fname
+            for fname in search_fnames
+            if not self._is_rec_names_search_cyclic(fname)
         ]
         if not search_fnames:
             return self._search_display_name_unsearchable(operator, value)
