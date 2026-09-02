@@ -12,6 +12,7 @@ from . import test_mailgate
 from . import test_mail_asset_index
 from . import test_message_model_column
 from . import test_mail_blacklist
+from . import test_mail_canned_response
 from . import test_mail_composer
 from . import test_mail_message_access_parity
 from . import test_mail_message_search

@@ -78,6 +78,17 @@ class MailCannedResponse(models.Model):
         self._broadcast(delete=True)
         return super().unlink()
 
+    def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
+        # `source` is the shortcut typed after `::`, so a duplicate that keeps it
+        # is indistinguishable from its original in the list and in the composer.
+        vals_list = super().copy_data(default=default)
+        if default and "source" in default:
+            return vals_list
+        return [
+            dict(vals, source=self.env._("%s (copy)", canned_response.source))
+            for canned_response, vals in zip(self, vals_list, strict=True)
+        ]
+
     def _broadcast(self, /, *, delete: bool = False) -> None:
         for canned_response in self:
             stores = [Store(bus_channel=group) for group in canned_response.group_ids]
