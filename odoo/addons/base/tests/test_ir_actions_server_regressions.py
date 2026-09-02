@@ -237,13 +237,13 @@ class TestBatchingIsDeliveredNotJustPromised(ServerActionCase):
 
         seen = []
         cls = type(self.env["ir.actions.server"])
-        origin = cls._run_action_object_write_multi
+        origin = cls._run_action_object_write
 
         def spy(action, eval_context=None):
-            seen.append(len(action._get_records_targeted()))
+            seen.append(len(eval_context["records"]))
             return origin(action, eval_context=eval_context)
 
-        self.patch(cls, "_run_action_object_write_multi", spy)
+        self.patch(cls, "_run_action_object_write", spy)
         parent.with_context(**self._ctx(records)).run()
         self.env.flush_all()
         self.assertEqual(seen, [5], "one call carrying the whole batch")
