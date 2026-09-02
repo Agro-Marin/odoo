@@ -1,6 +1,6 @@
 {
-  "count": 23529,
-  "measured_at": "7f821114c6c06292da06f8fe06c4fe9226707fef",
+  "count": 22306,
+  "measured_at": "89613ec1461481a7ff5c5fdfd82c0bb32a2dcfa6",
   "measured_root": "",
-  "note": "23728 -> 23529 at 7f821114c6c: O7 (601b9cf63fb, 7f821114c6c) took orm/runtime/registry.py's Registry from 828 to 579 lines, 199 of them above the budget. Also re-stamped at the branch commit: 22e16ab18fb had banked inside a worktree on a staging commit the squash then replaced, so its measured_at named a commit off the branch and the check refused to compare.\n\nBorn at 23728: 54 classes over the 400-line budget in odoo/ (the core package plus odoo/addons/base), led by ir_ui_view.IrUiView 2,971, ir_qweb.IrQweb 2,490, tools/config.configmanager 2,035, ir_qweb_assets.IrQweb 1,801, ir_attachment 1,724, res_partner 1,678. The unit is excess lines over the budget summed over offenders, as pyfunclen: splitting one huge class into two large ones lowers it."
+  "note": "23529 -> 22306 after the Field split, the one fast __get__ and CommandDelta; stamped on the CommandDelta commit after the rebase over the cruft deletion"
 }
