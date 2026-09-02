@@ -49,11 +49,18 @@ export class ResPartner extends webModels.ResPartner {
     /**
      * @param {string} [search]
      * @param {number} [limit]
+     * @param {boolean} [internal_users_only]
      */
-    get_mention_suggestions(search, limit = 8) {
-        const kwargs = getKwArgs(arguments, "search", "limit");
+    get_mention_suggestions(search, limit = 8, internal_users_only = false) {
+        const kwargs = getKwArgs(
+            arguments,
+            "search",
+            "limit",
+            "internal_users_only",
+        );
         search = kwargs.search || "";
         limit = kwargs.limit || 8;
+        internal_users_only = kwargs.internal_users_only || false;
 
         /** @type {import("mock_models").ResUsers} */
         const ResUsers = this.env["res.users"];
@@ -84,6 +91,7 @@ export class ResPartner extends webModels.ResPartner {
         };
 
         const partnersFromUsers = ResUsers._filter([])
+            .filter((user) => !internal_users_only || !user.share)
             .map((user) => this.browse(user.partner_id)[0])
             .filter((partner) => partner);
         const mainMatchingPartnerIds = mentionSuggestionsFilter(
@@ -94,7 +102,9 @@ export class ResPartner extends webModels.ResPartner {
 
         let extraMatchingPartnerIds = [];
         const remainingLimit = limit - mainMatchingPartnerIds.length;
-        if (mainMatchingPartnerIds.length < limit) {
+        // a partner with no user at all is external too, so it has no place in
+        // the fallback list when only internal users are wanted
+        if (!internal_users_only && mainMatchingPartnerIds.length < limit) {
             const partners = this._filter([["id", "not in", mainMatchingPartnerIds]]);
             extraMatchingPartnerIds = mentionSuggestionsFilter(
                 partners,

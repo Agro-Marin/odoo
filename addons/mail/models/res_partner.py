@@ -277,8 +277,14 @@ class ResPartner(models.Model):
 
     @api.readonly
     @api.model
-    def get_mention_suggestions(self, search: str, limit: int = 8) -> dict:
+    def get_mention_suggestions(
+        self, search: str, limit: int = 8, internal_users_only: bool = False
+    ) -> dict:
         domain = self._get_mention_suggestions_domain(search)
+        if internal_users_only:
+            # a note is never notified to a portal contact, so offering one as a
+            # mention promises a notification that cannot arrive
+            domain &= Domain("partner_share", "=", False)
         partners = self._search_mention_suggestions(domain, limit)
         store = Store().add(partners, extra_fields=partners._get_fields_store_mention())
         try:
