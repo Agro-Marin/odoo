@@ -514,9 +514,17 @@ class StockQuant(models.Model):
     def write(self, vals):
         forbidden_fields = set(self._get_forbidden_fields_write())
         if self._is_inventory_mode() and forbidden_fields.intersection(vals):
-            raise UserError(
-                _("Quant's editing is restricted, you can't do this operation.")
-            )
+            if self.filtered(lambda quant: quant.location_id.usage != "inventory"):
+                raise UserError(
+                    _("Quant's editing is restricted, you can't do this operation.")
+                )
+            vals = {
+                name: value
+                for name, value in vals.items()
+                if name not in forbidden_fields
+            }
+            if not vals:
+                return True
         return super().write(vals)
 
     def copy(self, default=None):
