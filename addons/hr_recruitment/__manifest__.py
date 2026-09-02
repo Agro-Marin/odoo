@@ -4,7 +4,9 @@
     "category": "Human Resources/Recruitment",
     "sequence": 90,
     "summary": "Track your recruitment pipeline",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/recruitment",
+    "license": "LGPL-3",
     "depends": [
         "hr",
         "calendar",
@@ -43,8 +45,6 @@
     "demo": [
         "data/hr_recruitment_demo.xml",
     ],
-    "installable": True,
-    "application": True,
     "assets": {
         "web.assets_backend": [
             "hr_recruitment/static/src/**/*.js",
@@ -56,6 +56,6 @@
             "hr_recruitment/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "application": True,
 }

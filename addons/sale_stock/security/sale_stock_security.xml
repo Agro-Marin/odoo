@@ -4,26 +4,27 @@
     <!-- Stock Portal Access Rules -->
     <record id="stock_picking_rule_portal" model="ir.rule">
         <field name="name">Portal Follower Transfers</field>
-        <field name="model_id" ref="stock.model_stock_picking"/>
-        <field name="domain_force">['|', ('partner_id', '=', user.partner_id.id), ('sale_id.partner_id', '=', user.partner_id.id)]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="model_id" ref="stock.model_stock_picking" />
+        <field
+            name="domain_force">['|', ('partner_id', '=', user.partner_id.id), ('sale_id.partner_id', '=', user.partner_id.id)]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
     </record>
 
     <record id="sale_order_line_rule_stock_user" model="ir.rule">
         <field name="name">Stock User Sales Orders Line</field>
-        <field name="model_id" ref="sale.model_sale_order_line"/>
+        <field name="model_id" ref="sale.model_sale_order_line" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('stock.group_stock_user'))]"/>
-        <field name="perm_create" eval="0"/>
-        <field name="perm_read" eval="1"/>
-        <field name="perm_write" eval="0"/>
-        <field name="perm_unlink" eval="0"/>
+        <field name="groups" eval="[(4, ref('stock.group_stock_user'))]" />
+        <field name="perm_create" eval="0" />
+        <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="0" />
+        <field name="perm_unlink" eval="0" />
     </record>
 
     <!-- Mirrors sale.sale_order_report_comp_rule: no groups, so it is global. -->
     <record id="customer_delay_report_comp_rule" model="ir.rule">
         <field name="name">Customer Delay Report multi-company</field>
-        <field name="model_id" ref="model_customer_delay_report"/>
+        <field name="model_id" ref="model_customer_delay_report" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
 

@@ -10,8 +10,11 @@ Manage calls for tenders and blanket orders. Calls for tenders are used to get
 competing offers from different vendors and select the best ones. Blanket orders
 are agreements you have with vendors to benefit from a predetermined pricing.
 """,
-    "depends": ["purchase"],
-    "demo": ["data/purchase_requisition_demo.xml"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "purchase",
+    ],
     "data": [
         "security/purchase_requisition_security.xml",
         "security/ir.model.access.csv",
@@ -25,6 +28,9 @@ are agreements you have with vendors to benefit from a predetermined pricing.
         "wizard/purchase_requisition_alternative_warning.xml",
         "wizard/purchase_requisition_create_alternative.xml",
     ],
+    "demo": [
+        "data/purchase_requisition_demo.xml",
+    ],
     "assets": {
         "web.assets_backend": [
             "purchase_requisition/static/src/*/**.js",
@@ -33,6 +39,4 @@ are agreements you have with vendors to benefit from a predetermined pricing.
             "purchase_requisition/static/src/*/**.xml",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

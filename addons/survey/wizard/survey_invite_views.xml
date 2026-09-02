@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record model="ir.ui.view" id="survey_invite_view_form">
+
+    <record id="survey_invite_view_form" model="ir.ui.view">
         <field name="name">survey.invite.view.form</field>
         <field name="model">survey.invite</field>
         <field name="arch" type="xml">
@@ -15,29 +16,42 @@
                         <field name="existing_mode" widget="radio" invisible="1" />
                         <field name="lang" invisible="1" />
                         <field name="render_model" invisible="1" />
-                        <label class="o_survey_label_survey_start_url" for="survey_start_url"
+                        <label
+                            class="o_survey_label_survey_start_url"
+                            for="survey_start_url"
                             string="Survey Link"
                             invisible="survey_access_mode != 'public'" />
-                        <field name="survey_start_url" nolabel="1" widget="CopyClipboardChar"
+                        <field
+                            name="survey_start_url"
+                            nolabel="1"
+                            widget="CopyClipboardChar"
                             readonly="1"
                             invisible="survey_access_mode != 'public'" />
-                        <field string="Send by Email" name="send_email" widget="boolean_toggle"
+                        <field
+                            string="Send by Email"
+                            name="send_email"
+                            widget="boolean_toggle"
                             options="{'autosave': False}"
                             invisible="survey_access_mode != 'public'" />
-                        <field name="partner_ids"
+                        <field
+                            name="partner_ids"
                             widget="many2many_tags_email"
                             placeholder="Add existing contacts..."
                             options="{'no_quick_create': True}"
                             context="{'show_email': True, 'form_view_ref': 'base.view_partner_simple_form'}"
                             required="True"
                             invisible="not send_email" />
-                        <field name="emails"
+                        <field
+                            name="emails"
                             invisible="survey_users_login_required or not send_email"
                             placeholder="e.g.  'Rick Sanchez' &lt;rick_sanchez@example.com&gt;, hictor_vugo@example.com" />
                     </group>
                     <field name="existing_partner_ids" invisible="1" />
                     <field name="existing_emails" invisible="1" />
-                    <div col="2" class="alert alert-warning" role="alert"
+                    <div
+                        col="2"
+                        class="alert alert-warning"
+                        role="alert"
                         invisible="survey_access_mode == 'public' or not existing_text">
                         <field name="existing_text" />
                         <group col="2">
@@ -52,14 +66,20 @@
                         </group>
                     </div>
                     <group col="2">
-                        <field name="subject" invisible="not send_email" placeholder="Subject..." />
+                        <field
+                            name="subject"
+                            invisible="not send_email"
+                            placeholder="Subject..." />
                     </group>
                     <field name="can_edit_body" invisible="1" />
-                    <field name="body" class="oe-bordered-editor border border-1 m-3 p-0 flex-fill"
+                    <field
+                        name="body"
+                        class="oe-bordered-editor border border-1 m-3 p-0 flex-fill"
                         widget="html_mail"
                         options="{'height': 380}"
                         invisible="not send_email"
-                        readonly="not can_edit_body" force_save="1" />
+                        readonly="not can_edit_body"
+                        force_save="1" />
                     <group invisible="not send_email">
                         <group>
                             <field name="attachment_ids" widget="many2many_binary" />
@@ -71,9 +91,18 @@
                     </group>
                 </group>
                 <footer>
-                    <button string="Send" invisible="not send_email" name="action_invite"
-                        type="object" class="btn-primary" data-hotkey="q" />
-                    <button string="Close" class="btn-secondary" special="cancel" data-hotkey="x" />
+                    <button
+                        string="Send"
+                        invisible="not send_email"
+                        name="action_invite"
+                        type="object"
+                        class="btn-primary"
+                        data-hotkey="q" />
+                    <button
+                        string="Close"
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

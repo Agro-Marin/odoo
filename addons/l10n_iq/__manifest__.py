@@ -1,6 +1,7 @@
 {
     "name": "Iraq - Accounting",
-    "countries": ["iq"],
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
     "description": """
 This is the base module to manage the accounting chart for Iraq in Odoo.
 ==============================================================================
@@ -9,13 +10,18 @@ Activates:
 - Chart of accounts
 - Taxes
     """,
-    "category": "Accounting/Localizations/Account Charts",
-    "version": "1.0",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "account",
     ],
-    "auto_install": ["account"],
-    "demo": ["demo/demo_company.xml"],
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "countries": [
+        "iq",
+    ],
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

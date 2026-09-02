@@ -4,7 +4,13 @@
     "category": "Supply Chain/Purchase",
     "sequence": 60,
     "summary": "Purchase Orders, Receipts, Vendor Bills for Stock",
-    "depends": ["stock_account", "purchase", "base_order_stock"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "stock_account",
+        "purchase",
+        "base_order_stock",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "report/purchase_receipt_line_match_views.xml",
@@ -33,9 +39,6 @@
     "demo": [
         "demo/purchase_stock_demo.xml",
     ],
-    "installable": True,
-    "auto_install": True,
-    "post_init_hook": "_create_buy_rules",
     "assets": {
         "web.assets_backend": [
             "purchase_stock/static/src/**/*",
@@ -47,6 +50,7 @@
             "purchase_stock/static/tests/*.test.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
+    "post_init_hook": "_create_buy_rules",
 }

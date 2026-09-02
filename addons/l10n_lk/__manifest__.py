@@ -1,7 +1,7 @@
 {
     "name": "Sri Lanka - Accounting",
-    "icon": "/account/static/description/l10n.png",
-    "countries": ["lk"],
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
     "summary": "Provides accounting localizations for Sri Lanka.",
     "description": """
 Sri Lankan Accounting module
@@ -15,15 +15,17 @@ Forms
 - VAT001
 - WHT001
     """,
-    "version": "1.0",
     "author": "Odoo S.A.",
-    "category": "Accounting/Localizations/Account Charts",
     "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
     "depends": [
         "account",
         "l10n_account_withholding_tax",
     ],
-    "auto_install": ["account"],
+    "countries": [
+        "lk",
+    ],
     "data": [
         "data/form_vat001.xml",
         "data/form_wht001.xml",
@@ -31,5 +33,7 @@ Forms
     "demo": [
         "demo/demo_company.xml",
     ],
-    "license": "LGPL-3",
+    "auto_install": [
+        "account",
+    ],
 }

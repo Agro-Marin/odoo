@@ -5,12 +5,18 @@
     "description": """
 Allows customers to check in-store stock, pay on site, and pick up their orders at the shop.
 """,
-    "depends": ["geocoding", "payment_custom", "website_sale_stock"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "geocoding",
+        "payment_custom",
+        "website_sale_stock",
+    ],
     "data": [
         "data/payment_method_data.xml",
-        "data/payment_provider_data.xml",  # Depends on `payment_method_pay_on_site`.
+        "data/payment_provider_data.xml",
         "data/product_product_data.xml",
-        "data/delivery_carrier_data.xml",  # Depends on `product_pick_up_in_store`.
+        "data/delivery_carrier_data.xml",
         "views/delivery_carrier_views.xml",
         "views/delivery_form_templates.xml",
         "views/res_config_settings_views.xml",
@@ -28,6 +34,4 @@ Allows customers to check in-store stock, pay on site, and pick up their orders 
     },
     "post_init_hook": "post_init_hook",
     "uninstall_hook": "uninstall_hook",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

@@ -1,29 +1,31 @@
 # -*- coding: utf-8 -*-
 {
-    'name': "Events Booths",
-    'category': 'Marketing/Events',
-    'version': '1.1',
-    'summary': "Manage event booths",
-    'description': """
+    "name": "Events Booths",
+    "version": "1.1",
+    "category": "Marketing/Events",
+    "summary": "Manage event booths",
+    "description": """
 Create booths for your favorite event.
     """,
-    'depends': ['event'],
-    'data': [
-        'security/ir.model.access.csv',
-        'views/event_booth_category_views.xml',
-        'views/event_type_booth_views.xml',
-        'views/event_booth_views.xml',
-        'views/event_type_views.xml',
-        'views/event_event_views.xml',
-        'views/event_menus.xml',
-        'data/event_booth_category_data.xml',
-        'data/mail_message_subtype_data.xml',
-        'data/mail_templates.xml',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "event",
     ],
-    'demo': [
-        'data/event_booth_demo.xml',
-        'data/event_type_demo.xml',
+    "data": [
+        "security/ir.model.access.csv",
+        "views/event_booth_category_views.xml",
+        "views/event_type_booth_views.xml",
+        "views/event_booth_views.xml",
+        "views/event_type_views.xml",
+        "views/event_event_views.xml",
+        "views/event_menus.xml",
+        "data/event_booth_category_data.xml",
+        "data/mail_message_subtype_data.xml",
+        "data/mail_templates.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "data/event_booth_demo.xml",
+        "data/event_type_demo.xml",
+    ],
 }

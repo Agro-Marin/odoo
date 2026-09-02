@@ -2,12 +2,13 @@
     "name": "To-Do",
     "version": "1.0",
     "category": "Productivity/To-Do",
-    "summary": "Organize your work with memos and to-do lists",
     "sequence": 260,
+    "summary": "Organize your work with memos and to-do lists",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "project",
     ],
-    "auto_install": True,
     "data": [
         "security/ir.model.access.csv",
         "security/project_todo_security.xml",
@@ -16,9 +17,6 @@
         "views/project_todo_menus.xml",
         "wizard/mail_activity_todo_create.xml",
     ],
-    "installable": True,
-    "application": True,
-    "post_init_hook": "_todo_post_init",
     "assets": {
         "web.assets_backend": [
             "project_todo/static/src/components/**/*",
@@ -33,6 +31,8 @@
             "project_todo/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "application": True,
+    "auto_install": True,
+    "post_init_hook": "_todo_post_init",
 }

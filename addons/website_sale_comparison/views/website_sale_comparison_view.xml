@@ -6,9 +6,12 @@
         <field name="model">product.attribute.category</field>
         <field name="arch" type="xml">
             <list string="Product Attribute Category" editable="bottom">
-                <field name="sequence" widget="handle"/>
-                <field name="name"/>
-                <field name="attribute_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field
+                    name="attribute_ids"
+                    widget="many2many_tags"
+                    options="{'no_create': True}" />
             </list>
         </field>
     </record>
@@ -28,17 +31,20 @@
         </field>
     </record>
 
-    <menuitem action="product_attribute_category_action"
+    <menuitem
         id="menu_attribute_category_action"
-        parent="website_sale.menu_catalog" groups="base.group_no_one" sequence="11"/>
+        parent="website_sale.menu_catalog"
+        action="product_attribute_category_action"
+        sequence="11"
+        groups="base.group_no_one" />
 
     <record id="product_attribute_tree_view_inherit" model="ir.ui.view">
         <field name="name">product.attribute.list.inherit</field>
         <field name="model">product.attribute</field>
-        <field name="inherit_id" ref="product.view_product_attribute_list"/>
+        <field name="inherit_id" ref="product.view_product_attribute_list" />
         <field name="arch" type="xml">
             <field name="name" position="after">
-               <field name="category_id"/>
+                <field name="category_id" />
             </field>
         </field>
     </record>
@@ -46,11 +52,11 @@
     <record id="view_product_attribute_form" model="ir.ui.view">
         <field name="name">product.attribute.form.inherit</field>
         <field name="model">product.attribute</field>
-        <field name="inherit_id" ref="website_sale.view_product_attribute_form"/>
-        <field name="priority" eval="8"/>
+        <field name="inherit_id" ref="website_sale.view_product_attribute_form" />
+        <field name="priority" eval="8" />
         <field name="arch" type="xml">
             <group name="ecommerce_main_fields" position="inside">
-                <field name="category_id"/>
+                <field name="category_id" />
             </group>
         </field>
     </record>

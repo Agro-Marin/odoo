@@ -8,7 +8,9 @@
             <search string="On-time Delivery">
                 <field name="partner_id" />
                 <field name="product_id" />
-                <filter string="Effective Date Last Year" name="later_than_a_year_ago"
+                <filter
+                    string="Effective Date Last Year"
+                    name="later_than_a_year_ago"
                     domain="[('date', '&gt;=', 'today -1y')]" />
             </search>
         </field>
@@ -30,9 +32,9 @@
         <field name="res_model">customer.delay.report</field>
         <field name="view_mode">graph</field>
         <field name="search_view_id" ref="customer_delay_report_filter" />
-        <field name="help">Customer On-time Delivery analysis</field>
         <field name="target">current</field>
         <field name="context">{'search_default_later_than_a_year_ago':1}</field>
+        <field name="help">Customer On-time Delivery analysis</field>
     </record>
 
 </odoo>

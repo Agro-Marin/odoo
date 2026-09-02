@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record model="res.groups" id="group_l10n_in_reseller">
+
+    <record id="group_l10n_in_reseller" model="res.groups">
         <field name="name">Manage Reseller(E-Commerce)</field>
     </record>
+
 </odoo>

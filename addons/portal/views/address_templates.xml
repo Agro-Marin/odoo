@@ -8,10 +8,10 @@
             <t t-set="address_type" t-valuef="delivery" />
             <t
                 t-set="new_address_url"
-                t-valuef="{{address_url}}?address_type={{address_type}}&amp;use_delivery_as_billing={{use_delivery_as_billing}}"
-            />
+                t-valuef="{{address_url}}?address_type={{address_type}}&amp;use_delivery_as_billing={{use_delivery_as_billing}}" />
             <section class="o_portal_addresses">
-                <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                <div
+                    class="d-flex justify-content-between align-items-start gap-3 mb-3">
                     <h5 class="mb-0">Delivery address</h5>
                     <a
                         role="button"
@@ -19,16 +19,18 @@
                         t-att-data-address-type="address_type"
                         class="o_address_card_add_new btn btn-outline-primary btn-sm"
                         title="Add an address"
-                        aria-label="Add an address"
-                    >
+                        aria-label="Add an address">
                         <i class="oi oi-plus me-2" />Add Address </a>
                 </div>
                 <t t-call="portal.address_list">
                     <t t-set="addresses" t-value="delivery_addresses" />
                 </t>
                 <t t-set="address_type" t-valuef="billing" />
-                <t t-set="new_address_url" t-valuef="{{address_url}}?address_type={{address_type}}" />
-                <div class="d-flex justify-content-between align-items-start gap-3 mt-4 pt-2">
+                <t
+                    t-set="new_address_url"
+                    t-valuef="{{address_url}}?address_type={{address_type}}" />
+                <div
+                    class="d-flex justify-content-between align-items-start gap-3 mt-4 pt-2">
                     <h5 class="mb-0">Billing address</h5>
                     <a
                         role="button"
@@ -36,23 +38,16 @@
                         t-att-data-address-type="address_type"
                         t-attf-class="o_address_card_add_new o_add_billing_address_btn btn btn-outline-primary btn-sm {{'d-none' if use_delivery_as_billing else ''}}"
                         title="Add an address"
-                        aria-label="Add an address"
-                    >
+                        aria-label="Add an address">
                         <i class="oi oi-plus me-2" />Add Address </a>
                 </div>
                 <div class="form-check form-switch mt-2">
                     <label id="use_delivery_as_billing_label">
-                        <input
-                            type="checkbox"
-                            id="use_delivery_as_billing"
-                            class="form-check-input"
-                            t-att-checked="use_delivery_as_billing"
-                        /> Same as delivery address </label>
+                        <input type="checkbox" id="use_delivery_as_billing" class="form-check-input" t-att-checked="use_delivery_as_billing" /> Same as delivery address </label>
                 </div>
                 <div
                     id="billing_container"
-                    t-attf-class="mt-3 {{'d-none' if use_delivery_as_billing else ''}}"
-                >
+                    t-attf-class="mt-3 {{'d-none' if use_delivery_as_billing else ''}}">
                     <t t-call="portal.address_list">
                         <t t-set="addresses" t-value="billing_addresses" />
                     </t>
@@ -64,28 +59,29 @@
     <template id="portal.address_list">
         <div
             name="address_list"
-            t-attf-class="o_portal_address_list d-flex flex-column gap-2"
-        >
+            t-attf-class="o_portal_address_list d-flex flex-column gap-2">
             <t t-foreach="addresses" t-as="address">
                 <t t-call="portal.address_card">
                     <t t-set="contact" t-value="address" />
-                    <t t-set="is_user_address" t-value="address == request.env.user.partner_id" />
+                    <t
+                        t-set="is_user_address"
+                        t-value="address == request.env.user.partner_id" />
                     <t t-if="is_user_address">
                         <!-- Edition of main address should go through dedicated page -->
-                        <t t-set="address_update_url" t-valuef="/my/account?redirect=/my/addresses" />
+                        <t
+                            t-set="address_update_url"
+                            t-valuef="/my/account?redirect=/my/addresses" />
                     </t>
                     <!-- Membership test, not a per-address call: `/my/addresses`
-                         resolves the whole set in one query and passes it in as
-                         `editable_addresses` (see
-                         `res.partner._filter_editable_by_current_customer`).
-                         Asking per card cost a `search_count` plus its
-                         record-rule machinery for every address rendered. -->
-                    <t
-                        t-set="can_be_edited"
-                        t-value="address in editable_addresses"
-                    />
+                        resolves the whole set in one query and passes it in as
+                        `editable_addresses` (see
+                        `res.partner._filter_editable_by_current_customer`).
+                        Asking per card cost a `search_count` plus its
+                        record-rule machinery for every address rendered. -->
+                    <t t-set="can_be_edited" t-value="address in editable_addresses" />
                     <t t-set="selected" t-value="address == selected_address" />
-                    <t t-set="show_removal"
+                    <t
+                        t-set="show_removal"
                         t-value="can_be_edited and not selected and not is_user_address" />
                 </t>
             </t>
@@ -96,52 +92,43 @@
     <template id="portal.address_card" name="Address Card">
         <div
             name="address_card"
-            t-attf-class="card o_address_card position-relative h-100 #{
-                selected and 'bg-400 border border-primary'
-            }"
+            t-attf-class="card o_address_card position-relative h-100 #{                 selected and 'bg-400 border border-primary'             }"
             t-att-data-address-type="address_type"
-            t-att-data-partner-id="contact.id"
-        >
-            <div class="card-body d-flex flex-column flex-md-row justify-content-between gap-2">
+            t-att-data-partner-id="contact.id">
+            <div
+                class="card-body d-flex flex-column flex-md-row justify-content-between gap-2">
                 <t
                     t-out="contact"
-                    t-options="dict(widget='contact', fields=['name', 'address'], no_marker=True, no_tag_br=True)"
-                />
+                    t-options="dict(widget='contact', fields=['name', 'address'], no_marker=True, no_tag_br=True)" />
                 <t t-set="badge_classes" t-value="'badge text-bg-info'" />
                 <div
                     class="d-flex flex-row-reverse flex-md-column justify-content-between align-items-end">
-                    <span
-                        t-if="is_user_address"
-                        t-att-class=" badge_classes "
-                    >
+                    <span t-if="is_user_address" t-att-class=" badge_classes ">
                         Main Address
                     </span>
                     <span
                         t-elif="contact.type=='delivery'"
-                        t-att-class=" badge_classes "
-                    >
+                        t-att-class=" badge_classes ">
                         Delivery Address
                     </span>
                     <span
                         t-elif="contact.type=='invoice'"
-                        t-att-class=" badge_classes "
-                    >
+                        t-att-class=" badge_classes ">
                         Billing Address
                     </span>
-                    <div t-if="can_be_edited"
+                    <div
+                        t-if="can_be_edited"
                         class="d-flex gap-1 mt-auto ms-n2 ms-md-auto me-auto me-md-n2 mb-n2">
                         <t
                             t-set="address_update_url"
-                            t-value="address_update_url or (new_address_url + '&amp;partner_id=' + str(contact.id))"
-                        />
+                            t-value="address_update_url or (new_address_url + '&amp;partner_id=' + str(contact.id))" />
                         <a
                             name="card_address_ref"
                             t-att-href="address_update_url"
                             class="js_edit_address p-2"
                             role="button"
                             title="Edit this address"
-                            aria-label="Edit this address"
-                        >
+                            aria-label="Edit this address">
                             <i class="fa-solid fa-pencil" />
                         </a>
                         <t t-if="show_removal">
@@ -151,8 +138,7 @@
                                 role="button"
                                 title="Remove this address"
                                 aria-label="Remove this address"
-                                t-att-data-partner-id="contact.id"
-                            >
+                                t-att-data-partner-id="contact.id">
                                 <i class="fa-solid fa-trash-can" />
                             </a>
                         </t>
@@ -170,22 +156,17 @@
                 type="text"
                 name="name"
                 t-att-value="partner_sudo.name"
-                class="form-control"
-            />
+                class="form-control" />
         </div>
         <div class="w-100" />
-        <div
-            id="div_email"
-            class="col-lg-6 mb-2"
-        >
+        <div id="div_email" class="col-lg-6 mb-2">
             <label class="col-form-label" for="o_email">Email</label>
             <input
                 id="o_email"
                 type="email"
                 name="email"
                 t-att-value="partner_sudo.email"
-                class="form-control"
-            />
+                class="form-control" />
         </div>
         <div id="div_phone" class="col-lg-6 mb-2">
             <label class="col-form-label" for="o_phone">Phone</label>
@@ -194,19 +175,18 @@
                 type="tel"
                 name="phone"
                 t-att-value="partner_sudo.phone"
-                class="form-control"
-            />
+                class="form-control" />
         </div>
         <t name="b2b_fields">
             <div class="w-100" />
             <t t-if="is_used_as_billing">
-                <t t-set="vat_warning"
+                <t
+                    t-set="vat_warning"
                     t-value="current_partner.vat and not current_partner.can_edit_vat()" />
                 <div id="company_name_div" class="col-lg-6 mb-2">
                     <label
                         class="col-form-label fw-normal label-optional"
-                        for="o_company_name"
-                    >
+                        for="o_company_name">
                         Company Name
                     </label>
                     <input
@@ -215,8 +195,7 @@
                         name="company_name"
                         t-att-value="current_partner.commercial_company_name"
                         t-att-readonly="'1' if not is_main_address else None"
-                        class="form-control"
-                    />
+                        class="form-control" />
                 </div>
                 <div id="div_vat" class="col-lg-6 mb-2">
                     <label class="col-form-label fw-normal label-optional" for="o_vat">
@@ -228,20 +207,19 @@
                         name="vat"
                         t-att-value="current_partner.vat"
                         t-att-readonly="'1' if (not is_commercial_address or vat_warning) else None"
-                        class="form-control"
-                    />
+                        class="form-control" />
                     <!-- Even on new addresses, first tell the customer if their VAT cannot be
                     changed,
                         then tell them to update it elsewhere if it can be. -->
                     <div
                         t-if="not is_commercial_address and commercial_partner.is_company and is_main_address"
-                        class="col-12 d-none d-lg-block mb-1"
-                    >
+                        class="col-12 d-none d-lg-block mb-1">
                         <small class="form-text text-muted">
                             The VAT number can only be updated on the company account.
                         </small>
                     </div>
-                    <div t-elif="vat_warning and is_main_address"
+                    <div
+                        t-elif="vat_warning and is_main_address"
                         class="col-12 d-none d-lg-block mb-1">
                         <small class="form-text text-muted">
                             Changing VAT number is not allowed once document(s) have
@@ -250,7 +228,8 @@
                         </small>
                     </div>
                 </div>
-                <div t-if="not (is_commercial_address or is_main_address)"
+                <div
+                    t-if="not (is_commercial_address or is_main_address)"
                     class="col-12 d-none d-lg-block mb-1">
                     <small class="form-text text-muted"> The company name and VAT number can only be
                         updated on your main account. <t t-if="commercial_address_update_url"> If
@@ -269,8 +248,7 @@
                 id="o_street"
                 type="text"
                 class="form-control"
-                t-att-value="partner_sudo.street"
-            />
+                t-att-value="partner_sudo.street" />
         </div>
         <div id="div_street2" class="col-lg-12 mb-2">
             <label class="col-form-label label-optional" for="o_street2">
@@ -281,8 +259,7 @@
                 type="text"
                 name="street2"
                 class="form-control"
-                t-att-value="partner_sudo.street2"
-            />
+                t-att-value="partner_sudo.street2" />
         </div>
         <div class="w-100" />
         <t t-if="zip_before_city">
@@ -295,8 +272,7 @@
                     type="text"
                     name="zip"
                     class="form-control"
-                    t-att-value="partner_sudo.zip"
-                />
+                    t-att-value="partner_sudo.zip" />
             </div>
         </t>
         <div id="div_city" class="col-md-8 mb-2">
@@ -306,8 +282,7 @@
                 type="text"
                 name="city"
                 class="form-control"
-                t-att-value="partner_sudo.city"
-            />
+                t-att-value="partner_sudo.city" />
         </div>
         <t t-if="not zip_before_city">
             <div id="div_zip" class="col-md-4 mb-2">
@@ -319,8 +294,7 @@
                     type="text"
                     name="zip"
                     class="form-control"
-                    t-att-value="partner_sudo.zip"
-                />
+                    t-att-value="partner_sudo.zip" />
             </div>
         </t>
         <div class="w-100" />
@@ -331,8 +305,7 @@
             <select
                 id="o_country_id"
                 name="country_id"
-                t-att-class="'pe-none opacity-50 form-select' if not can_edit_country else 'form-select'"
-            >
+                t-att-class="'pe-none opacity-50 form-select' if not can_edit_country else 'form-select'">
                 <option value="">Country...</option>
                 <option
                     t-foreach="countries"
@@ -340,8 +313,7 @@
                     t-att-value="c.id"
                     t-att-selected="c.id == (country.id if country else partner_sudo.country_id.id)"
                     t-att-code="c.code"
-                    t-out="c.name"
-                />
+                    t-out="c.name" />
             </select>
             <div t-if="not can_edit_country" class="col-12 d-none d-lg-block mb-1">
                 <small class="form-text text-muted">
@@ -354,16 +326,11 @@
         <div
             id="div_state"
             class="col-lg-6 mb-2"
-            t-att-style="not country_states and 'display: none'"
-        >
+            t-att-style="not country_states and 'display: none'">
             <label class="col-form-label label-optional" for="o_state_id">
                 State / Province
             </label>
-            <select
-                id="o_state_id"
-                name="state_id"
-                class="form-select"
-            >
+            <select id="o_state_id" name="state_id" class="form-select">
                 <option value="">State / Province...</option>
                 <option
                     t-foreach="country_states"
@@ -371,17 +338,15 @@
                     t-att-value="s.id"
                     t-att-data-code="s.code"
                     t-att-selected="s.id == (int(state_id) if state_id else partner_sudo.state_id.id)"
-                    t-out="s.name"
-                />
+                    t-out="s.name" />
             </select>
         </div>
+        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()" />
+        <input type="hidden" name="address_type" t-att-value="address_type" />
         <input
             type="hidden"
-            name="csrf_token"
-            t-att-value="request.csrf_token()"
-        />
-        <input type="hidden" name="address_type" t-att-value="address_type" />
-        <input type="hidden" name="use_delivery_as_billing" t-att-value="use_delivery_as_billing" />
+            name="use_delivery_as_billing"
+            t-att-value="use_delivery_as_billing" />
         <t t-if="partner_id">
             <input type="hidden" name="partner_id" t-att-value="partner_id" />
         </t>
@@ -397,8 +362,7 @@
             <a
                 role="button"
                 t-att-href="discard_url or '/my/'"
-                class="btn btn-outline-secondary w-100 w-md-auto order-md-1 order-3"
-            >
+                class="btn btn-outline-secondary w-100 w-md-auto order-md-1 order-3">
                 <i class="fw-light fa-solid fa-angle-left me-2" />Discard </a>
             <div
                 class="position-relative w-100 d-flex d-md-none justify-content-center align-items-center order-2 my-2 opacity-75">
@@ -407,16 +371,15 @@
                 <hr class="w-100" />
             </div>
             <!-- type="button", not the default "submit": /my/address/submit answers
-                 JSON, so a native submission navigates the customer onto a raw
-                 `{"redirectUrl": ...}` document. Submission goes through the
-                 `portal.customer_address` interaction, which reads the endpoint off
-                 `data-submit-url`. Having no submit button also suppresses implicit
-                 submission (Enter in a field), which would leak the same JSON. -->
+                JSON, so a native submission navigates the customer onto a raw
+                `{"redirectUrl": ...}` document. Submission goes through the
+                `portal.customer_address` interaction, which reads the endpoint off
+                `data-submit-url`. Having no submit button also suppresses implicit
+                submission (Enter in a field), which would leak the same JSON. -->
             <button
                 id="save_address"
                 type="button"
-                class="btn btn-primary w-100 w-md-auto order-1 order-md-3"
-            >
+                class="btn btn-primary w-100 w-md-auto order-1 order-md-3">
                 <t name="save_address_label">Save Address</t>
                 <i class="fw-light fa-solid fa-angle-right ms-2" />
             </button>
@@ -431,15 +394,14 @@
                 <div class="row">
                     <div name="address_div" class="oe_clear_stucture col-12 col-lg-8">
                         <div>
-                            <div id="errors" /> <!-- for js -->
+                            <div id="errors"/> <!-- for js -->
                             <form
                                 action="/my/address/submit"
                                 method="post"
                                 name="address_form"
                                 class="address_autoformat"
                                 t-att-data-company-country-code="res_company.country_id.code"
-                                t-att-data-submit-url="'/my/address/submit'"
-                            >
+                                t-att-data-submit-url="'/my/address/submit'">
                                 <div name="address_details" class="row">
                                     <t t-call="portal.address_form_fields" />
                                 </div>
@@ -466,15 +428,14 @@
                             <t t-elif="address_type == 'delivery'">
                                 <h3 class="mb-3">Delivery address</h3>
                             </t>
-                            <div id="errors" /> <!-- for js -->
+                            <div id="errors"/> <!-- for js -->
                             <form
                                 action="/my/address/submit"
                                 method="post"
                                 name="address_form"
                                 class="address_autoformat"
                                 t-att-data-company-country-code="res_company.country_id.code"
-                                t-att-data-submit-url="'/my/address/submit'"
-                            >
+                                t-att-data-submit-url="'/my/address/submit'">
                                 <div name="address_details" class="row">
                                     <t t-call="portal.address_form_fields" />
                                 </div>

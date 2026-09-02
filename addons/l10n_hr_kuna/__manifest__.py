@@ -1,8 +1,8 @@
 {
-    'name': 'Croatia - Accounting (Kuna)',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['hr'],
-    'description': """
+    "name": "Croatia - Accounting (Kuna)",
+    "version": "13.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Croatian localisation.
 ======================
 
@@ -30,17 +30,19 @@ Izvori podataka:
  https://www.rrif.hr/dok/preuzimanje/rrif-rp2012.rar
 
 """,
-    'version': '13.0',
-    'author': 'OpenERP Croatian Community',
-    'category': 'Accounting/Localizations/Account Charts',
-    'depends': [
-        'account',
+    "author": "OpenERP Croatian Community",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'data': [
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "hr",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
 }

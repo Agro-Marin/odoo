@@ -1,24 +1,28 @@
 {
-    'name': 'Mozambique - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'description': """
+    "name": "Mozambique - Accounting",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Mozambican Accounting localization
     """,
-    'version': '1.0',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['mz'],
-    'category': 'Accounting/Localizations/Account Charts',
-    'depends': [
-        'base',
-        'account',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/tax_report.xml',
+    "countries": [
+        "mz",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/tax_report.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

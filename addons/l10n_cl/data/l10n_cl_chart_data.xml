@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <!-- Account Tags -->
     <!-- Account Taxes Tags Ventas -->
     <record id="tag_cl_sale_mnt_exe" model="account.account.tag">
@@ -19,14 +20,17 @@
     <record id="tag_cl_sale_valor_neto_comis" model="account.account.tag">
         <!-- TotValComNeto -->
         <field name="name">Sales - Total Net Value Commissions and Other Charges</field>
-        <field name="name@es_419">Ventas - Total Valor Neto Comisiones y Otros Cargos</field>
+        <field
+            name="name@es_419">Ventas - Total Valor Neto Comisiones y Otros Cargos</field>
         <field name="applicability">accounts</field>
     </record>
 
     <record id="tag_cl_sale_valor_comisiones_no_afecto" model="account.account.tag">
         <!-- TotValComExe -->
-        <field name="name">Sales - Total Net Value Commissions and Other Unaffected Charges</field>
-        <field name="name@es_419">Ventas - Total Valor Neto Comisiones y Otros Cargos No Afectos</field>
+        <field
+            name="name">Sales - Total Net Value Commissions and Other Unaffected Charges</field>
+        <field
+            name="name@es_419">Ventas - Total Valor Neto Comisiones y Otros Cargos No Afectos</field>
         <field name="applicability">accounts</field>
     </record>
 
@@ -44,10 +48,13 @@
         <field name="applicability">accounts</field>
     </record>
 
-    <record id="tag_cl_sale_exento_vta_pasajes_internacional" model="account.account.tag">
+    <record
+        id="tag_cl_sale_exento_vta_pasajes_internacional"
+        model="account.account.tag">
         <!-- TotPsjInt -->
         <field name="name">Sales - Exempt Sales of International Tickets</field>
-        <field name="name@es_419">Ventas - Exento Ventas de Pasajes Internacional</field>
+        <field
+            name="name@es_419">Ventas - Exento Ventas de Pasajes Internacional</field>
         <field name="applicability">accounts</field>
     </record>
 
@@ -83,7 +90,8 @@
     <record id="tag_cl_purchase_mnt_neto_supermercado" model="account.account.tag">
         <!-- TotMntNeto -->
         <field name="name">Purchases - Total Net Amount Supermarket Purchases</field>
-        <field name="name@es_419">Compras - Total Monto Neto Compras de Supermercado</field>
+        <field
+            name="name@es_419">Compras - Total Monto Neto Compras de Supermercado</field>
         <field name="applicability">accounts</field>
     </record>
 
@@ -104,14 +112,16 @@
     <record id="tag_cl_purchase_tab_cigar" model="account.account.tag">
         <!-- TotTabCigarrillos -->
         <field name="name">Purchases - Total Manufactured Tobacco Cigarettes</field>
-        <field name="name@es_419">Compras - Total Tabacos Manufacturados Cigarrillos</field>
+        <field
+            name="name@es_419">Compras - Total Tabacos Manufacturados Cigarrillos</field>
         <field name="applicability">accounts</field>
     </record>
 
     <record id="tag_cl_purchase_tab_elab" model="account.account.tag">
         <!-- TotTabCigarrillos -->
         <field name="name">Purchases - Total Manufactured Tobacco Products</field>
-        <field name="name@es_419">Compras - Total Tabacos Manufacturados Elaborados</field>
+        <field
+            name="name@es_419">Compras - Total Tabacos Manufacturados Elaborados</field>
         <field name="applicability">accounts</field>
     </record>
 
@@ -129,8 +139,10 @@
 
     <!-- honorarios y otros -->
     <record id="tag_cl_fees_amount" model="account.account.tag">
-        <field name="name">Fees - Amounts Subject to 2 Category Income Tax Withholding</field>
-        <field name="name@es_419">Honorarios -  Montos Sujetos a Retención Renta 2 Categoría</field>
+        <field
+            name="name">Fees - Amounts Subject to 2 Category Income Tax Withholding</field>
+        <field
+            name="name@es_419">Honorarios -  Montos Sujetos a Retención Renta 2 Categoría</field>
         <field name="applicability">accounts</field>
     </record>
 

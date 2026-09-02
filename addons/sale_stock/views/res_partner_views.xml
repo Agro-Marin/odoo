@@ -6,7 +6,9 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="sale.res_partner_view_buttons" />
         <field name="arch" type="xml">
-            <xpath expr="//button[@name='sale.act_res_partner_2_sale_order']" position="after">
+            <xpath
+                expr="//button[@name='sale.act_res_partner_2_sale_order']"
+                position="after">
                 <button
                     name="%(action_sale_customer_delay_report)d"
                     type="action"
@@ -18,7 +20,10 @@
                     <div class="o_form_field o_stat_info">
                         <div class="o_row">
                             <span class="o_stat_value">
-                                <field string="On-time Rate" name="customer_on_time_rate" digits="[42, 0]" />
+                                <field
+                                    string="On-time Rate"
+                                    name="customer_on_time_rate"
+                                    digits="[42, 0]" />
                             </span>
                             <span class="o_stat_value">%</span>
                         </div>

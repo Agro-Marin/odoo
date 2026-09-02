@@ -1,11 +1,8 @@
 {
-    'name': 'Bangladesh - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['bd'],
-    'version': '1.0',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Bangladesh - Accounting",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the base module to manage the accounting chart for Bangladesh in Odoo
 ==============================================================================
 
@@ -17,18 +14,25 @@ Activates:
 - Taxes
 - Tax report
 """,
-    'depends': [
-        'account',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account.account.tag.csv',
-        'data/account_tax_report_data.xml',
-        'views/menu_items.xml',
+    "countries": [
+        "bd",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account.account.tag.csv",
+        "data/account_tax_report_data.xml",
+        "views/menu_items.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

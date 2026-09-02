@@ -1,33 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
-    <record model="utm.source" id="utm_source_search_engine">
+
+    <record id="utm_source_search_engine" model="utm.source">
         <field name="name">Search engine</field>
     </record>
-    <record model="utm.source" id="utm_source_mailing">
+
+    <record id="utm_source_mailing" model="utm.source">
         <field name="name">Lead Recall</field>
     </record>
-    <record model="utm.source" id="utm_source_newsletter">
+
+    <record id="utm_source_newsletter" model="utm.source">
         <field name="name">Newsletter</field>
     </record>
-    <record model="utm.source" id="utm_source_facebook">
+
+    <record id="utm_source_facebook" model="utm.source">
         <field name="name">Facebook</field>
     </record>
-    <record model="utm.source" id="utm_source_twitter">
+
+    <record id="utm_source_twitter" model="utm.source">
         <field name="name">X</field>
     </record>
-    <record model="utm.source" id="utm_source_linkedin">
+
+    <record id="utm_source_linkedin" model="utm.source">
         <field name="name">LinkedIn</field>
     </record>
-    <record model="utm.source" id="utm_source_monster">
+
+    <record id="utm_source_monster" model="utm.source">
         <field name="name">Monster</field>
     </record>
-    <record model="utm.source" id="utm_source_glassdoor">
+
+    <record id="utm_source_glassdoor" model="utm.source">
         <field name="name">Glassdoor</field>
     </record>
-    <record model="utm.source" id="utm_source_craigslist">
+
+    <record id="utm_source_craigslist" model="utm.source">
         <field name="name">Craigslist</field>
     </record>
-    <record model="utm.source" id="utm_source_referral">
+
+    <record id="utm_source_referral" model="utm.source">
         <field name="name">Referral</field>
     </record>
+
 </odoo>

@@ -1,11 +1,15 @@
 {
     "name": "Cloudflare Turnstile",
-    "category": "Website/Website",
     "version": "1.0",
+    "category": "Website/Website",
     "description": """
 This module implements Cloudflare Turnstile so that you can prevent bot spam on your forms.
     """,
-    "depends": ["website"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website",
+    ],
     "data": [
         "views/res_config_settings_view.xml",
     ],
@@ -22,7 +26,5 @@ This module implements Cloudflare Turnstile so that you can prevent bot spam on 
             "website_cf_turnstile/static/src/interactions/**/*.xml",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "installable": True,
 }

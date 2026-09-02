@@ -17,7 +17,11 @@ going through the retailer's warehouse. In this case no
 internal transfer document is needed.
 
 """,
-    "depends": ["sale_purchase_stock"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "sale_purchase_stock",
+    ],
     "data": [
         "data/stock_data.xml",
         "views/sale_order_views.xml",
@@ -27,8 +31,6 @@ internal transfer document is needed.
     "demo": [
         "data/stock_dropshipping_demo.xml",
     ],
-    "uninstall_hook": "uninstall_hook",
     "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "uninstall_hook": "uninstall_hook",
 }

@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Mass mailing on sale orders',
-    'category': 'Marketing/Email Marketing',
-    'version': '1.0',
-    'summary': 'Add sale order UTM info on mass mailing',
-    'description': """UTM and mass mailing on sale orders""",
-    'depends': ['sale', 'mass_mailing'],
-    'data': [
-        'views/mailing_mailing_views.xml',
+    "name": "Mass mailing on sale orders",
+    "version": "1.0",
+    "category": "Marketing/Email Marketing",
+    "summary": "Add sale order UTM info on mass mailing",
+    "description": "UTM and mass mailing on sale orders",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "sale",
+        "mass_mailing",
     ],
-    'demo': [
-        'demo/mailing_mailing.xml',
+    "data": [
+        "views/mailing_mailing_views.xml",
     ],
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/mailing_mailing.xml",
+    ],
+    "auto_install": True,
 }

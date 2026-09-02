@@ -1,5 +1,6 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="auth_passkey_key_view_kanban" model="ir.ui.view">
         <field name="name">auth.passkey.key.kanban</field>
         <field name="model">auth.passkey.key</field>
@@ -12,10 +13,10 @@
                     </t>
                     <t t-name="card">
                         <div>
-                            <field name="name" class="fw-bold fs-5"/>
-                            <field name="create_date" class="ms-2 text-muted"/>
+                            <field name="name" class="fw-bold fs-5" />
+                            <field name="create_date" class="ms-2 text-muted" />
                         </div>
-                        <small>Last used: <field name="write_date"/></small>
+                        <small>Last used: <field name="write_date" /></small>
                     </t>
                 </templates>
             </kanban>
@@ -29,12 +30,20 @@
             <form>
                 <sheet>
                     <group>
-                        <field name="name"/>
+                        <field name="name" />
                     </group>
                 </sheet>
                 <footer>
-                    <button special="save" data-hotkey="s" string="Save" class="btn-primary"/>
-                    <button special="cancel" data-hotkey="x" string="Cancel" class="btn-secondary"/>
+                    <button
+                        special="save"
+                        data-hotkey="s"
+                        string="Save"
+                        class="btn-primary" />
+                    <button
+                        special="cancel"
+                        data-hotkey="x"
+                        string="Cancel"
+                        class="btn-secondary" />
                 </footer>
             </form>
         </field>
@@ -43,8 +52,8 @@
     <record id="action_auth_passkey_key_create" model="ir.actions.act_window">
         <field name="name">Create Passkey Wizard</field>
         <field name="res_model">auth.passkey.key.create</field>
-        <field name="target">new</field>
         <field name="view_mode">form</field>
+        <field name="target">new</field>
     </record>
 
     <record id="auth_passkey_key_create_view_form" model="ir.ui.view">
@@ -54,14 +63,24 @@
             <form js_class="auth_passkey_key_create_view_form">
                 <sheet>
                     <group>
-                        <field name="name"/>
+                        <field name="name" />
                     </group>
                 </sheet>
                 <footer>
-                    <button name="make_key" type="object" string="Create" class="btn-primary" data-hotkey="q"/>
-                    <button special="cancel" data-hotkey="x" string="Cancel" class="btn-secondary"/>
+                    <button
+                        name="make_key"
+                        type="object"
+                        string="Create"
+                        class="btn-primary"
+                        data-hotkey="q" />
+                    <button
+                        special="cancel"
+                        data-hotkey="x"
+                        string="Cancel"
+                        class="btn-secondary" />
                 </footer>
             </form>
         </field>
     </record>
+
 </odoo>

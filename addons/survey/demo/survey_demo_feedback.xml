@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="0">
 
-    <record model="survey.survey" id="survey_feedback">
+    <record id="survey_feedback" model="survey.survey">
         <field name="title">Feedback Form</field>
         <field name="access_token">b135640d-14d4-4748-9ef6-344ca256531e</field>
         <field name="user_id" ref="base.user_admin" />
@@ -17,7 +17,7 @@
     </record>
 
     <!-- Page1: general information -->
-    <record model="survey.question" id="survey_feedback_p1">
+    <record id="survey_feedback_p1" model="survey.question">
         <field name="title">About you</field>
         <field name="survey_id" ref="survey_feedback" />
         <field name="sequence">1</field>
@@ -29,7 +29,7 @@
         </field>
     </record>
 
-    <record model="survey.question" id="survey_feedback_p1_q1">
+    <record id="survey_feedback_p1_q1" model="survey.question">
         <field name="survey_id" ref="survey_feedback" />
         <field name="sequence">2</field>
         <field name="title">Where do you live?</field>
@@ -38,7 +38,7 @@
         <field name="constr_mandatory" eval="False" />
     </record>
 
-    <record model="survey.question" id="survey_feedback_p1_q2">
+    <record id="survey_feedback_p1_q2" model="survey.question">
         <field name="survey_id" ref="survey_feedback" />
         <field name="sequence">3</field>
         <field name="title">When is your date of birth?</field>
@@ -46,7 +46,7 @@
         <field name="constr_mandatory" eval="False" />
     </record>
 
-    <record model="survey.question" id="survey_feedback_p1_q3">
+    <record id="survey_feedback_p1_q3" model="survey.question">
         <field name="survey_id" ref="survey_feedback" />
         <field name="sequence">4</field>
         <field name="title">How frequently do you buy products online?</field>
@@ -56,31 +56,31 @@
         <field name="constr_mandatory" eval="True" />
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p1_q3_sug1">
+    <record id="survey_feedback_p1_q3_sug1" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p1_q3" />
         <field name="sequence">1</field>
         <field name="value">Once a day</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p1_q3_sug2">
+    <record id="survey_feedback_p1_q3_sug2" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p1_q3" />
         <field name="sequence">2</field>
         <field name="value">Once a week</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p1_q3_sug3">
+    <record id="survey_feedback_p1_q3_sug3" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p1_q3" />
         <field name="sequence">3</field>
         <field name="value">Once a month</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p1_q3_sug4">
+    <record id="survey_feedback_p1_q3_sug4" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p1_q3" />
         <field name="sequence">4</field>
         <field name="value">Once a year</field>
     </record>
 
-    <record model="survey.question" id="survey_feedback_p1_q4">
+    <record id="survey_feedback_p1_q4" model="survey.question">
         <field name="survey_id" ref="survey_feedback" />
         <field name="sequence">5</field>
         <field
@@ -90,7 +90,7 @@
     </record>
 
     <!-- Page 2 -->
-    <record model="survey.question" id="survey_feedback_p2">
+    <record id="survey_feedback_p2" model="survey.question">
         <field name="title">About our ecommerce</field>
         <field name="survey_id" ref="survey_feedback" />
         <field name="sequence">6</field>
@@ -101,7 +101,7 @@
         </field>
     </record>
 
-    <record model="survey.question" id="survey_feedback_p2_q1">
+    <record id="survey_feedback_p2_q1" model="survey.question">
         <field name="survey_id" ref="survey_feedback" />
         <field name="sequence">7</field>
         <field
@@ -112,55 +112,55 @@
         <field name="comment_count_as_answer" eval="False" />
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q1_sug1">
+    <record id="survey_feedback_p2_q1_sug1" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q1" />
         <field name="sequence">1</field>
         <field name="value">High quality</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q1_sug2">
+    <record id="survey_feedback_p2_q1_sug2" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q1" />
         <field name="sequence">2</field>
         <field name="value">Useful</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q1_sug3">
+    <record id="survey_feedback_p2_q1_sug3" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q1" />
         <field name="sequence">3</field>
         <field name="value">Unique</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q1_sug4">
+    <record id="survey_feedback_p2_q1_sug4" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q1" />
         <field name="sequence">4</field>
         <field name="value">Good value for money</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q1_sug5">
+    <record id="survey_feedback_p2_q1_sug5" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q1" />
         <field name="sequence">5</field>
         <field name="value">Overpriced</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q1_sug6">
+    <record id="survey_feedback_p2_q1_sug6" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q1" />
         <field name="sequence">6</field>
         <field name="value">Impractical</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q1_sug7">
+    <record id="survey_feedback_p2_q1_sug7" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q1" />
         <field name="sequence">7</field>
         <field name="value">Ineffective</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q1_sug8">
+    <record id="survey_feedback_p2_q1_sug8" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q1" />
         <field name="sequence">8</field>
         <field name="value">Poor quality</field>
     </record>
 
-    <record model="survey.question" id="survey_feedback_p2_q2">
+    <record id="survey_feedback_p2_q2" model="survey.question">
         <field name="survey_id" ref="survey_feedback" />
         <field name="sequence">8</field>
         <field name="title">What do you think about our new eCommerce?</field>
@@ -169,62 +169,62 @@
         <field name="constr_mandatory" eval="True" />
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q2_col1">
+    <record id="survey_feedback_p2_q2_col1" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q2" />
         <field name="sequence">1</field>
         <field name="value">Totally disagree</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q2_col2">
+    <record id="survey_feedback_p2_q2_col2" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q2" />
         <field name="sequence">2</field>
         <field name="value">Disagree</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q2_col3">
+    <record id="survey_feedback_p2_q2_col3" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q2" />
         <field name="sequence">3</field>
         <field name="value">Agree</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q2_col4">
+    <record id="survey_feedback_p2_q2_col4" model="survey.question.answer">
         <field name="question_id" ref="survey_feedback_p2_q2" />
         <field name="sequence">4</field>
         <field name="value">Totally agree</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q2_row1">
+    <record id="survey_feedback_p2_q2_row1" model="survey.question.answer">
         <field name="matrix_question_id" ref="survey_feedback_p2_q2" />
         <field name="sequence">1</field>
         <field name="value">The new layout and design is fresh and up-to-date</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q2_row2">
+    <record id="survey_feedback_p2_q2_row2" model="survey.question.answer">
         <field name="matrix_question_id" ref="survey_feedback_p2_q2" />
         <field name="sequence">2</field>
         <field name="value">It is easy to find the product that I want</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q2_row3">
+    <record id="survey_feedback_p2_q2_row3" model="survey.question.answer">
         <field name="matrix_question_id" ref="survey_feedback_p2_q2" />
         <field name="sequence">3</field>
         <field
             name="value">The tool to compare the products is useful to make a choice</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q2_row4">
+    <record id="survey_feedback_p2_q2_row4" model="survey.question.answer">
         <field name="matrix_question_id" ref="survey_feedback_p2_q2" />
         <field name="sequence">4</field>
         <field name="value">The checkout process is clear and secure</field>
     </record>
 
-    <record model="survey.question.answer" id="survey_feedback_p2_q2_row5">
+    <record id="survey_feedback_p2_q2_row5" model="survey.question.answer">
         <field name="matrix_question_id" ref="survey_feedback_p2_q2" />
         <field name="sequence">5</field>
         <field name="value">I have added products to my wishlist</field>
     </record>
 
-    <record model="survey.question" id="survey_feedback_p2_q3">
+    <record id="survey_feedback_p2_q3" model="survey.question">
         <field name="survey_id" ref="survey_feedback" />
         <field name="sequence">9</field>
         <field

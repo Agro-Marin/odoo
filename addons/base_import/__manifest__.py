@@ -1,5 +1,7 @@
 {
     "name": "Base import",
+    "version": "2.2",
+    "category": "Hidden/Tools",
     "description": """
 New extensible file import for Odoo
 ======================================
@@ -21,17 +23,19 @@ Re-implement Odoo's file import system:
 * In a module, so that administrators and users of Odoo who do not
   need or want an online import can avoid it being available to users.
 """,
-    "depends": ["web"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "web",
+    ],
     "external_dependencies": {
-        "python": ["chardet"],
+        "python": [
+            "chardet",
+        ],
         "apt": {
             "chardet": "python3-chardet",
         },
     },
-    "version": "2.2",
-    "category": "Hidden/Tools",
-    "installable": True,
-    "auto_install": True,
     "data": [
         "security/ir.model.access.csv",
         "security/base_import_security.xml",
@@ -46,6 +50,6 @@ Re-implement Odoo's file import system:
             "base_import/static/tests/**/*.test.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
 }

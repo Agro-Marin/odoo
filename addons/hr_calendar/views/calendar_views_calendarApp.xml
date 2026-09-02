@@ -1,9 +1,10 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="view_calendar_event_calendar" model="ir.ui.view">
         <field name="name">view.calendar.event.calendar.inherit.calendar</field>
         <field name="model">calendar.event</field>
-        <field name="inherit_id" ref="calendar.view_calendar_event_calendar"/>
+        <field name="inherit_id" ref="calendar.view_calendar_event_calendar" />
         <field name="arch" type="xml">
             <xpath expr="//calendar" position="attributes">
                 <attribute name="show_unusual_days">True</attribute>
@@ -13,4 +14,5 @@
             </xpath>
         </field>
     </record>
+
 </odoo>

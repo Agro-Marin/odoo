@@ -1,25 +1,29 @@
 {
-    'name': 'Guatemala - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['gt'],
-    'version': '3.0',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Guatemala - Accounting",
+    "version": "3.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the base module to manage the accounting chart for Guatemala.
 =====================================================================
 
 Agrega una nomenclatura contable para Guatemala. También icluye impuestos y
 la moneda del Quetzal. -- Adds accounting chart for Guatemala. It also includes
 taxes and the Quetzal currency.""",
-    'author': 'José Rodrigo Fernández Menegazzo',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'depends': [
-        'base',
-        'account',
+    "author": "Jos\u00e9 Rodrigo Fern\u00e1ndez Menegazzo",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+        "account",
     ],
-    'auto_install': ['account'],
-    'demo': [
-        'demo/demo_company.xml',
+    "countries": [
+        "gt",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

@@ -1,12 +1,8 @@
 {
-    'name': 'Czech - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['cz'],
-    'version': '1.1',
-    'author': '26HOUSE (http://www.26house.com)',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Czech - Accounting",
+    "version": "1.1",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Czech accounting chart and localization.  With Chart of Accounts with taxes and basic fiscal positions.
 
 Tento modul definuje:
@@ -17,25 +13,33 @@ Tento modul definuje:
 
 - Základní fiskální pozice pro českou legislativu
     """,
-    'depends': [
-        'account',
-        'account_edi_ubl_cii',
-        'account_iban',
-        'account_vat',
+    "author": "26HOUSE (http://www.26house.com)",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_edi_ubl_cii",
+        "account_iban",
+        "account_vat",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/tax_report.xml',
-        'data/l10n_cz.tax_office.csv',
-        'views/report_invoice.xml',
-        'views/res_partner_views.xml',
-        'views/res_company_views.xml',
-        'views/report_template.xml',
-        'views/tax_office_view.xml',
-        'security/ir.model.access.csv',
+    "countries": [
+        "cz",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/tax_report.xml",
+        "data/l10n_cz.tax_office.csv",
+        "views/report_invoice.xml",
+        "views/res_partner_views.xml",
+        "views/res_company_views.xml",
+        "views/report_template.xml",
+        "views/tax_office_view.xml",
+        "security/ir.model.access.csv",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

@@ -1,10 +1,8 @@
 {
-    'name': 'Türkiye - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['tr'],
-    'version': '1.3',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "T\u00fcrkiye - Accounting",
+    "version": "1.3",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the base module to manage the accounting chart for Türkiye in Odoo
 ==========================================================================
 
@@ -16,16 +14,22 @@ Activates:
 - Taxes
 - Tax Report
     """,
-    'author': 'Odoo S.A., Drysharks Consulting and Trading Ltd.',
-    'depends': [
-        'account',
+    "author": "Odoo S.A., Drysharks Consulting and Trading Ltd.",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "tr",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

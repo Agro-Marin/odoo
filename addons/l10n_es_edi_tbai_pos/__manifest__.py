@@ -1,20 +1,20 @@
 {
-    'name': "Spain - Point of Sale + TicketBAI",
-    'version': '1.0',
-    'category': 'Accounting/Localizations/Point of Sale',
-    'depends': [
-        'l10n_es_edi_tbai',
-        'point_of_sale',
+    "name": "Spain - Point of Sale + TicketBAI",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Point of Sale",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_es_edi_tbai",
+        "point_of_sale",
     ],
-    'data': [
-        'views/pos_order_view.xml',
+    "data": [
+        "views/pos_order_view.xml",
     ],
-    'assets': {
-        'point_of_sale._assets_pos': [
-            'l10n_es_edi_tbai_pos/static/src/**/*',
+    "assets": {
+        "point_of_sale._assets_pos": [
+            "l10n_es_edi_tbai_pos/static/src/**/*",
         ],
     },
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "auto_install": True,
 }

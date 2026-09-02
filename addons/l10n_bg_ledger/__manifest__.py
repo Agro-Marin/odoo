@@ -1,20 +1,22 @@
 {
-    'name': 'Bulgaria - Report ledger',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['bg'],
-    'version': '1.0',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Bulgaria - Report ledger",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Report ledger for Bulgaria
     """,
-    'depends': [
-        'l10n_bg'
+    "author": "Odoo S.A.",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_bg",
     ],
-    'data': [
-        'views/account_journal_views.xml',
-        'views/account_move_views.xml',
+    "countries": [
+        "bg",
     ],
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "data": [
+        "views/account_journal_views.xml",
+        "views/account_move_views.xml",
+    ],
+    "auto_install": True,
 }

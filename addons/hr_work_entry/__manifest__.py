@@ -4,7 +4,8 @@
     "category": "Human Resources/Employees",
     "sequence": 39,
     "summary": "Manage work entries",
-    "installable": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "hr",
     ],
@@ -30,6 +31,5 @@
             "hr_work_entry/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

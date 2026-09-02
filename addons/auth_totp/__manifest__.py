@@ -1,5 +1,6 @@
 {
     "name": "Two-Factor Authentication (TOTP)",
+    "category": "Extra Tools",
     "description": """
 Two-Factor Authentication (TOTP)
 ================================
@@ -14,15 +15,19 @@ Note: logically, two-factor prevents password-based RPC access for users
 where it is enabled. In order to be able to execute RPC scripts, the user
 can setup API keys to replace their main password.
     """,
-    "depends": ["web"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "web",
+    ],
     "external_dependencies": {
-        "python": ["qrcode"],
+        "python": [
+            "qrcode",
+        ],
         "apt": {
             "qrcode": "python3-qrcode",
         },
     },
-    "category": "Extra Tools",
-    "auto_install": True,
     "data": [
         "security/security.xml",
         "security/ir.model.access.csv",
@@ -39,6 +44,5 @@ can setup API keys to replace their main password.
             "auth_totp/static/src/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

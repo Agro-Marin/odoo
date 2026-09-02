@@ -1,9 +1,8 @@
 {
-    'name': 'Croatia - Accounting (Euro)',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['hr'],
-    'description': """
+    "name": "Croatia - Accounting (Euro)",
+    "version": "13.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Croatian Chart of Accounts updated (RRIF ver.2021)
 
 Sources:
@@ -11,20 +10,25 @@ https://www.rrif.hr/dok/preuzimanje/Bilanca-2016.pdf
 https://www.rrif.hr/dok/preuzimanje/RRIF-RP2021.PDF
 https://www.rrif.hr/dok/preuzimanje/RRIF-RP2021-ENG.PDF
     """,
-    'version': '13.0',
-    'category': 'Accounting/Localizations/Account Charts',
-    'depends': [
-        'account',
-        'account_vat',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_vat",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/l10n_hr_chart_data.xml',
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "hr",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/l10n_hr_chart_data.xml",
+        "data/account_tax_report_data.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

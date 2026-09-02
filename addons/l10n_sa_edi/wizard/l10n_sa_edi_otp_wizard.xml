@@ -8,13 +8,22 @@
             <form string="Use an OTP to request for a CSID">
                 Please input the OTP generated from the Fatoora Portal.
                 <group>
-                    <field name="journal_id" invisible="1"/>
-                    <field name="l10n_sa_renewal" invisible="1"/>
-                    <field name="l10n_sa_otp"/>
+                    <field name="journal_id" invisible="1" />
+                    <field name="l10n_sa_renewal" invisible="1" />
+                    <field name="l10n_sa_otp" />
                 </group>
                 <footer>
-                    <button string="Confirm" type="object" name="validate" class="btn btn-primary" data-hotkey="q"/>
-                    <button string="Cancel" special="cancel" data-hotkey="x" class="btn btn-secondary"/>
+                    <button
+                        string="Confirm"
+                        type="object"
+                        name="validate"
+                        class="btn btn-primary"
+                        data-hotkey="q" />
+                    <button
+                        string="Cancel"
+                        special="cancel"
+                        data-hotkey="x"
+                        class="btn btn-secondary" />
                 </footer>
             </form>
         </field>

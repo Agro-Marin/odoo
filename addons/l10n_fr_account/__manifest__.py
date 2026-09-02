@@ -1,11 +1,8 @@
 {
-    'name': 'France - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/france.html',
-    'icon': '/account/static/description/l10n.png',
-    'version': '2.2',
-    'countries': ['fr'],
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "France - Accounting",
+    "version": "2.2",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the module to manage the accounting chart for France in Odoo.
 ========================================================================
 
@@ -27,33 +24,42 @@ configuration of their taxes and fiscal positions manually.
 
 **Credits:** Sistheo, Zeekom, CrysaLEAD, Akretion and Camptocamp.
 """,
-    'depends': [
-        'account_iban',
-        'account_vat',
-        'account',
-        'account_edi_ubl_cii',
-        'l10n_fr',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/france.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account_iban",
+        "account_vat",
+        "account",
+        "account_edi_ubl_cii",
+        "l10n_fr",
     ],
-    'external_dependencies': {
-        'python': ['python-stdnum'],
-        'apt': {
-            'python-stdnum': 'python3-stdnum',
+    "external_dependencies": {
+        "python": [
+            "python-stdnum",
+        ],
+        "apt": {
+            "python-stdnum": "python3-stdnum",
         },
     },
-    'auto_install': ['account'],
-    'data': [
-        'data/account_chart_template_data.xml',
-        'data/account_data.xml',
-        'data/tax_report_data.xml',
-        'views/report_invoice.xml',
-        'wizard/account_fr_fec_export_wizard_view.xml',
-        'security/ir.model.access.csv',
-        'data/res.bank.csv',
+    "countries": [
+        "fr",
     ],
-    'demo': [
-        'data/l10n_fr_account_demo.xml',
+    "data": [
+        "data/account_chart_template_data.xml",
+        "data/account_data.xml",
+        "data/tax_report_data.xml",
+        "views/report_invoice.xml",
+        "wizard/account_fr_fec_export_wizard_view.xml",
+        "security/ir.model.access.csv",
+        "data/res.bank.csv",
     ],
-    'post_init_hook': '_l10n_fr_post_init_hook',
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "data/l10n_fr_account_demo.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
+    "post_init_hook": "_l10n_fr_post_init_hook",
 }

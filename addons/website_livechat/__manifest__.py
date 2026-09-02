@@ -1,12 +1,15 @@
 {
     "name": "Website Live Chat",
+    "version": "1.0",
     "category": "Website/Live Chat",
     "summary": "Chat with your website visitors",
-    "version": "1.0",
     "description": "Allow website visitors to chat with the collaborators.",
-    "depends": ["website", "im_livechat"],
-    "installable": True,
-    "auto_install": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website",
+        "im_livechat",
+    ],
     "data": [
         "views/website_livechat.xml",
         "views/res_config_settings_views.xml",
@@ -26,12 +29,11 @@
             "website_livechat/static/src/**/common/**/*",
         ],
         "im_livechat.embed_assets_unit_tests_setup": [
-            ("remove", "website_livechat/static/**"),
+            (
+                "remove",
+                "website_livechat/static/**",
+            ),
         ],
-        # The helpers go in the tests bundle, not the setup bundle: the setup
-        # bundle is an import-map parent and `_esbuild_entry_lines` drops every
-        # `/static/tests/` module from a parent's entry, so a helper left there
-        # reaches nobody.  Same split as `im_livechat`'s own entries.
         "im_livechat.embed_assets_unit_tests": [
             "web/static/tests/public/helpers.js",
             "website/static/tests/helpers.js",
@@ -58,12 +60,15 @@
         ],
         "web.assets_unit_tests": [
             "website_livechat/static/tests/**/*",
-            ("remove", "website_livechat/static/tests/tours/**/*"),
+            (
+                "remove",
+                "website_livechat/static/tests/tours/**/*",
+            ),
         ],
         "web.assets_tests": [
             "website_livechat/static/tests/tours/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
 }

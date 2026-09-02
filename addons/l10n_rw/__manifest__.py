@@ -1,27 +1,31 @@
 {
-    'name': 'Rwanda - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['rw'],
-    'category': 'Accounting/Localizations/Account Charts',
-    'version': '1.0',
-    'depends': [
-        'account',
-    ],
-    'auto_install': ['account'],
-    'description': """
+    "name": "Rwanda - Accounting",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
     Rwandan localisation containing:
     - COA
     - Taxes
     - Tax report
     - Fiscal position
     """,
-    'data': [
-        'data/l10n_rw_chart_data.xml',
-        'data/account_tax_report_data.xml',
+    "author": "Odoo S.A.",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "countries": [
+        "rw",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "data": [
+        "data/l10n_rw_chart_data.xml",
+        "data/account_tax_report_data.xml",
+    ],
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

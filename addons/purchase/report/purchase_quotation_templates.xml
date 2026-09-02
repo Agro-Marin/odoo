@@ -4,21 +4,25 @@
     <template id="report_purchasequotation_document">
         <t t-call="web.external_layout">
             <t t-set="o" t-value="o.with_context(lang=o.partner_id.lang)" />
-            <t t-set="forced_vat" t-value="o.fiscal_position_id.foreign_vat" /> <!-- So that it
+            <t t-set="forced_vat" t-value="o.fiscal_position_id.foreign_vat"/> <!-- So that it
             appears in the footer of the report instead of the company VAT if it's set -->
             <t t-set="address">
-                <div t-field="o.partner_id"
-                    t-options='{"widget": "contact", "fields": ["address", "name", "phone", "vat"], "no_marker": True, "phone_icons": True}' />
+                <div
+                    t-field="o.partner_id"
+                    t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;, &quot;vat&quot;], &quot;no_marker&quot;: True, &quot;phone_icons&quot;: True}" />
             </t>
             <t t-if="o.dest_address_id">
                 <t t-set="information_block">
                     <strong class="d-block mt-3">Shipping address</strong>
-                    <div t-field="o.dest_address_id"
-                        t-options='{"widget": "contact", "fields": ["address", "name", "phone"], "no_marker": True, "phone_icons": True}'
+                    <div
+                        t-field="o.dest_address_id"
+                        t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True, &quot;phone_icons&quot;: True}"
                         name="purchase_shipping_address" />
                     <div>
                         <strong>Requested Ship Date:</strong>
-                        <span t-field="o.date_commitment" t-options="{'date_only': 'true'}" />
+                        <span
+                            t-field="o.date_commitment"
+                            t-options="{'date_only': 'true'}" />
                     </div>
                 </t>
             </t>
@@ -47,18 +51,21 @@
                                         <span t-field="line.name" />
                                     </td>
                                     <td class="text-center">
-                                        <span t-field="line.date_commitment"
+                                        <span
+                                            t-field="line.date_commitment"
                                             t-options="{'date_only': 'true'}" />
                                     </td>
                                     <td class="text-end">
                                         <span t-field="line.product_qty" />
-                                        <span t-field="line.product_uom_id"
+                                        <span
+                                            t-field="line.product_uom_id"
                                             groups="uom.group_uom" />
                                         <span
                                             t-if="line.product_uom_id != line.product_id.uom_id"
                                             class="text-muted small">
                                             <br />
-                                            <span t-field="line.product_uom_qty"
+                                            <span
+                                                t-field="line.product_uom_qty"
                                                 t-options="{'widget': 'float', 'decimal_precision': 'Product Unit'}" />
                                             <span t-field="line.product_id.uom_id" />
                                         </span>
@@ -78,15 +85,16 @@
 
                 <div class="oe_structure" />
 
-                <t t-set="base_address"
+                <t
+                    t-set="base_address"
                     t-value="o.env['ir.config_parameter'].sudo().get_param('web.base.url')" />
-                <t t-set="portal_url"
+                <t
+                    t-set="portal_url"
                     t-value="base_address + '/my/purchase/' + str(o.id) + '#portal_connect_software_modal'" />
                 <div
                     t-if="any(u._is_portal() for u in o.partner_id.user_ids) and o._get_edi_builders()"
                     class="text-center">
-                    <a t-att-href="portal_url">Connect your software</a> with <t
-                        t-out="o.company_id.name" /> to create quotes automatically. </div>
+                    <a t-att-href="portal_url">Connect your software</a> with <t t-out="o.company_id.name" /> to create quotes automatically. </div>
             </div>
         </t>
     </template>
@@ -94,7 +102,9 @@
     <template id="report_purchasequotation">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
-                <t t-call="purchase.report_purchasequotation_document" t-lang="o.partner_id.lang" />
+                <t
+                    t-call="purchase.report_purchasequotation_document"
+                    t-lang="o.partner_id.lang" />
             </t>
         </t>
     </template>

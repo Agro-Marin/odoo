@@ -2,11 +2,12 @@
     "name": "Peruvian - Point of Sale with Pe Doc",
     "version": "1.0",
     "category": "Accounting/Localizations/Point of Sale",
-    "author": "Vauxoo, Odoo S.A.",
     "description": """
 This module brings the technical requirement for the Peruvian regulation.
 Install this if you are using the Point of Sale app in Peru.
     """,
+    "author": "Vauxoo, Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "l10n_pe",
         "point_of_sale",
@@ -16,9 +17,10 @@ Install this if you are using the Point of Sale app in Peru.
         "views/templates.xml",
     ],
     "assets": {
-        "point_of_sale._assets_pos": ["l10n_pe_pos/static/src/**/*"],
+        "point_of_sale._assets_pos": [
+            "l10n_pe_pos/static/src/**/*",
+        ],
     },
     "installable": True,
     "auto_install": True,
-    "license": "LGPL-3",
 }

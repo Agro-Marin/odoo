@@ -1,48 +1,50 @@
-<?xml version="1.0"?>
-<odoo><data>
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
 
-    <!-- MAIN ITEMS -->
-    <menuitem id="menu_event_track"
-        name="Tracks"
-        sequence="40"
-        action="action_event_track"
-        parent="event.event_main_menu"
-        groups="base.group_no_one"/>
+    <data>
+        <!-- MAIN ITEMS -->
+        <menuitem
+            id="menu_event_track"
+            name="Tracks"
+            parent="event.event_main_menu"
+            action="action_event_track"
+            sequence="40"
+            groups="base.group_no_one" />
+        <!-- CONFIGURATION -->
+        <menuitem
+            id="event_track_stage_menu"
+            name="Track Stages"
+            parent="event.menu_event_configuration"
+            action="event_track_stage_action"
+            sequence="30"
+            groups="base.group_no_one" />
+        <menuitem
+            id="menu_event_track_location"
+            name="Track Locations"
+            parent="event.menu_event_configuration"
+            action="action_event_track_location"
+            sequence="32" />
+        <menuitem
+            id="event_track_tag_category_menu"
+            name="Track Tag Categories"
+            parent="event.menu_event_configuration"
+            action="event_track_tag_category_action"
+            sequence="33"
+            groups="base.group_no_one" />
+        <menuitem
+            id="menu_event_track_tag"
+            name="Track Tags"
+            parent="event.menu_event_configuration"
+            action="action_event_track_tag"
+            sequence="34"
+            groups="base.group_no_one" />
+        <menuitem
+            id="event_track_visitor_menu"
+            name="Track Visitors"
+            parent="event.menu_event_configuration"
+            action="event_track_visitor_action"
+            sequence="38"
+            groups="base.group_no_one" />
+    </data>
 
-    <!-- CONFIGURATION -->
-    <menuitem id="event_track_stage_menu"
-        name="Track Stages"
-        action="event_track_stage_action"
-        parent="event.menu_event_configuration"
-        groups="base.group_no_one"
-        sequence="30"/>
-
-    <menuitem id="menu_event_track_location"
-        name="Track Locations"
-        action="action_event_track_location"
-        parent="event.menu_event_configuration"
-        sequence="32"/>
-
-    <menuitem id="event_track_tag_category_menu"
-        name="Track Tag Categories"
-        action="event_track_tag_category_action"
-        parent="event.menu_event_configuration"
-        groups="base.group_no_one"
-        sequence="33"/>
-
-    <menuitem
-        id="menu_event_track_tag"
-        name="Track Tags"
-        action="action_event_track_tag"
-        parent="event.menu_event_configuration"
-        groups="base.group_no_one"
-        sequence="34"/>
-
-    <menuitem id="event_track_visitor_menu"
-        name="Track Visitors"
-        sequence="38"
-        action="event_track_visitor_action"
-        parent="event.menu_event_configuration"
-        groups="base.group_no_one"/>
-
-</data></odoo>
+</odoo>

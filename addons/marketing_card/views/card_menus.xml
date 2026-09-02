@@ -1,28 +1,34 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem name="Marketing Card"
-        id="card_menu"
-        web_icon="marketing_card,static/description/icon.png"
-        sequence="270"
-        groups="marketing_card.marketing_card_group_user"/>
 
-    <menuitem name="Campaigns"
+    <menuitem
+        id="card_menu"
+        name="Marketing Card"
+        sequence="270"
+        groups="marketing_card.marketing_card_group_user"
+        web_icon="marketing_card,static/description/icon.png" />
+
+    <menuitem
         id="card_campaign_menu"
+        name="Campaigns"
         parent="card_menu"
-        sequence="0"
         action="card_campaign_action"
-        groups="marketing_card.marketing_card_group_user"/>
+        sequence="0"
+        groups="marketing_card.marketing_card_group_user" />
 
     <!-- Technical -->
-    <menuitem name="Marketing Card"
+    <menuitem
         id="marketing_card_menu_technical"
+        name="Marketing Card"
         parent="base.menu_custom"
-        groups="marketing_card.marketing_card_group_manager,base.group_no_one"
-        sequence="4"/>
+        sequence="4"
+        groups="marketing_card.marketing_card_group_manager,base.group_no_one" />
 
-    <menuitem name="Card Template"
+    <menuitem
         id="cards_template_menu"
+        name="Card Template"
         parent="marketing_card.marketing_card_menu_technical"
-        groups="marketing_card.marketing_card_group_manager,base.group_no_one"
-        action="card_template_action"/>
+        action="card_template_action"
+        groups="marketing_card.marketing_card_group_manager,base.group_no_one" />
+
 </odoo>

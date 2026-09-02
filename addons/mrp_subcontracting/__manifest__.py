@@ -1,10 +1,14 @@
 {
     "name": "MRP Subcontracting",
     "version": "0.1",
-    "summary": "Subcontract Productions",
-    "website": "https://www.odoo.com/app/manufacturing",
     "category": "Supply Chain/Manufacturing",
-    "depends": ["mrp"],
+    "summary": "Subcontract Productions",
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/manufacturing",
+    "license": "LGPL-3",
+    "depends": [
+        "mrp",
+    ],
     "data": [
         "data/mrp_subcontracting_data.xml",
         "security/mrp_subcontracting_security.xml",
@@ -35,13 +39,22 @@
             "mrp_subcontracting/static/src/scss/subcontracting_portal.scss",
         ],
         "mrp_subcontracting.webclient": [
-            ("include", "web._assets_helpers"),
-            ("include", "web._assets_backend_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_backend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            ("include", "web._assets_bootstrap"),
+            (
+                "include",
+                "web._assets_bootstrap",
+            ),
             "web/static/src/scss/tokens.scss",
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",
@@ -60,7 +73,10 @@
             "base/static/src/css/modules.css",
             "web/static/src/core/**/*",
             "web/static/src/components/**/*",
-            ("remove", "web/static/src/components/emoji_picker/emoji_data.js"),
+            (
+                "remove",
+                "web/static/src/components/emoji_picker/emoji_data.js",
+            ),
             "web/static/src/ui/**/*",
             "web/static/src/search/**/*",
             "web/static/src/views/*.js",
@@ -76,11 +92,26 @@
             "web/static/src/views/view_dialogs/**/*",
             "web/static/src/views/widgets/**/*",
             "web/static/src/webclient/**/*",
-            ("remove", "web/static/src/webclient/clickbot/clickbot.js"),
-            ("remove", "web/static/src/views/form/button_box/*.scss"),
-            ("remove", "web/static/src/webclient/share_target/*"),
-            ("remove", "web/static/src/**/*.dark.scss"),
-            ("remove", "web/static/src/webclient/actions/reports/**/*"),
+            (
+                "remove",
+                "web/static/src/webclient/clickbot/clickbot.js",
+            ),
+            (
+                "remove",
+                "web/static/src/views/form/button_box/*.scss",
+            ),
+            (
+                "remove",
+                "web/static/src/webclient/share_target/*",
+            ),
+            (
+                "remove",
+                "web/static/src/**/*.dark.scss",
+            ),
+            (
+                "remove",
+                "web/static/src/webclient/actions/reports/**/*",
+            ),
             "web/static/src/webclient/actions/reports/*.js",
             "web/static/src/webclient/actions/reports/*.xml",
             "web/static/src/env.js",
@@ -94,12 +125,10 @@
             "mrp_subcontracting/static/src/components/subcontracting_production_list_controller.js",
         ],
     },
-    "uninstall_hook": "uninstall_hook",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "esm": {
         "bundles": [
             "mrp_subcontracting.webclient",
         ],
     },
+    "uninstall_hook": "uninstall_hook",
 }

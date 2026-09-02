@@ -1,28 +1,32 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Greece - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['gr'],
-    'author': 'P. Christeas, Odoo S.A.',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Greece - Accounting",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the base module to manage the accounting chart for Greece.
 ==================================================================
 
 Greek accounting chart and localization.
     """,
-    'depends': [
-        'account',
-        'account_iban',
-        'account_vat',
-        'account_edi_ubl_cii',
+    "author": "P. Christeas, Odoo S.A.",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_iban",
+        "account_vat",
+        "account_edi_ubl_cii",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "gr",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

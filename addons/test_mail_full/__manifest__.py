@@ -8,14 +8,15 @@
 and mail-related sub modules. Those tests are present in a separate module as it
 contains models used only to perform tests independently to functional aspects of
 real applications. """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "mail",
         "mail_bot",
         "portal",
         "rating",
-        # 'snailmail',
         "mass_mailing",
-        "mass_mailing_sms",  # adds portal
+        "mass_mailing_sms",
         "phone_validation",
         "sms",
         "test_mail",
@@ -31,13 +32,14 @@ real applications. """,
     "assets": {
         "web.assets_unit_tests": [
             "test_mail_full/static/tests/**/*",
-            ("remove", "test_mail_full/static/tests/tours/**/*"),
+            (
+                "remove",
+                "test_mail_full/static/tests/tours/**/*",
+            ),
         ],
         "web.assets_tests": [
             "test_mail_full/static/tests/tours/**/*",
         ],
     },
     "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

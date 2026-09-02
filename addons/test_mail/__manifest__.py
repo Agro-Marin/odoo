@@ -7,6 +7,8 @@
     "description": """This module contains tests related to mail. Those are
 present in a separate module as it contains models used only to perform
 tests independently to functional aspects of other models. """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "mail",
         "test_orm",
@@ -27,6 +29,4 @@ tests independently to functional aspects of other models. """,
         ],
     },
     "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

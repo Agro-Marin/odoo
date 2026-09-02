@@ -1,8 +1,8 @@
 {
-    'name': 'VAT Number Validation',
-    'version': '2.0',
-    'category': 'Accounting/Accounting',
-    'description': """
+    "name": "VAT Number Validation",
+    "version": "2.0",
+    "category": "Accounting/Accounting",
+    "description": """
 VAT validation for Partner's VAT numbers.
 =========================================
 
@@ -31,17 +31,21 @@ Supported countries currently include EU countries, and a few non-EU countries
 such as Chile, Colombia, Mexico, Norway or Russia. For unsupported countries,
 only the country code will be validated.
     """,
-    'depends': ['account'],
-    'external_dependencies': {
-        'python': ['python-stdnum'],
-        'apt': {
-            'python-stdnum': 'python3-stdnum',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+    ],
+    "external_dependencies": {
+        "python": [
+            "python-stdnum",
+        ],
+        "apt": {
+            "python-stdnum": "python3-stdnum",
         },
     },
-    'data': [
-        'views/res_config_settings_views.xml',
-        'views/res_partner_views.xml',
+    "data": [
+        "views/res_config_settings_views.xml",
+        "views/res_partner_views.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
 }

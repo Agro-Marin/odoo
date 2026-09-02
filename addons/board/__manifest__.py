@@ -10,7 +10,11 @@ Lets the user create a custom dashboard.
 
 Allows users to create custom dashboard.
     """,
-    "depends": ["spreadsheet_dashboard"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "spreadsheet_dashboard",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/board_views.xml",
@@ -25,6 +29,4 @@ Allows users to create custom dashboard.
             "board/static/tests/**/*.test.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

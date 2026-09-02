@@ -10,7 +10,12 @@ This module set the right product on all timesheet lines
 according to the order/contract you work on. This allows to
 have real delivered quantities in sales orders.
 """,
-    "depends": ["sale_project", "hr_timesheet"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "sale_project",
+        "hr_timesheet",
+    ],
     "data": [
         "data/sale_service_data.xml",
         "security/ir.model.access.csv",
@@ -32,8 +37,6 @@ have real delivered quantities in sales orders.
     "demo": [
         "data/sale_service_demo.xml",
     ],
-    "auto_install": True,
-    "uninstall_hook": "uninstall_hook",
     "assets": {
         "web.assets_frontend": [
             "sale_timesheet/static/src/scss/sale_timesheet_portal.scss",
@@ -46,13 +49,16 @@ have real delivered quantities in sales orders.
         ],
         "web.assets_unit_tests": [
             "sale_timesheet/static/tests/**/*",
-            ("remove", "sale_timesheet/static/tests/tours/**/*"),
+            (
+                "remove",
+                "sale_timesheet/static/tests/tours/**/*",
+            ),
         ],
         "project.webclient": [
             "sale_timesheet/static/src/components/so_line_field/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
     "post_init_hook": "_sale_timesheet_post_init",
+    "uninstall_hook": "uninstall_hook",
 }

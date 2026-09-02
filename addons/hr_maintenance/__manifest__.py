@@ -1,12 +1,17 @@
 {
     "name": "Maintenance - HR",
     "version": "1.0",
-    "sequence": 125,
     "category": "Human Resources",
+    "sequence": 125,
+    "summary": "Equipment, Assets, Internal Hardware, Allocation Tracking",
     "description": """
 Bridge between HR and Maintenance.""",
-    "depends": ["hr", "maintenance"],
-    "summary": "Equipment, Assets, Internal Hardware, Allocation Tracking",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr",
+        "maintenance",
+    ],
     "data": [
         "security/equipment.xml",
         "views/maintenance_views.xml",
@@ -15,6 +20,4 @@ Bridge between HR and Maintenance.""",
     ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

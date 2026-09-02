@@ -1,10 +1,8 @@
 {
     "name": "Gamification",
     "version": "1.2",
-    "sequence": 160,
     "category": "Productivity",
-    "depends": ["mail"],
-    "application": True,
+    "sequence": 160,
     "description": """
 Gamification process
 ====================
@@ -17,8 +15,12 @@ For non-numerical achievements, **badges** can be granted to users. From a simpl
 
 Both goals and badges are flexible and can be adapted to a large range of modules and actions. When installed, this module creates easy goals to help new users to discover Odoo and configure their user profile.
 """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "mail",
+    ],
     "data": [
-        # First: menus and ACLs below reference the groups it declares.
         "security/res_groups_security.xml",
         "wizard/update_goal.xml",
         "wizard/grant_badge.xml",
@@ -45,7 +47,7 @@ Both goals and badges are flexible and can be adapted to a large range of module
         "security/gamification_security.xml",
         "security/ir.model.access.csv",
         "data/ir_cron_data.xml",
-        "data/mail_template_data.xml",  # keep before to populate challenge reports
+        "data/mail_template_data.xml",
         "data/gamification_badge_data.xml",
         "data/gamification_challenge_data.xml",
         "data/gamification_kudos_data.xml",
@@ -63,6 +65,5 @@ Both goals and badges are flexible and can be adapted to a large range of module
             "gamification/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "application": True,
 }

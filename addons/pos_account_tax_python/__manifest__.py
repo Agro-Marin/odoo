@@ -1,21 +1,24 @@
 {
-    'name': "Allow custom taxes in POS",
-    'category': 'Accounting/Accounting',
-    'version': '1.0',
-    'description': """Add code to manage custom taxes to the POS assets bundle""",
-    'depends': ['account_tax_python', 'point_of_sale'],
-    'assets': {
-        'point_of_sale._assets_pos': [
-            'account_tax_python/static/src/helpers/*.js',
+    "name": "Allow custom taxes in POS",
+    "version": "1.0",
+    "category": "Accounting/Accounting",
+    "description": "Add code to manage custom taxes to the POS assets bundle",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account_tax_python",
+        "point_of_sale",
+    ],
+    "assets": {
+        "point_of_sale._assets_pos": [
+            "account_tax_python/static/src/helpers/*.js",
         ],
-        'web.assets_unit_tests': [
-            'pos_account_tax_python/static/tests/unit/data/**/*'
+        "web.assets_unit_tests": [
+            "pos_account_tax_python/static/tests/unit/data/**/*",
         ],
-        'web.assets_tests': [
-            'pos_account_tax_python/static/tests/tours/**/*',
+        "web.assets_tests": [
+            "pos_account_tax_python/static/tests/tours/**/*",
         ],
     },
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "auto_install": True,
 }

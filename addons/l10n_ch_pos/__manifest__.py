@@ -1,13 +1,16 @@
 {
-    'name': 'Swiss - Point of Sale',
-    'author': 'Odoo PS',
-    'category': 'Accounting/Localizations/Point of Sale',
-    'description': """
+    "name": "Swiss - Point of Sale",
+    "category": "Accounting/Localizations/Point of Sale",
+    "description": """
 Swiss POS Localization
 =======================================================
     """,
-    'depends': ['l10n_ch', 'point_of_sale'],
-    'auto_install': True,
-    'installable': True,
-    'license': 'LGPL-3',
+    "author": "Odoo PS",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_ch",
+        "point_of_sale",
+    ],
+    "installable": True,
+    "auto_install": True,
 }

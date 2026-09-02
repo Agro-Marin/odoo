@@ -5,6 +5,8 @@
     "description": """
 Allow the user to select if he wants to receive email notifications when a product of his wishlist gets back in stock.
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "website_sale_stock",
         "website_sale_wishlist",
@@ -25,6 +27,4 @@ Allow the user to select if he wants to receive email notifications when a produ
         ],
     },
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

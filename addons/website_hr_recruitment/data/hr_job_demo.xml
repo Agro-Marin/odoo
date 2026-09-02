@@ -13,78 +13,98 @@
                                 As an employee of our company, you will <b>collaborate with each department to create and deploy
                                 disruptive products.</b> Come work at a growing company that offers great benefits with opportunities to
                                 moving forward and learn alongside accomplished leaders. We're seeking an experienced and outstanding member of staff.
-                                <br/><br/>
+                                <br /><br />
                                 This position is both <b>creative and rigorous</b> by nature you need to think outside the box.
                                 We expect the candidate to be proactive and have a "get it done" spirit. To be successful,
                                 you will have solid solving problem skills.
                             </p>
                         </div>
                         <div class="col-lg-3 offset-lg-1 pb32">
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Customer Relationship</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Personal Evolution</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Autonomy</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Administrative Work</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Technical Expertise</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -95,10 +115,14 @@
                 </div>
             </section>
             <!-- Responsabilities, Must Have and Nice to have -->
-            <section class="s_comparisons pt24 pb24 bg-200" data-snippet="s_comparisons">
+            <section
+                class="s_comparisons pt24 pb24 bg-200"
+                data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row">
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Responsibilities</h4>
                                 <ul class="list-group list-group-flush">
@@ -110,7 +134,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Must Have</h4>
                                 <ul class="list-group list-group-flush">
@@ -122,7 +148,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Nice to have</h4>
                                 <ul class="list-group list-group-flush">
@@ -142,7 +170,7 @@
                     <div class="row align-items-center">
                         <div class="col-sm-7 pb40" itemprop="description">
                             <h2>What's great in the job?</h2>
-                            <br/>
+                            <br />
                             <ul class="lead">
                                 <li>Great team of smart people, in a friendly and open culture</li>
                                 <li>No dumb managers, no stupid tools to use, no rigid working hours</li>
@@ -156,7 +184,11 @@
                             <div class="card shadow text-center">
                                 <h5 class="card-header o_colored_level text-bg-primary">Our Product</h5>
                                 <div class="card-body p-0 pt-3">
-                                    <img class="img-fluid o_we_custom_image pb24" src="/website_hr_recruitment/static/src/img/job_product.svg" style="width: 75% !important;" alt="Our Product"/>
+                                    <img
+                                        class="img-fluid o_we_custom_image pb24"
+                                        src="/website_hr_recruitment/static/src/img/job_product.svg"
+                                        style="width: 75% !important;"
+                                        alt="Our Product" />
                                     <p>Discover our products.</p>
                                     <p><a href="/" class="btn btn-primary o_translate_inline" target="_blank"><small><b>READ</b></small></a></p>
                                 </div>
@@ -166,14 +198,17 @@
                 </div>
             </section>
             <!-- What we offer -->
-            <section class="s_features pt64 pb64" data-name="Features" data-snippet="s_features">
+            <section
+                class="s_features pt64 pb64"
+                data-name="Features"
+                data-snippet="s_features">
                 <div class="container">
                     <div class="col-lg-12">
                         <h3>What We Offer</h3>
                         <p class="lead">
                             Each employee has a chance to see the impact of his work.
                             You can make a real contribution to the success of the company.
-                            <br/>
+                            <br />
                             Several activities are often organized all over the year, such as weekly
                             sports sessions, team building events, monthly drink, and much more.
                         </p>
@@ -181,59 +216,88 @@
                     <div class="row">
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Perks</h3>
-                            <p>A full-time position <br/>Attractive salary package.</p>
+                            <p>A full-time position <br />Attractive salary package.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Trainings</h3>
-                            <p>12 days / year, including <br/>6 of your choice.</p>
+                            <p>12 days / year, including <br />6 of your choice.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Sport Activity</h3>
-                            <p>Play any sport with colleagues, <br/>the bill is covered.</p>
+                            <p>Play any sport with colleagues, <br />the bill is covered.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Eat &amp; Drink</h3>
-                            <p>Fruit, coffee and <br/>snacks provided.</p>
+                            <p>Fruit, coffee and <br />snacks provided.</p>
                         </div>
                     </div>
                 </div>
             </section>
             <!-- Photos -->
-            <section class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium" data-vcss="001" data-columns="3" style="overflow: hidden;" data-snippet="s_images_wall" data-name="Images Wall">
+            <section
+                class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
+                data-vcss="001"
+                data-columns="3"
+                style="overflow: hidden;"
+                data-snippet="s_images_wall"
+                data-name="Images Wall">
                 <div class="container">
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-8">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_9.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_9.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-4">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_10.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_10.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_11.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_11.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_12.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_12.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-6">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_13.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_13.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                 </div>
@@ -255,7 +319,7 @@
                                 Join us at a rapidly growing organization that offers competitive benefits and
                                 opportunities for career advancement while working alongside industry leaders.
                                 We’re looking for a skilled developer with a passion for technology and innovation.
-                                <br/>
+                                <br />
                                 In this role, you will be responsible for <b>writing clean, maintainable code,
                                 participating in code reviews, and troubleshooting issues</b>. Your work will involve
                                 both creative <b>problem-solving and rigorous analysis</b>, requiring you to think
@@ -265,73 +329,93 @@
                             </p>
                         </div>
                         <div class="col-lg-3 offset-lg-1 pb32">
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Problem-solving</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Skill Development</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Autonomy</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Client Interaction</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Management</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
@@ -340,10 +424,14 @@
                 </div>
             </section>
             <!-- Responsabilities, Must Have and Nice to have -->
-            <section class="s_comparisons pt24 pb24 bg-200" data-snippet="s_comparisons">
+            <section
+                class="s_comparisons pt24 pb24 bg-200"
+                data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row">
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Responsibilities</h4>
                                 <ul class="list-group list-group-flush">
@@ -354,7 +442,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Must Have</h4>
                                 <ul class="list-group list-group-flush">
@@ -366,7 +456,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Nice to have</h4>
                                 <ul class="list-group list-group-flush">
@@ -385,7 +477,7 @@
                     <div class="row align-items-center">
                         <div class="col-sm-7 pb40">
                             <h2>What's great in the job?</h2>
-                            <br/>
+                            <br />
                             <ul class="lead">
                                 <li>Great team of smart people, in a friendly and open culture</li>
                                 <li>No dumb managers, no stupid tools to use, no rigid working hours</li>
@@ -399,7 +491,11 @@
                             <div class="card shadow text-center">
                                 <h5 class="card-header o_colored_level text-bg-primary">Our Product</h5>
                                 <div class="card-body p-0 pt-3">
-                                    <img class="img-fluid o_we_custom_image pb24" src="/website_hr_recruitment/static/src/img/job_product.svg" style="width: 75% !important;" alt="Our Product"/>
+                                    <img
+                                        class="img-fluid o_we_custom_image pb24"
+                                        src="/website_hr_recruitment/static/src/img/job_product.svg"
+                                        style="width: 75% !important;"
+                                        alt="Our Product" />
                                     <p>Discover our products.</p>
                                     <p><a href="/" class="btn btn-primary o_translate_inline" target="_blank"><small><b>READ</b></small></a></p>
                                 </div>
@@ -409,14 +505,17 @@
                 </div>
             </section>
             <!-- What we offer -->
-            <section class="s_features pt64 pb64" data-name="Features" data-snippet="s_features">
+            <section
+                class="s_features pt64 pb64"
+                data-name="Features"
+                data-snippet="s_features">
                 <div class="container">
                     <div class="col-lg-12">
                         <h3>What We Offer</h3>
                         <p class="lead">
                             Each employee has a chance to see the impact of his work.
                             You can make a real contribution to the success of the company.
-                            <br/>
+                            <br />
                             Several activities are often organized all over the year, such as weekly
                             sports sessions, team building events, monthly drink, and much more.
                         </p>
@@ -424,59 +523,88 @@
                     <div class="row">
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Perks</h3>
-                            <p>A full-time position <br/>Attractive salary package.</p>
+                            <p>A full-time position <br />Attractive salary package.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Trainings</h3>
-                            <p>12 days / year, including <br/>6 of your choice.</p>
+                            <p>12 days / year, including <br />6 of your choice.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Sport Activity</h3>
-                            <p>Play any sport with colleagues, <br/>the bill is covered.</p>
+                            <p>Play any sport with colleagues, <br />the bill is covered.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Eat &amp; Drink</h3>
-                            <p>Fruit, coffee and <br/>snacks provided.</p>
+                            <p>Fruit, coffee and <br />snacks provided.</p>
                         </div>
                     </div>
                 </div>
             </section>
             <!-- Photos -->
-            <section class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium" data-vcss="001" data-columns="3" style="overflow: hidden;" data-snippet="s_images_wall" data-name="Images Wall">
+            <section
+                class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
+                data-vcss="001"
+                data-columns="3"
+                style="overflow: hidden;"
+                data-snippet="s_images_wall"
+                data-name="Images Wall">
                 <div class="container">
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-8">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_9.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_9.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-4">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_10.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_10.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_11.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_11.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_12.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_12.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-6">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_13.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_13.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                 </div>
@@ -499,7 +627,7 @@
                                 and opportunities for advancement, working alongside industry experts. We are looking
                                 for an accomplished consultant with a strong background in delivering measurable
                                 outcomes.
-                                <br/>
+                                <br />
                                 This role demands both <b>creative problem-solving and strategic analysis</b>,
                                 requiring you to think critically about client challenges. We expect candidates to be
                                 self-motivated, with a strong "get it done" mentality. To thrive in this position, you
@@ -509,71 +637,91 @@
                             </p>
                         </div>
                         <div class="col-lg-3 offset-lg-1 pb32">
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Customer Relationship</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Personal Evolution</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Innovation</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Administrative Work</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Technical Expertise</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -584,10 +732,14 @@
                 </div>
             </section>
             <!-- Responsabilities, Must Have and Nice to have -->
-            <section class="s_comparisons pt24 pb24 bg-200" data-snippet="s_comparisons">
+            <section
+                class="s_comparisons pt24 pb24 bg-200"
+                data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row">
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Responsibilities</h4>
                                 <ul class="list-group list-group-flush">
@@ -599,7 +751,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Must Have</h4>
                                 <ul class="list-group list-group-flush">
@@ -611,7 +765,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Nice to have</h4>
                                 <ul class="list-group list-group-flush">
@@ -631,7 +787,7 @@
                     <div class="row align-items-center">
                         <div class="col-sm-7 pb40">
                             <h2>What's great in the job?</h2>
-                            <br/>
+                            <br />
                             <ul class="lead">
                                 <li>Great team of smart people, in a friendly and open culture</li>
                                 <li>No dumb managers, no stupid tools to use, no rigid working hours</li>
@@ -645,7 +801,11 @@
                             <div class="card shadow text-center">
                                 <h5 class="card-header o_colored_level text-bg-primary">Our Product</h5>
                                 <div class="card-body p-0 pt-3">
-                                    <img class="img-fluid o_we_custom_image pb24" src="/website_hr_recruitment/static/src/img/job_product.svg" style="width: 75% !important;" alt="Our Product"/>
+                                    <img
+                                        class="img-fluid o_we_custom_image pb24"
+                                        src="/website_hr_recruitment/static/src/img/job_product.svg"
+                                        style="width: 75% !important;"
+                                        alt="Our Product" />
                                     <p>Discover our products.</p>
                                     <p><a href="/" class="btn btn-primary o_translate_inline" target="_blank"><small><b>READ</b></small></a></p>
                                 </div>
@@ -655,14 +815,17 @@
                 </div>
             </section>
             <!-- What we offer -->
-            <section class="s_features pt64 pb64" data-name="Features" data-snippet="s_features">
+            <section
+                class="s_features pt64 pb64"
+                data-name="Features"
+                data-snippet="s_features">
                 <div class="container">
                     <div class="col-lg-12">
                         <h3>What We Offer</h3>
                         <p class="lead">
                             Each employee has a chance to see the impact of his work.
                             You can make a real contribution to the success of the company.
-                            <br/>
+                            <br />
                             Several activities are often organized all over the year, such as weekly
                             sports sessions, team building events, monthly drink, and much more.
                         </p>
@@ -670,59 +833,88 @@
                     <div class="row">
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Perks</h3>
-                            <p>A full-time position <br/>Attractive salary package.</p>
+                            <p>A full-time position <br />Attractive salary package.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Trainings</h3>
-                            <p>12 days / year, including <br/>6 of your choice.</p>
+                            <p>12 days / year, including <br />6 of your choice.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Sport Activity</h3>
-                            <p>Play any sport with colleagues, <br/>the bill is covered.</p>
+                            <p>Play any sport with colleagues, <br />the bill is covered.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Eat &amp; Drink</h3>
-                            <p>Fruit, coffee and <br/>snacks provided.</p>
+                            <p>Fruit, coffee and <br />snacks provided.</p>
                         </div>
                     </div>
                 </div>
             </section>
             <!-- Photos -->
-            <section class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium" data-vcss="001" data-columns="3" style="overflow: hidden;" data-snippet="s_images_wall" data-name="Images Wall">
+            <section
+                class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
+                data-vcss="001"
+                data-columns="3"
+                style="overflow: hidden;"
+                data-snippet="s_images_wall"
+                data-name="Images Wall">
                 <div class="container">
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-8">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_9.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_9.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-4">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_10.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_10.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_11.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_11.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_12.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_12.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-6">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_13.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_13.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                 </div>
@@ -743,13 +935,13 @@
                                 in the industry</b>. Join our fast-growing company, where you’ll enjoy competitive
                                 benefits and opportunities for professional growth while collaborating with top experts
                                 in the field.
-                                <br/>
+                                <br />
                                 In this role, you will <b>define and execute our technology strategy and roadmap</b>,
                                 ensuring it aligns with our business goals. This position is both <b>creative and
                                 analytical</b>, requiring you to think outside the box while implementing effective
                                 solutions. We are looking for a proactive leader with a strong "get it done" mentality
                                 who can tackle challenges head-on and drive projects to successful completion.
-                                <br/>
+                                <br />
                                 To excel in this position, you will need <b>extensive experience in software
                                 architecture, cloud computing, and data security</b>, along with a strong background in
                                 team leadership and agile project management. Your excellent communication skills will
@@ -758,71 +950,91 @@
                             </p>
                         </div>
                         <div class="col-lg-3 offset-lg-1 pb32">
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Technology Strategy</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Leadership</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Collaboration</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Administrative Work</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Cybersecurity</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -833,10 +1045,14 @@
                 </div>
             </section>
             <!-- Responsabilities, Must Have and Nice to have -->
-            <section class="s_comparisons pt24 pb24 bg-200" data-snippet="s_comparisons">
+            <section
+                class="s_comparisons pt24 pb24 bg-200"
+                data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row">
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Responsibilities</h4>
                                 <ul class="list-group list-group-flush">
@@ -848,7 +1064,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Must Have</h4>
                                 <ul class="list-group list-group-flush">
@@ -860,7 +1078,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Nice to have</h4>
                                 <ul class="list-group list-group-flush">
@@ -880,7 +1100,7 @@
                     <div class="row align-items-center">
                         <div class="col-sm-7 pb40">
                             <h2>What's great in the job?</h2>
-                            <br/>
+                            <br />
                             <ul class="lead">
                                 <li>A good company embraces technological innovation</li>
                                 <li>It prioritizes data-driven decision-making</li>
@@ -894,7 +1114,11 @@
                             <div class="card shadow text-center">
                                 <h5 class="card-header o_colored_level text-bg-primary">Our Product</h5>
                                 <div class="card-body p-0 pt-3">
-                                    <img class="img-fluid o_we_custom_image pb24" src="/website_hr_recruitment/static/src/img/job_product.svg" style="width: 75% !important;" alt="Our Product"/>
+                                    <img
+                                        class="img-fluid o_we_custom_image pb24"
+                                        src="/website_hr_recruitment/static/src/img/job_product.svg"
+                                        style="width: 75% !important;"
+                                        alt="Our Product" />
                                     <p>Discover our products.</p>
                                     <p><a href="/" class="btn btn-primary o_translate_inline" target="_blank"><small><b>READ</b></small></a></p>
                                 </div>
@@ -904,25 +1128,46 @@
                 </div>
             </section>
             <!-- Photos -->
-            <section class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium" data-vcss="001" data-columns="3" style="overflow: hidden;" data-snippet="s_images_wall" data-name="Images Wall">
+            <section
+                class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
+                data-vcss="001"
+                data-columns="3"
+                style="overflow: hidden;"
+                data-snippet="s_images_wall"
+                data-name="Images Wall">
                 <div class="container">
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-8">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_9.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_9.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-4">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_10.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_10.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_11.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_11.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_12.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_12.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-6">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_13.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_13.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                 </div>
@@ -942,7 +1187,7 @@
                                 creating and launching innovative products</b>. Join our growing team, offering
                                 excellent benefits and valuable learning opportunities alongside experienced
                                 professionals.
-                                <br/>
+                                <br />
                                 This role is both <b>creative and structured</b>, encouraging out-of-the-box thinking.
                                 We are looking for a proactive individual with a strong get it done mindset. Successful
                                 candidates will have the chance to grow within the company based on their fit and
@@ -950,71 +1195,91 @@
                             </p>
                         </div>
                         <div class="col-lg-3 offset-lg-1 pb32">
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Learning</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Adaptability</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Autonomy</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Problem-Solving</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Be enthusiastic</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -1025,10 +1290,14 @@
                 </div>
             </section>
             <!-- Responsabilities, Must Have and Nice to have -->
-            <section class="s_comparisons pt24 pb24 bg-200" data-snippet="s_comparisons">
+            <section
+                class="s_comparisons pt24 pb24 bg-200"
+                data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row">
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Responsibilities</h4>
                                 <ul class="list-group list-group-flush">
@@ -1040,7 +1309,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Must Have</h4>
                                 <ul class="list-group list-group-flush">
@@ -1052,7 +1323,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Nice to have</h4>
                                 <ul class="list-group list-group-flush">
@@ -1072,7 +1345,7 @@
                     <div class="row align-items-center">
                         <div class="col-sm-7 pb40">
                             <h2>What's great in the job?</h2>
-                            <br/>
+                            <br />
                             <ul class="lead">
                                 <li>Great team of smart people, in a friendly and open culture</li>
                                 <li>No dumb managers, no stupid tools to use, no rigid working hours</li>
@@ -1086,7 +1359,11 @@
                             <div class="card shadow text-center">
                                 <h5 class="card-header o_colored_level text-bg-primary">Our Product</h5>
                                 <div class="card-body p-0 pt-3">
-                                    <img class="img-fluid o_we_custom_image pb24" src="/website_hr_recruitment/static/src/img/job_product.svg" style="width: 75% !important;" alt="Our Product"/>
+                                    <img
+                                        class="img-fluid o_we_custom_image pb24"
+                                        src="/website_hr_recruitment/static/src/img/job_product.svg"
+                                        style="width: 75% !important;"
+                                        alt="Our Product" />
                                     <p>Discover our products.</p>
                                     <p><a href="/" class="btn btn-primary o_translate_inline" target="_blank"><small><b>READ</b></small></a></p>
                                 </div>
@@ -1096,14 +1373,17 @@
                 </div>
             </section>
             <!-- What we offer -->
-            <section class="s_features pt64 pb64" data-name="Features" data-snippet="s_features">
+            <section
+                class="s_features pt64 pb64"
+                data-name="Features"
+                data-snippet="s_features">
                 <div class="container">
                     <div class="col-lg-12">
                         <h3>What We Offer</h3>
                         <p class="lead">
                             Each employee has a chance to see the impact of his work.
                             You can make a real contribution to the success of the company.
-                            <br/>
+                            <br />
                             Several activities are often organized all over the year, such as weekly
                             sports sessions, team building events, monthly drink, and much more.
                         </p>
@@ -1111,59 +1391,88 @@
                     <div class="row">
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Perks</h3>
-                            <p>A full-time position <br/>Attractive salary package.</p>
+                            <p>A full-time position <br />Attractive salary package.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Trainings</h3>
-                            <p>12 days / year, including <br/>6 of your choice.</p>
+                            <p>12 days / year, including <br />6 of your choice.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Sport Activity</h3>
-                            <p>Play any sport with colleagues, <br/>the bill is covered.</p>
+                            <p>Play any sport with colleagues, <br />the bill is covered.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Eat &amp; Drink</h3>
-                            <p>Fruit, coffee and <br/>snacks provided.</p>
+                            <p>Fruit, coffee and <br />snacks provided.</p>
                         </div>
                     </div>
                 </div>
             </section>
             <!-- Photos -->
-            <section class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium" data-vcss="001" data-columns="3" style="overflow: hidden;" data-snippet="s_images_wall" data-name="Images Wall">
+            <section
+                class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
+                data-vcss="001"
+                data-columns="3"
+                style="overflow: hidden;"
+                data-snippet="s_images_wall"
+                data-name="Images Wall">
                 <div class="container">
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-8">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_9.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_9.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-4">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_10.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_10.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_11.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_11.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_12.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_12.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-6">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_13.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_13.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                 </div>
@@ -1183,7 +1492,7 @@
                                 departments to design and implement HR initiatives that align with our business
                                 objectives</b>. Join our expanding organization, which offers competitive benefits and
                                 ample opportunities for growth while collaborating with seasoned professionals.
-                                <br/>
+                                <br />
                                 This role is both <b>strategic and operational</b>, focusing on recruitment, employee
                                 engagement, and performance management. We seek a proactive leader who can effectively
                                 manage talent acquisition, develop training programs, and implement retention
@@ -1193,73 +1502,93 @@
                             </p>
                         </div>
                         <div class="col-lg-3 offset-lg-1 pb32">
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Talent Acquisition</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Compliance and Regulations</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Diversity and Inclusion</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Conflict Resolution</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
-                            <div class="s_rating pb8" data-vcss="001" data-icon="fa-star" data-snippet="s_rating">
+                            <div
+                                class="s_rating pb8"
+                                data-vcss="001"
+                                data-icon="fa-star"
+                                data-snippet="s_rating">
                                 <strong class="s_rating_title">Technical Expertise</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star" />
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
-                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
+                                        <i class="fa-regular fa-star" />
                                     </span>
                                 </div>
                             </div>
@@ -1268,10 +1597,14 @@
                 </div>
             </section>
             <!-- Responsabilities, Must Have and Nice to have -->
-            <section class="s_comparisons pt24 pb24 bg-200" data-snippet="s_comparisons">
+            <section
+                class="s_comparisons pt24 pb24 bg-200"
+                data-snippet="s_comparisons">
                 <div class="container">
                     <div class="row">
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Responsibilities</h4>
                                 <ul class="list-group list-group-flush">
@@ -1283,7 +1616,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Must Have</h4>
                                 <ul class="list-group list-group-flush">
@@ -1295,7 +1630,9 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-lg-4 s_col_no_bgcolor pt16 pb16" data-name="Box">
+                        <div
+                            class="col-lg-4 s_col_no_bgcolor pt16 pb16"
+                            data-name="Box">
                             <div class="card text-bg-primary">
                                 <h4 class="card-header">Nice to have</h4>
                                 <ul class="list-group list-group-flush">
@@ -1315,7 +1652,7 @@
                     <div class="row align-items-center">
                         <div class="col-sm-7 pb40">
                             <h2>What's great in the job?</h2>
-                            <br/>
+                            <br />
                             <ul class="lead">
                                 <li>Great team of smart people, in a friendly and open culture</li>
                                 <li>No dumb managers, no stupid tools to use, no rigid working hours</li>
@@ -1329,7 +1666,11 @@
                             <div class="card shadow text-center">
                                 <h5 class="card-header o_colored_level text-bg-primary">Our Product</h5>
                                 <div class="card-body p-0 pt-3">
-                                    <img class="img-fluid o_we_custom_image pb24" src="/website_hr_recruitment/static/src/img/job_product.svg" style="width: 75% !important;" alt="Our Product"/>
+                                    <img
+                                        class="img-fluid o_we_custom_image pb24"
+                                        src="/website_hr_recruitment/static/src/img/job_product.svg"
+                                        style="width: 75% !important;"
+                                        alt="Our Product" />
                                     <p>Discover our products.</p>
                                     <p><a href="/" class="btn btn-primary o_translate_inline" target="_blank"><small><b>READ</b></small></a></p>
                                 </div>
@@ -1339,14 +1680,17 @@
                 </div>
             </section>
             <!-- What we offer -->
-            <section class="s_features pt64 pb64" data-name="Features" data-snippet="s_features">
+            <section
+                class="s_features pt64 pb64"
+                data-name="Features"
+                data-snippet="s_features">
                 <div class="container">
                     <div class="col-lg-12">
                         <h3>What We Offer</h3>
                         <p class="lead">
                             Each employee has a chance to see the impact of his work.
                             You can make a real contribution to the success of the company.
-                            <br/>
+                            <br />
                             Several activities are often organized all over the year, such as weekly
                             sports sessions, team building events, monthly drink, and much more.
                         </p>
@@ -1354,59 +1698,88 @@
                     <div class="row">
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Perks</h3>
-                            <p>A full-time position <br/>Attractive salary package.</p>
+                            <p>A full-time position <br />Attractive salary package.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Trainings</h3>
-                            <p>12 days / year, including <br/>6 of your choice.</p>
+                            <p>12 days / year, including <br />6 of your choice.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Sport Activity</h3>
-                            <p>Play any sport with colleagues, <br/>the bill is covered.</p>
+                            <p>Play any sport with colleagues, <br />the bill is covered.</p>
                         </div>
                         <div class="col-lg-3">
                             <div class="s_hr pt-4 pb32">
-                                <hr class="w-100 mx-auto"/>
+                                <hr class="w-100 mx-auto" />
                             </div>
-                            <i class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i
+                                class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3"
+                                role="img" />
                             <h3 class="h5-fs">Eat &amp; Drink</h3>
-                            <p>Fruit, coffee and <br/>snacks provided.</p>
+                            <p>Fruit, coffee and <br />snacks provided.</p>
                         </div>
                     </div>
                 </div>
             </section>
             <!-- Photos -->
-            <section class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium" data-vcss="001" data-columns="3" style="overflow: hidden;" data-snippet="s_images_wall" data-name="Images Wall">
+            <section
+                class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
+                data-vcss="001"
+                data-columns="3"
+                style="overflow: hidden;"
+                data-snippet="s_images_wall"
+                data-name="Images Wall">
                 <div class="container">
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-8">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_9.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_9.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-4">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_10.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_10.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                     <div class="row s_nb_column_fixed">
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_11.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_11.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-3">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_12.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_12.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                         <div class="col-lg-6">
-                            <img src="/website_hr_recruitment/static/src/img/job_image_13.jpg" class="img img-fluid d-block h-100 w-100 shadow" style="object-fit: cover;"/>
+                            <img
+                                src="/website_hr_recruitment/static/src/img/job_image_13.jpg"
+                                class="img img-fluid d-block h-100 w-100 shadow"
+                                style="object-fit: cover;" />
                         </div>
                     </div>
                 </div>

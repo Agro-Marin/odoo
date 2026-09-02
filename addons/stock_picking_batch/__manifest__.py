@@ -6,7 +6,11 @@
 This module adds the batch transfer option in warehouse management
 ==================================================================
     """,
-    "depends": ["stock"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "stock",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/stock_picking_batch_views.xml",
@@ -24,9 +28,6 @@ This module adds the batch transfer option in warehouse management
     "demo": [
         "data/stock_picking_batch_demo.xml",
     ],
-    "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "assets": {
         "web.assets_backend": [
             "stock_picking_batch/static/src/js/stock_picking_many2many_field.js",
@@ -36,4 +37,5 @@ This module adds the batch transfer option in warehouse management
             "stock_picking_batch/static/tests/tours/**/*",
         ],
     },
+    "installable": True,
 }

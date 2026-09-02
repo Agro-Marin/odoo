@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Employee tags and contact tags are one vocabulary (ADR-0086 step 6).
-         The action stays in hr so the Employees > Configuration > Tags menu
-         keeps working; what it opens is res.partner.tag. -->
+    <!--
+        Employee tags and contact tags are one vocabulary (ADR-0086 step 6).
+        The action stays in hr so the Employees > Configuration > Tags menu
+        keeps working; what it opens is res.partner.tag.
+    -->
     <record id="open_view_categ_form" model="ir.actions.act_window">
         <field name="name">Tags</field>
         <field name="res_model">res.partner.tag</field>
@@ -11,7 +13,7 @@
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create a new tag</p>
             <p>Tags are shared with contacts: one vocabulary, so a tag created here
-               is the same tag a contact can carry.</p>
+                is the same tag a contact can carry.</p>
         </field>
     </record>
 

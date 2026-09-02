@@ -1,5 +1,6 @@
 {
     "name": "Base import module",
+    "category": "Hidden/Tools",
     "description": """
 Import a custom data module
 ===========================
@@ -7,10 +8,11 @@ Import a custom data module
 This module allows authorized users to import a custom data module (.xml files and static assests)
 for customization purpose.
 """,
-    "category": "Hidden/Tools",
-    "depends": ["web"],
-    "installable": True,
-    "auto_install": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "web",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/base_import_module_view.xml",
@@ -19,8 +21,8 @@ for customization purpose.
     "assets": {
         "web.assets_backend": [
             "base_import_module/static/src/**/*",
-        ]
+        ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
 }

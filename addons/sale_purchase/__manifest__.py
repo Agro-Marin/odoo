@@ -1,13 +1,15 @@
 {
     "name": "Sale Purchase",
+    "version": "1.0",
+    "category": "Sales/Sales",
     "summary": "Sale based on service outsourcing.",
     "description": """
 Allows the outsourcing of services. This module allows one to sell services provided
 by external providers and will automatically generate purchase orders directed to the service seller.
     """,
-    "version": "1.0",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/",
-    "category": "Sales/Sales",
+    "license": "LGPL-3",
     "depends": [
         "sale",
         "purchase",
@@ -19,6 +21,4 @@ by external providers and will automatically generate purchase orders directed t
         "views/purchase_order_views.xml",
     ],
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

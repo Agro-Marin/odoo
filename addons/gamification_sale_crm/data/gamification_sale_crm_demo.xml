@@ -1,7 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <!-- challenges -->
-    <record model="gamification.challenge" id="challenge_crm_sale">
+    <record id="challenge_crm_sale" model="gamification.challenge">
         <field name="state">inprogress</field>
     </record>
+
 </odoo>

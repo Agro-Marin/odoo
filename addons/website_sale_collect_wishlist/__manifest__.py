@@ -5,11 +5,14 @@
     "description": """
 Allow users to add a product to wishlist if the product is not available for the selected pickup location.
     """,
-    "depends": ["website_sale_wishlist", "website_sale_collect"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website_sale_wishlist",
+        "website_sale_collect",
+    ],
     "data": [
         "views/delivery_form_templates.xml",
     ],
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

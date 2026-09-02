@@ -1,13 +1,9 @@
 {
-    'name': 'Austria - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['at'],
-    'version': '3.2.1',
-    'author': 'WT-IO-IT GmbH, Wolfgang Taferner (https://www.wt-io-it.at)',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'category': 'Accounting/Localizations/Account Charts',
-    'summary': 'Austrian Standardized Charts & Tax',
-    'description': """
+    "name": "Austria - Accounting",
+    "version": "3.2.1",
+    "category": "Accounting/Localizations/Account Charts",
+    "summary": "Austrian Standardized Charts & Tax",
+    "description": """
 
 Austrian charts of accounts (Einheitskontenrahmen 2010).
 ==========================================================
@@ -20,21 +16,29 @@ Austrian charts of accounts (Einheitskontenrahmen 2010).
     * Defines tax reports U1/U30
 
     """,
-    'depends': [
-        'account',
-        'account_edi_ubl_cii',
-        'account_iban',
-        'account_vat',
-        'l10n_din5008',
+    "author": "WT-IO-IT GmbH, Wolfgang Taferner (https://www.wt-io-it.at)",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_edi_ubl_cii",
+        "account_iban",
+        "account_vat",
+        "l10n_din5008",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_account_tag.xml',
-        'data/account.account.tag.csv',
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "at",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_account_tag.xml",
+        "data/account.account.tag.csv",
+        "data/account_tax_report_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

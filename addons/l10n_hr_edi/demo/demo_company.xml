@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="base.demo_company_hr" model="res.company">
         <field name="l10n_hr_mer_username">12513</field>
         <field name="l10n_hr_mer_password">AeXLoJf9Ld</field>
@@ -10,4 +11,5 @@
     <record id="base.partner_demo_customer_hr" model="res.partner">
         <field name="invoice_edi_format">ubl_hr</field>
     </record>
+
 </odoo>

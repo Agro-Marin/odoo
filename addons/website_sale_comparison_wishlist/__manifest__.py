@@ -5,6 +5,8 @@
     "description": """
 It allows for comparing products from the wishlist
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "website_sale_comparison",
         "website_sale_wishlist",
@@ -18,6 +20,4 @@ It allows for comparing products from the wishlist
         ],
     },
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

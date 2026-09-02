@@ -7,8 +7,10 @@
         <field name="model">resource.reservation</field>
         <field name="arch" type="xml">
             <!-- Conflict detection is the point of this shared ledger, so an
-                 over-allocated booking must be visible without opening it. -->
-            <list string="Reservations" decoration-danger="schedule_overlap_count &gt; 0">
+                over-allocated booking must be visible without opening it. -->
+            <list
+                string="Reservations"
+                decoration-danger="schedule_overlap_count &gt; 0">
                 <field name="name" />
                 <field name="resource_id" />
                 <field name="date_start" />
@@ -18,7 +20,10 @@
                 <field name="enforcement_mode" />
                 <field name="schedule_overlap_count" string="Conflicts" />
                 <field name="origin_display" string="Source" />
-                <field name="company_id" optional="hide" groups="base.group_multi_company" />
+                <field
+                    name="company_id"
+                    optional="hide"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -31,8 +36,11 @@
             <form string="Reservation">
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_origin" type="object"
-                            class="oe_stat_button" icon="fa-external-link"
+                        <button
+                            name="action_view_origin"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-external-link"
                             string="Source Record"
                             invisible="not res_model" />
                     </div>
@@ -77,38 +85,62 @@
             <search string="Reservations">
                 <field name="name" />
                 <field name="resource_id" />
-                <filter name="my_schedule" string="My Schedule"
+                <filter
+                    name="my_schedule"
+                    string="My Schedule"
                     domain="[('resource_id.user_id', '=', uid)]" />
                 <separator />
-                <filter name="filter_tasks" string="Tasks"
+                <filter
+                    name="filter_tasks"
+                    string="Tasks"
                     domain="[('res_model', '=', 'project.task')]" />
-                <filter name="filter_rooms" string="Room Bookings"
+                <filter
+                    name="filter_rooms"
+                    string="Room Bookings"
                     domain="[('res_model', '=', 'room.booking')]" />
-                <filter name="filter_workorders" string="Work Orders"
+                <filter
+                    name="filter_workorders"
+                    string="Work Orders"
                     domain="[('res_model', '=', 'mrp.workorder')]" />
                 <separator />
                 <!-- The reason this shared ledger exists is to make a resource
-                     booked twice over findable. That was only possible one
-                     record at a time until schedule_overlap_count became
-                     searchable. -->
-                <filter name="in_conflict" string="In Conflict"
+                    booked twice over findable. That was only possible one
+                    record at a time until schedule_overlap_count became
+                    searchable. -->
+                <filter
+                    name="in_conflict"
+                    string="In Conflict"
                     domain="[('schedule_overlap_count', '&gt;', 0)]" />
                 <separator />
-                <filter name="hard" string="Hard Enforcement"
+                <filter
+                    name="hard"
+                    string="Hard Enforcement"
                     domain="[('enforcement_mode', '=', 'hard')]" />
-                <filter name="soft" string="Soft Enforcement"
+                <filter
+                    name="soft"
+                    string="Soft Enforcement"
                     domain="[('enforcement_mode', '=', 'soft')]" />
                 <separator />
-                <filter name="inactive" string="Archived"
+                <filter
+                    name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
-                    <filter name="group_resource" string="Resource"
+                    <filter
+                        name="group_resource"
+                        string="Resource"
                         context="{'group_by': 'resource_id'}" />
-                    <filter name="group_source" string="Source Model"
+                    <filter
+                        name="group_source"
+                        string="Source Model"
                         context="{'group_by': 'res_model'}" />
-                    <filter name="group_enforcement" string="Enforcement"
+                    <filter
+                        name="group_enforcement"
+                        string="Enforcement"
                         context="{'group_by': 'enforcement_mode'}" />
-                    <filter name="group_start_week" string="Start Date"
+                    <filter
+                        name="group_start_week"
+                        string="Start Date"
                         context="{'group_by': 'date_start:week'}" />
                 </group>
             </search>
@@ -120,8 +152,13 @@
         <field name="name">resource.reservation.calendar</field>
         <field name="model">resource.reservation</field>
         <field name="arch" type="xml">
-            <calendar string="Reservations" date_start="date_start" date_stop="date_end"
-                color="resource_id" mode="week" event_open_popup="1">
+            <calendar
+                string="Reservations"
+                date_start="date_start"
+                date_stop="date_end"
+                color="resource_id"
+                mode="week"
+                event_open_popup="1">
                 <field name="name" />
                 <field name="resource_id" avatar_field="avatar_128" filters="1" />
                 <field name="origin_display" string="Source" />

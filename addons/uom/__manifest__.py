@@ -2,18 +2,22 @@
     "name": "Units of measure",
     "version": "1.1",
     "category": "Sales/Sales",
-    "depends": ["base", "web"],
     "description": """
 This is the base module for managing Units of measure.
 ========================================================================
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+        "web",
+    ],
     "data": [
         "data/uom_data.xml",
         "security/uom_security.xml",
         "security/ir.model.access.csv",
         "views/uom_uom_views.xml",
     ],
-    "installable": True,
     "assets": {
         "web.assets_backend": [
             "uom/static/src/components/**/*",
@@ -22,6 +26,5 @@ This is the base module for managing Units of measure.
             "uom/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

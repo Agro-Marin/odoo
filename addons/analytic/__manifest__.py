@@ -2,7 +2,6 @@
     "name": "Analytic Accounting",
     "version": "1.4",
     "category": "Accounting/Accounting",
-    "depends": ["uom", "mail"],
     "description": """
 Module for defining analytic accounting object.
 ===============================================
@@ -11,6 +10,12 @@ In Odoo, analytic accounts are linked to general accounts but are treated
 totally independently. So, you can enter various different analytic operations
 that have no counterpart in the general financial accounts.
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "uom",
+        "mail",
+    ],
     "data": [
         "security/analytic_security.xml",
         "security/ir.model.access.csv",
@@ -20,7 +25,9 @@ that have no counterpart in the general financial accounts.
         "views/analytic_distribution_model_views.xml",
         "data/analytic_data.xml",
     ],
-    "demo": ["data/analytic_account_demo.xml"],
+    "demo": [
+        "data/analytic_account_demo.xml",
+    ],
     "assets": {
         "web.assets_backend": [
             "analytic/static/src/components/**/*",
@@ -32,6 +39,4 @@ that have no counterpart in the general financial accounts.
         ],
     },
     "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

@@ -1,23 +1,26 @@
 # -*- coding: utf-8 -*-
 
 {
-    'name': 'POS HR Restaurant',
-    'version': '1.0',
-    'category': 'Sales/Point of Sale',
-    'summary': 'Link module between pos_hr and pos_restaurant',
-    'description': """
+    "name": "POS HR Restaurant",
+    "version": "1.0",
+    "category": "Sales/Point of Sale",
+    "summary": "Link module between pos_hr and pos_restaurant",
+    "description": """
 This module adapts the behavior of the PoS when the pos_hr and pos_restaurant are installed.
 """,
-    'depends': ['pos_hr', 'pos_restaurant'],
-    'auto_install': True,
-    'assets': {
-        'point_of_sale._assets_pos': [
-            'pos_hr_restaurant/static/src/**/*',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "pos_hr",
+        "pos_restaurant",
+    ],
+    "assets": {
+        "point_of_sale._assets_pos": [
+            "pos_hr_restaurant/static/src/**/*",
         ],
-        'web.assets_tests': [
-            'pos_hr_restaurant/static/tests/**/*',
+        "web.assets_tests": [
+            "pos_hr_restaurant/static/tests/**/*",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "auto_install": True,
 }

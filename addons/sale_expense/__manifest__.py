@@ -10,7 +10,12 @@ Reinvoice Employee Expense
 Create some products for which you can re-invoice the costs.
 This module allow to reinvoice employee expense, by setting the SO directly on the expense.
 """,
-    "depends": ["sale_management", "hr_expense"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "sale_management",
+        "hr_expense",
+    ],
     "data": [
         "data/sale_expense_data.xml",
         "views/product_view.xml",
@@ -19,6 +24,4 @@ This module allow to reinvoice employee expense, by setting the SO directly on t
     ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

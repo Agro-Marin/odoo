@@ -2,14 +2,17 @@
     "name": "Remote Work with calendar",
     "version": "1.0",
     "category": "Human Resources/Remote Work",
-    "depends": ["hr_homeworking", "calendar"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr_homeworking",
+        "calendar",
+    ],
     "data": [
         "security/security.xml",
         "security/ir.model.access.csv",
         "wizard/homework_location_wizard.xml",
     ],
-    "installable": True,
-    "auto_install": True,
     "assets": {
         "web.assets_backend": [
             "hr_homeworking_calendar/static/src/**/*",
@@ -18,6 +21,6 @@
             "hr_homeworking_calendar/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
 }

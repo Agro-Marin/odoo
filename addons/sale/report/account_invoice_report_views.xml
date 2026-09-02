@@ -7,7 +7,9 @@
         <field name="inherit_id" ref="account.view_account_invoice_report_search" />
         <field name="arch" type="xml">
             <filter name="user" position="after">
-                <filter string="Sales Team" name="sales_channel"
+                <filter
+                    string="Sales Team"
+                    name="sales_channel"
                     context="{'group_by':'team_id'}" />
             </filter>
             <field name="invoice_user_id" position="after">
@@ -32,8 +34,10 @@
         <field name="res_model">account.invoice.report</field>
         <field name="view_mode">graph</field>
         <field name="domain">[('state', 'not in', ['draft', 'cancel'])]</field>
-        <field name="context">{'search_default_month':1, 'search_default_team_id': [active_id]}</field>
-        <field name="help">From this report, you can have an overview of the amount invoiced to your
+        <field
+            name="context">{'search_default_month':1, 'search_default_team_id': [active_id]}</field>
+        <field
+            name="help">From this report, you can have an overview of the amount invoiced to your
             customer. The search tool can also be used to personalise your Invoices reports and so,
             match this analysis to your needs.</field>
     </record>

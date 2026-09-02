@@ -6,11 +6,12 @@
     "description": """
 Manage the inventory of your Kit products and display their availability status in your eCommerce store.
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "website_sale_stock",
         "sale_mrp",
     ],
-    "auto_install": True,
     "assets": {
         "web.assets_frontend": [
             "website_sale_mrp/static/src/js/**/*",
@@ -19,6 +20,5 @@ Manage the inventory of your Kit products and display their availability status 
             "website_sale_mrp/static/tests/tours/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

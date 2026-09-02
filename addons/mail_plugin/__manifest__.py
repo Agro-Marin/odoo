@@ -1,21 +1,21 @@
 {
-    'name': 'Mail Plugin',
-    'version': '1.0',
-    'category': 'Sales/CRM',
-    'sequence': 5,
-    'summary': 'Allows integration with mail plugins.',
-    'description': "Integrate Odoo with your mailbox, get information about contacts directly inside your mailbox, log content of emails as internal notes",
-    'depends': [
-        'web',
-        'partner',
-        'iap'
+    "name": "Mail Plugin",
+    "version": "1.0",
+    "category": "Sales/CRM",
+    "sequence": 5,
+    "summary": "Allows integration with mail plugins.",
+    "description": "Integrate Odoo with your mailbox, get information about contacts directly inside your mailbox, log content of emails as internal notes",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "web",
+        "partner",
+        "iap",
     ],
-    'data': [
-        'views/mail_plugin_login.xml',
-        'views/res_partner_iap_views.xml',
-        'security/ir.model.access.csv',
+    "data": [
+        "views/mail_plugin_login.xml",
+        "views/res_partner_iap_views.xml",
+        "security/ir.model.access.csv",
     ],
-    'installable': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
 }

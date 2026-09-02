@@ -1,17 +1,21 @@
-<?xml version="1.0"?>
-<odoo><data>
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
 
-    <menuitem id="event_quiz_menu"
-        name="Quizzes"
-        action="event_quiz_action"
-        parent="event.menu_event_configuration"
-        groups="base.group_no_one"
-        sequence="50"/>
-    <menuitem id="event_quiz_question_menu"
-        name="Quiz Questions"
-        action="event_quiz_question_action"
-        parent="event.menu_event_configuration"
-        groups="base.group_no_one"
-        sequence="55"/>
+    <data>
+        <menuitem
+            id="event_quiz_menu"
+            name="Quizzes"
+            parent="event.menu_event_configuration"
+            action="event_quiz_action"
+            sequence="50"
+            groups="base.group_no_one" />
+        <menuitem
+            id="event_quiz_question_menu"
+            name="Quiz Questions"
+            parent="event.menu_event_configuration"
+            action="event_quiz_question_action"
+            sequence="55"
+            groups="base.group_no_one" />
+    </data>
 
-</data></odoo>
+</odoo>

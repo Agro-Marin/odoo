@@ -194,8 +194,8 @@
         <!-- User input 2 -->
         <!-- page 1 -->
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p1_q1">
+            id="survey_vendor_certification_answer_2_p1_q1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_1_question_1" />
             <field name="answer_type">suggestion</field>
@@ -204,8 +204,8 @@
                 ref="vendor_certification_page_1_question_1_choice_2" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p1_q2_1">
+            id="survey_vendor_certification_answer_2_p1_q2_1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_1_question_2" />
             <field name="answer_type">suggestion</field>
@@ -214,8 +214,8 @@
                 ref="vendor_certification_page_1_question_2_choice_1" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p1_q2_2">
+            id="survey_vendor_certification_answer_2_p1_q2_2"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_1_question_2" />
             <field name="answer_type">suggestion</field>
@@ -224,8 +224,8 @@
                 ref="vendor_certification_page_1_question_2_choice_3" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p1_q3_1">
+            id="survey_vendor_certification_answer_2_p1_q3_1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_1_question_3" />
             <field name="answer_type">suggestion</field>
@@ -234,8 +234,8 @@
                 ref="vendor_certification_page_1_question_3_choice_1" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p1_q3_2">
+            id="survey_vendor_certification_answer_2_p1_q3_2"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_1_question_3" />
             <field name="answer_type">suggestion</field>
@@ -244,8 +244,8 @@
                 ref="vendor_certification_page_1_question_3_choice_3" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p1_q4">
+            id="survey_vendor_certification_answer_2_p1_q4"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_1_question_4" />
             <field name="answer_type">suggestion</field>
@@ -254,16 +254,16 @@
                 ref="vendor_certification_page_1_question_4_choice_2" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p1_q5">
+            id="survey_vendor_certification_answer_2_p1_q5"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_1_question_5" />
             <field name="skipped" eval="True" />
         </record>
         <!-- page 2 -->
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p2_q1">
+            id="survey_vendor_certification_answer_2_p2_q1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_2_question_1" />
             <field name="answer_type">suggestion</field>
@@ -272,8 +272,8 @@
                 ref="vendor_certification_page_2_question_1_choice_4" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p2_q2_1">
+            id="survey_vendor_certification_answer_2_p2_q2_1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="answer_type">suggestion</field>
@@ -282,8 +282,8 @@
                 ref="vendor_certification_page_2_question_2_choice_1" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p2_q2_2">
+            id="survey_vendor_certification_answer_2_p2_q2_2"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="answer_type">suggestion</field>
@@ -292,8 +292,8 @@
                 ref="vendor_certification_page_2_question_2_choice_2" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p2_q2_3">
+            id="survey_vendor_certification_answer_2_p2_q2_3"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="answer_type">suggestion</field>
@@ -302,8 +302,8 @@
                 ref="vendor_certification_page_2_question_2_choice_4" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p2_q3">
+            id="survey_vendor_certification_answer_2_p2_q3"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_2_question_3" />
             <field name="answer_type">suggestion</field>
@@ -313,46 +313,46 @@
         </record>
         <!-- page 3 -->
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p3_q1">
+            id="survey_vendor_certification_answer_2_p3_q1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_3_question_1" />
             <field name="answer_type">numerical_box</field>
             <field name="value_numerical_box">30</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p3_q2">
+            id="survey_vendor_certification_answer_2_p3_q2"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_3_question_2" />
             <field name="answer_type">date</field>
             <field name="value_date">2020-01-09</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p3_q3">
+            id="survey_vendor_certification_answer_2_p3_q3"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_3_question_3" />
             <field name="answer_type">datetime</field>
             <field name="value_datetime">2021-01-07 00:00:01</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p3_q4">
+            id="survey_vendor_certification_answer_2_p3_q4"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_3_question_4" />
             <field name="skipped" eval="True" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p3_q5">
+            id="survey_vendor_certification_answer_2_p3_q5"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_3_question_5" />
             <field name="skipped" eval="True" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_2_p3_q6">
+            id="survey_vendor_certification_answer_2_p3_q6"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_2" />
             <field name="question_id" ref="vendor_certification_page_3_question_6" />
             <field name="answer_type">numerical_box</field>
@@ -361,8 +361,8 @@
         <!-- User input 3 -->
         <!-- page 1 -->
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p1_q1">
+            id="survey_vendor_certification_answer_3_p1_q1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_1_question_1" />
             <field name="answer_type">suggestion</field>
@@ -371,8 +371,8 @@
                 ref="vendor_certification_page_1_question_1_choice_2" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p1_q2_1">
+            id="survey_vendor_certification_answer_3_p1_q2_1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_1_question_2" />
             <field name="answer_type">suggestion</field>
@@ -381,8 +381,8 @@
                 ref="vendor_certification_page_1_question_2_choice_1" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p1_q2_2">
+            id="survey_vendor_certification_answer_3_p1_q2_2"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_1_question_2" />
             <field name="answer_type">suggestion</field>
@@ -391,8 +391,8 @@
                 ref="vendor_certification_page_1_question_2_choice_4" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p1_q3_1">
+            id="survey_vendor_certification_answer_3_p1_q3_1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_1_question_3" />
             <field name="answer_type">suggestion</field>
@@ -401,8 +401,8 @@
                 ref="vendor_certification_page_1_question_3_choice_1" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p1_q3_2">
+            id="survey_vendor_certification_answer_3_p1_q3_2"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_1_question_3" />
             <field name="answer_type">suggestion</field>
@@ -411,8 +411,8 @@
                 ref="vendor_certification_page_1_question_3_choice_4" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p1_q4">
+            id="survey_vendor_certification_answer_3_p1_q4"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_1_question_4" />
             <field name="answer_type">suggestion</field>
@@ -421,16 +421,16 @@
                 ref="vendor_certification_page_1_question_4_choice_2" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p1_q5">
+            id="survey_vendor_certification_answer_3_p1_q5"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_1_question_5" />
             <field name="skipped" eval="True" />
         </record>
         <!-- page 2 -->
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p2_q1">
+            id="survey_vendor_certification_answer_3_p2_q1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_2_question_1" />
             <field name="answer_type">suggestion</field>
@@ -439,8 +439,8 @@
                 ref="vendor_certification_page_2_question_1_choice_4" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p2_q2_1">
+            id="survey_vendor_certification_answer_3_p2_q2_1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="answer_type">suggestion</field>
@@ -449,8 +449,8 @@
                 ref="vendor_certification_page_2_question_2_choice_1" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p2_q2_2">
+            id="survey_vendor_certification_answer_3_p2_q2_2"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="answer_type">suggestion</field>
@@ -459,8 +459,8 @@
                 ref="vendor_certification_page_2_question_2_choice_4" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p2_q3">
+            id="survey_vendor_certification_answer_3_p2_q3"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_2_question_3" />
             <field name="answer_type">suggestion</field>
@@ -470,46 +470,46 @@
         </record>
         <!-- page 3 -->
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p3_q1">
+            id="survey_vendor_certification_answer_3_p3_q1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_3_question_1" />
             <field name="answer_type">numerical_box</field>
             <field name="value_numerical_box">30</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p3_q2">
+            id="survey_vendor_certification_answer_3_p3_q2"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_3_question_2" />
             <field name="answer_type">date</field>
             <field name="value_date">2020-01-08</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p3_q3">
+            id="survey_vendor_certification_answer_3_p3_q3"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_3_question_3" />
             <field name="answer_type">datetime</field>
             <field name="value_datetime">2021-01-06 23:59:59</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p3_q4">
+            id="survey_vendor_certification_answer_3_p3_q4"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_3_question_4" />
             <field name="skipped" eval="True" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p3_q5">
+            id="survey_vendor_certification_answer_3_p3_q5"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_3_question_5" />
             <field name="skipped" eval="True" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_3_p3_q6">
+            id="survey_vendor_certification_answer_3_p3_q6"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_3" />
             <field name="question_id" ref="vendor_certification_page_3_question_6" />
             <field name="skipped" eval="True" />
@@ -517,8 +517,8 @@
         <!-- User input 4 -->
         <!-- page 1 -->
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p1_q1">
+            id="survey_vendor_certification_answer_4_p1_q1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_1_question_1" />
             <field name="answer_type">suggestion</field>
@@ -527,8 +527,8 @@
                 ref="vendor_certification_page_1_question_1_choice_1" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p1_q2_1">
+            id="survey_vendor_certification_answer_4_p1_q2_1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_1_question_2" />
             <field name="answer_type">suggestion</field>
@@ -537,8 +537,8 @@
                 ref="vendor_certification_page_1_question_2_choice_3" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p1_q3_1">
+            id="survey_vendor_certification_answer_4_p1_q3_1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_1_question_3" />
             <field name="answer_type">suggestion</field>
@@ -547,8 +547,8 @@
                 ref="vendor_certification_page_1_question_3_choice_2" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p1_q4">
+            id="survey_vendor_certification_answer_4_p1_q4"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_1_question_4" />
             <field name="answer_type">suggestion</field>
@@ -557,16 +557,16 @@
                 ref="vendor_certification_page_1_question_4_choice_4" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p1_q5">
+            id="survey_vendor_certification_answer_4_p1_q5"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_1_question_5" />
             <field name="skipped" eval="True" />
         </record>
         <!-- page 2 -->
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p2_q1">
+            id="survey_vendor_certification_answer_4_p2_q1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_2_question_1" />
             <field name="answer_type">suggestion</field>
@@ -575,8 +575,8 @@
                 ref="vendor_certification_page_2_question_1_choice_2" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p2_q2_1">
+            id="survey_vendor_certification_answer_4_p2_q2_1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="answer_type">suggestion</field>
@@ -585,8 +585,8 @@
                 ref="vendor_certification_page_2_question_2_choice_4" />
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p2_q3">
+            id="survey_vendor_certification_answer_4_p2_q3"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_2_question_3" />
             <field name="answer_type">suggestion</field>
@@ -596,48 +596,48 @@
         </record>
         <!-- page 3 -->
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p3_q1">
+            id="survey_vendor_certification_answer_4_p3_q1"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_3_question_1" />
             <field name="answer_type">numerical_box</field>
             <field name="value_numerical_box">2</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p3_q2">
+            id="survey_vendor_certification_answer_4_p3_q2"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_3_question_2" />
             <field name="answer_type">date</field>
             <field name="value_date">2020-01-08</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p3_q3">
+            id="survey_vendor_certification_answer_4_p3_q3"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_3_question_3" />
             <field name="answer_type">datetime</field>
             <field name="value_datetime">2021-01-07 00:00:01</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p3_q4">
+            id="survey_vendor_certification_answer_4_p3_q4"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_3_question_4" />
             <field name="answer_type">date</field>
             <field name="value_date">2019-12-31</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p3_q5">
+            id="survey_vendor_certification_answer_4_p3_q5"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_3_question_5" />
             <field name="answer_type">datetime</field>
             <field name="value_datetime">2021-01-01 13:00:01</field>
         </record>
         <record
-            model="survey.user_input.line"
-            id="survey_vendor_certification_answer_4_p3_q6">
+            id="survey_vendor_certification_answer_4_p3_q6"
+            model="survey.user_input.line">
             <field name="user_input_id" ref="survey_vendor_certification_answer_4" />
             <field name="question_id" ref="vendor_certification_page_3_question_6" />
             <field name="skipped" eval="True" />

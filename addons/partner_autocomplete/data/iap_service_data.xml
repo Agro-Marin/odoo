@@ -4,7 +4,8 @@
     <record id="iap_service_partner_autocomplete" model="iap.service">
         <field name="name">Partner Autocomplete</field>
         <field name="technical_name">partner_autocomplete</field>
-        <field name="description">Automatically enrich your contact base with corporate data.</field>
+        <field
+            name="description">Automatically enrich your contact base with corporate data.</field>
         <field name="unit_name">Enrichments</field>
         <field name="integer_balance">True</field>
     </record>

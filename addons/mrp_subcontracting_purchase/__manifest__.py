@@ -5,7 +5,12 @@
     "description": """
 This bridge module adds some smart buttons between Purchase and Subcontracting
     """,
-    "depends": ["mrp_subcontracting", "purchase_mrp"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "mrp_subcontracting",
+        "purchase_mrp",
+    ],
     "data": [
         "views/purchase_order_views.xml",
         "views/stock_picking_views.xml",
@@ -15,6 +20,4 @@ This bridge module adds some smart buttons between Purchase and Subcontracting
     ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

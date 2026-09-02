@@ -2,7 +2,6 @@
 <odoo>
 
     <!-- ===== Kudos Category Views ===== -->
-
     <record id="kudos_category_list_action" model="ir.actions.act_window">
         <field name="name">Kudos Categories</field>
         <field name="res_model">gamification.kudos.category</field>
@@ -14,10 +13,16 @@
         <field name="model">gamification.kudos.category</field>
         <field name="arch" type="xml">
             <search string="Kudos Categories">
-                <field name="name"/>
-                <separator/>
-                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
-                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <field name="name" />
+                <separator />
+                <filter
+                    string="Active"
+                    name="active"
+                    domain="[('active', '=', True)]" />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active', '=', False)]" />
             </search>
         </field>
     </record>
@@ -27,11 +32,11 @@
         <field name="model">gamification.kudos.category</field>
         <field name="arch" type="xml">
             <list string="Kudos Categories" editable="bottom">
-                <field name="sequence" widget="handle"/>
-                <field name="name"/>
-                <field name="icon"/>
-                <field name="karma_granted"/>
-                <field name="kudos_count"/>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="icon" />
+                <field name="karma_granted" />
+                <field name="kudos_count" />
             </list>
         </field>
     </record>
@@ -44,24 +49,25 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="name"/>
-                            <field name="icon"/>
-                            <field name="color" widget="color_picker"/>
+                            <field name="name" />
+                            <field name="icon" />
+                            <field name="color" widget="color_picker" />
                         </group>
                         <group>
-                            <field name="karma_granted"/>
-                            <field name="sequence"/>
-                            <field name="active"/>
+                            <field name="karma_granted" />
+                            <field name="sequence" />
+                            <field name="active" />
                         </group>
                     </group>
-                    <field name="description" placeholder="Describe what this category of recognition is for..."/>
+                    <field
+                        name="description"
+                        placeholder="Describe what this category of recognition is for..." />
                 </sheet>
             </form>
         </field>
     </record>
 
     <!-- ===== Kudos Views ===== -->
-
     <record id="kudos_list_action" model="ir.actions.act_window">
         <field name="name">Kudos</field>
         <field name="res_model">gamification.kudos</field>
@@ -81,14 +87,13 @@
         <field name="name">gamification.kudos.list</field>
         <field name="model">gamification.kudos</field>
         <field name="arch" type="xml">
-            <list string="Kudos" create="1"
-                  decoration-info="karma_granted &gt; 0">
-                <field name="create_date" string="Date"/>
-                <field name="sender_id" widget="many2one_avatar_user"/>
-                <field name="recipient_id" widget="many2one_avatar_user"/>
-                <field name="category_id"/>
-                <field name="message"/>
-                <field name="karma_granted"/>
+            <list string="Kudos" create="1" decoration-info="karma_granted &gt; 0">
+                <field name="create_date" string="Date" />
+                <field name="sender_id" widget="many2one_avatar_user" />
+                <field name="recipient_id" widget="many2one_avatar_user" />
+                <field name="category_id" />
+                <field name="message" />
+                <field name="karma_granted" />
             </list>
         </field>
     </record>
@@ -101,17 +106,22 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="recipient_id" widget="many2one_avatar_user"/>
-                            <field name="category_id"/>
+                            <field name="recipient_id" widget="many2one_avatar_user" />
+                            <field name="category_id" />
                         </group>
                         <group>
-                            <field name="sender_id" widget="many2one_avatar_user" readonly="1"/>
-                            <field name="karma_granted" readonly="1"/>
+                            <field
+                                name="sender_id"
+                                widget="many2one_avatar_user"
+                                readonly="1" />
+                            <field name="karma_granted" readonly="1" />
                         </group>
                     </group>
-                    <field name="message" placeholder="What did they do that was great? Be specific — it means more!"/>
+                    <field
+                        name="message"
+                        placeholder="What did they do that was great? Be specific — it means more!" />
                 </sheet>
-                <chatter/>
+                <chatter />
             </form>
         </field>
     </record>
@@ -121,20 +131,36 @@
         <field name="model">gamification.kudos</field>
         <field name="arch" type="xml">
             <search string="Kudos">
-                <field name="sender_id"/>
-                <field name="recipient_id"/>
-                <field name="category_id"/>
-                <field name="message"/>
-                <filter string="Sent by Me" name="sent_by_me"
-                        domain="[('sender_id', '=', uid)]"/>
-                <filter string="Received by Me" name="received_by_me"
-                        domain="[('recipient_id', '=', uid)]"/>
-                <separator/>
+                <field name="sender_id" />
+                <field name="recipient_id" />
+                <field name="category_id" />
+                <field name="message" />
+                <filter
+                    string="Sent by Me"
+                    name="sent_by_me"
+                    domain="[('sender_id', '=', uid)]" />
+                <filter
+                    string="Received by Me"
+                    name="received_by_me"
+                    domain="[('recipient_id', '=', uid)]" />
+                <separator />
                 <group>
-                    <filter string="Recipient" name="group_recipient" context="{'group_by': 'recipient_id'}"/>
-                    <filter string="Sender" name="group_sender" context="{'group_by': 'sender_id'}"/>
-                    <filter string="Category" name="group_category" context="{'group_by': 'category_id'}"/>
-                    <filter string="Month" name="group_month" context="{'group_by': 'create_date:month'}"/>
+                    <filter
+                        string="Recipient"
+                        name="group_recipient"
+                        context="{'group_by': 'recipient_id'}" />
+                    <filter
+                        string="Sender"
+                        name="group_sender"
+                        context="{'group_by': 'sender_id'}" />
+                    <filter
+                        string="Category"
+                        name="group_category"
+                        context="{'group_by': 'category_id'}" />
+                    <filter
+                        string="Month"
+                        name="group_month"
+                        context="{'group_by': 'create_date:month'}" />
                 </group>
             </search>
         </field>

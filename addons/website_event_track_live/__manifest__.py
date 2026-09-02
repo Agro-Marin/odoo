@@ -1,11 +1,12 @@
-
 {
     "name": "Live Event Tracks",
+    "version": "1.0",
     "category": "Marketing/Events",
     "sequence": 1006,
-    "version": "1.0",
     "summary": "Support live tracks: streaming, participation, youtube",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/events",
+    "license": "LGPL-3",
     "depends": [
         "website_event_track",
     ],
@@ -14,8 +15,9 @@
         "views/event_track_templates_page.xml",
         "views/event_track_views.xml",
     ],
-    "demo": ["data/event_track_demo.xml"],
-    "installable": True,
+    "demo": [
+        "data/event_track_demo.xml",
+    ],
     "assets": {
         "web.assets_frontend": [
             "website_event_track_live/static/src/scss/website_event_track_live.scss",
@@ -23,6 +25,5 @@
             "website_event_track_live/static/src/xml/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

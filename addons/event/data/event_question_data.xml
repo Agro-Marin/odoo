@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data noupdate="1">
         <record id="event_question_name" model="event.question">
             <field name="title">Name</field>
@@ -22,4 +23,5 @@
             <field name="is_reusable">True</field>
         </record>
     </data>
+
 </odoo>

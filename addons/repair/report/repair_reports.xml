@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
         <record id="action_report_repair_order" model="ir.actions.report">
             <field name="name">Repair Order</field>
@@ -7,9 +8,11 @@
             <field name="report_type">qweb-pdf</field>
             <field name="report_name">repair.report_repairorder2</field>
             <field name="report_file">repair.report_repairorder</field>
-            <field name="print_report_name">('Repair Order - %s' % (object.name))</field>
-            <field name="binding_model_id" ref="model_repair_order"/>
+            <field name="binding_model_id" ref="model_repair_order" />
             <field name="binding_type">report</field>
+            <field
+                name="print_report_name">('Repair Order - %s' % (object.name))</field>
         </record>
     </data>
+
 </odoo>

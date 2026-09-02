@@ -6,11 +6,12 @@
         <field name="model">payment.refund.wizard</field>
         <field name="arch" type="xml">
             <form string="Refund">
-                <field name="has_pending_refund" invisible="1"/>
-                <div class="alert alert-warning"
-                     id="alert_draft_refund_tx"
-                     role="alert"
-                     invisible="not has_pending_refund">
+                <field name="has_pending_refund" invisible="1" />
+                <div
+                    class="alert alert-warning"
+                    id="alert_draft_refund_tx"
+                    role="alert"
+                    invisible="not has_pending_refund">
                     <p>
                         <strong>Warning!</strong> There is a refund pending for this payment.
                         Wait a moment for it to be processed. If the refund is still pending in a
@@ -19,21 +20,27 @@
                 </div>
                 <group>
                     <group>
-                        <field name="payment_id" invisible="1"/>
-                        <field name="transaction_id" invisible="1"/>
-                        <field name="currency_id" invisible="1"/>
-                        <field name="support_refund" invisible="1"/>
-                        <field name="payment_amount"/>
-                        <field name="refunded_amount"
-                               invisible="refunded_amount &lt;= 0"/>
-                        <field name="amount_available_for_refund"/>
-                        <field name="amount_to_refund"
-                               readonly="support_refund == 'full_only'"/>
+                        <field name="payment_id" invisible="1" />
+                        <field name="transaction_id" invisible="1" />
+                        <field name="currency_id" invisible="1" />
+                        <field name="support_refund" invisible="1" />
+                        <field name="payment_amount" />
+                        <field
+                            name="refunded_amount"
+                            invisible="refunded_amount &lt;= 0" />
+                        <field name="amount_available_for_refund" />
+                        <field
+                            name="amount_to_refund"
+                            readonly="support_refund == 'full_only'" />
                     </group>
                 </group>
                 <footer>
-                    <button string="Refund" type="object" name="action_refund" class="btn-primary"/>
-                    <button string="Close" special="cancel" class="btn-secondary"/>
+                    <button
+                        string="Refund"
+                        type="object"
+                        name="action_refund"
+                        class="btn-primary" />
+                    <button string="Close" special="cancel" class="btn-secondary" />
                 </footer>
             </form>
         </field>

@@ -1,187 +1,152 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem
-        name="Project"
-        id="menu_project_root"
-        groups="group_project_manager,group_project_user"
-        web_icon="project,static/description/icon.png"
-        sequence="70"
-    >
-        <menuitem
-            name="Projects"
-            id="menu_projects"
-            action="open_view_project_all"
-            sequence="1"
-        />
-        <menuitem
-            name="Projects"
-            id="menu_projects_group_stage"
-            action="open_view_project_all_group_stage"
-            groups="project.group_project_stages"
-            sequence="1"
-        />
-        <menuitem
-            name="Tasks"
-            id="menu_project_management"
-            sequence="2"
-        >
-            <menuitem
-                name="My Tasks"
-                id="menu_project_management_my_tasks"
-                action="action_view_my_task"
-                sequence="1"
-            />
-            <menuitem
-                name="All Tasks"
-                id="menu_project_management_all_tasks"
-                action="action_view_all_task"
-                sequence="2"
-            />
-            <menuitem
-                name="Backlog"
-                id="menu_project_backlog"
-                action="action_view_backlog"
-                sequence="3"
-            />
-            <menuitem
-                name="Assigned Resources"
-                id="menu_project_assigned_resources"
-                action="action_project_task_assigned_resources"
-                sequence="4"
-            />
-        </menuitem>
-        <menuitem
-            name="Reporting"
-            id="menu_project_report"
-            sequence="99"
-        >
-            <menuitem
-                name="Cumulative Flow"
-                id="menu_project_cfd"
-                action="action_project_cfd_report"
-                sequence="7"
-            />
-            <menuitem
-                name="Tasks Analysis"
-                id="menu_project_report_task_analysis"
-                action="project.action_project_task_user_tree"
-                sequence="10"
-            />
-            <menuitem
-                name="Portfolio Dashboard"
-                id="menu_project_portfolio"
-                action="action_project_portfolio"
-                sequence="5"
-            />
-            <menuitem
-                name="Resource Utilization"
-                id="menu_project_resource_utilization"
-                action="action_project_resource_report"
-                sequence="15"
-            />
-            <menuitem
-                name="Sprints"
-                id="menu_project_sprints"
-                action="action_project_sprint"
-                sequence="25"
-            />
-            <menuitem
-                name="Project History"
-                id="menu_project_history"
-                action="action_project_history"
-                sequence="40"
-            />
-            <menuitem
-                name="Customer Ratings"
-                id="menu_project_customer_ratings"
-                action="rating_rating_action_project_report"
-                sequence="51"
-            />
-            <menuitem
-                name="Risk Register"
-                id="menu_project_risk_register"
-                action="action_project_risk"
-                sequence="20"
-            />
-            <menuitem
-                name="Retrospectives"
-                id="menu_project_retrospectives"
-                action="action_project_retrospective"
-                sequence="30"
-            />
-            <menuitem
-                name="Retro Actions"
-                id="menu_project_retro_actions"
-                action="action_project_retrospective_actions"
-                sequence="31"
-            />
 
+    <menuitem
+        id="menu_project_root"
+        name="Project"
+        sequence="70"
+        groups="group_project_manager,group_project_user"
+        web_icon="project,static/description/icon.png">
+        <menuitem
+            id="menu_projects"
+            name="Projects"
+            action="open_view_project_all"
+            sequence="1" />
+        <menuitem
+            id="menu_projects_group_stage"
+            name="Projects"
+            action="open_view_project_all_group_stage"
+            sequence="1"
+            groups="project.group_project_stages" />
+        <menuitem id="menu_project_management" name="Tasks" sequence="2">
+            <menuitem
+                id="menu_project_management_my_tasks"
+                name="My Tasks"
+                action="action_view_my_task"
+                sequence="1" />
+            <menuitem
+                id="menu_project_management_all_tasks"
+                name="All Tasks"
+                action="action_view_all_task"
+                sequence="2" />
+            <menuitem
+                id="menu_project_backlog"
+                name="Backlog"
+                action="action_view_backlog"
+                sequence="3" />
+            <menuitem
+                id="menu_project_assigned_resources"
+                name="Assigned Resources"
+                action="action_project_task_assigned_resources"
+                sequence="4" />
+        </menuitem>
+        <menuitem id="menu_project_report" name="Reporting" sequence="99">
+            <menuitem
+                id="menu_project_cfd"
+                name="Cumulative Flow"
+                action="action_project_cfd_report"
+                sequence="7" />
+            <menuitem
+                id="menu_project_report_task_analysis"
+                name="Tasks Analysis"
+                action="project.action_project_task_user_tree"
+                sequence="10" />
+            <menuitem
+                id="menu_project_portfolio"
+                name="Portfolio Dashboard"
+                action="action_project_portfolio"
+                sequence="5" />
+            <menuitem
+                id="menu_project_resource_utilization"
+                name="Resource Utilization"
+                action="action_project_resource_report"
+                sequence="15" />
+            <menuitem
+                id="menu_project_sprints"
+                name="Sprints"
+                action="action_project_sprint"
+                sequence="25" />
+            <menuitem
+                id="menu_project_history"
+                name="Project History"
+                action="action_project_history"
+                sequence="40" />
+            <menuitem
+                id="menu_project_customer_ratings"
+                name="Customer Ratings"
+                action="rating_rating_action_project_report"
+                sequence="51" />
+            <menuitem
+                id="menu_project_risk_register"
+                name="Risk Register"
+                action="action_project_risk"
+                sequence="20" />
+            <menuitem
+                id="menu_project_retrospectives"
+                name="Retrospectives"
+                action="action_project_retrospective"
+                sequence="30" />
+            <menuitem
+                id="menu_project_retro_actions"
+                name="Retro Actions"
+                action="action_project_retrospective_actions"
+                sequence="31" />
         </menuitem>
         <menuitem
-            name="Configuration"
             id="menu_project_config"
-            groups="project.group_project_manager"
+            name="Configuration"
             sequence="100"
-        >
+            groups="project.group_project_manager">
             <menuitem
-                name="Settings"
                 id="menu_project_config_settings"
+                name="Settings"
                 action="project_config_settings_action"
-                groups="base.group_system"
                 sequence="0"
-            />
+                groups="base.group_system" />
             <menuitem
-                name="Projects"
                 id="menu_projects_config_group_stage"
-                action="open_view_project_all_config_group_stage"
-                groups="project.group_project_stages"
-                sequence="5"
-            />
-            <menuitem
                 name="Projects"
-                id="menu_projects_config"
-                action="open_view_project_all_config"
+                action="open_view_project_all_config_group_stage"
                 sequence="5"
-            />
+                groups="project.group_project_stages" />
             <menuitem
-                name="Project Phases"
+                id="menu_projects_config"
+                name="Projects"
+                action="open_view_project_all_config"
+                sequence="5" />
+            <menuitem
                 id="menu_project_config_project_stage"
+                name="Project Phases"
                 action="project_phase_configure"
-                groups="project.group_project_stages"
                 sequence="9"
-            />
+                groups="project.group_project_stages" />
             <menuitem
-                name="Workflow Steps"
                 id="menu_project_config_project"
+                name="Workflow Steps"
                 action="open_workflow_step_form"
-                groups="base.group_no_one"
                 sequence="10"
-            />
+                groups="base.group_no_one" />
             <menuitem
-                name="Tags"
                 id="menu_project_tags_act"
-                action="project_tags_action"
-            />
+                name="Tags"
+                action="project_tags_action" />
             <menuitem
                 id="menu_project_task_lost_reason_act"
                 name="Lost Reasons"
-                action="project_task_lost_reason_action"
-            />
+                action="project_task_lost_reason_action" />
             <menuitem
-                name="Project Roles"
                 id="menu_project_config_roles"
-                action="resource.resource_role_action"
-            />
+                name="Project Roles"
+                action="resource.resource_role_action" />
             <menuitem
-                name="Activity Types"
                 id="menu_project_config_activity_type"
-                action="mail_activity_type_action_config_project_types"
-            />
+                name="Activity Types"
+                action="mail_activity_type_action_config_project_types" />
             <menuitem
-                name="Activity Plans"
                 id="menu_project_config_activity_plan"
-                action="mail_activity_plan_action_config_project_task_plan"
-            />
+                name="Activity Plans"
+                action="mail_activity_plan_action_config_project_task_plan" />
         </menuitem>
     </menuitem>
+
 </odoo>

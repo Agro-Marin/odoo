@@ -1,12 +1,17 @@
 {
     "name": "Booths/Exhibitors Bridge",
-    "category": "Marketing/Events",
     "version": "1.1",
+    "category": "Marketing/Events",
     "summary": "Event Booths, automatically create a sponsor.",
     "description": """
 Automatically create a sponsor when renting a booth.
     """,
-    "depends": ["website_event_exhibitor", "website_event_booth"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website_event_exhibitor",
+        "website_event_booth",
+    ],
     "data": [
         "data/event_booth_category_data.xml",
         "views/event_booth_category_views.xml",
@@ -15,7 +20,6 @@ Automatically create a sponsor when renting a booth.
         "views/event_booth_templates.xml",
         "views/mail_templates.xml",
     ],
-    "auto_install": True,
     "assets": {
         "web.assets_frontend": [
             "/website_event_booth_exhibitor/static/src/interactions/booth_sponsor_details.js",
@@ -25,6 +29,5 @@ Automatically create a sponsor when renting a booth.
             "website_event_booth_exhibitor/static/tests/tours/website_event_booth_exhibitor.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

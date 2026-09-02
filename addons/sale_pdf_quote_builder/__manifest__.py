@@ -2,7 +2,12 @@
     "name": "Sales PDF Quotation Builder",
     "category": "Sales/Sales",
     "description": "Build nice quotations",
-    "depends": ["documents_product", "sale_management"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "documents_product",
+        "sale_management",
+    ],
     "data": [
         "data/ir_cron.xml",
         "data/sale_pdf_form_field.xml",
@@ -20,7 +25,6 @@
     "demo": [
         "data/sale_pdf_quote_builder_demo.xml",
     ],
-    "auto_install": True,
     "assets": {
         "web.assets_backend": [
             "sale_pdf_quote_builder/static/src/js/**/*",
@@ -29,6 +33,5 @@
             "sale_pdf_quote_builder/static/tests/tours/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

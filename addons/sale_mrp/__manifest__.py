@@ -9,7 +9,12 @@ This module provides facility to the user to install mrp and sales modules at a 
 It is basically used when we want to keep track of production orders generated
 from sales order. It adds sales name and sales Reference on production order.
     """,
-    "depends": ["mrp", "sale_stock"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "mrp",
+        "sale_stock",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/mrp_production_views.xml",
@@ -18,6 +23,4 @@ from sales order. It adds sales name and sales Reference on production order.
     ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

@@ -1,53 +1,61 @@
-<?xml version="1.0"?>
-<odoo><data>
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
 
-    <!-- MAIN MENU -->
-    <menuitem name="Events"
-        id="event_main_menu"
-        sequence="125"
-        groups="event.group_event_registration_desk"
-        web_icon="event,static/description/icon.png"/>
+    <data>
+        <!-- MAIN MENU -->
+        <menuitem
+            id="event_main_menu"
+            name="Events"
+            sequence="125"
+            groups="event.group_event_registration_desk"
+            web_icon="event,static/description/icon.png" />
+        <!-- HEADER: EVENTS -->
+        <menuitem
+            id="menu_event_event"
+            name="Events"
+            parent="event.event_main_menu"
+            sequence="1"
+            groups="event.group_event_registration_desk" />
+        <!-- HEADER: REPORTING -->
+        <menuitem
+            id="menu_reporting_events"
+            name="Reporting"
+            parent="event_main_menu"
+            sequence="50"
+            groups="event.group_event_user" />
+        <!-- HEADER: CONFIGURATION -->
+        <menuitem
+            id="menu_event_configuration"
+            name="Configuration"
+            parent="event_main_menu"
+            sequence="99"
+            groups="event.group_event_user" />
+        <menuitem
+            id="menu_event_type"
+            name="Event Templates"
+            parent="menu_event_configuration"
+            sequence="1" />
+        <menuitem
+            id="event_stage_menu"
+            name="Event Stages"
+            parent="menu_event_configuration"
+            sequence="2" />
+        <menuitem
+            id="menu_event_mail_schedulers"
+            name="Mail Schedulers"
+            parent="menu_event_configuration"
+            sequence="10"
+            groups="base.group_no_one" />
+        <menuitem
+            id="menu_event_category"
+            name="Event Tags Categories"
+            parent="menu_event_configuration"
+            sequence="3" />
+        <menuitem
+            id="event_question_menu"
+            name="Event Questions"
+            parent="menu_event_configuration"
+            sequence="4" />
+    </data>
 
-    <!-- HEADER: EVENTS -->
-    <menuitem name="Events"
-        id="menu_event_event"
-        sequence="1"
-        parent="event.event_main_menu"
-        groups="event.group_event_registration_desk"/>
-
-    <!-- HEADER: REPORTING -->
-    <menuitem name="Reporting"
-        id="menu_reporting_events"
-        sequence="50"
-        parent="event_main_menu"
-        groups="event.group_event_user"/>
-
-    <!-- HEADER: CONFIGURATION -->
-    <menuitem name="Configuration"
-        id="menu_event_configuration"
-        sequence="99"
-        parent="event_main_menu"
-        groups="event.group_event_user"/>
-    <menuitem name="Event Templates"
-        id="menu_event_type"
-        sequence="1"
-        parent="menu_event_configuration"/>
-    <menuitem name="Event Stages"
-        id="event_stage_menu"
-        sequence="2"
-        parent="menu_event_configuration"/>
-    <menuitem name="Mail Schedulers"
-        id="menu_event_mail_schedulers"
-        sequence="10"
-        parent="menu_event_configuration"
-        groups="base.group_no_one"/>
-    <menuitem name="Event Tags Categories"
-        id="menu_event_category"
-        sequence="3"
-        parent="menu_event_configuration"/>
-    <menuitem name="Event Questions"
-        id="event_question_menu"
-        sequence="4"
-        parent="menu_event_configuration"/>
-
-</data></odoo>
+</odoo>

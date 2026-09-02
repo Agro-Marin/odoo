@@ -1,14 +1,18 @@
 {
-    'name': 'Japan - UBL PINT',
-    'countries': ['jp'],
-    'version': '1.0',
-    'category': 'Accounting/Localizations/EDI',
-    'description': """
+    "name": "Japan - UBL PINT",
+    "version": "1.0",
+    "category": "Accounting/Localizations/EDI",
+    "description": """
     The UBL PINT e-invoicing format for Japan is based on the Peppol International (PINT) model for Billing.
     """,
-    'depends': ['account_edi_ubl_cii'],
-    'installable': True,
-    'author': 'Odoo S.A.',
-    'uninstall_hook': 'uninstall_hook',
-    'license': 'LGPL-3'
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account_edi_ubl_cii",
+    ],
+    "countries": [
+        "jp",
+    ],
+    "installable": True,
+    "uninstall_hook": "uninstall_hook",
 }

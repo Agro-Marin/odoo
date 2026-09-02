@@ -3,7 +3,7 @@
 
     <data noupdate="1">
         <!-- Odoo Vendor Certification -->
-        <record model="survey.survey" id="vendor_certification">
+        <record id="vendor_certification" model="survey.survey">
             <field name="title">MyCompany Vendor Certification</field>
             <field name="access_token">4ead4bc8-b8f2-4760-a682-1fde8ddb95ac</field>
             <field name="user_id" ref="base.user_admin" />
@@ -32,7 +32,7 @@
             <field name="lang_ids" eval="False" />
         </record>
         <!-- Page 1 -->
-        <record model="survey.question" id="vendor_certification_page_1">
+        <record id="vendor_certification_page_1" model="survey.question">
             <field name="title">Products</field>
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">1</field>
@@ -43,7 +43,7 @@
             </field>
         </record>
         <!-- Question and predefined answer 1 -->
-        <record model="survey.question" id="vendor_certification_page_1_question_1">
+        <record id="vendor_certification_page_1_question_1" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">2</field>
             <field name="title">Do we sell Acoustic Bloc Screens?</field>
@@ -51,15 +51,15 @@
             <field name="constr_mandatory" eval="True" />
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_1_choice_1">
+            id="vendor_certification_page_1_question_1_choice_1"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_1" />
             <field name="sequence">1</field>
             <field name="value">No</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_1_choice_2">
+            id="vendor_certification_page_1_question_1_choice_2"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_1" />
             <field name="sequence">2</field>
             <field name="value">Yes</field>
@@ -67,15 +67,15 @@
             <field name="answer_score">2.0</field>
         </record>
         <!-- Question and predefined answer 2 -->
-        <record model="survey.question" id="vendor_certification_page_1_question_2">
+        <record id="vendor_certification_page_1_question_2" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">3</field>
             <field name="title">Select all the existing products</field>
             <field name="question_type">multiple_choice</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_2_choice_1">
+            id="vendor_certification_page_1_question_2_choice_1"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_2" />
             <field name="sequence">1</field>
             <field name="value">Chair floor protection</field>
@@ -83,16 +83,16 @@
             <field name="answer_score">1.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_2_choice_2">
+            id="vendor_certification_page_1_question_2_choice_2"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_2" />
             <field name="sequence">2</field>
             <field name="value">Fanta</field>
             <field name="answer_score">-1.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_2_choice_3">
+            id="vendor_certification_page_1_question_2_choice_3"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_2" />
             <field name="sequence">3</field>
             <field name="value">Conference chair</field>
@@ -100,8 +100,8 @@
             <field name="answer_score">1.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_2_choice_4">
+            id="vendor_certification_page_1_question_2_choice_4"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_2" />
             <field name="sequence">4</field>
             <field name="value">Drawer</field>
@@ -109,15 +109,15 @@
             <field name="answer_score">1.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_2_choice_5">
+            id="vendor_certification_page_1_question_2_choice_5"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_2" />
             <field name="sequence">5</field>
             <field name="value">Customizable Lamp</field>
             <field name="answer_score">-1.0</field>
         </record>
         <!-- Question and predefined answer 3 -->
-        <record model="survey.question" id="vendor_certification_page_1_question_3">
+        <record id="vendor_certification_page_1_question_3" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">4</field>
             <field
@@ -125,8 +125,8 @@
             <field name="question_type">multiple_choice</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_3_choice_1">
+            id="vendor_certification_page_1_question_3_choice_1"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_3" />
             <field name="sequence">1</field>
             <field name="value">Color</field>
@@ -134,16 +134,16 @@
             <field name="answer_score">1.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_3_choice_2">
+            id="vendor_certification_page_1_question_3_choice_2"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_3" />
             <field name="sequence">2</field>
             <field name="value">Height</field>
             <field name="answer_score">-1.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_3_choice_3">
+            id="vendor_certification_page_1_question_3_choice_3"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_3" />
             <field name="sequence">3</field>
             <field name="value">Width</field>
@@ -151,8 +151,8 @@
             <field name="answer_score">1.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_3_choice_4">
+            id="vendor_certification_page_1_question_3_choice_4"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_3" />
             <field name="sequence">4</field>
             <field name="value">Legs</field>
@@ -160,15 +160,15 @@
             <field name="answer_score">1.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_3_choice_5">
+            id="vendor_certification_page_1_question_3_choice_5"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_3" />
             <field name="sequence">5</field>
             <field name="value">Number of drawers</field>
             <field name="answer_score">-1.0</field>
         </record>
         <!-- Question and predefined answer 4 -->
-        <record model="survey.question" id="vendor_certification_page_1_question_4">
+        <record id="vendor_certification_page_1_question_4" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">5</field>
             <field name="title">How many versions of the Corner Desk do we have?</field>
@@ -176,15 +176,15 @@
             <field name="constr_mandatory" eval="True" />
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_4_choice_1">
+            id="vendor_certification_page_1_question_4_choice_1"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_4" />
             <field name="sequence">1</field>
             <field name="value">1</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_4_choice_2">
+            id="vendor_certification_page_1_question_4_choice_2"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_4" />
             <field name="sequence">2</field>
             <field name="value">2</field>
@@ -192,21 +192,21 @@
             <field name="answer_score">2.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_4_choice_3">
+            id="vendor_certification_page_1_question_4_choice_3"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_4" />
             <field name="sequence">3</field>
             <field name="value">3</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_1_question_4_choice_4">
+            id="vendor_certification_page_1_question_4_choice_4"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_1_question_4" />
             <field name="sequence">4</field>
             <field name="value">4</field>
         </record>
         <!-- Question and predefined answer 5 -->
-        <record model="survey.question" id="vendor_certification_page_1_question_5">
+        <record id="vendor_certification_page_1_question_5" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">6</field>
             <field
@@ -217,7 +217,7 @@
                 examples.</field>
         </record>
         <!-- Page 2 -->
-        <record model="survey.question" id="vendor_certification_page_2">
+        <record id="vendor_certification_page_2" model="survey.question">
             <field name="title">Prices</field>
             <field name="survey_id" ref="vendor_certification" />
             <field name="is_page" eval="True" />
@@ -227,7 +227,7 @@
                 name="description">&lt;p&gt;Test your knowledge of our prices.&lt;/p&gt;</field>
         </record>
         <!-- Question and predefined answer 6 -->
-        <record model="survey.question" id="vendor_certification_page_2_question_1">
+        <record id="vendor_certification_page_2_question_1" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">8</field>
             <field name="title">How much do we sell our Cable Management Box?</field>
@@ -235,29 +235,29 @@
             <field name="constr_mandatory" eval="True" />
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_1_choice_1">
+            id="vendor_certification_page_2_question_1_choice_1"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_1" />
             <field name="sequence">1</field>
             <field name="value">$20</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_1_choice_2">
+            id="vendor_certification_page_2_question_1_choice_2"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_1" />
             <field name="sequence">2</field>
             <field name="value">$50</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_1_choice_3">
+            id="vendor_certification_page_2_question_1_choice_3"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_1" />
             <field name="sequence">3</field>
             <field name="value">$80</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_1_choice_4">
+            id="vendor_certification_page_2_question_1_choice_4"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_1" />
             <field name="sequence">4</field>
             <field name="value">$100</field>
@@ -265,21 +265,21 @@
             <field name="answer_score">2.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_1_choice_5">
+            id="vendor_certification_page_2_question_1_choice_5"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_1" />
             <field name="sequence">5</field>
             <field name="value">$200</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_1_choice_6">
+            id="vendor_certification_page_2_question_1_choice_6"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_1" />
             <field name="sequence">6</field>
             <field name="value">$300</field>
         </record>
         <!-- Question and predefined answer 7 -->
-        <record model="survey.question" id="vendor_certification_page_2_question_2">
+        <record id="vendor_certification_page_2_question_2" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">9</field>
             <field
@@ -287,8 +287,8 @@
             <field name="question_type">multiple_choice</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_2_choice_1">
+            id="vendor_certification_page_2_question_2_choice_1"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="sequence">1</field>
             <field name="value">Corner Desk Right Sit</field>
@@ -296,8 +296,8 @@
             <field name="is_correct" eval="True" />
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_2_choice_2">
+            id="vendor_certification_page_2_question_2_choice_2"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="sequence">2</field>
             <field name="value">Desk Combination</field>
@@ -305,16 +305,16 @@
             <field name="is_correct" eval="True" />
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_2_choice_3">
+            id="vendor_certification_page_2_question_2_choice_3"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="sequence">3</field>
             <field name="value">Cabinet with Doors</field>
             <field name="answer_score">-1.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_2_choice_4">
+            id="vendor_certification_page_2_question_2_choice_4"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="sequence">4</field>
             <field name="value">Large Desk</field>
@@ -322,23 +322,23 @@
             <field name="is_correct" eval="True" />
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_2_choice_5">
+            id="vendor_certification_page_2_question_2_choice_5"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="sequence">5</field>
             <field name="value">Letter Tray</field>
             <field name="answer_score">-1.0</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_2_choice_5">
+            id="vendor_certification_page_2_question_2_choice_5"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_2" />
             <field name="sequence">6</field>
             <field name="value">Office Chair Black</field>
             <field name="answer_score">-1.0</field>
         </record>
         <!-- Question and predefined answer 8 -->
-        <record model="survey.question" id="vendor_certification_page_2_question_3">
+        <record id="vendor_certification_page_2_question_3" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">10</field>
             <field name="title">What do you think about our prices (not rated)?</field>
@@ -346,42 +346,42 @@
             <field name="constr_mandatory" eval="True" />
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_3_choice_1">
+            id="vendor_certification_page_2_question_3_choice_1"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_3" />
             <field name="sequence">1</field>
             <field name="value">Very underpriced</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_3_choice_2">
+            id="vendor_certification_page_2_question_3_choice_2"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_3" />
             <field name="sequence">2</field>
             <field name="value">Underpriced</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_3_choice_3">
+            id="vendor_certification_page_2_question_3_choice_3"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_3" />
             <field name="sequence">3</field>
             <field name="value">Correctly priced</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_3_choice_4">
+            id="vendor_certification_page_2_question_3_choice_4"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_3" />
             <field name="sequence">4</field>
             <field name="value">A little bit overpriced</field>
         </record>
         <record
-            model="survey.question.answer"
-            id="vendor_certification_page_2_question_3_choice_5">
+            id="vendor_certification_page_2_question_3_choice_5"
+            model="survey.question.answer">
             <field name="question_id" ref="vendor_certification_page_2_question_3" />
             <field name="sequence">5</field>
             <field name="value">A lot overpriced</field>
         </record>
         <!-- Page 3 -->
-        <record model="survey.question" id="vendor_certification_page_3">
+        <record id="vendor_certification_page_3" model="survey.question">
             <field name="title">Policies</field>
             <field name="survey_id" ref="vendor_certification" />
             <field name="is_page" eval="True" />
@@ -391,7 +391,7 @@
                 name="description">&lt;p&gt;Test your knowledge of our policies.&lt;/p&gt;</field>
         </record>
         <!-- Question and predefined answer 9 -->
-        <record model="survey.question" id="vendor_certification_page_3_question_1">
+        <record id="vendor_certification_page_3_question_1" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">12</field>
             <field name="title">How many days is our money-back guarantee?</field>
@@ -402,7 +402,7 @@
             <field name="constr_mandatory" eval="True" />
         </record>
         <!-- Question and predefined answer 10 -->
-        <record model="survey.question" id="vendor_certification_page_3_question_2">
+        <record id="vendor_certification_page_3_question_2" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">13</field>
             <field
@@ -414,7 +414,7 @@
             <field name="answer_score">1.0</field>
         </record>
         <!-- Question and predefined answer 11 -->
-        <record model="survey.question" id="vendor_certification_page_3_question_3">
+        <record id="vendor_certification_page_3_question_3" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">14</field>
             <field
@@ -427,7 +427,7 @@
             <field name="question_placeholder">Beware of leap years!</field>
         </record>
         <!-- Question and predefined answer 12 -->
-        <record model="survey.question" id="vendor_certification_page_3_question_4">
+        <record id="vendor_certification_page_3_question_4" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">15</field>
             <field
@@ -437,7 +437,7 @@
             <field name="answer_score">0</field>
         </record>
         <!-- Question and predefined answer 13 -->
-        <record model="survey.question" id="vendor_certification_page_3_question_5">
+        <record id="vendor_certification_page_3_question_5" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">16</field>
             <field
@@ -447,7 +447,7 @@
             <field name="answer_score">0</field>
         </record>
         <!-- Question and predefined answer 14 -->
-        <record model="survey.question" id="vendor_certification_page_3_question_6">
+        <record id="vendor_certification_page_3_question_6" model="survey.question">
             <field name="survey_id" ref="vendor_certification" />
             <field name="sequence">17</field>
             <field

@@ -1,9 +1,8 @@
 {
-    'name': 'Oman - Accounting',
-    'version': '1.0',
-    'category': 'Accounting/Localizations/Account Charts',
-    'author': 'Odoo S.A.',
-    'description': """
+    "name": "Oman - Accounting",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Oman Accounting Module
 =================================================================
 Oman accounting basic charts and localization.
@@ -14,18 +13,21 @@ Activates:
 - Fiscal Positions
 - States
 """,
-    'countries': ['om'],
-    'depends': [
-        'account',
-        'l10n_gcc_invoice',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "l10n_gcc_invoice",
     ],
-    'auto_install': True,
-    'data': [
-        'data/res.country.state.csv',
-        'data/tax_report.xml',
+    "countries": [
+        "om",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/res.country.state.csv",
+        "data/tax_report.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": True,
 }

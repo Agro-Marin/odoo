@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="utm_source_view_tree" model="ir.ui.view">
         <field name="name">utm.source.view.list</field>
         <field name="model">utm.source</field>
         <field name="arch" type="xml">
             <list string="Source" editable="bottom" sample="1">
-                <field name="name" placeholder='e.g. "Christmas Mailing"'/>
+                <field name="name" placeholder="e.g. &quot;Christmas Mailing&quot;" />
             </list>
         </field>
     </record>
@@ -17,7 +18,7 @@
             <form string="Source">
                 <sheet>
                     <group>
-                        <field name="name"/>
+                        <field name="name" />
                     </group>
                 </sheet>
             </form>
@@ -36,4 +37,5 @@
             </p>
         </field>
     </record>
+
 </odoo>

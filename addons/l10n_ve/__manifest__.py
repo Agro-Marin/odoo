@@ -1,11 +1,7 @@
 {
-    'name': 'Venezuela - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['ve'],
-    'author': 'Odoo S.A., Vauxoo',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Venezuela - Accounting",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Chart of Account for Venezuela.
 ===============================
 
@@ -34,12 +30,20 @@ stocks as Venezuela does with out invoices.
 If you install this module, and select Custom chart a basic chart will be proposed,
 but you will need set manually account defaults for taxes.
 """,
-    'depends': [
-        'account',
+    "author": "Odoo S.A., Vauxoo",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'demo': [
-        'demo/demo_company.xml',
+    "countries": [
+        "ve",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

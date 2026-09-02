@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'DIN 5008 - Sale',
-    'category': 'Accounting/Localizations',
-    'depends': [
-        'l10n_din5008',
-        'sale',
+    "name": "DIN 5008 - Sale",
+    "category": "Accounting/Localizations",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_din5008",
+        "sale",
     ],
-    'data': [
-        'report/din5008_sale_templates.xml',
-        'report/din5008_sale_order_layout.xml',
+    "data": [
+        "report/din5008_sale_templates.xml",
+        "report/din5008_sale_order_layout.xml",
     ],
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "auto_install": True,
 }

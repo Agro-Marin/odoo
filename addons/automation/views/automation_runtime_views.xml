@@ -11,27 +11,44 @@
                 <field name="partner_id" />
                 <field name="reference" />
                 <separator />
-                <filter string="Draft" name="draft"
+                <filter
+                    string="Draft"
+                    name="draft"
                     domain="[('state', '=', 'draft')]" />
-                <filter string="In Progress" name="in_progress"
+                <filter
+                    string="In Progress"
+                    name="in_progress"
                     domain="[('state', '=', 'in_progress')]" />
-                <filter string="Done" name="done"
-                    domain="[('state', '=', 'done')]" />
-                <filter string="Failed" name="failed"
+                <filter string="Done" name="done" domain="[('state', '=', 'done')]" />
+                <filter
+                    string="Failed"
+                    name="failed"
                     domain="[('state', '=', 'error')]" />
                 <separator />
-                <filter string="My Company" name="my_company"
+                <filter
+                    string="My Company"
+                    name="my_company"
                     domain="[('company_id', '=', company_id)]" />
                 <group>
-                    <filter string="Workflow" name="group_automation"
+                    <filter
+                        string="Workflow"
+                        name="group_automation"
                         context="{'group_by': 'automation_id'}" />
-                    <filter string="Partner" name="group_partner"
+                    <filter
+                        string="Partner"
+                        name="group_partner"
                         context="{'group_by': 'partner_id'}" />
-                    <filter string="State" name="group_state"
+                    <filter
+                        string="State"
+                        name="group_state"
                         context="{'group_by': 'state'}" />
-                    <filter string="Date" name="group_date"
+                    <filter
+                        string="Date"
+                        name="group_date"
                         context="{'group_by': 'date'}" />
-                    <filter string="Company" name="group_company"
+                    <filter
+                        string="Company"
+                        name="group_company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>
@@ -50,7 +67,9 @@
                 <field name="amount" sum="Total" />
                 <field name="date" />
                 <field name="progress_display" />
-                <field name="state" widget="badge"
+                <field
+                    name="state"
+                    widget="badge"
                     decoration-info="state == 'draft'"
                     decoration-warning="state == 'in_progress'"
                     decoration-success="state == 'done'"
@@ -84,7 +103,9 @@
                         string="Cancel"
                         type="object"
                         invisible="state in ['done', 'cancel', 'error']" />
-                    <field name="state" widget="statusbar"
+                    <field
+                        name="state"
+                        widget="statusbar"
                         statusbar_visible="draft,in_progress,done" />
                 </header>
                 <sheet>
@@ -131,7 +152,9 @@
                                 <list string="Steps" create="0" delete="0">
                                     <field name="sequence" widget="handle" />
                                     <field name="name" />
-                                    <field name="state" widget="badge"
+                                    <field
+                                        name="state"
+                                        widget="badge"
                                         decoration-info="state == 'waiting'"
                                         decoration-success="state == 'ready'"
                                         decoration-primary="state == 'in_progress'"
@@ -179,7 +202,6 @@
         name="Workflow Runtimes"
         parent="base.menu_automation"
         action="action_automation_runtime"
-        sequence="65"
-    />
+        sequence="65" />
 
 </odoo>

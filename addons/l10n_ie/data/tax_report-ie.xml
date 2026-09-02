@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="l10n_ie_tr" model="account.report">
         <field name="name">Tax Report</field>
-        <field name="root_report_id" ref="account.generic_tax_report"/>
-        <field name="country_id" ref="base.ie"/>
-        <field name="allow_foreign_vat" eval="True"/>
+        <field name="root_report_id" ref="account.generic_tax_report" />
+        <field name="country_id" ref="base.ie" />
+        <field name="allow_foreign_vat" eval="True" />
         <field name="availability_condition">country</field>
         <field name="column_ids">
             <record id="l10n_ie_tr_balance" model="account.report.column">
@@ -38,10 +39,13 @@
             <record id="l10n_ie_tr_T3" model="account.report.line">
                 <field name="name">T3: VAT payable</field>
                 <field name="expression_ids">
-                    <record id="l10n_ie_tr_T3_aggregation" model="account.report.expression">
+                    <record
+                        id="l10n_ie_tr_T3_aggregation"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">aggregation</field>
-                        <field name="formula">l10n_ie_tr_T1.balance - l10n_ie_tr_T2.balance</field>
+                        <field
+                            name="formula">l10n_ie_tr_T1.balance - l10n_ie_tr_T2.balance</field>
                         <field name="subformula">if_above(EUR(0))</field>
                     </record>
                 </field>
@@ -49,10 +53,13 @@
             <record id="l10n_ie_tr_T4" model="account.report.line">
                 <field name="name">T4: VAT repayable</field>
                 <field name="expression_ids">
-                    <record id="l10n_ie_tr_T4_aggregation" model="account.report.expression">
+                    <record
+                        id="l10n_ie_tr_T4_aggregation"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">aggregation</field>
-                        <field name="formula">l10n_ie_tr_T2.balance - l10n_ie_tr_T1.balance</field>
+                        <field
+                            name="formula">l10n_ie_tr_T2.balance - l10n_ie_tr_T1.balance</field>
                         <field name="subformula">if_above(EUR(0))</field>
                     </record>
                 </field>
@@ -114,4 +121,5 @@
             </record>
         </field>
     </record>
+
 </odoo>

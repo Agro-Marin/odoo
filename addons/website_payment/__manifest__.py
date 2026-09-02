@@ -1,11 +1,13 @@
 {
     "name": "Website Payment",
+    "version": "1.0",
     "category": "Website/Website",
     "summary": "Payment integration with website",
-    "version": "1.0",
     "description": """
 This is a bridge module that adds multi-website support for payment providers.
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "website",
         "account_payment_provider",
@@ -20,12 +22,14 @@ This is a bridge module that adds multi-website support for payment providers.
         "views/snippets/s_donation.xml",
         "views/snippets/s_supported_payment_methods.xml",
     ],
-    "auto_install": True,
     "assets": {
         "web.assets_frontend": [
             "website_payment/static/src/interactions/*",
             "website_payment/static/src/snippets/**/*.js",
-            ("remove", "website_payment/static/src/snippets/**/*.edit.js"),
+            (
+                "remove",
+                "website_payment/static/src/snippets/**/*.edit.js",
+            ),
         ],
         "website.assets_inside_builder_iframe": [
             "website_payment/static/src/**/*.edit.js",
@@ -40,6 +44,5 @@ This is a bridge module that adds multi-website support for payment providers.
             "website_payment/static/src/website_builder/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

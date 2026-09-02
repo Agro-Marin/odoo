@@ -1,5 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="sale_loyalty_coupon_wizard_view_form" model="ir.ui.view">
         <field name="name">sale.loyalty.coupon.wizard.view.form</field>
         <field name="model">sale.loyalty.coupon.wizard</field>
@@ -8,13 +9,22 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="coupon_code"/>
+                            <field name="coupon_code" />
                         </group>
                     </group>
                 </sheet>
                 <footer>
-                    <button type="object" name="action_apply" string="Apply" class="btn btn-primary" data-hotkey="q"/>
-                    <button special="cancel" string="Discard" class="btn btn-secondary" data-hotkey="x"/>
+                    <button
+                        type="object"
+                        name="action_apply"
+                        string="Apply"
+                        class="btn btn-primary"
+                        data-hotkey="q" />
+                    <button
+                        special="cancel"
+                        string="Discard"
+                        class="btn btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -26,4 +36,5 @@
         <field name="view_mode">form</field>
         <field name="target">new</field>
     </record>
+
 </odoo>

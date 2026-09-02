@@ -1,19 +1,21 @@
 {
-    'name': 'Türkiye - Nilvera',
-    'version': '1.0',
-    'category': 'Accounting/Accounting',
-    'description': """
+    "name": "T\u00fcrkiye - Nilvera",
+    "version": "1.0",
+    "category": "Accounting/Accounting",
+    "description": """
 Base module containing core functionalities required by other Nilvera modules.
     """,
-    'depends': ['l10n_tr'],
-    'data': [
-        'security/ir.model.access.csv',
-        'views/res_config_settings_views.xml',
-        'views/res_partner_views.xml',
-        'data/uom_data.xml',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_tr",
     ],
-    'post_init_hook': '_l10n_tr_nilvera_post_init',
-    'author': 'Odoo S.A.',
-    'uninstall_hook': 'uninstall_hook',
-    'license': 'LGPL-3',
+    "data": [
+        "security/ir.model.access.csv",
+        "views/res_config_settings_views.xml",
+        "views/res_partner_views.xml",
+        "data/uom_data.xml",
+    ],
+    "post_init_hook": "_l10n_tr_nilvera_post_init",
+    "uninstall_hook": "uninstall_hook",
 }

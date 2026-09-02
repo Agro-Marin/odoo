@@ -1,12 +1,15 @@
 {
     "name": "Course Certifications",
-    "summary": "Add certification capabilities to your courses",
-    "description": """This module lets you use the full power of certifications within your courses.""",
-    "category": "Website/eLearning",
     "version": "1.0",
-    "depends": ["website_slides", "survey"],
-    "installable": True,
-    "auto_install": True,
+    "category": "Website/eLearning",
+    "summary": "Add certification capabilities to your courses",
+    "description": "This module lets you use the full power of certifications within your courses.",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website_slides",
+        "survey",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/website_slides_survey_security.xml",
@@ -43,7 +46,7 @@
             "website_slides_survey/static/src/scss/website_slides_survey_result.scss",
         ],
     },
+    "installable": True,
+    "auto_install": True,
     "uninstall_hook": "uninstall_hook",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

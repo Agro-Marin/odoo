@@ -10,7 +10,12 @@ Bridge module to integrate leaves in timesheet
 This module allows to automatically log timesheets when employees are
 on leaves. Project and task can be configured company-wide.
     """,
-    "depends": ["hr_timesheet", "hr_holidays"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr_timesheet",
+        "hr_holidays",
+    ],
     "data": [
         "views/res_config_settings_views.xml",
         "views/project_task_views.xml",
@@ -22,6 +27,4 @@ on leaves. Project and task can be configured company-wide.
     "installable": True,
     "auto_install": True,
     "post_init_hook": "post_init",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

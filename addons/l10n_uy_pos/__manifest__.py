@@ -6,15 +6,17 @@
 This module brings the technical requirement for the Uruguayan regulation.
 Install this if you are using the Point of Sale app in Uruguay.
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "l10n_uy",
         "point_of_sale",
     ],
     "assets": {
-        "point_of_sale._assets_pos": ["l10n_uy_pos/static/src/**/*"],
+        "point_of_sale._assets_pos": [
+            "l10n_uy_pos/static/src/**/*",
+        ],
     },
     "installable": True,
     "auto_install": True,
-    'author': 'Odoo S.A.',
-    "license": "LGPL-3",
 }

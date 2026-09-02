@@ -12,6 +12,8 @@ Use automation rules to automatically trigger actions for various screens.
 Sales Team, or an opportunity which still has status pending after 14 days might
 trigger an automatic reminder email.
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "bus",
         "credential",
@@ -40,6 +42,4 @@ trigger an automatic reminder email.
             "automation/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

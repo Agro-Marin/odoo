@@ -1,19 +1,8 @@
 {
-    'name': "Indian - E-invoicing",
-    'version': "1.03.00",
-    'countries': ['in'],
-    'category': "Accounting/Localizations/EDI",
-    'depends': [
-        "account_edi",
-        "l10n_in",
-    ],
-    'external_dependencies': {
-        'python': ['python-stdnum'],
-        'apt': {
-            'python-stdnum': 'python3-stdnum',
-        },
-    },
-    'description': """
+    "name": "Indian - E-invoicing",
+    "version": "1.03.00",
+    "category": "Accounting/Localizations/EDI",
+    "description": """
 Indian - E-invoicing
 ====================
 To submit invoicing through API to the government.
@@ -24,17 +13,32 @@ Step 3: Set that username and password in Odoo (Goto: Invoicing/Accounting -> Co
 Step 4: Repeat steps 1,2,3 for all GSTIN you have in odoo. If you have a multi-company with the same GST number then perform step 1 for the first company only.
 For the creation of API username and password please ref this document: <https://service.odoo.co.in/einvoice_create_api_user>
     """,
-    'data': [
-        'security/ir.model.access.csv',
-        'views/account_move_views.xml',
-        'views/edi_pdf_report.xml',
-        'views/res_config_settings_views.xml',
-        'wizard/l10n_in_edi_cancel_views.xml',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account_edi",
+        "l10n_in",
     ],
-    'demo': [
+    "external_dependencies": {
+        "python": [
+            "python-stdnum",
+        ],
+        "apt": {
+            "python-stdnum": "python3-stdnum",
+        },
+    },
+    "countries": [
+        "in",
+    ],
+    "data": [
+        "security/ir.model.access.csv",
+        "views/account_move_views.xml",
+        "views/edi_pdf_report.xml",
+        "views/res_config_settings_views.xml",
+        "wizard/l10n_in_edi_cancel_views.xml",
+    ],
+    "demo": [
         "demo/demo_company.xml",
     ],
-    'installable': True,
-    'author': "Odoo S.A.",
-    'license': "LGPL-3",
+    "installable": True,
 }

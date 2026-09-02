@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'DIN 5008 - Repair',
-    'category': 'Accounting/Localizations',
-    'depends': [
-        'l10n_din5008',
-        'repair',
+    "name": "DIN 5008 - Repair",
+    "category": "Accounting/Localizations",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_din5008",
+        "repair",
     ],
-    'data': [
-        'report/din5008_repair_templates.xml',
-        'report/din5008_repair_order_layout.xml',
+    "data": [
+        "report/din5008_repair_templates.xml",
+        "report/din5008_repair_order_layout.xml",
     ],
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "auto_install": True,
 }

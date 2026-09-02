@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <template id="mass_mailing.preview_content_mobile">
         <html>
             <head>
-                <t t-call-assets="mass_mailing.assets_iframe_style" t-js="False"></t>
+                <t t-call-assets="mass_mailing.assets_iframe_style" t-js="False" />
             </head>
-            <body></body>
+            <body />
         </html>
     </template>
+
 </odoo>

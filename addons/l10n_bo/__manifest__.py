@@ -1,26 +1,30 @@
 {
-    'name': 'Bolivia - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['bo'],
-    'version': '2.0',
-    'description': """
+    "name": "Bolivia - Accounting",
+    "version": "2.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Bolivian accounting chart and tax localization.
 
 Plan contable boliviano e impuestos de acuerdo a disposiciones vigentes
 
     """,
-    'author': 'Odoo / Cubic ERP',
-    'category': 'Accounting/Localizations/Account Charts',
-    'depends': [
-        'account',
+    "author": "Odoo / Cubic ERP",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "bo",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

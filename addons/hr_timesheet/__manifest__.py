@@ -15,8 +15,16 @@ Lots of reporting on time and employee tracking are provided.
 It is completely integrated with the cost accounting module. It allows you to set
 up a management by affair.
     """,
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/timesheet",
-    "depends": ["hr", "hr_hourly_cost", "analytic", "project", "uom"],
+    "license": "LGPL-3",
+    "depends": [
+        "hr",
+        "hr_hourly_cost",
+        "analytic",
+        "project",
+        "uom",
+    ],
     "data": [
         "security/hr_timesheet_security.xml",
         "security/ir.model.access.csv",
@@ -43,10 +51,6 @@ up a management by affair.
     "demo": [
         "data/hr_timesheet_demo.xml",
     ],
-    "installable": True,
-    "pre_init_hook": "_pre_init_hook",
-    "post_init_hook": "create_internal_project",
-    "uninstall_hook": "_uninstall_hook",
     "assets": {
         "web.assets_backend": [
             "hr_timesheet/static/src/**/*",
@@ -61,6 +65,8 @@ up a management by affair.
             "hr_timesheet/static/src/scss/timesheets_task_form.scss",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "pre_init_hook": "_pre_init_hook",
+    "post_init_hook": "create_internal_project",
+    "uninstall_hook": "_uninstall_hook",
 }

@@ -1,10 +1,12 @@
 {
     "name": "Event Exhibitors",
+    "version": "1.1",
     "category": "Marketing/Events",
     "sequence": 1004,
-    "version": "1.1",
     "summary": "Event: manage sponsors and exhibitors",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/events",
+    "license": "LGPL-3",
     "depends": [
         "website_event",
     ],
@@ -26,7 +28,6 @@
         "data/event_demo.xml",
         "data/event_sponsor_demo.xml",
     ],
-    "installable": True,
     "assets": {
         "web.assets_frontend": [
             "website_event_exhibitor/static/src/scss/event_templates_sponsor.scss",
@@ -41,6 +42,5 @@
             "website_event_exhibitor/static/src/website_builder/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

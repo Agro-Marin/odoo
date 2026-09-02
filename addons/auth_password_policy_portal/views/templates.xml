@@ -2,8 +2,8 @@
 
     <template
         id="portal_my_security"
-        inherit_id="portal.portal_my_security"
-        name="Password policy data for portal">
+        name="Password policy data for portal"
+        inherit_id="portal.portal_my_security">
         <!-- only put meter on first "new password" field since both must be identical -->
         <!--
             `password_meter` is registered, and put in the frontend bundle, by

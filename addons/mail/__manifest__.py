@@ -63,9 +63,14 @@ For more specific needs, you may also assign custom-defined actions
     "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/discuss",
     "license": "LGPL-3",
-    "depends": ["web_tour", "html_editor"],
+    "depends": [
+        "web_tour",
+        "html_editor",
+    ],
     "external_dependencies": {
-        "python": ["chardet"],
+        "python": [
+            "chardet",
+        ],
         "apt": {
             "chardet": "python3-chardet",
         },
@@ -160,7 +165,10 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/**/public_web/**/*",
             "mail/static/src/**/web_portal/**/*",
             "mail/static/src/**/web/**/*",
-            ("remove", "mail/static/src/discuss/**/*"),
+            (
+                "remove",
+                "mail/static/src/discuss/**/*",
+            ),
             "mail/static/src/discuss/core/common/**/*",
             "mail/static/src/discuss/core/public_web/**/*",
             "mail/static/src/discuss/core/web/**/*",
@@ -189,7 +197,10 @@ For more specific needs, you may also assign custom-defined actions
         ],
         "web.assets_unit_tests": [
             "mail/static/tests/**/*",
-            ("remove", "mail/static/tests/tours/**/*"),
+            (
+                "remove",
+                "mail/static/tests/tours/**/*",
+            ),
             "mail/static/src/service_worker_utils.js",
         ],
         "web.assets_tests": [
@@ -226,13 +237,22 @@ For more specific needs, you may also assign custom-defined actions
         ],
         "mail.assets_public": [
             "web/static/lib/odoo_ui_icons/style.css",
-            ("include", "web._assets_helpers"),
-            ("include", "web._assets_backend_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_backend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            ("include", "web._assets_bootstrap_backend"),
+            (
+                "include",
+                "web._assets_bootstrap_backend",
+            ),
             "web/static/src/scss/bootstrap_overridden.scss",
             "web/static/src/scss/tokens.scss",
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
@@ -243,13 +263,22 @@ For more specific needs, you may also assign custom-defined actions
             "web/static/src/webclient/webclient.scss",
             "web/static/src/scss/mimetypes.scss",
             "web/static/src/scss/ui.scss",
-            ("include", "web._assets_core"),
+            (
+                "include",
+                "web._assets_core",
+            ),
             "web/static/src/core/formatters.js",
             "bus/static/src/*.js",
             "bus/static/src/services/**/*.js",
             "bus/static/src/workers/*.js",
-            ("remove", "bus/static/src/workers/bus_worker_script.js"),
-            ("include", "html_editor._assets_editor"),
+            (
+                "remove",
+                "bus/static/src/workers/bus_worker_script.js",
+            ),
+            (
+                "include",
+                "html_editor._assets_editor",
+            ),
             "mail/static/src/model/**/*",
             "mail/static/src/core/common/**/*",
             "mail/static/src/core/public_web/**/*",
@@ -257,14 +286,20 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/**/public_web/**/*",
             "mail/static/src/**/public/**/*",
             "mail/static/lib/selfie_segmentation/selfie_segmentation.js",
-            ("remove", "mail/static/src/discuss/**/*"),
+            (
+                "remove",
+                "mail/static/src/discuss/**/*",
+            ),
             "mail/static/src/discuss/core/common/**/*",
             "mail/static/src/discuss/core/public_web/**/*",
             "mail/static/src/discuss/core/public/**/*",
             "mail/static/src/discuss/**/common/**/*",
             "mail/static/src/discuss/**/public_web/**/*",
             "mail/static/src/discuss/**/public/**/*",
-            ("remove", "web/static/src/**/*.dark.scss"),
+            (
+                "remove",
+                "web/static/src/**/*.dark.scss",
+            ),
         ],
     },
     "esm": {

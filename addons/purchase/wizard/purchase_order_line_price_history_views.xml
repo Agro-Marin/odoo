@@ -14,7 +14,10 @@
                         <field name="partner_id" options="{'no_create': True}" />
                     </group>
                     <group>
-                        <field name="period" widget="radio" options="{'horizontal': true}" />
+                        <field
+                            name="period"
+                            widget="radio"
+                            options="{'horizontal': true}" />
                         <field name="include_draft" />
                     </group>
                 </group>
@@ -27,7 +30,9 @@
                         <div class="o_row">
                             <field name="avg_sample_count" class="oe_inline" />
                             <field name="avg_sample_truncated" invisible="1" />
-                            <span class="text-warning" invisible="not avg_sample_truncated">
+                            <span
+                                class="text-warning"
+                                invisible="not avg_sample_truncated">
                                 (most recent only — the period holds more)
                             </span>
                         </div>
@@ -35,23 +40,28 @@
                     <group>
                         <field name="avg_price_unit_exact" invisible="1" />
                         <field name="current_price_unit" invisible="not line_id" />
-                        <field name="divergence_pct" widget="percentage"
+                        <field
+                            name="divergence_pct"
+                            widget="percentage"
                             invisible="not line_id"
                             decoration-success="divergence_favorable"
                             decoration-danger="not divergence_favorable and divergence_pct" />
                         <field name="divergence_favorable" invisible="1" />
-                        <field name="partner_avg_price_unit"
+                        <field
+                            name="partner_avg_price_unit"
                             invisible="not partner_avg_sample_count" />
-                        <label for="partner_divergence_pct"
+                        <label
+                            for="partner_divergence_pct"
                             invisible="not partner_avg_sample_count" />
                         <div class="o_row" invisible="not partner_avg_sample_count">
-                            <field name="partner_divergence_pct" widget="percentage"
+                            <field
+                                name="partner_divergence_pct"
+                                widget="percentage"
                                 class="oe_inline"
                                 decoration-success="partner_divergence_favorable"
                                 decoration-danger="not partner_divergence_favorable and partner_divergence_pct" />
                             <span class="text-muted">
-                                over <field name="partner_avg_sample_count"
-                                    class="oe_inline" nolabel="1" /> document(s)
+                                over <field name="partner_avg_sample_count" class="oe_inline" nolabel="1" /> document(s)
                             </span>
                         </div>
                         <field name="partner_divergence_favorable" invisible="1" />
@@ -65,23 +75,33 @@
                         <field name="order_id" />
                         <field name="partner_id" />
                         <field name="qty" />
-                        <field name="product_uom_id" groups="uom.group_uom"
+                        <field
+                            name="product_uom_id"
+                            groups="uom.group_uom"
                             widget="many2one_uom" />
                         <field name="price_unit" />
                         <field name="discount" optional="hide" />
                         <field name="price_unit_normalized" avg="Average" />
-                        <field name="divergence_pct" widget="percentage"
+                        <field
+                            name="divergence_pct"
+                            widget="percentage"
                             decoration-success="divergence_favorable"
                             decoration-danger="not divergence_favorable and divergence_pct" />
                         <field name="tax_ids" widget="many2many_tags" optional="hide" />
-                        <button name="action_set_price" type="object"
-                            icon="fa-check" title="Apply this price to the current line"
+                        <button
+                            name="action_set_price"
+                            type="object"
+                            icon="fa-check"
+                            title="Apply this price to the current line"
                             column_invisible="not context.get('default_line_id')" />
                     </list>
                 </field>
                 <footer>
-                    <button name="action_view_history" type="object"
-                        string="Full history" class="btn-secondary"
+                    <button
+                        name="action_view_history"
+                        type="object"
+                        string="Full history"
+                        class="btn-secondary"
                         invisible="not product_id" />
                     <button special="cancel" string="Close" class="btn-secondary" />
                 </footer>

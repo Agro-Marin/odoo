@@ -3,23 +3,27 @@
 {
     "name": "Tunisia - Accounting",
     "version": "1.0",
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['tn'],
-    "category": 'Accounting/Localizations/Account Charts',
+    "category": "Accounting/Localizations/Account Charts",
     "description": """
 This is the module to manage the accounting chart for Tunisia in Odoo.
 =======================================================================
 """,
-    'depends': [
-        'account',
+    "author": "Odoo S.A.",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/tax_report.xml',
+    "countries": [
+        "tn",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/tax_report.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

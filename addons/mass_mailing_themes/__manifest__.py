@@ -1,23 +1,23 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Mass Mailing Themes',
-    'summary': 'Design gorgeous mails',
-    'description': """
+    "name": "Mass Mailing Themes",
+    "version": "1.2",
+    "category": "Marketing/Email Marketing",
+    "sequence": 110,
+    "summary": "Design gorgeous mails",
+    "description": """
 Design gorgeous mails
     """,
-    'version': '1.2',
-    'sequence': 110,
-    'website': 'https://www.odoo.com/app/mailing',
-    'category': 'Marketing/Email Marketing',
-    'depends': [
-        'mass_mailing',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/mailing",
+    "license": "LGPL-3",
+    "depends": [
+        "mass_mailing",
     ],
-    'data': [
-        'data/ir_attachment_data.xml',
-        'views/mass_mailing_themes_templates.xml'
+    "data": [
+        "data/ir_attachment_data.xml",
+        "views/mass_mailing_themes_templates.xml",
     ],
-    'installable': True,
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
+    "auto_install": True,
 }

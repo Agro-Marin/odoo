@@ -1,10 +1,8 @@
 {
-    'name': 'Ethiopia - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['et'],
-    'version': '2.0',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Ethiopia - Accounting",
+    "version": "2.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Base Module for Ethiopian Localization
 ======================================
 
@@ -14,17 +12,23 @@ This is the latest Ethiopian Odoo localization and consists of:
     - Withholding tax structure
     - Regional State listings
     """,
-    'author': 'Michael Telahun Makonnen <mmakonnen@gmail.com>',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'depends': [
-        'account',
+    "author": "Michael Telahun Makonnen <mmakonnen@gmail.com>",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "et",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

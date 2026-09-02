@@ -1,9 +1,8 @@
 {
-    'name': 'Switzerland - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/switzerland.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['ch'],
-    'description': """
+    "name": "Switzerland - Accounting",
+    "version": "11.3",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Swiss localization
 ==================
 This module defines a chart of account for Switzerland (Swiss PME/KMU 2015), taxes and enables the generation of a QR-bill when you print an invoice or send it by mail.
@@ -18,43 +17,49 @@ A QR-bill will be generated if:
 The generation of the QR-bill is automatic if you meet the previous criteria. The QR-bill will be appended after the invoice when printing or sending by mail.
 
     """,
-    'version': '11.3',
-    'category': 'Accounting/Localizations/Account Charts',
-    'depends': [
-        'account',
-        'account_edi_ubl_cii',
-        'account_iban',
-        'l10n_din5008',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/switzerland.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_edi_ubl_cii",
+        "account_iban",
+        "l10n_din5008",
     ],
-    'external_dependencies': {
-        'python': ['python-stdnum'],
-        'apt': {
-            'python-stdnum': 'python3-stdnum',
+    "external_dependencies": {
+        "python": [
+            "python-stdnum",
+        ],
+        "apt": {
+            "python-stdnum": "python3-stdnum",
         },
     },
-    'auto_install': ['account'],
-    'data': [
-        'security/ir.model.access.csv',
-        'data/account_tax_report_data.xml',
-        'report/swissqr_report.xml',
-        'views/res_bank_view.xml',
-        'views/account_invoice.xml',
-        'views/setup_wizard_views.xml',
-        'views/qr_invoice_wizard_view.xml',
-        'views/account_payment_view.xml',
+    "countries": [
+        "ch",
     ],
-    'demo': [
-        'demo/account_cash_rounding.xml',
-        'demo/demo_company.xml',
-        'demo/res_partner_demo.xml',
+    "data": [
+        "security/ir.model.access.csv",
+        "data/account_tax_report_data.xml",
+        "report/swissqr_report.xml",
+        "views/res_bank_view.xml",
+        "views/account_invoice.xml",
+        "views/setup_wizard_views.xml",
+        "views/qr_invoice_wizard_view.xml",
+        "views/account_payment_view.xml",
     ],
-    'post_init_hook': 'post_init',
-    'assets': {
-        'web.report_assets_common': [
-            'l10n_ch/static/src/scss/**/*',
+    "demo": [
+        "demo/account_cash_rounding.xml",
+        "demo/demo_company.xml",
+        "demo/res_partner_demo.xml",
+    ],
+    "assets": {
+        "web.report_assets_common": [
+            "l10n_ch/static/src/scss/**/*",
         ],
-    }
-,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    },
+    "auto_install": [
+        "account",
+    ],
+    "post_init_hook": "post_init",
 }

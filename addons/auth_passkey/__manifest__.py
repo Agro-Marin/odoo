@@ -1,6 +1,7 @@
 {
     "name": "Passkeys",
     "version": "1.1",
+    "category": "Hidden/Tools",
     "summary": "Log in with a Passkey",
     "description": """
 The implementation of Passkeys using the webauthn protocol.
@@ -9,14 +10,16 @@ The implementation of Passkeys using the webauthn protocol.
 Passkeys are a secure alternative to a username and a password.
 When a user logs in with a Passkey, MFA will not be required.
 """,
-    "category": "Hidden/Tools",
-    "depends": ["web"],
-    # The vendored webauthn helpers import cbor2 unguarded at module level.
-    # Declaring it turns a bare ImportError into a named MissingDependencyError
-    # on the UI install path; the pin stays in requirements.txt because
-    # auto_install makes this module effectively always present.
-    "external_dependencies": {"python": ["cbor2"]},
-    "auto_install": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "web",
+    ],
+    "external_dependencies": {
+        "python": [
+            "cbor2",
+        ],
+    },
     "data": [
         "views/auth_passkey_key_views.xml",
         "views/auth_passkey_login_templates.xml",
@@ -41,6 +44,5 @@ When a user logs in with a Passkey, MFA will not be required.
             "auth_passkey/static/tests/*.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

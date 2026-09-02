@@ -7,14 +7,26 @@
         <field name="arch" type="xml">
             <search string="Sales Analysis">
                 <field name="date_order" />
-                <filter string="Date" name="year" invisible="1" date="date_order" default_period="year" />
-                <filter string="Quotations" name="Quotations"
+                <filter
+                    string="Date"
+                    name="year"
+                    invisible="1"
+                    date="date_order"
+                    default_period="year" />
+                <filter
+                    string="Quotations"
+                    name="Quotations"
                     domain="[('state','=', 'draft')]" />
-                <filter string="Sales Orders" name="Sales"
+                <filter
+                    string="Sales Orders"
+                    name="Sales"
                     domain="[('state','not in',('draft', 'cancel'))]" />
                 <separator />
                 <filter name="filter_date" date="date_order" default_period="month" />
-                <filter name="filter_order_date" invisible="1" string="Order Date: Last 365 Days"
+                <filter
+                    name="filter_order_date"
+                    invisible="1"
+                    string="Order Date: Last 365 Days"
                     domain="[('date_order', '&gt;=', '-365d')]" />
                 <separator />
                 <field name="user_id" />
@@ -22,46 +34,75 @@
                 <field name="product_id" />
                 <field name="product_tmpl_id" />
                 <field name="product_category_id" />
-                <filter name="to_invoice" string="To Invoice"
+                <filter
+                    name="to_invoice"
+                    string="To Invoice"
                     domain="[('line_invoice_state', '=', 'to do')]" />
-                <filter name="fully_invoiced" string="Fully Invoiced"
+                <filter
+                    name="fully_invoiced"
+                    string="Fully Invoiced"
                     domain="[('line_invoice_state', '=', 'done')]" />
                 <field name="partner_id" />
                 <field name="country_id" />
                 <field name="industry_id" />
                 <group>
-                    <field name="product_category_id"
+                    <field
+                        name="product_category_id"
                         filter_domain="[('product_category_id', 'child_of', self)]" />
                     <field name="company_id" groups="base.group_multi_company" />
                 </group>
                 <group>
-                    <filter string="Salesperson" name="User"
+                    <filter
+                        string="Salesperson"
+                        name="User"
                         context="{'group_by':'user_id'}" />
-                    <filter string="Sales Team" name="sales_channel"
+                    <filter
+                        string="Sales Team"
+                        name="sales_channel"
                         context="{'group_by':'team_id'}" />
-                    <filter string="Customer" name="Customer"
+                    <filter
+                        string="Customer"
+                        name="Customer"
                         context="{'group_by':'partner_id'}" />
-                    <filter string="Customer Country" name="country_id"
+                    <filter
+                        string="Customer Country"
+                        name="country_id"
                         context="{'group_by':'country_id'}" />
-                    <filter string="Customer Industry" name="industry_id"
+                    <filter
+                        string="Customer Industry"
+                        name="industry_id"
                         context="{'group_by':'industry_id'}" />
-                    <filter string="Product" name="product_tmpl_id"
+                    <filter
+                        string="Product"
+                        name="product_tmpl_id"
                         context="{'group_by':'product_tmpl_id'}" />
-                    <filter string="Product Variant" name="product_id"
+                    <filter
+                        string="Product Variant"
+                        name="product_id"
                         context="{'group_by':'product_id'}"
                         groups="product.group_product_variant" />
-                    <filter string="Product Category" name="Category"
+                    <filter
+                        string="Product Category"
+                        name="Category"
                         context="{'group_by':'product_category_id'}" />
-                    <filter string="Status" name="status"
+                    <filter
+                        string="Status"
+                        name="status"
                         context="{'group_by':'state'}" />
-                    <filter string="Company" name="company"
+                    <filter
+                        string="Company"
+                        name="company"
                         groups="base.group_multi_company"
                         context="{'group_by':'company_id'}" />
                     <separator />
-                    <filter string="Order Date" name="group_by_date"
+                    <filter
+                        string="Order Date"
+                        name="group_by_date"
                         context="{'group_by':'date_order'}"
                         invisible="context.get('sale_report_view_hide_date')" />
-                    <filter string="Order Date" name="group_by_date_day"
+                    <filter
+                        string="Order Date"
+                        name="group_by_date_day"
                         context="{'group_by':'date_order:day'}"
                         invisible="not context.get('sale_report_view_hide_date')" />
                 </group>
@@ -95,8 +136,8 @@
     <record id="view_sale_report_graph_pie" model="ir.ui.view">
         <field name="name">sale.report.graph.pie</field>
         <field name="model">sale.report</field>
-        <field name="mode">primary</field>
         <field name="inherit_id" ref="view_sale_report_graph" />
+        <field name="mode">primary</field>
         <field name="arch" type="xml">
             <graph position="attributes">
                 <attribute name="type">pie</attribute>
@@ -107,8 +148,8 @@
     <record id="view_sale_report_graph_bar" model="ir.ui.view">
         <field name="name">sale.report.graph.bar</field>
         <field name="model">sale.report</field>
-        <field name="mode">primary</field>
         <field name="inherit_id" ref="view_sale_report_graph" />
+        <field name="mode">primary</field>
         <field name="arch" type="xml">
             <graph position="attributes">
                 <attribute name="type">bar</attribute>
@@ -128,9 +169,15 @@
                 <field name="partner_id" />
                 <field name="user_id" optional="show" widget="many2one_avatar_user" />
                 <field name="team_id" optional="hide" />
-                <field name="company_id" optional="show" groups="base.group_multi_company" />
+                <field
+                    name="company_id"
+                    optional="show"
+                    groups="base.group_multi_company" />
                 <field name="product_uom_qty" string="Quantity" sum="Sum of Quantity" />
-                <field name="price_subtotal" optional="hide" sum="Sum of Untaxed Total" />
+                <field
+                    name="price_subtotal"
+                    optional="hide"
+                    sum="Sum of Untaxed Total" />
                 <field name="price_unit" widget="monetary" avg="Average" />
                 <field name="price_total" optional="show" sum="Sum of Total" />
                 <field name="state" optional="hide" />
@@ -145,12 +192,15 @@
         <field name="name">Sales Analysis</field>
         <field name="res_model">sale.report</field>
         <field name="view_mode">graph,pivot,list,form</field>
-        <field name="view_id"></field>  <!-- force empty -->
+        <field name="view_id" />
+        <!-- force empty -->
         <field name="search_view_id" ref="view_sale_report_search" />
         <field name="domain">[('state', '!=', 'cancel')]</field>
-        <field name="context">{'search_default_Sales':1,'group_by':[],
+        <field
+            name="context">{'search_default_Sales':1,'group_by':[],
             'search_default_filter_order_date': 1}</field>
-        <field name="help">This report performs analysis on your quotations and sales orders.
+        <field
+            name="help">This report performs analysis on your quotations and sales orders.
             Analysis check your sales revenues and sort it by different group criteria (salesman,
             partner, product, etc.) Use this report to perform analysis on sales not having invoiced
             yet. If you want to analyse your turnover, you should use the Invoice Analysis report in
@@ -163,11 +213,13 @@
         <field name="view_mode">graph,pivot</field>
         <field name="view_id" ref="view_sale_report_graph_bar" />
         <field name="search_view_id" ref="view_sale_report_search" />
-        <field name="context">{
+        <field
+            name="context">{
             'search_default_User': 1,
             'group_by': 'user_id',
             'search_default_filter_order_date': 1}</field>
-        <field name="help">This report performs analysis on your quotations and sales orders.
+        <field
+            name="help">This report performs analysis on your quotations and sales orders.
             Analysis check your sales revenues and sort it by different group criteria (salesman,
             partner, product, etc.) Use this report to perform analysis on sales not having invoiced
             yet. If you want to analyse your turnover, you should use the Invoice Analysis report in
@@ -180,9 +232,11 @@
         <field name="view_mode">graph,pivot</field>
         <field name="view_id" ref="view_sale_report_graph_pie" />
         <field name="search_view_id" ref="view_sale_report_search" />
-        <field name="context">{'search_default_Sales': 1, 'search_default_Product': 1, 'group_by':
+        <field
+            name="context">{'search_default_Sales': 1, 'search_default_Product': 1, 'group_by':
             'product_id', 'search_default_filter_order_date': 1}</field>
-        <field name="help">This report performs analysis on your quotations and sales orders.
+        <field
+            name="help">This report performs analysis on your quotations and sales orders.
             Analysis check your sales revenues and sort it by different group criteria (salesman,
             partner, product, etc.) Use this report to perform analysis on sales not having invoiced
             yet. If you want to analyse your turnover, you should use the Invoice Analysis report in
@@ -195,9 +249,11 @@
         <field name="view_mode">graph,pivot</field>
         <field name="view_id" ref="view_sale_report_graph_bar" />
         <field name="search_view_id" ref="view_sale_report_search" />
-        <field name="context">{'search_default_Customer': 1, 'group_by': 'partner_id',
+        <field
+            name="context">{'search_default_Customer': 1, 'group_by': 'partner_id',
             'search_default_filter_order_date': 1}</field>
-        <field name="help">This report performs analysis on your quotations and sales orders.
+        <field
+            name="help">This report performs analysis on your quotations and sales orders.
             Analysis check your sales revenues and sort it by different group criteria (salesman,
             partner, product, etc.) Use this report to perform analysis on sales not having invoiced
             yet. If you want to analyse your turnover, you should use the Invoice Analysis report in
@@ -214,9 +270,11 @@
         <field name="name">Quotations Analysis</field>
         <field name="res_model">sale.report</field>
         <field name="view_mode">graph,list</field>
-        <field name="domain">[('state', '=', 'draft'), ('team_id', '=', active_id)]</field>
+        <field
+            name="domain">[('state', '=', 'draft'), ('team_id', '=', active_id)]</field>
         <field name="context">{'search_default_order_month':1}</field>
-        <field name="help">This report performs analysis on your quotations. Analysis check your
+        <field
+            name="help">This report performs analysis on your quotations. Analysis check your
             sales revenues and sort it by different group criteria (salesman, partner, product,
             etc.) Use this report to perform analysis on sales not having invoiced yet. If you want
             to analyse your turnover, you should use the Invoice Analysis report in the Accounting
@@ -228,11 +286,13 @@
         <field name="res_model">sale.report</field>
         <field name="view_mode">graph,list</field>
         <field name="domain">[('state', 'not in', ('draft', 'cancel'))]</field>
-        <field name="context">{
+        <field
+            name="context">{
             'search_default_Sales': 1,
             'search_default_filter_date': 1,
             'search_default_team_id': [active_id]}</field>
-        <field name="help">This report performs analysis on your sales orders. Analysis check your
+        <field
+            name="help">This report performs analysis on your sales orders. Analysis check your
             sales revenues and sort it by different group criteria (salesman, partner, product,
             etc.) Use this report to perform analysis on sales not having invoiced yet. If you want
             to analyse your turnover, you should use the Invoice Analysis report in the Accounting

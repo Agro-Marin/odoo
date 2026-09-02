@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem id="mail_group_menu"
+
+    <menuitem
+        id="mail_group_menu"
         name="Mail Groups"
+        parent="mail.menu_mail_discuss_technical"
         action="mail_group_action"
-        parent="mail.menu_mail_discuss_technical"
-        sequence="50"/>
-    <menuitem id="mail_group_moderation_menu"
+        sequence="50" />
+
+    <menuitem
+        id="mail_group_moderation_menu"
         name="Moderation Rules"
-        action="mail_group_moderation_action"
         parent="mail.menu_mail_discuss_technical"
-        sequence="51"/>
+        action="mail_group_moderation_action"
+        sequence="51" />
+
 </odoo>

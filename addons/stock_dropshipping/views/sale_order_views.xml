@@ -4,7 +4,7 @@
     <record id="view_order_form_inherit_sale_stock" model="ir.ui.view">
         <field name="name">sale.order.form.sale.dropshipping</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale_stock.view_order_form_inherit_sale_stock"/>
+        <field name="inherit_id" ref="sale_stock.view_order_form_inherit_sale_stock" />
         <field name="arch" type="xml">
             <button name="action_view_delivery" position="before">
                 <t groups="purchase.group_purchase_user">
@@ -15,7 +15,10 @@
                         icon="fa-truck"
                         invisible="dropship_picking_count == 0"
                         groups="stock.group_stock_user">
-                        <field name="dropship_picking_count" widget="statinfo" string="Dropship"/>
+                        <field
+                            name="dropship_picking_count"
+                            widget="statinfo"
+                            string="Dropship" />
                     </button>
                 </t>
             </button>

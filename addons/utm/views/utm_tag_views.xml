@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="utm_tag_view_tree" model="ir.ui.view">
         <field name="name">utm.tag.view.list</field>
         <field name="model">utm.tag</field>
         <field name="arch" type="xml">
             <list string="Campaign Tags" editable="top">
-                <field name="name"/>
+                <field name="name" />
             </list>
         </field>
     </record>
@@ -21,4 +22,5 @@
             </p>
         </field>
     </record>
+
 </odoo>

@@ -1,11 +1,16 @@
 {
     "name": "Online Jobs",
+    "version": "1.1",
     "category": "Website/Website",
     "sequence": 310,
-    "version": "1.1",
     "summary": "Manage your online hiring process",
     "description": "This module allows to publish your available job positions on your website and keep track of application submissions easily.",
-    "depends": ["hr_recruitment", "website_mail"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr_recruitment",
+        "website_mail",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/website_hr_recruitment_security.xml",
@@ -18,9 +23,6 @@
     "demo": [
         "data/hr_job_demo.xml",
     ],
-    "installable": True,
-    "application": True,
-    "auto_install": ["hr_recruitment", "website_mail"],
     "assets": {
         "web.assets_frontend": [
             "website_hr_recruitment/static/src/scss/**/*",
@@ -42,6 +44,10 @@
             "website_hr_recruitment/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "application": True,
+    "auto_install": [
+        "hr_recruitment",
+        "website_mail",
+    ],
 }

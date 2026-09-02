@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <record model="ir.rule" id="resource_calendar_leaves_rule_group_user_create">
-        <field name="name">resource.calendar.leaves: employee reads own or global</field>
+    <record id="resource_calendar_leaves_rule_group_user_create" model="ir.rule">
+        <field
+            name="name">resource.calendar.leaves: employee reads own or global</field>
         <field name="model_id" ref="model_resource_calendar_leaves" />
         <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
-        <field name="domain_force">['|', ('resource_id', '=', False), ('resource_id.user_id', 'in', [False, user.id])]</field>
+        <field
+            name="domain_force">['|', ('resource_id', '=', False), ('resource_id.user_id', 'in', [False, user.id])]</field>
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
@@ -21,7 +23,7 @@
         internal user create, edit and delete their time off.  That data drives
         MRP scheduling, appointment availability and the planning gantt.
     -->
-    <record model="ir.rule" id="resource_calendar_leaves_rule_group_user_modify">
+    <record id="resource_calendar_leaves_rule_group_user_modify" model="ir.rule">
         <field name="name">resource.calendar.leaves: employee modifies own</field>
         <field name="model_id" ref="model_resource_calendar_leaves" />
         <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
@@ -35,7 +37,7 @@
         machine and room time off, since group rules are OR-ed and this was the
         only other write path.
     -->
-    <record model="ir.rule" id="resource_calendar_leaves_rule_group_admin_modify">
+    <record id="resource_calendar_leaves_rule_group_admin_modify" model="ir.rule">
         <field name="name">resource.calendar.leaves: admin modifies any</field>
         <field name="model_id" ref="model_resource_calendar_leaves" />
         <field name="groups" eval="[Command.link(ref('base.group_erp_manager'))]" />
@@ -49,7 +51,7 @@
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
     </record>
 
-    <record model="ir.rule" id="resource_calendar_leaves_rule_multi_company">
+    <record id="resource_calendar_leaves_rule_multi_company" model="ir.rule">
         <field name="name">resource.calendar.leaves: multi-company rule</field>
         <field name="model_id" ref="model_resource_calendar_leaves" />
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
@@ -83,8 +85,7 @@
         cross-company reader is audited one by one. Both are larger than a
         security-file change and neither should be smuggled in as one.
     -->
-
-    <record model="ir.rule" id="resource_reservation_rule_multi_company">
+    <record id="resource_reservation_rule_multi_company" model="ir.rule">
         <field name="name">resource.reservation: multi-company rule</field>
         <field name="model_id" ref="model_resource_reservation" />
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>

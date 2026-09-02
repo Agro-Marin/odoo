@@ -266,7 +266,8 @@
     </record>
 
     <record id="res_partner_identifier_rule" model="ir.rule">
-        <field name="name">res.partner.identifier: own identifiers, and types not marked confidential</field>
+        <field
+            name="name">res.partner.identifier: own identifiers, and types not marked confidential</field>
         <field name="model_id" ref="base.model_res_partner_identifier" />
         <field
             name="domain_force">['|', ('partner_id', '=', user.partner_id.id), ('type_id.confidential', '=', False)]</field>

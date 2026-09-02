@@ -4,7 +4,9 @@
     "category": "Productivity/Discuss",
     "sequence": 9877,
     "summary": "Test of Discuss with all possible overrides installed.",
-    "description": """Test of Discuss with all possible overrides installed, including feature and performance tests.""",
+    "description": "Test of Discuss with all possible overrides installed, including feature and performance tests.",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "calendar",
         "crm",
@@ -21,12 +23,10 @@
         "website_sale",
         "website_slides",
     ],
-    "installable": True,
     "assets": {
         "web.assets_tests": [
             "test_discuss_full/static/tests/tours/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

@@ -2,7 +2,6 @@
 <odoo noupdate="1">
 
     <!-- Folders -->
-
     <record id="document_internal_folder" model="documents.document" forcecreate="0">
         <field name="type">folder</field>
         <field name="access_internal">view</field>
@@ -26,7 +25,10 @@
         <field name="sequence">10</field>
     </record>
 
-    <record id="document_finance_social_folder" model="documents.document" forcecreate="0">
+    <record
+        id="document_finance_social_folder"
+        model="documents.document"
+        forcecreate="0">
         <field name="type">folder</field>
         <field name="access_internal">edit</field>
         <field name="folder_id" ref="document_finance_folder" />
@@ -34,7 +36,10 @@
         <field name="sequence">110</field>
     </record>
 
-    <record id="document_finance_taxes_folder" model="documents.document" forcecreate="0">
+    <record
+        id="document_finance_taxes_folder"
+        model="documents.document"
+        forcecreate="0">
         <field name="type">folder</field>
         <field name="access_internal">edit</field>
         <field name="folder_id" ref="document_finance_folder" />
@@ -42,7 +47,10 @@
         <field name="sequence">120</field>
     </record>
 
-    <record id="document_finance_annual_closing_folder" model="documents.document" forcecreate="0">
+    <record
+        id="document_finance_annual_closing_folder"
+        model="documents.document"
+        forcecreate="0">
         <field name="type">folder</field>
         <field name="access_internal">edit</field>
         <field name="folder_id" ref="document_finance_folder" />
@@ -50,7 +58,9 @@
         <field name="sequence">130</field>
     </record>
 
-    <record id="document_finance_annual_closing_year_current_folder" model="documents.document"
+    <record
+        id="document_finance_annual_closing_year_current_folder"
+        model="documents.document"
         forcecreate="0">
         <field name="type">folder</field>
         <field name="access_internal">edit</field>
@@ -89,7 +99,10 @@
         <field name="sequence">110</field>
     </record>
 
-    <record id="document_registrations_folder" model="documents.document" forcecreate="0">
+    <record
+        id="document_registrations_folder"
+        model="documents.document"
+        forcecreate="0">
         <field name="name">Registrations</field>
         <field name="type">folder</field>
         <field name="access_internal">edit</field>
@@ -106,7 +119,10 @@
     </record>
 
     <!-- base data -->
-    <record id="documents_attachment_video_documents" model="documents.document" forcecreate="0">
+    <record
+        id="documents_attachment_video_documents"
+        model="documents.document"
+        forcecreate="0">
         <field name="name">Video: Odoo Documents</field>
         <field name="type">url</field>
         <field name="url">https://youtu.be/Ayab6wZ_U1A</field>

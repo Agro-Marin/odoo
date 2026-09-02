@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="view_project_phase_delete_wizard" model="ir.ui.view">
         <field name="name">project.phase.delete.wizard.form</field>
         <field name="model">project.phase.delete.wizard</field>
@@ -17,10 +18,31 @@
                     <p>You cannot delete phases containing projects. You should first delete all of their projects.</p>
                 </div>
                 <footer>
-                    <button string="Archive Phases" type="object" name="action_archive" class="btn btn-primary" invisible="not phases_active or projects_count == 0" data-hotkey="q"/>
-                    <button string="Delete" type="object" name="action_unlink" class="btn btn-primary" invisible="projects_count &gt; 0" data-hotkey="w"/>
-                    <button string="Discard" special="cancel" data-hotkey="x" class="btn btn-primary" invisible="not (phases_active or projects_count)" />
-                    <button string="Discard" special="cancel" data-hotkey="x" invisible="phases_active or projects_count" />
+                    <button
+                        string="Archive Phases"
+                        type="object"
+                        name="action_archive"
+                        class="btn btn-primary"
+                        invisible="not phases_active or projects_count == 0"
+                        data-hotkey="q" />
+                    <button
+                        string="Delete"
+                        type="object"
+                        name="action_unlink"
+                        class="btn btn-primary"
+                        invisible="projects_count &gt; 0"
+                        data-hotkey="w" />
+                    <button
+                        string="Discard"
+                        special="cancel"
+                        data-hotkey="x"
+                        class="btn btn-primary"
+                        invisible="not (phases_active or projects_count)" />
+                    <button
+                        string="Discard"
+                        special="cancel"
+                        data-hotkey="x"
+                        invisible="phases_active or projects_count" />
                 </footer>
             </form>
         </field>
@@ -35,10 +57,15 @@
                     <p>Would you like to unarchive all of the projects contained in these phases as well?</p>
                 </div>
                 <footer>
-                    <button string="Confirm" type="object" name="action_unarchive_project" class="btn btn-primary"/>
-                    <button string="Discard" special="cancel"/>
+                    <button
+                        string="Confirm"
+                        type="object"
+                        name="action_unarchive_project"
+                        class="btn btn-primary" />
+                    <button string="Discard" special="cancel" />
                 </footer>
             </form>
         </field>
     </record>
+
 </odoo>

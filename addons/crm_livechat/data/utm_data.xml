@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
-    <record model="utm.source" id="utm_source_livechat">
+
+    <record id="utm_source_livechat" model="utm.source">
         <field name="name">Livechat</field>
     </record>
+
 </odoo>

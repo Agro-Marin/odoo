@@ -1,7 +1,7 @@
 {
     "name": "Project HR",
     "version": "1.1",
-    "author": "AgroMarin",
+    "category": "Project",
     "summary": "Replace user assignees in project with HR employees",
     "description": """
         Bridge module that makes hr.employee the primary assignee identity
@@ -15,12 +15,15 @@
         resource.resource lives in base and all workforce modules share one
         identity anchor.
     """,
-    "category": "Project",
-    "depends": ["project", "hr"],
+    "author": "AgroMarin",
+    "license": "LGPL-3",
+    "depends": [
+        "project",
+        "hr",
+    ],
     "data": [
         "views/project_task_views.xml",
         "views/project_project_views.xml",
     ],
     "post_init_hook": "post_init_hook",
-    "license": "LGPL-3",
 }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="account_analytic_plan_form_view" model="ir.ui.view">
         <field name="name">account.analytic.plan.form</field>
         <field name="model">account.analytic.plan</field>
@@ -7,40 +8,58 @@
             <form string="Analytic Plans">
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_children_plans" type="object" class="oe_stat_button" icon="fa-bars">
-                            <field string="Subplans" name="children_count" widget="statinfo"/>
+                        <button
+                            name="action_view_children_plans"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-bars">
+                            <field
+                                string="Subplans"
+                                name="children_count"
+                                widget="statinfo" />
                         </button>
-                        <button name="action_view_analytical_accounts" type="object" class="oe_stat_button" icon="fa-bars">
+                        <button
+                            name="action_view_analytical_accounts"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-bars">
                             <div class="o_field_widget o_stat_info">
-                                <span class="o_stat_value"><field name="all_account_count"/></span>
+                                <span class="o_stat_value"><field name="all_account_count" /></span>
                                 <span class="o_stat_text">Analytic Accounts</span>
                             </div>
                         </button>
                     </div>
                     <div class="oe_title">
                         <h1>
-                            <field name="name"/>
+                            <field name="name" />
                         </h1>
                     </div>
                     <group>
                         <group>
-                            <field name="parent_id"/>
-                            <field name="default_applicability"
-                                   invisible="parent_id" required="True"/>
-                        <field name="color" widget="color_picker"/>
+                            <field name="parent_id" />
+                            <field
+                                name="default_applicability"
+                                invisible="parent_id"
+                                required="True" />
+                        <field name="color" widget="color_picker" />
                         </group>
                         <group>
                         </group>
                     </group>
 
                     <notebook>
-                        <page string="Applicability" name="applicability"
-                              invisible="parent_id">
+                        <page
+                            string="Applicability"
+                            name="applicability"
+                            invisible="parent_id">
                             <field name="applicability_ids">
                                 <list editable="bottom">
-                                    <field name="business_domain"/>
-                                    <field name="company_id" groups="base.group_multi_company" placeholder="Visible to all"/>
-                                    <field name="applicability"/>
+                                    <field name="business_domain" />
+                                    <field
+                                        name="company_id"
+                                        groups="base.group_multi_company"
+                                        placeholder="Visible to all" />
+                                    <field name="applicability" />
                                 </list>
                             </field>
                         </page>
@@ -55,10 +74,10 @@
         <field name="model">account.analytic.plan</field>
         <field name="arch" type="xml">
             <list string="Analytic Plans" multi_edit="1">
-                <field name="sequence" widget="handle"/>
-                <field name="name"/>
-                <field name="default_applicability" required="True"/>
-                <field name="color" widget="color_picker"/>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="default_applicability" required="True" />
+                <field name="color" widget="color_picker" />
             </list>
         </field>
     </record>
@@ -68,14 +87,15 @@
         <field name="res_model">account.analytic.plan</field>
         <field name="path">analytic-plans</field>
         <field name="view_mode">list,form</field>
-        <field name="view_ids" eval="[(5, 0, 0),
-            (0, 0, {'view_mode': 'list'}),
-            (0, 0, {'view_mode': 'form', 'view_id': ref('account_analytic_plan_form_view')})]"/>
         <field name="domain">[('parent_id', '=', False)]</field>
         <field name="help" type="html">
-          <p class="o_view_nocontent_smiling_face">
-              Click to add a new analytic account plan.
-          </p>
+            <p class="o_view_nocontent_smiling_face">
+                Click to add a new analytic account plan.
+            </p>
         </field>
+        <field
+            name="view_ids"
+            eval="[(5, 0, 0),             (0, 0, {'view_mode': 'list'}),             (0, 0, {'view_mode': 'form', 'view_id': ref('account_analytic_plan_form_view')})]" />
     </record>
+
 </odoo>

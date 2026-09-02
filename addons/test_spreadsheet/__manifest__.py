@@ -9,8 +9,13 @@
     each module implementing the mixin but rather test a dummy implementation of the later,
     hence the need for this test module.
     """,
-    "depends": ["spreadsheet"],
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    "data": ["security/spreadsheet_test_security.xml", "security/ir.model.access.csv"],
+    "depends": [
+        "spreadsheet",
+    ],
+    "data": [
+        "security/spreadsheet_test_security.xml",
+        "security/ir.model.access.csv",
+    ],
 }

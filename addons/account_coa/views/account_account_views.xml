@@ -237,8 +237,8 @@
         <field name="name">Chart of Accounts</field>
         <field name="res_model">account.account</field>
         <field name="view_mode">list,kanban,form</field>
-        <field name="search_view_id" ref="view_account_search" />
         <field name="view_id" ref="view_account_list" />
+        <field name="search_view_id" ref="view_account_search" />
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Add a new account

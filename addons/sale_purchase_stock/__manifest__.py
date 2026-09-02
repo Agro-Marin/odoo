@@ -6,12 +6,16 @@
     "description": """
 Add relation information between Sale Orders and Purchase Orders if Make to Order (MTO) is activated on one sold product.
 """,
-    "depends": ["sale_stock", "purchase_stock", "sale_purchase"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "sale_stock",
+        "purchase_stock",
+        "sale_purchase",
+    ],
     "data": [
         "views/purchase_order_views.xml",
     ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

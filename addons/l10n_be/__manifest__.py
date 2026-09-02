@@ -1,11 +1,8 @@
 {
-    'name': 'Belgium - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/belgium.html',
-    'version': '2.0',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['be'],
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Belgium - Accounting",
+    "version": "2.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the base module to manage the accounting chart for Belgium in Odoo.
 ==============================================================================
 
@@ -34,21 +31,28 @@ Wizards provided by this module:
         **Path to access:** Invoicing/Reporting/Legal Reports/Belgium Statements/Annual Listing Of VAT-Subjected Customers
 
     """,
-    'author': 'Noviat, Odoo S.A.',
-    'depends': [
-        'account',
-        'account_edi_ubl_cii',
-        'account_iban',
-        'account_vat',
+    "author": "Noviat, Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/belgium.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_edi_ubl_cii",
+        "account_iban",
+        "account_vat",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
-        'data/l10n_be_sequence_data.xml',
-        'data/menuitem_data.xml',
+    "countries": [
+        "be",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
+        "data/l10n_be_sequence_data.xml",
+        "data/menuitem_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

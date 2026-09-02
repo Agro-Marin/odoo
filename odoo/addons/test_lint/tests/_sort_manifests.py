@@ -140,7 +140,7 @@ def sort_manifest(path: Path, *, dry_run: bool = False) -> bool | None:
         return None
 
     source_lines = source.splitlines(keepends=True)
-    prefix = "".join(source_lines[: dict_node.lineno - 1])
+    prefix = "".join(source_lines[: dict_node.lineno - 1]).lstrip("\n")
 
     new_source = prefix + render_manifest(data)
 

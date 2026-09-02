@@ -1,10 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="ir_actions_server_view_form_documents" model="ir.ui.view">
         <field name="name">ir.actions.server.view.form.documents</field>
         <field name="model">ir.actions.server</field>
-        <field name="mode">primary</field>
         <field name="inherit_id" ref="base.view_server_action_form" />
+        <field name="mode">primary</field>
         <field name="arch" type="xml">
             <xpath expr="//button[@name='create_action']" position="replace" />
             <xpath expr="//button[@name='unlink_action']" position="replace" />
@@ -22,8 +23,8 @@
 
     <record id="ir_actions_server_action_search_documents" model="ir.ui.view">
         <field name="name">ir.actions.server.search.documents</field>
-        <field name="inherit_id" ref="base.view_server_action_search" />
         <field name="model">ir.actions.server</field>
+        <field name="inherit_id" ref="base.view_server_action_search" />
         <field name="mode">primary</field>
         <field name="priority">32</field>
         <field name="arch" type="xml">
@@ -32,4 +33,5 @@
             <xpath expr="//filter[@name='model']" position="replace" />
         </field>
     </record>
+
 </odoo>

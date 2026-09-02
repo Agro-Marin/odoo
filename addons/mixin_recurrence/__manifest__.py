@@ -21,5 +21,7 @@ resource-availability walking are not variations on a theme).
     "author": "AgroMarin",
     "website": "https://www.agromarin.mx",
     "license": "LGPL-3",
-    "depends": ["base"],
+    "depends": [
+        "base",
+    ],
 }

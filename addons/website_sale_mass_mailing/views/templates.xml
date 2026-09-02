@@ -3,18 +3,13 @@
 
     <template
         id="website_sale_mass_mailing.newsletter"
-        inherit_id="website_sale.address_form_fields"
         name="Newsletter"
-        active="False"
-    >
-         <div id="div_phone" position="after">
+        inherit_id="website_sale.address_form_fields"
+        active="False">
+        <div id="div_phone" position="after">
             <div t-if="is_anonymous_cart" class="mb-2">
                 <label>
-                    <input
-                        type="checkbox"
-                        name="newsletter"
-                        class="form-check-input label-optional"
-                    /> Subscribe to our newsletter for updates and exclusive offers.
+                    <input type="checkbox" name="newsletter" class="form-check-input label-optional" /> Subscribe to our newsletter for updates and exclusive offers.
                 </label>
             </div>
         </div>

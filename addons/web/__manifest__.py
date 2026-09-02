@@ -526,9 +526,7 @@ This module provides the core of the Odoo Web Client.
             "@odoo/hoot-dom": "/web/static/lib/hoot-dom/hoot-dom.js",
             "@odoo/hoot-mock": "/web/static/lib/hoot/hoot-mock.js",
             "@odoo/hoot-dom-helpers-dom": "/web/static/lib/hoot-dom/helpers/dom.js",
-            "@odoo/hoot-dom-helpers-events": (
-                "/web/static/lib/hoot-dom/helpers/events.js"
-            ),
+            "@odoo/hoot-dom-helpers-events": "/web/static/lib/hoot-dom/helpers/events.js",
             "@odoo/hoot-dom-helpers-time": "/web/static/lib/hoot-dom/helpers/time.js",
             "@odoo/hoot-dom-utils": "/web/static/lib/hoot-dom/hoot_dom_utils.js",
             "@popperjs/core": "/web/static/lib/popper_compat/popper_compat.esm.js",
@@ -540,13 +538,9 @@ This module provides the core of the Odoo Web Client.
             "pdfjs-dist": "/web/static/lib/pdfjs/build/pdf.js",
             "chart.js": "/web/static/lib/Chart/Chart.js",
             "chart.js/helpers": "/web/static/lib/Chart/helpers.js",
-            "chartjs-adapter-luxon": (
-                "/web/static/lib/chartjs-adapter-luxon/chartjs-adapter-luxon.js"
-            ),
+            "chartjs-adapter-luxon": "/web/static/lib/chartjs-adapter-luxon/chartjs-adapter-luxon.js",
             "@fullcalendar/core": "/web/static/lib/fullcalendar/fullcalendar.esm.js",
-            "@fullcalendar/core/locales-all": (
-                "/web/static/lib/fullcalendar/locales-all.esm.js"
-            ),
+            "@fullcalendar/core/locales-all": "/web/static/lib/fullcalendar/locales-all.esm.js",
         },
         "import_map_includes": {
             "web.assets_unit_tests_setup": [

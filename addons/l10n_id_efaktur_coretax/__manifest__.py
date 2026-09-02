@@ -1,8 +1,8 @@
 {
-    'name': 'Indonesia E-faktur (Coretax)',
-    'icon': '/account/static/description/l10n.png',
-    'version': '1.0',
-    'description': """
+    "name": "Indonesia E-faktur (Coretax)",
+    "version": "1.0",
+    "category": "Accounting/Localizations/EDI",
+    "description": """
         E-invoicing feature provided by DJP (Indonesian Tax Office). As of January 1st 2025,
         Indonesia is using CoreTax system, which changes the file format and content of E-Faktur.
         We're changing from CSV files into XML.
@@ -10,21 +10,20 @@
         TaxBase (DPP) has to be mulitplied by factor of 11/12 while multiplied to tax of 12% which
         is resulting to 11%.
     """,
-    'category': 'Accounting/Localizations/EDI',
-    'depends': ['l10n_id'],
-    'data': [
-        # New Data Import (E-Faktur code related)
+    "author": "Odoo S.A.",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_id",
+    ],
+    "data": [
         "data/l10n_id_efaktur_coretax.product.code.csv",
         "data/l10n_id_efaktur_coretax.uom.code.csv",
         "data/uom.uom.csv",
         "data/efaktur_templates.xml",
         "data/ir_action.xml",
-
-        # Accesses
         "security/ir.model.access.csv",
         "security/ir_rule.xml",
-
-        # Views
         "views/product_template.xml",
         "views/product_code.xml",
         "views/uom_code.xml",
@@ -33,8 +32,6 @@
         "views/efaktur_document.xml",
         "views/uom_uom.xml",
     ],
-    'installable': True,
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
+    "auto_install": True,
 }

@@ -1,26 +1,26 @@
 {
-    'name': 'KPI Digests',
-    'category': 'Marketing',
-    'description': """
+    "name": "KPI Digests",
+    "version": "1.2",
+    "category": "Marketing",
+    "description": """
 Send KPI Digests periodically
 =============================
 """,
-    'version': '1.2',
-    'depends': [
-        'portal',
-        'resource',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "portal",
+        "resource",
     ],
-    'data': [
-        'security/ir.model.access.csv',
-        'data/digest_data.xml',
-        'data/digest_tips_data.xml',
-        'data/ir_cron_data.xml',
-        'data/res_config_settings_data.xml',
-        'views/digest_views.xml',
-        'views/digest_templates.xml',
-        'views/res_config_settings_views.xml',
+    "data": [
+        "security/ir.model.access.csv",
+        "data/digest_data.xml",
+        "data/digest_tips_data.xml",
+        "data/ir_cron_data.xml",
+        "data/res_config_settings_data.xml",
+        "views/digest_views.xml",
+        "views/digest_templates.xml",
+        "views/res_config_settings_views.xml",
     ],
-    'installable': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
 }

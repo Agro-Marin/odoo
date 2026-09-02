@@ -1,8 +1,10 @@
 {
     "name": "Lead Generation From Website Visits",
-    "summary": "Generate Leads/Opportunities from your website's traffic",
     "version": "1.1",
     "category": "Sales/CRM",
+    "summary": "Generate Leads/Opportunities from your website's traffic",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "iap_crm",
         "iap_mail",
@@ -19,6 +21,4 @@
         "views/res_config_settings_views.xml",
         "views/crm_menus.xml",
     ],
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

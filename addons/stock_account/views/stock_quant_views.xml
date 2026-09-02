@@ -1,38 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record model="ir.ui.view" id="view_stock_quant_list_inherit">
+
+    <record id="view_stock_quant_list_inherit" model="ir.ui.view">
         <field name="name">stock.quant.list.inherit</field>
         <field name="model">stock.quant</field>
-        <field name="inherit_id" ref="stock.view_stock_quant_list"></field>
+        <field name="inherit_id" ref="stock.view_stock_quant_list" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='product_uom_id']" position="after">
-                <field name="currency_id" column_invisible="True"/>
-                <field name="value" optional="hide"/>
+                <field name="currency_id" column_invisible="True" />
+                <field name="value" optional="hide" />
             </xpath>
         </field>
     </record>
 
-    <record model="ir.ui.view" id="view_stock_quant_list_editable_inherit">
+    <record id="view_stock_quant_list_editable_inherit" model="ir.ui.view">
         <field name="name">stock.quant.list.editable.inherit</field>
         <field name="model">stock.quant</field>
-        <field name="inherit_id" ref="stock.view_stock_quant_list_editable"></field>
+        <field name="inherit_id" ref="stock.view_stock_quant_list_editable" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='product_uom_id']" position="after">
-                <field name="currency_id" column_invisible="True"/>
-                <field name="cost_method" column_invisible="True"/>
-                <field name="value" optional="hide" sum="Total Value"/>
+                <field name="currency_id" column_invisible="True" />
+                <field name="cost_method" column_invisible="True" />
+                <field name="value" optional="hide" sum="Total Value" />
             </xpath>
         </field>
     </record>
 
-    <record id="view_stock_quant_list_inventory_editable_inherit_stock_account" model="ir.ui.view">
-        <field name="name">stock.quant.inventory.list.editable.inherit.stock.account</field>
+    <record
+        id="view_stock_quant_list_inventory_editable_inherit_stock_account"
+        model="ir.ui.view">
+        <field
+            name="name">stock.quant.inventory.list.editable.inherit.stock.account</field>
         <field name="model">stock.quant</field>
-        <field name="inherit_id" ref="stock.view_stock_quant_list_inventory_editable"/>
+        <field name="inherit_id" ref="stock.view_stock_quant_list_inventory_editable" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='product_uom_id']" position="after">
-                <field name="accounting_date" optional="hide"/>
+                <field name="accounting_date" optional="hide" />
             </xpath>
         </field>
     </record>
+
 </odoo>

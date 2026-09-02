@@ -1,26 +1,30 @@
 {
-    'name': 'Morocco - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['ma'],
-    'author': 'Odoo SA',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Morocco - Accounting",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the base module to manage the accounting chart for Morocco.
 
 This module has been built with the help of Caudigef.
 """,
-    'depends': [
-        'base',
-        'account',
+    "author": "Odoo SA",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
-        'views/res_partner_views.xml',
-        'views/res_company_views.xml',
+    "countries": [
+        "ma",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
+        "views/res_partner_views.xml",
+        "views/res_company_views.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

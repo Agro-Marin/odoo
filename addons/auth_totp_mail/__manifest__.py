@@ -1,5 +1,6 @@
 {
     "name": "2FA Invite mail",
+    "category": "Extra Tools",
     "description": """
 2FA Invite mail
 ===============
@@ -8,9 +9,12 @@ by sending an email to the target user. This email redirects them to:
 - the users security settings if the user is internal.
 - the portal security settings page if the user is not internal.
     """,
-    "depends": ["auth_totp", "mail"],
-    "category": "Extra Tools",
-    "auto_install": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "auth_totp",
+        "mail",
+    ],
     "data": [
         "data/ir_action_data.xml",
         "data/mail_template_data.xml",
@@ -24,6 +28,5 @@ by sending an email to the target user. This email redirects them to:
             "auth_totp_mail/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

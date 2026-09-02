@@ -2,6 +2,8 @@
     "name": "Holidays with Remote Work",
     "category": "Human Resources",
     "summary": "Manage holidays with remote work",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "hr_holidays",
         "hr_homeworking",
@@ -14,7 +16,5 @@
             "hr_holidays_homeworking/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "auto_install": True,
 }

@@ -5,9 +5,13 @@
         <field name="model">documents.access.log</field>
         <field name="arch" type="xml">
             <!-- create/edit/delete are off by intent, not just by ACL: an
-                 append-only log that can be edited from the UI is not evidence
-                 of anything. -->
-            <list string="Access Log" create="false" edit="false" delete="false"
+                append-only log that can be edited from the UI is not evidence
+                of anything. -->
+            <list
+                string="Access Log"
+                create="false"
+                edit="false"
+                delete="false"
                 default_order="access_date desc">
                 <field name="access_date" />
                 <field name="document_id" />
@@ -24,21 +28,35 @@
             <search string="Access Log">
                 <field name="document_id" />
                 <field name="partner_id" />
-                <filter name="filter_download" string="Downloads"
+                <filter
+                    name="filter_download"
+                    string="Downloads"
                     domain="[('action', '=', 'download')]" />
-                <filter name="filter_view" string="Views"
+                <filter
+                    name="filter_view"
+                    string="Views"
                     domain="[('action', '=', 'view')]" />
                 <separator />
-                <filter name="filter_last_month" string="Last 30 Days"
+                <filter
+                    name="filter_last_month"
+                    string="Last 30 Days"
                     domain="[('access_date', '&gt;=', (context_today() - relativedelta(days=30)).strftime('%Y-%m-%d'))]" />
                 <group>
-                    <filter name="group_document" string="Document"
+                    <filter
+                        name="group_document"
+                        string="Document"
                         context="{'group_by': 'document_id'}" />
-                    <filter name="group_partner" string="Person"
+                    <filter
+                        name="group_partner"
+                        string="Person"
                         context="{'group_by': 'partner_id'}" />
-                    <filter name="group_action" string="Action"
+                    <filter
+                        name="group_action"
+                        string="Action"
                         context="{'group_by': 'action'}" />
-                    <filter name="group_date" string="Date"
+                    <filter
+                        name="group_date"
+                        string="Date"
                         context="{'group_by': 'access_date'}" />
                 </group>
             </search>
@@ -57,11 +75,12 @@
         </field>
     </record>
 
-    <menuitem name="Access Log"
+    <menuitem
         id="menu_documents_access_log"
+        name="Access Log"
         parent="documents.Config"
         action="documents_access_log_action"
-        groups="documents.group_documents_manager"
-        sequence="60" />
+        sequence="60"
+        groups="documents.group_documents_manager" />
 
 </odoo>

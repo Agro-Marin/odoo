@@ -1,5 +1,7 @@
 {
     "name": "Product Comparison",
+    "version": "1.0",
+    "category": "Website/Website",
     "summary": "Allow shoppers to compare products based on their attributes",
     "description": """
 This module adds a comparison tool to your eCommerce shop, so that your shoppers can easily compare products based on their attributes. It will considerably accelerate their purchasing decision.
@@ -8,9 +10,11 @@ To configure product attributes, activate *Attributes & Variants* in the Website
 
 Finally, the module comes with an option to display an attribute summary table in product web pages (available in Customize menu).
     """,
-    "category": "Website/Website",
-    "version": "1.0",
-    "depends": ["website_sale"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website_sale",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/website_sale_comparison_template.xml",
@@ -20,7 +24,6 @@ Finally, the module comes with an option to display an attribute summary table i
         "data/website_sale_comparison_data.xml",
         "data/website_sale_comparison_demo.xml",
     ],
-    "installable": True,
     "assets": {
         "web.assets_frontend": [
             "website_sale_comparison/static/src/interactions/**/*",
@@ -35,7 +38,6 @@ Finally, the module comes with an option to display an attribute summary table i
             "website_sale_comparison/static/src/website_builder/**/*",
         ],
     },
+    "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

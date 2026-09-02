@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="base.partner_demo_company_lk" model="res.partner" forcecreate="1">
         <field name="name">LK Company</field>
         <field name="vat">123456789-7000</field>
@@ -22,7 +23,8 @@
     </function>
 
     <function model="res.users" name="write">
-        <value eval="[ref('base.user_root'), ref('base.user_admin'), ref('base.user_demo')]" />
+        <value
+            eval="[ref('base.user_root'), ref('base.user_admin'), ref('base.user_demo')]" />
         <value eval="{'company_ids': [(Command.link(ref('base.demo_company_lk')))]}" />
     </function>
 
@@ -32,4 +34,5 @@
         <value model="res.company" eval="obj().env.ref('base.demo_company_lk')" />
         <value name="install_demo" eval="True" />
     </function>
+
 </odoo>

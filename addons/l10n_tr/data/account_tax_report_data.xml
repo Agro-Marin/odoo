@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo auto_sequence="1">
+
     <record id="turkey_tax_report" model="account.report">
         <field name="name">Tax Report</field>
         <field name="name@tr">Vergi Raporu</field>
-        <field name="root_report_id" ref="account.generic_tax_report"/>
-        <field name="country_id" ref="base.tr"/>
-        <field name="allow_foreign_vat" eval="True"/>
+        <field name="root_report_id" ref="account.generic_tax_report" />
+        <field name="country_id" ref="base.tr" />
+        <field name="allow_foreign_vat" eval="True" />
         <field name="availability_condition">country</field>
         <field name="column_ids">
             <record id="tr_base_column" model="account.report.column">
@@ -30,12 +31,16 @@
                         <field name="name@tr">Satın alımlarda %0 KDV</field>
                         <field name="code">PUR_0</field>
                         <field name="expression_ids">
-                            <record id="purchases_vat_expression_0_balance" model="account.report.expression">
+                            <record
+                                id="purchases_vat_expression_0_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_BASE_0</field>
                             </record>
-                            <record id="purchases_vat_expression_0_tax" model="account.report.expression">
+                            <record
+                                id="purchases_vat_expression_0_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_TAX_0</field>
@@ -47,12 +52,16 @@
                         <field name="name@tr">Satın alımlarda %1 KDV</field>
                         <field name="code">PUR_1</field>
                         <field name="expression_ids">
-                            <record id="purchases_vat_expression_1_balance" model="account.report.expression">
+                            <record
+                                id="purchases_vat_expression_1_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_BASE_1</field>
                             </record>
-                            <record id="purchases_vat_expression_1_tax" model="account.report.expression">
+                            <record
+                                id="purchases_vat_expression_1_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_TAX_1</field>
@@ -64,12 +73,16 @@
                         <field name="name@tr">Satın alımlarda %10 KDV</field>
                         <field name="code">PUR_10</field>
                         <field name="expression_ids">
-                            <record id="purchases_vat_expression_10_balance" model="account.report.expression">
+                            <record
+                                id="purchases_vat_expression_10_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_BASE_10</field>
                             </record>
-                            <record id="purchases_vat_expression_10_tax" model="account.report.expression">
+                            <record
+                                id="purchases_vat_expression_10_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_TAX_10</field>
@@ -81,12 +94,16 @@
                         <field name="name@tr">Satın alımlarda %20 KDV</field>
                         <field name="code">PUR_20</field>
                         <field name="expression_ids">
-                            <record id="purchases_vat_expression_20_balance" model="account.report.expression">
+                            <record
+                                id="purchases_vat_expression_20_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_BASE_20</field>
                             </record>
-                            <record id="purchases_vat_expression_20_tax" model="account.report.expression">
+                            <record
+                                id="purchases_vat_expression_20_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_TAX_20</field>
@@ -107,7 +124,9 @@
                         <field name="sequence">6</field>
                         <field name="code">SAL_0</field>
                         <field name="expression_ids">
-                            <record id="sales_vat_expression_0_balance" model="account.report.expression">
+                            <record
+                                id="sales_vat_expression_0_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_BASE_0</field>
@@ -119,12 +138,16 @@
                         <field name="name@tr">Satışlar %1 KDV</field>
                         <field name="code">SAL_1</field>
                         <field name="expression_ids">
-                            <record id="sales_vat_expression_1_balance" model="account.report.expression">
+                            <record
+                                id="sales_vat_expression_1_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_BASE_1</field>
                             </record>
-                            <record id="sales_vat_expression_1_tax" model="account.report.expression">
+                            <record
+                                id="sales_vat_expression_1_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_TAX_1</field>
@@ -136,12 +159,16 @@
                         <field name="name@tr">Satışlar %10 KDV</field>
                         <field name="code">SAL_10</field>
                         <field name="expression_ids">
-                            <record id="sales_vat_expression_10_balance" model="account.report.expression">
+                            <record
+                                id="sales_vat_expression_10_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_BASE_10</field>
                             </record>
-                            <record id="sales_vat_expression_10_tax" model="account.report.expression">
+                            <record
+                                id="sales_vat_expression_10_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_TAX_10</field>
@@ -153,12 +180,16 @@
                         <field name="name@tr">Satışlar %20 KDV</field>
                         <field name="code">SAL_20</field>
                         <field name="expression_ids">
-                            <record id="sales_vat_expression_20_balance" model="account.report.expression">
+                            <record
+                                id="sales_vat_expression_20_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_BASE_20</field>
                             </record>
-                            <record id="sales_vat_expression_20_tax" model="account.report.expression">
+                            <record
+                                id="sales_vat_expression_20_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_TAX_20</field>
@@ -177,12 +208,16 @@
                         <field name="name@tr">Alımlarda Stopaj %20 (2/10)</field>
                         <field name="code">PUR_WH_2</field>
                         <field name="expression_ids">
-                            <record id="purchases_wh_expression_2_balance" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_2_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_20_BASE_2_10</field>
                             </record>
-                            <record id="purchases_wh_expression_2_tax" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_2_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-PUR_20_TAX_2_10</field>
@@ -194,12 +229,16 @@
                         <field name="name@tr">Alımlarda Stopaj %20 (3/10)</field>
                         <field name="code">PUR_WH_3</field>
                         <field name="expression_ids">
-                            <record id="purchases_wh_expression_3_balance" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_3_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_20_BASE_3_10</field>
                             </record>
-                            <record id="purchases_wh_expression_3_tax" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_3_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-PUR_20_TAX_3_10</field>
@@ -211,12 +250,16 @@
                         <field name="name@tr">Alımlarda Stopaj %20 (4/10)</field>
                         <field name="code">PUR_WH_4</field>
                         <field name="expression_ids">
-                            <record id="purchases_wh_expression_4_balance" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_4_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_20_BASE_4_10</field>
                             </record>
-                            <record id="purchases_wh_expression_4_tax" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_4_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-PUR_20_TAX_4_10</field>
@@ -228,12 +271,16 @@
                         <field name="name@tr">Alımlarda Stopaj %20 (5/10)</field>
                         <field name="code">PUR_WH_5</field>
                         <field name="expression_ids">
-                            <record id="purchases_wh_expression_5_balance" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_5_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_20_BASE_5_10</field>
                             </record>
-                            <record id="purchases_wh_expression_5_tax" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_5_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-PUR_20_TAX_5_10</field>
@@ -245,12 +292,16 @@
                         <field name="name@tr">Alımlarda Stopaj %20 (7/10)</field>
                         <field name="code">PUR_WH_7</field>
                         <field name="expression_ids">
-                            <record id="purchases_wh_expression_7_balance" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_7_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_20_BASE_7_10</field>
                             </record>
-                            <record id="purchases_wh_expression_7_tax" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_7_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-PUR_20_TAX_7_10</field>
@@ -262,12 +313,16 @@
                         <field name="name@tr">Alımlarda Stopaj %20 (9/10)</field>
                         <field name="code">PUR_WH_9</field>
                         <field name="expression_ids">
-                            <record id="purchases_wh_expression_9_balance" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_9_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_20_BASE_9_10</field>
                             </record>
-                            <record id="purchases_wh_expression_9_tax" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_9_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-PUR_20_TAX_9_10</field>
@@ -279,12 +334,16 @@
                         <field name="name@tr">Alımlarda Stopaj %20 (10/10)</field>
                         <field name="code">PUR_WH_10</field>
                         <field name="expression_ids">
-                            <record id="purchases_wh_expression_10_balance" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_10_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">PUR_20_BASE_10_10</field>
                             </record>
-                            <record id="purchases_wh_expression_10_tax" model="account.report.expression">
+                            <record
+                                id="purchases_wh_expression_10_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-PUR_20_TAX_10_10</field>
@@ -303,12 +362,16 @@
                         <field name="name@tr">Satış Stopajı %20 (2/10)</field>
                         <field name="code">SAL_WH_2</field>
                         <field name="expression_ids">
-                            <record id="sales_wh_expression_2_balance" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_2_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_20_BASE_2_10</field>
                             </record>
-                            <record id="sales_wh_expression_2_tax" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_2_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">SAL_20_TAX_2_10</field>
@@ -320,12 +383,16 @@
                         <field name="name@tr">Satış Stopajı %20 (3/10)</field>
                         <field name="code">SAL_WH_3</field>
                         <field name="expression_ids">
-                            <record id="sales_wh_expression_3_balance" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_3_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_20_BASE_3_10</field>
                             </record>
-                            <record id="sales_wh_expression_3_tax" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_3_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">SAL_20_TAX_3_10</field>
@@ -337,12 +404,16 @@
                         <field name="name@tr">Satış Stopajı %20 (4/10)</field>
                         <field name="code">SAL_WH_4</field>
                         <field name="expression_ids">
-                            <record id="sales_wh_expression_4_balance" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_4_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_20_BASE_4_10</field>
                             </record>
-                            <record id="sales_wh_expression_4_tax" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_4_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">SAL_20_TAX_4_10</field>
@@ -354,12 +425,16 @@
                         <field name="name@tr">Satış Stopajı %20 (5/10)</field>
                         <field name="code">SAL_WH_5</field>
                         <field name="expression_ids">
-                            <record id="sales_wh_expression_5_balance" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_5_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_20_BASE_5_10</field>
                             </record>
-                            <record id="sales_wh_expression_5_tax" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_5_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">SAL_20_TAX_5_10</field>
@@ -371,12 +446,16 @@
                         <field name="name@tr">Satış Stopajı %20 (7/10)</field>
                         <field name="code">SAL_WH_7</field>
                         <field name="expression_ids">
-                            <record id="sales_wh_expression_7_balance" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_7_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_20_BASE_7_10</field>
                             </record>
-                            <record id="sales_wh_expression_7_tax" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_7_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">SAL_20_TAX_7_10</field>
@@ -388,12 +467,16 @@
                         <field name="name@tr">Satış Stopajı %20 (9/10)</field>
                         <field name="code">SAL_WH_9</field>
                         <field name="expression_ids">
-                            <record id="sales_wh_expression_9_balance" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_9_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_20_BASE_9_10</field>
                             </record>
-                            <record id="sales_wh_expression_9_tax" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_9_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">SAL_20_TAX_9_10</field>
@@ -405,12 +488,16 @@
                         <field name="name@tr">Satış Stopajı %20 (10/10)</field>
                         <field name="code">SAL_WH_10</field>
                         <field name="expression_ids">
-                            <record id="sales_wh_expression_10_balance" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_10_balance"
+                                model="account.report.expression">
                                 <field name="label">base</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">-SAL_20_BASE_10_10</field>
                             </record>
-                            <record id="sales_wh_expression_10_tax" model="account.report.expression">
+                            <record
+                                id="sales_wh_expression_10_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">SAL_20_TAX_10_10</field>
@@ -429,10 +516,13 @@
                         <field name="name@tr">Satın Almalarda Toplam KDV</field>
                         <field name="code">PUR_VAT_TOTAL</field>
                         <field name="expression_ids">
-                            <record id="net_vat_expression_p_tax" model="account.report.expression">
+                            <record
+                                id="net_vat_expression_p_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">aggregation</field>
-                                <field name="formula">PUR_0.tax + PUR_1.tax + PUR_10.tax + PUR_20.tax</field>
+                                <field
+                                    name="formula">PUR_0.tax + PUR_1.tax + PUR_10.tax + PUR_20.tax</field>
                             </record>
                         </field>
                     </record>
@@ -441,10 +531,13 @@
                         <field name="name@tr">Satışlarda Toplam KDV</field>
                         <field name="code">SAL_VAT_TOTAL</field>
                         <field name="expression_ids">
-                            <record id="net_vat_expression_s_tax" model="account.report.expression">
+                            <record
+                                id="net_vat_expression_s_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">aggregation</field>
-                                <field name="formula">SAL_1.tax + SAL_10.tax + SAL_20.tax</field>
+                                <field
+                                    name="formula">SAL_1.tax + SAL_10.tax + SAL_20.tax</field>
                             </record>
                         </field>
                     </record>
@@ -453,10 +546,13 @@
                         <field name="name@tr">Toplam Net KDV</field>
                         <field name="code">TOTAL_NET_VAT</field>
                         <field name="expression_ids">
-                            <record id="net_vat_expression_total" model="account.report.expression">
+                            <record
+                                id="net_vat_expression_total"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">aggregation</field>
-                                <field name="formula">(SAL_1.tax + SAL_10.tax + SAL_20.tax) -
+                                <field
+                                    name="formula">(SAL_1.tax + SAL_10.tax + SAL_20.tax) -
                                                       (PUR_0.tax + PUR_1.tax + PUR_10.tax + PUR_20.tax)</field>
                             </record>
                         </field>
@@ -473,10 +569,13 @@
                         <field name="name@tr">Tevkif Edilen Alımlarda Toplam KDV</field>
                         <field name="code">PUR_WH_VAT_TOTAL</field>
                         <field name="expression_ids">
-                            <record id="wh_vat_expression_p_tax" model="account.report.expression">
+                            <record
+                                id="wh_vat_expression_p_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">aggregation</field>
-                                <field name="formula">PUR_WH_2.tax + PUR_WH_3.tax + PUR_WH_4.tax + PUR_WH_5.tax
+                                <field
+                                    name="formula">PUR_WH_2.tax + PUR_WH_3.tax + PUR_WH_4.tax + PUR_WH_5.tax
                                                         + PUR_WH_7.tax + PUR_WH_9.tax + PUR_WH_10.tax</field>
                             </record>
                         </field>
@@ -486,10 +585,13 @@
                         <field name="name@tr">Satışlardan Kesilen Toplam KDV</field>
                         <field name="code">SAL_WH_VAT_TOTAL</field>
                         <field name="expression_ids">
-                            <record id="wh_vat_expression_s_tax" model="account.report.expression">
+                            <record
+                                id="wh_vat_expression_s_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">aggregation</field>
-                                <field name="formula">SAL_WH_2.tax + SAL_WH_3.tax + SAL_WH_4.tax + SAL_WH_5.tax
+                                <field
+                                    name="formula">SAL_WH_2.tax + SAL_WH_3.tax + SAL_WH_4.tax + SAL_WH_5.tax
                                                         + SAL_WH_7.tax + SAL_WH_9.tax + SAL_WH_10.tax</field>
                             </record>
                         </field>
@@ -506,10 +608,13 @@
                         <field name="name@tr">Ödenen Toplam Satın Alma Vergileri</field>
                         <field name="code">PUR_VAT_PAID_TOTAL</field>
                         <field name="expression_ids">
-                            <record id="vat_due_expression_p_tax" model="account.report.expression">
+                            <record
+                                id="vat_due_expression_p_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">aggregation</field>
-                                <field name="formula">PUR_VAT_TOTAL.tax - PUR_WH_VAT_TOTAL.tax</field>
+                                <field
+                                    name="formula">PUR_VAT_TOTAL.tax - PUR_WH_VAT_TOTAL.tax</field>
                             </record>
                         </field>
                     </record>
@@ -518,10 +623,13 @@
                         <field name="name@tr">Toplanan Toplam Satış Vergisi</field>
                         <field name="code">SAL_VAT_PAID_TOTAL</field>
                         <field name="expression_ids">
-                            <record id="vat_due_expression_s_tax" model="account.report.expression">
+                            <record
+                                id="vat_due_expression_s_tax"
+                                model="account.report.expression">
                                 <field name="label">tax</field>
                                 <field name="engine">aggregation</field>
-                                <field name="formula">SAL_VAT_TOTAL.tax - SAL_WH_VAT_TOTAL.tax</field>
+                                <field
+                                    name="formula">SAL_VAT_TOTAL.tax - SAL_WH_VAT_TOTAL.tax</field>
                             </record>
                         </field>
                     </record>
@@ -529,4 +637,5 @@
             </record>
         </field>
     </record>
+
 </odoo>

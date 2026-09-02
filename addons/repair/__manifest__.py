@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
 {
-    'name': 'Repairs',
-    'version': '1.2',
-    'sequence': 230,
-    'category': 'Supply Chain/Inventory',
-    'summary': 'Repair damaged products',
-    'description': """
+    "name": "Repairs",
+    "version": "1.2",
+    "category": "Supply Chain/Inventory",
+    "sequence": 230,
+    "summary": "Repair damaged products",
+    "description": """
 The aim is to have a complete module to manage all products repairs.
 ====================================================================
 
@@ -18,34 +18,39 @@ The following topics are covered by this module:
     * Repair quotation report
     * Notes for the technician and for the final customer
 """,
-    'depends': ['sale_stock', 'sale_management'],
-    'data': [
-        'security/ir.model.access.csv',
-        'security/repair_security.xml',
-        'wizard/stock_warn_insufficient_qty_views.xml',
-        'views/product_views.xml',
-        'views/stock_move_views.xml',
-        'views/repair_views.xml',
-        'views/sale_order_views.xml',
-        'views/stock_lot_views.xml',
-        'views/stock_picking_views.xml',
-        'views/stock_warehouse_views.xml',
-        'report/repair_reports.xml',
-        'report/repair_templates_repair_order.xml',
-        'data/repair_data.xml',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "sale_stock",
+        "sale_management",
     ],
-    'demo': ['data/repair_demo.xml'],
-    'post_init_hook': '_create_warehouse_data',
-    'installable': True,
-    'application': True,
-    'assets': {
-        'web.assets_backend': [
-            'repair/static/src/**/*',
+    "data": [
+        "security/ir.model.access.csv",
+        "security/repair_security.xml",
+        "wizard/stock_warn_insufficient_qty_views.xml",
+        "views/product_views.xml",
+        "views/stock_move_views.xml",
+        "views/repair_views.xml",
+        "views/sale_order_views.xml",
+        "views/stock_lot_views.xml",
+        "views/stock_picking_views.xml",
+        "views/stock_warehouse_views.xml",
+        "report/repair_reports.xml",
+        "report/repair_templates_repair_order.xml",
+        "data/repair_data.xml",
+    ],
+    "demo": [
+        "data/repair_demo.xml",
+    ],
+    "assets": {
+        "web.assets_backend": [
+            "repair/static/src/**/*",
         ],
-        'web.assets_tests': [
-            'repair/static/tests/tours/*.js',
+        "web.assets_tests": [
+            "repair/static/tests/tours/*.js",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
+    "application": True,
+    "post_init_hook": "_create_warehouse_data",
 }

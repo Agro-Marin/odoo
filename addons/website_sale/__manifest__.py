@@ -1,10 +1,12 @@
 {
     "name": "eCommerce",
+    "version": "1.1",
     "category": "Website/Website",
     "sequence": 50,
     "summary": "Sell your products online",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/ecommerce",
-    "version": "1.1",
+    "license": "LGPL-3",
     "depends": [
         "documents",
         "website_payment",
@@ -13,11 +15,9 @@
         "delivery",
     ],
     "data": [
-        # Security
         "security/ir.model.access.csv",
         "security/ir_rules.xml",
         "security/res_groups.xml",
-        # Record data
         "data/data.xml",
         "data/mail_template_data.xml",
         "data/product_snippet_template_data.xml",
@@ -25,16 +25,13 @@
         "data/digest_data.xml",
         "data/ir_cron_data.xml",
         "data/tour.xml",
-        # Reports
         "report/sale_report_views.xml",
-        # QWeb templates
         "views/product_tile_templates.xml",
         "views/delivery_form_templates.xml",
         "views/gmc_templates.xml",
         "views/sale_portal_templates.xml",
         "views/templates.xml",
         "views/templates_svg.xml",
-        # Model views.
         "views/account_move_views.xml",
         "views/delivery_carrier_views.xml",
         "views/digest_views.xml",
@@ -56,7 +53,6 @@
         "views/website_sale_visitor_views.xml",
         "views/variant_templates.xml",
         "views/website_views.xml",
-        # Website snippets
         "views/snippets/snippets.xml",
         "views/snippets/s_add_to_cart.xml",
         "views/snippets/s_dynamic_snippet_products.xml",
@@ -77,10 +73,6 @@
     "demo": [
         "data/demo.xml",
     ],
-    "installable": True,
-    "application": True,
-    "post_init_hook": "_post_init_hook",
-    "uninstall_hook": "uninstall_hook",
     "assets": {
         "web.assets_frontend": [
             "website_sale/static/src/interactions/**/*",
@@ -127,8 +119,6 @@
             "website_sale/static/src/js/product_list/*",
             "website_sale/static/src/js/product_template_attribute_line/*",
             "website_sale/static/src/js/quantity_buttons/*",
-            # Location selector components are defined in `delivery` to share the codebase with the
-            # backend.
             "delivery/static/src/js/location_selector/**/*",
             "website_sale/static/src/js/location_selector/**/*",
         ],
@@ -148,7 +138,10 @@
             "website_sale/static/src/js/website_sale_form_editor.js",
             "website_sale/static/src/website_builder/**/*",
             "website_sale/static/src/js/website_sale_utils.js",
-            ("remove", "website_sale/static/src/**/*.edit.*"),
+            (
+                "remove",
+                "website_sale/static/src/**/*.edit.*",
+            ),
         ],
         "website.assets_wysiwyg": [
             "website_sale/static/src/scss/website_sale.editor.scss",
@@ -180,12 +173,10 @@
             "website_sale/static/src/js/variant_mixin.js",
             "website_sale/static/src/js/website_sale_utils.js",
             "website_sale/static/src/js/components/website_sale_image_viewer.js",
-            # TODO Find out why these do not work:
-            #'website_sale/static/src/snippets/**/*.js',
-            # TODO Re-activate when testing edit mode
-            # ('remove', 'website_sale/static/src/snippets/**/*.edit.js'),
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "application": True,
+    "post_init_hook": "_post_init_hook",
+    "uninstall_hook": "uninstall_hook",
 }

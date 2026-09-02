@@ -320,10 +320,7 @@
                         <strong invisible="sla_status != 'breached'" class="text-danger">SLA Breached</strong>
                         <span class="ms-2">
                             (<field name="sla_elapsed_hours" class="d-inline" widget="float_time" /> elapsed,
-                            <field
-                                name="sla_remaining_hours"
-                                class="d-inline"
-                                widget="float_time" /> remaining)
+                            <field name="sla_remaining_hours" class="d-inline" widget="float_time" /> remaining)
                         </span>
                     </div>
                     <div
@@ -760,10 +757,9 @@
         <field name="binding_model_id" ref="model_approval_request" />
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
-        <field name="code">
-if records:
-    action = records.action_approve_bulk()
-        </field>
+        <field
+            name="code">if records:
+    action = records.action_approve_bulk()</field>
         <field name="group_ids" eval="[(4, ref('group_approval_approver'))]" />
     </record>
 
@@ -773,10 +769,8 @@ if records:
         <field name="binding_model_id" ref="model_approval_request" />
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
-        <field name="code">
-if records:
-    action = records.action_refuse_bulk()
-        </field>
+        <field name="code">if records:
+    action = records.action_refuse_bulk()</field>
         <field name="group_ids" eval="[(4, ref('group_approval_approver'))]" />
     </record>
 

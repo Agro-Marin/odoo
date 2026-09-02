@@ -8,7 +8,9 @@
             <search string="Search UOM">
                 <field name="name" />
                 <separator />
-                <filter string="Archived" name="inactive"
+                <filter
+                    string="Archived"
+                    name="inactive"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -21,7 +23,8 @@
             <list string="Units &amp; Packagings">
                 <field name="sequence" widget="handle" />
                 <field name="name" />
-                <field name="relative_factor"
+                <field
+                    name="relative_factor"
                     invisible="relative_factor == 1 and not relative_uom_id"
                     digits="[16, 7]" />
                 <field name="relative_uom_id" />
@@ -37,16 +40,22 @@
                 <sheet>
                     <group>
                         <group name="uom_details">
-                            <field name="name"
+                            <field
+                                name="name"
                                 readonly="(context.get('product_id') or context.get('product_ids')) and id" />
                             <label for="relative_factor" string="Quantity" />
                             <div name="relative_factor" class="o_row oe_inline">
-                                <field name="relative_factor" class="oe_inline"
+                                <field
+                                    name="relative_factor"
+                                    class="oe_inline"
                                     style="max-width: 80px;"
                                     readonly="(context.get('product_id') or context.get('product_ids')) and id"
                                     digits="[16, 7]" />
-                                <field name="relative_uom_id" placeholder="Reference Unit"
-                                    class="oe_inline" style="max-width: 150px;"
+                                <field
+                                    name="relative_uom_id"
+                                    placeholder="Reference Unit"
+                                    class="oe_inline"
+                                    style="max-width: 150px;"
                                     readonly="(context.get('product_id') or context.get('product_ids')) and id" />
                             </div>
                         </group>

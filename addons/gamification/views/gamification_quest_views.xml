@@ -21,14 +21,26 @@
         <field name="model">gamification.quest</field>
         <field name="arch" type="xml">
             <search string="Quests">
-                <field name="name"/>
-                <separator/>
-                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
-                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
-                <separator/>
+                <field name="name" />
+                <separator />
+                <filter
+                    string="Active"
+                    name="active"
+                    domain="[('active', '=', True)]" />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active', '=', False)]" />
+                <separator />
                 <group>
-                    <filter string="Difficulty" name="group_difficulty" context="{'group_by': 'difficulty'}"/>
-                    <filter string="Mode" name="group_mode" context="{'group_by': 'quest_mode'}"/>
+                    <filter
+                        string="Difficulty"
+                        name="group_difficulty"
+                        context="{'group_by': 'difficulty'}" />
+                    <filter
+                        string="Mode"
+                        name="group_mode"
+                        context="{'group_by': 'quest_mode'}" />
                 </group>
             </search>
         </field>
@@ -41,16 +53,16 @@
             <kanban default_group_by="difficulty" class="o_kanban_small_column">
                 <templates>
                     <t t-name="card">
-                        <field name="icon" widget="image" class="o_kanban_image"/>
+                        <field name="icon" widget="image" class="o_kanban_image" />
                         <div>
-                            <strong><field name="name"/></strong>
-                            <div class="text-muted"><field name="quest_mode"/></div>
+                            <strong><field name="name" /></strong>
+                            <div class="text-muted"><field name="quest_mode" /></div>
                             <div class="mt-1">
                                 <span class="badge text-bg-info me-1">
-                                    <field name="step_count"/> steps
+                                    <field name="step_count" /> steps
                                 </span>
                                 <span class="badge text-bg-success">
-                                    <field name="enrollment_count"/> enrolled
+                                    <field name="enrollment_count" /> enrolled
                                 </span>
                             </div>
                         </div>
@@ -65,18 +77,20 @@
         <field name="model">gamification.quest</field>
         <field name="arch" type="xml">
             <list string="Quests">
-                <field name="sequence" widget="handle"/>
-                <field name="name"/>
-                <field name="difficulty" widget="badge"
-                       decoration-success="difficulty == 'beginner'"
-                       decoration-info="difficulty == 'intermediate'"
-                       decoration-warning="difficulty == 'advanced'"
-                       decoration-danger="difficulty == 'expert'"/>
-                <field name="quest_mode"/>
-                <field name="step_count"/>
-                <field name="enrollment_count"/>
-                <field name="completion_count"/>
-                <field name="reward_karma"/>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field
+                    name="difficulty"
+                    widget="badge"
+                    decoration-success="difficulty == 'beginner'"
+                    decoration-info="difficulty == 'intermediate'"
+                    decoration-warning="difficulty == 'advanced'"
+                    decoration-danger="difficulty == 'expert'" />
+                <field name="quest_mode" />
+                <field name="step_count" />
+                <field name="enrollment_count" />
+                <field name="completion_count" />
+                <field name="reward_karma" />
             </list>
         </field>
     </record>
@@ -89,62 +103,77 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button class="oe_stat_button" icon="fa-users">
-                            <field name="enrollment_count" widget="statinfo" string="Enrollments"/>
+                            <field
+                                name="enrollment_count"
+                                widget="statinfo"
+                                string="Enrollments" />
                         </button>
                         <button class="oe_stat_button" icon="fa-check-circle">
-                            <field name="completion_count" widget="statinfo" string="Completed"/>
+                            <field
+                                name="completion_count"
+                                widget="statinfo"
+                                string="Completed" />
                         </button>
                     </div>
-                    <field name="icon" widget="image" class="oe_avatar"/>
+                    <field name="icon" widget="image" class="oe_avatar" />
                     <div class="oe_title">
-                        <h1><field name="name" placeholder="e.g. The Data Quality Crusade"/></h1>
+                        <h1><field name="name" placeholder="e.g. The Data Quality Crusade" /></h1>
                     </div>
                     <group>
                         <group>
-                            <field name="quest_mode" widget="radio"/>
-                            <field name="difficulty"/>
-                            <field name="active"/>
+                            <field name="quest_mode" widget="radio" />
+                            <field name="difficulty" />
+                            <field name="active" />
                         </group>
                         <group string="Rewards">
-                            <field name="reward_badge_id"/>
-                            <field name="reward_karma"/>
+                            <field name="reward_badge_id" />
+                            <field name="reward_karma" />
                         </group>
                     </group>
                     <notebook>
                         <page string="Story" name="story">
-                            <field name="description"
-                                   placeholder="The narrative framing for this quest..."/>
+                            <field
+                                name="description"
+                                placeholder="The narrative framing for this quest..." />
                         </page>
                         <page string="Steps" name="steps">
                             <field name="step_ids">
                                 <list editable="bottom">
-                                    <field name="sequence" widget="handle"/>
-                                    <field name="name"/>
-                                    <field name="definition_id"/>
-                                    <field name="target_goal"/>
-                                    <field name="prerequisite_ids" widget="many2many_tags"/>
-                                    <field name="karma_reward"/>
-                                    <field name="badge_id"/>
-                                    <field name="skill_node_id"/>
+                                    <field name="sequence" widget="handle" />
+                                    <field name="name" />
+                                    <field name="definition_id" />
+                                    <field name="target_goal" />
+                                    <field
+                                        name="prerequisite_ids"
+                                        widget="many2many_tags" />
+                                    <field name="karma_reward" />
+                                    <field name="badge_id" />
+                                    <field name="skill_node_id" />
                                 </list>
                             </field>
                         </page>
                         <page string="Enrollments" name="enrollments">
                             <field name="enrollment_ids" readonly="1">
                                 <list>
-                                    <field name="user_id" widget="many2one_avatar_user"/>
-                                    <field name="state" widget="badge"
-                                           decoration-success="state == 'completed'"
-                                           decoration-info="state == 'in_progress'"
-                                           decoration-muted="state == 'abandoned'"/>
-                                    <field name="progress_percent" widget="progressbar"/>
-                                    <field name="create_date"/>
+                                    <field
+                                        name="user_id"
+                                        widget="many2one_avatar_user" />
+                                    <field
+                                        name="state"
+                                        widget="badge"
+                                        decoration-success="state == 'completed'"
+                                        decoration-info="state == 'in_progress'"
+                                        decoration-muted="state == 'abandoned'" />
+                                    <field
+                                        name="progress_percent"
+                                        widget="progressbar" />
+                                    <field name="create_date" />
                                 </list>
                             </field>
                         </page>
                     </notebook>
                 </sheet>
-                <chatter/>
+                <chatter />
             </form>
         </field>
     </record>

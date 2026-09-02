@@ -5,9 +5,9 @@
     <menuitem
         id="menu_purchase_root"
         name="Purchase"
-        web_icon="purchase,static/description/icon.png"
         sequence="135"
-        groups="group_purchase_manager,group_purchase_user" />
+        groups="group_purchase_manager,group_purchase_user"
+        web_icon="purchase,static/description/icon.png" />
 
     <menuitem
         id="menu_procurement_management"
@@ -20,8 +20,8 @@
         id="menu_procurement_management_supplier_name"
         name="Vendors"
         parent="menu_procurement_management"
-        sequence="15"
-        action="account.res_partner_action_supplier" />
+        action="account.res_partner_action_supplier"
+        sequence="15" />
 
     <menuitem
         id="menu_purchase_config"
@@ -34,22 +34,22 @@
         id="menu_purchase_general_settings"
         name="Settings"
         parent="menu_purchase_config"
-        sequence="0"
         action="action_purchase_configuration"
+        sequence="0"
         groups="base.group_system" />
 
     <menuitem
         id="menu_product_pricelist_action2_purchase"
         parent="menu_purchase_config"
-        sequence="1"
-        action="product.action_product_supplierinfo" />
+        action="product.action_product_supplierinfo"
+        sequence="1" />
 
     <menuitem
         id="srm_tag_menu"
         name="Tags"
         parent="menu_purchase_config"
-        sequence="20"
-        action="srm_tag_action" />
+        action="srm_tag_action"
+        sequence="20" />
 
     <menuitem
         id="menu_product_in_config_purchase"
@@ -65,22 +65,22 @@
         id="menu_product_attribute_action"
         name="Attributes"
         parent="menu_product_in_config_purchase"
-        sequence="1"
         action="product.action_product_attribute"
+        sequence="1"
         groups="product.group_product_variant" />
 
     <menuitem
         id="menu_product_category_config_purchase"
         parent="menu_product_in_config_purchase"
-        sequence="3"
-        action="product.action_product_category" />
+        action="product.action_product_category"
+        sequence="3" />
 
     <menuitem
         id="menu_purchase_uom_form_action"
         name="Units &amp; Packagings"
         parent="menu_product_in_config_purchase"
-        sequence="10"
         action="uom.action_uom_uom"
+        sequence="10"
         groups="uom.group_uom" />
 
     <!-- Products Control Menu -->
@@ -95,28 +95,28 @@
         id="menu_procurement_partner_contact_form"
         name="Products"
         parent="menu_purchase_products"
-        sequence="20"
-        action="product_normal_action_puchased" />
+        action="product_normal_action_puchased"
+        sequence="20" />
 
     <menuitem
         id="menu_purchase_product_variant"
         name="Product Variants"
         parent="menu_purchase_products"
-        sequence="21"
         action="product_product_action"
+        sequence="21"
         groups="product.group_product_variant" />
 
     <menuitem
         id="menu_purchase_rfq"
         parent="menu_procurement_management"
-        sequence="0"
-        action="action_purchase_order" />
+        action="action_purchase_order"
+        sequence="0" />
 
     <menuitem
         id="menu_purchase_form_action"
         parent="menu_procurement_management"
-        sequence="6"
-        action="action_purchase_order_2" />
+        action="action_purchase_order_2"
+        sequence="6" />
 
     <menuitem
         id="menu_purchase_reporting"
@@ -129,7 +129,8 @@
         id="menu_purchase_report"
         name="Purchase"
         parent="menu_purchase_reporting"
-        sequence="99" groups="purchase.group_purchase_manager"
-        action="action_purchase_report_all" />
+        action="action_purchase_report_all"
+        sequence="99"
+        groups="purchase.group_purchase_manager" />
 
 </odoo>

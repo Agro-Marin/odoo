@@ -7,6 +7,8 @@
     "description": """This module contains tests related to mass mailing. Those
 are present in a separate module to use specific test models defined in
 test_mail. """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "mass_mailing",
         "mass_mailing_sms",
@@ -18,6 +20,4 @@ test_mail. """,
         "security/ir.model.access.csv",
     ],
     "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

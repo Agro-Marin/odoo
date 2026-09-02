@@ -8,7 +8,12 @@ Allows you to add delivery methods in pickings.
 
 When creating invoices from picking, the system is able to add and compute the shipping line.
 """,
-    "depends": ["sale_stock", "delivery"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "sale_stock",
+        "delivery",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/product_template_view.xml",
@@ -25,10 +30,10 @@ When creating invoices from picking, the system is able to add and compute the s
         "views/stock_move_line_views.xml",
         "report/product_templates.xml",
     ],
-    "demo": ["data/delivery_demo.xml"],
+    "demo": [
+        "data/delivery_demo.xml",
+    ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "post_init_hook": "_auto_install_sale_app",
 }

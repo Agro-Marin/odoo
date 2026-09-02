@@ -1,13 +1,18 @@
 {
     "name": "Purchase Matrix",
+    "version": "1.0",
+    "category": "Supply Chain/Purchase",
     "summary": "Add variants to your purchase orders through an Order Grid Entry.",
     "description": """
 This module allows to fill Purchase Orders rapidly
 by choosing product variants quantity through a Grid Entry.
     """,
-    "category": "Supply Chain/Purchase",
-    "version": "1.0",
-    "depends": ["purchase", "product_matrix"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "purchase",
+        "product_matrix",
+    ],
     "data": [
         "views/purchase_views.xml",
         "report/purchase_quotation_templates.xml",
@@ -21,6 +26,4 @@ by choosing product variants quantity through a Grid Entry.
             "purchase_product_matrix/static/tests/tours/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

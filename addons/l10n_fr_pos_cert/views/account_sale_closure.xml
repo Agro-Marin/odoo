@@ -1,17 +1,18 @@
 <odoo>
+
     <record id="list_view_account_sale_closing" model="ir.ui.view">
         <field name="name">Sales Closings</field>
         <field name="model">account.sale.closing</field>
         <field name="arch" type="xml">
             <list create="false" import="false">
-                <field name="date_closing_start"/>
-                <field name="date_closing_stop"/>
-                <field name="company_id" groups="base.group_multi_company"/>
-                <field name="currency_id" column_invisible="True"/>
-                <field name="frequency"/>
-                <field name="sequence_number" groups="base.group_no_one"/>
-                <field name="total_interval"/>
-                <field name="cumulative_total"/>
+                <field name="date_closing_start" />
+                <field name="date_closing_stop" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <field name="currency_id" column_invisible="True" />
+                <field name="frequency" />
+                <field name="sequence_number" groups="base.group_no_one" />
+                <field name="total_interval" />
+                <field name="cumulative_total" />
             </list>
         </field>
     </record>
@@ -24,25 +25,31 @@
                 <sheet>
                     <div class="oe_title">
                         <h1>
-                            <field name="name"/>
+                            <field name="name" />
                         </h1>
                     </div>
                     <group>
                         <group>
-                            <field name="date_closing_start"/>
-                            <field name="date_closing_stop"/>
-                            <field name="frequency"/>
-                            <field name="sequence_number" groups="base.group_no_one"/>
+                            <field name="date_closing_start" />
+                            <field name="date_closing_stop" />
+                            <field name="frequency" />
+                            <field name="sequence_number" groups="base.group_no_one" />
                         </group>
                         <group>
-                            <field name="total_interval"/>
-                            <field name="cumulative_total"/>
-                            <field name="last_order_id" groups="account.group_account_readonly"/>
-                            <field name="last_order_hash" groups="account.group_account_readonly"/>
+                            <field name="total_interval" />
+                            <field name="cumulative_total" />
+                            <field
+                                name="last_order_id"
+                                groups="account.group_account_readonly" />
+                            <field
+                                name="last_order_hash"
+                                groups="account.group_account_readonly" />
                         </group>
                         <group>
-                            <field name="company_id" groups="base.group_multi_company"/>
-                            <field name="currency_id" invisible="1"/>
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company" />
+                            <field name="currency_id" invisible="1" />
                         </group>
                     </group>
                 </sheet>
@@ -63,5 +70,10 @@
         </field>
     </record>
 
-    <menuitem action="action_list_view_account_sale_closing" id="menu_account_closing_reporting" parent="l10n_fr_account.account_reports_fr_statements_menu" sequence="90"/>
+    <menuitem
+        id="menu_account_closing_reporting"
+        parent="l10n_fr_account.account_reports_fr_statements_menu"
+        action="action_list_view_account_sale_closing"
+        sequence="90" />
+
 </odoo>

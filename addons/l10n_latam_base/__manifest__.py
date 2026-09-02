@@ -1,11 +1,10 @@
 {
-    'name': 'LATAM Localization Base',
-    'version': '1.0',
-    'category': 'Accounting/Localizations',
-    'sequence': 14,
-    'author': 'Odoo S.A., ADHOC SA',
-    'summary': 'LATAM Identification Types',
-    'description': """
+    "name": "LATAM Localization Base",
+    "version": "1.0",
+    "category": "Accounting/Localizations",
+    "sequence": 14,
+    "summary": "LATAM Identification Types",
+    "description": """
 Add a new model named "Identification Type" that extend the vat field functionality in the partner and let the user to identify (an eventually invoice) to contacts not only with their fiscal tax ID (VAT) but with other types of identifications like national document, passport, foreign ID, etc. With this module installed you will see now in the partner form view two fields:
 
 * Identification Type
@@ -44,24 +43,25 @@ All the defined identification types can be reviewed and activate/deactivate in 
 
 This module is compatible with account_vat module in order to be able to validate VAT numbers for each country that have or not have the possibility to manage multiple identification types.
 """,
-    'depends': [
-        'partner',
-        'account_vat',
+    "author": "Odoo S.A., ADHOC SA",
+    "license": "LGPL-3",
+    "depends": [
+        "partner",
+        "account_vat",
     ],
-    'data': [
-        'data/res_country_group.xml',
-        'data/l10n_latam.identification.type.csv',
-        'views/res_partner_view.xml',
-        'views/l10n_latam_identification_type_view.xml',
-        'views/portal_address_templates.xml',
-        'security/ir.model.access.csv',
+    "data": [
+        "data/res_country_group.xml",
+        "data/l10n_latam.identification.type.csv",
+        "views/res_partner_view.xml",
+        "views/l10n_latam_identification_type_view.xml",
+        "views/portal_address_templates.xml",
+        "security/ir.model.access.csv",
     ],
-    'assets': {
-        'web.assets_frontend': [
-            'l10n_latam_base/static/src/components/select_menu_wrapper/**.*',
+    "assets": {
+        "web.assets_frontend": [
+            "l10n_latam_base/static/src/components/select_menu_wrapper/**.*",
         ],
     },
-    'installable': True,
-    'post_init_hook': '_set_default_identification_type',
-    'license': 'LGPL-3',
+    "installable": True,
+    "post_init_hook": "_set_default_identification_type",
 }

@@ -7,9 +7,10 @@
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">purchase.report_purchaseorder</field>
         <field name="report_file">purchase.report_purchaseorder</field>
-        <field name="print_report_name">f"Request for Quotation - {object.name}" if object.state == 'draft' else f"Purchase Order - {object.name}"</field>
         <field name="binding_model_id" ref="model_purchase_order" />
         <field name="binding_type">report</field>
+        <field
+            name="print_report_name">f"Request for Quotation - {object.name}" if object.state == 'draft' else f"Purchase Order - {object.name}"</field>
     </record>
 
     <record id="report_purchase_quotation" model="ir.actions.report">
@@ -18,9 +19,9 @@
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">purchase.report_purchasequotation</field>
         <field name="report_file">purchase.report_purchasequotation</field>
-        <field name="print_report_name">f'Request for Quotation - {object.name}'</field>
         <field name="binding_model_id" ref="model_purchase_order" />
         <field name="binding_type">report</field>
+        <field name="print_report_name">f'Request for Quotation - {object.name}'</field>
     </record>
 
 </odoo>

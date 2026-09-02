@@ -1,12 +1,8 @@
 {
-    'name': 'Denmark - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['dk'],
-    'version': '1.3',
-    'author': 'Odoo House ApS, VK DATA ApS, FlexERP ApS',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Denmark - Accounting",
+    "version": "1.3",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 
 Localization Module for Denmark
 ===============================
@@ -84,22 +80,30 @@ Produktopsætning:
 
 **Købskonto:**      4010 Restaurationsbesøg
     """,
-    'depends': [
-        'account_iban',
-        'account_vat',
-        'account',
-        'account_edi_ubl_cii',
+    "author": "Odoo House ApS, VK DATA ApS, FlexERP ApS",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account_iban",
+        "account_vat",
+        "account",
+        "account_edi_ubl_cii",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
-        'data/account.account.tag.csv',
-        'views/account_journal_views.xml',
-        'views/res_partner_views.xml',
-        'views/res_company_views.xml',
+    "countries": [
+        "dk",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
+        "data/account.account.tag.csv",
+        "views/account_journal_views.xml",
+        "views/res_partner_views.xml",
+        "views/res_company_views.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

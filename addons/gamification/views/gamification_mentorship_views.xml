@@ -25,14 +25,14 @@
                 <templates>
                     <t t-name="card">
                         <div>
-                            <strong><field name="display_name"/></strong>
+                            <strong><field name="display_name" /></strong>
                             <div>
                                 <span class="text-muted">Mentor: </span>
-                                <field name="mentor_id" widget="many2one_avatar_user"/>
+                                <field name="mentor_id" widget="many2one_avatar_user" />
                             </div>
                             <div>
                                 <span class="text-muted">Mentee: </span>
-                                <field name="mentee_id" widget="many2one_avatar_user"/>
+                                <field name="mentee_id" widget="many2one_avatar_user" />
                             </div>
                         </div>
                     </t>
@@ -46,17 +46,19 @@
         <field name="model">gamification.mentorship</field>
         <field name="arch" type="xml">
             <list string="Mentorships">
-                <field name="mentor_id" widget="many2one_avatar_user"/>
-                <field name="mentee_id" widget="many2one_avatar_user"/>
-                <field name="state" widget="badge"
-                       decoration-warning="state == 'pending'"
-                       decoration-success="state == 'active'"
-                       decoration-info="state == 'completed'"
-                       decoration-muted="state == 'cancelled'"/>
-                <field name="start_date"/>
-                <field name="end_date"/>
-                <field name="mentee_milestones_reached"/>
-                <field name="total_mentor_karma"/>
+                <field name="mentor_id" widget="many2one_avatar_user" />
+                <field name="mentee_id" widget="many2one_avatar_user" />
+                <field
+                    name="state"
+                    widget="badge"
+                    decoration-warning="state == 'pending'"
+                    decoration-success="state == 'active'"
+                    decoration-info="state == 'completed'"
+                    decoration-muted="state == 'cancelled'" />
+                <field name="start_date" />
+                <field name="end_date" />
+                <field name="mentee_milestones_reached" />
+                <field name="total_mentor_karma" />
             </list>
         </field>
     </record>
@@ -67,44 +69,68 @@
         <field name="arch" type="xml">
             <form string="Mentorship">
                 <header>
-                    <button string="Accept" type="object" name="action_accept" class="oe_highlight" invisible="state != 'pending'"/>
-                    <button string="Decline" type="object" name="action_decline" invisible="state != 'pending'"/>
-                    <button name="action_complete" string="Complete" type="object"
-                            class="btn-primary" invisible="state != 'active'"/>
-                    <button name="action_cancel" string="Cancel" type="object"
-                            invisible="state != 'active'"/>
-                    <field name="state" widget="statusbar"
-                           statusbar_visible="pending,active,completed"/>
+                    <button
+                        string="Accept"
+                        type="object"
+                        name="action_accept"
+                        class="oe_highlight"
+                        invisible="state != 'pending'" />
+                    <button
+                        string="Decline"
+                        type="object"
+                        name="action_decline"
+                        invisible="state != 'pending'" />
+                    <button
+                        name="action_complete"
+                        string="Complete"
+                        type="object"
+                        class="btn-primary"
+                        invisible="state != 'active'" />
+                    <button
+                        name="action_cancel"
+                        string="Cancel"
+                        type="object"
+                        invisible="state != 'active'" />
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="pending,active,completed" />
                 </header>
                 <sheet>
                     <group>
                         <group string="Pairing">
-                            <field name="mentor_id" widget="many2one_avatar_user"
-                                   readonly="state not in ('pending', 'active')"/>
-                            <field name="mentee_id" widget="many2one_avatar_user"
-                                   readonly="state not in ('pending', 'active')"/>
+                            <field
+                                name="mentor_id"
+                                widget="many2one_avatar_user"
+                                readonly="state not in ('pending', 'active')" />
+                            <field
+                                name="mentee_id"
+                                widget="many2one_avatar_user"
+                                readonly="state not in ('pending', 'active')" />
                         </group>
                         <group string="Progress">
-                            <field name="start_date"/>
-                            <field name="end_date"/>
-                            <field name="mentee_milestones_reached"/>
-                            <field name="total_mentor_karma"/>
+                            <field name="start_date" />
+                            <field name="end_date" />
+                            <field name="mentee_milestones_reached" />
+                            <field name="total_mentor_karma" />
                         </group>
                     </group>
                     <group string="Rewards">
                         <group>
-                            <field name="mentor_karma_per_milestone"/>
-                            <field name="mentor_karma_on_completion"/>
+                            <field name="mentor_karma_per_milestone" />
+                            <field name="mentor_karma_on_completion" />
                         </group>
                         <group>
-                            <field name="completion_badge_id"/>
+                            <field name="completion_badge_id" />
                         </group>
                     </group>
                     <group>
-                        <field name="description" placeholder="Mentorship goals and objectives..."/>
+                        <field
+                            name="description"
+                            placeholder="Mentorship goals and objectives..." />
                     </group>
                 </sheet>
-                <chatter/>
+                <chatter />
             </form>
         </field>
     </record>
@@ -114,14 +140,29 @@
         <field name="model">gamification.mentorship</field>
         <field name="arch" type="xml">
             <search>
-                <field name="mentor_id"/>
-                <field name="mentee_id"/>
-                <filter string="Awaiting Confirmation" name="pending" domain="[('state', '=', 'pending')]"/>
-                <filter string="Active" name="active" domain="[('state', '=', 'active')]"/>
-                <filter string="Completed" name="completed" domain="[('state', '=', 'completed')]"/>
+                <field name="mentor_id" />
+                <field name="mentee_id" />
+                <filter
+                    string="Awaiting Confirmation"
+                    name="pending"
+                    domain="[('state', '=', 'pending')]" />
+                <filter
+                    string="Active"
+                    name="active"
+                    domain="[('state', '=', 'active')]" />
+                <filter
+                    string="Completed"
+                    name="completed"
+                    domain="[('state', '=', 'completed')]" />
                 <group>
-                    <filter string="Mentor" name="group_mentor" context="{'group_by': 'mentor_id'}"/>
-                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter
+                        string="Mentor"
+                        name="group_mentor"
+                        context="{'group_by': 'mentor_id'}" />
+                    <filter
+                        string="State"
+                        name="group_state"
+                        context="{'group_by': 'state'}" />
                 </group>
             </search>
         </field>

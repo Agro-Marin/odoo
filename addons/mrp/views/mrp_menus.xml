@@ -1,49 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem id="menu_mrp_root"
-        name="Manufacturing"
-        groups="group_mrp_user,group_mrp_manager"
-        web_icon="mrp,static/description/icon.png"
-        sequence="145">
-
-        <menuitem id="menu_mrp_manufacturing"
-            name="Operations"
-            sequence="10"/>
-
-        <menuitem id="menu_mrp_planning"
-            name="Planning"
-            sequence="15"/>
-
-        <menuitem id="menu_mrp_bom"
-            name="Products"
-            sequence="20"/>
-
-        <menuitem id="menu_mrp_reporting"
-              name="Reporting"
-              sequence="25"/>
-
-        <menuitem id="menu_mrp_configuration"
-            name="Configuration"
-            groups="group_mrp_manager"
-            sequence="100"/>
-
-    </menuitem>
-
-    <!-- ═══════════════════════════
-         OPERATIONS
-         ═══════════════════════════ -->
 
     <menuitem
+        id="menu_mrp_root"
+        name="Manufacturing"
+        sequence="145"
+        groups="group_mrp_user,group_mrp_manager"
+        web_icon="mrp,static/description/icon.png">
+        <menuitem id="menu_mrp_manufacturing" name="Operations" sequence="10" />
+        <menuitem id="menu_mrp_planning" name="Planning" sequence="15" />
+        <menuitem id="menu_mrp_bom" name="Products" sequence="20" />
+        <menuitem id="menu_mrp_reporting" name="Reporting" sequence="25" />
+        <menuitem
+            id="menu_mrp_configuration"
+            name="Configuration"
+            sequence="100"
+            groups="group_mrp_manager" />
+    </menuitem>
+
+    <!--
+        ═══════════════════════════
+        OPERATIONS
+        ═══════════════════════════
+    -->
+    <menuitem
         id="menu_mrp_production_action"
-        action="mrp_production_action"
         parent="menu_mrp_manufacturing"
+        action="mrp_production_action"
         sequence="1" />
 
     <menuitem
         id="menu_mrp_workorder_todo"
         name="Work Orders"
-        action="mrp_workorder_todo"
         parent="menu_mrp_manufacturing"
+        action="mrp_workorder_todo"
         groups="group_mrp_routings" />
 
     <menuitem
@@ -68,40 +58,42 @@
         sequence="25"
         groups="stock.group_stock_manager,stock.group_stock_user" />
 
-    <!-- ═══════════════════════════
-         PLANNING
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        PLANNING
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_procurement_compute_mrp"
-        action="stock.ir_cron_scheduler_action_ir_actions_server"
         parent="menu_mrp_planning"
-        groups="base.group_no_one"
-        sequence="135" />
+        action="stock.ir_cron_scheduler_action_ir_actions_server"
+        sequence="135"
+        groups="base.group_no_one" />
 
-    <!-- ═══════════════════════════
-         PRODUCTS
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        PRODUCTS
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_mrp_product_form"
         name="Products"
-        action="product_template_action"
         parent="menu_mrp_bom"
+        action="product_template_action"
         sequence="1" />
 
     <menuitem
         id="menu_mrp_product_variant"
         name="Product Variants"
-        action="mrp_product_variant_action"
         parent="menu_mrp_bom"
-        groups="product.group_product_variant"
-        sequence="2" />
+        action="mrp_product_variant_action"
+        sequence="2"
+        groups="product.group_product_variant" />
 
     <menuitem
         id="menu_mrp_bom_form_action"
-        action="mrp_bom_form_action"
         parent="menu_mrp_bom"
+        action="mrp_bom_form_action"
         sequence="13" />
 
     <menuitem
@@ -109,32 +101,34 @@
         name="Lots/Serial Numbers"
         parent="menu_mrp_bom"
         action="stock.action_stock_lot_form"
-        groups="stock.group_production_lot"
-        sequence="15" />
+        sequence="15"
+        groups="stock.group_production_lot" />
 
-    <!-- ═══════════════════════════
-         REPORTING
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        REPORTING
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_mrp_work_order_report"
         name="Work Orders"
         parent="menu_mrp_reporting"
         action="mrp_workorder_report"
-        groups="group_mrp_routings"
-        sequence="10" />
+        sequence="10"
+        groups="group_mrp_routings" />
 
     <menuitem
         id="menu_mrp_workcenter_productivity_report"
         parent="menu_mrp_reporting"
         action="mrp_workcenter_productivity_report"
-        groups="group_mrp_routings"
-        sequence="12" />
+        sequence="12"
+        groups="group_mrp_routings" />
 
-    <!-- ═══════════════════════════
-         CONFIGURATION
-         ═══════════════════════════ -->
-
+    <!--
+        ═══════════════════════════
+        CONFIGURATION
+        ═══════════════════════════
+    -->
     <menuitem
         id="menu_mrp_config"
         name="Settings"
@@ -145,16 +139,16 @@
 
     <menuitem
         id="menu_mrp_routing_action"
-        action="mrp_routing_action"
         parent="menu_mrp_configuration"
-        groups="group_mrp_routings"
-        sequence="100" />
+        action="mrp_routing_action"
+        sequence="100"
+        groups="group_mrp_routings" />
 
     <menuitem
         id="menu_view_resource_search_mrp"
-        action="mrp_workcenter_action"
-        groups="group_mrp_routings"
         parent="menu_mrp_configuration"
-        sequence="90" />
+        action="mrp_workcenter_action"
+        sequence="90"
+        groups="group_mrp_routings" />
 
 </odoo>

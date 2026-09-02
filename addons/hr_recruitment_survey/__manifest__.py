@@ -8,7 +8,12 @@ Use interview forms during recruitment process.
 This module is integrated with the survey module
 to allow you to define interviews for different jobs.
     """,
-    "depends": ["survey", "hr_recruitment"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "survey",
+        "hr_recruitment",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/hr_recruitment_survey_security.xml",
@@ -23,6 +28,4 @@ to allow you to define interviews for different jobs.
         "data/survey_demo.xml",
         "data/hr_job_demo.xml",
     ],
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

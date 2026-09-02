@@ -2,11 +2,13 @@
 <odoo>
 
     <template id="redirect_form">
-        <form t-att-action="api_url" method="get"/>
+        <form t-att-action="api_url" method="get" />
     </template>
 
     <template id="inline_form">
-        <div name="o_xendit_form" t-att-data-xendit-public-key="provider_sudo.xendit_public_key">
+        <div
+            name="o_xendit_form"
+            t-att-data-xendit-public-key="provider_sudo.xendit_public_key">
             <t t-if="pm_sudo.code == 'card'">
                 <!-- Name -->
                 <div class="row">
@@ -17,8 +19,7 @@
                                 type="text"
                                 placeholder="John"
                                 required=""
-                                class="form-control"
-                            />
+                                class="form-control" />
                     </div>
                     <div class="col-sm-6 mb-3">
                         <label for="o_xendit_last_name">Card Holder Last Name</label>
@@ -27,8 +28,7 @@
                                 type="text"
                                 placeholder="Smith"
                                 required=""
-                                class="form-control"
-                            />
+                                class="form-control" />
                     </div>
                 </div>
                 <!-- Phone and email -->
@@ -39,8 +39,7 @@
                                 id="o_xendit_phone"
                                 type="text"
                                 required=""
-                                class="form-control"
-                            />
+                                class="form-control" />
                     </div>
                     <div class="col-sm-6 mb-3">
                         <label for="o_xendit_email">Email</label>
@@ -49,8 +48,7 @@
                                 type="text"
                                 required=""
                                 placeholder="john.smith@example.com"
-                                class="form-control"
-                            />
+                                class="form-control" />
                     </div>
                 </div>
                 <!-- Card Number -->
@@ -62,8 +60,7 @@
                         required=""
                         maxlength="19"
                         autocomplete="cc-number"
-                        class="form-control"
-                    />
+                        class="form-control" />
                 </div>
                 <!-- Expiry date and security code -->
                 <div class="row">
@@ -78,8 +75,7 @@
                                 max="12"
                                 autocomplete="cc-exp-month"
                                 required=""
-                                class="form-control"
-                            />
+                                class="form-control" />
                             <input
                                 id="o_xendit_year"
                                 type="number"
@@ -88,8 +84,7 @@
                                 max="9999"
                                 autocomplete="cc-exp-year"
                                 required=""
-                                class="form-control"
-                            />
+                                class="form-control" />
                         </div>
                     </div>
                     <div class="col-sm-4 mb-3">
@@ -100,8 +95,7 @@
                             max="9999"
                             autocomplete="cc-csc"
                             required=""
-                            class="form-control"
-                        />
+                            class="form-control" />
                     </div>
                 </div>
             </t>

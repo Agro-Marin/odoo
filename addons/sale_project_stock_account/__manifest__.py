@@ -1,10 +1,13 @@
 {
     "name": "Sale Project Stock Account",
     "version": "1.0",
-    "summary": "Technical Bridge",
     "category": "Services/Project",
-    "depends": ["sale_project", "project_stock_account"],
-    "auto_install": True,
+    "summary": "Technical Bridge",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
+    "depends": [
+        "sale_project",
+        "project_stock_account",
+    ],
+    "auto_install": True,
 }

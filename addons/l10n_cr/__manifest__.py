@@ -1,12 +1,7 @@
 {
-    'name': 'Costa Rica - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['cr'],
-    'url': 'https://github.com/CLEARCORP/odoo-costa-rica',
-    'author': 'ClearCorp S.A.',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Costa Rica - Accounting",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Chart of accounts for Costa Rica.
 =================================
 
@@ -19,12 +14,21 @@ Includes:
 Everything is in English with Spanish translation. Further translations are welcome,
 please go to http://translations.launchpad.net/openerp-costa-rica.
     """,
-    'depends': [
-        'account',
+    "author": "ClearCorp S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'demo': [
-        'demo/demo_company.xml',
+    "countries": [
+        "cr",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
+    "url": "https://github.com/CLEARCORP/odoo-costa-rica",
 }

@@ -1,17 +1,20 @@
-
 {
     "name": "Partner Autocomplete",
-    "summary": "Auto-complete partner companies' data",
     "version": "1.1",
+    "category": "Hidden/Tools",
+    "summary": "Auto-complete partner companies' data",
     "description": """
 Auto-complete partner companies' data
     """,
-    "category": "Hidden/Tools",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "iap_mail",
     ],
     "external_dependencies": {
-        "python": ["python-stdnum"],
+        "python": [
+            "python-stdnum",
+        ],
         "apt": {
             "python-stdnum": "python3-stdnum",
         },
@@ -34,6 +37,4 @@ Auto-complete partner companies' data
             "partner_autocomplete/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

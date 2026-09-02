@@ -2,11 +2,8 @@
 
 {
     "name": "Uganda - Accounting",
-    "countries": ["ug"],
     "version": "1.0.0",
     "category": "Accounting/Localizations/Account Charts",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "description": """
 This is the basic Ugandian localisation necessary to run Odoo in UG:
 ================================================================================
@@ -16,14 +13,21 @@ This is the basic Ugandian localisation necessary to run Odoo in UG:
     - Default settings
     - Tax report
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "account",
     ],
-    'auto_install': ['account'],
+    "countries": [
+        "ug",
+    ],
     "data": [
         "data/account_tax_report_data.xml",
     ],
     "demo": [
         "demo/demo_company.xml",
-    ]
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

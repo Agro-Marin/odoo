@@ -1,7 +1,8 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
-        <record model="ir.ui.view" id="view_data_recycle_model_list">
+        <record id="view_data_recycle_model_list" model="ir.ui.view">
             <field name="name">Field Recyle Model List</field>
             <field name="model">data_recycle.model</field>
             <field name="arch" type="xml">
@@ -14,20 +15,29 @@
                 </list>
             </field>
         </record>
-
-        <record model="ir.ui.view" id="view_data_merge_model_form">
+        <record id="view_data_merge_model_form" model="ir.ui.view">
             <field name="name">Field Recyle Model Form</field>
             <field name="model">data_recycle.model</field>
             <field name="arch" type="xml">
                 <form>
                     <header>
-                        <button name="action_recycle_records" type="object" string="Run Now" class="oe_highlight" />
+                        <button
+                            name="action_recycle_records"
+                            type="object"
+                            string="Run Now"
+                            class="oe_highlight" />
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
-                            <button class="oe_stat_button" name="open_records"
-                                    type="object" icon="fa-bars">
-                                <field name="records_to_recycle_count" string="Records" widget="statinfo"/>
+                            <button
+                                class="oe_stat_button"
+                                name="open_records"
+                                type="object"
+                                icon="fa-bars">
+                                <field
+                                    name="records_to_recycle_count"
+                                    string="Records"
+                                    widget="statinfo" />
                             </button>
                         </div>
                         <div class="oe_title">
@@ -37,23 +47,45 @@
                         </div>
                         <group>
                             <group>
-                                <field name="res_model_id" options="{'no_create': True, 'no_open': True}" />
+                                <field
+                                    name="res_model_id"
+                                    options="{'no_create': True, 'no_open': True}" />
                                 <field name="res_model_name" invisible="1" />
                                 <field name="active" widget="boolean_toggle" />
                             </group>
                             <group>
-                                <field name="recycle_mode" widget="radio" options="{'horizontal': true}" />
-                                <field name="recycle_action" widget="radio" options="{'horizontal': true}" />
-                                <field name="include_archived" invisible="recycle_action != 'unlink'"/>
+                                <field
+                                    name="recycle_mode"
+                                    widget="radio"
+                                    options="{'horizontal': true}" />
+                                <field
+                                    name="recycle_action"
+                                    widget="radio"
+                                    options="{'horizontal': true}" />
+                                <field
+                                    name="include_archived"
+                                    invisible="recycle_action != 'unlink'" />
 
                                 <!-- Manual cleaning -->
-                                <label for="notify_user_ids" invisible="recycle_mode == 'automatic'" />
+                                <label
+                                    for="notify_user_ids"
+                                    invisible="recycle_mode == 'automatic'" />
                                 <div invisible="recycle_mode == 'automatic'">
-                                    <field name="notify_user_ids" widget="many2many_tags" options="{'no_create': True, 'no_edit': True}" nolabel="1"/>
-                                    <div class="d-flex w-50" invisible="not notify_user_ids">
+                                    <field
+                                        name="notify_user_ids"
+                                        widget="many2many_tags"
+                                        options="{'no_create': True, 'no_edit': True}"
+                                        nolabel="1" />
+                                    <div
+                                        class="d-flex w-50"
+                                        invisible="not notify_user_ids">
                                         <span class="me-1">Every</span>
-                                        <field name="notify_frequency" required="notify_user_ids" />
-                                        <field name="notify_frequency_period" required="notify_user_ids" />
+                                        <field
+                                            name="notify_frequency"
+                                            required="notify_user_ids" />
+                                        <field
+                                            name="notify_frequency_period"
+                                            required="notify_user_ids" />
                                     </div>
                                 </div>
                             </group>
@@ -66,24 +98,31 @@
                             </group>
                         </group>
                         <group invisible="not res_model_id">
-                            <div class="alert alert-warning" role="alert" colspan="2"
-                                 invisible="domain and domain != '[]'">
+                            <div
+                                class="alert alert-warning"
+                                role="alert"
+                                colspan="2"
+                                invisible="domain and domain != '[]'">
                                 This rule has no filter, so it selects every record of the model.
-                                Add one before running it &#8212; an age condition is a filter on a
-                                date field, such as <em>Created on &#8804; today -1y</em>.
+                                Add one before running it — an age condition is a filter on a
+                                date field, such as <em>Created on ≤ today -1y</em>.
                             </div>
-                            <field name="domain" widget="domain" options="{'model': 'res_model_name'}"/>
+                            <field
+                                name="domain"
+                                widget="domain"
+                                options="{'model': 'res_model_name'}" />
                         </group>
                     </sheet>
                 </form>
             </field>
         </record>
-
-        <record model="ir.actions.act_window" id="action_data_recycle_config">
+        <record id="action_data_recycle_config" model="ir.actions.act_window">
             <field name="name">Recyle Records Rules</field>
             <field name="res_model">data_recycle.model</field>
             <field name="view_mode">list,form</field>
-            <field name="domain">['|', ('active', '=', False), ('active', '=', True)]</field>
+            <field
+                name="domain">['|', ('active', '=', False), ('active', '=', True)]</field>
         </record>
     </data>
+
 </odoo>

@@ -4,7 +4,7 @@
     <record id="view_product_attribute_form" model="ir.ui.view">
         <field name="name">product.attribute.view.form</field>
         <field name="model">product.attribute</field>
-        <field name="inherit_id" ref="product.view_product_attribute_form"/>
+        <field name="inherit_id" ref="product.view_product_attribute_form" />
         <field name="arch" type="xml">
             <group name="main_fields" position="inside">
                 <group name="ecommerce_main_fields">
@@ -12,22 +12,19 @@
                         name="visibility"
                         string="eCommerce Filter"
                         widget="radio"
-                        options="{'horizontal': True}"
-                    />
+                        options="{'horizontal': True}" />
                     <field
                         name="preview_variants"
                         widget="radio"
                         options="{'horizontal': True}"
                         readonly="create_variant != 'always' or display_type == 'multi'"
-                        force_save="1"
-                    />
+                        force_save="1" />
                     <field
                         name="is_thumbnail_visible"
                         widget="boolean_toggle"
                         readonly="create_variant != 'always' or display_type == 'multi'"
                         invisible="preview_variants == 'hidden'"
-                        force_save="1"
-                    />
+                        force_save="1" />
                 </group>
             </group>
         </field>
@@ -36,10 +33,10 @@
     <record id="view_product_attribute_list" model="ir.ui.view">
         <field name="name">product.attribute.list</field>
         <field name="model">product.attribute</field>
-        <field name="inherit_id" ref="product.view_product_attribute_list"/>
+        <field name="inherit_id" ref="product.view_product_attribute_list" />
         <field name="arch" type="xml">
             <field name="create_variant" position="after">
-                <field name="visibility" string="eCommerce Filter Visibility"/>
+                <field name="visibility" string="eCommerce Filter Visibility" />
             </field>
         </field>
     </record>

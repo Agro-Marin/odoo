@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record model="res.bank" id="au_res_bank_cba">
+    <record id="au_res_bank_cba" model="res.bank">
         <field name="name">Commonwealth Bank of Australia</field>
         <field name="bic">CTBAAU2S</field>
     </record>

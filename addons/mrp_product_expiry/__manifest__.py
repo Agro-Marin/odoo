@@ -6,12 +6,15 @@
     "description": """
 Technical module.
     """,
-    "depends": ["mrp", "product_expiry"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "mrp",
+        "product_expiry",
+    ],
     "data": [
         "wizard/confirm_expiry_view.xml",
     ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

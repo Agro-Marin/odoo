@@ -1,13 +1,17 @@
 {
     "name": "HR Attendance Holidays",
-    "summary": """Attendance Holidays""",
+    "version": "1.0",
     "category": "Human Resources",
+    "summary": "Attendance Holidays",
     "description": """
 Convert employee's extra hours to leave allocations.
     """,
-    "version": "1.0",
-    "depends": ["hr_attendance", "hr_holidays"],
-    "auto_install": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr_attendance",
+        "hr_holidays",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/hr_leave_allocation_views.xml",
@@ -24,6 +28,5 @@ Convert employee's extra hours to leave allocations.
             "hr_holidays_attendance/static/src/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

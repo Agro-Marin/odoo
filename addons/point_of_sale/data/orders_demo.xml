@@ -1,23 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data noupdate="1">
-
         <record id="base.default_user_group" model="res.groups">
-            <field name="implied_ids" eval="[(4, ref('point_of_sale.group_pos_manager'))]"/>
+            <field
+                name="implied_ids"
+                eval="[(4, ref('point_of_sale.group_pos_manager'))]" />
         </record>
-
         <!-- Closed Session 2 -->
-
-        <record id="pos_closed_session_1" model="pos.session" forcecreate="False" context="{'onboarding_creation': True}">
+        <record
+            id="pos_closed_session_1"
+            model="pos.session"
+            context="{'onboarding_creation': True}"
+            forcecreate="False">
             <field name="name">ClosedSession/0001</field>
             <field name="config_id" ref="pos_config_main" />
             <field name="user_id" ref="base.user_admin" />
             <field name="name">Furniture Shop/Demo/01</field>
-            <field name="start_at" eval="(DateTime.today() + relativedelta(days=-1)).strftime('%Y-%m-%d %H:%M:%S')" />
-            <field name="stop_at"
+            <field
+                name="start_at"
+                eval="(DateTime.today() + relativedelta(days=-1)).strftime('%Y-%m-%d %H:%M:%S')" />
+            <field
+                name="stop_at"
                 eval="(DateTime.today() + relativedelta(days=-1, hours=1)).strftime('%Y-%m-%d %H:%M:%S')" />
         </record>
-
         <record id="pos_closed_order_1_1" model="pos.order" forcecreate="False">
             <field name="session_id" ref="pos_closed_session_1" />
             <field name="company_id" ref="base.main_company" />
@@ -28,8 +34,10 @@
             <field name="amount_return">0.0</field>
             <field name="ticket_code">sv34t</field>
         </record>
-
-        <record id="pos_closed_orderline_1_1_1" model="pos.order.line" forcecreate="False">
+        <record
+            id="pos_closed_orderline_1_1_1"
+            model="pos.order.line"
+            forcecreate="False">
             <field name="product_id" ref="wall_shelf" />
             <field name="price_subtotal">1.98</field>
             <field name="price_subtotal_incl">1.98</field>
@@ -37,8 +45,10 @@
             <field name="order_id" ref="pos_closed_order_1_1" />
             <field name="full_product_name">Wall Shelf</field>
         </record>
-
-        <record id="pos_closed_orderline_1_1_2" model="pos.order.line" forcecreate="False">
+        <record
+            id="pos_closed_orderline_1_1_2"
+            model="pos.order.line"
+            forcecreate="False">
             <field name="product_id" ref="small_shelf" />
             <field name="price_subtotal">2.83</field>
             <field name="price_subtotal_incl">2.83</field>
@@ -46,13 +56,13 @@
             <field name="order_id" ref="pos_closed_order_1_1" />
             <field name="full_product_name">Small Shelf</field>
         </record>
-
         <record id="pos_payment_1" model="pos.payment" forcecreate="False">
-            <field name="payment_method_id" ref="point_of_sale.cash_payment_method_furniture" />
+            <field
+                name="payment_method_id"
+                ref="point_of_sale.cash_payment_method_furniture" />
             <field name="pos_order_id" ref="pos_closed_order_1_1" />
             <field name="amount">4.81</field>
         </record>
-
         <record id="pos_closed_order_1_2" model="pos.order" forcecreate="False">
             <field name="session_id" ref="pos_closed_session_1" />
             <field name="company_id" ref="base.main_company" />
@@ -63,8 +73,10 @@
             <field name="amount_return">0.0</field>
             <field name="ticket_code">lm34t</field>
         </record>
-
-        <record id="pos_closed_orderline_1_2_1" model="pos.order.line" forcecreate="False">
+        <record
+            id="pos_closed_orderline_1_2_1"
+            model="pos.order.line"
+            forcecreate="False">
             <field name="product_id" ref="magnetic_board" />
             <field name="price_subtotal">1.98</field>
             <field name="price_subtotal_incl">1.98</field>
@@ -72,8 +84,10 @@
             <field name="order_id" ref="pos_closed_order_1_2" />
             <field name="full_product_name">Magnetic Board</field>
         </record>
-
-        <record id="pos_closed_orderline_1_2_2" model="pos.order.line" forcecreate="False">
+        <record
+            id="pos_closed_orderline_1_2_2"
+            model="pos.order.line"
+            forcecreate="False">
             <field name="product_id" ref="letter_tray" />
             <field name="price_subtotal">4.80</field>
             <field name="price_subtotal_incl">4.80</field>
@@ -81,32 +95,42 @@
             <field name="order_id" ref="pos_closed_order_1_2" />
             <field name="full_product_name">Letter Tray</field>
         </record>
-
         <record id="pos_payment_2" model="pos.payment" forcecreate="False">
-            <field name="payment_method_id" ref="point_of_sale.cash_payment_method_furniture" />
+            <field
+                name="payment_method_id"
+                ref="point_of_sale.cash_payment_method_furniture" />
             <field name="pos_order_id" ref="pos_closed_order_1_2" />
             <field name="amount">6.78</field>
         </record>
-
-        <function model="pos.session" name="update_closing_cash_details" eval="[[ref('pos_closed_session_1')], 2225.31]" />
-
-        <function model="pos.session" name="update_closing_control_state_session"
+        <function
+            model="pos.session"
+            name="update_closing_cash_details"
+            eval="[[ref('pos_closed_session_1')], 2225.31]" />
+        <function
+            model="pos.session"
+            name="update_closing_control_state_session"
             eval="[[ref('pos_closed_session_1')], '']" />
-
-        <function model="pos.session" name="action_pos_session_closing_control"
+        <function
+            model="pos.session"
+            name="action_pos_session_closing_control"
             eval="[[ref('pos_closed_session_1')]]" />
-
         <!-- Closed Session 2 -->
-
-        <record id="pos_closed_session_2" model="pos.session" forcecreate="False" context="{'onboarding_creation': True}">
+        <record
+            id="pos_closed_session_2"
+            model="pos.session"
+            context="{'onboarding_creation': True}"
+            forcecreate="False">
             <field name="name">ClosedSession/0002</field>
             <field name="config_id" ref="pos_config_main" />
             <field name="user_id" ref="base.user_admin" />
             <field name="name">Furniture Shop/Demo/02</field>
-            <field name="start_at" eval="(DateTime.today() + relativedelta(hours=-3)).strftime('%Y-%m-%d %H:%M:%S')" />
-            <field name="stop_at" eval="(DateTime.today() + relativedelta(hours=-2)).strftime('%Y-%m-%d %H:%M:%S')" />
+            <field
+                name="start_at"
+                eval="(DateTime.today() + relativedelta(hours=-3)).strftime('%Y-%m-%d %H:%M:%S')" />
+            <field
+                name="stop_at"
+                eval="(DateTime.today() + relativedelta(hours=-2)).strftime('%Y-%m-%d %H:%M:%S')" />
         </record>
-
         <record id="pos_closed_order_2_1" model="pos.order" forcecreate="False">
             <field name="session_id" ref="pos_closed_session_2" />
             <field name="company_id" ref="base.main_company" />
@@ -117,8 +141,10 @@
             <field name="amount_return">0.0</field>
             <field name="ticket_code">cv36m</field>
         </record>
-
-        <record id="pos_closed_orderline_2_1_1" model="pos.order.line" forcecreate="False">
+        <record
+            id="pos_closed_orderline_2_1_1"
+            model="pos.order.line"
+            forcecreate="False">
             <field name="name">Closed Orderline 2.1.1</field>
             <field name="product_id" ref="letter_tray" />
             <field name="price_subtotal">4.80</field>
@@ -127,8 +153,10 @@
             <field name="order_id" ref="pos_closed_order_2_1" />
             <field name="full_product_name">Letter Tray</field>
         </record>
-
-        <record id="pos_closed_orderline_2_1_2" model="pos.order.line" forcecreate="False">
+        <record
+            id="pos_closed_orderline_2_1_2"
+            model="pos.order.line"
+            forcecreate="False">
             <field name="name">Closed Orderline 2.1.2</field>
             <field name="product_id" ref="product.desk_organizer" />
             <field name="price_subtotal">5.10</field>
@@ -137,13 +165,13 @@
             <field name="order_id" ref="pos_closed_order_2_1" />
             <field name="full_product_name">Desk Organizer</field>
         </record>
-
         <record id="pos_payment_3" model="pos.payment" forcecreate="False">
-            <field name="payment_method_id" ref="point_of_sale.cash_payment_method_furniture" />
+            <field
+                name="payment_method_id"
+                ref="point_of_sale.cash_payment_method_furniture" />
             <field name="pos_order_id" ref="pos_closed_order_2_1" />
             <field name="amount">9.90</field>
         </record>
-
         <record id="pos_closed_order_2_2" model="pos.order" forcecreate="False">
             <field name="session_id" ref="pos_closed_session_2" />
             <field name="company_id" ref="base.main_company" />
@@ -154,8 +182,10 @@
             <field name="amount_return">0.0</field>
             <field name="ticket_code">cv44t</field>
         </record>
-
-        <record id="pos_closed_orderline_2_2_1" model="pos.order.line" forcecreate="False">
+        <record
+            id="pos_closed_orderline_2_2_1"
+            model="pos.order.line"
+            forcecreate="False">
             <field name="name">Closed Orderline 2.2.1</field>
             <field name="product_id" ref="magnetic_board" />
             <field name="price_subtotal">1.98</field>
@@ -164,8 +194,10 @@
             <field name="order_id" ref="pos_closed_order_2_2" />
             <field name="full_product_name">Magnetic Board</field>
         </record>
-
-        <record id="pos_closed_orderline_2_2_2" model="pos.order.line" forcecreate="False">
+        <record
+            id="pos_closed_orderline_2_2_2"
+            model="pos.order.line"
+            forcecreate="False">
             <field name="name">Closed Orderline 2.1.2</field>
             <field name="product_id" ref="product.monitor_stand" />
             <field name="price_subtotal">6.38</field>
@@ -175,20 +207,25 @@
             <field name="order_id" ref="pos_closed_order_2_2" />
             <field name="full_product_name">Monitor Stand</field>
         </record>
-
         <record id="pos_payment_4" model="pos.payment" forcecreate="False">
-            <field name="payment_method_id" ref="point_of_sale.cash_payment_method_furniture" />
+            <field
+                name="payment_method_id"
+                ref="point_of_sale.cash_payment_method_furniture" />
             <field name="pos_order_id" ref="pos_closed_order_2_2" />
             <field name="amount">8.36</field>
         </record>
-
-        <function model="pos.session" name="update_closing_cash_details"
-                eval="[[ref('pos_closed_session_2')], 2243.57]" />
-
-        <function model="pos.session" name="update_closing_control_state_session"
+        <function
+            model="pos.session"
+            name="update_closing_cash_details"
+            eval="[[ref('pos_closed_session_2')], 2243.57]" />
+        <function
+            model="pos.session"
+            name="update_closing_control_state_session"
             eval="[[ref('pos_closed_session_2')], '']" />
-
-        <function model="pos.session" name="action_pos_session_closing_control"
+        <function
+            model="pos.session"
+            name="action_pos_session_closing_control"
             eval="[[ref('pos_closed_session_2')]]" />
     </data>
+
 </odoo>

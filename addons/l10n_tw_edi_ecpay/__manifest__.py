@@ -1,19 +1,24 @@
 {
     "name": "Taiwan - E-invoicing",
-    "countries": ["tw"],
     "version": "1.0",
-    'icon': '/account/static/description/l10n.png',
     "category": "Accounting/Localizations/EDI",
-    "summary": """E-invoicing using ECpay""",
+    "summary": "E-invoicing using ECpay",
     "description": """
         Taiwan - E-invoicing
         =====================
         This module allows the user to send their invoices to the Ecpay system.
     """,
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com",
-    'author': 'Odoo S.A.',
+    "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",
-    "depends": ["l10n_tw", "account_vat"],
+    "depends": [
+        "l10n_tw",
+        "account_vat",
+    ],
+    "countries": [
+        "tw",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/res_config_setting_view.xml",

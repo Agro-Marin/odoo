@@ -11,7 +11,9 @@
     </record>
 
     <record id="base.user_admin" model="res.users">
-        <field name="group_ids" eval="[(4,ref('test_website.group_test_website_tester'))]"/>
+        <field
+            name="group_ids"
+            eval="[(4,ref('test_website.group_test_website_tester'))]" />
     </record>
-    
+
 </odoo>

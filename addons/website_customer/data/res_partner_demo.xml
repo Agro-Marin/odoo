@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data noupdate="1">
 
+    <data noupdate="1">
         <record id="base.res_partner_2" model="res.partner">
-            <field name="is_published" eval="True"/>
-            <field name="website_short_description">Acme Corporation designs, develops, integrates and supports HR and Supply Chain processes in order to make our customers more productive, responsive and profitable.</field>
+            <field name="is_published" eval="True" />
+            <field
+                name="website_short_description">Acme Corporation designs, develops, integrates and supports HR and Supply Chain processes in order to make our customers more productive, responsive and profitable.</field>
             <field name="website_description" type="html">
                 <p>
                 Acme Corporation designs, develops, integrates and supports HR and Supply
@@ -33,8 +34,9 @@
             </field>
         </record>
         <record id="base.res_partner_3" model="res.partner">
-            <field name="is_published" eval="True"/>
-            <field name="website_short_description">A non-profit international educational and scientific organisation, hosting three departments (aeronautics and aerospace, environmental and applied fluid dynamics, and turbomachinery and propulsion).</field>
+            <field name="is_published" eval="True" />
+            <field
+                name="website_short_description">A non-profit international educational and scientific organisation, hosting three departments (aeronautics and aerospace, environmental and applied fluid dynamics, and turbomachinery and propulsion).</field>
             <field name="website_description" type="html">
                 <p>
                     A non-profit international educational and scientific
@@ -61,8 +63,9 @@
             </field>
         </record>
         <record id="base.res_partner_4" model="res.partner">
-            <field name="is_published" eval="True"/>
-            <field name="website_short_description">Acme Corporation designs, develops, integrates and supports HR and Supply Chain processes in order to make our customers more productive, responsive and profitable.</field>
+            <field name="is_published" eval="True" />
+            <field
+                name="website_short_description">Acme Corporation designs, develops, integrates and supports HR and Supply Chain processes in order to make our customers more productive, responsive and profitable.</field>
             <field name="website_description" type="html">
                 <p>
                 Acme Corporation designs, develops, integrates and supports HR and Supply
@@ -91,8 +94,9 @@
             </field>
         </record>
         <record id="base.res_partner_3" model="res.partner">
-            <field name="is_published" eval="True"/>
-            <field name="website_short_description">A non-profit international educational and scientific organisation, hosting three departments (aeronautics and aerospace, environmental and applied fluid dynamics, and turbomachinery and propulsion).</field>
+            <field name="is_published" eval="True" />
+            <field
+                name="website_short_description">A non-profit international educational and scientific organisation, hosting three departments (aeronautics and aerospace, environmental and applied fluid dynamics, and turbomachinery and propulsion).</field>
             <field name="website_description" type="html">
                 <p>
                     A non-profit international educational and scientific
@@ -119,4 +123,5 @@
             </field>
         </record>
     </data>
+
 </odoo>

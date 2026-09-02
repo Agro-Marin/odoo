@@ -1,9 +1,8 @@
 {
-    'name': 'Ecuadorian Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['ec'],
-    'version': '3.9',
-    'description': """
+    "name": "Ecuadorian Accounting",
+    "version": "3.9",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Functional
 ----------
 
@@ -32,43 +31,50 @@ Master Data:
 * Ecuador banks
 * Partners: Consumidor Final, SRI, IESS, and also basic VAT validation
 """,
-    'author': 'TRESCLOUD (https://trescloud.com)',
-    'category': 'Accounting/Localizations/Account Charts',
-    'maintainer': 'TRESCLOUD',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/ecuador.html',
-    'license': 'LGPL-3',
-    'depends': [
-        'base',
-        'account_iban',
-        'account_debit_note',
-        'l10n_latam_invoice_document',
-        'l10n_latam_base',
-        'account',
+    "author": "TRESCLOUD (https://trescloud.com)",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/ecuador.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+        "account_iban",
+        "account_debit_note",
+        "l10n_latam_invoice_document",
+        "l10n_latam_base",
+        "account",
     ],
-    'external_dependencies': {
-        'python': ['python-stdnum'],
-        'apt': {
-            'python-stdnum': 'python3-stdnum',
+    "external_dependencies": {
+        "python": [
+            "python-stdnum",
+        ],
+        "apt": {
+            "python-stdnum": "python3-stdnum",
         },
     },
-    'auto_install': ['account'],
-    'data': [
-        'security/ir.model.access.csv',
-        'data/account_tax_report_data.xml',
-        'data/res.bank.csv',
-        'data/l10n_latam_identification_type_data.xml',
-        'data/res_partner_data.xml',
-        'data/l10n_latam.document.type.csv',
-        'data/l10n_ec.sri.payment.csv',
-        'views/root_sri_menu.xml',
-        'views/account_tax_view.xml',
-        'views/l10n_latam_document_type_view.xml',
-        'views/l10n_ec_sri_payment.xml',
-        'views/account_journal_view.xml',
+    "countries": [
+        "ec",
+    ],
+    "data": [
+        "security/ir.model.access.csv",
+        "data/account_tax_report_data.xml",
+        "data/res.bank.csv",
+        "data/l10n_latam_identification_type_data.xml",
+        "data/res_partner_data.xml",
+        "data/l10n_latam.document.type.csv",
+        "data/l10n_ec.sri.payment.csv",
+        "views/root_sri_menu.xml",
+        "views/account_tax_view.xml",
+        "views/l10n_latam_document_type_view.xml",
+        "views/l10n_ec_sri_payment.xml",
+        "views/account_journal_view.xml",
         "views/res_partner_view.xml",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "demo": [
+        "demo/demo_company.xml",
     ],
-    'installable': True,
+    "installable": True,
+    "auto_install": [
+        "account",
+    ],
+    "maintainer": "TRESCLOUD",
 }

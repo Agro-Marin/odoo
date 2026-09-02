@@ -1,7 +1,7 @@
 {
     "name": "HR Org Chart",
-    "category": "Human Resources",
     "version": "1.0",
+    "category": "Human Resources",
     "description": """
 Org Chart Widget for HR
 =======================
@@ -9,8 +9,12 @@ Org Chart Widget for HR
 This module extend the employee form with a organizational chart.
 (N+1, N+2, direct subordinates)
         """,
-    "depends": ["hr", "web_hierarchy"],
-    "auto_install": ["hr"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr",
+        "web_hierarchy",
+    ],
     "data": [
         "views/hr_department_views.xml",
         "views/hr_employee_public_views.xml",
@@ -31,6 +35,7 @@ This module extend the employee form with a organizational chart.
             "hr_org_chart/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": [
+        "hr",
+    ],
 }

@@ -1,11 +1,15 @@
 {
     "name": "Sell Courses",
-    "summary": "Sell your courses online",
-    "description": """Sell your courses using the e-commerce features of the website.""",
-    "category": "Website/eLearning",
     "version": "1.0",
-    "depends": ["website_slides", "website_sale"],
-    "installable": True,
+    "category": "Website/eLearning",
+    "summary": "Sell your courses online",
+    "description": "Sell your courses using the e-commerce features of the website.",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website_slides",
+        "website_sale",
+    ],
     "data": [
         "data/product_data.xml",
         "report/sale_report_views.xml",
@@ -32,6 +36,5 @@
             "website_sale_slides/static/src/website_builder/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

@@ -1,12 +1,8 @@
 {
-    'name': 'Canada - Accounting',
-    'version': '1.1',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['ca'],
-    'author': 'Savoir-faire Linux (https://www.savoirfairelinux.com); Odoo SA',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Canada - Accounting",
+    "version": "1.1",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the module to manage the Canadian accounting chart in Odoo.
 ===========================================================================================
 
@@ -33,20 +29,28 @@ by the customs broker. On the vendor, set the fiscal position to International.
 4) An international vendor charge you your provincial tax. They are registered with your
 position.
     """,
-    'depends': [
-        'account',
-        'account_iban',
+    "author": "Savoir-faire Linux (https://www.savoirfairelinux.com); Odoo SA",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_iban",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/tax_report.xml',
-        'views/res_partner_view.xml',
-        'views/res_company_view.xml',
-        'views/report_invoice.xml',
-        'views/report_template.xml',
+    "countries": [
+        "ca",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/tax_report.xml",
+        "views/res_partner_view.xml",
+        "views/res_company_view.xml",
+        "views/report_invoice.xml",
+        "views/report_template.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

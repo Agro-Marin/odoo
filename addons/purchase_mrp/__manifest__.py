@@ -9,6 +9,12 @@ This module provides facility to the user to install mrp and purchase modules at
 It is basically used when we want to keep track of production orders generated
 from purchase order.
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "mrp",
+        "purchase_stock",
+    ],
     "data": [
         "views/mrp_bom_views.xml",
         "views/purchase_order_views.xml",
@@ -19,14 +25,11 @@ from purchase order.
     "demo": [
         "data/purchase_mrp_demo.xml",
     ],
-    "depends": ["mrp", "purchase_stock"],
-    "installable": True,
-    "auto_install": True,
     "assets": {
         "web.assets_backend": [
             "purchase_mrp/static/src/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
 }

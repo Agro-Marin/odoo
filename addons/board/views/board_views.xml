@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data noupdate="1">
         <!--My Dashboard-->
-        <record model="ir.ui.view" id="board_my_dash_view">
+        <record id="board_my_dash_view" model="ir.ui.view">
             <field name="name">My Dashboard</field>
             <field name="model">board.board</field>
             <field name="arch" type="xml">
@@ -14,25 +15,25 @@
                 </form>
             </field>
         </record>
-
         <!--My Dashboard Action-->
-        <record model="ir.actions.act_window" id="open_board_my_dash_action">
+        <record id="open_board_my_dash_action" model="ir.actions.act_window">
             <field name="name">My Dashboard</field>
             <field name="res_model">board.board</field>
             <field name="view_mode">form</field>
+            <field name="view_id" ref="board_my_dash_view" />
             <field name="context">{'disable_toolbar': True}</field>
             <field name="usage">menu</field>
-            <field name="view_id" ref="board_my_dash_view"/>
-        </record> 
+        </record>
     </data>
-    <data>
 
+    <data>
         <!--My Dashboard Menu-->
         <menuitem
             id="menu_board_my_dash"
             name="My Dashboard"
             parent="spreadsheet_dashboard.spreadsheet_dashboard_menu_root"
             action="open_board_my_dash_action"
-            sequence="100"/>
+            sequence="100" />
     </data>
+
 </odoo>

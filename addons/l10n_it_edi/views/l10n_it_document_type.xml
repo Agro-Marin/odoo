@@ -7,8 +7,8 @@
         <field name="model">l10n_it.document.type</field>
         <field name="arch" type="xml">
             <list string="Document Type" duplicate="0">
-                <field name="code"/>
-                <field name="name"/>
+                <field name="code" />
+                <field name="name" />
             </list>
         </field>
     </record>
@@ -20,8 +20,8 @@
             <form string="Document Type" duplicate="0">
                 <sheet>
                     <group>
-                        <field name="name"/>
-                        <field name="code"/>
+                        <field name="name" />
+                        <field name="code" />
                     </group>
                 </sheet>
             </form>

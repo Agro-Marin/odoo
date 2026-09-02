@@ -2,7 +2,6 @@
 <odoo>
 
     <!-- ===== Actions ===== -->
-
     <record id="team_list_action" model="ir.actions.act_window">
         <field name="name">Teams</field>
         <field name="res_model">gamification.team</field>
@@ -19,17 +18,16 @@
     </record>
 
     <!-- ===== Team Views ===== -->
-
     <record id="team_list_view" model="ir.ui.view">
         <field name="name">gamification.team.list</field>
         <field name="model">gamification.team</field>
         <field name="arch" type="xml">
             <list string="Teams">
-                <field name="name"/>
-                <field name="captain_id" widget="many2one_avatar_user"/>
-                <field name="member_count"/>
-                <field name="team_karma"/>
-                <field name="team_badges"/>
+                <field name="name" />
+                <field name="captain_id" widget="many2one_avatar_user" />
+                <field name="member_count" />
+                <field name="team_karma" />
+                <field name="team_badges" />
             </list>
         </field>
     </record>
@@ -39,22 +37,25 @@
         <field name="model">gamification.team</field>
         <field name="arch" type="xml">
             <kanban>
-                <field name="name"/>
-                <field name="captain_id"/>
-                <field name="member_count"/>
-                <field name="team_karma"/>
+                <field name="name" />
+                <field name="captain_id" />
+                <field name="member_count" />
+                <field name="team_karma" />
                 <templates>
                     <t t-name="card">
-                        <field name="image_128" widget="image" options="{'preview_image': 'image_128'}"/>
+                        <field
+                            name="image_128"
+                            widget="image"
+                            options="{'preview_image': 'image_128'}" />
                         <div>
-                            <strong><field name="name"/></strong>
+                            <strong><field name="name" /></strong>
                         </div>
                         <div>
-                            <field name="member_count"/> members
-                            | <field name="team_karma"/> karma
+                            <field name="member_count" /> members
+                            | <field name="team_karma" /> karma
                         </div>
                         <footer>
-                            <field name="captain_id" widget="many2one_avatar_user"/>
+                            <field name="captain_id" widget="many2one_avatar_user" />
                         </footer>
                     </t>
                 </templates>
@@ -68,37 +69,40 @@
         <field name="arch" type="xml">
             <form string="Team">
                 <sheet>
-                    <div class="oe_button_box" name="button_box"/>
-                    <field name="image_128" widget="image" class="oe_avatar"/>
+                    <div class="oe_button_box" name="button_box" />
+                    <field name="image_128" widget="image" class="oe_avatar" />
                     <div class="oe_title">
-                        <h1><field name="name" placeholder="e.g. Alpha Squad"/></h1>
+                        <h1><field name="name" placeholder="e.g. Alpha Squad" /></h1>
                     </div>
                     <group>
                         <group string="Team Info">
-                            <field name="captain_id" widget="many2one_avatar_user"/>
-                            <field name="active"/>
+                            <field name="captain_id" widget="many2one_avatar_user" />
+                            <field name="active" />
                         </group>
                         <group string="Stats">
-                            <field name="member_count"/>
-                            <field name="team_karma"/>
-                            <field name="team_badges"/>
+                            <field name="member_count" />
+                            <field name="team_karma" />
+                            <field name="team_badges" />
                         </group>
                     </group>
                     <notebook>
                         <page string="Members" name="members">
-                            <field name="member_ids" widget="many2many_tags"
-                                   options="{'color_field': 'color'}"/>
+                            <field
+                                name="member_ids"
+                                widget="many2many_tags"
+                                options="{'color_field': 'color'}" />
                         </page>
                         <page string="Challenges" name="challenges">
-                            <field name="challenge_ids" readonly="1"/>
+                            <field name="challenge_ids" readonly="1" />
                         </page>
                         <page string="Description" name="description">
-                            <field name="description"
-                                   placeholder="Team description, mission, or motto..."/>
+                            <field
+                                name="description"
+                                placeholder="Team description, mission, or motto..." />
                         </page>
                     </notebook>
                 </sheet>
-                <chatter/>
+                <chatter />
             </form>
         </field>
     </record>
@@ -108,26 +112,27 @@
         <field name="model">gamification.team</field>
         <field name="arch" type="xml">
             <search string="Teams">
-                <field name="name"/>
-                <field name="captain_id"/>
-                <field name="member_ids"/>
+                <field name="name" />
+                <field name="captain_id" />
+                <field name="member_ids" />
             </search>
         </field>
     </record>
 
     <!-- ===== Extend Challenge Form for Team Mode ===== -->
-
     <record id="challenge_form_team_extension" model="ir.ui.view">
         <field name="name">gamification.challenge.form.team</field>
         <field name="model">gamification.challenge</field>
-        <field name="inherit_id" ref="challenge_form_view"/>
+        <field name="inherit_id" ref="challenge_form_view" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='visibility_mode']" position="before">
-                <field name="challenge_mode" widget="radio"/>
+                <field name="challenge_mode" widget="radio" />
             </xpath>
             <xpath expr="//field[@name='visibility_mode']" position="after">
-                <field name="team_ids" widget="many2many_tags"
-                       invisible="challenge_mode != 'team'"/>
+                <field
+                    name="team_ids"
+                    widget="many2many_tags"
+                    invisible="challenge_mode != 'team'" />
             </xpath>
         </field>
     </record>

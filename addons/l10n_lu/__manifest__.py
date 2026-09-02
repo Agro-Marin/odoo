@@ -1,11 +1,8 @@
 {
-    'name': 'Luxembourg - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/luxembourg.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['lu'],
-    'version': '2.2',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Luxembourg - Accounting",
+    "version": "2.2",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the base module to manage the accounting chart for Luxembourg.
 ======================================================================
 
@@ -19,25 +16,32 @@ Notes:
       see the first sheet of tax.xls for details of coverage
     * to update the chart of tax template, update tax.xls and run tax2csv.py
 """,
-    'author': 'Odoo S.A., ADN, ACSONE SA/NV',
-    'depends': [
-        'account',
-        'account_iban',
-        'account_vat',
-        'account_edi_ubl_cii',
+    "author": "Odoo S.A., ADN, ACSONE SA/NV",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/luxembourg.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_iban",
+        "account_vat",
+        "account_edi_ubl_cii",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account.account.tag.csv',
-        'data/l10n_lu_chart_data.xml',
-        'data/tax_report/section_1.xml',
-        'data/tax_report/section_2.xml',
-        'data/tax_report/sections_34.xml',
-        'data/tax_report/tax_report.xml',
+    "countries": [
+        "lu",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account.account.tag.csv",
+        "data/l10n_lu_chart_data.xml",
+        "data/tax_report/section_1.xml",
+        "data/tax_report/section_2.xml",
+        "data/tax_report/sections_34.xml",
+        "data/tax_report/tax_report.xml",
     ],
-    'post_init_hook': '_post_init_hook',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
+    "post_init_hook": "_post_init_hook",
 }

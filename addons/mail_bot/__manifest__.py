@@ -1,21 +1,23 @@
 {
-    'name': 'OdooBot',
-    'version': '1.3',
-    'category': 'Productivity/Discuss',
-    'summary': 'Add OdooBot in discussions',
-    'website': 'https://www.odoo.com/app/discuss',
-    'depends': ['mail'],
-    'auto_install': True,
-    'installable': True,
-    'data': [
-        'views/res_users_views.xml',
-        'data/mailbot_data.xml',
+    "name": "OdooBot",
+    "version": "1.3",
+    "category": "Productivity/Discuss",
+    "summary": "Add OdooBot in discussions",
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/discuss",
+    "license": "LGPL-3",
+    "depends": [
+        "mail",
     ],
-    'assets': {
-        'web.assets_backend': [
-            'mail_bot/static/src/scss/odoobot_style.scss',
+    "data": [
+        "views/res_users_views.xml",
+        "data/mailbot_data.xml",
+    ],
+    "assets": {
+        "web.assets_backend": [
+            "mail_bot/static/src/scss/odoobot_style.scss",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
+    "auto_install": True,
 }

@@ -4,7 +4,9 @@
     "category": "Supply Chain/Purchase",
     "sequence": 35,
     "summary": "Purchase orders, tenders and agreements",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/purchase",
+    "license": "LGPL-3",
     "depends": [
         "base_order",
         "mixin_report_sql",
@@ -45,8 +47,6 @@
     "demo": [
         "demo/purchase_demo.xml",
     ],
-    "installable": True,
-    "application": True,
     "assets": {
         "web.assets_backend": [
             "purchase/static/src/components/**/*",
@@ -72,6 +72,6 @@
             "purchase/static/tests/**/*.test.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "application": True,
 }

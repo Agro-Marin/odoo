@@ -1,7 +1,6 @@
 {
     "name": "Events Organization",
     "version": "1.10",
-    "website": "https://www.odoo.com/app/events",
     "category": "Marketing/Events",
     "summary": "Trainings, Conferences, Meetings, Exhibitions, Registrations",
     "description": """
@@ -16,9 +15,11 @@ Key Features
 * Manage your Events and Registrations
 * Use emails to automatically confirm and send acknowledgments for any event registration
 """,
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/events",
+    "license": "LGPL-3",
     "depends": [
         "barcodes",
-        # 'mail',  # via phone_validation
         "phone_validation",
         "portal",
         "utm",
@@ -56,7 +57,6 @@ Key Features
         "data/event_demo.xml",
         "data/event_registration_demo.xml",
     ],
-    "installable": True,
     "assets": {
         "web.assets_backend": [
             "event/static/src/clickbot_entries.js",
@@ -81,6 +81,5 @@ Key Features
             "/event/static/src/scss/event_full_page_ticket_report_pdf.scss",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

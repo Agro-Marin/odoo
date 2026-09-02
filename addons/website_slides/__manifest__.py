@@ -1,10 +1,9 @@
 {
     "name": "eLearning",
     "version": "2.8",
+    "category": "Website/eLearning",
     "sequence": 125,
     "summary": "Manage and publish an eLearning platform",
-    "website": "https://www.odoo.com/app/elearning",
-    "category": "Website/eLearning",
     "description": """
 Create Online Courses
 =====================
@@ -18,6 +17,9 @@ Featuring
  * Filter and Tag
  * Statistics
 """,
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/elearning",
+    "license": "LGPL-3",
     "depends": [
         "portal_rating",
         "survey",
@@ -65,8 +67,6 @@ Featuring
         "data/slide_user_demo.xml",
         "data/slide_user_gamification_demo.xml",
     ],
-    "installable": True,
-    "application": True,
     "assets": {
         "web.assets_backend": [
             "website_slides/static/src/activity/**/*",
@@ -99,15 +99,22 @@ Featuring
             "website_slides/static/tests/tours/*.js",
         ],
         "website_slides.slide_embed_assets": [
-            # TODO this bundle now includes 'assets_common' files directly, but
-            # most of these files are useless in this context, clean this up.
-            ("include", "web._assets_helpers"),
-            ("include", "web._assets_frontend_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_frontend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            ("include", "web._assets_bootstrap_frontend"),
+            (
+                "include",
+                "web._assets_bootstrap_frontend",
+            ),
             "web/static/src/scss/tokens.scss",
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",
@@ -128,21 +135,16 @@ Featuring
             "website/static/src/libs/zoomodoo/zoomodoo.js",
             "web/static/src/core/**/*.js",
             "web/static/src/env.js",
-            # emoji_data.js was moved from web/static/src/core/emoji_picker/
-            # to web/static/src/components/emoji_picker/ during the ESM
-            # migration. The 'core/**/*.js' glob above no longer pulls it
-            # in, so the previous ('remove', ...) entry was orphaned and
-            # crashed _pregenerate_assets_bundles with ValueError. The
-            # exclusion intent (keep this minimal embed bundle small) is
-            # already satisfied by the new path layout — no replacement
-            # needed.
             "website_slides/static/src/scss/website_slides.scss",
             "website_slides/static/lib/pdfslidesviewer/PDFSlidesViewer.js",
             "website_slides/static/src/js/slides_embed.js",
         ],
         "web.assets_unit_tests": [
             "website_slides/static/tests/**/*",
-            ("remove", "website_slides/static/tests/tours/**/*"),
+            (
+                "remove",
+                "website_slides/static/tests/tours/**/*",
+            ),
         ],
         "web.assets_unit_tests_setup": [
             "website_slides/static/src/interactions/**/*",
@@ -155,11 +157,11 @@ Featuring
             "website_slides/static/src/chatter/frontend/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "esm": {
         "bundles": [
             "website_slides.slide_embed_assets",
         ],
     },
+    "installable": True,
+    "application": True,
 }

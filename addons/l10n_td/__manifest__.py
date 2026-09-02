@@ -1,25 +1,29 @@
 {
-    'name': "Tchad - Accounting",
-    'countries': ['td'],
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Tchad - Accounting",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This module implements the tax for Tchad.
 =================================================================
 
 The Chart of Accounts is from SYSCOHADA.
 
     """,
-    'depends': [
-        'l10n_syscohada',
-        'account',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_syscohada",
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml'
+    "countries": [
+        "td",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

@@ -5,14 +5,19 @@
     "description": """
 Sell event tickets through eCommerce app.
     """,
-    "depends": ["website_event", "event_sale", "website_sale"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website_event",
+        "event_sale",
+        "website_sale",
+    ],
     "data": [
         "report/event_sale_report_views.xml",
         "views/event_event_views.xml",
         "views/website_event_templates.xml",
         "views/website_sale_templates.xml",
     ],
-    "auto_install": True,
     "assets": {
         "web.assets_tests": [
             "website_event_sale/static/tests/**/*",
@@ -21,6 +26,5 @@ Sell event tickets through eCommerce app.
             "website_event_sale/static/src/scss/*.scss",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

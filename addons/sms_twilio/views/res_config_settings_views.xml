@@ -1,18 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
         <record id="res_config_settings_view_form" model="ir.ui.view">
             <field name="name">res.config.settings.view.form.inherit.sms.twilio</field>
             <field name="model">res.config.settings</field>
-            <field name="priority" eval="0"/>
-            <field name="inherit_id" ref="sms.res_config_settings_view_form"/>
+            <field name="inherit_id" ref="sms.res_config_settings_view_form" />
+            <field name="priority" eval="0" />
             <field name="arch" type="xml">
                 <xpath expr="//widget[@service_name='sms']" position="before">
-                    <field name="sms_provider" class="o_light_label" widget="radio" options="{'horizontal': true}" required="True"/>
+                    <field
+                        name="sms_provider"
+                        class="o_light_label"
+                        widget="radio"
+                        options="{'horizontal': true}"
+                        required="True" />
                     <div class="content-group" invisible="sms_provider != 'twilio'">
-                        <button name="action_view_sms_twilio_account_manage" icon="oi-arrow-right"
-                                type="object" class="btn-link"
-                                string="Configure Twilio Account"/>
+                        <button
+                            name="action_view_sms_twilio_account_manage"
+                            icon="oi-arrow-right"
+                            type="object"
+                            class="btn-link"
+                            string="Configure Twilio Account" />
                     </div>
                 </xpath>
                 <xpath expr="//widget[@service_name='sms']" position="attributes">
@@ -21,4 +30,5 @@
             </field>
         </record>
     </data>
+
 </odoo>

@@ -1,34 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="l10n_in_pan_entity_view_form" model="ir.ui.view">
         <field name="name">l10n_in.pan.entity.view.form</field>
         <field name="model">l10n_in.pan.entity</field>
         <field name="arch" type="xml">
             <form string="PAN Entity">
-                <div class="alert alert-warning w-100 d-flex align-items-center gap-1" invisible="tds_deduction != 'lower' or message_attachment_count" role="alert">
+                <div
+                    class="alert alert-warning w-100 d-flex align-items-center gap-1"
+                    invisible="tds_deduction != 'lower' or message_attachment_count"
+                    role="alert">
                     <span>Attaching a certificate would provide better clarity and understanding.</span>
                 </div>
                 <sheet>
                     <group>
                         <group>
-                            <field name="name" help="Permanent Account Number"/>
-                            <field name="type"/>
-                            <field name="partner_ids" widget="many2many_tags_avatar" options="{'no_create': True}"/>
-                            <field name="tds_deduction" required="1"/>
-                            <field name="tds_certificate"
-                                   widget="binary"
-                                   filename="tds_certificate_filename"
-                                   options="{'accepted_file_extensions': '.pdf', 'allowed_mime_type' : 'application/pdf'}"
-                            />
+                            <field name="name" help="Permanent Account Number" />
+                            <field name="type" />
+                            <field
+                                name="partner_ids"
+                                widget="many2many_tags_avatar"
+                                options="{'no_create': True}" />
+                            <field name="tds_deduction" required="1" />
+                            <field
+                                name="tds_certificate"
+                                widget="binary"
+                                filename="tds_certificate_filename"
+                                options="{'accepted_file_extensions': '.pdf', 'allowed_mime_type' : 'application/pdf'}" />
                             <field name="tds_certificate_filename" invisible="1"/> <!-- Hidden field to store the filename of the uploaded certificate -->
                         </group>
                         <group>
-                            <field name="msme_type"/>
-                            <field name="msme_number" placeholder="e.g. UDYAM-XX-00-0000000"/>
+                            <field name="msme_type" />
+                            <field
+                                name="msme_number"
+                                placeholder="e.g. UDYAM-XX-00-0000000" />
                         </group>
                     </group>
                 </sheet>
-                <chatter/>
+                <chatter />
             </form>
         </field>
     </record>
@@ -38,9 +47,12 @@
         <field name="model">l10n_in.pan.entity</field>
         <field name="arch" type="xml">
             <list string="PAN Entity">
-                <field name="name"/>
-                <field name="type"/>
-                <field name="partner_ids" widget="many2many_tags_avatar" options="{'no_create': True}"/>
+                <field name="name" />
+                <field name="type" />
+                <field
+                    name="partner_ids"
+                    widget="many2many_tags_avatar"
+                    options="{'no_create': True}" />
             </list>
         </field>
     </record>
@@ -55,7 +67,6 @@
         id="menu_l10n_in_pan_entity"
         name="PAN Entity"
         parent="account.menu_account_transactions"
-        action="l10n_in_pan_entity_action"
-    />
+        action="l10n_in_pan_entity_action" />
 
 </odoo>

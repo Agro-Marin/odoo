@@ -1,12 +1,17 @@
 {
     "name": "Online Event Booths",
-    "category": "Marketing/Events",
     "version": "1.0",
+    "category": "Marketing/Events",
     "summary": "Events, display your booths on your website",
     "description": """
 Display your booths on your website for the users to register.
     """,
-    "depends": ["website_event", "event_booth"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website_event",
+        "event_booth",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/event_booth_security.xml",
@@ -18,7 +23,6 @@ Display your booths on your website for the users to register.
     "demo": [
         "data/event_demo.xml",
     ],
-    "auto_install": True,
     "assets": {
         "web.assets_frontend": [
             "/website_event_booth/static/src/interactions/*",
@@ -26,6 +30,5 @@ Display your booths on your website for the users to register.
             "/website_event_booth/static/src/xml/event_booth_registration_templates.xml",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

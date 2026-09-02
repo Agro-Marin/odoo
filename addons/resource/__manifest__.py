@@ -10,7 +10,11 @@ A resource represent something that can be scheduled (a developer on a task or a
 work center on manufacturing orders). This module manages a resource calendar
 associated to every resource. It also manages the leaves of every resource.
     """,
-    "depends": ["web"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "web",
+    ],
     "data": [
         "data/resource_data.xml",
         "security/ir.model.access.csv",
@@ -34,6 +38,4 @@ associated to every resource. It also manages the leaves of every resource.
             "resource/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

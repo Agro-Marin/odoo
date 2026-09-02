@@ -1,7 +1,6 @@
 {
     "name": "Mauritius - Accounting",
     "version": "1.0",
-    'countries': ['mu'],
     "category": "Accounting/Localizations/Account Charts",
     "description": """
 This is the base module to manage the accounting chart for the Republic of Mauritius in Odoo.
@@ -12,10 +11,13 @@ This is the base module to manage the accounting chart for the Republic of Mauri
     - Default settings
     """,
     "author": "Odoo SA",
+    "license": "LGPL-3",
     "depends": [
         "account",
     ],
-    "auto_install": ["account"],
+    "countries": [
+        "mu",
+    ],
     "data": [
         "data/tax_report-mu.xml",
         "views/report_invoice.xml",
@@ -23,5 +25,7 @@ This is the base module to manage the accounting chart for the Republic of Mauri
     "demo": [
         "demo/demo_company.xml",
     ],
-    "license": "LGPL-3",
+    "auto_install": [
+        "account",
+    ],
 }

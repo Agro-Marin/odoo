@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
         <record id="hr_work_location_tree_view" model="ir.ui.view">
             <field name="name">hr.work.location.view.list</field>
@@ -8,8 +9,11 @@
                 <list string="Work Location">
                     <field name="active" column_invisible="True" />
                     <field name="name" />
-                    <field class="o_homework_icon_types d-flex flex-wrap" name="location_type"
-                           widget="hr_homeworking_radio_image" options="{'horizontal': true}"/>
+                    <field
+                        class="o_homework_icon_types d-flex flex-wrap"
+                        name="location_type"
+                        widget="hr_homeworking_radio_image"
+                        options="{'horizontal': true}" />
                     <field name="company_id" groups="base.group_multi_company" />
                 </list>
             </field>
@@ -25,12 +29,20 @@
                                 <field name="active" invisible="1" />
                                 <field name="name" />
                                 <field name="address_id" />
-                                <field class="o_homework_icon_types d-flex flex-wrap" name="location_type"
-                                       widget="hr_homeworking_radio_image" options="{'horizontal': true}"/>
+                                <field
+                                    class="o_homework_icon_types d-flex flex-wrap"
+                                    name="location_type"
+                                    widget="hr_homeworking_radio_image"
+                                    options="{'horizontal': true}" />
                             </group>
                             <group>
-                                <field name="company_id" groups="base.group_multi_company" />
-                                <field name="company_id" groups="!base.group_multi_company" invisible="1" />
+                                <field
+                                    name="company_id"
+                                    groups="base.group_multi_company" />
+                                <field
+                                    name="company_id"
+                                    groups="!base.group_multi_company"
+                                    invisible="1" />
                             </group>
                         </group>
                     </sheet>
@@ -48,4 +60,5 @@
             </field>
         </record>
     </data>
+
 </odoo>

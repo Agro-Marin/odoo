@@ -1,11 +1,17 @@
 <odoo>
-    <template id="fields" inherit_id="auth_signup.fields"
-              name="Password policy data for auth_signup">
+
+    <template
+        id="fields"
+        name="Password policy data for auth_signup"
+        inherit_id="auth_signup.fields">
         <xpath expr="//label[@for='password']" position="after">
-            <owl-component name="password_meter" props='{"selector": "input[name=password]"}'/>
+            <owl-component
+                name="password_meter"
+                props="{&quot;selector&quot;: &quot;input[name=password]&quot;}" />
         </xpath>
         <xpath expr="//input[@name='password']" position="attributes">
             <attribute name="t-att-minlength">password_minimum_length</attribute>
         </xpath>
     </template>
+
 </odoo>

@@ -1,14 +1,15 @@
-
 {
     "name": "Forum",
+    "version": "1.3",
     "category": "Website/Website",
     "sequence": 265,
     "summary": "Manage a forum with FAQ and Q&A",
-    "version": "1.3",
     "description": """
 Ask questions, get answers, no distractions
         """,
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/forum",
+    "license": "LGPL-3",
     "depends": [
         "auth_signup",
         "website_mail",
@@ -50,14 +51,16 @@ Ask questions, get answers, no distractions
         "data/forum_tag_demo.xml",
         "data/forum_post_demo.xml",
     ],
-    "installable": True,
     "assets": {
         "website.assets_editor": [
             "website_forum/static/src/js/systray_items/*.js",
         ],
         "web.assets_tests": [
             "website_forum/static/tests/**/*",
-            ("remove", "website_forum/static/tests/interactions/**/*"),
+            (
+                "remove",
+                "website_forum/static/tests/interactions/**/*",
+            ),
         ],
         "web.assets_backend": [
             "website_forum/static/src/js/tours/website_forum.js",
@@ -89,6 +92,5 @@ Ask questions, get answers, no distractions
             "website_forum/static/src/interactions/loader_loading.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

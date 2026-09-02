@@ -1,29 +1,29 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Argentinean - Point of Sale with AR Doc',
-    'version': '1.0',
-    'category': 'Accounting/Localizations/Point of Sale',
-    'description': """
+    "name": "Argentinean - Point of Sale with AR Doc",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Point of Sale",
+    "description": """
 This module brings the technical requirement for the Argentinean regulation.
 Install this if you are using the Point of Sale app in Argentina.
     """,
-    'depends': [
-        'l10n_ar',
-        'point_of_sale',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_ar",
+        "point_of_sale",
     ],
-    'data': [
-        'views/templates.xml',
+    "data": [
+        "views/templates.xml",
     ],
-    'assets': {
-        'point_of_sale._assets_pos': [
-            'l10n_ar_pos/static/src/**/*'
+    "assets": {
+        "point_of_sale._assets_pos": [
+            "l10n_ar_pos/static/src/**/*",
         ],
-        'web.assets_tests': [
-            'l10n_ar_pos/static/tests/tours/**/*',
+        "web.assets_tests": [
+            "l10n_ar_pos/static/tests/tours/**/*",
         ],
     },
-    'installable': True,
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
+    "auto_install": True,
 }

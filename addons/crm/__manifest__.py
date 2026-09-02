@@ -4,7 +4,9 @@
     "category": "Sales/CRM",
     "sequence": 15,
     "summary": "Track leads and close opportunities",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/crm",
+    "license": "LGPL-3",
     "depends": [
         "sales_team",
         "mail",
@@ -59,8 +61,6 @@
         "data/crm_team_member_demo.xml",
         "data/crm_lead_demo.xml",
     ],
-    "installable": True,
-    "application": True,
     "assets": {
         "web.assets_backend": [
             "crm/static/src/**",
@@ -75,6 +75,6 @@
             "crm/static/tests/crm_mock_server.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "application": True,
 }

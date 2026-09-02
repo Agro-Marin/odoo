@@ -8,6 +8,8 @@ In case of stockout, you can decide to block further sales or to keep selling.
 A default behavior can be selected in the Website settings.
 Then it can be made specific at the product level.
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "website_sale",
         "sale_stock",
@@ -25,7 +27,6 @@ Then it can be made specific at the product level.
     "demo": [
         "data/website_sale_stock_demo.xml",
     ],
-    "auto_install": True,
     "assets": {
         "web.assets_frontend": [
             (
@@ -46,6 +47,5 @@ Then it can be made specific at the product level.
             "website_sale_stock/static/src/js/tours/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

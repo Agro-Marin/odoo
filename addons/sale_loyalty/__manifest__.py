@@ -1,11 +1,15 @@
 {
     "name": "Sale Loyalty",
+    "version": "1.0",
+    "category": "Sales/Sales",
     "summary": "Use discounts and loyalty programs in sales orders",
     "description": "Integrate discount and loyalty programs mechanisms in sales orders.",
-    "category": "Sales/Sales",
-    "version": "1.0",
-    "depends": ["sale", "loyalty"],
-    "auto_install": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "sale",
+        "loyalty",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "data/sale_loyalty_data.xml",
@@ -23,7 +27,6 @@
             "sale_loyalty/static/src/**/*",
         ],
     },
+    "auto_install": True,
     "uninstall_hook": "uninstall_hook",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

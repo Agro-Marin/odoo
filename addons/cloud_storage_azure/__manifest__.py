@@ -1,13 +1,15 @@
 {
     "name": "Cloud Storage Azure",
-    "summary": """Store chatter attachments in the Azure cloud""",
-    "category": "Technical Settings",
     "version": "1.0",
-    "depends": ["cloud_storage"],
+    "category": "Technical Settings",
+    "summary": "Store chatter attachments in the Azure cloud",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "cloud_storage",
+    ],
     "data": [
         "views/settings.xml",
     ],
     "uninstall_hook": "uninstall_hook",
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
 }

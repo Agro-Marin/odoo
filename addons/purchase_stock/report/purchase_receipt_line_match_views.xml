@@ -5,19 +5,27 @@
         <field name="name">purchase.receipt.line.match.list</field>
         <field name="model">purchase.receipt.line.match</field>
         <field name="arch" type="xml">
-            <list string="Purchase Receipt Lines"
+            <list
+                string="Purchase Receipt Lines"
                 decoration-info="order_line_id != False"
                 decoration-warning="transfer_state == 'over done'"
                 decoration-muted="state == 'cancel'"
-                editable="bottom" edit="1"
+                editable="bottom"
+                edit="1"
                 type="object">
                 <header>
-                    <button name="action_match_lines" type="object" string="Match"
-                        groups="purchase.group_purchase_user" class="btn btn-primary" />
+                    <button
+                        name="action_match_lines"
+                        type="object"
+                        string="Match"
+                        groups="purchase.group_purchase_user"
+                        class="btn btn-primary" />
                 </header>
                 <field name="partner_id" string="Vendor" optional="hide" />
                 <field name="reference" widget="open_match_line" />
-                <field name="display_name" string="Product Description"
+                <field
+                    name="display_name"
+                    string="Product Description"
                     decoration-it="not product_id" />
                 <field name="product_uom_qty" string="Quantity" />
                 <field name="qty_transferred" optional="hide" />

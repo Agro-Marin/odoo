@@ -6,6 +6,8 @@
     "description": """
 This module contains all the common features of Sales Management and eCommerce.
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "base_order",
         "mixin_report_sql",
@@ -54,6 +56,10 @@ This module contains all the common features of Sales Management and eCommerce.
         "views/utm_campaign_views.xml",
         "views/sale_menus.xml",
     ],
+    "demo": [
+        "demo/product_demo.xml",
+        "demo/sale_demo.xml",
+    ],
     "assets": {
         "web.assets_backend": [
             "sale/static/src/scss/sale_onboarding.scss",
@@ -97,12 +103,6 @@ This module contains all the common features of Sales Management and eCommerce.
             "sale/static/src/scss/sale_report.scss",
         ],
     },
-    "demo": [
-        "demo/product_demo.xml",
-        "demo/sale_demo.xml",
-    ],
     "installable": True,
     "post_init_hook": "_post_init_hook",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

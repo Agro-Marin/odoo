@@ -1,27 +1,26 @@
 {
-    'name': 'Google reCAPTCHA integration',
-    'category': 'Hidden',
-    'version': '1.0',
-    'description': """
+    "name": "Google reCAPTCHA integration",
+    "version": "1.0",
+    "category": "Hidden",
+    "description": """
 This module implements reCaptchaV3 so that you can prevent bot spam on your public modules.
     """,
-    'depends': ['web'],
-    'data': [
-        'views/res_config_settings_view.xml',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "web",
     ],
-    'assets': {
-        'web.assets_frontend': [
-            'google_recaptcha/static/src/scss/recaptcha.scss',
-            'google_recaptcha/static/src/js/recaptcha.js',
-            'google_recaptcha/static/src/interactions/**/*',
+    "data": [
+        "views/res_config_settings_view.xml",
+    ],
+    "assets": {
+        "web.assets_frontend": [
+            "google_recaptcha/static/src/scss/recaptcha.scss",
+            "google_recaptcha/static/src/js/recaptcha.js",
+            "google_recaptcha/static/src/interactions/**/*",
         ],
-        'web.assets_backend': [
-            # TODO we may want to consider moving that file in website instead
-            # of here and/or adding it in the "website.assets_wysiwyg" bundle,
-            # which is lazy loaded.
-            'google_recaptcha/static/src/xml/recaptcha.xml',
+        "web.assets_backend": [
+            "google_recaptcha/static/src/xml/recaptcha.xml",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
 }

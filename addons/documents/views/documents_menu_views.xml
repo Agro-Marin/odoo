@@ -1,53 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <!-- Top menu / dashboard icon -->
-    <menuitem name="Documents" id="documents.menu_root" groups="base.group_user" web_icon="documents,static/description/icon.png" sequence="65"/>
+    <menuitem
+        id="documents.menu_root"
+        name="Documents"
+        sequence="65"
+        groups="base.group_user"
+        web_icon="documents,static/description/icon.png" />
 
     <!-- Top bar menus -->
-    <menuitem name="Documents"
+    <menuitem
         id="documents.dashboard"
+        name="Documents"
         parent="documents.menu_root"
         action="document_action_preference"
-        groups="base.group_user"
-        sequence="0"/>
-    <menuitem name="Configuration"
-        id="documents.Config"
-        parent="documents.menu_root"
-        groups="documents.group_documents_manager"
-        sequence="10"/>
+        sequence="0"
+        groups="base.group_user" />
 
-    <menuitem name="Settings"
+    <menuitem
+        id="documents.Config"
+        name="Configuration"
+        parent="documents.menu_root"
+        sequence="10"
+        groups="documents.group_documents_manager" />
+
+    <menuitem
         id="documents.settings_menu"
+        name="Settings"
         parent="documents.Config"
         action="configuration_action"
-        groups="base.group_system"
-        sequence="10"/>
+        sequence="10"
+        groups="base.group_system" />
 
-    <menuitem name="Structure"
+    <menuitem
         id="documents.structure"
+        name="Structure"
         parent="documents.Config"
-        groups="documents.group_documents_manager"
-        sequence="40"/>
+        sequence="40"
+        groups="documents.group_documents_manager" />
 
-    <menuitem name="Tags"
+    <menuitem
         id="documents.category_menu"
+        name="Tags"
         parent="documents.structure"
         action="tag_action"
-        sequence="10"/>
-    <menuitem name="Activities"
-        id="documents.mail_activities"
-        parent="documents.Config"
-        groups="documents.group_documents_manager"
-        sequence="50"/>
+        sequence="10" />
 
-    <menuitem name="Activity Types"
+    <menuitem
+        id="documents.mail_activities"
+        name="Activities"
+        parent="documents.Config"
+        sequence="50"
+        groups="documents.group_documents_manager" />
+
+    <menuitem
         id="documents.mail_activity_type_menu"
+        name="Activity Types"
         parent="documents.mail_activities"
         action="mail_activity_type_action_document"
-        sequence="10"/>
-    <menuitem name="Activity Plans"
+        sequence="10" />
+
+    <menuitem
         id="documents.mail_activity_plan_menu"
+        name="Activity Plans"
         parent="documents.mail_activities"
         action="mail_activity_plan_action_document"
-        sequence="20"/>
+        sequence="20" />
+
 </odoo>

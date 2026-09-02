@@ -6,7 +6,11 @@
 Allow users to login through OAuth2 Provider.
 =============================================
 """,
-    "depends": ["auth_signup"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "auth_signup",
+    ],
     "data": [
         "data/auth_oauth_data.xml",
         "views/auth_oauth_views.xml",
@@ -19,6 +23,4 @@ Allow users to login through OAuth2 Provider.
             "auth_oauth/static/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

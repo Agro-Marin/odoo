@@ -1,9 +1,9 @@
 {
     "name": "Customer Portal",
-    "summary": "Shared base for portal-user pages: templates, mixin, and controllers for external authenticated access",
     "version": "19.0.1.0",
-    "sequence": 9000,
     "category": "Hidden",
+    "sequence": 9000,
+    "summary": "Shared base for portal-user pages: templates, mixin, and controllers for external authenticated access",
     "description": """
 Portal Framework
 ================
@@ -17,7 +17,12 @@ but the technical scope covers any user with portal access rights.
 The module deliberately does not depend on website-editing or theming
 capabilities so portal pages can be rendered without the ``website`` module.
 """,
-    "depends": ["http_routing", "auth_signup"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "http_routing",
+        "auth_signup",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "data/mail_templates.xml",
@@ -33,7 +38,10 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "portal/static/src/scss/primary_variables.scss",
         ],
         "web._assets_frontend_helpers": [
-            ("prepend", "portal/static/src/scss/bootstrap_overridden.scss"),
+            (
+                "prepend",
+                "portal/static/src/scss/bootstrap_overridden.scss",
+            ),
         ],
         "web.assets_backend": [
             "portal/static/src/views/**/*",
@@ -77,33 +85,66 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/views/view_utils.js",
             "web/static/src/core/field_types.js",
             "web/static/src/core/formatters.js",
-            ("include", "mail.assets_core_common"),
-            ("include", "mail.assets_core_web_portal"),
-            ("include", "mail.assets_chatter_web_portal"),
+            (
+                "include",
+                "mail.assets_core_common",
+            ),
+            (
+                "include",
+                "mail.assets_core_web_portal",
+            ),
+            (
+                "include",
+                "mail.assets_chatter_web_portal",
+            ),
         ],
         "portal.assets_chatter": [
-            ("include", "web._assets_helpers"),
-            ("include", "web._assets_frontend_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_frontend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
             "web/static/src/scss/tokens.scss",
-            ("include", "html_editor._assets_editor"),
-            ("include", "portal.assets_chatter_helpers"),
+            (
+                "include",
+                "html_editor._assets_editor",
+            ),
+            (
+                "include",
+                "portal.assets_chatter_helpers",
+            ),
             "portal/static/src/chatter/core/**/*",
             "portal/static/src/chatter/frontend/**/*",
-            ("remove", "mail/static/src/**/*.scss"),
+            (
+                "remove",
+                "mail/static/src/**/*.scss",
+            ),
         ],
         "portal.assets_chatter_style": [
-            ("include", "web._assets_helpers"),
-            ("include", "web._assets_backend_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_backend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
             "portal/static/src/chatter/scss/primary_variables.scss",
-            ("include", "web._assets_bootstrap_backend"),
+            (
+                "include",
+                "web._assets_bootstrap_backend",
+            ),
             "web/static/src/scss/tokens.scss",
             "web/static/src/scss/mimetypes.scss",
             "web/static/src/scss/ui.scss",
@@ -116,17 +157,18 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/core/avatar/avatar.scss",
             "web/static/src/components/dropdown/dropdown.scss",
             "web/static/src/components/emoji_picker/**/*",
-            ("remove", "web/static/src/**/*.dark.scss"),
+            (
+                "remove",
+                "web/static/src/**/*.dark.scss",
+            ),
             "mail/static/src/core/common/**/*.scss",
             "mail/static/src/chatter/web_portal/**/*.scss",
             "portal/static/src/chatter/scss/shadow.scss",
         ],
         "website.assets_inside_builder_iframe": [
-            "portal/static/src/scss/portal.edit.*"
+            "portal/static/src/scss/portal.edit.*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "esm": {
         "bundles": [
             "portal.assets_chatter",

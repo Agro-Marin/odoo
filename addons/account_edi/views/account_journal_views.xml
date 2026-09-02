@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
         <record id="view_account_journal_form_inherited" model="ir.ui.view">
             <field name="name">account.journal.form.inherited</field>
@@ -11,9 +12,13 @@
                 </xpath>
                 <xpath expr="//group[@name='group_edi_config']" position="inside">
                     <field name="compatible_edi_ids" invisible="1" />
-                    <field name="edi_format_ids" widget="many2many_checkboxes" invisible="not compatible_edi_ids"/>
+                    <field
+                        name="edi_format_ids"
+                        widget="many2many_checkboxes"
+                        invisible="not compatible_edi_ids" />
                 </xpath>
             </field>
         </record>
     </data>
+
 </odoo>

@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="mail_activity_type_view_form" model="ir.ui.view">
@@ -7,9 +7,14 @@
         <field name="inherit_id" ref="mail.mail_activity_type_view_form" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='category']" position="after">
-                <field name="folder_id" invisible="category != 'upload_file'"
+                <field
+                    name="folder_id"
+                    invisible="category != 'upload_file'"
                     widget="documents_folder_many2one" />
-                <field name="tag_ids" widget="many2many_tags" invisible="category != 'upload_file'" />
+                <field
+                    name="tag_ids"
+                    widget="many2many_tags"
+                    invisible="category != 'upload_file'" />
             </xpath>
         </field>
     </record>
@@ -18,7 +23,8 @@
         <field name="name">Activity Types</field>
         <field name="res_model">mail.activity.type</field>
         <field name="view_mode">list,kanban,form</field>
-        <field name="domain">['|', ('res_model', '=', False), ('res_model', '=',
+        <field
+            name="domain">['|', ('res_model', '=', False), ('res_model', '=',
             'documents.document')]</field>
         <field name="context">{'default_res_model': 'documents.document'}</field>
         <field name="help" type="html">

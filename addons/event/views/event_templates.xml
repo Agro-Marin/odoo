@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
-        </data>
+
+    <data />
+
     <template id="event_default_descripton" name="Event default description">
         <section class="s_text_block">
             <h5>Join us for this 24 hours Event</h5>
@@ -9,4 +10,5 @@
             This event is also an opportunity to showcase our partners' case studies, methodology or developments. Be there and see directly from the source the features of the new version!</p>
         </section>
     </template>
+
 </odoo>

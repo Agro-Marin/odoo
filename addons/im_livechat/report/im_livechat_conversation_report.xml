@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <!-- Added in stable, its usage should always be covered by an existence check -->
     <record id="action_report_livechat_conversation" model="ir.actions.report">
         <field name="name">Live Chat Conversation</field>
@@ -13,9 +14,10 @@
     <template id="report_livechat_conversation">
         <t t-call="web.basic_layout">
             <t t-foreach="docs" t-as="doc">
-                <t t-set="channel" t-value="doc"/>
-                <t t-call="im_livechat.livechat_email_template"/>
+                <t t-set="channel" t-value="doc" />
+                <t t-call="im_livechat.livechat_email_template" />
             </t>
         </t>
     </template>
+
 </odoo>

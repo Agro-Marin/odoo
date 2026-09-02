@@ -1,11 +1,17 @@
 {
     "name": "Manufacturing",
     "version": "2.4",
-    "website": "https://www.odoo.com/app/manufacturing",
     "category": "Supply Chain/Manufacturing",
     "sequence": 55,
     "summary": "Manufacturing Orders & BOMs",
-    "depends": ["documents_product", "stock", "resource"],
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/manufacturing",
+    "license": "LGPL-3",
+    "depends": [
+        "documents_product",
+        "stock",
+        "resource",
+    ],
     "data": [
         "security/mrp_security.xml",
         "security/ir.model.access.csv",
@@ -50,10 +56,6 @@
     "demo": [
         "data/mrp_demo.xml",
     ],
-    "application": True,
-    "pre_init_hook": "_pre_init_mrp",
-    "post_init_hook": "_create_warehouse_data",
-    "uninstall_hook": "uninstall_hook",
     "assets": {
         "web.assets_backend": [
             "mrp/static/src/**/*",
@@ -63,9 +65,14 @@
         ],
         "web.assets_unit_tests": [
             "mrp/static/tests/**/*",
-            ("remove", "mrp/static/tests/tours/**/*"),
+            (
+                "remove",
+                "mrp/static/tests/tours/**/*",
+            ),
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "application": True,
+    "pre_init_hook": "_pre_init_mrp",
+    "post_init_hook": "_create_warehouse_data",
+    "uninstall_hook": "uninstall_hook",
 }

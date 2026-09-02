@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="base.main_partner" model="res.partner">
         <field name="is_published">True</field>
     </record>
@@ -9,14 +10,15 @@
         <record id="mt_partner_published" model="mail.message.subtype">
             <field name="name">Partner published</field>
             <field name="res_model">res.partner</field>
-            <field name="default" eval="False"/>
+            <field name="default" eval="False" />
             <field name="description">Partner Published</field>
         </record>
         <record id="mt_partner_unpublished" model="mail.message.subtype">
             <field name="name">Partner unpublished</field>
             <field name="res_model">res.partner</field>
-            <field name="default" eval="False"/>
+            <field name="default" eval="False" />
             <field name="description">Partner Unpublished</field>
         </record>
     </data>
+
 </odoo>

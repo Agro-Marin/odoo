@@ -1,14 +1,20 @@
-<?xml version="1.0"?>
-<odoo><data>
-    <!-- Under User Interface -->
-    <menuitem name="Onboardings"
-        id="menu_onboarding"
-        parent="base.menu_user_interface"
-        action="action_view_onboarding_onboarding"
-        sequence="1"/>
-    <menuitem name="Onboardings Steps"
-        id="menu_onboarding_step"
-        parent="base.menu_user_interface"
-        action="action_view_onboarding_step"
-        sequence="1"/>
-</data></odoo>
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <data>
+        <!-- Under User Interface -->
+        <menuitem
+            id="menu_onboarding"
+            name="Onboardings"
+            parent="base.menu_user_interface"
+            action="action_view_onboarding_onboarding"
+            sequence="1" />
+        <menuitem
+            id="menu_onboarding_step"
+            name="Onboardings Steps"
+            parent="base.menu_user_interface"
+            action="action_view_onboarding_step"
+            sequence="1" />
+    </data>
+
+</odoo>

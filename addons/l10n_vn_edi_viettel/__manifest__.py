@@ -1,21 +1,25 @@
 {
-    "name": """Vietnam - E-invoicing""",
-    'icon': '/account/static/description/l10n.png',
+    "name": "Vietnam - E-invoicing",
     "version": "1.0",
-    'countries': ['vn'],
     "category": "Accounting/Localizations/EDI",
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/vietnam.html',
-    "depends": [
-        "l10n_vn",
-    ],
     "summary": "E-invoicing using SInvoice by Viettel",
     "description": """
 Vietnam - E-invoicing
 =====================
 Using SInvoice by Viettel
     """,
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/vietnam.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_vn",
+    ],
+    "countries": [
+        "vn",
+    ],
     "data": [
-        'security/ir.model.access.csv',
+        "security/ir.model.access.csv",
         "views/account_move_views.xml",
         "views/res_config_settings_views.xml",
         "views/res_partner_views.xml",
@@ -24,7 +28,5 @@ Using SInvoice by Viettel
         "wizard/l10n_vn_edi_cancellation_request_views.xml",
     ],
     "installable": True,
-    "author": "Odoo S.A.",
     "uninstall_hook": "uninstall_hook",
-    "license": "LGPL-3",
 }

@@ -1,5 +1,7 @@
 {
     "name": "Import/Export Invoices From XML/PDF",
+    "version": "1.0",
+    "category": "Accounting/Accounting",
     "description": """
 Electronic Data Interchange
 =======================================
@@ -9,9 +11,11 @@ This is the base module for import and export of invoices in various EDI formats
 the transmission of said documents to various parties involved in the exchange (other company,
 governements, etc.)
     """,
-    "version": "1.0",
-    "category": "Accounting/Accounting",
-    "depends": ["account"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/account_edi_document_views.xml",
@@ -20,6 +24,4 @@ governements, etc.)
         "data/cron.xml",
     ],
     "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

@@ -6,28 +6,61 @@
         <field name="model">project.task.burndown.chart.report</field>
         <field name="arch" type="xml">
             <search string="Burndown Chart">
-                <field name="tag_ids"/>
-                <field name="user_ids"/>
+                <field name="tag_ids" />
+                <field name="user_ids" />
                 <field name="step_id" />
-                <field name="is_closed"/>
+                <field name="is_closed" />
                 <field name="project_id" />
-                <field name="milestone_id" groups="project.group_project_milestone"/>
-                <field name="partner_id" filter_domain="[('partner_id', 'child_of', self)]"/>
-                <separator/>
-                <filter string="My Tasks" name="my_tasks" domain="[('user_ids', 'in', uid)]"/>
-                <filter string="Unassigned" name="unassigned" domain="[('user_ids', '=', False)]"/>
-                <separator/>
-                <filter name="filter_date" date="date" string="Date" default_period="year,year-1" />
-                <filter name="filter_last_stage_update" date="date_last_status_change"/>
-                <filter name="filter_date_deadline" date="date_end"/>
-                <filter string="Last Month" invisible="1" name="last_month" domain="[('date','&gt;=', 'today -30d')]"/>
-                <separator/>
-                <filter string="Open Tasks" name="open_tasks" domain="[('is_closed', '=', 'open')]"/>
-                <filter string="Closed Tasks" name="closed_tasks" domain="[('is_closed', '=', 'closed')]"/>
+                <field name="milestone_id" groups="project.group_project_milestone" />
+                <field
+                    name="partner_id"
+                    filter_domain="[('partner_id', 'child_of', self)]" />
+                <separator />
+                <filter
+                    string="My Tasks"
+                    name="my_tasks"
+                    domain="[('user_ids', 'in', uid)]" />
+                <filter
+                    string="Unassigned"
+                    name="unassigned"
+                    domain="[('user_ids', '=', False)]" />
+                <separator />
+                <filter
+                    name="filter_date"
+                    date="date"
+                    string="Date"
+                    default_period="year,year-1" />
+                <filter
+                    name="filter_last_stage_update"
+                    date="date_last_status_change" />
+                <filter name="filter_date_deadline" date="date_end" />
+                <filter
+                    string="Last Month"
+                    invisible="1"
+                    name="last_month"
+                    domain="[('date','&gt;=', 'today -30d')]" />
+                <separator />
+                <filter
+                    string="Open Tasks"
+                    name="open_tasks"
+                    domain="[('is_closed', '=', 'open')]" />
+                <filter
+                    string="Closed Tasks"
+                    name="closed_tasks"
+                    domain="[('is_closed', '=', 'closed')]" />
                 <group>
-                    <filter string="Date" name="date" context="{'group_by': 'date:week'}" />
-                    <filter string="Stage (Burndown Chart)" name="stage" context="{'group_by': 'step_id'}"/>
-                    <filter string="Is Closed (Burn-up Chart)" name="is_closed" context="{'group_by': 'is_closed'}"/>
+                    <filter
+                        string="Date"
+                        name="date"
+                        context="{'group_by': 'date:week'}" />
+                    <filter
+                        string="Stage (Burndown Chart)"
+                        name="stage"
+                        context="{'group_by': 'step_id'}" />
+                    <filter
+                        string="Is Closed (Burn-up Chart)"
+                        name="is_closed"
+                        context="{'group_by': 'is_closed'}" />
                 </group>
             </search>
         </field>
@@ -37,22 +70,32 @@
         <field name="name">project.task.burndown.chart.report.view.graph</field>
         <field name="model">project.task.burndown.chart.report</field>
         <field name="arch" type="xml">
-            <graph string="Burndown Chart" type="line" sample="1" disable_linking="1" js_class="burndown_chart">
-                <field name="date" string="Date" interval="week"/>
-                <field name="step_id"/>
-                <field name="is_closed"/>
+            <graph
+                string="Burndown Chart"
+                type="line"
+                sample="1"
+                disable_linking="1"
+                js_class="burndown_chart">
+                <field name="date" string="Date" interval="week" />
+                <field name="step_id" />
+                <field name="is_closed" />
             </graph>
         </field>
     </record>
 
-    <record id="action_project_task_burndown_chart_report" model="ir.actions.act_window">
+    <record
+        id="action_project_task_burndown_chart_report"
+        model="ir.actions.act_window">
         <field name="name">Burndown Chart</field>
         <field name="res_model">project.task.burndown.chart.report</field>
         <field name="path">burndown-chart</field>
         <field name="view_mode">graph</field>
-        <field name="search_view_id" ref="project_task_burndown_chart_report_view_search"/>
-        <field name="context">{'search_default_project_id': active_id, 'search_default_date': 1, 'search_default_stage': 1, 'search_default_filter_date': 1}</field>
+        <field
+            name="search_view_id"
+            ref="project_task_burndown_chart_report_view_search" />
         <field name="domain">[('project_id', '!=', False)]</field>
+        <field
+            name="context">{'search_default_project_id': active_id, 'search_default_date': 1, 'search_default_stage': 1, 'search_default_filter_date': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_empty_folder">
                 No data yet!

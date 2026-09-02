@@ -1,73 +1,78 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- standard, bold, boxed, striped and folder render their footer through
-         web.external_layout_footer, so a per-layout xpath cannot reach it: inheritance
-         applies to a template's own arch, not to what it t-calls. One override on the
-         footer covers all five. bubble and wave keep theirs: their footers are inline. -->
-    <template id="l10n_hu_edi_external_layout_footer" inherit_id="web.external_layout_footer">
+    <!--
+        standard, bold, boxed, striped and folder render their footer through
+        web.external_layout_footer, so a per-layout xpath cannot reach it: inheritance
+        applies to a template's own arch, not to what it t-calls. One override on the
+        footer covers all five. bubble and wave keep theirs: their footers are inline.
+    -->
+    <template
+        id="l10n_hu_edi_external_layout_footer"
+        inherit_id="web.external_layout_footer">
         <xpath expr="//div[@name='footer_content']" position="attributes">
             <attribute name="t-if">not custom_footer</attribute>
         </xpath>
         <xpath expr="//div[@name='footer_content']" position="after">
-            <div class="o_footer_content border-top pt-2"
-                 t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
-                <t t-out="custom_footer"/>
+            <div
+                class="o_footer_content border-top pt-2"
+                t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
+                <t t-out="custom_footer" />
             </div>
         </xpath>
     </template>
 
-
-    <template id="external_layout_standard" inherit_id="web.external_layout_standard" >
+    <template id="external_layout_standard" inherit_id="web.external_layout_standard">
         <xpath expr="//img/../.." position="attributes">
             <attribute name="t-if">not custom_header</attribute>
         </xpath>
 
         <xpath expr="//img/../.." position="after">
-            <div t-attf-class="header o_company_#{company.id}_layout"
+            <div
+                t-attf-class="header o_company_#{company.id}_layout"
                 t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
-                <t t-call="#{custom_header}"/>
+                <t t-call="#{custom_header}" />
             </div>
         </xpath>
     </template>
 
-    <template id="external_layout_bold" inherit_id="web.external_layout_bold" >
+    <template id="external_layout_bold" inherit_id="web.external_layout_bold">
         <xpath expr="//img/../.." position="attributes">
             <attribute name="t-if">not custom_header</attribute>
         </xpath>
 
         <xpath expr="//img/../.." position="after">
-            <div t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
-                <t t-call="#{custom_header}"/>
+            <div
+                t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
+                <t t-call="#{custom_header}" />
             </div>
         </xpath>
-
     </template>
 
-    <template id="external_layout_boxed" inherit_id="web.external_layout_boxed" >
+    <template id="external_layout_boxed" inherit_id="web.external_layout_boxed">
         <xpath expr="//img/../.." position="attributes">
             <attribute name="t-if">not custom_header</attribute>
         </xpath>
 
         <xpath expr="//img/../.." position="after">
-            <div t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
-                <t t-call="#{custom_header}"/>
+            <div
+                t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
+                <t t-call="#{custom_header}" />
             </div>
         </xpath>
-
     </template>
 
-    <template id="external_layout_striped" inherit_id="web.external_layout_striped" >
+    <template id="external_layout_striped" inherit_id="web.external_layout_striped">
         <xpath expr="//img/../.." position="attributes">
             <attribute name="t-if">not custom_header</attribute>
         </xpath>
 
         <xpath expr="//img/../.." position="after">
-            <div t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
-                <t t-call="#{custom_header}"/>
+            <div
+                t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
+                <t t-call="#{custom_header}" />
             </div>
         </xpath>
-
     </template>
 
     <template id="external_layout_bubble" inherit_id="web.external_layout_bubble">
@@ -76,19 +81,25 @@
         </xpath>
 
         <xpath expr="//img/../.." position="after">
-            <div t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
-                <t t-call="#{custom_header}"/>
+            <div
+                t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
+                <t t-call="#{custom_header}" />
             </div>
         </xpath>
 
         <!-- support for custom footer -->
-        <div t-attf-class="o_footer_content {{report_type != 'pdf' and 'position-absolute end-0 start-0 bottom-0 mx-5'}} pt-4 text-center" position="attributes">
+        <div
+            t-attf-class="o_footer_content {{report_type != 'pdf' and 'position-absolute end-0 start-0 bottom-0 mx-5'}} pt-4 text-center"
+            position="attributes">
             <attribute name="t-if">not custom_footer</attribute>
         </div>
-        <div t-attf-class="o_footer_content {{report_type != 'pdf' and 'position-absolute end-0 start-0 bottom-0 mx-5'}} pt-4 text-center" position="after">
-            <div t-attf-class="o_footer_content {{report_type != 'pdf' and 'position-absolute end-0 start-0 bottom-0 mx-5'}} pt-4 text-center"
-                 t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
-                <t t-out="custom_footer"/>
+        <div
+            t-attf-class="o_footer_content {{report_type != 'pdf' and 'position-absolute end-0 start-0 bottom-0 mx-5'}} pt-4 text-center"
+            position="after">
+            <div
+                t-attf-class="o_footer_content {{report_type != 'pdf' and 'position-absolute end-0 start-0 bottom-0 mx-5'}} pt-4 text-center"
+                t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
+                <t t-out="custom_footer" />
             </div>
         </div>
     </template>
@@ -100,19 +111,25 @@
         </xpath>
 
         <xpath expr="//img/../.." position="after">
-            <div t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
-                <t t-call="#{custom_header}"/>
+            <div
+                t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
+                <t t-call="#{custom_header}" />
             </div>
         </xpath>
 
         <!-- support for custom footer -->
-        <xpath expr="//div[contains(@t-attf-class,'o_footer_content')]" position="attributes">
+        <xpath
+            expr="//div[contains(@t-attf-class,'o_footer_content')]"
+            position="attributes">
             <attribute name="t-if">not custom_footer</attribute>
         </xpath>
-        <xpath expr="//div[contains(@t-attf-class,'o_footer_content')]" position="after">
-            <div t-attf-class="o_footer_content {{report_type != 'pdf' and 'mx-5'}} pt-5 text-center"
-                 t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
-                <t t-out="custom_footer"/>
+        <xpath
+            expr="//div[contains(@t-attf-class,'o_footer_content')]"
+            position="after">
+            <div
+                t-attf-class="o_footer_content {{report_type != 'pdf' and 'mx-5'}} pt-5 text-center"
+                t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
+                <t t-out="custom_footer" />
             </div>
         </xpath>
     </template>
@@ -124,10 +141,11 @@
         </xpath>
 
         <xpath expr="//img/../.." position="after">
-            <div t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
-                <t t-call="#{custom_header}"/>
+            <div
+                t-if="custom_header and company.account_fiscal_country_id.code == 'HU'">
+                <t t-call="#{custom_header}" />
             </div>
         </xpath>
-
     </template>
+
 </odoo>

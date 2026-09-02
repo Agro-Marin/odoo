@@ -1,9 +1,11 @@
 {
     "name": "Google places autocompletion",
+    "version": "1.0",
     "category": "Website/Website",
     "summary": "Assist your users with automatic completion & suggestions when filling their address during checkout",
-    "version": "1.0",
     "description": "Assist your users with automatic completion & suggestions when filling their address during checkout",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "website_sale",
         "google_address_autocomplete",
@@ -18,10 +20,10 @@
             "website_sale_autocomplete/static/src/interactions/address_form.js",
             "website_sale_autocomplete/static/src/xml/autocomplete.xml",
         ],
-        "web.assets_tests": ["website_sale_autocomplete/static/tests/**/*.js"],
+        "web.assets_tests": [
+            "website_sale_autocomplete/static/tests/**/*.js",
+        ],
     },
-    "auto_install": True,
     "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

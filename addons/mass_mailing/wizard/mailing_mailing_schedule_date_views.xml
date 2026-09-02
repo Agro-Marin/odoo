@@ -1,18 +1,32 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="mailing_mailing_schedule_date_view_form"  model="ir.ui.view">
+
+    <record id="mailing_mailing_schedule_date_view_form" model="ir.ui.view">
         <field name="name">mailing.mailing.schedule.date.view.form</field>
         <field name="model">mailing.mailing.schedule.date</field>
         <field name="arch" type="xml">
             <form string="Take Future Schedule Date">
                 <group>
                     <group>
-                        <field name="schedule_date" string="Send on" placeholder="Choose a date" required="1"/>
+                        <field
+                            name="schedule_date"
+                            string="Send on"
+                            placeholder="Choose a date"
+                            required="1" />
                     </group>
                 </group>
                 <footer>
-                    <button string="Schedule" name="action_schedule_date" type="object" class="btn-primary" data-hotkey="q"/>
-                    <button string="Discard " class="btn-secondary" special="cancel" data-hotkey="x" />
+                    <button
+                        string="Schedule"
+                        name="action_schedule_date"
+                        type="object"
+                        class="btn-primary"
+                        data-hotkey="q" />
+                    <button
+                        string="Discard "
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -24,4 +38,5 @@
         <field name="view_mode">form</field>
         <field name="target">new</field>
     </record>
+
 </odoo>

@@ -1,8 +1,8 @@
 {
     "name": "Skills Management",
+    "version": "1.1",
     "category": "Human Resources/Employees",
     "sequence": 270,
-    "version": "1.1",
     "summary": "Manage skills, knowledge and resume of your employees",
     "description": """
 Skills and Resume for HR
@@ -10,7 +10,11 @@ Skills and Resume for HR
 
 This module introduces skills and resume management for employees.
         """,
-    "depends": ["hr"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/hr_skills_security.xml",
@@ -40,9 +44,6 @@ This module introduces skills and resume management for employees.
         "data/hr_employee_skill_demo.xml",
         "data/hr.resume.line.csv",
     ],
-    "installable": True,
-    "auto_install": True,
-    "application": True,
     "assets": {
         "web.assets_backend": [
             "hr_skills/static/src/fields/skills_one2many/*",
@@ -53,7 +54,10 @@ This module introduces skills and resume management for employees.
         ],
         "web.assets_unit_tests": [
             "hr_skills/static/tests/**/*",
-            ("remove", "hr_skills/static/tests/tours/**/*"),
+            (
+                "remove",
+                "hr_skills/static/tests/tours/**/*",
+            ),
         ],
         "web.assets_tests": [
             "hr_skills/static/tests/tours/**/*",
@@ -62,6 +66,7 @@ This module introduces skills and resume management for employees.
             "/hr_skills/static/src/scss/report_employee_cv.scss",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "application": True,
+    "auto_install": True,
 }

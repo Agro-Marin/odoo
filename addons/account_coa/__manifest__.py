@@ -1,6 +1,7 @@
 {
     "name": "Chart of Accounts",
     "version": "1.0",
+    "category": "Accounting/Accounting",
     "summary": "Chart of Accounts foundation",
     "description": """
 Chart of Accounts
@@ -10,14 +11,15 @@ tags, and multi-company code mappings.  Designed as a lightweight
 foundation that heavier accounting modules (``account``, ``account_accountant``)
 depend on.
     """,
-    "category": "Accounting/Accounting",
-    "depends": ["base"],
+    "author": "Odoo S.A., AgroMarin",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/account_account_views.xml",
         "views/account_account_tag_views.xml",
     ],
     "installable": True,
-    "author": "Odoo S.A., AgroMarin",
-    "license": "LGPL-3",
 }

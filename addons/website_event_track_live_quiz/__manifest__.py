@@ -1,10 +1,11 @@
-
 {
     "name": "Quiz on Live Event Tracks",
-    "category": "Marketing/Events",
     "version": "1.0",
-    "summary": 'Bridge module to support quiz features during "live" tracks. ',
+    "category": "Marketing/Events",
+    "summary": "Bridge module to support quiz features during \"live\" tracks. ",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/events",
+    "license": "LGPL-3",
     "depends": [
         "website_event_track_live",
         "website_event_track_quiz",
@@ -12,14 +13,12 @@
     "data": [
         "views/event_track_templates_page.xml",
     ],
-    "installable": True,
-    "auto_install": True,
     "assets": {
         "web.assets_frontend": [
             "website_event_track_live_quiz/static/src/interactions/**/*",
             "website_event_track_live_quiz/static/src/xml/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
 }

@@ -5,18 +5,21 @@
     <record id="product_tag_form_view_inherit_point_of_sale" model="ir.ui.view">
         <field name="name">product.tag.form.inherit.point.of.sale</field>
         <field name="model">product.tag</field>
-        <field name="inherit_id" ref="product.view_product_tag_form"/>
-        <field name="priority" eval="100"/>
+        <field name="inherit_id" ref="product.view_product_tag_form" />
+        <field name="priority" eval="100" />
         <field name="arch" type="xml">
             <xpath expr="//form/sheet/group" position="after">
                 <group name="pos" string="Point of Sale">
-                    <field name="pos_description"/>
+                    <field name="pos_description" />
                 </group>
             </xpath>
         </field>
     </record>
 
-    <menuitem id="pos_menu_products_tag_action" action="product.action_product_tag"
-              parent="point_of_sale.pos_menu_products_configuration" sequence="3"/>
+    <menuitem
+        id="pos_menu_products_tag_action"
+        parent="point_of_sale.pos_menu_products_configuration"
+        action="product.action_product_tag"
+        sequence="3" />
 
 </odoo>

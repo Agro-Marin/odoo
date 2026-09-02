@@ -1,5 +1,6 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="card_template_view_form" model="ir.ui.view">
         <field name="name">card.template.view.form</field>
         <field name="model">card.template</field>
@@ -8,16 +9,16 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="name"/>
-                            <field name="default_background"/>
+                            <field name="name" />
+                            <field name="default_background" />
                         </group>
                         <group>
-                            <field name="primary_color" widget="color"/>
-                            <field name="secondary_color" widget="color"/>
-                            <field name="primary_text_color" widget="color"/>
-                            <field name="secondary_text_color" widget="color"/>
+                            <field name="primary_color" widget="color" />
+                            <field name="secondary_color" widget="color" />
+                            <field name="primary_text_color" widget="color" />
+                            <field name="secondary_text_color" widget="color" />
                         </group>
-                        <field name="body" widget="code" options="{'mode': 'xml'}"/>
+                        <field name="body" widget="code" options="{'mode': 'xml'}" />
                     </group>
                 </sheet>
             </form>

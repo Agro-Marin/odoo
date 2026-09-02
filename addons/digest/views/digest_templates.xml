@@ -1,4 +1,5 @@
 <odoo>
+
     <template id="portal_digest_unsubscribed" name="Unsubscription">
         <t t-call="portal.portal_layout">
             <div class="container mt8">
@@ -6,12 +7,13 @@
                     <div class="col-lg-6 offset-lg-3">
                         <h3>Digest Subscriptions</h3>
                         <div class="alert alert-success text-center" role="status">
-                            <p>You have been successfully unsubscribed from:<br/>
-                            <strong t-field="digest.name"/></p>
+                            <p>You have been successfully unsubscribed from:<br />
+                            <strong t-field="digest.name" /></p>
                         </div>
                     </div>
                 </div>
             </div>
         </t>
     </template>
+
 </odoo>

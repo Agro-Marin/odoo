@@ -7,6 +7,8 @@ This module will test the main certification flow of Odoo.
 It will install the e-learning, survey and e-commerce apps and make a complete
 certification flow including purchase, certification, failure and success.
 """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "website_sale_slides",
         "website_slides_forum",
@@ -18,12 +20,10 @@ certification flow including purchase, certification, failure and success.
     "demo": [
         "data/product_demo.xml",
     ],
-    "installable": True,
     "assets": {
         "web.assets_tests": [
             "test_website_slides_full/static/tests/tours/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

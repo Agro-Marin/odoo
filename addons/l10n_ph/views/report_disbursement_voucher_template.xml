@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <template id="l10n_ph.minimal_layout" inherit_id="web.minimal_layout">
         <!-- web.minimal_layout no longer carries a `<script t-if="subst">` to anchor on;
-             the script belongs in <head> either way, so append there. -->
+            the script belongs in <head> either way, so append there. -->
         <xpath expr="//head" position="inside">
         <t t-if="report_xml_id == 'l10n_ph.action_report_disbursement_voucher_ph'">
             <script>
@@ -31,13 +32,13 @@
         <div class="last-page text-start">
             <div class="row">
                 <div class="col-8">
-                    Prepared By: <span t-out="user.name"/>
+                    Prepared By: <span t-out="user.name" />
                 </div>
                 <div class="col-4">
                     Approved By:
                 </div>
             </div>
-            <br/>
+            <br />
             <div class="row">
                 <div class="col-8">
                     Received By:
@@ -46,11 +47,13 @@
                     Received Date:
                 </div>
             </div>
-            <br/>
+            <br />
         </div>
     </template>
 
-    <template inherit_id="account.report_payment_receipt_document" id="report_disbursement_voucher_document">
+    <template
+        id="report_disbursement_voucher_document"
+        inherit_id="account.report_payment_receipt_document">
         <xpath expr="//span[@t-field='o.payment_receipt_title']" position="replace">
             <t t-if="is_l10n_ph_disbursement_voucher">
                 Disbursement Voucher:
@@ -60,11 +63,13 @@
             </t>
         </xpath>
 
-        <xpath expr="//div[hasclass('row')][div[hasclass('col-6')][@t-if='o.memo']]" position="after">
+        <xpath
+            expr="//div[hasclass('row')][div[hasclass('col-6')][@t-if='o.memo']]"
+            position="after">
             <t t-if="is_l10n_ph_disbursement_voucher">
                 <div class="row">
                     <div class="col-6 offset-6" t-if="o.check_number">
-                        Check Number: <span t-field="o.check_number"/>
+                        Check Number: <span t-field="o.check_number" />
                     </div>
                 </div>
             </t>
@@ -79,7 +84,8 @@
 
         <xpath expr="//div[table[@name='invoices']]" position="after">
             <t t-if="is_l10n_ph_disbursement_voucher">
-                <table name="journal_entries"
+                <table
+                    name="journal_entries"
                     t-if="o.move_id and o.move_id.move_type == 'entry'"
                     class="table table-borderless"
                     style="break-inside: avoid;">
@@ -93,12 +99,16 @@
                     <tbody>
                         <t t-foreach="o.move_id.line_ids" t-as="line">
                         <tr>
-                            <td><span t-field="line.account_id.name"/></td>
+                            <td><span t-field="line.account_id.name" /></td>
                             <td class="text-end">
-                                <span t-field="line.debit" t-options="{'widget': 'monetary', 'display_currency': line.company_currency_id}"/>
+                                <span
+                                    t-field="line.debit"
+                                    t-options="{'widget': 'monetary', 'display_currency': line.company_currency_id}" />
                             </td>
                             <td class="text-end">
-                                <span t-field="line.credit" t-options="{'widget': 'monetary', 'display_currency': line.company_currency_id}"/>
+                                <span
+                                    t-field="line.credit"
+                                    t-options="{'widget': 'monetary', 'display_currency': line.company_currency_id}" />
                             </td>
                         </tr>
                         </t>
@@ -111,10 +121,15 @@
     <template id="report_disbursement_voucher">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
-                <t t-set="is_l10n_ph_disbursement_voucher" t-value="True"/>
-                <t t-set="lang" t-value="o.partner_id.lang or o.company_id.partner_id.lang"/>
-                <t t-call="l10n_ph.report_disbursement_voucher_document" t-lang="lang"/>
+                <t t-set="is_l10n_ph_disbursement_voucher" t-value="True" />
+                <t
+                    t-set="lang"
+                    t-value="o.partner_id.lang or o.company_id.partner_id.lang" />
+                <t
+                    t-call="l10n_ph.report_disbursement_voucher_document"
+                    t-lang="lang" />
             </t>
         </t>
     </template>
+
 </odoo>

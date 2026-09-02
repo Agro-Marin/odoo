@@ -1,8 +1,15 @@
 {
     "name": "Auth Timeout",
-    "summary": "Ask for authentication after user inactivity",
     "category": "Hidden/Tools",
-    "depends": ["auth_totp", "auth_totp_mail", "auth_passkey", "bus"],
+    "summary": "Ask for authentication after user inactivity",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "auth_totp",
+        "auth_totp_mail",
+        "auth_passkey",
+        "bus",
+    ],
     "data": [
         "views/login_templates.xml",
         "views/res_groups_views.xml",
@@ -19,6 +26,4 @@
             "auth_timeout/static/tests/tours/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

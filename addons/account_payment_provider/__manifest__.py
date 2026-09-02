@@ -1,10 +1,14 @@
 {
     "name": "Accounting - Payment Providers",
+    "version": "2.2",
     "category": "Accounting/Accounting",
     "summary": "Enable customers to pay invoices on the portal and post payments when transactions are processed.",
-    "version": "2.2",
-    "depends": ["account", "payment"],
-    "auto_install": ["account"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "payment",
+    ],
     "data": [
         "data/ir_config_parameter.xml",
         "security/ir.model.access.csv",
@@ -32,8 +36,9 @@
             "account_payment_provider/static/src/interactions/**/*",
         ],
     },
+    "auto_install": [
+        "account",
+    ],
     "post_init_hook": "post_init_hook",
     "uninstall_hook": "uninstall_hook",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

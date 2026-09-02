@@ -1,20 +1,25 @@
 {
     "name": "Newsletter Subscribe Button",
+    "version": "1.0",
+    "category": "Website/Website",
     "summary": "Attract visitors to subscribe to mailing lists",
     "description": """
 This module brings a new building block with a mailing list widget to drop on any page of your website.
 On a simple click, your visitors can subscribe to mailing lists managed in the Email Marketing app.
     """,
-    "version": "1.0",
-    "category": "Website/Website",
-    "depends": ["website", "mass_mailing", "google_recaptcha"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website",
+        "mass_mailing",
+        "google_recaptcha",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "data/ir_model_data.xml",
         "views/snippets_templates.xml",
         "views/snippets/s_newsletter_benefits_popup.xml",
     ],
-    "auto_install": ["website", "mass_mailing"],
     "assets": {
         "web.assets_frontend": [
             "website_mass_mailing/static/src/scss/website_mass_mailing.scss",
@@ -27,7 +32,10 @@ On a simple click, your visitors can subscribe to mailing lists managed in the E
             "website_mass_mailing/static/src/js/mass_mailing_form_editor.js",
             "website_mass_mailing/static/src/plugins/form_option_plugin.js",
             "website_mass_mailing/static/src/website_builder/**/*",
-            ("remove", "website_mass_mailing/static/src/website_builder/**/*.edit.*"),
+            (
+                "remove",
+                "website_mass_mailing/static/src/website_builder/**/*.edit.*",
+            ),
         ],
         "website.assets_inside_builder_iframe": [
             "website_mass_mailing/static/src/website_builder/mailing_list_subscribe_option.edit.*",
@@ -42,6 +50,8 @@ On a simple click, your visitors can subscribe to mailing lists managed in the E
             "website_mass_mailing/static/src/interactions/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": [
+        "website",
+        "mass_mailing",
+    ],
 }

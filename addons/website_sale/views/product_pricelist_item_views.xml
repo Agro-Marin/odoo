@@ -4,7 +4,7 @@
     <record id="product_pricelist_item_form" model="ir.ui.view">
         <field name="name">product.pricelist.item.view.form.inherit</field>
         <field name="model">product.pricelist.item</field>
-        <field name="inherit_id" ref="sale.product_pricelist_item_form"/>
+        <field name="inherit_id" ref="sale.product_pricelist_item_form" />
         <field name="arch" type="xml">
             <div id="discount_price_warning" position="after">
                 <div>On the website original price is crossed out.</div>

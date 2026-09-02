@@ -244,9 +244,9 @@
                                         readonly="1" />
                                 </div>
                                 <!-- Portal target for ProductCatalogOrderLine's price
-                                        (product/static/src/product_catalog/order_line).
-                                        The component addresses it by id, so removing
-                                        or renaming this node breaks the catalog. -->
+                                    (product/static/src/product_catalog/order_line).
+                                    The component addresses it by id, so removing
+                                    or renaming this node breaks the catalog. -->
                                 <div
                                     name="o_kanban_price"
                                     t-attf-id="product-{{record.id.raw_value}}-price" />
@@ -481,11 +481,11 @@
                             class="oe_inline"
                             widget="monetary"
                             options="{'currency_field': 'currency_id', 'field_digits': True}" />
-                        <field name="description" invisible="1" />  <!-- Hide the description field
+                        <field name="description" invisible="1"/>  <!-- Hide the description field
                         for set data in product barcodelookup -->
-                        <field name="weight" invisible="1" />       <!-- Hide the weight field for set data
+                        <field name="weight" invisible="1"/>       <!-- Hide the weight field for set data
                         in product barcodelookup -->
-                        <field name="categ_id" invisible="1" />     <!-- Hide the categ_id field set data
+                        <field name="categ_id" invisible="1"/>     <!-- Hide the categ_id field set data
                         in product barcodelookup -->
                     </group>
                 </sheet>
@@ -521,9 +521,9 @@
         <field name="name">Product Variants</field>
         <field name="res_model">product.product</field>
         <field name="view_mode">list,form,kanban,activity</field>
-        <field name="search_view_id" ref="view_product_product_search" />
         <field name="view_id" eval="False" />
         <!-- Force empty -->
+        <field name="search_view_id" ref="view_product_product_search" />
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create a new product variant

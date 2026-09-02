@@ -6,6 +6,8 @@
     "description": """This module contains tests related to website modules.
 It allows to test website business code when another website module is
 installed.""",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "theme_default",
         "website",
@@ -17,12 +19,10 @@ installed.""",
         "website_sale_comparison",
         "website_sale_wishlist",
     ],
-    "installable": True,
     "assets": {
         "web.assets_tests": [
             "test_website_modules/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

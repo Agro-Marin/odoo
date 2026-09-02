@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
-    <!-- tags internal -->
 
+    <!-- tags internal -->
     <record id="documents_tag_hr" model="documents.tag" forcecreate="0">
         <field name="name">HR</field>
         <field name="sequence">9</field>
@@ -18,7 +18,6 @@
     </record>
 
     <!-- tags finance -->
-
     <record id="documents_tag_year_current" model="documents.tag" forcecreate="0">
         <field name="name" eval="str(datetime.now().year)" />
         <field name="sequence">10</field>

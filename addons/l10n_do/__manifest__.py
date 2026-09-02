@@ -1,10 +1,8 @@
 {
-    'name': 'Dominican Republic - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['do'],
-    'version': '2.0',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Dominican Republic - Accounting",
+    "version": "2.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 
 Localization Module for Dominican Republic
 ===========================================
@@ -71,18 +69,24 @@ en Odoo):
 110101- Caja
 11010101 Caja General
     """,
-    'author': 'Gustavo Valverde - iterativo | Consultores de Odoo (http://iterativo.do)',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'depends': [
-        'account',
-        'account_iban',
+    "author": "Gustavo Valverde - iterativo | Consultores de Odoo (http://iterativo.do)",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_iban",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "do",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

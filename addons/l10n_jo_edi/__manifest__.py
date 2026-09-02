@@ -1,24 +1,31 @@
 {
-    'name': 'Jordan E-Invoicing',
-    'countries': ['jo'],
-    'version': '1.0',
-    'category': 'Accounting/Localizations/EDI',
-    'summary': 'Electronic Invoicing for Jordan UBL 2.1',
-    'author': 'Odoo S.A., Smart Way Business Solutions',
-    'description': """
+    "name": "Jordan E-Invoicing",
+    "version": "1.0",
+    "category": "Accounting/Localizations/EDI",
+    "summary": "Electronic Invoicing for Jordan UBL 2.1",
+    "description": """
        Allows the users to integrate with JoFotara.
     """,
-    'depends': ['account_edi_ubl_cii', 'l10n_jo'],
-    'data': [
-        'views/account_move_views.xml',
-        'views/report_invoice.xml',
-        'views/res_config_settings_views.xml',
+    "author": "Odoo S.A., Smart Way Business Solutions",
+    "license": "LGPL-3",
+    "depends": [
+        "account_edi_ubl_cii",
+        "l10n_jo",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "countries": [
+        "jo",
     ],
-    'installable': True,
-    'auto_install': ['l10n_jo'],
-    'license': 'LGPL-3',
-    'post_init_hook': '_post_init_hook',
+    "data": [
+        "views/account_move_views.xml",
+        "views/report_invoice.xml",
+        "views/res_config_settings_views.xml",
+    ],
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "installable": True,
+    "auto_install": [
+        "l10n_jo",
+    ],
+    "post_init_hook": "_post_init_hook",
 }

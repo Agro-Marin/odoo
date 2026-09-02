@@ -6,19 +6,40 @@
         <field name="model">project.benefit</field>
         <field name="arch" type="xml">
             <search string="Benefits">
-                <field name="name"/>
-                <field name="project_id"/>
-                <field name="accountable_id"/>
-                <separator/>
-                <filter string="Expected" name="expected" domain="[('state', '=', 'expected')]"/>
-                <filter string="Tracking" name="tracking" domain="[('state', '=', 'tracking')]"/>
-                <filter string="Achieved" name="achieved" domain="[('state', '=', 'achieved')]"/>
-                <separator/>
-                <filter string="Review Due" name="review_due" domain="[('review_date', '&lt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <field name="name" />
+                <field name="project_id" />
+                <field name="accountable_id" />
+                <separator />
+                <filter
+                    string="Expected"
+                    name="expected"
+                    domain="[('state', '=', 'expected')]" />
+                <filter
+                    string="Tracking"
+                    name="tracking"
+                    domain="[('state', '=', 'tracking')]" />
+                <filter
+                    string="Achieved"
+                    name="achieved"
+                    domain="[('state', '=', 'achieved')]" />
+                <separator />
+                <filter
+                    string="Review Due"
+                    name="review_due"
+                    domain="[('review_date', '&lt;=', context_today().strftime('%Y-%m-%d'))]" />
                 <group>
-                    <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
-                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
-                    <filter string="Owner" name="group_owner" context="{'group_by': 'accountable_id'}"/>
+                    <filter
+                        string="Project"
+                        name="group_project"
+                        context="{'group_by': 'project_id'}" />
+                    <filter
+                        string="State"
+                        name="group_state"
+                        context="{'group_by': 'state'}" />
+                    <filter
+                        string="Owner"
+                        name="group_owner"
+                        context="{'group_by': 'accountable_id'}" />
                 </group>
             </search>
         </field>
@@ -30,36 +51,47 @@
         <field name="arch" type="xml">
             <form string="Benefit">
                 <header>
-                    <field name="state" widget="statusbar" statusbar_visible="expected,tracking,achieved"/>
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="expected,tracking,achieved" />
                 </header>
                 <sheet>
                     <group>
                         <group>
-                            <field name="name" placeholder="e.g. Reduce customer churn by 15%"/>
-                            <field name="project_id"/>
-                            <field name="accountable_id" widget="many2one_avatar_user"/>
-                            <field name="review_date"/>
+                            <field
+                                name="name"
+                                placeholder="e.g. Reduce customer churn by 15%" />
+                            <field name="project_id" />
+                            <field
+                                name="accountable_id"
+                                widget="many2one_avatar_user" />
+                            <field name="review_date" />
                         </group>
                         <group>
-                            <field name="target_value"/>
-                            <field name="target_unit" placeholder="e.g. %, $, NPS"/>
-                            <field name="actual_value"/>
-                            <field name="achievement_pct" widget="progressbar"/>
+                            <field name="target_value" />
+                            <field name="target_unit" placeholder="e.g. %, $, NPS" />
+                            <field name="actual_value" />
+                            <field name="achievement_pct" widget="progressbar" />
                         </group>
                     </group>
                     <notebook>
                         <page string="Description" name="description">
-                            <field name="description" placeholder="How will this benefit be realized?"/>
+                            <field
+                                name="description"
+                                placeholder="How will this benefit be realized?" />
                         </page>
                         <page string="Measurement" name="measurement">
-                            <field name="measurement_method" placeholder="How exactly will this benefit be measured? Be specific."/>
+                            <field
+                                name="measurement_method"
+                                placeholder="How exactly will this benefit be measured? Be specific." />
                         </page>
                         <page string="Review Notes" name="notes">
-                            <field name="notes"/>
+                            <field name="notes" />
                         </page>
                     </notebook>
                 </sheet>
-                <chatter/>
+                <chatter />
             </form>
         </field>
     </record>
@@ -69,20 +101,25 @@
         <field name="model">project.benefit</field>
         <field name="arch" type="xml">
             <list string="Benefits">
-                <field name="sequence" widget="handle"/>
-                <field name="name"/>
-                <field name="project_id"/>
-                <field name="target_value"/>
-                <field name="target_unit"/>
-                <field name="actual_value"/>
-                <field name="achievement_pct" widget="progressbar"/>
-                <field name="accountable_id" widget="many2one_avatar_user" optional="show"/>
-                <field name="review_date" optional="show"/>
-                <field name="state" widget="badge"
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="project_id" />
+                <field name="target_value" />
+                <field name="target_unit" />
+                <field name="actual_value" />
+                <field name="achievement_pct" widget="progressbar" />
+                <field
+                    name="accountable_id"
+                    widget="many2one_avatar_user"
+                    optional="show" />
+                <field name="review_date" optional="show" />
+                <field
+                    name="state"
+                    widget="badge"
                     decoration-info="state == 'expected'"
                     decoration-warning="state == 'tracking'"
                     decoration-success="state == 'achieved'"
-                    decoration-muted="state == 'not_achieved'"/>
+                    decoration-muted="state == 'not_achieved'" />
             </list>
         </field>
     </record>
@@ -91,7 +128,7 @@
         <field name="name">Benefits</field>
         <field name="res_model">project.benefit</field>
         <field name="view_mode">list,form</field>
-        <field name="search_view_id" ref="project_benefit_search"/>
+        <field name="search_view_id" ref="project_benefit_search" />
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No benefits defined yet
@@ -107,8 +144,8 @@
         <field name="name">Benefits</field>
         <field name="res_model">project.benefit</field>
         <field name="view_mode">list,form</field>
-        <field name="context">{'default_project_id': active_id}</field>
         <field name="domain">[('project_id', '=', active_id)]</field>
+        <field name="context">{'default_project_id': active_id}</field>
     </record>
 
 </odoo>

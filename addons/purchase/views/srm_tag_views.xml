@@ -26,11 +26,18 @@
                 <field name="name" string="Name" />
                 <field name="display_name" string="Tag" />
                 <separator />
-                <filter name="inactive" string="Archived" domain="[('active', '=', False)]" />
+                <filter
+                    name="inactive"
+                    string="Archived"
+                    domain="[('active', '=', False)]" />
                 <group>
-                    <filter name="group_parent_id" string="Parent Tag"
+                    <filter
+                        name="group_parent_id"
+                        string="Parent Tag"
                         context="{'group_by': 'parent_id'}" />
-                    <filter name="group_color" string="Color"
+                    <filter
+                        name="group_color"
+                        string="Color"
                         context="{'group_by': 'color'}" />
                 </group>
             </search>
@@ -43,7 +50,10 @@
         <field name="arch" type="xml">
             <list string="Tags" editable="bottom" multi_edit="1" sample="1">
                 <field name="name" />
-                <field name="parent_id" string="Parent Tag" domain="[('id', '!=', id)]" />
+                <field
+                    name="parent_id"
+                    string="Parent Tag"
+                    domain="[('id', '!=', id)]" />
                 <field name="color" widget="color_picker" />
             </list>
         </field>

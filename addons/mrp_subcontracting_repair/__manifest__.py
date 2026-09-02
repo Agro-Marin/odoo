@@ -5,13 +5,16 @@
     "description": """
 Bridge module between MRP subcontracting and Repair
     """,
-    "depends": ["mrp_subcontracting", "repair"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "mrp_subcontracting",
+        "repair",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/mrp_subcontracting_repair_security.xml",
     ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

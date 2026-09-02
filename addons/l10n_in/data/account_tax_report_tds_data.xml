@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo auto_sequence="1">
+
     <record id="tds_report" model="account.report">
         <field name="name">TDS Report</field>
-        <field name="root_report_id" ref="account.generic_tax_report"/>
-        <field name="country_id" ref="base.in"/>
-        <field name="allow_foreign_vat" eval="True"/>
+        <field name="root_report_id" ref="account.generic_tax_report" />
+        <field name="country_id" ref="base.in" />
+        <field name="allow_foreign_vat" eval="True" />
         <field name="availability_condition">country</field>
         <field name="column_ids">
             <record id="tds_report_balance" model="account.report.column">
@@ -16,7 +17,9 @@
             <record id="tds_report_line_section_192" model="account.report.line">
                 <field name="name">Section 192: Payment of salary</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_192_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_192_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">192</field>
@@ -24,9 +27,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_192a" model="account.report.line">
-                <field name="name">Section 192A: Payment of accumulated balance of provident fund which is taxable in the hands of an employee</field>
+                <field
+                    name="name">Section 192A: Payment of accumulated balance of provident fund which is taxable in the hands of an employee</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_192a_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_192a_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">192A</field>
@@ -36,7 +42,9 @@
             <record id="tds_report_line_section_193" model="account.report.line">
                 <field name="name">Section 193: Interest on securities</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_193_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_193_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">193</field>
@@ -46,7 +54,9 @@
             <record id="tds_report_line_section_194" model="account.report.line">
                 <field name="name">Section 194: Income by way of dividend</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194</field>
@@ -54,9 +64,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194a" model="account.report.line">
-                <field name="name">Section 194A: Income by way of interest other than &quot;Interest on securities&quot;</field>
+                <field
+                    name="name">Section 194A: Income by way of interest other than "Interest on securities"</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194a_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194a_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194A</field>
@@ -64,9 +77,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194b" model="account.report.line">
-                <field name="name">Section 194B: Income by way of winnings from lotteries, crossword puzzles, card games and other games of any sort</field>
+                <field
+                    name="name">Section 194B: Income by way of winnings from lotteries, crossword puzzles, card games and other games of any sort</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194b_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194b_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194B</field>
@@ -74,9 +90,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194bb" model="account.report.line">
-                <field name="name">Section 194BB: Income by way of winnings from horse races</field>
+                <field
+                    name="name">Section 194BB: Income by way of winnings from horse races</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194bb_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194bb_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194BB</field>
@@ -84,9 +103,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194c" model="account.report.line">
-                <field name="name">Section 194C: Payment to contractor/sub-contractor</field>
+                <field
+                    name="name">Section 194C: Payment to contractor/sub-contractor</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194c_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194c_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194C</field>
@@ -96,7 +118,9 @@
             <record id="tds_report_line_section_194d" model="account.report.line">
                 <field name="name">Section 194D: Insurance commission</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194d_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194d_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194D</field>
@@ -104,9 +128,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194da" model="account.report.line">
-                <field name="name">Section 194DA: Payment in respect of life insurance policy</field>
+                <field
+                    name="name">Section 194DA: Payment in respect of life insurance policy</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194da_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194da_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194DA</field>
@@ -114,9 +141,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194e" model="account.report.line">
-                <field name="name">Section 194E: Payment to non-resident sportsmen/sports association</field>
+                <field
+                    name="name">Section 194E: Payment to non-resident sportsmen/sports association</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194e_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194e_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194E</field>
@@ -124,9 +154,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194ee" model="account.report.line">
-                <field name="name">Section 194EE: Payment in respect of deposit under National Savings scheme</field>
+                <field
+                    name="name">Section 194EE: Payment in respect of deposit under National Savings scheme</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194ee_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194ee_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194EE</field>
@@ -134,9 +167,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194f" model="account.report.line">
-                <field name="name">Section 194F: Payment on account of repurchase of unit by Mutual Fund or Unit Trust of India</field>
+                <field
+                    name="name">Section 194F: Payment on account of repurchase of unit by Mutual Fund or Unit Trust of India</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194f_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194f_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194F</field>
@@ -144,9 +180,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194g" model="account.report.line">
-                <field name="name">Section 194G: Commission, etc., on sale of lottery tickets</field>
+                <field
+                    name="name">Section 194G: Commission, etc., on sale of lottery tickets</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194g_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194g_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194G</field>
@@ -156,7 +195,9 @@
             <record id="tds_report_line_section_194h" model="account.report.line">
                 <field name="name">Section 194H: Commission or brokerage</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194h_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194h_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194H</field>
@@ -166,7 +207,9 @@
             <record id="tds_report_line_section_194i" model="account.report.line">
                 <field name="name">Section 194-I: Rent</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194i_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194i_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194I</field>
@@ -174,9 +217,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194ia" model="account.report.line">
-                <field name="name">Section 194-IA: Payment on transfer of certain immovable property other than agricultural land</field>
+                <field
+                    name="name">Section 194-IA: Payment on transfer of certain immovable property other than agricultural land</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194ia_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194ia_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194IA</field>
@@ -184,9 +230,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194ib" model="account.report.line">
-                <field name="name">Section 194-IB: Payment of rent by individual or HUF not liable to tax audit</field>
+                <field
+                    name="name">Section 194-IB: Payment of rent by individual or HUF not liable to tax audit</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194ib_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194ib_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194IB</field>
@@ -194,9 +243,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194ic" model="account.report.line">
-                <field name="name">Section 194-IC: Payment of monetary consideration under Joint Development Agreements</field>
+                <field
+                    name="name">Section 194-IC: Payment of monetary consideration under Joint Development Agreements</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194ic_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194ic_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194IC</field>
@@ -204,9 +256,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194j" model="account.report.line">
-                <field name="name">Section 194J: Fees for professional or technical services</field>
+                <field
+                    name="name">Section 194J: Fees for professional or technical services</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194j_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194j_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194J</field>
@@ -214,9 +269,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194k" model="account.report.line">
-                <field name="name">Section 194K: Income in respect of units payable to resident person</field>
+                <field
+                    name="name">Section 194K: Income in respect of units payable to resident person</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194k_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194k_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194K</field>
@@ -224,9 +282,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194la" model="account.report.line">
-                <field name="name">Section 194LA: Payment of compensation on acquisition of certain immovable property</field>
+                <field
+                    name="name">Section 194LA: Payment of compensation on acquisition of certain immovable property</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194la_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194la_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194LA</field>
@@ -234,9 +295,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194lba" model="account.report.line">
-                <field name="name">Section 194LBA(1): Business trust shall deduct tax while distributing, any interest received or receivable by it from a SPV or any income received from renting or leasing or letting out any real estate asset owned directly by it, to its unit holders.</field>
+                <field
+                    name="name">Section 194LBA(1): Business trust shall deduct tax while distributing, any interest received or receivable by it from a SPV or any income received from renting or leasing or letting out any real estate asset owned directly by it, to its unit holders.</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194lba_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194lba_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194LBA(1)</field>
@@ -244,9 +308,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194lb" model="account.report.line">
-                <field name="name">Section 194LB: Payment of interest on infrastructure debt fund</field>
+                <field
+                    name="name">Section 194LB: Payment of interest on infrastructure debt fund</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194lb_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194lb_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194LB</field>
@@ -254,9 +321,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194lbb" model="account.report.line">
-                <field name="name">Section 194LBB: Investment fund paying an income to a unit holder [other than income which is exempt under Section 10(23FBB)]</field>
+                <field
+                    name="name">Section 194LBB: Investment fund paying an income to a unit holder [other than income which is exempt under Section 10(23FBB)]</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194lbb_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194lbb_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194LBB</field>
@@ -264,9 +334,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194lbc" model="account.report.line">
-                <field name="name">Section 194LBC: Income in respect of investment made in a securitisation trust (specified in Explanation of section115TCA)</field>
+                <field
+                    name="name">Section 194LBC: Income in respect of investment made in a securitisation trust (specified in Explanation of section115TCA)</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194lbc_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194lbc_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194LBC</field>
@@ -274,9 +347,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194m" model="account.report.line">
-                <field name="name">Section 194M: Payment of commission (not being insurance commission), brokerage, contractual fee, professional fee to a resident person by an Individual or a HUF who are not liable to deduct TDS under section 194C, 194H, or 194J.</field>
+                <field
+                    name="name">Section 194M: Payment of commission (not being insurance commission), brokerage, contractual fee, professional fee to a resident person by an Individual or a HUF who are not liable to deduct TDS under section 194C, 194H, or 194J.</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194m_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194m_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194M</field>
@@ -284,9 +360,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194n" model="account.report.line">
-                <field name="name">Section 194N: Cash withdrawal during the previous year from one or more account maintained by a person with a banking company, co-operative society engaged in business of banking or a post office</field>
+                <field
+                    name="name">Section 194N: Cash withdrawal during the previous year from one or more account maintained by a person with a banking company, co-operative society engaged in business of banking or a post office</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194n_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194n_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194N</field>
@@ -294,9 +373,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_194o" model="account.report.line">
-                <field name="name">Section 194-O: Payment or credit of amount by the e-commerce operator to e-commerce participant</field>
+                <field
+                    name="name">Section 194-O: Payment or credit of amount by the e-commerce operator to e-commerce participant</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194o_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194o_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194O</field>
@@ -306,7 +388,9 @@
             <record id="tds_report_line_section_194q" model="account.report.line">
                 <field name="name">Section 194Q: Purchase of goods</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_194q_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_194q_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">194Q</field>
@@ -314,9 +398,12 @@
                 </field>
             </record>
             <record id="tds_report_line_section_195" model="account.report.line">
-                <field name="name">Section 195: Payment of any other sum to a Non -resident</field>
+                <field
+                    name="name">Section 195: Payment of any other sum to a Non -resident</field>
                 <field name="expression_ids">
-                    <record id="tds_report_line_section_195_tag" model="account.report.expression">
+                    <record
+                        id="tds_report_line_section_195_tag"
+                        model="account.report.expression">
                         <field name="label">balance</field>
                         <field name="engine">tax_tags</field>
                         <field name="formula">195</field>
@@ -325,4 +412,5 @@
             </record>
         </field>
     </record>
+
 </odoo>

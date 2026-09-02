@@ -67,9 +67,6 @@ class XmlRecordLinter(LintCase):
             model = record.get("model")
             if model not in _sort_xml_records.FIELD_ORDER:
                 continue
-            if any(callable(c.tag) for c in record):
-                continue
-
             fields = [c for c in record if not callable(c.tag) and c.tag == "field"]
             actual = [f.get("name") for f in fields]
             expected = _sort_xml_records.expected_field_order(actual, model)

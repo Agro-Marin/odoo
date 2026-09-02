@@ -1,10 +1,10 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="sale_order_view_form" model="ir.ui.view">
         <field name="name">sale.order.view.form.inherit.event.booth.sale</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="event_sale.sale_order_view_form"/>
+        <field name="inherit_id" ref="event_sale.sale_order_view_form" />
         <field name="arch" type="xml">
             <button name="action_view_attendee_list" position="after">
                 <button
@@ -12,17 +12,23 @@
                     type="object"
                     class="oe_stat_button"
                     icon="fa-university"
-                    invisible="event_booth_count == 0"
-                >
-                    <field name="event_booth_count" widget="statinfo" string="Booths"/>
+                    invisible="event_booth_count == 0">
+                    <field name="event_booth_count" widget="statinfo" string="Booths" />
                 </button>
             </button>
-            <xpath expr="//field[@name='line_ids']//list//field[@name='event_ticket_id']" position="after">
-                <field name="event_booth_category_id" column_invisible="True"/>
-                <field name="event_booth_pending_ids" column_invisible="True"/>
+            <xpath
+                expr="//field[@name='line_ids']//list//field[@name='event_ticket_id']"
+                position="after">
+                <field name="event_booth_category_id" column_invisible="True" />
+                <field name="event_booth_pending_ids" column_invisible="True" />
             </xpath>
-            <xpath expr="//field[@name='line_ids']//list//field[@name='product_qty']" position="attributes">
-                <attribute name="readonly" separator="or" add="service_tracking == 'event_booth'"/>
+            <xpath
+                expr="//field[@name='line_ids']//list//field[@name='product_qty']"
+                position="attributes">
+                <attribute
+                    name="readonly"
+                    separator="or"
+                    add="service_tracking == 'event_booth'" />
             </xpath>
         </field>
     </record>

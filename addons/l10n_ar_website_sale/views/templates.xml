@@ -1,37 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <template id='l10n_ar_website_sale_product_price_inherit' inherit_id='website_sale.product_price'>
-        <xpath expr='//div[1]'>
-            <small t-if='combination_info.get("l10n_ar_price_tax_excluded")' class='h6 text-muted'>
+    <template
+        id="l10n_ar_website_sale_product_price_inherit"
+        inherit_id="website_sale.product_price">
+        <xpath expr="//div[1]">
+            <small
+                t-if="combination_info.get(&quot;l10n_ar_price_tax_excluded&quot;)"
+                class="h6 text-muted">
                 Precio s/Imp. Nac.:
                 <span
-                    class='o_l10n_ar_price_tax_excluded'
-                    t-out='combination_info["l10n_ar_price_tax_excluded"]'
-                    t-options='{
-                        "widget": "monetary",
-                        "display_currency": website.currency_id,
-                    }'
-                />
+                    class="o_l10n_ar_price_tax_excluded"
+                    t-out="combination_info[&quot;l10n_ar_price_tax_excluded&quot;]"
+                    t-options="{                         &quot;widget&quot;: &quot;monetary&quot;,                         &quot;display_currency&quot;: website.currency_id,                     }" />
             </small>
         </xpath>
     </template>
 
-    <template id='l10n_ar_website_sale_products_item_inherit' inherit_id='website_sale.products_item'>
-        <xpath expr='//div[hasclass("product_price")]' position='attributes'>
-            <attribute name='t-attf-class' add='o_l10n_ar_product_price'/>
+    <template
+        id="l10n_ar_website_sale_products_item_inherit"
+        inherit_id="website_sale.products_item">
+        <xpath expr="//div[hasclass(&quot;product_price&quot;)]" position="attributes">
+            <attribute name="t-attf-class" add="o_l10n_ar_product_price" />
         </xpath>
-        <xpath expr='//div[hasclass("product_price")]' position='inside'>
-            <small t-if='template_price_vals.get("l10n_ar_price_tax_excluded")' class='d-block mt-1 text-muted'>
+        <xpath expr="//div[hasclass(&quot;product_price&quot;)]" position="inside">
+            <small
+                t-if="template_price_vals.get(&quot;l10n_ar_price_tax_excluded&quot;)"
+                class="d-block mt-1 text-muted">
                 Precio s/Imp. Nac.
                 <span
-                    class='o_l10n_ar_price_tax_excluded'
-                    t-out='template_price_vals["l10n_ar_price_tax_excluded"]'
-                    t-options='{
-                        "widget": "monetary",
-                        "display_currency": website.currency_id,
-                    }'
-                />
+                    class="o_l10n_ar_price_tax_excluded"
+                    t-out="template_price_vals[&quot;l10n_ar_price_tax_excluded&quot;]"
+                    t-options="{                         &quot;widget&quot;: &quot;monetary&quot;,                         &quot;display_currency&quot;: website.currency_id,                     }" />
             </small>
         </xpath>
     </template>

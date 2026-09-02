@@ -1,10 +1,15 @@
 {
     "name": "Forum on Courses",
-    "category": "Website/eLearning",
     "version": "1.0",
+    "category": "Website/eLearning",
     "summary": "Allows to link forum on a course",
-    "description": """A Slide channel can be linked to forum. Also, profiles from slide and forum are regrouped together""",
-    "depends": ["website_slides", "website_forum"],
+    "description": "A Slide channel can be linked to forum. Also, profiles from slide and forum are regrouped together",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website_slides",
+        "website_forum",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/website_slides_forum_security.xml",
@@ -19,12 +24,10 @@
     "demo": [
         "data/slide_channel_demo.xml",
     ],
-    "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "assets": {
         "website.website_builder_assets": [
             "website_slides_forum/static/src/website_builder/**/*",
         ],
     },
+    "auto_install": True,
 }

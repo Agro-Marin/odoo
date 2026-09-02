@@ -1,27 +1,31 @@
 {
-    'name': 'South Africa - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['za'],
-    'version': '1.0',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "South Africa - Accounting",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the latest basic South African localisation necessary to run Odoo in ZA:
 ================================================================================
     - a generic chart of accounts
     - SARS VAT Ready Structure""",
-    'author': 'Paradigm Digital (https://www.paradigmdigital.co.za)',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'depends': [
-        'account',
-        'account_vat',
+    "author": "Paradigm Digital (https://www.paradigmdigital.co.za)",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_vat",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account.account.tag.csv',
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "za",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account.account.tag.csv",
+        "data/account_tax_report_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

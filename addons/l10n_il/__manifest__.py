@@ -1,10 +1,8 @@
 {
-    'name': 'Israel - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['il'],
-    'version': '1.1',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Israel - Accounting",
+    "version": "1.1",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the latest basic Israelian localisation necessary to run Odoo in Israel:
 ================================================================================
 
@@ -13,18 +11,24 @@ This module consists of:
  - Taxes and tax report
  - Multiple Fiscal positions
  """,
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'depends': [
-        'account',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_account_tag.xml',
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "il",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_account_tag.xml",
+        "data/account_tax_report_data.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

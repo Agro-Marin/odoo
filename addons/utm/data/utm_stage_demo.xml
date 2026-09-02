@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
         <record id="campaign_stage_1" model="utm.stage">
             <field name="name">Schedule</field>
@@ -14,4 +15,5 @@
             <field name="sequence">30</field>
         </record>
     </data>
+
 </odoo>

@@ -4,10 +4,11 @@
     "category": "Productivity/Dashboard",
     "summary": "Spreadsheet",
     "description": "Spreadsheet",
-    "depends": ["spreadsheet"],
-    "installable": True,
     "author": "Odoo S.A.",
     "license": "LGPL-3",
+    "depends": [
+        "spreadsheet",
+    ],
     "data": [
         "security/security.xml",
         "security/ir.model.access.csv",
@@ -20,15 +21,16 @@
             "spreadsheet_dashboard/static/src/bundle/**/*.js",
             "spreadsheet_dashboard/static/src/bundle/**/*.xml",
         ],
-        'spreadsheet.assets_print': [
-            'spreadsheet_dashboard/static/src/print_assets/**/*',
+        "spreadsheet.assets_print": [
+            "spreadsheet_dashboard/static/src/print_assets/**/*",
         ],
         "web.assets_backend": [
             "spreadsheet_dashboard/static/src/assets/**/*.js",
             "spreadsheet_dashboard/static/src/**/*.scss",
         ],
-        'web.assets_unit_tests': [
+        "web.assets_unit_tests": [
             "spreadsheet_dashboard/static/tests/**/*",
         ],
     },
+    "installable": True,
 }

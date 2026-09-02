@@ -17,7 +17,12 @@ same kind of frontend interaction.
     """,
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    "depends": ["portal", "auth_totp", "auth_totp_mail", "auth_passkey"],
+    "depends": [
+        "portal",
+        "auth_totp",
+        "auth_totp_mail",
+        "auth_passkey",
+    ],
     "data": [
         "security/security.xml",
         "views/templates.xml",

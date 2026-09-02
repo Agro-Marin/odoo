@@ -1,5 +1,6 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
         <template id="report_pos_hash_integrity">
             <t t-call="web.html_container">
@@ -8,35 +9,35 @@
                         <div class="page">
                             <div class="row" id="hash_header">
                                 <div class="col-12">
-                                    <br/>
-                                    <h2>Résultat du test d'intégrité - <span t-out="data['printing_date']"/></h2>
-                                    <br/>
+                                    <br />
+                                    <h2>Résultat du test d'intégrité - <span t-out="data['printing_date']" /></h2>
+                                    <br />
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-12" id="hash_config_review">
-                                    <br/>
+                                    <br />
                                     <h3>Contexte</h3>
-                                    <br/>
+                                    <br />
                                     <h6>
                                         Selon l'article 286 du code général des impôts français, toute livraison de bien ou prestation
                                         de services ne donnant pas lieu à facturation et étant enregistrée au moyen d'un logiciel ou
                                         d'un système de caisse doit satisfaire à des conditions d'inaltérabilité et de sécurisation des
                                         données en vue d'un contrôle de l'administration fiscale.
-                                        <br/>
-                                        <br/>
+                                        <br />
+                                        <br />
                                         Ces conditions sont respectées via une fonction de hachage des ventes du Point de Vente.
-                                        <br/>
-                                        <br/>
+                                        <br />
+                                        <br />
                                     </h6>
                                 </div>
                             </div>
                             <t t-if="data['result'] != 'None'">
                                 <div class="row">
                                     <div class="col-12" id="hash_data_consistency">
-                                        <br/>
+                                        <br />
                                         <h3>Contrôle des données du point de vente</h3>
-                                        <br/>
+                                        <br />
                                         <ul>
                                             <li t-if="data['result'] != 'None' and data['corrupted_orders'] == 'None'">Toutes les ventes effectuées via le Point de Vente sont bien dans la chaîne de hachage.</li>
                                             <li>La chaîne de hachage est conforme: il n'est pas possible d'altérer les données sans casser la chaîne de hachage pour les pièces ultérieurs</li>
@@ -54,31 +55,38 @@
                                     </div>
                                 </div>
                                 <div class="row">
-                                    <div class="col-12" id="hash_data_consistency_table">
-                                        <table class="table table-borderless" style="table-layout: fixed">
+                                    <div
+                                        class="col-12"
+                                        id="hash_data_consistency_table">
+                                        <table
+                                            class="table table-borderless"
+                                            style="table-layout: fixed">
                                             <thead>
                                                 <tr>
-                                                    <th class="text-center col-2" scope="col"></th>
+                                                    <th
+                                                        class="text-center col-2"
+                                                        scope="col" />
                                                     <th class="text-center col-5" scope="col">Première transaction</th>
                                                     <th class="text-center col-5" scope="col">Dernière transaction</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <t t-if="data['result']['first_order_hash'] != 'None'">
+                                                <t
+                                                    t-if="data['result']['first_order_hash'] != 'None'">
                                                     <tr>
                                                         <td>Date</td>
-                                                        <td><span t-out="data['result']['first_order_date']"/></td>
-                                                        <td><span t-out="data['result']['last_order_date']"/></td>
+                                                        <td><span t-out="data['result']['first_order_date']" /></td>
+                                                        <td><span t-out="data['result']['last_order_date']" /></td>
                                                     </tr>
                                                     <tr>
                                                         <td>Réf. Commande</td>
-                                                        <td><span t-out="data['result']['first_order_name']"/></td>
-                                                        <td><span t-out="data['result']['last_order_name']"/></td>
+                                                        <td><span t-out="data['result']['first_order_name']" /></td>
+                                                        <td><span t-out="data['result']['last_order_name']" /></td>
                                                     </tr>
                                                     <tr>
                                                         <td>Hachage</td>
-                                                        <td><span t-out="data['result']['first_order_hash']"/></td>
-                                                        <td><span t-out="data['result']['last_order_hash']"/></td>
+                                                        <td><span t-out="data['result']['first_order_hash']" /></td>
+                                                        <td><span t-out="data['result']['last_order_hash']" /></td>
                                                     </tr>
                                                 </t>
                                             </tbody>
@@ -86,15 +94,15 @@
                                     </div>
                                 </div>
                                 <div class="col-12" id="hash_results">
-                                    <br/>
+                                    <br />
                                     <h3>Résultat du test</h3>
-                                    <br/>
+                                    <br />
                                     <t t-if="data['corrupted_orders'] != 'None'">
                                         <h5 class="bg-danger">
                                             Données corrompues sur la commande du point de vente:
                                         </h5>
-                                        <span t-out="data['corrupted_orders']"/>
-                                        <br/>
+                                        <span t-out="data['corrupted_orders']" />
+                                        <br />
                                     </t>
                                     <t t-else="">
                                         <h5 class="bg-success">
@@ -109,4 +117,5 @@
             </t>
         </template>
     </data>
+
 </odoo>

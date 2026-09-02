@@ -1,24 +1,28 @@
 {
     "name": "Cloud Storage Google",
-    "summary": """Store chatter attachments in the Google cloud""",
-    "category": "Technical Settings",
     "version": "1.0",
-    "depends": ["cloud_storage"],
-    "data": [
-        "views/settings.xml",
+    "category": "Technical Settings",
+    "summary": "Store chatter attachments in the Google cloud",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "cloud_storage",
     ],
     "external_dependencies": {
-        "python": ["google-auth"],
+        "python": [
+            "google-auth",
+        ],
         "apt": {
             "google-auth": "python3-google-auth",
         },
     },
-    'assets': {
-        'web.assets_backend': [
-            'cloud_storage_google/static/src/**/*',
+    "data": [
+        "views/settings.xml",
+    ],
+    "assets": {
+        "web.assets_backend": [
+            "cloud_storage_google/static/src/**/*",
         ],
     },
     "uninstall_hook": "uninstall_hook",
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
 }

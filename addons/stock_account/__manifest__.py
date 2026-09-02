@@ -1,6 +1,8 @@
 {
     "name": "WMS Accounting",
     "version": "1.2",
+    "category": "Supply Chain/Inventory",
+    "sequence": 16,
     "summary": "Inventory, Logistic, Valuation, Accounting",
     "description": """
 WMS Accounting module
@@ -16,9 +18,12 @@ Dashboard / Reports for Warehouse Management includes:
 ------------------------------------------------------
 * Stock Inventory Value at given date (support dates in the past)
     """,
-    "depends": ["stock", "account"],
-    "category": "Supply Chain/Inventory",
-    "sequence": 16,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "stock",
+        "account",
+    ],
     "data": [
         "security/stock_account_security.xml",
         "security/ir.model.access.csv",
@@ -38,14 +43,12 @@ Dashboard / Reports for Warehouse Management includes:
         "report/stock_avco_audit_report_views.xml",
         "report/stock_valuation_report.xml",
     ],
-    "installable": True,
-    "auto_install": True,
-    "post_init_hook": "_post_init_hook",
     "assets": {
         "web.assets_backend": [
             "stock_account/static/src/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
+    "post_init_hook": "_post_init_hook",
 }

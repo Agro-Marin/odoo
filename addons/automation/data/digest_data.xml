@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="digest_tip_automation_0" model="digest.tip">
@@ -14,7 +14,8 @@
                     workflow.</p>
                 <img
                     src="https://download.odoocdn.com/digests/automation/static/src/img/18-automation-rules.gif"
-                    width="540" class="illustration_border" />
+                    width="540"
+                    class="illustration_border" />
             </div>
         </field>
     </record>

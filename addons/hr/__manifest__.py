@@ -4,10 +4,12 @@
     "category": "Human Resources/Employees",
     "sequence": 95,
     "summary": "Centralize employee information",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/employees",
     "images": [
         "static/src/img/default_image.png",
     ],
+    "license": "LGPL-3",
     "depends": [
         "digest",
         "phone_validation",
@@ -44,9 +46,9 @@
         "views/hr_templates.xml",
         "data/hr_data.xml",
     ],
-    "demo": ["data/hr_demo.xml"],
-    "installable": True,
-    "application": True,
+    "demo": [
+        "data/hr_demo.xml",
+    ],
     "assets": {
         "web.assets_backend": [
             "hr/static/src/**/*",
@@ -59,12 +61,15 @@
         ],
         "web.assets_unit_tests": [
             "hr/static/tests/**/*",
-            ("remove", "hr/static/tests/tours/**/*"),
+            (
+                "remove",
+                "hr/static/tests/tours/**/*",
+            ),
         ],
         "web.assets_tests": [
             "hr/static/tests/tours/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "application": True,
 }

@@ -32,13 +32,16 @@ The Dashboard for the Sales Manager will include
 * My Quotations
 * Monthly Turnover (Graph)
     """,
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/sales",
-    "depends": ["sale"],
+    "license": "LGPL-3",
+    "depends": [
+        "sale",
+    ],
     "data": [
         "data/digest_data.xml",
         "security/ir.model.access.csv",
         "security/sale_management_security.xml",
-        # Define SO template views & actions before their place of use
         "views/sale_order_template_views.xml",
         "views/digest_views.xml",
         "views/res_config_settings_views.xml",
@@ -67,6 +70,4 @@ The Dashboard for the Sales Manager will include
     "pre_init_hook": "pre_init_hook",
     "post_init_hook": "post_init_hook",
     "uninstall_hook": "uninstall_hook",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

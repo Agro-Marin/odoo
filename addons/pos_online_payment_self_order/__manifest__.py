@@ -1,34 +1,37 @@
 # -*- coding: utf-8 -*-
 
 {
-    'name': 'POS Self-Order / Online Payment',
-    'category': 'Sales/Point of Sale',
-    'summary': 'Support online payment in self-order',
-    'version': '1.0',
-    'depends': ['pos_online_payment', 'pos_self_order'],
-    'data': [
-        'views/res_config_settings_views.xml',
+    "name": "POS Self-Order / Online Payment",
+    "version": "1.0",
+    "category": "Sales/Point of Sale",
+    "summary": "Support online payment in self-order",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "pos_online_payment",
+        "pos_self_order",
     ],
-    'installable': True,
-    'auto_install': True,
-    'assets': {
-        'pos_self_order.assets': [
-            'pos_online_payment_self_order/static/src/app/**/*',
-            'point_of_sale/static/lib/qrcode.js',
+    "data": [
+        "views/res_config_settings_views.xml",
+    ],
+    "assets": {
+        "pos_self_order.assets": [
+            "pos_online_payment_self_order/static/src/app/**/*",
+            "point_of_sale/static/lib/qrcode.js",
         ],
-        'point_of_sale._assets_pos': [
-            'pos_online_payment_self_order/static/src/overrides/**/*',
+        "point_of_sale._assets_pos": [
+            "pos_online_payment_self_order/static/src/overrides/**/*",
         ],
-        'web.assets_tests': [
-            'pos_online_payment_self_order/static/tests/tours/pos_online_payment_multi_table_order.js',
+        "web.assets_tests": [
+            "pos_online_payment_self_order/static/tests/tours/pos_online_payment_multi_table_order.js",
         ],
-        'pos_self_order.assets_tests': [
-            'pos_online_payment_self_order/static/tests/tours/pos_self_order_mobile_online_payment_tour.js',
+        "pos_self_order.assets_tests": [
+            "pos_online_payment_self_order/static/tests/tours/pos_self_order_mobile_online_payment_tour.js",
         ],
-        'web.assets_unit_tests': [
-            'pos_online_payment_self_order/static/tests/unit/**/*',
+        "web.assets_unit_tests": [
+            "pos_online_payment_self_order/static/tests/unit/**/*",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
+    "auto_install": True,
 }

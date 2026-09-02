@@ -1,9 +1,13 @@
 {
     "name": "Website Mail Group",
-    "summary": "Add a website snippet for the mail groups.",
     "version": "1.0",
-    "depends": ["mail_group", "website"],
-    "auto_install": True,
+    "summary": "Add a website snippet for the mail groups.",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "mail_group",
+        "website",
+    ],
     "data": [
         "views/snippets/s_group.xml",
         "views/snippets/snippets.xml",
@@ -13,7 +17,10 @@
     "assets": {
         "web.assets_frontend": [
             "website_mail_group/static/src/snippets/**/*.js",
-            ("remove", "website_mail_group/static/src/**/*.edit.js"),
+            (
+                "remove",
+                "website_mail_group/static/src/**/*.edit.js",
+            ),
         ],
         "website.assets_inside_builder_iframe": [
             "website_mail_group/static/src/**/*.edit.js",
@@ -22,6 +29,5 @@
             "website_mail_group/static/src/website_builder/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

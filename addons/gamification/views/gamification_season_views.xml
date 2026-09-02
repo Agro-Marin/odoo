@@ -12,15 +12,27 @@
         <field name="model">gamification.season</field>
         <field name="arch" type="xml">
             <search string="Seasons">
-                <field name="name"/>
-                <field name="theme"/>
-                <separator/>
-                <filter string="Active" name="active_seasons" domain="[('state', '=', 'active')]"/>
-                <filter string="Draft" name="draft_seasons" domain="[('state', '=', 'draft')]"/>
-                <separator/>
+                <field name="name" />
+                <field name="theme" />
+                <separator />
+                <filter
+                    string="Active"
+                    name="active_seasons"
+                    domain="[('state', '=', 'active')]" />
+                <filter
+                    string="Draft"
+                    name="draft_seasons"
+                    domain="[('state', '=', 'draft')]" />
+                <separator />
                 <group>
-                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
-                    <filter string="Start Date" name="group_start" context="{'group_by': 'start_date:month'}"/>
+                    <filter
+                        string="State"
+                        name="group_state"
+                        context="{'group_by': 'state'}" />
+                    <filter
+                        string="Start Date"
+                        name="group_start"
+                        context="{'group_by': 'start_date:month'}" />
                 </group>
             </search>
         </field>
@@ -33,19 +45,19 @@
             <kanban default_group_by="state" class="o_kanban_small_column">
                 <templates>
                     <t t-name="card">
-                        <field name="icon" widget="image" class="o_kanban_image"/>
+                        <field name="icon" widget="image" class="o_kanban_image" />
                         <div>
-                            <strong><field name="name"/></strong>
-                            <div class="text-muted"><field name="theme"/></div>
+                            <strong><field name="name" /></strong>
+                            <div class="text-muted"><field name="theme" /></div>
                             <div>
-                                <field name="start_date"/> — <field name="end_date"/>
+                                <field name="start_date" /> — <field name="end_date" />
                             </div>
                             <div class="mt-1">
                                 <span class="badge text-bg-primary me-1">
-                                    <field name="challenge_count"/> challenges
+                                    <field name="challenge_count" /> challenges
                                 </span>
                                 <span class="badge text-bg-secondary">
-                                    <field name="participant_count"/> participants
+                                    <field name="participant_count" /> participants
                                 </span>
                             </div>
                         </div>
@@ -60,16 +72,18 @@
         <field name="model">gamification.season</field>
         <field name="arch" type="xml">
             <list string="Seasons">
-                <field name="name"/>
-                <field name="theme"/>
-                <field name="state" widget="badge"
-                       decoration-info="state == 'draft'"
-                       decoration-success="state == 'active'"
-                       decoration-muted="state in ('ended', 'archived')"/>
-                <field name="start_date"/>
-                <field name="end_date"/>
-                <field name="challenge_count"/>
-                <field name="participant_count"/>
+                <field name="name" />
+                <field name="theme" />
+                <field
+                    name="state"
+                    widget="badge"
+                    decoration-info="state == 'draft'"
+                    decoration-success="state == 'active'"
+                    decoration-muted="state in ('ended', 'archived')" />
+                <field name="start_date" />
+                <field name="end_date" />
+                <field name="challenge_count" />
+                <field name="participant_count" />
             </list>
         </field>
     </record>
@@ -80,56 +94,77 @@
         <field name="arch" type="xml">
             <form string="Season">
                 <header>
-                    <button name="action_activate" string="Activate" type="object"
-                            class="btn-primary" invisible="state != 'draft'"/>
-                    <button name="action_end" string="End Season" type="object"
-                            invisible="state != 'active'"/>
-                    <button name="action_archive" string="Archive" type="object"
-                            invisible="state != 'ended'"/>
-                    <field name="state" widget="statusbar"
-                           statusbar_visible="draft,active,ended"/>
+                    <button
+                        name="action_activate"
+                        string="Activate"
+                        type="object"
+                        class="btn-primary"
+                        invisible="state != 'draft'" />
+                    <button
+                        name="action_end"
+                        string="End Season"
+                        type="object"
+                        invisible="state != 'active'" />
+                    <button
+                        name="action_archive"
+                        string="Archive"
+                        type="object"
+                        invisible="state != 'ended'" />
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="draft,active,ended" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button class="oe_stat_button" icon="fa-flag" type="object"
-                                name="action_view_challenges">
-                            <field name="challenge_count" widget="statinfo" string="Challenges"/>
+                        <button
+                            class="oe_stat_button"
+                            icon="fa-flag"
+                            type="object"
+                            name="action_view_challenges">
+                            <field
+                                name="challenge_count"
+                                widget="statinfo"
+                                string="Challenges" />
                         </button>
                         <button class="oe_stat_button" icon="fa-users">
-                            <field name="participant_count" widget="statinfo" string="Participants"/>
+                            <field
+                                name="participant_count"
+                                widget="statinfo"
+                                string="Participants" />
                         </button>
                     </div>
-                    <field name="icon" widget="image" class="oe_avatar"/>
+                    <field name="icon" widget="image" class="oe_avatar" />
                     <div class="oe_title">
-                        <h1><field name="name" placeholder="e.g. Q1 2026: Innovation Sprint"/></h1>
-                        <h3><field name="theme" placeholder="Theme or motto..."/></h3>
+                        <h1><field name="name" placeholder="e.g. Q1 2026: Innovation Sprint" /></h1>
+                        <h3><field name="theme" placeholder="Theme or motto..." /></h3>
                     </div>
                     <group>
                         <group>
-                            <field name="start_date"/>
-                            <field name="end_date"/>
+                            <field name="start_date" />
+                            <field name="end_date" />
                         </group>
                         <group>
-                            <field name="challenge_count"/>
-                            <field name="participant_count"/>
+                            <field name="challenge_count" />
+                            <field name="participant_count" />
                         </group>
                     </group>
                     <notebook>
                         <page string="Description" name="description">
-                            <field name="description"/>
+                            <field name="description" />
                         </page>
                         <page string="Challenges" name="challenges">
-                            <field name="challenge_ids"/>
+                            <field name="challenge_ids" />
                         </page>
                         <page string="Exclusive Badges" name="badges">
-                            <field name="badge_ids" widget="many2many_tags"/>
+                            <field name="badge_ids" widget="many2many_tags" />
                         </page>
                         <page string="Quests" name="quests">
-                            <field name="quest_ids" widget="many2many_tags"/>
+                            <field name="quest_ids" widget="many2many_tags" />
                         </page>
                     </notebook>
                 </sheet>
-                <chatter/>
+                <chatter />
             </form>
         </field>
     </record>

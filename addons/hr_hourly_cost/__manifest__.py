@@ -8,13 +8,15 @@ This module assigns an hourly wage to employees to be used by other modules.
 ============================================================================
 
     """,
-    "depends": ["hr"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr",
+    ],
     "data": [
         "views/hr_employee_views.xml",
     ],
     "demo": [
         "data/hr_hourly_cost_demo.xml",
     ],
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

@@ -23,5 +23,7 @@ description came to name two models that no longer exist.
     "author": "AgroMarin",
     "website": "https://www.agromarin.mx",
     "license": "LGPL-3",
-    "depends": ["base"],
+    "depends": [
+        "base",
+    ],
 }

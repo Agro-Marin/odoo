@@ -5,14 +5,17 @@
     <!-- SERVICE -->
     <record id="product_uom_service_unit" model="uom.uom">
         <field name="name">Service Unit</field>
-        <field name="relative_factor" eval="1"/>
+        <field name="relative_factor" eval="1" />
     </record>
+
     <record id="product_uom_activity" model="uom.uom">
         <field name="name">Activity</field>
-        <field name="relative_factor" eval="1"/>
+        <field name="relative_factor" eval="1" />
     </record>
+
     <record id="product_uom_job" model="uom.uom">
         <field name="name">Job</field>
-        <field name="relative_factor" eval="1"/>
+        <field name="relative_factor" eval="1" />
     </record>
+
 </odoo>

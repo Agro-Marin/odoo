@@ -42,6 +42,9 @@ call, rather than each writing its own copy:
 Field names match actual sale/purchase conventions (product_qty, qty_invoiced,
 amount_taxexc_invoiced, etc.) for drop-in adoption.
     """,
+    "author": "Odoo Community",
+    "website": "https://www.odoo.com",
+    "license": "LGPL-3",
     "depends": [
         "mail",
         "portal",
@@ -52,9 +55,6 @@ amount_taxexc_invoiced, etc.) for drop-in adoption.
     "data": [
         "views/res_partner_tag_views.xml",
     ],
-    "author": "Odoo Community",
-    "website": "https://www.odoo.com",
-    "license": "LGPL-3",
     "assets": {
         "web.assets_backend": [
             "base_order/static/src/components/**/*",

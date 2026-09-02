@@ -1,14 +1,19 @@
 {
-    'name': "Spreadsheet dashboard for sales",
-    'version': '1.0',
-    'category': 'Productivity/Dashboard',
-    'summary': 'Spreadsheet',
-    'description': 'Spreadsheet',
-    'depends': ['spreadsheet_dashboard', 'sale'],
-    'data': [
+    "name": "Spreadsheet dashboard for sales",
+    "version": "1.0",
+    "category": "Productivity/Dashboard",
+    "summary": "Spreadsheet",
+    "description": "Spreadsheet",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "spreadsheet_dashboard",
+        "sale",
+    ],
+    "data": [
         "data/dashboards.xml",
     ],
-    'auto_install': ['sale'],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "auto_install": [
+        "sale",
+    ],
 }

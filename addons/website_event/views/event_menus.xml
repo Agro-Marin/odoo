@@ -1,11 +1,14 @@
-<?xml version="1.0"?>
-<odoo><data>
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
 
-    <menuitem id="menu_website_event_menu"
-        name="Website Menus"
-        action="website_event_menu_action"
-        parent="event.menu_event_configuration"
-        groups="base.group_no_one"
-        sequence="99"/>
+    <data>
+        <menuitem
+            id="menu_website_event_menu"
+            name="Website Menus"
+            parent="event.menu_event_configuration"
+            action="website_event_menu_action"
+            sequence="99"
+            groups="base.group_no_one" />
+    </data>
 
-</data></odoo>
+</odoo>

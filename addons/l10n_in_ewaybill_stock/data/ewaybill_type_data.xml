@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="type_delivery_challan_sub_job_work" model="l10n.in.ewaybill.type">
         <field name="name">Delivery Challan</field>
         <field name="code">CHL</field>
@@ -16,7 +17,9 @@
         <field name="allowed_supply_type">both</field>
     </record>
 
-    <record id="type_delivery_challan_sub_recipient_not_known" model="l10n.in.ewaybill.type">
+    <record
+        id="type_delivery_challan_sub_recipient_not_known"
+        model="l10n.in.ewaybill.type">
         <field name="name">Delivery Challan</field>
         <field name="code">CHL</field>
         <field name="sub_type">Recipient not known</field>
@@ -32,7 +35,9 @@
         <field name="allowed_supply_type">both</field>
     </record>
 
-    <record id="type_delivery_challan_sub_exhibition_or_fairs" model="l10n.in.ewaybill.type">
+    <record
+        id="type_delivery_challan_sub_exhibition_or_fairs"
+        model="l10n.in.ewaybill.type">
         <field name="name">Delivery Challan</field>
         <field name="code">CHL</field>
         <field name="sub_type">Exhibition or fairs</field>
@@ -56,7 +61,9 @@
         <field name="allowed_supply_type">both</field>
     </record>
 
-    <record id="type_delivery_challan_sub_job_work_returns" model="l10n.in.ewaybill.type">
+    <record
+        id="type_delivery_challan_sub_job_work_returns"
+        model="l10n.in.ewaybill.type">
         <field name="name">Delivery Challan</field>
         <field name="code">CHL</field>
         <field name="sub_type">Job Work Returns</field>
@@ -71,4 +78,5 @@
         <field name="sub_type_code">7</field>
         <field name="allowed_supply_type">in</field>
     </record>
+
 </odoo>

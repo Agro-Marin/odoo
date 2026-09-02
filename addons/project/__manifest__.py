@@ -1,10 +1,12 @@
 {
     "name": "Project",
     "version": "1.20",
-    "website": "https://www.odoo.com/app/project",
     "category": "Services/Project",
     "sequence": 45,
     "summary": "Organize and plan your projects",
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/project",
+    "license": "LGPL-3",
     "depends": [
         "analytic",
         "mixin_recurrence",
@@ -68,10 +70,6 @@
         "data/mail_template_demo.xml",
         "data/project_demo.xml",
     ],
-    "installable": True,
-    "application": True,
-    "post_init_hook": "_project_post_init",
-    "uninstall_hook": "_project_uninstall_hook",
     "assets": {
         "web.assets_backend": [
             "project/static/src/css/project.css",
@@ -100,13 +98,22 @@
             "project/static/tests/tours/**/*",
         ],
         "project.webclient": [
-            ("include", "web._assets_helpers"),
-            ("include", "web._assets_backend_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_backend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            ("include", "web._assets_bootstrap_backend"),
+            (
+                "include",
+                "web._assets_bootstrap_backend",
+            ),
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
@@ -146,8 +153,14 @@
                 "remove",
                 "web/static/src/webclient/clickbot/clickbot.js",
             ),
-            ("remove", "web/static/src/views/form/button_box/*.scss"),
-            ("remove", "web/static/src/webclient/actions/reports/**/*"),
+            (
+                "remove",
+                "web/static/src/views/form/button_box/*.scss",
+            ),
+            (
+                "remove",
+                "web/static/src/webclient/actions/reports/**/*",
+            ),
             "web/static/src/webclient/actions/reports/*.js",
             "web/static/src/webclient/actions/reports/*.xml",
             "web/static/src/env.js",
@@ -157,7 +170,10 @@
             "web_tour/static/src/js/**/*",
             "web_tour/static/src/tour_utils.js",
             "web/static/lib/hoot-dom/**/*",
-            ("include", "html_editor._assets_editor"),
+            (
+                "include",
+                "html_editor._assets_editor",
+            ),
             "html_editor/static/src/others/dynamic_placeholder_plugin.js",
             "html_editor/static/src/backend/**/*",
             "html_editor/static/src/fields/**/*",
@@ -178,21 +194,31 @@
             "project/static/src/views/project_task_relational_model.js",
             "project/static/src/views/project_model_mixin.js",
             "project/static/src/views/project_relational_model.js",
-            ("remove", "web/static/src/**/*.dark.scss"),
-            ("include", "portal.assets_chatter_helpers"),
+            (
+                "remove",
+                "web/static/src/**/*.dark.scss",
+            ),
+            (
+                "include",
+                "portal.assets_chatter_helpers",
+            ),
             "portal/static/src/chatter/core/**/*",
             "project/static/src/project_sharing/**/*",
             "web/static/src/boot/start.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "esm": {
         "bundles": [
             "project.webclient",
         ],
         "secondary_import_map_includes": {
-            "project.webclient": ["web.assets_tests"],
+            "project.webclient": [
+                "web.assets_tests",
+            ],
         },
     },
+    "installable": True,
+    "application": True,
+    "post_init_hook": "_project_post_init",
+    "uninstall_hook": "_project_uninstall_hook",
 }

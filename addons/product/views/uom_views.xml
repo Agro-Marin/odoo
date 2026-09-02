@@ -8,7 +8,10 @@
             <list string="Packaging Barcodes" editable="bottom">
                 <field name="product_id" />
                 <field name="barcode" />
-                <field name="uom_id" readonly="context.get('default_uom_id')" optional="hide" />
+                <field
+                    name="uom_id"
+                    readonly="context.get('default_uom_id')"
+                    optional="hide" />
             </list>
         </field>
     </record>

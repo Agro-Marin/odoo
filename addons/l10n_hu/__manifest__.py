@@ -1,25 +1,29 @@
 {
-    'name': 'Hungary - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['hu'],
-    'version': '3.0',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Hungary - Accounting",
+    "version": "3.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Accounting chart and localization for Hungary
     """,
-    'depends': [
-        'account',
-        'account_vat',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_vat",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
-        'data/res.bank.csv',
+    "countries": [
+        "hu",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
+        "data/res.bank.csv",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

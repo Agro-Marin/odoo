@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 {
-    'name' : 'Fleet',
-    'version' : '0.1',
-    'sequence': 185,
-    'category': 'Human Resources/Fleet',
-    'website' : 'https://www.odoo.com/app/fleet',
-    'summary' : 'Manage your fleet and track car costs',
-    'description' : """
+    "name": "Fleet",
+    "version": "0.1",
+    "category": "Human Resources/Fleet",
+    "sequence": 185,
+    "summary": "Manage your fleet and track car costs",
+    "description": """
 Vehicle, leasing, insurances, cost
 ==================================
 With this module, Odoo helps you managing all your vehicles, the
@@ -23,36 +22,37 @@ Main Features
 * Show all costs associated to a vehicle or to a type of service
 * Analysis graph for costs
 """,
-    'depends': [
-        'base',
-        'mail',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/fleet",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+        "mail",
     ],
-    'data': [
-        'security/fleet_security.xml',
-        'security/ir.model.access.csv',
-        'views/fleet_vehicle_model_views.xml',
-        'views/fleet_vehicle_views.xml',
-        'views/fleet_vehicle_cost_views.xml',
-        'views/fleet_board_view.xml',
-        'views/mail_activity_views.xml',
-        'views/res_config_settings_views.xml',
-        'views/fleet_vehicle_odometer_report.xml',
-        'data/fleet_cars_data.xml',
-        'data/fleet_data.xml',
-        'data/mail_message_subtype_data.xml',
-        'data/mail_activity_type_data.xml',
-        'wizard/fleet_vehicle_send_mail_views.xml'
+    "data": [
+        "security/fleet_security.xml",
+        "security/ir.model.access.csv",
+        "views/fleet_vehicle_model_views.xml",
+        "views/fleet_vehicle_views.xml",
+        "views/fleet_vehicle_cost_views.xml",
+        "views/fleet_board_view.xml",
+        "views/mail_activity_views.xml",
+        "views/res_config_settings_views.xml",
+        "views/fleet_vehicle_odometer_report.xml",
+        "data/fleet_cars_data.xml",
+        "data/fleet_data.xml",
+        "data/mail_message_subtype_data.xml",
+        "data/mail_activity_type_data.xml",
+        "wizard/fleet_vehicle_send_mail_views.xml",
     ],
-
-    'demo': ['data/fleet_demo.xml'],
-
-    'installable': True,
-    'application': True,
-    'assets': {
-        'web.assets_backend': [
-            'fleet/static/src/**/*',
+    "demo": [
+        "data/fleet_demo.xml",
+    ],
+    "assets": {
+        "web.assets_backend": [
+            "fleet/static/src/**/*",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
+    "application": True,
 }

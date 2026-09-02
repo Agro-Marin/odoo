@@ -1,8 +1,8 @@
 {
     "name": "Resellers",
+    "version": "1.2",
     "category": "Website/Website",
     "summary": "Publish your resellers/partners and forward leads to them",
-    "version": "1.2",
     "description": """
 This module allows to publish your resellers/partners on your website and to forward incoming leads/opportunities to them.
 
@@ -18,6 +18,8 @@ Forwarding leads can be done for one or several leads at a time. The action is a
 The automatic assignment is figured from the weight of partner levels and the geolocalization. Partners get leads that are located around them.
 
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "geocoding",
         "crm",
@@ -48,7 +50,6 @@ The automatic assignment is figured from the weight of partner levels and the ge
         "data/crm_lead_demo.xml",
         "data/res_partner_grade_demo.xml",
     ],
-    "installable": True,
     "assets": {
         "web.assets_frontend": [
             "website_crm_partner_assign/static/src/interactions/**/*",
@@ -60,6 +61,5 @@ The automatic assignment is figured from the weight of partner levels and the ge
             "website_crm_partner_assign/static/tests/tours/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

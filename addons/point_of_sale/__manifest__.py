@@ -4,6 +4,9 @@
     "category": "Sales/Point of Sale",
     "sequence": 40,
     "summary": "Handle checkouts and payments for shops and restaurants.",
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/point-of-sale-shop",
+    "license": "LGPL-3",
     "depends": [
         "resource",
         "stock_account",
@@ -12,7 +15,6 @@
         "iot_base",
         "google_address_autocomplete",
     ],
-    "uninstall_hook": "uninstall_hook",
     "data": [
         "security/point_of_sale_security.xml",
         "security/ir.model.access.csv",
@@ -64,9 +66,6 @@
     "demo": [
         "data/demo_data.xml",
     ],
-    "installable": True,
-    "application": True,
-    "website": "https://www.odoo.com/app/point-of-sale-shop",
     "assets": {
         "web.assets_backend": [
             "point_of_sale/static/src/scss/pos_dashboard.scss",
@@ -78,8 +77,7 @@
             "point_of_sale/static/src/backend/test_epos/*",
             "point_of_sale/static/src/app/utils/init_lna.js",
         ],
-        "web.assets_web_dark": [
-        ],
+        "web.assets_web_dark": [],
         "web.assets_tests": [
             "barcodes/static/tests/legacy/helpers.js",
             "point_of_sale/static/tests/pos/tours/**/*",
@@ -88,9 +86,18 @@
             "point_of_sale/static/src/utils.js",
         ],
         "web.assets_unit_tests_setup": [
-            ("include", "point_of_sale.assets_prod"),
-            ("remove", "point_of_sale/static/src/app/main.js"),
-            ("remove", "point_of_sale/static/src/**/*.css"),
+            (
+                "include",
+                "point_of_sale.assets_prod",
+            ),
+            (
+                "remove",
+                "point_of_sale/static/src/app/main.js",
+            ),
+            (
+                "remove",
+                "point_of_sale/static/src/**/*.css",
+            ),
             "web/static/src/components/errors/error_handlers.js",
             "web/static/src/ui/dialog/dialog.scss",
         ],
@@ -98,17 +105,35 @@
             "point_of_sale/static/tests/unit/**/*",
         ],
         "point_of_sale.base_app": [
-            ("include", "web._assets_helpers"),
-            ("include", "web._assets_backend_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_backend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            ("include", "web._assets_bootstrap_backend"),
+            (
+                "include",
+                "web._assets_bootstrap_backend",
+            ),
             "web/static/src/scss/tokens.scss",
-            ("include", "web._assets_core"),
-            ("remove", "web/static/src/core/browser/router.js"),
-            ("remove", "web/static/src/webclient/debug/**/*"),
+            (
+                "include",
+                "web._assets_core",
+            ),
+            (
+                "remove",
+                "web/static/src/core/browser/router.js",
+            ),
+            (
+                "remove",
+                "web/static/src/webclient/debug/**/*",
+            ),
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
@@ -128,7 +153,10 @@
         "point_of_sale._assets_pos": [
             "web/static/src/scss/functions.scss",
             "point_of_sale/static/lib/**/*",
-            ("include", "point_of_sale.base_app"),
+            (
+                "include",
+                "point_of_sale.base_app",
+            ),
             "web/static/src/components/colorlist/colorlist.scss",
             "web/static/src/webclient/webclient_layout.scss",
             "web/static/src/webclient/icons.scss",
@@ -141,7 +169,10 @@
                 "remove",
                 "web/static/src/components/errors/error_handlers.js",
             ),
-            ("remove", "/web/static/src/ui/dialog/dialog.scss"),
+            (
+                "remove",
+                "/web/static/src/ui/dialog/dialog.scss",
+            ),
             "web/static/src/core/currency.js",
             "barcodes/static/src/barcode_service.js",
             "barcodes/static/src/js/barcode_parser.js",
@@ -149,11 +180,23 @@
             "barcodes_gs1_nomenclature/static/src/js/barcode_service.js",
             "web/static/src/webclient/actions/reports/utils.js",
             "point_of_sale/static/src/**/*",
-            ("remove", "point_of_sale/static/src/backend/**/*"),
-            ("remove", "point_of_sale/static/src/customer_display/**/*"),
+            (
+                "remove",
+                "point_of_sale/static/src/backend/**/*",
+            ),
+            (
+                "remove",
+                "point_of_sale/static/src/customer_display/**/*",
+            ),
             "point_of_sale/static/src/customer_display/utils.js",
-            ("remove", "point_of_sale/static/src/app/main.js"),
-            ("include", "point_of_sale.base_tests"),
+            (
+                "remove",
+                "point_of_sale/static/src/app/main.js",
+            ),
+            (
+                "include",
+                "point_of_sale.base_tests",
+            ),
             "account_tax/static/src/helpers/*.js",
             "account/static/src/helpers/*.js",
             "account/static/src/services/account_move_service.js",
@@ -166,12 +209,21 @@
             "web/static/src/views/**/*",
             "web/static/src/search/**/*",
             "web/static/src/webclient/actions/**/*",
-            ("remove", "web/static/src/webclient/actions/reports/layout_assets/**/*"),
-            ("remove", "web/static/src/webclient/actions/**/*css"),
+            (
+                "remove",
+                "web/static/src/webclient/actions/reports/layout_assets/**/*",
+            ),
+            (
+                "remove",
+                "web/static/src/webclient/actions/**/*css",
+            ),
             "partner_autocomplete/static/src/**/*",
             "google_address_autocomplete/static/src/**/*",
-            ("remove", "web/static/src/**/*.dark.scss"),
-                    ],
+            (
+                "remove",
+                "web/static/src/**/*.dark.scss",
+            ),
+        ],
         "point_of_sale.base_tests": [
             "web/static/lib/hoot-dom/**/*",
             "web_tour/static/src/js/**/*",
@@ -181,12 +233,21 @@
             "web/static/tests/helpers/cleanup.js",
         ],
         "point_of_sale.assets_prod": [
-            ("include", "point_of_sale._assets_pos"),
+            (
+                "include",
+                "point_of_sale._assets_pos",
+            ),
             "point_of_sale/static/src/app/main.js",
         ],
         "point_of_sale.assets_prod_dark": [
-            ("include", "point_of_sale.assets_prod"),
-            ("include", "web._dark_mode_variables"),
+            (
+                "include",
+                "point_of_sale.assets_prod",
+            ),
+            (
+                "include",
+                "web._dark_mode_variables",
+            ),
             (
                 "after",
                 "web/static/lib/bootstrap/scss/_functions.scss",
@@ -195,7 +256,10 @@
             "web/static/src/**/*.dark.scss",
         ],
         "point_of_sale.customer_display_assets": [
-            ("include", "point_of_sale.base_app"),
+            (
+                "include",
+                "point_of_sale.base_app",
+            ),
             "point_of_sale/static/src/app/components/odoo_logo/*",
             "point_of_sale/static/src/app/components/orderline/*",
             "point_of_sale/static/src/app/components/centered_icon/*",
@@ -204,7 +268,10 @@
             "point_of_sale/static/src/customer_display/**/*",
         ],
         "point_of_sale.customer_display_assets_test": [
-            ("include", "point_of_sale.base_tests"),
+            (
+                "include",
+                "point_of_sale.base_tests",
+            ),
             "point_of_sale/static/tests/pos/tours/utils/common.js",
             "point_of_sale/static/tests/generic_helpers/order_widget_util.js",
             "point_of_sale/static/tests/generic_helpers/utils.js",
@@ -212,14 +279,15 @@
             "point_of_sale/static/tests/customer_display/customer_display_tour.js",
         ],
         "point_of_sale.assets_debug": [
-            ("include", "point_of_sale.base_tests"),
+            (
+                "include",
+                "point_of_sale.base_tests",
+            ),
             "barcodes/static/tests/legacy/helpers.js",
             "point_of_sale/static/tests/generic_helpers/**/*",
             "point_of_sale/static/tests/pos/tours/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "esm": {
         "bundles": [
             "point_of_sale._assets_pos",
@@ -240,8 +308,11 @@
                 "point_of_sale.assets_debug",
             ],
             "point_of_sale.customer_display_assets": [
-                "point_of_sale.customer_display_assets_test"
+                "point_of_sale.customer_display_assets_test",
             ],
         },
     },
+    "installable": True,
+    "application": True,
+    "uninstall_hook": "uninstall_hook",
 }

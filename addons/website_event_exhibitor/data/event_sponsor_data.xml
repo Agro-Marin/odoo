@@ -6,11 +6,13 @@
         <field name="sequence">3</field>
         <field name="display_ribbon_style">Bronze</field>
     </record>
+
     <record id="event_sponsor_type2" model="event.sponsor.type">
         <field name="name">Silver</field>
         <field name="sequence">2</field>
         <field name="display_ribbon_style">Silver</field>
     </record>
+
     <record id="event_sponsor_type3" model="event.sponsor.type">
         <field name="name">Gold</field>
         <field name="sequence">1</field>

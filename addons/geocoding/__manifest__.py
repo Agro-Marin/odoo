@@ -8,7 +8,11 @@ Geocoding
 Convert addresses into GPS coordinates, and coordinates back into place names,
 through a pluggable provider.
     """,
-    "depends": ["web"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "web",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/geocoder_provider_views.xml",
@@ -17,6 +21,4 @@ through a pluggable provider.
         "data/data.xml",
     ],
     "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

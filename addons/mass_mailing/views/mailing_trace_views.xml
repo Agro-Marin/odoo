@@ -1,34 +1,85 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <!--  MAILING TRACE !-->
-    <record model="ir.ui.view" id="mailing_trace_view_search">
+    <record id="mailing_trace_view_search" model="ir.ui.view">
         <field name="name">mailing.trace.view.search</field>
         <field name="model">mailing.trace</field>
         <field name="arch" type="xml">
-           <search string="Mail Statistics">
-                <field name="mail_mail_id_int"/>
-                <field name="message_id"/>
-                <field name="email"/>
-                <field name="mass_mailing_id"/>
-                <filter string="Scheduled" name="filter_scheduled" domain="[('trace_status', '=', 'outgoing')]"/>
-                <filter string="Cancelled" name="filter_canceled" domain="[('trace_status', '=', 'cancel')]"/>
-                <filter string="Processing" name="filter_process" domain="[('trace_status', '=', 'process')]"/>
-                <filter string="Sent" name="filter_sent" domain="[('sent_datetime', '!=', False)]"/>
-                <filter string="Clicked" name="filter_clicked" domain="[('links_click_datetime', '!=', False)]"/>
-                <filter string="Delivered" name="filter_delivered" domain="[('sent_datetime', '!=', False), ('trace_status', 'not in', ['error', 'cancel', 'process', 'pending'])]"/>
-                <filter string="Opened" name="filter_opened" domain="[('trace_status', 'in', ['open', 'reply'])]"/>
-                <filter string="Replied" name="filter_replied" domain="[('trace_status', '=', 'reply')]"/>
-                <filter string="Bounced" name="filter_bounced" domain="[('trace_status', '=', 'bounce')]"/>
-                <filter string="Failed" name="filter_failed" domain="[('trace_status', '=', 'error')]"/>
-                <filter string="Test Traces" name="filter_is_test_trace" domain="[('is_test_trace', '=', 'True')]"/>
+            <search string="Mail Statistics">
+                <field name="mail_mail_id_int" />
+                <field name="message_id" />
+                <field name="email" />
+                <field name="mass_mailing_id" />
+                <filter
+                    string="Scheduled"
+                    name="filter_scheduled"
+                    domain="[('trace_status', '=', 'outgoing')]" />
+                <filter
+                    string="Cancelled"
+                    name="filter_canceled"
+                    domain="[('trace_status', '=', 'cancel')]" />
+                <filter
+                    string="Processing"
+                    name="filter_process"
+                    domain="[('trace_status', '=', 'process')]" />
+                <filter
+                    string="Sent"
+                    name="filter_sent"
+                    domain="[('sent_datetime', '!=', False)]" />
+                <filter
+                    string="Clicked"
+                    name="filter_clicked"
+                    domain="[('links_click_datetime', '!=', False)]" />
+                <filter
+                    string="Delivered"
+                    name="filter_delivered"
+                    domain="[('sent_datetime', '!=', False), ('trace_status', 'not in', ['error', 'cancel', 'process', 'pending'])]" />
+                <filter
+                    string="Opened"
+                    name="filter_opened"
+                    domain="[('trace_status', 'in', ['open', 'reply'])]" />
+                <filter
+                    string="Replied"
+                    name="filter_replied"
+                    domain="[('trace_status', '=', 'reply')]" />
+                <filter
+                    string="Bounced"
+                    name="filter_bounced"
+                    domain="[('trace_status', '=', 'bounce')]" />
+                <filter
+                    string="Failed"
+                    name="filter_failed"
+                    domain="[('trace_status', '=', 'error')]" />
+                <filter
+                    string="Test Traces"
+                    name="filter_is_test_trace"
+                    domain="[('is_test_trace', '=', 'True')]" />
                 <group>
-                    <filter string="State" name="state" context="{'group_by': 'trace_status'}"/>
-                    <filter string="Open Date" name="group_open_date" domain="[('trace_status', 'in', ['open', 'reply'])]" context="{'group_by': 'open_datetime:day'}"/>
-                    <filter string="Reply Date" name="group_reply_date" domain="[('trace_status', '=', 'reply')]" context="{'group_by': 'reply_datetime:day'}"/>
-                    <filter string="Last State Update" name="state_update" context="{'group_by': 'write_date'}"/>
-                    <filter string="Mass Mailing" name="mass_mailing" context="{'group_by': 'mass_mailing_id'}"/>
+                    <filter
+                        string="State"
+                        name="state"
+                        context="{'group_by': 'trace_status'}" />
+                    <filter
+                        string="Open Date"
+                        name="group_open_date"
+                        domain="[('trace_status', 'in', ['open', 'reply'])]"
+                        context="{'group_by': 'open_datetime:day'}" />
+                    <filter
+                        string="Reply Date"
+                        name="group_reply_date"
+                        domain="[('trace_status', '=', 'reply')]"
+                        context="{'group_by': 'reply_datetime:day'}" />
+                    <filter
+                        string="Last State Update"
+                        name="state_update"
+                        context="{'group_by': 'write_date'}" />
+                    <filter
+                        string="Mass Mailing"
+                        name="mass_mailing"
+                        context="{'group_by': 'mass_mailing_id'}" />
                 </group>
-            </search>
+                </search>
         </field>
     </record>
 
@@ -37,18 +88,21 @@
         <field name="model">mailing.trace</field>
         <field name="arch" type="xml">
             <list string="Mailing Traces" create="0">
-                <field name="mass_mailing_id"/>
-                <field name="email"/>
-                <field name="message_id"/>
-                <field name="sent_datetime"/>
-                <field name="links_click_datetime"/>
-                <field name="trace_status" widget="badge"/>
-                <field name="failure_type" optional="show"/>
-                <field name="open_datetime" optional="hide"/>
-                <field name="reply_datetime" optional="hide"/>
-                <field name="is_test_trace" optional="hide"/>
-                <button name="action_view_contact" type="object"
-                        string="Open Recipient" icon="fa-user"/>
+                <field name="mass_mailing_id" />
+                <field name="email" />
+                <field name="message_id" />
+                <field name="sent_datetime" />
+                <field name="links_click_datetime" />
+                <field name="trace_status" widget="badge" />
+                <field name="failure_type" optional="show" />
+                <field name="open_datetime" optional="hide" />
+                <field name="reply_datetime" optional="hide" />
+                <field name="is_test_trace" optional="hide" />
+                <button
+                    name="action_view_contact"
+                    type="object"
+                    string="Open Recipient"
+                    icon="fa-user" />
             </list>
         </field>
     </record>
@@ -59,18 +113,21 @@
         <field name="priority">20</field>
         <field name="arch" type="xml">
             <list string="Mail Traces" create="0">
-                <field name="mass_mailing_id"/>
-                <field name="email"/>
-                <field name="message_id" optional="hide"/>
-                <field name="sent_datetime"/>
-                <field name="links_click_datetime"/>
-                <field name="trace_status" widget="badge"/>
-                <field name="failure_type" optional="show"/>
-                <field name="open_datetime" optional="hide"/>
-                <field name="reply_datetime" optional="hide"/>
-                <field name="is_test_trace" optional="hide"/>
-                <button name="action_view_contact" type="object"
-                        string="Open Recipient" icon="fa-user"/>
+                <field name="mass_mailing_id" />
+                <field name="email" />
+                <field name="message_id" optional="hide" />
+                <field name="sent_datetime" />
+                <field name="links_click_datetime" />
+                <field name="trace_status" widget="badge" />
+                <field name="failure_type" optional="show" />
+                <field name="open_datetime" optional="hide" />
+                <field name="reply_datetime" optional="hide" />
+                <field name="is_test_trace" optional="hide" />
+                <button
+                    name="action_view_contact"
+                    type="object"
+                    string="Open Recipient"
+                    icon="fa-user" />
             </list>
         </field>
     </record>
@@ -81,41 +138,61 @@
         <field name="arch" type="xml">
             <form string="Mail Statistics" create="0" edit="0">
                 <header>
-                    <field name="trace_status" widget="statusbar" statusbar_visible="outgoing,sent,error"/>
+                    <field
+                        name="trace_status"
+                        widget="statusbar"
+                        statusbar_visible="outgoing,sent,error" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_contact"
-                                type="object" icon="fa-user" class="oe_stat_button">
-                                <div class="o_field_widget o_stat_info">
-                                    <span class="o_stat_text">Open Recipient</span>
-                                </div>
+                        <button
+                            name="action_view_contact"
+                            type="object"
+                            icon="fa-user"
+                            class="oe_stat_button">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">Open Recipient</span>
+                            </div>
                         </button>
                     </div>
-                    <field name="is_test_trace" invisible="1"/>
-                    <widget name="web_ribbon" title="Test" bg_color="text-bg-danger" invisible="is_test_trace != True"/>
+                    <field name="is_test_trace" invisible="1" />
+                    <widget
+                        name="web_ribbon"
+                        title="Test"
+                        bg_color="text-bg-danger"
+                        invisible="is_test_trace != True" />
                     <group>
                         <group string="Status">
-                            <field name="failure_type" invisible="not failure_type"/>
-                            <field name="sent_datetime" invisible="not sent_datetime"/>
-                            <field name="links_click_datetime" invisible="not links_click_datetime"/>
-                            <field name="open_datetime" invisible="not open_datetime"/>
-                            <field name="failure_reason"
+                            <field name="failure_type" invisible="not failure_type" />
+                            <field name="sent_datetime" invisible="not sent_datetime" />
+                            <field
+                                name="links_click_datetime"
+                                invisible="not links_click_datetime" />
+                            <field name="open_datetime" invisible="not open_datetime" />
+                            <field
+                                name="failure_reason"
                                 invisible="not failure_reason"
-                                class="o_text_overflow"/>
-                            <field name="reply_datetime" invisible="not reply_datetime"/>
+                                class="o_text_overflow" />
+                            <field
+                                name="reply_datetime"
+                                invisible="not reply_datetime" />
                         </group>
                         <group string="Mailing">
-                            <field name="trace_type" invisible="1"/>
-                            <field name="email" string="Recipient Address"/>
-                            <field name="mass_mailing_id"/>
-                            <field name="mail_mail_id_int" string="Mail ID" groups="base.group_no_one"/>
-                            <field name="message_id" groups="base.group_no_one"/>
+                            <field name="trace_type" invisible="1" />
+                            <field name="email" string="Recipient Address" />
+                            <field name="mass_mailing_id" />
+                            <field
+                                name="mail_mail_id_int"
+                                string="Mail ID"
+                                groups="base.group_no_one" />
+                            <field name="message_id" groups="base.group_no_one" />
                         </group>
                         <group string="Marketing">
-                            <field name="campaign_id" groups="mass_mailing.group_mass_mailing_campaign"/>
-                            <field name="medium_id"/>
-                            <field name="source_id"/>
+                            <field
+                                name="campaign_id"
+                                groups="mass_mailing.group_mass_mailing_campaign" />
+                            <field name="medium_id" />
+                            <field name="source_id" />
                         </group>
                     </group>
                 </sheet>
@@ -128,8 +205,8 @@
         <field name="model">mailing.trace</field>
         <field name="arch" type="xml">
             <graph string="Mail Statistics" sample="1">
-                <field name="write_date" interval="day"/>
-                <field name="trace_status"/>
+                <field name="write_date" interval="day" />
+                <field name="trace_status" />
             </graph>
         </field>
     </record>
@@ -153,4 +230,5 @@
             </p>
         </field>
     </record>
+
 </odoo>

@@ -4,103 +4,127 @@
     <template
         id="sale_stock.sale_order_portal_content_inherit_sale_stock"
         name="Orders Shipping Followup"
-        inherit_id="sale.sale_order_portal_content"
-    >
+        inherit_id="sale.sale_order_portal_content">
         <tbody id="sale_info_table" position="inside">
             <tr t-if="sale_order.incoterm_id">
                 <th class="pb-0">Incoterm:</th>
                 <td class="w-100 pb-0 text-wrap">
                     <p t-if="sale_order.incoterm_location">
-                        <span t-field="sale_order.incoterm_id.code"/> <br/>
-                        <span t-field="sale_order.incoterm_location"/>
+                        <span t-field="sale_order.incoterm_id.code" /> <br />
+                        <span t-field="sale_order.incoterm_location" />
                     </p>
-                    <p t-else="" t-field="sale_order.incoterm_id.code" class="m-0"/>
+                    <p t-else="" t-field="sale_order.incoterm_id.code" class="m-0" />
                 </td>
             </tr>
         </tbody>
 
         <div id="sale_invoices" position="after">
-            <t t-set="delivery_orders" t-value="sale_order.picking_ids.filtered(lambda picking: picking.picking_type_id.code == 'outgoing')"/>
-            <t t-set="latest_delivery_orders" t-value="delivery_orders.sorted('create_date', reverse=True)[:3]"/>
+            <t
+                t-set="delivery_orders"
+                t-value="sale_order.picking_ids.filtered(lambda picking: picking.picking_type_id.code == 'outgoing')" />
+            <t
+                t-set="latest_delivery_orders"
+                t-value="delivery_orders.sorted('create_date', reverse=True)[:3]" />
             <div t-if="delivery_orders" class="col-12 col-lg-6 mb-4">
                 <h5 class="mb-1">Last Delivery Orders</h5>
-                <hr class="mt-1 mb-2"/>
+                <hr class="mt-1 mb-2" />
                 <div class="d-flex flex-column gap-2">
                     <t t-foreach="latest_delivery_orders" t-as="picking">
-                        <t t-set="delivery_report_url"
-                           t-value="'/my/picking/pdf/%s?%s' % (picking.id, keep_query())"/>
-                        <div name="delivery_order"
-                            class="d-flex flex-column">
-                            <div name="delivery_details" class="d-flex align-items-center justify-content-between">
+                        <t
+                            t-set="delivery_report_url"
+                            t-value="'/my/picking/pdf/%s?%s' % (picking.id, keep_query())" />
+                        <div name="delivery_order" class="d-flex flex-column">
+                            <div
+                                name="delivery_details"
+                                class="d-flex align-items-center justify-content-between">
                                 <a t-att-href="delivery_report_url">
-                                    <span t-esc="picking.name"/>
+                                    <span t-esc="picking.name" />
                                 </a>
                                 <div t-if="picking.state == 'done'">
-                                    <span class="small badge rounded-pill text-bg-success orders_label_text_align">
-                                        <i class="fa-solid fa-truck"/> Shipped
+                                    <span
+                                        class="small badge rounded-pill text-bg-success orders_label_text_align">
+                                        <i class="fa-solid fa-truck" /> Shipped
                                     </span>
-                                    <a class="badge rounded-pill text-bg-secondary orders_label_text_align" target="_blank"
+                                    <a
+                                        class="badge rounded-pill text-bg-secondary orders_label_text_align"
+                                        target="_blank"
                                         t-att-href="'/my/picking/return/pdf/%s?%s' % (picking.id, keep_query())">
                                         RETURN
                                     </a>
                                 </div>
-                                <span t-elif="picking.state == 'cancel'"
+                                <span
+                                    t-elif="picking.state == 'cancel'"
                                     class="small badge rounded-pill text-bg-danger orders_label_text_align">
-                                    <i class="fa-solid fa-times"/>Cancelled
+                                    <i class="fa-solid fa-times" />Cancelled
                                 </span>
-                                <span t-elif="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
+                                <span
+                                    t-elif="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
                                     class="small badge rounded-pill text-bg-info orders_label_text_align">
-                                    <i class="fa-regular fa-clock"/>Preparation
+                                    <i class="fa-regular fa-clock" />Preparation
                                 </span>
                             </div>
-                            <div class="small d-lg-inline-block" t-if="picking.date_done or picking.date_planned">
+                            <div
+                                class="small d-lg-inline-block"
+                                t-if="picking.date_done or picking.date_planned">
                                 Date:
-                                <span class="text-muted"
-                                        t-field="picking.date_done"
-                                        t-options="{'date_only': True}"/>
-                                <span t-if="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
-                                        class="text-muted"
-                                        t-field="picking.date_planned"
-                                        t-options="{'date_only': True}"/>
+                                <span
+                                    class="text-muted"
+                                    t-field="picking.date_done"
+                                    t-options="{'date_only': True}" />
+                                <span
+                                    t-if="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
+                                    class="text-muted"
+                                    t-field="picking.date_planned"
+                                    t-options="{'date_only': True}" />
                             </div>
                         </div>
                     </t>
                 </div>
             </div>
-            <t t-set="returns" t-value="delivery_orders.return_ids.sorted('create_date', reverse=True)"/>
+            <t
+                t-set="returns"
+                t-value="delivery_orders.return_ids.sorted('create_date', reverse=True)" />
             <div t-if="returns" class="col-12 col-lg-6 mb-4">
                 <h4 class="mb-1">Returns</h4>
-                <hr class="mt-1 mb-2"/>
+                <hr class="mt-1 mb-2" />
                 <t t-foreach="returns" t-as="picking">
-                    <t t-set="delivery_report_url"
-                        t-value="'/my/picking/pdf/%s?%s' % (picking.id, keep_query())"/>
+                    <t
+                        t-set="delivery_report_url"
+                        t-value="'/my/picking/pdf/%s?%s' % (picking.id, keep_query())" />
                     <div name="return">
-                        <div name="return_details" class="d-flex justify-content-between align-items-center">
+                        <div
+                            name="return_details"
+                            class="d-flex justify-content-between align-items-center">
                             <a t-att-href="delivery_report_url">
-                                <span t-esc="picking.name"/>
+                                <span t-esc="picking.name" />
                             </a>
-                            <span t-if="picking.state == 'done'"
+                            <span
+                                t-if="picking.state == 'done'"
                                 class="small badge rounded-pill text-bg-success orders_label_text_align">
-                                <i class="fa-solid fa-truck"/> Received
+                                <i class="fa-solid fa-truck" /> Received
                             </span>
-                            <span t-elif="picking.state == 'cancel'"
+                            <span
+                                t-elif="picking.state == 'cancel'"
                                 class="small badge rounded-pill text-bg-danger orders_label_text_align">
-                                <i class="fa-solid fa-times"/> Cancelled
+                                <i class="fa-solid fa-times" /> Cancelled
                             </span>
-                            <span t-elif="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
+                            <span
+                                t-elif="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
                                 class="small badge rounded-pill text-bg-info orders_label_text_align">
-                                <i class="fa-regular fa-clock"/> Awaiting arrival
+                                <i class="fa-regular fa-clock" /> Awaiting arrival
                             </span>
                         </div>
                         <div class="small d-lg-inline-block">
                             Date:
-                            <span class="text-muted"
+                            <span
+                                class="text-muted"
                                 t-field="picking.date_done"
-                                t-options="{'date_only': True}"/>
-                            <span t-if="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
+                                t-options="{'date_only': True}" />
+                            <span
+                                t-if="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
                                 class="text-muted"
                                 t-field="picking.date_planned"
-                                t-options="{'date_only': True}"/>
+                                t-options="{'date_only': True}" />
                         </div>
                     </div>
                 </t>
@@ -111,8 +135,7 @@
     <template
         id="sale_stock.portal_my_orders"
         name="Portal Orders Shipping Status Column"
-        inherit_id="sale.portal_my_orders"
-    >
+        inherit_id="sale.portal_my_orders">
         <th name="order_total" position="before">
             <th class="text-end" name="order_delivery">Shipping Status</th>
         </th>
@@ -120,32 +143,25 @@
             <td class="text-end" name="order_delivery_status">
                 <span
                     t-if="order.transfer_state == 'to do'"
-                    class="badge rounded-pill text-bg-warning"
-                >
+                    class="badge rounded-pill text-bg-warning">
                     Not Delivered
                 </span>
                 <span
                     t-elif="order.transfer_state == 'partial'"
-                    class="badge rounded-pill text-bg-primary"
-                >
+                    class="badge rounded-pill text-bg-primary">
                     Started
                 </span>
                 <span
                     t-elif="order.transfer_state == 'partial'"
-                    class="badge rounded-pill text-bg-info"
-                >
+                    class="badge rounded-pill text-bg-info">
                     Partially Delivered
                 </span>
                 <span
                     t-elif="order.transfer_state == 'done'"
-                    class="badge rounded-pill text-bg-success"
-                >
+                    class="badge rounded-pill text-bg-success">
                     Delivered
                 </span>
-                <span
-                    t-else=""
-                    class="badge rounded-pill text-bg-danger"
-                >
+                <span t-else="" class="badge rounded-pill text-bg-danger">
                     Not Available
                 </span>
             </td>

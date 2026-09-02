@@ -1,14 +1,20 @@
 {
     "name": "Coupons, Promotions, Gift Card and Loyalty for eCommerce",
-    "summary": """Use coupon, promotion, gift cards and loyalty programs in your eCommerce store""",
+    "version": "1.0",
+    "category": "Website/Website",
+    "summary": "Use coupon, promotion, gift cards and loyalty programs in your eCommerce store",
     "description": """
 Create coupon, promotion codes, gift cards and loyalty programs to boost your sales (free products, discounts, etc.). Shoppers can use them in the eCommerce checkout.
 
 Coupon & promotion programs can be edited in the Catalog menu of the Website app.
     """,
-    "category": "Website/Website",
-    "version": "1.0",
-    "depends": ["website_sale", "website_links", "sale_loyalty"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website_sale",
+        "website_links",
+        "sale_loyalty",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/loyalty_card_views.xml",
@@ -21,7 +27,6 @@ Coupon & promotion programs can be edited in the Catalog menu of the Website app
     "demo": [
         "data/product_demo.xml",
     ],
-    "auto_install": ["website_sale", "sale_loyalty"],
     "assets": {
         "web.assets_frontend": [
             "website_sale_loyalty/static/src/js/**/*",
@@ -34,6 +39,8 @@ Coupon & promotion programs can be edited in the Catalog menu of the Website app
             "website_sale_loyalty/static/src/website_builder/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": [
+        "website_sale",
+        "sale_loyalty",
+    ],
 }

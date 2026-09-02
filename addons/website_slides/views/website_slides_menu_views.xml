@@ -1,89 +1,115 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem name="eLearning"
+
+    <menuitem
         id="website_slides_menu_root"
-        web_icon="website_slides,static/description/icon.png"
-        groups="website_slides.group_website_slides_officer"
+        name="eLearning"
         action="slide_channel_action_overview"
-        sequence="100"/>
+        sequence="100"
+        groups="website_slides.group_website_slides_officer"
+        web_icon="website_slides,static/description/icon.png" />
 
     <!-- Main top menu elements -->
-    <menuitem name="Courses"
+    <menuitem
         id="website_slides_menu_courses"
+        name="Courses"
         parent="website_slides_menu_root"
-        sequence="1"/>
-    <menuitem name="Reporting"
+        sequence="1" />
+
+    <menuitem
         id="website_slides_menu_report"
+        name="Reporting"
         parent="website_slides_menu_root"
-        groups="website_slides.group_website_slides_manager"
-        sequence="9"/>
-    <menuitem name="Configuration"
+        sequence="9"
+        groups="website_slides.group_website_slides_manager" />
+
+    <menuitem
         id="website_slides_menu_configuration"
+        name="Configuration"
         parent="website_slides_menu_root"
-        sequence="99"/>
-    
+        sequence="99" />
+
     <!-- Courses sub-menu -->
-    <menuitem name="Courses"
+    <menuitem
         id="website_slides_menu_courses_courses"
+        name="Courses"
         parent="website_slides_menu_courses"
-        sequence="1"
-        action="slide_channel_action_overview"/>
-    <menuitem name="Contents"
+        action="slide_channel_action_overview"
+        sequence="1" />
+
+    <menuitem
         id="website_slides_menu_courses_content"
+        name="Contents"
         parent="website_slides_menu_courses"
-        sequence="2"
-        action="slide_slide_action"/>
+        action="slide_slide_action"
+        sequence="2" />
 
     <!-- Reporting sub-menu -->
-    <menuitem name="Courses"
+    <menuitem
         id="website_slides_menu_report_courses"
+        name="Courses"
         parent="website_slides_menu_report"
-        sequence="1"
-        action="slide_channel_action_report"/>
-    <menuitem name="Contents"
+        action="slide_channel_action_report"
+        sequence="1" />
+
+    <menuitem
         id="website_slides_menu_report_contents"
+        name="Contents"
         parent="website_slides_menu_report"
-        sequence="2"
-        action="slide_slide_action_report"/>
-    <menuitem name="Attendees"
+        action="slide_slide_action_report"
+        sequence="2" />
+
+    <menuitem
         id="website_slides_menu_report_attendees"
+        name="Attendees"
         parent="website_slides_menu_report"
-        sequence="5"
-        action="slide_channel_partner_action_report"/>
-    <menuitem name="Reviews"
+        action="slide_channel_partner_action_report"
+        sequence="5" />
+
+    <menuitem
         id="website_slides_menu_report_reviews"
+        name="Reviews"
         parent="website_slides_menu_report"
-        sequence="10"
-        action="rating_rating_action_slide_channel"/>
+        action="rating_rating_action_slide_channel"
+        sequence="10" />
+
     <record id="slide_quiz_question_action_report" model="ir.actions.act_window">
         <field name="name">Quiz Questions</field>
         <field name="res_model">survey.question</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('survey_id.slide_ids', '!=', False), ('is_page', '=', False)]</field>
+        <field
+            name="domain">[('survey_id.slide_ids', '!=', False), ('is_page', '=', False)]</field>
         <field name="context">{'search_default_group_by_survey': 1}</field>
     </record>
-    <menuitem name="Quizzes"
+
+    <menuitem
         id="website_slides_menu_report_quizzes"
+        name="Quizzes"
         parent="website_slides_menu_report"
-        sequence="15"
-        action="slide_quiz_question_action_report"/>
+        action="slide_quiz_question_action_report"
+        sequence="15" />
 
     <!-- Settings sub-menu -->
-    <menuitem name="Settings"
+    <menuitem
         id="website_slides_menu_config_settings"
+        name="Settings"
         parent="website_slides_menu_configuration"
-        sequence="1"
         action="website_slides_action_settings"
-        groups="base.group_system"/>
-    <menuitem name="Course Groups"
+        sequence="1"
+        groups="base.group_system" />
+
+    <menuitem
         id="website_slides_menu_config_course_groups"
+        name="Course Groups"
         parent="website_slides_menu_configuration"
-        sequence="2"
-        action="slide_channel_tag_group_action"/>
-    <menuitem name="Content Tags"
+        action="slide_channel_tag_group_action"
+        sequence="2" />
+
+    <menuitem
         id="website_slides_menu_config_content_tags"
+        name="Content Tags"
         parent="website_slides_menu_configuration"
-        sequence="3"
-        action="action_slide_tag"/>
+        action="action_slide_tag"
+        sequence="3" />
 
 </odoo>

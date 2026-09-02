@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="report_invoice_document" inherit_id="account.report_invoice_document" primary="True">
+
+    <template
+        id="report_invoice_document"
+        inherit_id="account.report_invoice_document"
+        primary="True">
         <t name="invoice_title" position="replace">
             <t name="invoice_title">Tax Invoice</t>
         </t>
@@ -53,10 +57,14 @@
 
     <!-- Workaround for Studio reports, see odoo/odoo#60660 -->
     <template id="report_invoice" inherit_id="account.report_invoice">
-        <xpath expr='//t[@t-call="account.report_invoice_document"]' position="after">
-            <t t-elif="o._get_name_invoice_report() == 'l10n_au.report_invoice_document'"
-               t-call="l10n_au.report_invoice_document"
-               t-lang="lang"/>
+        <xpath
+            expr="//t[@t-call=&quot;account.report_invoice_document&quot;]"
+            position="after">
+            <t
+                t-elif="o._get_name_invoice_report() == 'l10n_au.report_invoice_document'"
+                t-call="l10n_au.report_invoice_document"
+                t-lang="lang" />
         </xpath>
     </template>
+
 </odoo>

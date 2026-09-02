@@ -15,8 +15,7 @@
                         name="action_confirm"
                         string="Confirm"
                         class="btn-primary"
-                        type="object"
-                    />
+                        type="object" />
                 </footer>
             </form>
         </field>

@@ -1,18 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record model="ir.ui.view" id="l10n_in.product_template_hsn_code">
+    <record id="l10n_in.product_template_hsn_code" model="ir.ui.view">
         <field name="name">l10n_in.product.template.form.hsn_code</field>
         <field name="model">product.template</field>
-        <field name="inherit_id" ref="product.view_product_template_form"/>
+        <field name="inherit_id" ref="product.view_product_template_form" />
         <field name="arch" type="xml">
             <xpath expr="//sheet" position="before">
-                <div class="alert alert-warning" role="alert" invisible="'IN' not in fiscal_country_codes or not l10n_in_hsn_warning">
-                    <field name="l10n_in_hsn_warning"/>
+                <div
+                    class="alert alert-warning"
+                    role="alert"
+                    invisible="'IN' not in fiscal_country_codes or not l10n_in_hsn_warning">
+                    <field name="l10n_in_hsn_warning" />
                 </div>
             </xpath>
             <field name="categ_id" position="after">
-                <field name="l10n_in_hsn_code" widget="l10n_in_hsn_autocomplete" invisible="'IN' not in fiscal_country_codes or not l10n_in_is_gst_registered_enabled"/>
+                <field
+                    name="l10n_in_hsn_code"
+                    widget="l10n_in_hsn_autocomplete"
+                    invisible="'IN' not in fiscal_country_codes or not l10n_in_is_gst_registered_enabled" />
             </field>
         </field>
     </record>

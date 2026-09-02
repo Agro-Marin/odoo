@@ -1,10 +1,7 @@
 {
     "name": "Zambia - Accounting",
-    "countries": ["zm"],
     "version": "1.0.0",
     "category": "Accounting/Localizations/Account Charts",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "description": """
 This is the basic Zambian localization necessary to run Odoo in ZM:
 ================================================================================
@@ -13,15 +10,22 @@ This is the basic Zambian localization necessary to run Odoo in ZM:
     - Fiscal Positions
     - Default Settings
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "account",
     ],
-    "auto_install": ["account"],
+    "countries": [
+        "zm",
+    ],
     "data": [
         "data/account_tax_report_data.xml",
         "views/report_invoice.xml",
     ],
     "demo": [
         "demo/demo_company.xml",
-    ]
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

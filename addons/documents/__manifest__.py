@@ -1,5 +1,8 @@
 {
     "name": "Documents",
+    "version": "1.7",
+    "category": "Productivity/Documents",
+    "sequence": 80,
     "summary": "Collect, organize and share documents.",
     "description": """
 Store, organize and share files: a folder tree with per-document access rights,
@@ -8,11 +11,9 @@ share links, versioning, a trash and the Documents workspace.
 `documents_enterprise` adds the sharing, operation and link-to-record wizards,
 the onboarding tour, the digest KPIs and the Studio automation upsell.
     """,
-    "category": "Productivity/Documents",
-    "sequence": 80,
-    "version": "1.7",
     "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/documents",
+    "license": "LGPL-3",
     "depends": [
         "mail",
         "portal",
@@ -48,6 +49,9 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "views/mail_scheduled_message_views.xml",
         "wizard/documents_request_wizard_views.xml",
     ],
+    "demo": [
+        "demo/documents_document_demo.xml",
+    ],
     "assets": {
         "web.assets_backend": [
             "documents/static/src/scss/documents_views.scss",
@@ -79,17 +83,29 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
             "documents/static/tests/**/*",
         ],
         "documents.public_page_assets": [
-            ("include", "web._assets_helpers"),
-            ("include", "web._assets_backend_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_backend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            ("include", "web._assets_bootstrap_backend"),
+            (
+                "include",
+                "web._assets_bootstrap_backend",
+            ),
             "documents/static/src/scss/documents_public_pages.scss",
         ],
         "documents.webclient": [
-            ("include", "web.assets_backend"),
+            (
+                "include",
+                "web.assets_backend",
+            ),
             "documents/static/src/portal_webclient/**/*",
             "web/static/src/boot/start.js",
         ],
@@ -100,12 +116,10 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
             "documents.webclient",
         ],
         "secondary_import_map_includes": {
-            "documents.webclient": ["web.assets_tests"],
+            "documents.webclient": [
+                "web.assets_tests",
+            ],
         },
     },
-    "demo": [
-        "demo/documents_document_demo.xml",
-    ],
     "application": True,
-    "license": "LGPL-3",
 }

@@ -1,22 +1,24 @@
 {
-    'name': 'France - Localizations',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['fr'],
-    'version': '2.1',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "France - Localizations",
+    "version": "2.1",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 """,
-    'depends': [
-        'base',
+    "author": "Odoo S.A.",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
     ],
-    'data': [
-        'data/res_country_data.xml',
-        'views/res_company_views.xml',
-        'views/res_partner_views.xml',
+    "countries": [
+        "fr",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/res_country_data.xml",
+        "views/res_company_views.xml",
+        "views/res_partner_views.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
 }

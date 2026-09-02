@@ -9,14 +9,17 @@
             <xpath expr="//div[hasclass('oe_button_box')]/button" position="before">
                 <button
                     name="action_view_po"
-                    type="object" 
+                    type="object"
                     class="oe_stat_button"
                     icon="fa-credit-card"
                     invisible="purchase_order_count == 0 or not display_complete"
                     help="Purchase Orders">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">
-                            <field name="purchase_order_count" widget="statinfo" nolabel="1"
+                            <field
+                                name="purchase_order_count"
+                                widget="statinfo"
+                                nolabel="1"
                                 class="mr4" />
                         </span>
                         <span class="o_stat_text">Purchases</span>

@@ -1,10 +1,8 @@
-
 {
-    'name': 'Events Sales',
-    'version': '1.3',
-    'category': 'Marketing/Events',
-    'website': 'https://www.odoo.com/app/events',
-    'description': """
+    "name": "Events Sales",
+    "version": "1.3",
+    "category": "Marketing/Events",
+    "description": """
 Creating registration with sales orders.
 ========================================
 
@@ -17,35 +15,39 @@ that product, you will be able to choose an existing event of that category and
 when you confirm your sales order it will automatically create a registration for
 this event.
 """,
-    'depends': ['event_product', 'sale_management'],
-    'data': [
-        'views/event_registration_views.xml',
-        'views/event_views.xml',
-        'views/product_template_views.xml',
-        'views/sale_order_views.xml',
-        'data/event_sale_data.xml',
-        'data/mail_templates.xml',
-        'report/event_sale_report_views.xml',
-        'security/ir.model.access.csv',
-        'security/ir_rule.xml',
-        'security/event_security.xml',
-        'wizard/event_edit_registration.xml',
-        'wizard/event_configurator_views.xml',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/events",
+    "license": "LGPL-3",
+    "depends": [
+        "event_product",
+        "sale_management",
     ],
-    'demo': [
-        'data/event_sale_demo.xml',
-        'data/event_registration_demo.xml',  # needs event_sale_demo
+    "data": [
+        "views/event_registration_views.xml",
+        "views/event_views.xml",
+        "views/product_template_views.xml",
+        "views/sale_order_views.xml",
+        "data/event_sale_data.xml",
+        "data/mail_templates.xml",
+        "report/event_sale_report_views.xml",
+        "security/ir.model.access.csv",
+        "security/ir_rule.xml",
+        "security/event_security.xml",
+        "wizard/event_edit_registration.xml",
+        "wizard/event_configurator_views.xml",
     ],
-    'installable': True,
-    'auto_install': True,
-    'assets': {
-        'web.assets_backend': [
-            'event_sale/static/src/**/*',
+    "demo": [
+        "data/event_sale_demo.xml",
+        "data/event_registration_demo.xml",
+    ],
+    "assets": {
+        "web.assets_backend": [
+            "event_sale/static/src/**/*",
         ],
-        'web.assets_tests': [
-            'event_sale/static/tests/tours/**/*',
+        "web.assets_tests": [
+            "event_sale/static/tests/tours/**/*",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
+    "auto_install": True,
 }

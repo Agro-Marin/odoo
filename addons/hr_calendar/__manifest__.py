@@ -2,8 +2,12 @@
     "name": "Display Working Hours in Calendar",
     "version": "1.0",
     "category": "Human Resources/Employees",
-    "depends": ["hr", "calendar"],
-    "auto_install": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr",
+        "calendar",
+    ],
     "data": [
         "views/calendar_views_calendarApp.xml",
         "views/res_partner_views.xml",
@@ -13,6 +17,5 @@
             "hr_calendar/static/src/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

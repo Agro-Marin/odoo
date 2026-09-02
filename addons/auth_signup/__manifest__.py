@@ -1,12 +1,13 @@
 {
     "name": "Signup",
+    "version": "1.0",
+    "category": "Hidden/Tools",
     "description": """
 Allow users to sign up and reset their password
 ===============================================
     """,
-    "version": "1.0",
-    "category": "Hidden/Tools",
-    "auto_install": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "mail",
     ],
@@ -20,12 +21,11 @@ Allow users to sign up and reset their password
         "views/auth_signup_templates_email.xml",
         "views/webclient_templates.xml",
     ],
-    "bootstrap": True,
     "assets": {
         "web.assets_frontend": [
             "auth_signup/static/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
+    "bootstrap": True,
 }

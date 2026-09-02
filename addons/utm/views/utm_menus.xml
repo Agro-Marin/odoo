@@ -1,31 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem id="menu_link_tracker_root"
+
+    <menuitem
+        id="menu_link_tracker_root"
         name="Link Tracker"
         sequence="270"
-        web_icon="utm,static/description/icon.png"
-        groups="base.group_no_one"/>
+        groups="base.group_no_one"
+        web_icon="utm,static/description/icon.png" />
 
-    <menuitem id="marketing_utm"
+    <menuitem
+        id="marketing_utm"
         name="UTMs"
         parent="menu_link_tracker_root"
         sequence="99"
-        groups="base.group_no_one"/>
+        groups="base.group_no_one" />
 
-    <menuitem id="menu_utm_campaign_act"
+    <menuitem
+        id="menu_utm_campaign_act"
+        parent="marketing_utm"
         action="utm_campaign_action"
-        parent="marketing_utm"
         sequence="1"
-        groups="base.group_no_one"/>
-    <menuitem id="menu_utm_medium"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="menu_utm_medium"
+        parent="marketing_utm"
         action="utm_medium_action"
-        parent="marketing_utm"
         sequence="5"
-        groups="base.group_no_one"/>
-    <menuitem id="menu_utm_source"
-        action="utm_source_action"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="menu_utm_source"
         parent="marketing_utm"
+        action="utm_source_action"
         sequence="10"
-        groups="base.group_no_one"/>
+        groups="base.group_no_one" />
 
 </odoo>

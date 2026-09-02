@@ -2,18 +2,20 @@
     "name": "Malta - Point of Sale",
     "version": "1.0",
     "category": "Accounting/Localizations/Point of Sale",
-    "description": """Malta Compliance Letter for EXO Number""",
-    "countries": ["mt"],
+    "description": "Malta Compliance Letter for EXO Number",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "point_of_sale",
     ],
+    "countries": [
+        "mt",
+    ],
     "data": [
-        'security/ir.model.access.csv',
-        'wizards/compliance_letter_view.xml',
-        'reports/compliance_letter_report.xml',
+        "security/ir.model.access.csv",
+        "wizards/compliance_letter_view.xml",
+        "reports/compliance_letter_report.xml",
     ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

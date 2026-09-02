@@ -1,9 +1,8 @@
 {
-    'name': 'Lithuania - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['lt'],
-    'version': '1.0.0',
-    'description': """
+    "name": "Lithuania - Accounting",
+    "version": "1.0.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Chart of Accounts (COA) Template for Lithuania's Accounting.
 
 This module also includes:
@@ -14,23 +13,28 @@ This module also includes:
 * Fiscal positions.
 * Account Tags.
     """,
-    'license': 'LGPL-3',
-    'author': 'Focusate',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'category': 'Accounting/Localizations/Account Charts',
-    'depends': [
-        'account',
-        'account_edi_ubl_cii',
+    "author": "Focusate",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_edi_ubl_cii",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_account_tag_data.xml',
-        'data/res_bank_data.xml',
-        'data/tax_report_data.xml',
-        'views/account_tax.xml',
+    "countries": [
+        "lt",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_account_tag_data.xml",
+        "data/res_bank_data.xml",
+        "data/tax_report_data.xml",
+        "views/account_tax.xml",
     ],
-    'installable': True,
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "installable": True,
+    "auto_install": [
+        "account",
+    ],
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
 
+    <data>
         <!-- Ranks views -->
         <record id="gamification_karma_ranks_action" model="ir.actions.act_window">
             <field name="name">Ranks</field>
@@ -17,37 +17,37 @@
                 </p>
             </field>
         </record>
-
         <record id="gamification_karma_ranks_view_search" model="ir.ui.view">
             <field name="name">gamification.karma.ranks.view.search</field>
             <field name="model">gamification.karma.rank</field>
             <field name="arch" type="xml">
                 <search string="Search Ranks">
-                    <field name="name"/>
-                    <field name="karma_min"/>
-                    <field name="description"/>
-                    <field name="user_ids"/>
-                    <separator/>
+                    <field name="name" />
+                    <field name="karma_min" />
+                    <field name="description" />
+                    <field name="user_ids" />
+                    <separator />
                     <group>
-                        <filter string="Karma Threshold" name="group_karma" context="{'group_by': 'karma_min'}"/>
+                        <filter
+                            string="Karma Threshold"
+                            name="group_karma"
+                            context="{'group_by': 'karma_min'}" />
                     </group>
                 </search>
             </field>
         </record>
-
         <record id="gamification_karma_ranks_view_tree" model="ir.ui.view">
             <field name="name">gamification.karma.ranks.view.list</field>
             <field name="model">gamification.karma.rank</field>
             <field name="arch" type="xml">
                 <list string="Ranks List">
-                    <field name="level_number" optional="show"/>
-                    <field name="name"/>
-                    <field name="karma_min"/>
-                    <field name="rank_users_count"/>
+                    <field name="level_number" optional="show" />
+                    <field name="name" />
+                    <field name="karma_min" />
+                    <field name="rank_users_count" />
                 </list>
             </field>
         </record>
-
         <record id="gamification_karma_rank_view_form" model="ir.ui.view">
             <field name="name">gamification.karma.rank.view.form</field>
             <field name="model">gamification.karma.rank</field>
@@ -55,7 +55,11 @@
                 <form string="Rank">
                     <sheet>
                         <div class="oe_button_box" name="button_box">
-                            <button type="action" class="oe_stat_button" icon="fa-users" name="%(action_current_rank_users)d">
+                            <button
+                                type="action"
+                                class="oe_stat_button"
+                                icon="fa-users"
+                                name="%(action_current_rank_users)d">
                                 <div class="o_form_field o_stat_info">
                                     <span class="o_stat_value">
                                         <field name="rank_users_count" />
@@ -64,32 +68,44 @@
                                 </div>
                             </button>
                         </div>
-                        <field name="image_1920" widget="image" class="oe_avatar" options="{'preview_image': 'image_128'}"/>
+                        <field
+                            name="image_1920"
+                            widget="image"
+                            class="oe_avatar"
+                            options="{'preview_image': 'image_128'}" />
                         <div class="oe_title">
-                            <label for="name"/>
+                            <label for="name" />
                             <h1>
-                                <field name="name" placeholder="e.g. Master Chief"/>
+                                <field name="name" placeholder="e.g. Master Chief" />
                             </h1>
                         </div>
                         <group>
                             <group string="Progression">
-                                <field name="karma_min"/>
-                                <field name="level_number"/>
+                                <field name="karma_min" />
+                                <field name="level_number" />
                             </group>
                             <group string="Rewards">
-                                <field name="unlock_badge_ids" widget="many2many_tags"/>
+                                <field
+                                    name="unlock_badge_ids"
+                                    widget="many2many_tags" />
                             </group>
-                            <field name="create_date" invisible="1"/>
+                            <field name="create_date" invisible="1" />
                         </group>
                         <notebook>
                             <page string="Description" name="description">
-                                <field name="description" placeholder="e.g. A Master Chief knows quite everything on the forum! You cannot beat him!"/>
+                                <field
+                                    name="description"
+                                    placeholder="e.g. A Master Chief knows quite everything on the forum! You cannot beat him!" />
                             </page>
                             <page string="Motivational" name="motivational">
-                                <field name="description_motivational" placeholder="e.g. Reach this rank to gain a free mug!"/>
+                                <field
+                                    name="description_motivational"
+                                    placeholder="e.g. Reach this rank to gain a free mug!" />
                             </page>
                             <page string="Unlocked Perks" name="perks">
-                                <field name="description_perks" placeholder="e.g. Can post answers without moderation, access to advanced reporting..."/>
+                                <field
+                                    name="description_perks"
+                                    placeholder="e.g. Can post answers without moderation, access to advanced reporting..." />
                             </page>
                         </notebook>
                     </sheet>
@@ -97,4 +113,5 @@
             </field>
         </record>
     </data>
+
 </odoo>

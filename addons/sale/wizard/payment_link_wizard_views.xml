@@ -24,8 +24,7 @@
                     name="payment_link_confirmation_message"
                     class="alert alert-info"
                     role="alert"
-                    invisible="warning_message or not confirmation_message"
-                >
+                    invisible="warning_message or not confirmation_message">
                     <field name="confirmation_message" />
                 </div>
             </div>

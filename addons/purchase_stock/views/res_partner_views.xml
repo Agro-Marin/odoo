@@ -18,7 +18,10 @@
                     <div class="o_form_field o_stat_info">
                         <div class="o_row">
                             <span class="o_stat_value">
-                                <field string="On-time Rate" name="on_time_rate" digits="[42, 0]" />
+                                <field
+                                    string="On-time Rate"
+                                    name="on_time_rate"
+                                    digits="[42, 0]" />
                             </span>
                             <span class="o_stat_value">%</span>
                         </div>
@@ -30,8 +33,7 @@
                 <label for="group_rfq" />
                 <div name="group_rfq_container">
                     <field name="group_rfq" class="oe_inline" />
-                    <span name="group_on_span" invisible="group_rfq != 'week'"> On <field
-                            name="group_on" class="oe_inline" />
+                    <span name="group_on_span" invisible="group_rfq != 'week'"> On <field name="group_on" class="oe_inline" />
                     </span>
                 </div>
             </xpath>

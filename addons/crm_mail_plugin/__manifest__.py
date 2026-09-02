@@ -5,14 +5,17 @@
     "sequence": 5,
     "summary": "Turn emails received in your mailbox into leads and log their content as internal notes.",
     "description": "Turn emails received in your mailbox into leads and log their content as internal notes.",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/crm",
+    "license": "LGPL-3",
     "depends": [
         "crm",
         "mail_plugin",
     ],
-    "data": ["views/crm_mail_plugin_lead.xml", "views/crm_lead_views.xml"],
+    "data": [
+        "views/crm_mail_plugin_lead.xml",
+        "views/crm_lead_views.xml",
+    ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

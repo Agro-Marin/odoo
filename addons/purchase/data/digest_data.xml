@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="digest_tip_purchase_0" model="digest.tip">
@@ -16,7 +16,8 @@
                     performance statistics, click on the OTD rate.</p>
                 <img
                     src="https://download.odoocdn.com/digests/purchase/static/src/img/milk-OTDPurchase.gif"
-                    width="540" class="illustration_border" />
+                    width="540"
+                    class="illustration_border" />
             </div>
         </field>
     </record>

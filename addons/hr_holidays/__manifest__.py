@@ -4,7 +4,6 @@
     "category": "Human Resources/Time Off",
     "sequence": 85,
     "summary": "Allocate time off and follow leave requests",
-    "website": "https://www.odoo.com/app/time-off",
     "description": """
 Manage time off requests and allocations
 ========================================
@@ -21,6 +20,9 @@ You can keep track of time off in different ways by following reports:
 
 A synchronization with an internal agenda (Meetings of the CRM module) is also possible in order to automatically create a meeting when a time off request is accepted by setting up a type of meeting in time off Type.
 """,
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/time-off",
+    "license": "LGPL-3",
     "depends": [
         "hr",
         "calendar",
@@ -58,8 +60,6 @@ A synchronization with an internal agenda (Meetings of the CRM module) is also p
     "demo": [
         "data/hr_holidays_demo.xml",
     ],
-    "installable": True,
-    "application": True,
     "assets": {
         "web.assets_backend": [
             "hr_holidays/static/src/**/*",
@@ -73,10 +73,15 @@ A synchronization with an internal agenda (Meetings of the CRM module) is also p
         ],
         "web.assets_unit_tests": [
             "hr_holidays/static/tests/**/*",
-            ("remove", "hr_holidays/static/tests/tours/**/*"),
+            (
+                "remove",
+                "hr_holidays/static/tests/tours/**/*",
+            ),
         ],
-        "web.assets_tests": ["/hr_holidays/static/tests/tours/**/*"],
+        "web.assets_tests": [
+            "/hr_holidays/static/tests/tours/**/*",
+        ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "application": True,
 }

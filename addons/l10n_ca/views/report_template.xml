@@ -1,26 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <template id="pst_external_layout">
-        <li t-if="company.account_fiscal_country_id.code == 'CA' and company.l10n_ca_pst">
-            PST: <span t-field="company.l10n_ca_pst"/>
+        <li
+            t-if="company.account_fiscal_country_id.code == 'CA' and company.l10n_ca_pst">
+            PST: <span t-field="company.l10n_ca_pst" />
         </li>
     </template>
 
-    <!-- The company address list moved into its own template, `web.company_address_block`,
-         which every external layout t-calls. One inherit on the block reaches all of them;
-         the six per-layout overrides this replaces anchored on a <ul> the layouts no
-         longer contain, so l10n_ca could not be installed. -->
+    <!--
+        The company address list moved into its own template, `web.company_address_block`,
+        which every external layout t-calls. One inherit on the block reaches all of them;
+        the six per-layout overrides this replaces anchored on a <ul> the layouts no
+        longer contain, so l10n_ca could not be installed.
+    -->
     <template id="l10n_ca_company_address_block" inherit_id="web.company_address_block">
         <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_ca.pst_external_layout"/>
+            <t t-call="l10n_ca.pst_external_layout" />
         </xpath>
     </template>
 
-    <template id="l10n_ca_external_layout_folder" inherit_id="web.external_layout_folder">
+    <template
+        id="l10n_ca_external_layout_folder"
+        inherit_id="web.external_layout_folder">
         <xpath expr="//div[hasclass('o_folder_company_info')]" position="after">
-            <div t-if="company.account_fiscal_country_id.code == 'CA' and company.l10n_ca_pst">
-                PST: <span t-field="company.l10n_ca_pst"/>
+            <div
+                t-if="company.account_fiscal_country_id.code == 'CA' and company.l10n_ca_pst">
+                PST: <span t-field="company.l10n_ca_pst" />
             </div>
         </xpath>
     </template>
+
 </odoo>

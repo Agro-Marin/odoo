@@ -1,11 +1,8 @@
 {
-    'name': 'Brazilian - Accounting',
-    'version': '1.1',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/brazil.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['br'],
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Brazilian - Accounting",
+    "version": "1.1",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Base module for the Brazilian localization
 ==========================================
 
@@ -48,39 +45,46 @@ Electronic invoicing through Avatax (l10n_br_edi)
 -------------------------------------------------
 Create electronic sales invoices with Avatax.
 """,
-    'author': 'Akretion, Odoo Brasil',
-    'depends': [
-        'account',
-        'account_qr_code_emv',
-        'partner_address_extended',
-        'l10n_latam_base',
-        'l10n_latam_invoice_document',
+    "author": "Akretion, Odoo Brasil",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/brazil.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_qr_code_emv",
+        "partner_address_extended",
+        "l10n_latam_base",
+        "l10n_latam_invoice_document",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'security/ir.model.access.csv',
-        'views/res_partner_views.xml',
-        'data/account_tax_report_data.xml',
-        'data/res_country_data.xml',
-        'data/res.city.csv',
-        'data/l10n_br.zip.range.csv',
-        'data/l10n_latam.identification.type.csv',
-        'data/l10n_latam.document.type.csv',
-        'views/account_view.xml',
-        'views/account_fiscal_position_views.xml',
-        'views/ir_ui_menu_brazil.xml',
-        'views/portal_address_templates.xml',
-        'views/res_company_views.xml',
-        'views/account_journal_views.xml',
-        'views/res_bank_views.xml',
+    "countries": [
+        "br",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "security/ir.model.access.csv",
+        "views/res_partner_views.xml",
+        "data/account_tax_report_data.xml",
+        "data/res_country_data.xml",
+        "data/res.city.csv",
+        "data/l10n_br.zip.range.csv",
+        "data/l10n_latam.identification.type.csv",
+        "data/l10n_latam.document.type.csv",
+        "views/account_view.xml",
+        "views/account_fiscal_position_views.xml",
+        "views/ir_ui_menu_brazil.xml",
+        "views/portal_address_templates.xml",
+        "views/res_company_views.xml",
+        "views/account_journal_views.xml",
+        "views/res_bank_views.xml",
     ],
-    'assets': {
-        'web.assets_frontend': [
-            'l10n_br/static/src/interactions/**/*',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "assets": {
+        "web.assets_frontend": [
+            "l10n_br/static/src/interactions/**/*",
         ],
     },
-    'license': 'LGPL-3',
+    "auto_install": [
+        "account",
+    ],
 }

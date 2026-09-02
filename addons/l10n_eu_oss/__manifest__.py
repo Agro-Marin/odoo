@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'EU One Stop Shop (OSS)',
-    'category': 'Accounting/Localizations',
-    'description': """
+    "name": "EU One Stop Shop (OSS)",
+    "category": "Accounting/Localizations",
+    "description": """
 EU One Stop Shop (OSS) VAT
 ==========================
 
@@ -19,11 +19,13 @@ Council Directive (EU) 2017/2455 Council Directive (EU) 2019/1995
 Council Implementing Regulation (EU) 2019/2026
 
     """,
-    'depends': ['account'],
-    'data': [
-        'data/account_account_tag.xml',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'uninstall_hook': 'l10n_eu_oss_uninstall',
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "data": [
+        "data/account_account_tag.xml",
+    ],
+    "uninstall_hook": "l10n_eu_oss_uninstall",
 }

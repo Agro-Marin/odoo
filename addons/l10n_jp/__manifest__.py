@@ -1,10 +1,8 @@
 {
-    'name': 'Japan - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['jp'],
-    'version': '2.3',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Japan - Accounting",
+    "version": "2.3",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 
 Overview:
 ---------
@@ -20,17 +18,23 @@ Note:
 [1] See https://github.com/odoo/odoo/pull/6470 for detail.
 
     """,
-    'author': 'Quartile Limited (https://www.quartile.co/)',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'depends': [
-        'account',
+    "author": "Quartile Limited (https://www.quartile.co/)",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "jp",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

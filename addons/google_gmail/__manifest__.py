@@ -3,6 +3,8 @@
     "version": "19.0.2.0.0",
     "category": "Hidden",
     "description": "Gmail support for incoming / outgoing mail servers",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "mail_oauth2",
         "mail",
@@ -14,6 +16,4 @@
         "views/templates.xml",
     ],
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

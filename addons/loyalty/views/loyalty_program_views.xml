@@ -335,8 +335,8 @@
     <record
         id="action_loyalty_program_tree_discount_loyalty"
         model="ir.actions.act_window.view">
-        <field name="view_mode">list</field>
         <field name="sequence">1</field>
+        <field name="view_mode">list</field>
         <field name="view_id" ref="loyalty_program_view_tree" />
         <field name="act_window_id" ref="loyalty_program_discount_loyalty_action" />
     </record>
@@ -344,8 +344,8 @@
     <record
         id="action_loyalty_program_form_discount_loyalty"
         model="ir.actions.act_window.view">
-        <field name="view_mode">form</field>
         <field name="sequence">2</field>
+        <field name="view_mode">form</field>
         <field name="view_id" ref="loyalty_program_view_form" />
         <field name="act_window_id" ref="loyalty_program_discount_loyalty_action" />
     </record>
@@ -371,9 +371,9 @@
         <field name="res_model">loyalty.program</field>
         <field name="path">gift-cards-ewallet</field>
         <field name="view_mode">list,form</field>
+        <field name="domain">[('program_type', 'in', ('gift_card', 'ewallet'))]</field>
         <field
             name="context">{'menu_type': 'gift_ewallet', 'default_program_type': 'gift_card'}</field>
-        <field name="domain">[('program_type', 'in', ('gift_card', 'ewallet'))]</field>
         <field name="help" type="html">
             <div class="o_loyalty_not_found container mt64">
                 <h1>No loyalty program found.</h1>
@@ -385,8 +385,8 @@
     <record
         id="action_loyalty_program_tree_gift_card_ewallet"
         model="ir.actions.act_window.view">
-        <field name="view_mode">list</field>
         <field name="sequence">1</field>
+        <field name="view_mode">list</field>
         <field name="view_id" ref="loyalty_program_view_tree" />
         <field name="act_window_id" ref="loyalty_program_gift_ewallet_action" />
     </record>
@@ -394,8 +394,8 @@
     <record
         id="action_loyalty_program_form_gift_card_ewallet"
         model="ir.actions.act_window.view">
-        <field name="view_mode">form</field>
         <field name="sequence">2</field>
+        <field name="view_mode">form</field>
         <field name="view_id" ref="loyalty_program_gift_ewallet_view_form" />
         <field name="act_window_id" ref="loyalty_program_gift_ewallet_action" />
     </record>

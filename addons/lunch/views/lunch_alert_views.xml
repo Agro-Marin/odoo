@@ -1,15 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="lunch_alert_view_search" model="ir.ui.view">
         <field name="name">lunch.alert.search</field>
         <field name="model">lunch.alert</field>
         <field name="arch" type="xml">
             <search string="Search">
-                <field name="message"/>
-                <filter name="inactive_today" string="Currently inactive" domain="[('available_today', '=', False)]"/>
-                <separator/>
-                <filter name="active" string="Active" domain="[('active', '=', True)]"/>
-                <filter name="inactive" string="Archived" domain="[('active', '=', False)]"/>
+                <field name="message" />
+                <filter
+                    name="inactive_today"
+                    string="Currently inactive"
+                    domain="[('available_today', '=', False)]" />
+                <separator />
+                <filter
+                    name="active"
+                    string="Active"
+                    domain="[('active', '=', True)]" />
+                <filter
+                    name="inactive"
+                    string="Archived"
+                    domain="[('active', '=', False)]" />
             </search>
         </field>
     </record>
@@ -19,11 +29,11 @@
         <field name="model">lunch.alert</field>
         <field name="arch" type="xml">
             <list>
-                <field name="name"/>
-                <field name="mode"/>
-                <field name="message" column_invisible="True"/>
-                <field name="available_today"/>
-                <field name="active" widget="boolean_toggle"/>
+                <field name="name" />
+                <field name="mode" />
+                <field name="message" column_invisible="True" />
+                <field name="available_today" />
+                <field name="active" widget="boolean_toggle" />
             </list>
         </field>
     </record>
@@ -35,34 +45,45 @@
             <form string="alert form">
                 <sheet>
                     <div class="oe_title" name="title">
-                        <label for="name"/>
+                        <label for="name" />
                         <h1>
-                            <field name="name" placeholder="e.g. Order before 11am"/>
+                            <field name="name" placeholder="e.g. Order before 11am" />
                         </h1>
                     </div>
                     <group>
                         <group>
-                            <field name="mode" widget="radio"/>
-                            <field name="recipients" invisible="mode != 'chat'" widget="radio"/>
-                            <field name="location_ids" widget="many2many_tags" required="1"/>
-                            <field name="until"/>
-                            <field name="active" widget="boolean_toggle"/>
+                            <field name="mode" widget="radio" />
+                            <field
+                                name="recipients"
+                                invisible="mode != 'chat'"
+                                widget="radio" />
+                            <field
+                                name="location_ids"
+                                widget="many2many_tags"
+                                required="1" />
+                            <field name="until" />
+                            <field name="active" widget="boolean_toggle" />
                         </group>
                         <group>
                             <div class="o_td_label">
-                                <label for="notification_time" invisible="mode != 'chat'"/>
+                                <label
+                                    for="notification_time"
+                                    invisible="mode != 'chat'" />
                             </div>
                             <div class="o_col">
-                                <widget name="week_days"/>
+                                <widget name="week_days" />
                                 <div class="o_row" invisible="mode != 'chat'">
-                                    <field name="notification_time" required="mode == 'chat'" widget="float_time"/>
-                                    <field name="notification_moment"/>
+                                    <field
+                                        name="notification_time"
+                                        required="mode == 'chat'"
+                                        widget="float_time" />
+                                    <field name="notification_moment" />
                                 </div>
                             </div>
-                            <field name="tz" groups="base.group_no_one"/>
+                            <field name="tz" groups="base.group_no_one" />
                         </group>
                         <group>
-                            <field name="message"/>
+                            <field name="message" />
                         </group>
                     </group>
                 </sheet>
@@ -77,16 +98,16 @@
             <kanban class="o_kanban_mobile">
                 <templates>
                     <t t-name="card">
-                        <field class="fw-bold fs-5" name="name"/>
+                        <field class="fw-bold fs-5" name="name" />
                         <div>
-                            <field name="mode"/>
+                            <field name="mode" />
                             <span invisible="mode != 'chat'">
-                                to <field name="recipients"/>
-                                on <field name="notification_time"/>
-                                <field name="notification_moment"/>
+                                to <field name="recipients" />
+                                on <field name="notification_time" />
+                                <field name="notification_moment" />
                             </span>
                         </div>
-                        <field name="location_ids" widget="many2many_tags"/>
+                        <field name="location_ids" widget="many2many_tags" />
                     </t>
                 </templates>
             </kanban>
@@ -96,15 +117,17 @@
     <record id="lunch_alert_action" model="ir.actions.act_window">
         <field name="name">Lunch Alerts</field>
         <field name="res_model">lunch.alert</field>
-        <field name="search_view_id" ref="lunch_alert_view_search"/>
         <field name="view_mode">list,form,kanban</field>
-        <field name="domain">['|', ('active', '=', True), ('active', '=', False)]</field>
+        <field name="view_id" ref="lunch_alert_view_tree" />
+        <field name="search_view_id" ref="lunch_alert_view_search" />
+        <field
+            name="domain">['|', ('active', '=', True), ('active', '=', False)]</field>
         <field name="context">{}</field>
-        <field name="view_id" ref="lunch_alert_view_tree"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create new lunch alerts
             </p>
         </field>
     </record>
+
 </odoo>

@@ -11,9 +11,17 @@
                 <field name="name" />
                 <field name="state" string="Type" optional="hide" />
                 <field name="automation_rule_id" column_invisible="1" />
-                <field name="edge_in_ids" widget="many2many_tags" readonly="1" optional="show"
+                <field
+                    name="edge_in_ids"
+                    widget="many2many_tags"
+                    readonly="1"
+                    optional="show"
                     string="Waits For" />
-                <field name="edge_out_ids" widget="many2many_tags" readonly="1" optional="hide"
+                <field
+                    name="edge_out_ids"
+                    widget="many2many_tags"
+                    readonly="1"
+                    optional="hide"
                     string="Enables" />
             </list>
         </field>
@@ -30,8 +38,7 @@
                     type="object"
                     class="oe_stat_button"
                     icon="fa-bolt"
-                    invisible="not automation_rule_id"
-                >
+                    invisible="not automation_rule_id">
                     <div class="o_stat_info">
                         <span class="o_stat_text">Automation</span>
                     </div>
@@ -47,7 +54,8 @@
         <field name="arch" type="xml">
 
             <xpath expr="//notebook" position="inside">
-                <page string="Dependencies"
+                <page
+                    string="Dependencies"
                     name="dependencies"
                     invisible="usage != 'automation' or not automation_rule_id"
                     groups="base.group_user">
@@ -60,26 +68,35 @@
                                 <field name="wait_delay" class="oe_inline" /> 
                                 <field name="wait_unit" class="oe_inline" nolabel="1" />
                             </div>
-                            <field name="approval_user_ids" widget="many2many_tags"
-                                   invisible="node_type != 'approval'"
-                                   required="node_type == 'approval'" />
-                            <field name="approval_note"
-                                   invisible="node_type != 'approval'" />
-                            <field name="subflow_automation_id"
-                                   invisible="node_type != 'subflow'"
-                                   required="node_type == 'subflow'"
-                                   options="{'no_create': True}" />
+                            <field
+                                name="approval_user_ids"
+                                widget="many2many_tags"
+                                invisible="node_type != 'approval'"
+                                required="node_type == 'approval'" />
+                            <field
+                                name="approval_note"
+                                invisible="node_type != 'approval'" />
+                            <field
+                                name="subflow_automation_id"
+                                invisible="node_type != 'subflow'"
+                                required="node_type == 'subflow'"
+                                options="{'no_create': True}" />
                         </group>
 
                         <group string="Dependency Info" colspan="2">
-                            <field name="edge_in_ids" nolabel="1" colspan="2"
-                                   context="{'default_target_node_id': id}">
+                            <field
+                                name="edge_in_ids"
+                                nolabel="1"
+                                colspan="2"
+                                context="{'default_target_node_id': id}">
                                 <list editable="bottom">
-                                    <field name="source_node_id"
+                                    <field
+                                        name="source_node_id"
                                         domain="[('automation_rule_id', '=', parent.automation_rule_id), ('id', '!=', parent.id)]"
                                         options="{'no_create': True}" />
                                     <field name="condition" />
-                                    <field name="condition_expr"
+                                    <field
+                                        name="condition_expr"
                                         column_invisible="parent.usage != 'automation'"
                                         readonly="condition != 'expression'"
                                         required="condition == 'expression'" />
@@ -91,7 +108,11 @@
                                 This action executes once EVERY edge above is satisfied.
                             </div>
 
-                            <field name="edge_out_ids" nolabel="1" colspan="2" readonly="1">
+                            <field
+                                name="edge_out_ids"
+                                nolabel="1"
+                                colspan="2"
+                                readonly="1">
                                 <list string="Enables">
                                     <field name="target_node_id" />
                                     <field name="condition" />
@@ -111,14 +132,16 @@
                         </ul>
                     </div>
 
-                    <div class="alert alert-warning" role="alert" invisible="edge_in_ids">
+                    <div
+                        class="alert alert-warning"
+                        role="alert"
+                        invisible="edge_in_ids">
                         <i class="fa-solid fa-triangle-exclamation" title="Warning" />
                         This is a <strong>root action</strong> — it starts as soon as the workflow runs.
                     </div>
 
                 </page>
             </xpath>
-
         </field>
     </record>
 

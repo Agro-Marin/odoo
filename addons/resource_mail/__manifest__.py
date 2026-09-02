@@ -2,9 +2,13 @@
     "name": "Resource Mail",
     "version": "1.0",
     "category": "Hidden",
-    "description": """Integrate features developed in Mail in use case involving resources instead of users""",
-    "depends": ["resource", "mail"],
-    "auto_install": True,
+    "description": "Integrate features developed in Mail in use case involving resources instead of users",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "resource",
+        "mail",
+    ],
     "assets": {
         "web.assets_backend": [
             "resource_mail/static/src/**/*",
@@ -13,6 +17,5 @@
             "resource_mail/static/tests/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

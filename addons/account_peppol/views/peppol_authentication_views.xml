@@ -2,9 +2,9 @@
 <odoo>
 
     <!--
-    Action responsible to close the window that was open for authentication.
-    Called by callbacks in the PeppolAuthentication controllers.
-     -->
+        Action responsible to close the window that was open for authentication.
+        Called by callbacks in the PeppolAuthentication controllers.
+    -->
     <record id="action_peppol_auth_callback" model="ir.actions.client">
         <field name="name">Peppol Auth Callback action</field>
         <field name="tag">action_peppol_auth_callback</field>

@@ -1,10 +1,6 @@
 {
     "name": "Mexico - Accounting",
-    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/mexico.html",
-    "icon": "/account/static/description/l10n.png",
-    "countries": ["mx"],
     "version": "2.3",
-    "author": "Vauxoo",
     "category": "Accounting/Localizations/Account Charts",
     "description": """
 Minimal accounting configuration for Mexico.
@@ -25,10 +21,16 @@ With this module you will have:
 
 .. _SAT: http://www.sat.gob.mx/
     """,
+    "author": "Vauxoo",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/mexico.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
     "depends": [
         "account",
     ],
-    "auto_install": ["account"],
+    "countries": [
+        "mx",
+    ],
     "data": [
         "data/res_partner_identifier_type_data.xml",
         "data/account.account.tag.csv",
@@ -52,6 +54,8 @@ With this module you will have:
             "l10n_mx/static/src/helpers/*.js",
         ],
     },
-    "license": "LGPL-3",
+    "auto_install": [
+        "account",
+    ],
     "post_init_hook": "_enable_group_uom_post_init",
 }

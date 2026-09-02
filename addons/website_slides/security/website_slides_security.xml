@@ -1,50 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-        <record model="res.groups.privilege" id="res_groups_privilege_elearning">
-            <field name="name">eLearning</field>
-            <field name="sequence">21</field>
-            <field name="category_id" ref="base.module_category_website"/>
-        </record>
 
-        <record id="group_website_slides_officer" model="res.groups">
-            <field name="name">Officer</field>
-            <field name="sequence">10</field>
-            <field name="privilege_id" ref="res_groups_privilege_elearning"/>
-            <field name="implied_ids" eval="[(4, ref('website.group_website_restricted_editor'))]"/>
-        </record>
+    <record id="res_groups_privilege_elearning" model="res.groups.privilege">
+        <field name="name">eLearning</field>
+        <field name="sequence">21</field>
+        <field name="category_id" ref="base.module_category_website" />
+    </record>
 
-        <record id="group_website_slides_manager" model="res.groups">
-            <field name="name">Manager</field>
-            <field name="sequence">20</field>
-            <field name="privilege_id" ref="res_groups_privilege_elearning"/>
-            <field name="implied_ids" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="user_ids" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
-        </record>
+    <record id="group_website_slides_officer" model="res.groups">
+        <field name="name">Officer</field>
+        <field name="sequence">10</field>
+        <field name="privilege_id" ref="res_groups_privilege_elearning" />
+        <field
+            name="implied_ids"
+            eval="[(4, ref('website.group_website_restricted_editor'))]" />
+    </record>
 
-        <data noupdate="1">
+    <record id="group_website_slides_manager" model="res.groups">
+        <field name="name">Manager</field>
+        <field name="sequence">20</field>
+        <field name="privilege_id" ref="res_groups_privilege_elearning" />
+        <field name="implied_ids" eval="[(4, ref('group_website_slides_officer'))]" />
+        <field
+            name="user_ids"
+            eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]" />
+    </record>
+
+    <data noupdate="1">
         <!-- CHANNEL -->
         <record id="rule_slide_channel_global" model="ir.rule">
             <field name="name">Channel: always visible (sub rules exist)</field>
-            <field name="model_id" ref="model_slide_channel"/>
+            <field name="model_id" ref="model_slide_channel" />
             <field name="domain_force">[(1, '=', 1)]</field>
         </record>
-
         <record id="rule_slide_channel_visibility_public_user" model="ir.rule">
-            <field name="name">Channel: public: restricted to public/link-based and published</field>
-            <field name="model_id" ref="model_slide_channel"/>
-            <field name="groups" eval="[(4, ref('base.group_public'))]"/>
-            <field name="domain_force">[('website_published', '=', True), ('visibility', 'in', ['public', 'link'])]</field>
-            <field name="perm_unlink" eval="0"/>
-            <field name="perm_write" eval="0"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_create" eval="0"/>
+            <field
+                name="name">Channel: public: restricted to public/link-based and published</field>
+            <field name="model_id" ref="model_slide_channel" />
+            <field name="groups" eval="[(4, ref('base.group_public'))]" />
+            <field
+                name="domain_force">[('website_published', '=', True), ('visibility', 'in', ['public', 'link'])]</field>
+            <field name="perm_unlink" eval="0" />
+            <field name="perm_write" eval="0" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="0" />
         </record>
-
         <record id="rule_slide_channel_visibility_signed_in_user" model="ir.rule">
-            <field name="name">Channel: portal/user: restricted to published, public or (invited) attendee or link-based, connected user</field>
-            <field name="model_id" ref="model_slide_channel"/>
-            <field name="groups" eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]"/>
-            <field name="domain_force">[
+            <field
+                name="name">Channel: portal/user: restricted to published, public or (invited) attendee or link-based, connected user</field>
+            <field name="model_id" ref="model_slide_channel" />
+            <field
+                name="groups"
+                eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
+            <field
+                name="domain_force">[
                 '&amp;',
                     ('website_published', '=', True),
                     '|',
@@ -52,88 +61,89 @@
                         '|',
                             ('is_member_invited', '=', True),
                             ('is_member', '=', True),
-                ]
-            </field>
-            <field name="perm_unlink" eval="0"/>
-            <field name="perm_write" eval="0"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_create" eval="0"/>
+                ]</field>
+            <field name="perm_unlink" eval="0" />
+            <field name="perm_write" eval="0" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="0" />
         </record>
-
         <record id="rule_slide_channel_officer_r" model="ir.rule">
             <field name="name">Channel: officer: read all</field>
-            <field name="model_id" ref="model_slide_channel"/>
+            <field name="model_id" ref="model_slide_channel" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_unlink" eval="0"/>
-            <field name="perm_write" eval="0"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_create" eval="0"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_unlink" eval="0" />
+            <field name="perm_write" eval="0" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="0" />
         </record>
         <record id="rule_slide_channel_officer_cw" model="ir.rule">
             <field name="name">Channel: officer: create/write own only</field>
-            <field name="model_id" ref="model_slide_channel"/>
+            <field name="model_id" ref="model_slide_channel" />
             <field name="domain_force">[('user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_unlink" eval="0"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_read" eval="0"/>
-            <field name="perm_create" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_unlink" eval="0" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_read" eval="0" />
+            <field name="perm_create" eval="1" />
         </record>
-
         <record id="rule_slide_channel_manager" model="ir.rule">
             <field name="name">Channel: manager: crud all</field>
-            <field name="model_id" ref="model_slide_channel"/>
+            <field name="model_id" ref="model_slide_channel" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]"/>
-            <field name="perm_unlink" eval="1"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_create" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]" />
+            <field name="perm_unlink" eval="1" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="1" />
         </record>
-
         <record id="rule_slide_channel_tag_public" model="ir.rule">
             <field name="name">Channel Tag: public/portal: color = published</field>
-            <field name="model_id" ref="model_slide_channel_tag"/>
-            <field name="domain_force">['&amp;', ('color', '!=', False), ('color', '!=', 0)]</field>
-            <field name="groups" eval="[(4, ref('base.group_public')), (4, ref('base.group_portal'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="False"/>
-            <field name="perm_create" eval="False"/>
-            <field name="perm_unlink" eval="False"/>
+            <field name="model_id" ref="model_slide_channel_tag" />
+            <field
+                name="domain_force">['&amp;', ('color', '!=', False), ('color', '!=', 0)]</field>
+            <field
+                name="groups"
+                eval="[(4, ref('base.group_public')), (4, ref('base.group_portal'))]" />
+            <field name="perm_read" eval="True" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
-
         <!-- SLIDE -->
         <record id="rule_slide_slide_global" model="ir.rule">
             <field name="name">Slide: always visible (sub rules exist)</field>
-            <field name="model_id" ref="model_slide_slide"/>
+            <field name="model_id" ref="model_slide_slide" />
             <field name="domain_force">[(1, '=', 1)]</field>
         </record>
-
         <record id="rule_slide_slide_public_user" model="ir.rule">
-            <field name="name">Slide: public: restricted to published or public/link-based channel &amp; (category or previewable)</field>
-            <field name="model_id" ref="model_slide_slide"/>
-            <field name="groups" eval="[(4, ref('base.group_public'))]"/>
-            <field name="domain_force">[
+            <field
+                name="name">Slide: public: restricted to published or public/link-based channel &amp; (category or previewable)</field>
+            <field name="model_id" ref="model_slide_slide" />
+            <field name="groups" eval="[(4, ref('base.group_public'))]" />
+            <field
+                name="domain_force">[
                     ('channel_id.website_published', '=', True),
                     ('website_published', '=', True),
                     ('channel_id.visibility', 'in', ['public', 'link']),
                     '|',
                         ('is_category','=', True),
                         ('is_preview', '=', True),
-                ]
-            </field>
-            <field name="perm_unlink" eval="0"/>
-            <field name="perm_write" eval="0"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_create" eval="0"/>
+                ]</field>
+            <field name="perm_unlink" eval="0" />
+            <field name="perm_write" eval="0" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="0" />
         </record>
-
         <record id="rule_slide_slide_signed_in_user" model="ir.rule">
-            <field name="name">Slide: portal/user: restricted to published and connected user, (invited) attendee or link-based, if course visible to attendees only</field>
-            <field name="model_id" ref="model_slide_slide"/>
-            <field name="groups" eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]"/>
-            <field name="domain_force">[
+            <field
+                name="name">Slide: portal/user: restricted to published and connected user, (invited) attendee or link-based, if course visible to attendees only</field>
+            <field name="model_id" ref="model_slide_slide" />
+            <field
+                name="groups"
+                eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
+            <field
+                name="domain_force">[
                 '&amp;',
                     '|',
                         ('user_id', '=', user.id),
@@ -149,230 +159,231 @@
                                 ('is_category', '=', True),
                                 ('is_preview', '=', True),
                         ('channel_id.is_member', '=', True),
-                ]
-            </field>
-            <field name="perm_unlink" eval="0"/>
-            <field name="perm_write" eval="0"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_create" eval="0"/>
+                ]</field>
+            <field name="perm_unlink" eval="0" />
+            <field name="perm_write" eval="0" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="0" />
         </record>
-
         <record id="rule_slide_slide_officer_r" model="ir.rule">
             <field name="name">Slide: officer: read all</field>
-            <field name="model_id" ref="model_slide_slide"/>
+            <field name="model_id" ref="model_slide_slide" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_unlink" eval="0"/>
-            <field name="perm_write" eval="0"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_create" eval="0"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_unlink" eval="0" />
+            <field name="perm_write" eval="0" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="0" />
         </record>
-
         <record id="rule_slide_slide_officer_cw" model="ir.rule">
             <field name="name">Slide: officer: create/write own only</field>
-            <field name="model_id" ref="model_slide_slide"/>
+            <field name="model_id" ref="model_slide_slide" />
             <field name="domain_force">[('channel_id.user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_unlink" eval="0"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_read" eval="0"/>
-            <field name="perm_create" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_unlink" eval="0" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_read" eval="0" />
+            <field name="perm_create" eval="1" />
         </record>
-
         <record id="rule_slide_slide_manager" model="ir.rule">
             <field name="name">Slide: manager: crud all</field>
-            <field name="model_id" ref="model_slide_slide"/>
+            <field name="model_id" ref="model_slide_slide" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]"/>
-            <field name="perm_unlink" eval="1"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_create" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]" />
+            <field name="perm_unlink" eval="1" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="1" />
         </record>
-
         <!-- CHANNEL PARTNER -->
         <record id="rule_slide_channel_partner_officer" model="ir.rule">
-            <field name="name">Channel Partner: officer: create/write/unlink own only</field>
-            <field name="model_id" ref="model_slide_channel_partner"/>
+            <field
+                name="name">Channel Partner: officer: create/write/unlink own only</field>
+            <field name="model_id" ref="model_slide_channel_partner" />
             <field name="domain_force">[('channel_id.user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_unlink" eval="1"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_read" eval="0"/>
-            <field name="perm_create" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_unlink" eval="1" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_read" eval="0" />
+            <field name="perm_create" eval="1" />
         </record>
-
         <record id="rule_slide_channel_partner_manager" model="ir.rule">
             <field name="name">Channel Partner: manager: crud all</field>
-            <field name="model_id" ref="model_slide_channel_partner"/>
+            <field name="model_id" ref="model_slide_channel_partner" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]"/>
-            <field name="perm_unlink" eval="1"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_create" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]" />
+            <field name="perm_unlink" eval="1" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="1" />
         </record>
-
         <!-- SLIDE PARTNER -->
         <record id="rule_slide_slide_partner_officer" model="ir.rule">
-            <field name="name">Slide Partner: officer: create/write/unlink own only</field>
-            <field name="model_id" ref="model_slide_slide_partner"/>
+            <field
+                name="name">Slide Partner: officer: create/write/unlink own only</field>
+            <field name="model_id" ref="model_slide_slide_partner" />
             <field name="domain_force">[('channel_id.user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_unlink" eval="1"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_read" eval="0"/>
-            <field name="perm_create" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_unlink" eval="1" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_read" eval="0" />
+            <field name="perm_create" eval="1" />
         </record>
-
         <record id="rule_slide_slide_partner_manager" model="ir.rule">
             <field name="name">Slide Partner: manager: crud all</field>
-            <field name="model_id" ref="model_slide_slide_partner"/>
+            <field name="model_id" ref="model_slide_slide_partner" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]"/>
-            <field name="perm_unlink" eval="1"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_create" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]" />
+            <field name="perm_unlink" eval="1" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="1" />
         </record>
-
-        <!-- SLIDE EMBED
-             This model carried ir.model.access rows granting read to public and
-             portal and full CRUD to every employee, and no ir.rule at all - not
-             even a global one, unlike every other model here. A rule-less model
-             is unrestricted, so any signed-in portal user could read every row:
-             the third-party URLs where courses have been embedded, and their
-             view counts; and any employee could forge the statistics.
-             The ACL rows are now officer-only (see ir.model.access.csv); these
-             rules scope officers to the courses they are responsible for, as
-             they are scoped on every other model in this module. The counter
-             itself is written by _embed_increment under sudo, so no visitor
-             needs access. -->
+        <!--
+            SLIDE EMBED
+            This model carried ir.model.access rows granting read to public and
+            portal and full CRUD to every employee, and no ir.rule at all - not
+            even a global one, unlike every other model here. A rule-less model
+            is unrestricted, so any signed-in portal user could read every row:
+            the third-party URLs where courses have been embedded, and their
+            view counts; and any employee could forge the statistics.
+            The ACL rows are now officer-only (see ir.model.access.csv); these
+            rules scope officers to the courses they are responsible for, as
+            they are scoped on every other model in this module. The counter
+            itself is written by _embed_increment under sudo, so no visitor
+            needs access.
+        -->
         <record id="rule_slide_embed_officer" model="ir.rule">
             <field name="name">Slide Embed: officer: own courses only</field>
-            <field name="model_id" ref="model_slide_embed"/>
-            <field name="domain_force">[('slide_id.channel_id.user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_create" eval="1"/>
-            <field name="perm_unlink" eval="1"/>
+            <field name="model_id" ref="model_slide_embed" />
+            <field
+                name="domain_force">[('slide_id.channel_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
-
         <record id="rule_slide_embed_manager" model="ir.rule">
             <field name="name">Slide Embed: manager: crud all</field>
-            <field name="model_id" ref="model_slide_embed"/>
+            <field name="model_id" ref="model_slide_embed" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_create" eval="1"/>
-            <field name="perm_unlink" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
-
-        <!-- SURVEY (the store behind quizzes and certifications)
-             ir.model.access.csv grants eLearning officers CRUD on survey.survey,
-             survey.question and survey.question.answer so the quiz editor works
-             without also handing them the Survey app. survey's own rules are
-             scoped to group_survey_user / group_survey_manager, which an officer
-             does not hold, so *no* rule applied to them and the grant was
-             model-wide: an officer could rewrite the questions of any survey on
-             the instance, including certifications owned by someone else. The
-             controller's can_publish check closes the web route only.
-             These rules cover writing only. Reading is already handled, when
-             website_slides_survey is installed, by its "slide channel officer
-             on certification: read" rules; those are perm_write=0, so they
-             never constrained writing and the grant stayed model-wide.
-             Measured: with these three rules inactive, an officer rewrites
-             another officer's certification question; with them active, that is
-             an AccessError and their own course is untouched.
-             Writing is scoped to what the officer owns: a survey they are
-             responsible for, or one backing a course they are responsible for.
-             The first clause is not slack - survey's own
-             _check_survey_responsible_access refuses to store a survey its
-             responsible cannot write, so a rule keyed only on the course would
-             refuse the quiz survey at the instant it is created, before the
-             slide that will point at it exists. Someone else's certification
-             satisfies neither clause, which is the gap being closed. -->
+        <!--
+            SURVEY (the store behind quizzes and certifications)
+            ir.model.access.csv grants eLearning officers CRUD on survey.survey,
+            survey.question and survey.question.answer so the quiz editor works
+            without also handing them the Survey app. survey's own rules are
+            scoped to group_survey_user / group_survey_manager, which an officer
+            does not hold, so *no* rule applied to them and the grant was
+            model-wide: an officer could rewrite the questions of any survey on
+            the instance, including certifications owned by someone else. The
+            controller's can_publish check closes the web route only.
+            These rules cover writing only. Reading is already handled, when
+            website_slides_survey is installed, by its "slide channel officer
+            on certification: read" rules; those are perm_write=0, so they
+            never constrained writing and the grant stayed model-wide.
+            Measured: with these three rules inactive, an officer rewrites
+            another officer's certification question; with them active, that is
+            an AccessError and their own course is untouched.
+            Writing is scoped to what the officer owns: a survey they are
+            responsible for, or one backing a course they are responsible for.
+            The first clause is not slack - survey's own
+            _check_survey_responsible_access refuses to store a survey its
+            responsible cannot write, so a rule keyed only on the course would
+            refuse the quiz survey at the instant it is created, before the
+            slide that will point at it exists. Someone else's certification
+            satisfies neither clause, which is the gap being closed.
+        -->
         <record id="rule_survey_survey_slides_officer" model="ir.rule">
             <field name="name">Survey: eLearning officer: write own courses only</field>
-            <field name="model_id" ref="survey.model_survey_survey"/>
-            <field name="domain_force">[
+            <field name="model_id" ref="survey.model_survey_survey" />
+            <field
+                name="domain_force">[
                 '|', ('user_id', '=', user.id), ('slide_ids.channel_id.user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_read" eval="0"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_create" eval="1"/>
-            <field name="perm_unlink" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_read" eval="0" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
-
         <record id="rule_survey_question_slides_officer" model="ir.rule">
-            <field name="name">Survey question: eLearning officer: write own courses only</field>
-            <field name="model_id" ref="survey.model_survey_question"/>
-            <field name="domain_force">[
+            <field
+                name="name">Survey question: eLearning officer: write own courses only</field>
+            <field name="model_id" ref="survey.model_survey_question" />
+            <field
+                name="domain_force">[
                 '|', ('survey_id.user_id', '=', user.id), ('survey_id.slide_ids.channel_id.user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_read" eval="0"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_create" eval="1"/>
-            <field name="perm_unlink" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_read" eval="0" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
-
         <record id="rule_survey_question_answer_slides_officer" model="ir.rule">
-            <field name="name">Survey answer: eLearning officer: write own courses only</field>
-            <field name="model_id" ref="survey.model_survey_question_answer"/>
-            <field name="domain_force">[
+            <field
+                name="name">Survey answer: eLearning officer: write own courses only</field>
+            <field name="model_id" ref="survey.model_survey_question_answer" />
+            <field
+                name="domain_force">[
                 '|', ('question_id.survey_id.user_id', '=', user.id), ('question_id.survey_id.slide_ids.channel_id.user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_read" eval="0"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_create" eval="1"/>
-            <field name="perm_unlink" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_read" eval="0" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
-
         <!--SLIDE RESOURCE-->
         <record id="rule_slide_slide_resource_downloadable" model="ir.rule">
-            <field name="name">Resource: read restricted to channel members and channel responsible</field>
-            <field name="model_id" ref="model_slide_slide_resource"/>
-            <field name="domain_force">[('slide_id.channel_id.is_member', '=', True)]</field>
-            <field name="groups" eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="False"/>
-            <field name="perm_create" eval="False"/>
-            <field name="perm_unlink" eval="False"/>
+            <field
+                name="name">Resource: read restricted to channel members and channel responsible</field>
+            <field name="model_id" ref="model_slide_slide_resource" />
+            <field
+                name="domain_force">[('slide_id.channel_id.is_member', '=', True)]</field>
+            <field
+                name="groups"
+                eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
+            <field name="perm_read" eval="True" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
-
         <record id="rule_slide_slide_resource_officer_read" model="ir.rule">
             <field name="name">Resource: officer: read all</field>
-            <field name="model_id" ref="model_slide_slide_resource"/>
+            <field name="model_id" ref="model_slide_slide_resource" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="False"/>
-            <field name="perm_create" eval="False"/>
-            <field name="perm_unlink" eval="False"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_read" eval="True" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
-
         <record id="rule_slide_slide_resource_officer_crud" model="ir.rule">
             <field name="name">Resource: officer: crud own only</field>
-            <field name="model_id" ref="model_slide_slide_resource"/>
-            <field name="domain_force">[('slide_id.channel_id.user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="True"/>
-            <field name="perm_create" eval="True"/>
-            <field name="perm_unlink" eval="True"/>
+            <field name="model_id" ref="model_slide_slide_resource" />
+            <field
+                name="domain_force">[('slide_id.channel_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('group_website_slides_officer'))]" />
+            <field name="perm_read" eval="True" />
+            <field name="perm_write" eval="True" />
+            <field name="perm_create" eval="True" />
+            <field name="perm_unlink" eval="True" />
         </record>
-
         <record id="rule_slide_slide_resource_downloadable_manager" model="ir.rule">
             <field name="name">Resource: manager: crud all</field>
-            <field name="model_id" ref="model_slide_slide_resource"/>
+            <field name="model_id" ref="model_slide_slide_resource" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]"/>
-            <field name="perm_read" eval="1"/>
-            <field name="perm_write" eval="1"/>
-            <field name="perm_create" eval="1"/>
-            <field name="perm_unlink" eval="1"/>
+            <field name="groups" eval="[(4, ref('group_website_slides_manager'))]" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_create" eval="1" />
+            <field name="perm_unlink" eval="1" />
         </record>
     </data>
+
 </odoo>

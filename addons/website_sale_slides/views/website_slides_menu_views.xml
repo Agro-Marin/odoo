@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem name="Revenues"
+
+    <menuitem
         id="website_slides_menu_report_revenues"
+        name="Revenues"
         parent="website_slides.website_slides_menu_report"
-        sequence="3"
-        action="sale_report_action_slides"/>
+        action="sale_report_action_slides"
+        sequence="3" />
+
 </odoo>

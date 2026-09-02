@@ -1,23 +1,30 @@
 {
-    'name': "Nigeria - Accounting",
-    'description': """
+    "name": "Nigeria - Accounting",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Nigerian localization.
 =========================================================
     """,
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'version': '1.0',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['ng'],
-    'category': 'Accounting/Localizations/Account Charts',
-    'depends': ['account_vat', 'account'],
-    'auto_install': ['account'],
-    'data': [
-        'data/tax_report.xml',
-        'data/withholding_vat_report.xml',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account_vat",
+        "account",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "countries": [
+        "ng",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "data": [
+        "data/tax_report.xml",
+        "data/withholding_vat_report.xml",
+    ],
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

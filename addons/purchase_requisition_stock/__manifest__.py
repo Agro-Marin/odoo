@@ -3,7 +3,12 @@
     "version": "1.2",
     "category": "Supply Chain/Purchase",
     "sequence": 70,
-    "depends": ["purchase_requisition", "purchase_stock"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "purchase_requisition",
+        "purchase_stock",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "data/purchase_requisition_stock_data.xml",
@@ -12,6 +17,4 @@
     ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

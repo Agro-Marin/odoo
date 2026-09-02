@@ -1,10 +1,12 @@
 {
     "name": "Website",
+    "version": "1.0",
     "category": "Website/Website",
     "sequence": 20,
     "summary": "Enterprise website builder",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/website",
-    "version": "1.0",
+    "license": "LGPL-3",
     "depends": [
         "digest",
         "social_media",
@@ -13,13 +15,15 @@
         "html_builder",
     ],
     "external_dependencies": {
-        "python": ["defusedxml", "geoip2"],
+        "python": [
+            "defusedxml",
+            "geoip2",
+        ],
         "apt": {
             "defusedxml": "python3-defusedxml",
             "geoip2": "python3-geoip2",
         },
     },
-    "installable": True,
     "data": [
         "security/website_security.xml",
         "security/ir.model.access.csv",
@@ -210,9 +214,6 @@
         "data/website_demo.xml",
         "data/website_visitor_demo.xml",
     ],
-    "application": True,
-    "post_init_hook": "post_init_hook",
-    "uninstall_hook": "uninstall_hook",
     "assets": {
         "mail.assets_public": [
             "website/static/src/**/common/**/*",
@@ -222,13 +223,28 @@
             "website/static/src/interactions/**/*",
             "website/static/src/core/**/*",
             "website/static/src/utils/**/*",
-            ("remove", "website/static/src/interactions/**/*.edit.js"),
-            ("remove", "website/static/src/interactions/multirange_input.js"),
-            ("remove", "website/static/src/interactions/ripple_effect.js"),
-            ("remove", "website/static/src/core/website_edit_service.js"),
+            (
+                "remove",
+                "website/static/src/interactions/**/*.edit.js",
+            ),
+            (
+                "remove",
+                "website/static/src/interactions/multirange_input.js",
+            ),
+            (
+                "remove",
+                "website/static/src/interactions/ripple_effect.js",
+            ),
+            (
+                "remove",
+                "website/static/src/core/website_edit_service.js",
+            ),
             "website/static/src/js/content/website_root_instance.js",
             "website/static/src/snippets/**/*.js",
-            ("remove", "website/static/src/snippets/**/*.edit.js"),
+            (
+                "remove",
+                "website/static/src/snippets/**/*.edit.js",
+            ),
             "website/static/src/libs/zoomodoo/zoomodoo.scss",
             "website/static/src/scss/website.scss",
             "website/static/src/scss/website_common.scss",
@@ -260,15 +276,36 @@
             "website/static/src/js/content/generate_video_iframe.js",
         ],
         "web.assets_frontend_lazy": [
-            ("remove", "website/static/src/utils/misc.js"),
-            ("remove", "website/static/src/js/content/inject_dom.js"),
-            ("remove", "website/static/src/js/content/auto_hide_menu.js"),
-            ("remove", "website/static/src/js/content/redirect.js"),
-            ("remove", "website/static/src/js/content/adapt_content.js"),
-            ("remove", "website/static/src/js/content/generate_video_iframe.js"),
+            (
+                "remove",
+                "website/static/src/utils/misc.js",
+            ),
+            (
+                "remove",
+                "website/static/src/js/content/inject_dom.js",
+            ),
+            (
+                "remove",
+                "website/static/src/js/content/auto_hide_menu.js",
+            ),
+            (
+                "remove",
+                "website/static/src/js/content/redirect.js",
+            ),
+            (
+                "remove",
+                "website/static/src/js/content/adapt_content.js",
+            ),
+            (
+                "remove",
+                "website/static/src/js/content/generate_video_iframe.js",
+            ),
         ],
         "website.assets_inside_builder_iframe": [
-            ("include", "html_builder.assets_inside_builder_iframe"),
+            (
+                "include",
+                "html_builder.assets_inside_builder_iframe",
+            ),
             "website/static/src/**/*.edit.*",
             "website/static/src/core/website_edit_service.js",
         ],
@@ -280,7 +317,10 @@
             "website/static/src/scss/options/colors/user_theme_color_palette.scss",
         ],
         "web._assets_secondary_variables": [
-            ("prepend", "website/static/src/scss/secondary_variables.scss"),
+            (
+                "prepend",
+                "website/static/src/scss/secondary_variables.scss",
+            ),
         ],
         "web.assets_tests": [
             "website/static/tests/tours/**/*",
@@ -288,8 +328,14 @@
             "html_builder/static/src/utils/utils_css.js",
         ],
         "web.assets_backend": [
-            ("include", "website.assets_editor"),
-            ("include", "html_editor.assets_link_popover"),
+            (
+                "include",
+                "website.assets_editor",
+            ),
+            (
+                "include",
+                "html_editor.assets_link_popover",
+            ),
             "website/static/src/scss/color_palettes.scss",
             "website/static/src/scss/view_hierarchy.scss",
             "website/static/src/scss/website.backend.scss",
@@ -321,8 +367,7 @@
             "website/static/src/js/send_mail_form.js",
             "website/static/src/xml/website.cookies_bar.xml",
         ],
-        "web.assets_web_dark": [
-        ],
+        "web.assets_web_dark": [],
         "web.assets_unit_tests": [
             "web/static/src/public/minimal_dom.js",
             "website/static/src/client_actions/website_preview/website_builder_action_test_mode.js",
@@ -330,7 +375,10 @@
             "website/static/tests/helpers.js",
             "website/static/tests/interactions/**/*",
             "website/static/tests/builder/**/*",
-            ("include", "website.website_builder_assets"),
+            (
+                "include",
+                "website.website_builder_assets",
+            ),
             "website/static/tests/mock_server/**/*",
             "website/static/tests/redirect_field.test.js",
             "website/static/tests/new_content_systray_item.test.js",
@@ -352,7 +400,10 @@
             "website/static/src/js/content/generate_video_iframe.js",
         ],
         "web._assets_frontend_helpers": [
-            ("prepend", "website/static/src/scss/bootstrap_overridden.scss"),
+            (
+                "prepend",
+                "website/static/src/scss/bootstrap_overridden.scss",
+            ),
         ],
         "web._assets_bootstrap_frontend": [
             (
@@ -366,7 +417,10 @@
             "website/static/src/xml/html_editor.xml",
         ],
         "website.assets_wysiwyg": [
-            ("include", "web._assets_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
             "html_editor/static/src/scss/bootstrap_overridden.scss",
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
@@ -381,13 +435,19 @@
             "website/static/src/xml/website.cookies_bar.xml",
         ],
         "website.assets_all_wysiwyg": [
-            ("include", "website.assets_wysiwyg"),
+            (
+                "include",
+                "website.assets_wysiwyg",
+            ),
         ],
         "html_editor.assets_media_dialog": [
             "website/static/src/components/media_dialog/*",
         ],
         "website.assets_editor": [
-            ("include", "web._assets_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
@@ -414,30 +474,96 @@
             "website/static/src/js/backend/**/*",
         ],
         "website.website_builder_assets": [
-            ("include", "html_builder.assets"),
+            (
+                "include",
+                "html_builder.assets",
+            ),
             "website/static/src/scss/website_common.scss",
             "website/static/src/builder/**/*",
-            ("remove", "website/static/src/builder/**/*.edit.*"),
+            (
+                "remove",
+                "website/static/src/builder/**/*.edit.*",
+            ),
         ],
         "html_builder.iframe_add_dialog": [
             "website/static/src/snippets/**/*.preview.scss",
         ],
     },
+    "esm": {
+        "bundles": [
+            "website.assets_all_wysiwyg",
+            "website.assets_editor",
+            "website.assets_inside_builder_iframe",
+            "website.assets_wysiwyg",
+            "website.website_builder_assets",
+        ],
+        "dynamic_children": {
+            "web.assets_web": [
+                "website.assets_inside_builder_iframe",
+                "website.website_builder_assets",
+            ],
+        },
+    },
+    "installable": True,
+    "application": True,
+    "post_init_hook": "post_init_hook",
+    "uninstall_hook": "uninstall_hook",
     "configurator_snippets": {
-        "homepage": ["s_cover", "s_text_image", "s_numbers"],
-        "about_us": ["s_text_image", "s_image_text", "s_title", "s_company_team"],
-        "our_services": ["s_three_columns", "s_quotes_carousel", "s_references"],
-        "pricing": ["s_comparisons"],
-        "privacy_policy": ["s_faq_collapse"],
+        "homepage": [
+            "s_cover",
+            "s_text_image",
+            "s_numbers",
+        ],
+        "about_us": [
+            "s_text_image",
+            "s_image_text",
+            "s_title",
+            "s_company_team",
+        ],
+        "our_services": [
+            "s_three_columns",
+            "s_quotes_carousel",
+            "s_references",
+        ],
+        "pricing": [
+            "s_comparisons",
+        ],
+        "privacy_policy": [
+            "s_faq_collapse",
+        ],
     },
     "new_page_templates": {
         "basic": {
-            "1": ["s_text_block_h1", "s_text_block", "s_image_text", "s_text_image"],
-            "2": ["s_text_block_h1", "s_picture", "s_text_block"],
-            "3": ["s_parallax", "s_text_block_h1", "s_text_block", "s_three_columns"],
-            "4": ["s_text_cover"],
-            "5": ["s_text_block_h1", "s_text_block", "s_features", "s_quotes_carousel"],
-            "6": ["s_text_block_h1", "s_table_of_content"],
+            "1": [
+                "s_text_block_h1",
+                "s_text_block",
+                "s_image_text",
+                "s_text_image",
+            ],
+            "2": [
+                "s_text_block_h1",
+                "s_picture",
+                "s_text_block",
+            ],
+            "3": [
+                "s_parallax",
+                "s_text_block_h1",
+                "s_text_block",
+                "s_three_columns",
+            ],
+            "4": [
+                "s_text_cover",
+            ],
+            "5": [
+                "s_text_block_h1",
+                "s_text_block",
+                "s_features",
+                "s_quotes_carousel",
+            ],
+            "6": [
+                "s_text_block_h1",
+                "s_table_of_content",
+            ],
         },
         "about": {
             "full": [
@@ -493,7 +619,9 @@
             ],
         },
         "landing": {
-            "0": ["s_cover"],
+            "0": [
+                "s_cover",
+            ],
             "1": [
                 "s_banner",
                 "s_features",
@@ -525,24 +653,37 @@
                 "s_text_block_h2_contact",
                 "s_website_form",
             ],
-            "5": ["s_banner"],
+            "5": [
+                "s_banner",
+            ],
         },
         "gallery": {
-            "0": ["s_text_block_h1", "s_images_wall"],
+            "0": [
+                "s_text_block_h1",
+                "s_images_wall",
+            ],
             "1": [
                 "s_text_block_h1",
                 "s_image_text",
                 "s_text_image",
                 "s_image_text_2nd",
             ],
-            "2": ["s_banner", "s_text_block_2nd", "s_image_gallery", "s_picture_only"],
+            "2": [
+                "s_banner",
+                "s_text_block_2nd",
+                "s_image_gallery",
+                "s_picture_only",
+            ],
             "3": [
                 "s_text_block_h1",
                 "s_text_block",
                 "s_three_columns",
                 "s_three_columns_2nd",
             ],
-            "4": ["s_cover", "s_media_list"],
+            "4": [
+                "s_cover",
+                "s_media_list",
+            ],
         },
         "services": {
             "0": [
@@ -583,7 +724,11 @@
                 "s_faq_collapse",
                 "s_call_to_action",
             ],
-            "1": ["s_text_block_h1", "s_comparisons", "s_call_to_action"],
+            "1": [
+                "s_text_block_h1",
+                "s_comparisons",
+                "s_call_to_action",
+            ],
             "2": [
                 "s_cover",
                 "s_comparisons",
@@ -612,33 +757,34 @@
             ],
         },
         "team": {
-            "0": ["s_text_block_h1", "s_three_columns"],
+            "0": [
+                "s_text_block_h1",
+                "s_three_columns",
+            ],
             "1": [
                 "s_text_block_h1",
                 "s_image_text",
                 "s_text_image",
                 "s_image_text_2nd",
             ],
-            "2": ["s_text_block_h1", "s_company_team"],
-            "3": ["s_text_block_h1", "s_media_list"],
-            "4": ["s_text_block_h1", "s_text_block", "s_images_wall"],
-            "5": ["s_text_block_h1", "s_text_block", "s_image_gallery", "s_picture"],
-        },
-    },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
-    "esm": {
-        "bundles": [
-            "website.assets_all_wysiwyg",
-            "website.assets_editor",
-            "website.assets_inside_builder_iframe",
-            "website.assets_wysiwyg",
-            "website.website_builder_assets",
-        ],
-        "dynamic_children": {
-            "web.assets_web": [
-                "website.assets_inside_builder_iframe",
-                "website.website_builder_assets",
+            "2": [
+                "s_text_block_h1",
+                "s_company_team",
+            ],
+            "3": [
+                "s_text_block_h1",
+                "s_media_list",
+            ],
+            "4": [
+                "s_text_block_h1",
+                "s_text_block",
+                "s_images_wall",
+            ],
+            "5": [
+                "s_text_block_h1",
+                "s_text_block",
+                "s_image_gallery",
+                "s_picture",
             ],
         },
     },

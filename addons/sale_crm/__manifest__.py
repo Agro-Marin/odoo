@@ -13,7 +13,12 @@ The case is then closed and linked to the generated sales order.
 We suggest you to install this module, if you installed both the sale and the crm
 modules.
     """,
-    "depends": ["sale", "crm"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "sale",
+        "crm",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "data/crm_lead_merge_template.xml",
@@ -24,6 +29,4 @@ modules.
     ],
     "auto_install": True,
     "uninstall_hook": "uninstall_hook",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

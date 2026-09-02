@@ -1,9 +1,13 @@
 {
     "name": "Advanced Events",
+    "version": "1.3",
     "category": "Marketing",
     "summary": "Sponsors, Tracks, Agenda, Event News",
-    "version": "1.3",
-    "depends": ["website_event"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website_event",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/event_track_security.xml",
@@ -57,6 +61,4 @@
             "website_event_track/static/src/website_builder/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

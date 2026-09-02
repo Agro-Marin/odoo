@@ -1,23 +1,30 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <menuitem action="payment.action_payment_provider"
+    <menuitem
         id="payment_provider_menu"
         parent="account.menu_account_payment"
-        sequence="10"/>
-    <menuitem action="payment.action_payment_method"
+        action="payment.action_payment_provider"
+        sequence="10" />
+
+    <menuitem
         id="payment_method_menu"
         parent="account.menu_account_payment"
-        sequence="15"/>
-    <menuitem action="payment.action_payment_token"
+        action="payment.action_payment_method"
+        sequence="15" />
+
+    <menuitem
         id="payment_token_menu"
         parent="account.menu_account_payment"
-        groups="base.group_no_one"
-        sequence="20"/>
-    <menuitem action="payment.action_payment_transaction"
+        action="payment.action_payment_token"
+        sequence="20"
+        groups="base.group_no_one" />
+
+    <menuitem
         id="payment_transaction_menu"
         parent="account.menu_account_payment"
-        groups="base.group_no_one"
-        sequence="25"/>
+        action="payment.action_payment_transaction"
+        sequence="25"
+        groups="base.group_no_one" />
 
 </odoo>

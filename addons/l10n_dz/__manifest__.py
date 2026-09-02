@@ -1,26 +1,30 @@
 {
-    'name': 'Algeria - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['dz'],
-    'version': '1.0',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Algeria - Accounting",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the module to manage the accounting chart for Algeria in Odoo.
 ======================================================================
 This module applies to companies based in Algeria.
 """,
-    'author': 'Osis',
-    'depends': [
-        'account_vat',
-        'account',
+    "author": "Osis",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account_vat",
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/tax_report.xml',
+    "countries": [
+        "dz",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/tax_report.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

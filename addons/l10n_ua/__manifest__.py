@@ -1,24 +1,28 @@
 {
-    'name': 'Ukraine - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['ua'],
-    'author': 'ERP Ukraine (https://erp.co.ua)',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'version': '1.4',
-    'description': """
+    "name": "Ukraine - Accounting",
+    "version": "1.4",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Ukraine - Chart of accounts.
 ============================
     """,
-    'category': 'Accounting/Localizations/Account Charts',
-    'depends': [
-        'account',
+    "author": "ERP Ukraine (https://erp.co.ua)",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_account_tag_data.xml',
+    "countries": [
+        "ua",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_account_tag_data.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

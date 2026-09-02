@@ -1,10 +1,12 @@
 {
     "name": "Email Marketing",
-    "summary": "Design, send and track emails",
     "version": "2.8",
-    "sequence": 60,
-    "website": "https://www.odoo.com/app/email-marketing",
     "category": "Marketing/Email Marketing",
+    "sequence": 60,
+    "summary": "Design, send and track emails",
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/email-marketing",
+    "license": "LGPL-3",
     "depends": [
         "partner",
         "mail",
@@ -74,31 +76,45 @@
         "demo/mailing_trace.xml",
         "demo/res_users.xml",
     ],
-    "application": True,
     "assets": {
         "mass_mailing.assets_builder": [
-            # lazy builder assets NOT applied in iframe
-            ("include", "html_builder.assets"),
-            ("remove", "web/static/fonts/fonts.scss"),
+            (
+                "include",
+                "html_builder.assets",
+            ),
+            (
+                "remove",
+                "web/static/fonts/fonts.scss",
+            ),
             "mass_mailing/static/src/builder/**/*",
         ],
         "mass_mailing.assets_iframe_style": [
-            # minimal style assets required to view the mail content
-            # convert_inline ONLY uses this and inline styles.
-            # useful scss from /web web.assets_frontend
-            ("include", "web._assets_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
             "web/static/src/scss/bootstrap_overridden.scss",
-            ("include", "web._assets_frontend_helpers"),
+            (
+                "include",
+                "web._assets_frontend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
             "web/static/lib/bootstrap/scss/_alert.scss",
-            ("include", "web._assets_bootstrap_frontend"),
+            (
+                "include",
+                "web._assets_bootstrap_frontend",
+            ),
             "web/static/src/scss/tokens.scss",
-            # useful scss from /html_editor web.assets_frontend
-            # TODO EGGMAIL: could improve load time by splitting scss from JS files
-            ("include", "html_editor.assets_media_dialog"),
-            ("include", "html_editor.assets_readonly"),
+            (
+                "include",
+                "html_editor.assets_media_dialog",
+            ),
+            (
+                "include",
+                "html_editor.assets_readonly",
+            ),
             "html_editor/static/src/public/**/*",
             "html_editor/static/src/scss/html_editor.common.scss",
             "html_editor/static/src/scss/html_editor.frontend.scss",
@@ -119,16 +135,18 @@
             "web/static/src/scss/mimetypes.scss",
             "web/static/src/scss/ui.scss",
             "web/static/src/scss/rtl_icon_flip.scss",
-            ("include", "mass_mailing.assets_mail_themes"),
+            (
+                "include",
+                "mass_mailing.assets_mail_themes",
+            ),
             "mass_mailing/static/src/scss/mass_mailing_mail.scss",
             "mass_mailing/static/src/iframe_assets/**/*",
         ],
-        # style assets used to view the mail content in Odoo, but not used
-        # during html conversion, specific to the builder
         "mass_mailing.assets_inside_builder_iframe": [
-            ("include", "html_builder.assets_inside_builder_iframe"),
-            # TODO ABD: fix bundles usages so that html_editor files don't
-            # have to be cherry picked individually.
+            (
+                "include",
+                "html_builder.assets_inside_builder_iframe",
+            ),
             "html_editor/static/src/main/selection_placeholder_plugin.scss",
             "mass_mailing/static/src/builder/**/*.inside.scss",
         ],
@@ -165,14 +183,15 @@
             "mass_mailing/static/tests/tours/**/*",
         ],
         "web.assets_unit_tests": [
-            ("include", "mass_mailing.assets_builder"),
+            (
+                "include",
+                "mass_mailing.assets_builder",
+            ),
             "mass_mailing/static/tests/customize_mailing_variables.test.js",
             "mass_mailing/static/tests/mass_mailing_favorite_filter.test.js",
             "mass_mailing/static/tests/mass_mailing_html_field.test.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "esm": {
         "bundles": [
             "mass_mailing.assets_builder",
@@ -186,4 +205,5 @@
             ],
         },
     },
+    "application": True,
 }

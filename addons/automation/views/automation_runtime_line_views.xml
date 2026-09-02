@@ -10,7 +10,9 @@
                 <field name="runtime_id" />
                 <field name="name" />
                 <field name="action_id" />
-                <field name="state" widget="badge"
+                <field
+                    name="state"
+                    widget="badge"
                     decoration-info="state == 'waiting'"
                     decoration-success="state == 'ready'"
                     decoration-primary="state == 'in_progress'"
@@ -32,31 +34,28 @@
                         string="Mark Ready"
                         type="object"
                         class="btn-secondary"
-                        invisible="state != 'waiting'"
-                    />
+                        invisible="state != 'waiting'" />
                     <button
                         name="action_execute"
                         string="Execute"
                         type="object"
                         class="btn-primary"
-                        invisible="state != 'in_progress'"
-                    />
+                        invisible="state != 'in_progress'" />
                     <button
                         name="action_mark_done"
                         string="Mark Done"
                         type="object"
                         class="btn-success"
-                        invisible="state != 'in_progress'"
-                    />
+                        invisible="state != 'in_progress'" />
                     <button
                         name="action_cancel"
                         string="Cancel"
                         type="object"
-                        invisible="state in ['done', 'cancel']"
-                    />
-                    <field name="state" widget="statusbar"
-                        statusbar_visible="waiting,ready,in_progress,done"
-                    />
+                        invisible="state in ['done', 'cancel']" />
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="waiting,ready,in_progress,done" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -82,7 +81,8 @@
                             <field name="created_record_ref" />
                         </group>
                     </group>
-                    <group string="Dependencies"
+                    <group
+                        string="Dependencies"
                         invisible="not edge_in_ids and not edge_out_ids">
                         <field name="edge_in_ids" nolabel="1" colspan="2" readonly="1">
                             <list string="Waits For">

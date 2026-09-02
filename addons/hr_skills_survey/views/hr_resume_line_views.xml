@@ -1,18 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="resume_survey_line_view_form" model="ir.ui.view">
         <field name="name">hr.resume.line.form</field>
         <field name="model">hr.resume.line</field>
-        <field name="inherit_id" ref="hr_skills.resume_line_view_form"/>
-        <field eval="20" name="priority"/>
+        <field name="inherit_id" ref="hr_skills.resume_line_view_form" />
+        <field name="priority" eval="20" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='certificate_file']" position="before">
-                <field name="survey_id"
+                <field
+                    name="survey_id"
                     domain="[('certification', '=', True)]"
                     readonly="0"
                     invisible="line_type_id != %(hr_skills_survey.resume_type_certification)d"
-                    context="{'default_certification': True}"/>
+                    context="{'default_certification': True}" />
             </xpath>
         </field>
     </record>
+
 </odoo>

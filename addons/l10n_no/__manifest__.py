@@ -1,37 +1,43 @@
 {
-    'name': 'Norway - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['no'],
-    'version': '2.1',
-    'author': 'Rolv Råen',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """This is the module to manage the accounting chart for Norway in Odoo.
+    "name": "Norway - Accounting",
+    "version": "2.1",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """This is the module to manage the accounting chart for Norway in Odoo.
 
 Updated for Odoo 9 by Bringsvor Consulting AS <www.bringsvor.com>
 """,
-    'depends': [
-        'account_iban',
-        'account_vat',
-        'account',
-        'account_edi_ubl_cii',
+    "author": "Rolv R\u00e5en",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account_iban",
+        "account_vat",
+        "account",
+        "account_edi_ubl_cii",
     ],
-    'external_dependencies': {
-        'python': ['python-stdnum'],
-        'apt': {
-            'python-stdnum': 'python3-stdnum',
+    "external_dependencies": {
+        "python": [
+            "python-stdnum",
+        ],
+        "apt": {
+            "python-stdnum": "python3-stdnum",
         },
     },
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
-        'views/account_tax.xml',
-        'views/res_partner_views.xml',
-        'views/res_company_views.xml',
+    "countries": [
+        "no",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
+        "views/account_tax.xml",
+        "views/res_partner_views.xml",
+        "views/res_company_views.xml",
     ],
-    'post_init_hook': '_preserve_tag_on_taxes',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
+    "post_init_hook": "_preserve_tag_on_taxes",
 }

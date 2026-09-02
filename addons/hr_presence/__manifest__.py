@@ -13,7 +13,13 @@ Based on:
 
 Allows to contact directly the employee in case of unjustified absence.
     """,
-    "depends": ["hr", "hr_holidays", "sms"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr",
+        "hr_holidays",
+        "sms",
+    ],
     "data": [
         "security/sms_security.xml",
         "security/ir.model.access.csv",
@@ -22,12 +28,10 @@ Allows to contact directly the employee in case of unjustified absence.
         "data/sms_data.xml",
         "data/ir_cron.xml",
     ],
-    "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "assets": {
         "web.assets_backend": [
             "hr_presence/static/src/**/*",
         ],
     },
+    "installable": True,
 }

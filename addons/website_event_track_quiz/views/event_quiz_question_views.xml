@@ -1,14 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="event_quiz_question_view_search" model="ir.ui.view">
         <field name="name">event.quiz.question.view.search</field>
         <field name="model">event.quiz.question</field>
         <field name="arch" type="xml">
             <search string="Quiz Questions">
-                <field name="name"/>
-                <field name="quiz_id"/>
+                <field name="name" />
+                <field name="quiz_id" />
                 <group>
-                    <filter string="Quiz" name="groupby_quiz_id" context="{'group_by': 'quiz_id'}"/>
+                    <filter
+                        string="Quiz"
+                        name="groupby_quiz_id"
+                        context="{'group_by': 'quiz_id'}" />
                 </group>
             </search>
         </field>
@@ -19,10 +23,10 @@
         <field name="model">event.quiz.question</field>
         <field name="arch" type="xml">
             <list string="Quiz Questions">
-                <field name="sequence" widget="handle"/>
-                <field name="name"/>
-                <field name="quiz_id"/>
-                <field name="awarded_points"/>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="quiz_id" />
+                <field name="awarded_points" />
             </list>
         </field>
     </record>
@@ -30,7 +34,9 @@
     <record id="event_quiz_question_view_tree_from_quiz" model="ir.ui.view">
         <field name="name">event.quiz.question.view.list.from.quiz</field>
         <field name="model">event.quiz.question</field>
-        <field name="inherit_id" ref="website_event_track_quiz.event_quiz_question_view_tree"/>
+        <field
+            name="inherit_id"
+            ref="website_event_track_quiz.event_quiz_question_view_tree" />
         <field name="mode">primary</field>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='quiz_id']" position="replace">
@@ -45,21 +51,23 @@
             <form string="Quiz Question">
                 <sheet>
                     <h1>
-                        <field name="name" default_focus="1"
-                            placeholder="e.g. What is Joe's favorite motto?"/>
+                        <field
+                            name="name"
+                            default_focus="1"
+                            placeholder="e.g. What is Joe's favorite motto?" />
                     </h1>
                     <group>
-                        <field name="quiz_id"/>
-                        <field name="awarded_points" invisible="1"/>
+                        <field name="quiz_id" />
+                        <field name="awarded_points" invisible="1" />
                     </group>
                     <group name="questions">
                         <field name="answer_ids" nolabel="1">
                             <list editable="bottom" create="true" delete="true">
-                                <field name="sequence" widget="handle"/>
-                                <field name="text_value"/>
-                                <field name="is_correct"/>
-                                <field name="awarded_points"/>
-                                <field name="comment"/>
+                                <field name="sequence" widget="handle" />
+                                <field name="text_value" />
+                                <field name="is_correct" />
+                                <field name="awarded_points" />
+                                <field name="comment" />
                             </list>
                         </field>
                     </group>
@@ -71,7 +79,9 @@
     <record id="event_quiz_question_view_form_from_quiz" model="ir.ui.view">
         <field name="name">event.quiz.question.view.form.from.quiz</field>
         <field name="model">event.quiz.question</field>
-        <field name="inherit_id" ref="website_event_track_quiz.event_quiz_question_view_form"/>
+        <field
+            name="inherit_id"
+            ref="website_event_track_quiz.event_quiz_question_view_form" />
         <field name="mode">primary</field>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='quiz_id']" position="replace">
@@ -92,4 +102,5 @@
             </p>
         </field>
     </record>
+
 </odoo>

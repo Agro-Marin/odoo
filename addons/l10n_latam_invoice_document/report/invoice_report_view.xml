@@ -1,16 +1,19 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record model="ir.ui.view" id="view_account_invoice_report_search">
+    <record id="view_account_invoice_report_search" model="ir.ui.view">
         <field name="name">account.invoice.report.search</field>
         <field name="model">account.invoice.report</field>
-        <field name="inherit_id" ref="account.view_account_invoice_report_search"/>
+        <field name="inherit_id" ref="account.view_account_invoice_report_search" />
         <field name="arch" type="xml">
             <search>
-                <field name="l10n_latam_document_type_id"/>
+                <field name="l10n_latam_document_type_id" />
             </search>
             <filter name="user" position="after">
-                <filter string="Document Type" name="l10n_latam_document_type" context="{'group_by':'l10n_latam_document_type_id'}"/>
+                <filter
+                    string="Document Type"
+                    name="l10n_latam_document_type"
+                    context="{'group_by':'l10n_latam_document_type_id'}" />
             </filter>
         </field>
     </record>

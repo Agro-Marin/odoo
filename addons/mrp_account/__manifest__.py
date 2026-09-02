@@ -14,8 +14,13 @@ It adds a button on the product itself but also an action in the list view of th
 If the automated inventory valuation is active, the necessary accounting entries will be created.
 
 """,
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/manufacturing",
-    "depends": ["mrp", "stock_account"],
+    "license": "LGPL-3",
+    "depends": [
+        "mrp",
+        "stock_account",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "views/product_views.xml",
@@ -37,6 +42,4 @@ If the automated inventory valuation is active, the necessary accounting entries
     "installable": True,
     "auto_install": True,
     "post_init_hook": "_configure_journals",
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

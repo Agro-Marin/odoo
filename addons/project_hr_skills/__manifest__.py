@@ -1,16 +1,19 @@
 {
     "name": "Project - Skills",
+    "version": "1.0",
+    "category": "Services/Project",
     "summary": "Project skills",
     "description": """
         Search project tasks according to the assignees' skills
     """,
-    "category": "Services/Project",
-    "version": "1.0",
-    "depends": ["project_hr", "hr_skills"],
-    "auto_install": True,
+    "author": "Odoo S.A.",
+    "license": "OEEL-1",
+    "depends": [
+        "project_hr",
+        "hr_skills",
+    ],
     "data": [
         "views/project_task_views.xml",
     ],
-    "author": "Odoo S.A.",
-    "license": "OEEL-1",
+    "auto_install": True,
 }

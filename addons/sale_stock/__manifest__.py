@@ -16,7 +16,13 @@ Preferences
 * Incoterms: International Commercial terms
 
 """,
-    "depends": ["stock_account", "sale", "base_order_stock"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "stock_account",
+        "sale",
+        "base_order_stock",
+    ],
     "data": [
         "security/sale_stock_security.xml",
         "security/ir.model.access.csv",
@@ -41,8 +47,6 @@ Preferences
     "demo": [
         "demo/sale_order_demo.xml",
     ],
-    "installable": True,
-    "auto_install": True,
     "assets": {
         "web.assets_backend": [
             "sale_stock/static/src/**/*",
@@ -51,6 +55,6 @@ Preferences
             "sale_stock/static/tests/tours/*.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
 }

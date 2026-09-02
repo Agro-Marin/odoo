@@ -1,8 +1,12 @@
 {
     "name": "Password Policy support for Signup",
-    "depends": ["auth_password_policy", "auth_signup"],
     "category": "Hidden/Tools",
-    "auto_install": True,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "auth_password_policy",
+        "auth_signup",
+    ],
     "data": [
         "views/signup_templates.xml",
     ],
@@ -13,6 +17,5 @@
             "auth_password_policy/static/src/password_policy.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

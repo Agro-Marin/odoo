@@ -3,11 +3,10 @@
 # Specially among others Ignacio Ibeas, Pedro Baeza and Landoo
 
 {
-    'name': "Spain - SII EDI Suministro de Libros",
-    'countries': ['es'],
-    'version': '1.1',
-    'category': 'Accounting/Localizations/EDI',
-    'description': """
+    "name": "Spain - SII EDI Suministro de Libros",
+    "version": "1.1",
+    "category": "Accounting/Localizations/EDI",
+    "description": """
 This module sends the taxes information (mostly VAT) of the
 vendor bills and customer invoices to the SII.  It is called
 Procedimiento G417 - IVA. Llevanza de libros registro.  It is
@@ -23,22 +22,24 @@ that extra taxes need to be created for certain exempt/no sujeta reasons.
 
 You need to configure your certificate and the tax agency.
     """,
-    'depends': [
-        'certificate',
-        'l10n_es',
-        'account_edi',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "certificate",
+        "l10n_es",
+        "account_edi",
     ],
-    'data': [
-        'data/account_edi_data.xml',
-
-        'views/account_move_views.xml',
-        'views/l10n_es_edi_sii_certificate_views.xml',
-        'views/res_config_settings_views.xml',
+    "countries": [
+        "es",
     ],
-    'demo': [
-        'demo/demo_certificate.xml',
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_edi_data.xml",
+        "views/account_move_views.xml",
+        "views/l10n_es_edi_sii_certificate_views.xml",
+        "views/res_config_settings_views.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_certificate.xml",
+        "demo/demo_company.xml",
+    ],
 }

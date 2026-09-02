@@ -1,8 +1,8 @@
 {
-    'name': "Import/Export electronic invoices with UBL/CII",
-    'version': '1.0',
-    'category': 'Accounting/Accounting',
-    'description': """
+    "name": "Import/Export electronic invoices with UBL/CII",
+    "version": "1.0",
+    "category": "Accounting/Accounting",
+    "description": """
 Electronic invoicing module
 ===========================
 
@@ -21,26 +21,30 @@ Note also that in order for Chorus Pro to automatically detect the "PDF/A-3 (Fac
 the "Factur-X PDF/A-3" option on the journal. This option will also validate the xml against the Factur-X and Chorus
 Pro rules and show the errors.
     """,
-    'depends': ['account'],
-    'external_dependencies': {
-        'python': ['python-stdnum'],
-        'apt': {
-            'python-stdnum': 'python3-stdnum',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+    ],
+    "external_dependencies": {
+        "python": [
+            "python-stdnum",
+        ],
+        "apt": {
+            "python-stdnum": "python3-stdnum",
         },
     },
-    'data': [
-        'data/cii_22_templates.xml',
-        'views/account_tax_views.xml',
-        'views/res_partner_views.xml',
+    "data": [
+        "data/cii_22_templates.xml",
+        "views/account_tax_views.xml",
+        "views/res_partner_views.xml",
     ],
-    'assets': {
-        'web.assets_backend': [
-            'account_edi_ubl_cii/static/src/scss/**/*',
+    "assets": {
+        "web.assets_backend": [
+            "account_edi_ubl_cii/static/src/scss/**/*",
         ],
     },
-    'installable': True,
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
-    'uninstall_hook': 'uninstall_hook',
+    "installable": True,
+    "auto_install": True,
+    "uninstall_hook": "uninstall_hook",
 }

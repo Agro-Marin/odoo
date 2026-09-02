@@ -1,40 +1,42 @@
-
 {
-    'name': 'POS - Sales',
-    'version': '1.1',
-    'category': 'Sales/Point of Sale',
-    'sequence': 6,
-    'summary': 'Link module between Point of Sale and Sales',
-    'description': """
+    "name": "POS - Sales",
+    "version": "1.1",
+    "category": "Sales/Point of Sale",
+    "sequence": 6,
+    "summary": "Link module between Point of Sale and Sales",
+    "description": """
 
 This module adds a custom Sales Team for the Point of Sale. This enables you to view and manage your point of sale sales with more ease.
 """,
-    'depends': ['point_of_sale', 'sale_management'],
-    'data': [
-        'data/pos_sale_data.xml',
-        'security/pos_sale_security.xml',
-        'security/ir.model.access.csv',
-        'views/point_of_sale_report.xml',
-        'views/sale_order_views.xml',
-        'views/pos_order_views.xml',
-        'views/sales_team_views.xml',
-        'views/res_config_settings_views.xml',
-        'views/stock_template.xml',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "point_of_sale",
+        "sale_management",
     ],
-    'installable': True,
-    'auto_install': True,
-    'assets': {
-        'point_of_sale._assets_pos': [
-            'pos_sale/static/src/**/*',
+    "data": [
+        "data/pos_sale_data.xml",
+        "security/pos_sale_security.xml",
+        "security/ir.model.access.csv",
+        "views/point_of_sale_report.xml",
+        "views/sale_order_views.xml",
+        "views/pos_order_views.xml",
+        "views/sales_team_views.xml",
+        "views/res_config_settings_views.xml",
+        "views/stock_template.xml",
+    ],
+    "assets": {
+        "point_of_sale._assets_pos": [
+            "pos_sale/static/src/**/*",
         ],
-        'web.assets_tests': [
-            'pos_sale/static/tests/tours/**/*',
+        "web.assets_tests": [
+            "pos_sale/static/tests/tours/**/*",
         ],
-        'web.assets_unit_tests': [
-            'pos_sale/static/tests/unit/**/*',
+        "web.assets_unit_tests": [
+            "pos_sale/static/tests/unit/**/*",
         ],
     },
-    'post_init_hook': '_pos_sale_post_init',
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
+    "auto_install": True,
+    "post_init_hook": "_pos_sale_post_init",
 }

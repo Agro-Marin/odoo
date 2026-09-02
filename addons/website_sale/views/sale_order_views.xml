@@ -1,24 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="view_sale_order_search_ecommerce" model="ir.ui.view">
         <field name="name">sale.order.ecommerce.search.view</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_sale_order_search"/>
+        <field name="inherit_id" ref="sale.view_sale_order_search" />
         <field name="mode">primary</field>
         <field name="arch" type="xml">
             <filter name="my_sale_orders_filter" position="before">
-                <filter string="Confirmed" name="order_confirmed" domain="[('state', '=', 'done')]"/>
-                <filter string="Unpaid" name="order_unpaid" domain="[('state', '=', 'draft'), ('sent', '=', True)]"/>
-                <filter string="Abandoned" name="order_abandoned" domain="[('is_abandoned_cart', '=', True)]"/>
-                <separator/>
-                <filter string="Order Date" name="order_date" date="date_order"/>
-                <separator/>
-                <filter string="From Website" name="from_website" domain="[('website_id', '!=', False)]"/>
-                <separator/>
+                <filter
+                    string="Confirmed"
+                    name="order_confirmed"
+                    domain="[('state', '=', 'done')]" />
+                <filter
+                    string="Unpaid"
+                    name="order_unpaid"
+                    domain="[('state', '=', 'draft'), ('sent', '=', True)]" />
+                <filter
+                    string="Abandoned"
+                    name="order_abandoned"
+                    domain="[('is_abandoned_cart', '=', True)]" />
+                <separator />
+                <filter string="Order Date" name="order_date" date="date_order" />
+                <separator />
+                <filter
+                    string="From Website"
+                    name="from_website"
+                    domain="[('website_id', '!=', False)]" />
+                <separator />
                 <!-- Dashboard filter - used by context -->
-                <filter string="Last Week" invisible="1" name="week" domain="[('date_order', '&gt;', 'today -7d')]"/>
-                <filter string="Last Month" invisible="1" name="month" domain="[('date_order', '&gt;', 'today -30d')]"/>
-                <filter string="Last Year" invisible="1"  name="year" domain="[('date_order', '&gt;', 'today -365d')]"/>
+                <filter
+                    string="Last Week"
+                    invisible="1"
+                    name="week"
+                    domain="[('date_order', '&gt;', 'today -7d')]" />
+                <filter
+                    string="Last Month"
+                    invisible="1"
+                    name="month"
+                    domain="[('date_order', '&gt;', 'today -30d')]" />
+                <filter
+                    string="Last Year"
+                    invisible="1"
+                    name="year"
+                    domain="[('date_order', '&gt;', 'today -365d')]" />
             </filter>
         </field>
     </record>
@@ -26,7 +51,7 @@
     <record id="view_sale_order_search_ecommerce_unpaid" model="ir.ui.view">
         <field name="name">sale.order.ecommerce.search.unpaid.view</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_sale_order_search"/>
+        <field name="inherit_id" ref="sale.view_sale_order_search" />
         <field name="mode">primary</field>
         <field name="priority">32</field>
         <field name="arch" type="xml">
@@ -34,8 +59,8 @@
                 <attribute name="invisible">1</attribute>
             </filter>
             <filter name="my_sale_orders_filter" position="before">
-                <filter string="Order Date" name="order_date" date="date_order"/>
-                <separator/>
+                <filter string="Order Date" name="order_date" date="date_order" />
+                <separator />
             </filter>
         </field>
     </record>
@@ -45,9 +70,10 @@
         <field name="res_model">sale.order</field>
         <field name="path">ecommerce-orders</field>
         <field name="view_mode">list,form,kanban,activity</field>
+        <field name="search_view_id" ref="view_sale_order_search_ecommerce" />
         <field name="domain">[]</field>
-        <field name="context">{'show_sale': True, 'search_default_order_confirmed': 1, 'search_default_from_website': 1}</field>
-        <field name="search_view_id" ref="view_sale_order_search_ecommerce"/>
+        <field
+            name="context">{'show_sale': True, 'search_default_order_confirmed': 1, 'search_default_from_website': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_empty_folder">
                 There is no confirmed order from the website
@@ -60,9 +86,10 @@
         <field name="name">Unpaid Orders</field>
         <field name="res_model">sale.order</field>
         <field name="view_mode">list,form,kanban,activity</field>
-        <field name="domain">[('state', '=', 'draft'), ('sent', '=', True), ('website_id', '!=', False)]</field>
+        <field name="search_view_id" ref="view_sale_order_search_ecommerce" />
+        <field
+            name="domain">[('state', '=', 'draft'), ('sent', '=', True), ('website_id', '!=', False)]</field>
         <field name="context">{'show_sale': True, 'create': False}</field>
-        <field name="search_view_id" ref="view_sale_order_search_ecommerce"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_empty_folder">
                 There is no unpaid order from the website yet
@@ -78,18 +105,42 @@
         <field name="priority">32</field>
         <field name="arch" type="xml">
             <search string="Search Abandoned Sales Orders">
-                <field name="name"/>
-                <filter string="Creation Date" name="creation_date" date="create_date"/>
-                <separator/>
-                <filter string="Recovery Email to Send" name="recovery_email" domain="[('cart_recovery_email_sent', '=', False)]" />
-                <filter string="Recovery Email Sent" name="recovery_email_set" domain="[('cart_recovery_email_sent', '=', True)]" />
+                <field name="name" />
+                <filter
+                    string="Creation Date"
+                    name="creation_date"
+                    date="create_date" />
+                <separator />
+                <filter
+                    string="Recovery Email to Send"
+                    name="recovery_email"
+                    domain="[('cart_recovery_email_sent', '=', False)]" />
+                <filter
+                    string="Recovery Email Sent"
+                    name="recovery_email_set"
+                    domain="[('cart_recovery_email_sent', '=', True)]" />
                 <group>
-                    <filter string="Order Date" name="order_date" context="{'group_by':'date_order'}"/>
+                    <filter
+                        string="Order Date"
+                        name="order_date"
+                        context="{'group_by':'date_order'}" />
                 </group>
                 <!-- Dashboard filter - used by context -->
-                <filter string="Last Week" invisible="1" name="week" domain="[('date_order','&gt;', 'today -7d')]"/>
-                <filter string="Last Month" invisible="1" name="month" domain="[('date_order','&gt;', 'today -30d')]"/>
-                <filter string="Last Year" invisible="1"  name="year" domain="[('date_order','&gt;', 'today -365d')]"/>
+                <filter
+                    string="Last Week"
+                    invisible="1"
+                    name="week"
+                    domain="[('date_order','&gt;', 'today -7d')]" />
+                <filter
+                    string="Last Month"
+                    invisible="1"
+                    name="month"
+                    domain="[('date_order','&gt;', 'today -30d')]" />
+                <filter
+                    string="Last Year"
+                    invisible="1"
+                    name="year"
+                    domain="[('date_order','&gt;', 'today -365d')]" />
             </search>
         </field>
     </record>
@@ -99,9 +150,11 @@
         <field name="name">Orders To Invoice</field>
         <field name="res_model">sale.order</field>
         <field name="view_mode">list,form,kanban</field>
-        <field name="domain">[('state', '=', 'done'), ('line_ids', '!=', False), ('invoice_state', 'in', ['to do', 'partial']), ('website_id', '!=', False)]</field>
-        <field name="context">{'show_sale': True, 'search_default_order_confirmed': 1, 'create': False}</field>
-        <field name="search_view_id" ref="view_sale_order_search_ecommerce"/>
+        <field name="search_view_id" ref="view_sale_order_search_ecommerce" />
+        <field
+            name="domain">[('state', '=', 'done'), ('line_ids', '!=', False), ('invoice_state', 'in', ['to do', 'partial']), ('website_id', '!=', False)]</field>
+        <field
+            name="context">{'show_sale': True, 'search_default_order_confirmed': 1, 'create': False}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_empty_folder">
                 You don't have any order to invoice from the website
@@ -110,16 +163,16 @@
     </record>
 
     <!-- Server action to send multiple recovery email-->
-
     <record id="action_view_unpaid_quotation_tree" model="ir.actions.act_window">
         <field name="name">Unpaid Orders</field>
         <field name="res_model">sale.order</field>
         <field name="path">ecommerce-unpaid-orders</field>
         <field name="view_mode">list,kanban,form,activity</field>
-        <field name="domain">[('state', '=', 'draft'), ('sent', '=', True), ('website_id', '!=', False)]</field>
+        <field name="view_id" ref="sale.view_sale_order_list_quotation" />
+        <field name="search_view_id" ref="view_sale_order_search_ecommerce_unpaid" />
+        <field
+            name="domain">[('state', '=', 'draft'), ('sent', '=', True), ('website_id', '!=', False)]</field>
         <field name="context">{'show_sale': True, 'create': False}</field>
-        <field name="view_id" ref="sale.view_sale_order_list_quotation"/>
-        <field name="search_view_id" ref="view_sale_order_search_ecommerce_unpaid"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_empty_folder">
                 There is no unpaid order from the website yet
@@ -134,10 +187,12 @@
         <field name="res_model">sale.order</field>
         <field name="path">ecommerce-abandoned-carts</field>
         <field name="view_mode">list,kanban,form,activity</field>
+        <field name="view_id" ref="sale.view_sale_order_list_quotation" />
+        <field name="search_view_id" ref="view_sale_order_search_ecommerce_abondand" />
         <field name="domain">[('is_abandoned_cart', '=', 1)]</field>
-        <field name="context" eval="{'show_sale': True, 'create': False, 'public_partner_id': ref('base.public_partner'), 'search_default_recovery_email': True}"/>
-        <field name="view_id" ref="sale.view_sale_order_list_quotation"/>
-        <field name="search_view_id" ref="view_sale_order_search_ecommerce_abondand"/>
+        <field
+            name="context"
+            eval="{'show_sale': True, 'create': False, 'public_partner_id': ref('base.public_partner'), 'search_default_recovery_email': True}" />
         <field name="help" type="html">
             <p class="o_view_nocontent_empty_folder">
                 No abandoned carts found
@@ -153,10 +208,16 @@
     <record id="sale_order_view_form" model="ir.ui.view">
         <field name="name">sale.order.form</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_sale_order_form"/>
+        <field name="inherit_id" ref="sale.view_sale_order_form" />
         <field name="arch" type="xml">
-            <button name="action_send_quotation" id="quotation_send_primary" position="attributes">
-                <attribute name="invisible" separator="or" add="is_abandoned_cart and not cart_recovery_email_sent"/>
+            <button
+                name="action_send_quotation"
+                id="quotation_send_primary"
+                position="attributes">
+                <attribute
+                    name="invisible"
+                    separator="or"
+                    add="is_abandoned_cart and not cart_recovery_email_sent" />
             </button>
             <button name="action_send_quotation" position="after">
                 <button
@@ -165,7 +226,7 @@
                     string="Send a Recovery Email"
                     class="btn-primary"
                     data-hotkey="l"
-                    invisible="not is_abandoned_cart or cart_recovery_email_sent"/>
+                    invisible="not is_abandoned_cart or cart_recovery_email_sent" />
             </button>
             <button name="action_send_quotation" id="quotation_send" position="after">
                 <button
@@ -173,7 +234,7 @@
                     id="send_by_email_bis"
                     string="Send by Email"
                     type="object"
-                    invisible="not is_abandoned_cart or cart_recovery_email_sent or state != 'draft'"/>
+                    invisible="not is_abandoned_cart or cart_recovery_email_sent or state != 'draft'" />
             </button>
             <field name="partner_id" position="attributes">
                 <attribute name="context">{
@@ -184,7 +245,10 @@
                 }</attribute>
             </field>
             <field name="team_id" position="after">
-                <field name="website_id" invisible="not website_id" groups="website.group_multi_website"/>
+                <field
+                    name="website_id"
+                    invisible="not website_id"
+                    groups="website.group_multi_website" />
             </field>
         </field>
     </record>
@@ -192,11 +256,15 @@
     <record id="view_sale_order_list" model="ir.ui.view">
         <field name="name">sale.order.list.inherit.website.sale</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_sale_order_list"/>
+        <field name="inherit_id" ref="sale.view_sale_order_list" />
         <field name="arch" type="xml">
             <field name="user_id" position="before">
-                <field name="website_id" groups="website.group_multi_website" optional="show"/>
+                <field
+                    name="website_id"
+                    groups="website.group_multi_website"
+                    optional="show" />
             </field>
         </field>
     </record>
+
 </odoo>

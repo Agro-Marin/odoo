@@ -24,7 +24,8 @@
     <record id="portal_purchase_order_user_rule" model="ir.rule">
         <field name="name">Portal Purchase Orders</field>
         <field name="model_id" ref="model_purchase_order" />
-        <field name="domain_force">[('partner_id', 'child_of', [user.commercial_partner_id.id])]</field>
+        <field
+            name="domain_force">[('partner_id', 'child_of', [user.commercial_partner_id.id])]</field>
         <field name="groups" eval="[(4, ref('base.group_portal'))]" />
         <field name="perm_unlink" eval="True" />
         <field name="perm_write" eval="True" />
@@ -35,7 +36,8 @@
     <record id="portal_purchase_order_line_rule" model="ir.rule">
         <field name="name">Portal Purchase Order Lines</field>
         <field name="model_id" ref="model_purchase_order_line" />
-        <field name="domain_force">[('partner_id', 'child_of', [user.commercial_partner_id.id])]</field>
+        <field
+            name="domain_force">[('partner_id', 'child_of', [user.commercial_partner_id.id])]</field>
         <field name="groups" eval="[(4, ref('base.group_portal'))]" />
     </record>
 
@@ -83,7 +85,8 @@
     </record>
 
     <record id="purchase_mass_cancel_orders_rule" model="ir.rule">
-        <field name="name">Purchase Mass Cancel Orders: access only your own wizard</field>
+        <field
+            name="name">Purchase Mass Cancel Orders: access only your own wizard</field>
         <field name="model_id" ref="model_purchase_mass_cancel_orders" />
         <field name="domain_force">[('create_uid', '=', user.id)]</field>
     </record>
@@ -104,14 +107,16 @@
     <record id="account_invoice_report_purchase_personal_rule" model="ir.rule">
         <field name="name">Personal Vendor Bills Analysis</field>
         <field name="model_id" ref="account.model_account_invoice_report" />
-        <field name="domain_force">[('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt')), ('invoice_user_id', 'in', (user.id, False))]</field>
+        <field
+            name="domain_force">[('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt')), ('invoice_user_id', 'in', (user.id, False))]</field>
         <field name="groups" eval="[(4, ref('purchase.group_purchase_user'))]" />
     </record>
 
     <record id="account_invoice_report_purchase_see_all_rule" model="ir.rule">
         <field name="name">All Vendor Bills Analysis</field>
         <field name="model_id" ref="account.model_account_invoice_report" />
-        <field name="domain_force">[('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt'))]</field>
+        <field
+            name="domain_force">[('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt'))]</field>
         <field name="groups" eval="[(4, ref('purchase.group_purchase_user_all'))]" />
     </record>
 
@@ -119,28 +124,32 @@
     <record id="purchase_user_account_move_personal_rule" model="ir.rule">
         <field name="name">Personal Vendor Bills</field>
         <field name="model_id" ref="account.model_account_move" />
-        <field name="domain_force">[('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt')), ('invoice_user_id', 'in', (user.id, False))]</field>
+        <field
+            name="domain_force">[('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt')), ('invoice_user_id', 'in', (user.id, False))]</field>
         <field name="groups" eval="[(4, ref('purchase.group_purchase_user'))]" />
     </record>
 
     <record id="purchase_user_account_move_see_all_rule" model="ir.rule">
         <field name="name">All Vendor Bills</field>
         <field name="model_id" ref="account.model_account_move" />
-        <field name="domain_force">[('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt'))]</field>
+        <field
+            name="domain_force">[('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt'))]</field>
         <field name="groups" eval="[(4, ref('purchase.group_purchase_user_all'))]" />
     </record>
 
     <record id="purchase_user_account_move_line_personal_rule" model="ir.rule">
         <field name="name">Personal Vendor Bill Lines</field>
         <field name="model_id" ref="account.model_account_move_line" />
-        <field name="domain_force">[('move_id.move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt')), ('move_id.invoice_user_id', 'in', (user.id, False))]</field>
+        <field
+            name="domain_force">[('move_id.move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt')), ('move_id.invoice_user_id', 'in', (user.id, False))]</field>
         <field name="groups" eval="[(4, ref('purchase.group_purchase_user'))]" />
     </record>
 
     <record id="purchase_user_account_move_line_see_all_rule" model="ir.rule">
         <field name="name">All Vendor Bill Lines</field>
         <field name="model_id" ref="account.model_account_move_line" />
-        <field name="domain_force">[('move_id.move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt'))]</field>
+        <field
+            name="domain_force">[('move_id.move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt'))]</field>
         <field name="groups" eval="[(4, ref('purchase.group_purchase_user_all'))]" />
     </record>
 

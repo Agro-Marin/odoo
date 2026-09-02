@@ -1,9 +1,8 @@
 {
-    'name': "Egypt - Accounting",
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/egypt.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['eg'],
-    'description': """
+    "name": "Egypt - Accounting",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Egypt Accounting Module
 ==============================================================================
 Egypt Accounting Basic Charts and Localization.
@@ -18,20 +17,25 @@ Activates:
 - Other Taxes Report
 - Fiscal Positions
     """,
-    'category': 'Accounting/Localizations/Account Charts',
-    'version': '1.0',
-    'depends': [
-        'account',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/egypt.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
-        'views/account_tax.xml',
+    "countries": [
+        "eg",
     ],
-    'demo': [
-        'demo/demo_company.xml',
-        'demo/demo_partner.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
+        "views/account_tax.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+        "demo/demo_partner.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

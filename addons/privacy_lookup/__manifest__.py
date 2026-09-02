@@ -1,15 +1,17 @@
 {
-    'name': 'Privacy',
-    'category': 'Hidden',
-    'version': '1.0',
-    'depends': ['mail'],
-    'data': [
-        'wizard/privacy_lookup_wizard_views.xml',
-        'views/privacy_log_views.xml',
-        'security/ir.model.access.csv',
-        'data/ir_actions_server_data.xml',
+    "name": "Privacy",
+    "version": "1.0",
+    "category": "Hidden",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "mail",
     ],
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "data": [
+        "wizard/privacy_lookup_wizard_views.xml",
+        "views/privacy_log_views.xml",
+        "security/ir.model.access.csv",
+        "data/ir_actions_server_data.xml",
+    ],
+    "auto_install": True,
 }

@@ -1,28 +1,31 @@
 {
-    'name': 'Malaysia - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['my'],
-    'author': 'Odoo PS',
-    'version': '1.1',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Malaysia - Accounting",
+    "version": "1.1",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the base module to manage the accounting chart for Malaysia in Odoo.
 ==============================================================================
     """,
-    'depends': [
-        'account',
-        'account_tax_python',
+    "author": "Odoo PS",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_tax_python",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
-        'data/account.account.tag.csv',
-
-        'views/product_template_view.xml',
+    "countries": [
+        "my",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
+        "data/account.account.tag.csv",
+        "views/product_template_view.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

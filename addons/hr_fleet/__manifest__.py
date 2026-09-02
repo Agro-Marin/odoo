@@ -3,7 +3,12 @@
     "version": "1.0",
     "category": "Human Resources",
     "summary": "Get history of driven cars by employees",
-    "depends": ["hr", "fleet"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "hr",
+        "fleet",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/hr_fleet_security.xml",
@@ -22,6 +27,4 @@
         ],
     },
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

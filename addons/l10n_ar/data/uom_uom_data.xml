@@ -1,61 +1,80 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="True">
 
-    <record model='uom.uom' id='uom.product_uom_kgm'>
-        <field name='l10n_ar_afip_code'>01</field>
+    <record id="uom.product_uom_kgm" model="uom.uom">
+        <field name="l10n_ar_afip_code">01</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_meter'>
-        <field name='l10n_ar_afip_code'>02</field>
+
+    <record id="uom.product_uom_meter" model="uom.uom">
+        <field name="l10n_ar_afip_code">02</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_litre'>
-        <field name='l10n_ar_afip_code'>05</field>
+
+    <record id="uom.product_uom_litre" model="uom.uom">
+        <field name="l10n_ar_afip_code">05</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_unit'>
-        <field name='l10n_ar_afip_code'>07</field>
+
+    <record id="uom.product_uom_unit" model="uom.uom">
+        <field name="l10n_ar_afip_code">07</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_dozen'>
-        <field name='l10n_ar_afip_code'>09</field>
+
+    <record id="uom.product_uom_dozen" model="uom.uom">
+        <field name="l10n_ar_afip_code">09</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_cm'>
-        <field name='l10n_ar_afip_code'>20</field>
+
+    <record id="uom.product_uom_cm" model="uom.uom">
+        <field name="l10n_ar_afip_code">20</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_day'>
-        <field name='l10n_ar_afip_code'>98</field>
+
+    <record id="uom.product_uom_day" model="uom.uom">
+        <field name="l10n_ar_afip_code">98</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_floz'>
-        <field name='l10n_ar_afip_code'>98</field>
+
+    <record id="uom.product_uom_floz" model="uom.uom">
+        <field name="l10n_ar_afip_code">98</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_foot'>
-        <field name='l10n_ar_afip_code'>98</field>
+
+    <record id="uom.product_uom_foot" model="uom.uom">
+        <field name="l10n_ar_afip_code">98</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_gram'>
-        <field name='l10n_ar_afip_code'>14</field>
+
+    <record id="uom.product_uom_gram" model="uom.uom">
+        <field name="l10n_ar_afip_code">14</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_gal'>
-        <field name='l10n_ar_afip_code'>98</field>
+
+    <record id="uom.product_uom_gal" model="uom.uom">
+        <field name="l10n_ar_afip_code">98</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_hour'>
-        <field name='l10n_ar_afip_code'>98</field>
+
+    <record id="uom.product_uom_hour" model="uom.uom">
+        <field name="l10n_ar_afip_code">98</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_inch'>
-        <field name='l10n_ar_afip_code'>98</field>
+
+    <record id="uom.product_uom_inch" model="uom.uom">
+        <field name="l10n_ar_afip_code">98</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_km'>
-        <field name='l10n_ar_afip_code'>17</field>
+
+    <record id="uom.product_uom_km" model="uom.uom">
+        <field name="l10n_ar_afip_code">17</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_lb'>
-        <field name='l10n_ar_afip_code'>98</field>
+
+    <record id="uom.product_uom_lb" model="uom.uom">
+        <field name="l10n_ar_afip_code">98</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_mile'>
-        <field name='l10n_ar_afip_code'>98</field>
+
+    <record id="uom.product_uom_mile" model="uom.uom">
+        <field name="l10n_ar_afip_code">98</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_oz'>
-        <field name='l10n_ar_afip_code'>98</field>
+
+    <record id="uom.product_uom_oz" model="uom.uom">
+        <field name="l10n_ar_afip_code">98</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_qt'>
-        <field name='l10n_ar_afip_code'>98</field>
+
+    <record id="uom.product_uom_qt" model="uom.uom">
+        <field name="l10n_ar_afip_code">98</field>
     </record>
-    <record model='uom.uom' id='uom.product_uom_ton'>
-        <field name='l10n_ar_afip_code'>29</field>
+
+    <record id="uom.product_uom_ton" model="uom.uom">
+        <field name="l10n_ar_afip_code">29</field>
     </record>
+
 </odoo>

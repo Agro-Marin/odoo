@@ -1,17 +1,20 @@
 {
     "name": "Website Mail",
+    "version": "0.1",
     "category": "Website/Website",
     "summary": "Website Module for Mail",
-    "version": "0.1",
     "description": """
 Module holding mail improvements for website. It holds the follow widget.
 """,
-    "depends": ["website", "mail"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "website",
+        "mail",
+    ],
     "data": [
         "views/website_mail_templates.xml",
     ],
-    "installable": True,
-    "auto_install": True,
     "assets": {
         "web.assets_frontend": [
             "website_mail/static/src/interactions/follow.js",
@@ -21,6 +24,6 @@ Module holding mail improvements for website. It holds the follow widget.
             "website_mail/static/src/interactions/follow.edit.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
+    "auto_install": True,
 }

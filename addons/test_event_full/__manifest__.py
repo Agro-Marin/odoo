@@ -7,6 +7,8 @@ This module will test the main event flows of Odoo, both frontend and backend.
 It installs sale capabilities, front-end flow, eCommerce, questions and
 automatic lead generation, full Online support, ...
 """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "event",
         "event_booth",
@@ -23,7 +25,6 @@ automatic lead generation, full Online support, ...
         "website_event_track_quiz",
     ],
     "data": [
-        # 'data/event_type_data.xml',  # uncomment to reproduce test tour
         "data/ir_actions_report_data.xml",
         "views/event_registration_templates_reports.xml",
     ],
@@ -35,6 +36,4 @@ automatic lead generation, full Online support, ...
             "test_event_full/static/src/js/tests/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

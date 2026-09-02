@@ -9,13 +9,12 @@ present in a separate module as we are testing module install/uninstall/upgrade
 and we don't want to reload the website module every time, including it's possible
 dependencies. Neither we want to add in website module some routes, views and
 models which only purpose is to run tests.""",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "web_unsplash",
         "website",
         "theme_default",
-    ],
-    "demo": [
-        "data/test_website_demo.xml",
     ],
     "data": [
         "security/test_website_security.xml",
@@ -25,7 +24,9 @@ models which only purpose is to run tests.""",
         "views/test_model_views.xml",
         "data/test_website_data.xml",
     ],
-    "installable": True,
+    "demo": [
+        "data/test_website_demo.xml",
+    ],
     "assets": {
         "test_website.test_bundle": [
             "http://test.external.link/javascript1.js",
@@ -44,6 +45,5 @@ models which only purpose is to run tests.""",
             "test_website/static/tests/tours/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

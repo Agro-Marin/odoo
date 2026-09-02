@@ -1,5 +1,6 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
         <record id="hr_applicant_category_view_form" model="ir.ui.view">
             <field name="name">hr.applicant.category.form</field>
@@ -8,25 +9,23 @@
                 <form string="Tags">
                 <sheet>
                     <group>
-                        <field name="name"/>
-                        <field name="color"/>
+                        <field name="name" />
+                        <field name="color" />
                     </group>
                 </sheet>
                 </form>
             </field>
         </record>
-
         <record id="hr_applicant_category_view_tree" model="ir.ui.view">
             <field name="name">hr.applicant.category.list</field>
             <field name="model">hr.applicant.category</field>
             <field name="arch" type="xml">
                 <list string="Tags" editable="bottom">
-                    <field name="name"/>
+                    <field name="name" />
                     <field name="color" widget="color_picker" />
                 </list>
             </field>
         </record>
-
         <record id="hr_applicant_category_action" model="ir.actions.act_window">
             <field name="name">Tags</field>
             <field name="res_model">hr.applicant.category</field>
@@ -37,4 +36,5 @@
             </field>
         </record>
     </data>
+
 </odoo>

@@ -1,16 +1,20 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<odoo><data>
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
 
-    <menuitem name="Booth Categories"
-        id="menu_event_booth_category"
-        action="event_booth_category_action"
-        sequence="20"
-        parent="event.menu_event_configuration"/>
-    <menuitem name="Booths"
-        id="menu_event_booth"
-        action="event_booth_action"
-        sequence="21"
-        parent="event.menu_event_configuration"
-        groups="base.group_no_one"/>
+    <data>
+        <menuitem
+            id="menu_event_booth_category"
+            name="Booth Categories"
+            parent="event.menu_event_configuration"
+            action="event_booth_category_action"
+            sequence="20" />
+        <menuitem
+            id="menu_event_booth"
+            name="Booths"
+            parent="event.menu_event_configuration"
+            action="event_booth_action"
+            sequence="21"
+            groups="base.group_no_one" />
+    </data>
 
-</data></odoo>
+</odoo>

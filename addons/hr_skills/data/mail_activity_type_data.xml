@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data noupdate="1">
         <record id="mail_activity_data_upload_certification" model="mail.activity.type">
             <field name="name">Certifications</field>
@@ -11,4 +12,5 @@
             <field name="category">upload_file</field>
         </record>
     </data>
+
 </odoo>

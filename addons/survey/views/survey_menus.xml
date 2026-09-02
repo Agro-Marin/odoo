@@ -2,67 +2,77 @@
 <odoo>
 
     <!-- Root menu -->
-    <menuitem name="Surveys"
+    <menuitem
         id="menu_surveys"
+        name="Surveys"
         sequence="130"
         groups="group_survey_user"
         web_icon="survey,static/description/icon.png" />
 
     <!-- Surveys -->
-    <menuitem name="Surveys"
+    <menuitem
         id="menu_survey_form"
-        action="action_survey_form"
+        name="Surveys"
         parent="menu_surveys"
+        action="action_survey_form"
         sequence="1" />
 
     <!-- Participants -->
-    <menuitem name="Participants"
+    <menuitem
         id="menu_survey_type_form1"
-        action="action_survey_user_input"
+        name="Participants"
         parent="menu_surveys"
+        action="action_survey_user_input"
         sequence="1" />
 
     <!-- Questions & Answers -->
-    <menuitem name="Questions &amp; Answers"
+    <menuitem
         id="survey_menu_questions"
+        name="Questions &amp; Answers"
         parent="menu_surveys"
         sequence="90" />
 
-    <menuitem name="Questions"
+    <menuitem
         id="menu_survey_question_form1"
-        action="action_survey_question_form"
+        name="Questions"
         parent="survey_menu_questions"
+        action="action_survey_question_form"
         sequence="2" />
 
-    <menuitem name="Suggested Values"
+    <menuitem
         id="menu_survey_label_form1"
-        action="survey_question_answer_action"
+        name="Suggested Values"
         parent="survey_menu_questions"
+        action="survey_question_answer_action"
         sequence="3" />
 
-    <menuitem name="Detailed Answers"
+    <menuitem
         id="menu_survey_response_line_form"
-        action="survey_user_input_line_action"
+        name="Detailed Answers"
         parent="survey_menu_questions"
+        action="survey_user_input_line_action"
         sequence="4" />
 
     <!-- Configuration -->
-    <menuitem name="Configuration"
+    <menuitem
         id="survey_menu_configuration"
+        name="Configuration"
         parent="menu_surveys"
         sequence="100"
         groups="group_survey_manager" />
 
-    <menuitem name="Tags"
+    <menuitem
         id="survey_menu_tag"
-        action="action_survey_tag"
+        name="Tags"
         parent="survey_menu_configuration"
+        action="action_survey_tag"
         sequence="10" />
 
-    <menuitem name="Categories"
+    <menuitem
         id="survey_menu_category"
-        action="action_survey_category"
+        name="Categories"
         parent="survey_menu_configuration"
+        action="action_survey_category"
         sequence="20" />
 
 </odoo>

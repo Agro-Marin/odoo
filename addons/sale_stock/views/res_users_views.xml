@@ -7,7 +7,9 @@
         <field name="inherit_id" ref="base.view_users_form_simple_modif" />
         <field name="arch" type="xml">
             <group name="other_preferences" position="inside">
-                <field name="property_warehouse_id" groups="stock.group_stock_multi_warehouses" />
+                <field
+                    name="property_warehouse_id"
+                    groups="stock.group_stock_multi_warehouses" />
             </group>
         </field>
     </record>
@@ -19,7 +21,9 @@
         <field name="arch" type="xml">
             <group name="access_groups" position="after">
                 <group name="Warehouses">
-                    <field name="property_warehouse_id" groups="stock.group_stock_multi_warehouses" />
+                    <field
+                        name="property_warehouse_id"
+                        groups="stock.group_stock_multi_warehouses" />
                 </group>
             </group>
         </field>
@@ -31,7 +35,9 @@
         <field name="inherit_id" ref="base.view_users_form" />
         <field name="arch" type="xml">
             <group name="other_preferences" position="inside">
-                <field name="property_warehouse_id" groups="stock.group_stock_multi_warehouses" />
+                <field
+                    name="property_warehouse_id"
+                    groups="stock.group_stock_multi_warehouses" />
             </group>
         </field>
     </record>

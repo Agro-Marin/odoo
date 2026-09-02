@@ -1,7 +1,9 @@
 {
     "name": "Sale Product Configurators Tests",
-    "summary": "Test Suite for Sale Product Configurator",
     "category": "Hidden",
+    "summary": "Test Suite for Sale Product Configurator",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "event_sale",
         "sale_management",
@@ -12,6 +14,4 @@
             "test_sale_product_configurators/static/tests/tours/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

@@ -12,10 +12,16 @@
         <field name="model">gamification.skill.tree</field>
         <field name="arch" type="xml">
             <search string="Skill Trees">
-                <field name="name"/>
-                <separator/>
-                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
-                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <field name="name" />
+                <separator />
+                <filter
+                    string="Active"
+                    name="active"
+                    domain="[('active', '=', True)]" />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active', '=', False)]" />
             </search>
         </field>
     </record>
@@ -25,9 +31,9 @@
         <field name="model">gamification.skill.tree</field>
         <field name="arch" type="xml">
             <list string="Skill Trees">
-                <field name="sequence" widget="handle"/>
-                <field name="name"/>
-                <field name="node_count"/>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="node_count" />
             </list>
         </field>
     </record>
@@ -40,28 +46,30 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button class="oe_stat_button" icon="fa-puzzle-piece">
-                            <field name="node_count" widget="statinfo" string="Nodes"/>
+                            <field name="node_count" widget="statinfo" string="Nodes" />
                         </button>
                     </div>
-                    <field name="icon" widget="image" class="oe_avatar"/>
+                    <field name="icon" widget="image" class="oe_avatar" />
                     <div class="oe_title">
-                        <h1><field name="name" placeholder="e.g. Sales Mastery"/></h1>
+                        <h1><field name="name" placeholder="e.g. Sales Mastery" /></h1>
                     </div>
                     <group>
-                        <field name="active"/>
-                        <field name="description" placeholder="What this skill tree covers..."/>
+                        <field name="active" />
+                        <field
+                            name="description"
+                            placeholder="What this skill tree covers..." />
                     </group>
                     <field name="node_ids">
                         <list editable="bottom">
-                            <field name="sequence" widget="handle"/>
-                            <field name="level"/>
-                            <field name="name"/>
-                            <field name="prerequisite_ids" widget="many2many_tags"/>
-                            <field name="karma_threshold"/>
-                            <field name="quest_id"/>
-                            <field name="karma_reward"/>
-                            <field name="badge_id"/>
-                            <field name="unlock_count"/>
+                            <field name="sequence" widget="handle" />
+                            <field name="level" />
+                            <field name="name" />
+                            <field name="prerequisite_ids" widget="many2many_tags" />
+                            <field name="karma_threshold" />
+                            <field name="quest_id" />
+                            <field name="karma_reward" />
+                            <field name="badge_id" />
+                            <field name="unlock_count" />
                         </list>
                     </field>
                 </sheet>
@@ -70,18 +78,23 @@
     </record>
 
     <!-- Skill Node standalone views for detailed editing -->
-
     <record id="skill_node_search_view" model="ir.ui.view">
         <field name="name">gamification.skill.node.search</field>
         <field name="model">gamification.skill.node</field>
         <field name="arch" type="xml">
             <search string="Skill Nodes">
-                <field name="name"/>
-                <field name="tree_id"/>
-                <separator/>
+                <field name="name" />
+                <field name="tree_id" />
+                <separator />
                 <group>
-                    <filter string="Tree" name="group_tree" context="{'group_by': 'tree_id'}"/>
-                    <filter string="Level" name="group_level" context="{'group_by': 'level'}"/>
+                    <filter
+                        string="Tree"
+                        name="group_tree"
+                        context="{'group_by': 'tree_id'}" />
+                    <filter
+                        string="Level"
+                        name="group_level"
+                        context="{'group_by': 'level'}" />
                 </group>
             </search>
         </field>
@@ -100,34 +113,39 @@
             <form string="Skill Node">
                 <sheet>
                     <div class="oe_title">
-                        <h1><field name="name"/></h1>
+                        <h1><field name="name" /></h1>
                     </div>
                     <group>
                         <group string="Position">
-                            <field name="tree_id"/>
-                            <field name="level"/>
-                            <field name="sequence"/>
+                            <field name="tree_id" />
+                            <field name="level" />
+                            <field name="sequence" />
                         </group>
                         <group string="Unlock Conditions">
-                            <field name="prerequisite_ids" widget="many2many_tags"/>
-                            <field name="karma_threshold"/>
-                            <field name="quest_id"/>
+                            <field name="prerequisite_ids" widget="many2many_tags" />
+                            <field name="karma_threshold" />
+                            <field name="quest_id" />
                         </group>
                     </group>
                     <group>
                         <group string="Rewards">
-                            <field name="karma_reward"/>
-                            <field name="badge_id"/>
+                            <field name="karma_reward" />
+                            <field name="badge_id" />
                         </group>
                         <group string="Stats">
-                            <field name="unlock_count"/>
+                            <field name="unlock_count" />
                         </group>
                     </group>
                     <group>
-                        <field name="description" placeholder="What this skill represents..."/>
+                        <field
+                            name="description"
+                            placeholder="What this skill represents..." />
                     </group>
                     <group string="Dependents (nodes this unlocks)">
-                        <field name="dependent_ids" widget="many2many_tags" readonly="1"/>
+                        <field
+                            name="dependent_ids"
+                            widget="many2many_tags"
+                            readonly="1" />
                     </group>
                 </sheet>
             </form>

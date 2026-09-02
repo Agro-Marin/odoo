@@ -1,10 +1,15 @@
 {
     "name": "Project - SMS",
+    "version": "1.1",
+    "category": "Services/Project",
     "summary": "Send text messages when project/task stage move",
     "description": "Send text messages when project/task stage move",
-    "category": "Services/Project",
-    "version": "1.1",
-    "depends": ["project", "sms"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "project",
+        "sms",
+    ],
     "data": [
         "views/project_phase_views.xml",
         "views/project_workflow_step_views.xml",
@@ -14,6 +19,4 @@
         "security/project_sms_security.xml",
     ],
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

@@ -1,10 +1,9 @@
 {
     "name": "LATAM Document",
     "version": "1.0",
-    "author": "ADHOC SA",
-    'category': 'Accounting/Localizations',
+    "category": "Accounting/Localizations",
     "summary": "LATAM Document Types",
-    'description': """
+    "description": """
 Functional
 ----------
 
@@ -23,20 +22,21 @@ If your localization needs this logic will then need to add this module as depen
 * create the data of the document types that exists for the specific country. The document type has a country field
 
 """,
+    "author": "ADHOC SA",
+    "license": "LGPL-3",
     "depends": [
         "account",
         "account_debit_note",
     ],
     "data": [
-        'views/account_journal_view.xml',
-        'views/account_move_line_view.xml',
-        'views/account_move_view.xml',
-        'views/l10n_latam_document_type_view.xml',
-        'views/report_templates.xml',
-        'report/invoice_report_view.xml',
-        'wizards/account_move_reversal_view.xml',
-        'security/ir.model.access.csv',
+        "views/account_journal_view.xml",
+        "views/account_move_line_view.xml",
+        "views/account_move_view.xml",
+        "views/l10n_latam_document_type_view.xml",
+        "views/report_templates.xml",
+        "report/invoice_report_view.xml",
+        "wizards/account_move_reversal_view.xml",
+        "security/ir.model.access.csv",
     ],
-    'installable': True,
-    'license': 'LGPL-3',
+    "installable": True,
 }

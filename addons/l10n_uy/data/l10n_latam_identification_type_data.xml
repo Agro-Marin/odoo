@@ -1,75 +1,80 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record model="l10n_latam.identification.type" id="it_nie">
+    <record id="it_nie" model="l10n_latam.identification.type">
         <field name="name">NIE</field>
         <field name="description">Foreigner Identity Number</field>
-        <field name='country_id' ref='base.uy'/>
+        <field name="country_id" ref="base.uy" />
         <field name="sequence">10</field>
         <field name="l10n_uy_dgi_code">1</field>
     </record>
 
-    <record model="l10n_latam.identification.type" id="it_rut">
+    <record id="it_rut" model="l10n_latam.identification.type">
         <field name="name">RUT / RUC</field>
-        <field name="name@es">Registro Único Tributario / Registro Único de Contribuyente</field>
+        <field
+            name="name@es">Registro Único Tributario / Registro Único de Contribuyente</field>
         <field name="description">Unique Tax Registry / Unique Taxpayer Registry</field>
-        <field name='country_id' ref='base.uy'/>
-        <field name='is_vat' eval='True'/>
+        <field name="country_id" ref="base.uy" />
+        <field name="is_vat" eval="True" />
         <field name="sequence">30</field>
         <field name="l10n_uy_dgi_code">2</field>
     </record>
 
-    <record model="l10n_latam.identification.type" id="it_ci">
+    <record id="it_ci" model="l10n_latam.identification.type">
         <field name="name">CI</field>
         <field name="name@es">Cédula de Identidad</field>
         <field name="description">Identification Card</field>
-        <field name='country_id' ref='base.uy'/>
+        <field name="country_id" ref="base.uy" />
         <field name="sequence">40</field>
         <field name="l10n_uy_dgi_code">3</field>
     </record>
 
-    <record model="l10n_latam.identification.type" id="it_other">
+    <record id="it_other" model="l10n_latam.identification.type">
         <field name="name">OTR</field>
         <field name="name@es">Otros</field>
         <field name="description">Others</field>
-        <field name='country_id' ref='base.uy'/>
+        <field name="country_id" ref="base.uy" />
         <field name="sequence">50</field>
         <field name="l10n_uy_dgi_code">4</field>
     </record>
 
-    <record model="l10n_latam.identification.type" id="it_pass">
+    <record id="it_pass" model="l10n_latam.identification.type">
         <field name="name">PAS</field>
         <field name="name@es">Pasaporte (todos los paises)</field>
         <field name="description">Passport (all countries)</field>
-        <field name='country_id' ref='base.uy'/>
+        <field name="country_id" ref="base.uy" />
         <field name="sequence">60</field>
         <field name="l10n_uy_dgi_code">5</field>
     </record>
 
-    <record model="l10n_latam.identification.type" id="it_dni">
+    <record id="it_dni" model="l10n_latam.identification.type">
         <field name="name">DNI</field>
-        <field name="name@es">Documento Nacional de identidad de Argentina, Brasil, Chile o Paraguay</field>
-        <field name="description">National identity document of Argentina, Brazil, Chile or Paraguay</field>
-        <field name='country_id' ref='base.uy'/>
+        <field
+            name="name@es">Documento Nacional de identidad de Argentina, Brasil, Chile o Paraguay</field>
+        <field
+            name="description">National identity document of Argentina, Brazil, Chile or Paraguay</field>
+        <field name="country_id" ref="base.uy" />
         <field name="sequence">70</field>
         <field name="l10n_uy_dgi_code">6</field>
     </record>
 
-    <record model="l10n_latam.identification.type" id="it_nife">
+    <record id="it_nife" model="l10n_latam.identification.type">
         <field name="name">NIFE</field>
         <field name="description">Foreign tax identification number</field>
-        <field name='country_id' ref='base.uy'/>
+        <field name="country_id" ref="base.uy" />
         <field name="sequence">80</field>
         <field name="l10n_uy_dgi_code">7</field>
     </record>
 
-    <record model="l10n_latam.identification.type" id="l10n_latam_base.it_vat">
+    <record id="l10n_latam_base.it_vat" model="l10n_latam.identification.type">
         <field name="l10n_uy_dgi_code">7</field>
     </record>
-    <record model="l10n_latam.identification.type" id="l10n_latam_base.it_pass">
+
+    <record id="l10n_latam_base.it_pass" model="l10n_latam.identification.type">
         <field name="l10n_uy_dgi_code">5</field>
     </record>
-    <record model="l10n_latam.identification.type" id="l10n_latam_base.it_fid">
+
+    <record id="l10n_latam_base.it_fid" model="l10n_latam.identification.type">
         <field name="l10n_uy_dgi_code">4</field>
     </record>
 

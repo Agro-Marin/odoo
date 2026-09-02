@@ -4,16 +4,17 @@
     <record id="view_partner_grade_form" model="ir.ui.view">
         <field name="name">res.partner.grade.form</field>
         <field name="model">res.partner.grade</field>
-        <field name="inherit_id" ref="partnership.view_partner_grade_form"/>
+        <field name="inherit_id" ref="partnership.view_partner_grade_form" />
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
-                <field name="is_published" widget="website_redirect_button"/>
+                <field name="is_published" widget="website_redirect_button" />
             </div>
             <xpath expr="//div[hasclass('oe_title')]" position="after">
                 <group>
-                    <field name="partner_weight"/>
+                    <field name="partner_weight" />
                 </group>
             </xpath>    
         </field>
     </record>
+
 </odoo>

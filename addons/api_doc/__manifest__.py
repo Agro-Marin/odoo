@@ -35,10 +35,6 @@ the methods over HTTP, with examples in various programming languages.
             "web/static/src/core/templates.js",
             "web/static/src/core/registry.js",
             "web/static/src/session.js",
-            # `assets.js` reaches these three as relative siblings, so leaving
-            # them out did not fail the bundle: the browser fetched them as raw
-            # source, bypassing the import map. `test_lint`'s
-            # `test_every_bundled_module_can_resolve_its_own_imports` now says so.
             "web/static/src/core/module_bridge.js",
             "web/static/src/core/utils/asset_log.js",
             "web/static/src/core/utils/global_singleton.js",

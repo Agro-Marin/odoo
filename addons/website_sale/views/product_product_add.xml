@@ -2,16 +2,17 @@
 <odoo>
 
     <record id="product_product_view_form_normalized_website_sale" model="ir.ui.view">
-        <field name="name">product.product.view.form.normalized.website.sale.inherit</field>
+        <field
+            name="name">product.product.view.form.normalized.website.sale.inherit</field>
         <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.view_product_product_form_normalized" />
         <field name="mode">primary</field>
-        <field name="inherit_id" ref="product.view_product_product_form_normalized"/>
         <field name="arch" type="xml">
             <xpath expr="//form" position="attributes">
                 <attribute name="js_class">website_new_content_form</attribute>
             </xpath>
             <xpath expr="//field[@name='company_id']" position="before">
-                <field name="website_url" invisible="1"/>
+                <field name="website_url" invisible="1" />
             </xpath>
         </field>
     </record>
@@ -19,10 +20,15 @@
     <record id="product_product_view_form_normalized" model="ir.ui.view">
         <field name="name">product.product.view.form.normalized.website.sale</field>
         <field name="model">product.product</field>
-        <field name="inherit_id" ref="product.view_product_product_form_normalized"/>
+        <field name="inherit_id" ref="product.view_product_product_form_normalized" />
         <field name="arch" type="xml">
             <div name="tax_info" position="after">
-                <field name="public_categ_ids" string="Website Category" class="oe_inline" widget="many2many_tags" placeholder="Unpublished"/>
+                <field
+                    name="public_categ_ids"
+                    string="Website Category"
+                    class="oe_inline"
+                    widget="many2many_tags"
+                    placeholder="Unpublished" />
             </div>
         </field>
     </record>
@@ -31,9 +37,9 @@
         <field name="name">New Product</field>
         <field name="res_model">product.product</field>
         <field name="view_mode">form</field>
+        <field name="view_id" ref="product_product_view_form_normalized_website_sale" />
         <field name="target">new</field>
-        <field name="context" eval="{'dialog_size': 'medium'}"/>
-        <field name="view_id" ref="product_product_view_form_normalized_website_sale"/>
+        <field name="context" eval="{'dialog_size': 'medium'}" />
     </record>
 
 </odoo>

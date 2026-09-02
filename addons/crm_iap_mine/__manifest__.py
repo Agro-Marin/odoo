@@ -1,8 +1,10 @@
 {
     "name": "Lead Generation",
-    "summary": "Generate Leads/Opportunities based on country, industries, size, etc.",
-    "category": "Sales/CRM",
     "version": "1.2",
+    "category": "Sales/CRM",
+    "summary": "Generate Leads/Opportunities based on country, industries, size, etc.",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": [
         "iap_crm",
         "iap_mail",
@@ -20,12 +22,10 @@
         "views/mail_templates.xml",
         "views/crm_menus.xml",
     ],
-    "auto_install": True,
     "assets": {
         "web.assets_backend": [
             "crm_iap_mine/static/src/js/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "auto_install": True,
 }

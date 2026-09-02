@@ -1,9 +1,7 @@
 {
-    'name': 'Panama - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['pa'],
-    'description': """
+    "name": "Panama - Accounting",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 Panamenian accounting chart and tax localization.
 
 Plan contable panameño e impuestos de acuerdo a disposiciones vigentes
@@ -12,14 +10,20 @@ Con la Colaboración de
 - AHMNET CORP http://www.ahmnet.com
 
     """,
-    'author': 'Cubic ERP',
-    'category': 'Accounting/Localizations/Account Charts',
-    'depends': [
-        'account',
+    "author": "Cubic ERP",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'demo': [
-        'demo/demo_company.xml',
+    "countries": [
+        "pa",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

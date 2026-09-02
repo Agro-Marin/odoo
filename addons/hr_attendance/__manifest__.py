@@ -11,8 +11,14 @@ This module aims to manage employee's attendances.
 Keeps account of the attendances of the employees on the basis of the
 actions(Check in/Check out) performed by them.
        """,
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/employees",
-    "depends": ["hr", "barcodes", "geocoding"],
+    "license": "LGPL-3",
+    "depends": [
+        "hr",
+        "barcodes",
+        "geocoding",
+    ],
     "data": [
         "data/hr_attendance_overtime_ruleset_data.xml",
         "data/hr_attendance_overtime_rule_data.xml",
@@ -28,9 +34,9 @@ actions(Check in/Check out) performed by them.
         "views/hr_attendance_kiosk_templates.xml",
         "views/hr_attendance_overtime_rule_views.xml",
     ],
-    "demo": ["data/hr_attendance_demo.xml"],
-    "installable": True,
-    "application": True,
+    "demo": [
+        "data/hr_attendance_demo.xml",
+    ],
     "assets": {
         "web.assets_backend": [
             "hr_attendance/static/src/**/*.js",
@@ -43,16 +49,31 @@ actions(Check in/Check out) performed by them.
         ],
         "hr_attendance.assets_public_attendance": [
             "hr_attendance/static/src/scss/kiosk/primary_variables.scss",
-            ("include", "web._assets_helpers"),
-            ("include", "web._assets_primary_variables"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_primary_variables",
+            ),
             "hr_attendance/static/src/scss/kiosk/bootstrap_overridden.scss",
-            ("include", "web._assets_frontend_helpers"),
+            (
+                "include",
+                "web._assets_frontend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            ("include", "web._assets_bootstrap_frontend"),
-            ("include", "web._assets_bootstrap_backend"),
+            (
+                "include",
+                "web._assets_bootstrap_frontend",
+            ),
+            (
+                "include",
+                "web._assets_bootstrap_backend",
+            ),
             "/web/static/lib/odoo_ui_icons/*",
             "/web/static/lib/bootstrap/scss/_functions.scss",
             "/web/static/lib/bootstrap/scss/_mixins.scss",
@@ -62,10 +83,16 @@ actions(Check in/Check out) performed by them.
             "web/static/src/libs/fontawesome7/css/regular.css",
             "web/static/src/libs/fontawesome7/css/brands.css",
             "web/static/src/scss/tokens.scss",
-            ("include", "web._assets_core"),
+            (
+                "include",
+                "web._assets_core",
+            ),
             "hr_attendance/static/src/public_kiosk/**/*",
             "hr_attendance/static/src/components/**/*",
-            ("remove", "hr_attendance/static/src/components/attendance_menu/**/*"),
+            (
+                "remove",
+                "hr_attendance/static/src/components/attendance_menu/**/*",
+            ),
             "hr_attendance/static/src/scss/kiosk/hr_attendance.scss",
             "web/static/src/core/formatters.js",
             "web/static/src/session.js",
@@ -77,16 +104,18 @@ actions(Check in/Check out) performed by them.
             "barcodes/static/src/barcode_service.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
-    "post_init_hook": "post_init_hook",
-    "uninstall_hook": "uninstall_hook",
     "esm": {
         "bundles": [
             "hr_attendance.assets_public_attendance",
         ],
         "secondary_import_map_includes": {
-            "hr_attendance.assets_public_attendance": ["web.assets_tests"],
+            "hr_attendance.assets_public_attendance": [
+                "web.assets_tests",
+            ],
         },
     },
+    "installable": True,
+    "application": True,
+    "post_init_hook": "post_init_hook",
+    "uninstall_hook": "uninstall_hook",
 }

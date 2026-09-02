@@ -1,9 +1,12 @@
 <odoo>
-    <template inherit_id="account.report_payment_receipt_document" id="report_payment_receipt_document">
+
+    <template
+        id="report_payment_receipt_document"
+        inherit_id="account.report_payment_receipt_document">
         <xpath expr="//table[@name='invoices']" position="before">
-            <t t-set="checks" t-value="o._get_latam_checks()"/>
+            <t t-set="checks" t-value="o._get_latam_checks()" />
             <t t-if="checks">
-                <table id="l10n_latam_check"  class="table table-sm">
+                <table id="l10n_latam_check" class="table table-sm">
                     <thead>
                         <tr>
                             <th><span>Check Number</span></th>
@@ -17,19 +20,21 @@
                         <t t-foreach="checks" t-as="check">
                             <tr>
                                 <td>
-                                    <span t-field='check.name'/>
+                                    <span t-field="check.name" />
                                 </td>
                                 <td t-if="o.payment_method_code != 'own_checks'">
-                                    <span t-field='check.bank_id.display_name'/>
+                                    <span t-field="check.bank_id.display_name" />
                                 </td>
                                 <td t-if="o.payment_method_code != 'own_checks'">
-                                    <span t-field='check.issuer_vat'/>
+                                    <span t-field="check.issuer_vat" />
                                 </td>
                                 <td>
-                                    <span t-field='check.payment_date'/>
+                                    <span t-field="check.payment_date" />
                                 </td>
                                 <td class="text-end">
-                                    <span t-out="check.amount" t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                    <span
+                                        t-out="check.amount"
+                                        t-options="{'widget': 'monetary', 'display_currency': o.currency_id}" />
                                 </td>
                             </tr>
                         </t>
@@ -38,4 +43,5 @@
             </t>
         </xpath>
     </template>
+
 </odoo>

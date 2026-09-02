@@ -24,11 +24,13 @@
             <field name="code">MX_NSS</field>
             <field name="sequence">30</field>
             <field name="country_ids" eval="[(6, 0, [ref('base.mx')])]" />
-            <!-- Eleven digits. The NSS also carries a Luhn check digit, which
-                 this pattern deliberately does NOT verify: `pattern` is a
-                 format check, and a wrong check digit is a data-quality
-                 question for whoever owns the IMSS relationship, not a reason
-                 to refuse the row outright. -->
+            <!--
+                Eleven digits. The NSS also carries a Luhn check digit, which
+                this pattern deliberately does NOT verify: `pattern` is a
+                format check, and a wrong check digit is a data-quality
+                question for whoever owns the IMSS relationship, not a reason
+                to refuse the row outright.
+            -->
             <field name="pattern">[0-9]{11}</field>
             <field name="confidential" eval="True" />
             <field name="synced_with_commercial" eval="False" />

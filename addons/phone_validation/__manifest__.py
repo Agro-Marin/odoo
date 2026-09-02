@@ -1,10 +1,10 @@
 {
-    'name': 'Phone Numbers Validation',
-    'version': '2.1',
-    'summary': 'Validate and format phone numbers',
-    'sequence': 9999,
-    'category': 'Hidden',
-    'description': """
+    "name": "Phone Numbers Validation",
+    "version": "2.1",
+    "category": "Hidden",
+    "sequence": 9999,
+    "summary": "Validate and format phone numbers",
+    "description": """
 Phone Numbers Validation
 ========================
 
@@ -16,23 +16,25 @@ blacklisted phone numbers.
 
 It adds mixin.mail.thread.phone mixin that handles sanitation and blacklist of
 records numbers. """,
-    'data': [
-        'security/ir.model.access.csv',
-        'views/phone_blacklist_views.xml',
-        'views/res_partner_views.xml',
-        'wizard/phone_blacklist_remove_view.xml',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "base",
+        "mail",
     ],
-    'depends': [
-        'base',
-        'mail',
-    ],
-    'external_dependencies': {
-        'python': ['phonenumbers'],
-        'apt': {
-            'phonenumbers': 'python3-phonenumbers',
+    "external_dependencies": {
+        "python": [
+            "phonenumbers",
+        ],
+        "apt": {
+            "phonenumbers": "python3-phonenumbers",
         },
     },
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "data": [
+        "security/ir.model.access.csv",
+        "views/phone_blacklist_views.xml",
+        "views/res_partner_views.xml",
+        "wizard/phone_blacklist_remove_view.xml",
+    ],
+    "auto_install": True,
 }

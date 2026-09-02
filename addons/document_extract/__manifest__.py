@@ -96,8 +96,18 @@ this fork has just finished deleting elsewhere.
     """,
     "author": "AgroMarin",
     "license": "LGPL-3",
-    "depends": ["base", "web"],
-    "data": ["data/ir_job_channel.xml"],
+    "depends": [
+        "base",
+        "web",
+    ],
+    "external_dependencies": {
+        "python": [
+            "pymupdf",
+        ],
+    },
+    "data": [
+        "data/ir_job_channel.xml",
+    ],
     "assets": {
         "web.assets_backend": [
             "document_extract/static/src/**/*",
@@ -106,6 +116,5 @@ this fork has just finished deleting elsewhere.
             "document_extract/static/tests/**/*.test.js",
         ],
     },
-    "external_dependencies": {"python": ["pymupdf"]},
     "installable": True,
 }

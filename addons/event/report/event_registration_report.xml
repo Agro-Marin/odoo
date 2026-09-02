@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
-        <record id="action_report_event_registration_attendee_list" model="ir.actions.report">
+        <record
+            id="action_report_event_registration_attendee_list"
+            model="ir.actions.report">
             <field name="name">Attendee List</field>
             <field name="model">event.registration</field>
             <field name="report_type">qweb-pdf</field>
             <field name="report_name">event.event_registration_attendee_list</field>
             <field name="report_file">event.event_registration_attendee_list</field>
-            <field name="binding_model_id" ref="event.model_event_registration"/>
+            <field name="binding_model_id" ref="event.model_event_registration" />
             <field name="binding_type">report</field>
             <field name="print_report_name">'Attendee List'</field>
         </record>
@@ -17,14 +20,16 @@
         <h1>Attendee list</h1>
         <div class="row">
             <div class="col-7">
-                <div t-out="event.name"/>
+                <div t-out="event.name" />
             </div>
             <div class="col-5">
-                <span t-out="event.date_begin"
-                    t-options='{"widget": "datetime", "show_seconds": False, "tz_name": event.date_tz, "format": "medium"}'/>
-                <i class="fa-solid fa-arrow-right"/>
-                <span t-out="event.date_end"
-                    t-options='{"widget": "datetime", "show_seconds": False, "tz_name": event.date_tz, "format": "medium"}'/>
+                <span
+                    t-out="event.date_begin"
+                    t-options="{&quot;widget&quot;: &quot;datetime&quot;, &quot;show_seconds&quot;: False, &quot;tz_name&quot;: event.date_tz, &quot;format&quot;: &quot;medium&quot;}" />
+                <i class="fa-solid fa-arrow-right" />
+                <span
+                    t-out="event.date_end"
+                    t-options="{&quot;widget&quot;: &quot;datetime&quot;, &quot;show_seconds&quot;: False, &quot;tz_name&quot;: event.date_tz, &quot;format&quot;: &quot;medium&quot;}" />
             </div>
         </div>
         <table class="table mt-3" style="break-after: page;">
@@ -34,18 +39,20 @@
                     <th>Company</th>
                     <th>Ticket type</th>
                     <th>Phone number</th>
-                    <th></th>
+                    <th />
                 </tr>
             </thead>
             <tbody>
                 <tr t-foreach="attendees" t-as="attendee">
-                    <td><t t-out="attendee.name"/></td>
-                    <td><t t-out="attendee.company_name"/></td>
-                    <td><t t-out="attendee.event_ticket_id.name"/></td>
-                    <td><t t-out="attendee.phone"/></td>
+                    <td><t t-out="attendee.name" /></td>
+                    <td><t t-out="attendee.company_name" /></td>
+                    <td><t t-out="attendee.event_ticket_id.name" /></td>
+                    <td><t t-out="attendee.phone" /></td>
                     <td class="text-center">
                         <t t-if="attendee.barcode">
-                            <img t-attf-src="/report/barcode/QR/{{ attendee.barcode }}?&amp;width=87&amp;height=87&amp;quiet=0" alt="QR Code"/>
+                            <img
+                                t-attf-src="/report/barcode/QR/{{ attendee.barcode }}?&amp;width=87&amp;height=87&amp;quiet=0"
+                                alt="QR Code" />
                         </t>
                     </td>
                 </tr>
@@ -58,8 +65,10 @@
             <t t-call="web.internal_layout">
                 <t t-foreach="docs.grouped('event_id').items()" t-as="group">
                     <t t-call="event.attendee_list">
-                        <t t-set="event" t-value="group[0].with_context(tz=group[0].date_tz)"/>
-                        <t t-set="attendees" t-value="group[1]"/>
+                        <t
+                            t-set="event"
+                            t-value="group[0].with_context(tz=group[0].date_tz)" />
+                        <t t-set="attendees" t-value="group[1]" />
                     </t>
                 </t>
             </t>
@@ -71,8 +80,10 @@
             <t t-call="web.internal_layout">
                 <t t-foreach="docs" t-as="event">
                     <t t-call="event.attendee_list">
-                        <t t-set="event" t-value="event.with_context(tz=event.date_tz)"/>
-                        <t t-set="attendees" t-value="event.registration_ids"/>
+                        <t
+                            t-set="event"
+                            t-value="event.with_context(tz=event.date_tz)" />
+                        <t t-set="attendees" t-value="event.registration_ids" />
                     </t>
                 </t>
             </t>

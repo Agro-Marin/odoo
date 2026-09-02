@@ -1,10 +1,9 @@
 {
-    'name': 'Hardware Proxy',
-    'category': 'Hidden',
-    'sequence': 6,
-    'summary': 'Connect the Web Client to Hardware Peripherals',
-    'website': 'https://www.odoo.com/app/iot',
-    'description': """
+    "name": "Hardware Proxy",
+    "category": "Hidden",
+    "sequence": 6,
+    "summary": "Connect the Web Client to Hardware Peripherals",
+    "description": """
 Hardware Poxy
 =============
 
@@ -14,12 +13,13 @@ This modules only contains the enabling framework. The actual devices drivers
 are found in other modules that must be installed separately.
 
 """,
-    'assets': {
-        'iot_drivers.assets': [  # dummy asset name to make sure it does not load outside of IoT homepage
-            'iot_drivers/static/**/*',
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/iot",
+    "license": "LGPL-3",
+    "assets": {
+        "iot_drivers.assets": [
+            "iot_drivers/static/**/*",
         ],
     },
-    'installable': False,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": False,
 }

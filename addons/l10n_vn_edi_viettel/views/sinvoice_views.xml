@@ -1,5 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="action_sinvoice_template" model="ir.actions.act_window">
         <field name="name">Templates</field>
         <field name="res_model">l10n_vn_edi_viettel.sinvoice.template</field>
@@ -30,9 +31,16 @@
         </field>
     </record>
 
-    <menuitem id="l10n_vn_edi_sinvoice_menu" name="SInvoice" groups="account.group_account_manager"
-              parent="account.menu_finance_configuration" sequence="99">
-        <menuitem id="l10n_vn_edi_sinvoice_templates" action="action_sinvoice_template"/>
-        <menuitem id="l10n_vn_edi_sinvoice_symbols" action="action_sinvoice_symbol"/>
+    <menuitem
+        id="l10n_vn_edi_sinvoice_menu"
+        name="SInvoice"
+        parent="account.menu_finance_configuration"
+        sequence="99"
+        groups="account.group_account_manager">
+        <menuitem
+            id="l10n_vn_edi_sinvoice_templates"
+            action="action_sinvoice_template" />
+        <menuitem id="l10n_vn_edi_sinvoice_symbols" action="action_sinvoice_symbol" />
     </menuitem>
+
 </odoo>

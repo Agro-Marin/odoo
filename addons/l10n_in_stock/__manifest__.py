@@ -1,21 +1,21 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Indian - Stock Report(GST)',
-    'version': '1.0',
-    'description': """GST Stock Report""",
-    'category': 'Accounting/Localizations',
-    'depends': [
-        'l10n_in',
-        'stock',
+    "name": "Indian - Stock Report(GST)",
+    "version": "1.0",
+    "category": "Accounting/Localizations",
+    "description": "GST Stock Report",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "l10n_in",
+        "stock",
     ],
-    'data': [
-        'views/report_stockpicking_operations.xml',
+    "data": [
+        "views/report_stockpicking_operations.xml",
     ],
-    'demo': [
-        'data/product_demo.xml',
+    "demo": [
+        "data/product_demo.xml",
     ],
-    'installable': True,
-    'auto_install': True,
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "installable": True,
+    "auto_install": True,
 }

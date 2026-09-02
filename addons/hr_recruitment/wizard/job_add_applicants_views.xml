@@ -1,12 +1,17 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="job_add_applicants_view_form" model="ir.ui.view">
         <field name="name">job.add.applicants.view.form</field>
         <field name="model">job.add.applicants</field>
         <field name="arch" type="xml">
             <form string="Add Applicants to Pool">
                 <group>
-                    <field name="job_ids" widget="many2many_tags" options="{'color_field': 'color'}" placeholder="Move to..."/>
+                    <field
+                        name="job_ids"
+                        widget="many2many_tags"
+                        options="{'color_field': 'color'}"
+                        placeholder="Move to..." />
                 </group>
                 <footer>
                     <button
@@ -14,11 +19,15 @@
                         string="Create Applications"
                         type="object"
                         class="btn-primary"
-                        data-hotkey="q"
-                    />
-                    <button string="Discard" class="btn-secondary" special="cancel" data-hotkey="x"/>
+                        data-hotkey="q" />
+                    <button
+                        string="Discard"
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
     </record>
+
 </odoo>

@@ -4,7 +4,9 @@
     "category": "Marketing/Events",
     "sequence": 140,
     "summary": "Publish events, sell tickets",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/events",
+    "license": "LGPL-3",
     "depends": [
         "event",
         "website_partner",
@@ -43,7 +45,6 @@
         "data/event_registration_demo.xml",
         "data/event_registration_answer_demo.xml",
     ],
-    "application": True,
     "assets": {
         "web.assets_backend": [
             "website_event/static/src/js/tours/**/*",
@@ -72,6 +73,5 @@
             "website_event/static/src/website_builder/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "application": True,
 }

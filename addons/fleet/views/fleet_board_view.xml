@@ -1,20 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="fleet_costs_report_view_search" model="ir.ui.view">
         <field name="name">fleet.vehicle.cost.view.search</field>
         <field name="model">fleet.vehicle.cost.report</field>
         <field name="arch" type="xml">
             <search string="Fleet Costs Analysis">
-                <field name="name" filter_domain="[('name', 'ilike', self)]"/>
-                <field name="driver_id" filter_domain="[('driver_id', 'ilike', self)]"/>
-                <field name="date_start"/>
-                <filter string="Service" name="service" domain="[('cost_type', '=', 'service')]"/>
-                <filter string="Contract" name="contract" domain="[('cost_type', '=', 'contract')]"/>
-                <separator/>
-                <filter name="filter_date_start" date="date_start" default_period="year"/>
+                <field name="name" filter_domain="[('name', 'ilike', self)]" />
+                <field
+                    name="driver_id"
+                    filter_domain="[('driver_id', 'ilike', self)]" />
+                <field name="date_start" />
+                <filter
+                    string="Service"
+                    name="service"
+                    domain="[('cost_type', '=', 'service')]" />
+                <filter
+                    string="Contract"
+                    name="contract"
+                    domain="[('cost_type', '=', 'contract')]" />
+                <separator />
+                <filter
+                    name="filter_date_start"
+                    date="date_start"
+                    default_period="year" />
                 <group>
-                    <filter string="Vehicle" name="vehicle" context="{'group_by':'vehicle_id'}"/>
-                    <filter string="Driver" name="driver" context="{'group_by':'driver_id'}"/>
+                    <filter
+                        string="Vehicle"
+                        name="vehicle"
+                        context="{'group_by':'vehicle_id'}" />
+                    <filter
+                        string="Driver"
+                        name="driver"
+                        context="{'group_by':'driver_id'}" />
                 </group>
             </search>
         </field>
@@ -38,9 +56,9 @@
         <field name="model">fleet.vehicle.cost.report</field>
         <field name="arch" type="xml">
             <graph string="Fleet Costs Analysis" sample="1">
-                <field name="date_start" interval="month"/>
-                <field name="cost_type"/>
-                <field name="cost" type="measure"/>
+                <field name="date_start" interval="month" />
+                <field name="cost_type" />
+                <field name="cost" type="measure" />
             </graph>
         </field>
     </record>
@@ -50,13 +68,13 @@
         <field name="model">fleet.vehicle.cost.report</field>
         <field name="arch" type="xml">
             <list string="Fleet Costs Analysis" create="0">
-                <field name="name"/>
-                <field name="driver_id" optional="show"/>
-                <field name="fuel_type" optional="hide"/>
-                <field name="date_start" optional="show"/>
-                <field name="cost" optional="show" sum="Sum of Cost"/>
-                <field name="cost_type" optional="show"/>
-                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="name" />
+                <field name="driver_id" optional="show" />
+                <field name="fuel_type" optional="hide" />
+                <field name="date_start" optional="show" />
+                <field name="cost" optional="show" sum="Sum of Cost" />
+                <field name="cost_type" optional="show" />
+                <field name="company_id" groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -69,15 +87,18 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="vehicle_id"/>
-                            <field name="driver_id"/>
-                            <field name="fuel_type"/>
-                            <field name="company_id" groups="base.group_multi_company" placeholder="Visible to all"/>
+                            <field name="vehicle_id" />
+                            <field name="driver_id" />
+                            <field name="fuel_type" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
+                                placeholder="Visible to all" />
                         </group>
                         <group>
-                            <field name="date_start"/>
-                            <field name="cost"/>
-                            <field name="cost_type"/>
+                            <field name="date_start" />
+                            <field name="cost" />
+                            <field name="cost_type" />
                         </group>
                     </group>
                 </sheet>
@@ -89,24 +110,32 @@
         <field name="name">Costs Analysis</field>
         <field name="res_model">fleet.vehicle.cost.report</field>
         <field name="view_mode">graph,pivot</field>
-        <field name="view_id"></field>
+        <field name="view_id" />
+        <field name="search_view_id" ref="fleet.fleet_costs_report_view_search" />
         <field name="context">{'search_default_filter_date_start': 1}</field>
-        <field name="search_view_id" ref="fleet.fleet_costs_report_view_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_empty_folder">
-              No data for analysis
+                No data for analysis
             </p>
             <p>
-              Manage efficiently your different effective vehicles Costs with Odoo.
+                Manage efficiently your different effective vehicles Costs with Odoo.
             </p>
         </field>
     </record>
 
-    <menuitem name="Reporting" parent="menu_root" id="menu_fleet_reporting" sequence="99" groups="fleet_group_manager"/>
-    <menuitem id="menu_fleet_reporting_costs"
-              name="Costs"
-              parent="menu_fleet_reporting"
-              action="fleet_costs_reporting_action"
-              sequence="1"
-              groups="fleet_group_manager"/>
+    <menuitem
+        id="menu_fleet_reporting"
+        name="Reporting"
+        parent="menu_root"
+        sequence="99"
+        groups="fleet_group_manager" />
+
+    <menuitem
+        id="menu_fleet_reporting_costs"
+        name="Costs"
+        parent="menu_fleet_reporting"
+        action="fleet_costs_reporting_action"
+        sequence="1"
+        groups="fleet_group_manager" />
+
 </odoo>

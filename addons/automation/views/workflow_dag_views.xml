@@ -36,7 +36,6 @@
                     <widget name="automation_workflow_canvas" />
                 </page>
             </xpath>
-
         </field>
     </record>
 

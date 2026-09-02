@@ -18,10 +18,10 @@
                 <div invisible="orders_count &gt; 1">
                     Are you sure you want to cancel the selected item?
                 </div>
-                <div invisible="orders_count == 1"> So, are you sure you want to cancel these <field
-                        name="orders_count" /> items? </div>
+                <div invisible="orders_count == 1"> So, are you sure you want to cancel these <field name="orders_count" /> items? </div>
                 <footer>
-                    <button class="btn-primary"
+                    <button
+                        class="btn-primary"
                         name="action_mass_cancel"
                         type="object"
                         string="Cancel" />

@@ -4,7 +4,7 @@
     <record id="sale_order_form_view_inherit" model="ir.ui.view">
         <field name="name">sale.order.form.inherit.sale.expense</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_sale_order_form"/>
+        <field name="inherit_id" ref="sale.view_sale_order_form" />
         <field name="arch" type="xml">
             <button name="action_view_invoice" position="before">
                 <button
@@ -12,9 +12,8 @@
                     type="action"
                     class="oe_stat_button"
                     icon="fa-money"
-                    invisible="expense_count == 0"
-                >
-                    <field name="expense_count" widget="statinfo" string="Expenses"/>
+                    invisible="expense_count == 0">
+                    <field name="expense_count" widget="statinfo" string="Expenses" />
                 </button>
             </button>
         </field>
@@ -23,9 +22,9 @@
     <record id="sale_order_reinvoice_tree_view" model="ir.ui.view">
         <field name="name">sale.order.list.reinvoice.expense</field>
         <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_sale_order_list" />
         <field name="mode">primary</field>
-        <field eval="18" name="priority"/>
-        <field name="inherit_id" ref="sale.view_sale_order_list"/>
+        <field name="priority" eval="18" />
         <field name="arch" type="xml">
             <field name="amount_untaxed" position="attributes">
                 <attribute name="groups">sales_team.group_sale_salesman,account.group_account_invoice,account.group_account_readonly</attribute>

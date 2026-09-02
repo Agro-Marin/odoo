@@ -9,18 +9,22 @@
             <!-- Auto-complete could be done from either a bill either a purchase order -->
             <field name="invoice_vendor_bill_id" position="after">
                 <t groups="purchase.group_purchase_user">
-                    <field name="purchase_id" invisible="1" readonly="state != 'draft'" />
-                    <label for="purchase_vendor_bill_id" string="Auto-Complete" class="oe_edit_only"
+                    <field
+                        name="purchase_id"
+                        invisible="1"
+                        readonly="state != 'draft'" />
+                    <label
+                        for="purchase_vendor_bill_id"
+                        string="Auto-Complete"
+                        class="oe_edit_only"
                         invisible="state != 'draft' or move_type not in ('in_invoice', 'in_refund')" />
-                    <field name="purchase_vendor_bill_id" nolabel="1"
+                    <field
+                        name="purchase_vendor_bill_id"
+                        nolabel="1"
                         invisible="state != 'draft' or move_type not in ('in_invoice', 'in_refund')"
                         readonly="state != 'draft'"
                         class="oe_edit_only"
-                        domain="([('partner_id.commercial_partner_id', '=', commercial_partner_id)] if partner_id else []) + [
-                            '|',
-                            ('move_id', '=', False),
-                            ('move_id.move_type', '=', move_type)
-                        ]"
+                        domain="([('partner_id.commercial_partner_id', '=', commercial_partner_id)] if partner_id else []) + [                             '|',                             ('move_id', '=', False),                             ('move_id.move_type', '=', move_type)                         ]"
                         placeholder="Select a purchase document"
                         context="{'show_total_amount': True}"
                         options="{'no_create': True, 'no_open': True}" />
@@ -32,18 +36,25 @@
             <field name="invoice_vendor_bill_id" position="attributes">
                 <attribute name="groups">!purchase.group_purchase_user</attribute>
             </field>
-            <xpath expr="//field[@name='invoice_line_ids']/list/field[@name='company_id']"
+            <xpath
+                expr="//field[@name='invoice_line_ids']/list/field[@name='company_id']"
                 position="after">
-                <field name="purchase_line_ids" groups="purchase.group_purchase_user"
+                <field
+                    name="purchase_line_ids"
+                    groups="purchase.group_purchase_user"
                     column_invisible="True" />
             </xpath>
-            <xpath expr="//field[@name='line_ids']/list/field[@name='company_id']"
+            <xpath
+                expr="//field[@name='line_ids']/list/field[@name='company_id']"
                 position="after">
-                <field name="purchase_line_ids" groups="purchase.group_purchase_user"
+                <field
+                    name="purchase_line_ids"
+                    groups="purchase.group_purchase_user"
                     column_invisible="True" />
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
-                <button class="oe_stat_button"
+                <button
+                    class="oe_stat_button"
                     name="action_purchase_matching"
                     type="object"
                     groups="purchase.group_purchase_user"
@@ -53,35 +64,47 @@
                         <span class="o_stat_text">Purchase Matching</span>
                     </div>
                 </button>
-                <button class="oe_stat_button"
+                <button
+                    class="oe_stat_button"
                     name="action_view_source_purchase_orders"
                     type="object"
                     groups="purchase.group_purchase_user"
                     icon="fa-regular fa-pen-to-square"
                     invisible="purchase_order_count == 0 or move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund', 'out_receipt', 'in_receipt')">
-                    <field string="Purchases" name="purchase_order_name" widget="statinfo"
+                    <field
+                        string="Purchases"
+                        name="purchase_order_name"
+                        widget="statinfo"
                         invisible="purchase_order_count != 1" />
-                    <field string="Purchases" name="purchase_order_count" widget="statinfo"
+                    <field
+                        string="Purchases"
+                        name="purchase_order_count"
+                        widget="statinfo"
                         invisible="purchase_order_count == 1" />
                 </button>
             </xpath>
             <header position="inside">
                 <field name="purchase_order_count" invisible="1" />
-                <button name="create_purchase_order"
+                <button
+                    name="create_purchase_order"
                     string="Create Purchase"
                     type="object"
                     class="oe_highlight"
                     invisible="move_type != 'in_invoice' or state != 'posted' or purchase_order_count != 0" />
             </header>
             <header position="after">
-                <div class="alert alert-warning" role="alert"
+                <div
+                    class="alert alert-warning"
+                    role="alert"
                     invisible="not purchase_warning_text or move_type != 'in_invoice'">
                     <field name="purchase_warning_text" class="fw-bold" />
                 </div>
             </header>
             <list name="journal_items" position="attributes">
-                <attribute name="decoration-warning"
-                    add="(purchase_line_warn_msg and move_type == 'in_invoice')" separator=" or " />
+                <attribute
+                    name="decoration-warning"
+                    add="(purchase_line_warn_msg and move_type == 'in_invoice')"
+                    separator=" or " />
             </list>
         </field>
     </record>
@@ -91,7 +114,8 @@
         <field name="res_model">account.move</field>
         <field name="view_mode">list,form,graph</field>
         <field name="domain">[('move_type','in',('in_invoice', 'in_refund'))]</field>
-        <field name="context">{'search_default_partner_id': active_id, 'default_move_type': 'in_invoice', 'default_partner_id': active_id}</field>
+        <field
+            name="context">{'search_default_partner_id': active_id, 'default_move_type': 'in_invoice', 'default_partner_id': active_id}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Record a new vendor bill

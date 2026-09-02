@@ -1,15 +1,19 @@
 {
     "name": "WMS Landed Costs",
     "version": "1.1",
+    "category": "Supply Chain/Inventory",
+    "sequence": 16,
     "summary": "Landed Costs",
     "description": """
 Landed Costs Management
 =======================
 This module allows you to easily add extra costs on pickings and decide the split of these costs among their stock moves in order to take them into account in your stock valuation.
     """,
-    "depends": ["purchase_stock"],
-    "category": "Supply Chain/Inventory",
-    "sequence": 16,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "purchase_stock",
+    ],
     "data": [
         "security/ir.model.access.csv",
         "security/stock_landed_cost_security.xml",
@@ -20,6 +24,4 @@ This module allows you to easily add extra costs on pickings and decide the spli
         "views/res_config_settings_views.xml",
     ],
     "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

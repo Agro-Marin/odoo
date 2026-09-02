@@ -4,30 +4,36 @@
     <record id="sale_margin_sale_order" model="ir.ui.view">
         <field name="name">sale.order.margin.view.form</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_sale_order_form"/>
-        <field name="priority" eval="15"/>
+        <field name="inherit_id" ref="sale.view_sale_order_form" />
+        <field name="priority" eval="15" />
         <field name="arch" type="xml">
             <field name="tax_totals" position="after">
                 <div class="d-flex float-end" colspan="2">
-                    <label for="margin"/>
+                    <label for="margin" />
                     <div>
-                        <field name="margin" class="oe_inline"/>
-                        <field name="amount_untaxed" invisible="1"/>
+                        <field name="margin" class="oe_inline" />
+                        <field name="amount_untaxed" invisible="1" />
                         <span class="oe_inline" invisible="amount_untaxed == 0">
-                            (<field name="margin_percent" nolabel="1" class="oe_inline" widget="percentage"/>)
+                            (<field name="margin_percent" nolabel="1" class="oe_inline" widget="percentage" />)
                         </span>
                     </div>
                 </div>
             </field>
-            <xpath expr="//field[@name='line_ids']//form//field[@name='price_unit']" position="after">
-                <field name="purchase_price" groups="base.group_user"/>
+            <xpath
+                expr="//field[@name='line_ids']//form//field[@name='price_unit']"
+                position="after">
+                <field name="purchase_price" groups="base.group_user" />
             </xpath>
-           <xpath expr="//field[@name='line_ids']//list//field[@name='price_unit']" position="after">
-                <field name="purchase_price" optional="hide"/>
-                <field name="margin" optional="hide"/>
-                <field name="margin_percent"
+            <xpath
+                expr="//field[@name='line_ids']//list//field[@name='price_unit']"
+                position="after">
+                <field name="purchase_price" optional="hide" />
+                <field name="margin" optional="hide" />
+                <field
+                    name="margin_percent"
                     invisible="price_subtotal == 0"
-                    optional="hide" widget="percentage"/>
+                    optional="hide"
+                    widget="percentage" />
             </xpath>
         </field>
     </record>
@@ -35,10 +41,10 @@
     <record id="sale_margin_sale_order_pivot" model="ir.ui.view">
         <field name="name">sale.order.margin.view.pivot</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_sale_order_pivot"/>
+        <field name="inherit_id" ref="sale.view_sale_order_pivot" />
         <field name="arch" type="xml">
             <pivot position="inside">
-                <field name="margin_percent" invisible="1"/>
+                <field name="margin_percent" invisible="1" />
             </pivot>
         </field>
     </record>
@@ -46,10 +52,10 @@
     <record id="sale_margin_sale_order_graph" model="ir.ui.view">
         <field name="name">sale.order.margin.view.graph</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_sale_order_graph"/>
+        <field name="inherit_id" ref="sale.view_sale_order_graph" />
         <field name="arch" type="xml">
             <graph position="inside">
-                <field name="margin_percent" invisible="1"/>
+                <field name="margin_percent" invisible="1" />
             </graph>
         </field>
     </record>

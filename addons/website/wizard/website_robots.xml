@@ -6,19 +6,32 @@
         <field name="model">website.robots</field>
         <field name="arch" type="xml">
             <form>
-                <field name="content"/>
+                <field name="content" />
                 <small>
-                    <a role="button" class="btn btn-link" target="_blank" href="https://www.google.com/webmasters/tools/robots-testing-tool">
+                    <a
+                        role="button"
+                        class="btn btn-link"
+                        target="_blank"
+                        href="https://www.google.com/webmasters/tools/robots-testing-tool">
                         Test your robots.txt with Google Search Console
                     </a>
-                    <br/><br/>
-                    Example of rule:<br/>
-                    <code t-translation="off" class='ms-4'>Disallow: /web/login</code><br/>
-                    <code t-translation="off" class='ms-4'>Allow: *</code>
+                    <br /><br />
+                    Example of rule:<br />
+                    <code t-translation="off" class="ms-4">Disallow: /web/login</code><br />
+                    <code t-translation="off" class="ms-4">Allow: *</code>
                 </small>
                 <footer>
-                    <button string="Save" name="action_save" type="object" class="oe_highlight" data-hotkey="q"/>
-                    <button string="Cancel" class="btn btn-default" special="cancel" data-hotkey="x"/>
+                    <button
+                        string="Save"
+                        name="action_save"
+                        type="object"
+                        class="oe_highlight"
+                        data-hotkey="q" />
+                    <button
+                        string="Cancel"
+                        class="btn btn-default"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

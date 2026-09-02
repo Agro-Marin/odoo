@@ -1,7 +1,8 @@
 {
-    'name': 'Jordan - Accounting',
-    'countries': ['jo'],
-    'description': """
+    "name": "Jordan - Accounting",
+    "version": "1.0",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the base module to manage the accounting chart for Jordan in Odoo.
 ==============================================================================
 
@@ -17,19 +18,22 @@ Activates:
 
 - Fiscal positions
     """,
-    'category': 'Accounting/Localizations/Account Charts',
-    'version': '1.0',
-    'depends': [
-        'account',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
+    "countries": [
+        "jo",
     ],
-    'demo': [
-        'demo/demo_company.xml',
-        'demo/demo_partner.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
     ],
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+        "demo/demo_partner.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

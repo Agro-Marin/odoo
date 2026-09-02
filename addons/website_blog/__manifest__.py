@@ -1,11 +1,17 @@
 {
     "name": "Blog",
+    "version": "1.1",
     "category": "Website/Website",
     "sequence": 200,
-    "website": "https://www.odoo.com/app/blog",
     "summary": "Publish blog posts, announces, news",
-    "version": "1.1",
-    "depends": ["website_mail", "website_partner", "html_builder"],
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/blog",
+    "license": "LGPL-3",
+    "depends": [
+        "website_mail",
+        "website_partner",
+        "html_builder",
+    ],
     "data": [
         "data/mail_message_subtype_data.xml",
         "data/mail_templates.xml",
@@ -24,8 +30,9 @@
         "security/ir.model.access.csv",
         "security/website_blog_security.xml",
     ],
-    "demo": ["data/website_blog_demo.xml"],
-    "installable": True,
+    "demo": [
+        "data/website_blog_demo.xml",
+    ],
     "assets": {
         "web.assets_backend": [
             "website_blog/static/src/tours/website_blog.js",
@@ -53,6 +60,5 @@
             "website_blog/static/src/website_builder/**/*",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "installable": True,
 }

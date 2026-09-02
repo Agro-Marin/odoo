@@ -2,6 +2,8 @@
     "name": "Surveys",
     "version": "3.8",
     "category": "Marketing/Surveys",
+    "sequence": 220,
+    "summary": "Send your surveys or share them live.",
     "description": """
 Create beautiful surveys and visualize answers
 ==============================================
@@ -12,8 +14,9 @@ each question may have multiple answers. Different users may give different
 answers of question and according to that survey is done. Partners are also
 sent mails with personal token for the invitation of the survey.
     """,
-    "summary": "Send your surveys or share them live.",
+    "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/surveys",
+    "license": "LGPL-3",
     "depends": [
         "auth_signup",
         "http_routing",
@@ -56,16 +59,19 @@ sent mails with personal token for the invitation of the survey.
         "demo/survey_demo_certification_user_input_line.xml",
         "demo/survey_demo_conditional.xml",
     ],
-    "installable": True,
-    "application": True,
-    "sequence": 220,
     "assets": {
         "survey.survey_assets": [
             "survey/static/src/utils.js",
             "/survey/static/src/interactions/survey_image_zoomer_templates.xml",
             "survey/static/src/js/survey_preload_image_mixin.js",
-            ("include", "web._assets_helpers"),
-            ("include", "web._assets_frontend_helpers"),
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_frontend_helpers",
+            ),
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
@@ -75,7 +81,10 @@ sent mails with personal token for the invitation of the survey.
             "survey/static/src/interactions/survey_breadcrumb_templates.xml",
             "survey/static/src/xml/survey_paginated_results_rows_template.xml",
             "survey/static/src/interactions/*",
-            ("remove", "survey/static/src/interactions/survey_session_manage.js"),
+            (
+                "remove",
+                "survey/static/src/interactions/survey_session_manage.js",
+            ),
         ],
         "survey.survey_user_input_session_assets": [
             "web/static/src/libs/bootstrap.js",
@@ -110,8 +119,6 @@ sent mails with personal token for the invitation of the survey.
             "survey/static/src/js/tours/survey_tour.js",
         ],
     },
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
     "esm": {
         "bundles": [
             "survey.survey_assets",
@@ -124,9 +131,9 @@ sent mails with personal token for the invitation of the survey.
             ],
         },
         "external_libs": {
-            "chartjs-plugin-datalabels": (
-                "/survey/static/lib/chartjs-plugin-datalabels.js"
-            ),
+            "chartjs-plugin-datalabels": "/survey/static/lib/chartjs-plugin-datalabels.js",
         },
     },
+    "installable": True,
+    "application": True,
 }

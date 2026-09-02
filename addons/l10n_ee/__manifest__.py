@@ -1,25 +1,29 @@
 {
-    'name': 'Estonia - Accounting',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html',
-    'version': '1.3',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['ee'],
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Estonia - Accounting",
+    "version": "1.3",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the base module to manage the accounting chart for Estonia in Odoo.
     """,
-    'author': 'Odoo SA',
-    'depends': [
-        'account',
-        'account_edi_ubl_cii',
+    "author": "Odoo SA",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+        "account_edi_ubl_cii",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
-        'views/account_tax_form.xml',
+    "countries": [
+        "ee",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
+        "views/account_tax_form.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

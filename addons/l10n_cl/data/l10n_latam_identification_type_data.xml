@@ -1,28 +1,30 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data noupdate="False">
-        <record model='l10n_latam.identification.type' id='it_RUT'>
-            <field name='name'>RUT</field>
+        <record id="it_RUT" model="l10n_latam.identification.type">
+            <field name="name">RUT</field>
             <field name="name@es_419">RUT</field>
-            <field name='description'>RUT</field>
-            <field name='sequence'>11</field>
-            <field name='is_vat' eval='True'/>
-            <field name='country_id' ref="base.cl"/>
+            <field name="description">RUT</field>
+            <field name="sequence">11</field>
+            <field name="is_vat" eval="True" />
+            <field name="country_id" ref="base.cl" />
         </record>
-        <record model='l10n_latam.identification.type' id='it_RUN'>
-            <field name='name'>RUN</field>
+        <record id="it_RUN" model="l10n_latam.identification.type">
+            <field name="name">RUN</field>
             <field name="name@es_419">RUN</field>
-            <field name='description'>Registration</field>
+            <field name="description">Registration</field>
             <field name="description@es_419">Cédula</field>
-            <field name='sequence'>12</field>
-            <field name='country_id' ref="base.cl"/>
+            <field name="sequence">12</field>
+            <field name="country_id" ref="base.cl" />
         </record>
-        <record model='l10n_latam.identification.type' id='it_DNI'>
-            <field name='name'>ID CARD</field>
+        <record id="it_DNI" model="l10n_latam.identification.type">
+            <field name="name">ID CARD</field>
             <field name="name@es_419">DNI</field>
-            <field name='description'>Foreign ID</field>
-            <field name='sequence'>13</field>
-            <field name='country_id' ref="base.cl"/>
+            <field name="description">Foreign ID</field>
+            <field name="sequence">13</field>
+            <field name="country_id" ref="base.cl" />
         </record>
     </data>
+
 </odoo>

@@ -1,12 +1,8 @@
 {
-    'name': 'Vietnam - Accounting',
-    'icon': '/account/static/description/l10n.png',
-    'countries': ['vn'],
-    'version': '2.0.3',
-    'author': 'General Solutions',
-    'website': 'https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/vietnam.html',
-    'category': 'Accounting/Localizations/Account Charts',
-    'description': """
+    "name": "Vietnam - Accounting",
+    "version": "2.0.3",
+    "category": "Accounting/Localizations/Account Charts",
+    "description": """
 This is the module to manage the accounting chart, bank information for Vietnam in Odoo.
 ========================================================================================
 
@@ -22,19 +18,27 @@ This is the module to manage the accounting chart, bank information for Vietnam 
     - Jean Nguyen - The Bean Family (https://github.com/anhjean/vietqr) for VietQR.
 
 """,
-    'depends': [
-        'account_qr_code_emv',
-        'account_iban',
-        'account',
+    "author": "General Solutions",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/vietnam.html",
+    "icon": "/account/static/description/l10n.png",
+    "license": "LGPL-3",
+    "depends": [
+        "account_qr_code_emv",
+        "account_iban",
+        "account",
     ],
-    'auto_install': ['account'],
-    'data': [
-        'data/account_tax_report_data.xml',
-        'views/account_move_views.xml',
-        'views/res_bank_views.xml',
+    "countries": [
+        "vn",
     ],
-    'demo': [
-        'demo/demo_company.xml',
+    "data": [
+        "data/account_tax_report_data.xml",
+        "views/account_move_views.xml",
+        "views/res_bank_views.xml",
     ],
-    'license': 'LGPL-3',
+    "demo": [
+        "demo/demo_company.xml",
+    ],
+    "auto_install": [
+        "account",
+    ],
 }

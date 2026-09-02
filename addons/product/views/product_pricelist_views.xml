@@ -8,7 +8,10 @@
             <search string="Products Price Search">
                 <field name="name" string="Products Price" />
                 <field name="currency_id" groups="base.group_multi_currency" />
-                <filter string="Archived" name="inactive" domain="[('active','=',False)]" />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active','=',False)]" />
             </search>
         </field>
     </record>
@@ -22,7 +25,11 @@
                     <t t-name="card" class="flex-row fw-bolder">
                         <field name="name" />
                         <div class="ms-auto align-items-center">
-                            <i class="fa-solid fa-money-bill-1" role="img" aria-label="Currency" title="Currency"></i>
+                            <i
+                                class="fa-solid fa-money-bill-1"
+                                role="img"
+                                aria-label="Currency"
+                                title="Currency" />
                             <field name="currency_id" />
                         </div>
                     </t>
@@ -38,7 +45,8 @@
             <list string="Products Price List" sample="1">
                 <field name="sequence" widget="handle" />
                 <field name="name" />
-                <field name="country_group_ids"
+                <field
+                    name="country_group_ids"
                     widget="many2many_tags"
                     placeholder="All countries" />
                 <field name="currency_id" groups="base.group_multi_currency" />
@@ -53,10 +61,16 @@
         <field name="arch" type="xml">
             <form string="Products Price List">
                 <header>
-                    <button name="action_view_pricelist_report" type="object" string="Print" />
+                    <button
+                        name="action_view_pricelist_report"
+                        type="object"
+                        string="Print" />
                 </header>
                 <sheet>
-                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
                         invisible="active" />
                     <div class="oe_title">
                         <h1>
@@ -65,10 +79,15 @@
                     </div>
                     <group>
                         <group name="pricelist_settings">
-                            <field name="currency_id" groups="base.group_multi_currency" />
+                            <field
+                                name="currency_id"
+                                groups="base.group_multi_currency" />
                             <field name="active" invisible="1" />
-                            <field name="company_id" groups="base.group_multi_company"
-                                options="{'no_create': True}" placeholder="Visible to all" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
+                                options="{'no_create': True}"
+                                placeholder="Visible to all" />
                         </group>
                         <group>
                             <field name="country_group_ids" widget="many2many_tags" />
@@ -76,19 +95,27 @@
                     </group>
                     <notebook>
                         <page name="pricelist_rules" string="Sales Prices">
-                            <field name="item_ids" nolabel="1"
+                            <field
+                                name="item_ids"
+                                nolabel="1"
                                 context="{'default_base':'list_price'}">
                                 <list string="Pricelist Rules">
-                                    <field name="product_tmpl_id" column_invisible="True" />
+                                    <field
+                                        name="product_tmpl_id"
+                                        column_invisible="True" />
                                     <field name="name" string="Apply on" />
                                     <field name="price" string="Price" />
                                     <field name="min_quantity" />
                                     <field name="date_start" />
                                     <field name="date_end" />
                                     <field name="base" column_invisible="True" />
-                                    <field name="price_discount" column_invisible="True" />
+                                    <field
+                                        name="price_discount"
+                                        column_invisible="True" />
                                     <field name="applied_on" column_invisible="True" />
-                                    <field name="compute_price" column_invisible="True" />
+                                    <field
+                                        name="compute_price"
+                                        column_invisible="True" />
                                 </list>
                             </field>
                         </page>

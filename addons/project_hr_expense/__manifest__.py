@@ -1,11 +1,15 @@
-
 {
     "name": "Project Expenses",
     "version": "1.0",
     "category": "Services/expenses",
     "summary": "Project expenses",
     "description": "Bridge created to add the number of expenses linked to an AA to a project form",
-    "depends": ["project_account", "hr_expense"],
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "project_account",
+        "hr_expense",
+    ],
     "data": [
         "views/project_project_views.xml",
     ],
@@ -14,6 +18,4 @@
     ],
     "installable": True,
     "auto_install": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

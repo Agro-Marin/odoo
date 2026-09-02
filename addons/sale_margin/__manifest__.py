@@ -9,13 +9,15 @@ This module adds the 'Margin' on sales order.
 This gives the profitability by calculating the difference between the Unit
 Price and Cost Price.
     """,
-    "depends": ["sale_management"],
-    "demo": [
-        "data/sale_margin_demo.xml",
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "sale_management",
     ],
     "data": [
         "views/sale_order_views.xml",
     ],
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "demo": [
+        "data/sale_margin_demo.xml",
+    ],
 }
