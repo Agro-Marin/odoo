@@ -14,7 +14,6 @@ from .test_documents_common import TEXT, TransactionCaseDocuments
 
 
 class TestDocumentsSearchPanelCounters(TransactionCase):
-
     def test_search_panel_counters_do_not_crash_and_roll_up(self):
         Document = self.env["documents.document"]
         parent = Document.create(
@@ -175,7 +174,19 @@ class TestDocumentsClientFieldLists(TransactionCase):
             # [0] is the `[["type", "=", "folder"]]` domain, [1] the field list
             which=1,
         )
-        served = set(self.env["documents.document"]._get_fields_search_panel())
+        # Only the fields THIS module owns. _get_fields_search_panel is
+        # extended by installed bridges -- ai_documents adds ai_sort_prompt --
+        # and this mock serves documents' own JS suite, which runs with
+        # documents' assets and never sees a bridge's field. Comparing against
+        # the live registry made the assertion depend on which modules the
+        # database happens to carry, and demanded that documents enumerate a
+        # field it does not declare.
+        document = self.env["documents.document"]
+        served = {
+            name
+            for name in document._get_fields_search_panel()
+            if (field := document._fields.get(name)) and field._module == "documents"
+        }
         self.assertFalse(
             served - mock_fields,
             "the search panel mock no longer reads every field the route "
