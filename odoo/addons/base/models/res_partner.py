@@ -168,6 +168,21 @@ class ResPartner(models.Model):
         string="Color Index",
         default=0,
     )
+
+    commercial_partner_id = fields.Many2one(
+        "res.partner",
+        string="Commercial Entity",
+        compute="_compute_commercial_partner_id",
+        store=True,
+        recursive=True,
+        index=True,
+    )
+    commercial_company_name = fields.Char(
+        "Company Name Entity",
+        compute="_compute_commercial_company_name",
+        store=True,
+    )
+
     parent_id = fields.Many2one(
         "res.partner",
         string="Related Company",
@@ -302,15 +317,27 @@ class ResPartner(models.Model):
         related="country_id.code",
         string="Country Code",
     )
+    nationality_id = fields.Many2one(
+        "res.country",
+        string="Nationality",
+        help="The country this person is a national of. Distinct from the "
+        "address country, which says where they are: a person may be resident "
+        "in one country and a national of another.",
+    )
     contact_address = fields.Char(
         compute="_compute_contact_address",
         string="Complete Address",
     )
-    partner_latitude = fields.Float(string="Geo Latitude", digits=(10, 7))
-    partner_longitude = fields.Float(string="Geo Longitude", digits=(10, 7))
+    partner_latitude = fields.Float(
+        string="Geo Latitude",
+        digits=(10, 7),
+    )
+    partner_longitude = fields.Float(
+        string="Geo Longitude",
+        digits=(10, 7),
+    )
     function = fields.Char(string="Job Position")
     website = fields.Char("Website Link")
-    comment = fields.Html(string="Notes")
     email = fields.Char()
     email_formatted = fields.Char(
         "Formatted Email",
@@ -319,10 +346,6 @@ class ResPartner(models.Model):
     )
     phone = fields.Char()
     mobile = fields.Char()
-    industry_id = fields.Many2one(
-        "res.partner.industry",
-        "Industry",
-    )
     gender = fields.Selection(
         selection=[
             ("male", "Male"),
@@ -331,12 +354,10 @@ class ResPartner(models.Model):
         ],
     )
     birthdate = fields.Date()
-    nationality_id = fields.Many2one(
-        "res.country",
-        string="Nationality",
-        help="The country this person is a national of. Distinct from the "
-        "address country, which says where they are: a person may be resident "
-        "in one country and a national of another.",
+    comment = fields.Html(string="Notes")
+    industry_id = fields.Many2one(
+        "res.partner.industry",
+        "Industry",
     )
     user_ids: ResUsers = fields.One2many(
         "res.users",
@@ -389,19 +410,6 @@ class ResPartner(models.Model):
         "access or with a limited access created for sharing data.",
     )
 
-    commercial_partner_id = fields.Many2one(
-        "res.partner",
-        string="Commercial Entity",
-        compute="_compute_commercial_partner_id",
-        store=True,
-        recursive=True,
-        index=True,
-    )
-    commercial_company_name = fields.Char(
-        "Company Name Entity",
-        compute="_compute_commercial_company_name",
-        store=True,
-    )
 
     application_statistics = fields.Json(
         string="Stats",
@@ -1652,9 +1660,7 @@ class ResPartner(models.Model):
         if self.env.context.get("tag_id"):
             return _(
                 "Partners: %(tag)s",
-                tag=self.env["res.partner.tag"]
-                .browse(self.env.context["tag_id"])
-                .name,
+                tag=self.env["res.partner.tag"].browse(self.env.context["tag_id"]).name,
             )
         return super().view_header_get(view_id, view_type)
 

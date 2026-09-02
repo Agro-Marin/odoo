@@ -19,9 +19,9 @@ def _get_default_logo():
 class ResCompany(models.Model):
     _name = "res.company"
     _description = "Companies"
+    _inherit = ["mixin.format.address", "mixin.format.vat.label"]
     _order = "sequence, name"
     _rec_names_search = ["code", "name"]
-    _inherit = ["mixin.format.address", "mixin.format.vat.label"]
     _parent_store = True
 
     def copy(self, default: ValuesType | None = None) -> Self:
@@ -37,6 +37,12 @@ class ResCompany(models.Model):
     def _default_currency_id(self) -> models.Model:
         return self.env.user.company_id.currency_id
 
+    partner_id = fields.Many2one(
+        "res.partner",
+        string="Partner",
+        required=True,
+        index=True,
+    )
     name = fields.Char(
         related="partner_id.name",
         string="Company Name",
@@ -44,6 +50,44 @@ class ResCompany(models.Model):
         store=True,
         readonly=False,
     )
+    email = fields.Char(
+        related="partner_id.email",
+        store=True,
+        readonly=False,
+    )
+    phone = fields.Char(
+        related="partner_id.phone",
+        store=True,
+        readonly=False,
+    )
+    website = fields.Char(
+        related="partner_id.website",
+        readonly=False,
+    )
+    vat = fields.Char(
+        related="partner_id.vat",
+        string="Tax ID",
+        readonly=False,
+    )
+    company_registry = fields.Char(
+        related="partner_id.company_registry",
+        string="Company ID",
+        readonly=False,
+    )
+    company_registry_placeholder = fields.Char(
+        related="partner_id.company_registry_placeholder"
+    )
+    logo = fields.Binary(
+        related="partner_id.image_1920",
+        string="Company Logo",
+        default=_default_logo,
+        readonly=False,
+    )
+    bank_ids = fields.One2many(
+        related="partner_id.bank_ids",
+        readonly=False,
+    )
+
     code = fields.Char(
         string="Short Code",
         size=6,
@@ -60,9 +104,10 @@ class ResCompany(models.Model):
     )
     active = fields.Boolean(default=True)
     sequence = fields.Integer(
-        help="Used to order Companies in the company switcher",
         default=10,
+        help="Used to order Companies in the company switcher",
     )
+
     parent_id = fields.Many2one(
         "res.company",
         string="Parent Company",
@@ -90,17 +135,12 @@ class ResCompany(models.Model):
         compute="_compute_hierarchy",
         compute_sudo=True,
     )
+
     currency_id = fields.Many2one(
         "res.currency",
         string="Currency",
         required=True,
         default=lambda self: self._default_currency_id(),
-    )
-    partner_id = fields.Many2one(
-        "res.partner",
-        string="Partner",
-        required=True,
-        index=True,
     )
     user_ids = fields.Many2many(
         "res.users",
@@ -109,10 +149,22 @@ class ResCompany(models.Model):
         "user_id",
         string="Accepted Users",
     )
-    street = fields.Char(compute="_compute_address", inverse="_inverse_street")
-    street2 = fields.Char(compute="_compute_address", inverse="_inverse_street2")
-    zip = fields.Char(compute="_compute_address", inverse="_inverse_zip")
-    city = fields.Char(compute="_compute_address", inverse="_inverse_city")
+    street = fields.Char(
+        compute="_compute_address",
+        inverse="_inverse_street",
+    )
+    street2 = fields.Char(
+        compute="_compute_address",
+        inverse="_inverse_street2",
+    )
+    zip = fields.Char(
+        compute="_compute_address",
+        inverse="_inverse_zip",
+    )
+    city = fields.Char(
+        compute="_compute_address",
+        inverse="_inverse_city",
+    )
     state_id = fields.Many2one(
         "res.country.state",
         compute="_compute_address",
@@ -126,24 +178,9 @@ class ResCompany(models.Model):
         inverse="_inverse_country_id",
         string="Country",
     )
-    country_code = fields.Char(related="country_id.code", depends=["country_id"])
-    email = fields.Char(related="partner_id.email", store=True, readonly=False)
-    phone = fields.Char(related="partner_id.phone", store=True, readonly=False)
-    website = fields.Char(related="partner_id.website", readonly=False)
-    vat = fields.Char(related="partner_id.vat", string="Tax ID", readonly=False)
-    company_registry = fields.Char(
-        related="partner_id.company_registry",
-        string="Company ID",
-        readonly=False,
-    )
-    company_registry_placeholder = fields.Char(
-        related="partner_id.company_registry_placeholder"
-    )
-    logo = fields.Binary(
-        related="partner_id.image_1920",
-        default=_default_logo,
-        string="Company Logo",
-        readonly=False,
+    country_code = fields.Char(
+        related="country_id.code",
+        depends=["country_id"],
     )
     logo_web = fields.Binary(
         compute="_compute_logo_web",
@@ -180,7 +217,10 @@ class ResCompany(models.Model):
             raise_if_not_found=False,
         ),
     )
-    external_report_layout_id = fields.Many2one("ir.ui.view", "Document Template")
+    external_report_layout_id = fields.Many2one(
+        "ir.ui.view",
+        "Document Template",
+    )
     font = fields.Selection(
         [
             ("Lato", "Lato"),
@@ -214,10 +254,6 @@ class ResCompany(models.Model):
     uninstalled_l10n_module_ids = fields.Many2many(
         "ir.module.module",
         compute="_compute_uninstalled_l10n_module_ids",
-    )
-    bank_ids = fields.One2many(
-        related="partner_id.bank_ids",
-        readonly=False,
     )
 
     def init(self) -> None:
@@ -422,15 +458,6 @@ class ResCompany(models.Model):
         self.env.registry.clear_cache()
         return res
 
-    def _get_field_names_delegated_to_root(self) -> list[str]:
-        return ["currency_id"]
-
-    def _get_address_field_names(self) -> list[str]:
-        return ["street", "street2", "city", "zip", "state_id", "country_id"]
-
-    def _get_company_address_update(self, partner: Any) -> dict[str, Any]:
-        return {fname: partner[fname] for fname in self._get_address_field_names()}
-
     @api.depends("parent_path")
     def _compute_hierarchy(self) -> None:
         for company in self.with_context(active_test=False):
@@ -453,30 +480,6 @@ class ResCompany(models.Model):
                 partner = company.partner_id.browse(address_data["contact"]).sudo()
                 company.update(company._get_company_address_update(partner))
 
-    def _inverse_street(self) -> None:
-        for company in self:
-            company.partner_id.street = company.street
-
-    def _inverse_street2(self) -> None:
-        for company in self:
-            company.partner_id.street2 = company.street2
-
-    def _inverse_zip(self) -> None:
-        for company in self:
-            company.partner_id.zip = company.zip
-
-    def _inverse_city(self) -> None:
-        for company in self:
-            company.partner_id.city = company.city
-
-    def _inverse_state_id(self) -> None:
-        for company in self:
-            company.partner_id.state_id = company.state_id
-
-    def _inverse_country_id(self) -> None:
-        for company in self:
-            company.partner_id.country_id = company.country_id
-
     @api.depends("partner_id.image_1920")
     def _compute_logo_web(self) -> None:
         for company in self:
@@ -497,27 +500,6 @@ class ResCompany(models.Model):
             company.color = company.root_id.partner_id.color or (
                 company.root_id._origin.id % 12
             )
-
-    def _inverse_color(self) -> None:
-        for company in self:
-            company.root_id.partner_id.color = company.color
-
-    @api.onchange("state_id")
-    def _onchange_state_id(self) -> None:
-        if self.state_id.country_id:
-            self.country_id = self.state_id.country_id
-
-    @api.onchange("country_id")
-    def _onchange_country_id(self) -> None:
-        if self.country_id:
-            self.currency_id = self.country_id.currency_id
-
-    @api.onchange("parent_id")
-    def _onchange_parent_id(self) -> None:
-        if self.parent_id:
-            for fname in self._get_field_names_delegated_to_root():
-                if self[fname] != self.parent_id[fname]:
-                    self[fname] = self.parent_id[fname]
 
     @api.depends("country_id")
     def _compute_uninstalled_l10n_module_ids(self) -> None:
@@ -561,6 +543,70 @@ class ResCompany(models.Model):
                 mapping.get(company.country_id.id)
             )
 
+    @api.depends("code", "name")
+    def _compute_complete_name(self) -> None:
+        for company in self:
+            company.complete_name = " - ".join(
+                part for part in (company.code, company.name) if part
+            )
+
+    @api.depends("code", "name")
+    def _compute_display_name(self) -> None:
+        for company in self:
+            company.display_name = company.code or company.name
+
+    @api.depends("company_details")
+    def _compute_is_company_details_empty(self) -> None:
+        for record in self:
+            record.is_company_details_empty = not html2plaintext(
+                record.company_details or ""
+            )
+
+    def _inverse_street(self) -> None:
+        for company in self:
+            company.partner_id.street = company.street
+
+    def _inverse_street2(self) -> None:
+        for company in self:
+            company.partner_id.street2 = company.street2
+
+    def _inverse_zip(self) -> None:
+        for company in self:
+            company.partner_id.zip = company.zip
+
+    def _inverse_city(self) -> None:
+        for company in self:
+            company.partner_id.city = company.city
+
+    def _inverse_state_id(self) -> None:
+        for company in self:
+            company.partner_id.state_id = company.state_id
+
+    def _inverse_country_id(self) -> None:
+        for company in self:
+            company.partner_id.country_id = company.country_id
+
+    def _inverse_color(self) -> None:
+        for company in self:
+            company.root_id.partner_id.color = company.color
+
+    @api.onchange("state_id")
+    def _onchange_state_id(self) -> None:
+        if self.state_id.country_id:
+            self.country_id = self.state_id.country_id
+
+    @api.onchange("country_id")
+    def _onchange_country_id(self) -> None:
+        if self.country_id:
+            self.currency_id = self.country_id.currency_id
+
+    @api.onchange("parent_id")
+    def _onchange_parent_id(self) -> None:
+        if self.parent_id:
+            for fname in self._get_field_names_delegated_to_root():
+                if self[fname] != self.parent_id[fname]:
+                    self[fname] = self.parent_id[fname]
+
     def install_l10n_modules(self) -> Any:
         uninstalled_modules = self.uninstalled_l10n_module_ids
         is_ready_and_not_test = (
@@ -575,32 +621,6 @@ class ResCompany(models.Model):
         return is_ready_and_not_test
 
     @api.model
-    def _get_view(
-        self,
-        view_id: int | None = None,
-        view_type: str = "form",
-        **options: Any,
-    ) -> tuple:
-        delegated_fnames = set(self._get_field_names_delegated_to_root())
-        arch, view = super()._get_view(view_id, view_type, **options)
-        for f in arch.iter("field"):
-            if f.get("name") in delegated_fnames:
-                f.set("readonly", "parent_id != False")
-        return arch, view
-
-    @api.depends("code", "name")
-    def _compute_complete_name(self) -> None:
-        for company in self:
-            company.complete_name = " - ".join(
-                part for part in (company.code, company.name) if part
-            )
-
-    @api.depends("code", "name")
-    def _compute_display_name(self) -> None:
-        for company in self:
-            company.display_name = company.code or company.name
-
-    @api.model
     def _search_display_name(self, operator: str, value: str) -> Domain:
         context = dict(self.env.context)
         newself = self
@@ -613,13 +633,6 @@ class ResCompany(models.Model):
         domain = super(ResCompany, newself)._search_display_name(operator, value)
         return domain & constraint
 
-    @api.depends("company_details")
-    def _compute_is_company_details_empty(self) -> None:
-        for record in self:
-            record.is_company_details_empty = not html2plaintext(
-                record.company_details or ""
-            )
-
     def cache_invalidation_fields(self) -> set[str]:
         return {
             "active",
@@ -627,16 +640,19 @@ class ResCompany(models.Model):
             "partner_id",
         }
 
-    @api.model
-    def _get_main_company(self) -> Self:
-        try:
-            main_company = self.sudo().env.ref("base.main_company")
-        except ValueError:
-            main_company = (
-                self.env["res.company"].sudo().search([], limit=1, order="id")
-            )
-
-        return main_company
+    def action_all_company_branches(self) -> dict[str, Any]:
+        self.check_singleton()
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.env._("Branches"),
+            "res_model": "res.company",
+            "domain": [("parent_id", "=", self.id)],
+            "context": {
+                "active_test": False,
+                "default_parent_id": self.id,
+            },
+            "views": [[False, "list"], [False, "kanban"], [False, "form"]],
+        }
 
     @ormcache("tuple(self.env.companies.ids)", "self.id", "self.env.uid")
     def __accessible_branches(self) -> list[int]:
@@ -662,6 +678,15 @@ class ResCompany(models.Model):
     def _accessible_branches(self) -> Self:
         return self.browse(self.__accessible_branches())
 
+    def _get_field_names_delegated_to_root(self) -> list[str]:
+        return ["currency_id"]
+
+    def _get_address_field_names(self) -> list[str]:
+        return ["street", "street2", "city", "zip", "state_id", "country_id"]
+
+    def _get_company_address_update(self, partner: Any) -> dict[str, Any]:
+        return {fname: partner[fname] for fname in self._get_address_field_names()}
+
     @ormcache()
     def _get_company_partner_ids(self):
         return tuple(
@@ -672,22 +697,16 @@ class ResCompany(models.Model):
             .partner_id.ids
         )
 
-    def _is_every_branch_selected(self) -> bool:
-        return self == self.sudo().search([("id", "child_of", self.root_id.ids)])
+    @api.model
+    def _get_main_company(self) -> Self:
+        try:
+            main_company = self.sudo().env.ref("base.main_company")
+        except ValueError:
+            main_company = (
+                self.env["res.company"].sudo().search([], limit=1, order="id")
+            )
 
-    def action_all_company_branches(self) -> dict[str, Any]:
-        self.check_singleton()
-        return {
-            "type": "ir.actions.act_window",
-            "name": self.env._("Branches"),
-            "res_model": "res.company",
-            "domain": [("parent_id", "=", self.id)],
-            "context": {
-                "active_test": False,
-                "default_parent_id": self.id,
-            },
-            "views": [[False, "list"], [False, "kanban"], [False, "form"]],
-        }
+        return main_company
 
     def _get_public_user(self) -> models.Model:
         self.check_singleton()
@@ -712,3 +731,20 @@ class ResCompany(models.Model):
                 }
             )
         )
+
+    @api.model
+    def _get_view(
+        self,
+        view_id: int | None = None,
+        view_type: str = "form",
+        **options: Any,
+    ) -> tuple:
+        delegated_fnames = set(self._get_field_names_delegated_to_root())
+        arch, view = super()._get_view(view_id, view_type, **options)
+        for f in arch.iter("field"):
+            if f.get("name") in delegated_fnames:
+                f.set("readonly", "parent_id != False")
+        return arch, view
+
+    def _is_every_branch_selected(self) -> bool:
+        return self == self.sudo().search([("id", "child_of", self.root_id.ids)])
