@@ -14,7 +14,7 @@ from odoo.exceptions import (
 )
 from odoo.libs import backoff
 from odoo.modules.registry import Registry
-from odoo.service._limits import get_job_real_time_budget
+from odoo.service import get_job_real_time_budget
 from odoo.tests import common
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import SQL, mute_logger

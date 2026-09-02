@@ -1223,7 +1223,7 @@ the pair is a decision and an act, and both names are load-bearing.
 **A reserved verb frozen into a wire name is a reason to look, not a reason to
 keep** ``[review]``. ``odoo/db``'s ``PoolStats`` counts pools dropped because
 their credentials changed, under ``pools_evicted_stale``, which
-``service/_metrics.py`` exports as ``odoo_pool_evicted_stale_total``. The
+``service/metrics.py`` exports as ``odoo_pool_evicted_stale_total``. The
 reserved row above gives ``_evict_`` to **capacity** eviction -- which entries
 go, not whether what stays is valid -- and a credential change is the other
 question entirely, so the Python half is misnamed and the Prometheus half is a

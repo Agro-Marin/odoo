@@ -1,6 +1,6 @@
 import inspect
 
-from odoo.http._protocols import HttpExtension
+from odoo.http import HttpExtension
 from odoo.tests import TransactionCase, tagged
 
 

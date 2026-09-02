@@ -88,7 +88,10 @@ def _violates(module: str, src: str) -> bool:
             continue
         for target, _ in col.found:
             if (
-                lc._matches(target, c.forbidden)
+                (
+                    lc._matches(target, c.forbidden)
+                    or lc._is_private_module_under(target, c.forbidden_private_under)
+                )
                 and not lc._matches(target, c.allow)
                 and target not in c.allow_exact
                 and not lc._matches(target, c.source)
@@ -146,6 +149,38 @@ def test_addon_importing_facades_is_clean():
         "from odoo.tools import SQL\n",
     ):
         assert not _violates("odoo.addons.base.models.res_users", src), src
+
+
+def test_addon_importing_a_private_http_module_is_a_violation():
+    assert _violates(
+        "odoo.addons.web.controllers.home",
+        "from odoo.http._params import ParamSpec\n",
+    )
+    assert _violates(
+        "odoo.addons.web.controllers.home",
+        "from odoo.service._limits import get_job_real_time_budget\n",
+    )
+    assert _violates("addons.web.controllers.home", "import odoo.service._env\n")
+
+
+def test_addon_importing_the_public_serving_surface_is_clean():
+    assert not _violates(
+        "odoo.addons.web.controllers.home",
+        "from odoo.http import ParamSpec, request\n"
+        "from odoo.service import get_env_str, security\n"
+        "from odoo.service.metrics import render_prometheus_exposition\n",
+    )
+
+
+def test_a_private_attribute_of_a_public_module_is_not_a_private_module():
+    assert not lc._is_private_module_under("odoo.http._request_stack", ("odoo.http",))
+    assert lc._is_private_module_under("odoo.http._params.ParamSpec", ("odoo.http",))
+    assert not lc._is_private_module_under("odoo.http._params", ("odoo.service",))
+
+
+def test_the_serving_tier_may_reach_its_own_private_modules():
+    assert not _violates("odoo.service.lifecycle", "from . import _process_state\n")
+    assert not _violates("odoo.http.dispatcher", "from ._params import coerce_params\n")
 
 
 def test_addon_type_checking_import_of_orm_is_exempt():

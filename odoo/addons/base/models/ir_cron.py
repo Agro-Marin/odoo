@@ -23,7 +23,7 @@ from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules import Manifest
 from odoo.modules.loading import reset_modules_state
 from odoo.modules.registry import Registry
-from odoo.service._limits import get_cron_real_time_budget
+from odoo.service import get_cron_real_time_budget
 from odoo.service.transaction import retrying
 from odoo.tools import SQL, str2bool
 from odoo.tools.constants import CRON_TRIGGER_CHANNEL

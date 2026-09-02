@@ -28,7 +28,7 @@ from odoo.libs import backoff
 from odoo.libs.worker_thread import working_on_database
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules.registry import Registry
-from odoo.service._limits import get_job_real_time_budget
+from odoo.service import get_job_real_time_budget
 from odoo.tools import SQL
 from odoo.tools.constants import JOB_QUEUE_CHANNEL
 

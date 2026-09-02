@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from odoo.service import _metrics
+from odoo.service import metrics
 
 
 def _samples(text):
@@ -59,9 +59,9 @@ _HEALTH = {
 
 @pytest.fixture
 def two_pools():
-    exp = _metrics._Exposition({"pid": "1"})
-    _metrics._add_pool_family(exp, "read_write", _HEALTH)
-    _metrics._add_pool_family(exp, "read_only", _HEALTH)
+    exp = metrics._Exposition({"pid": "1"})
+    metrics._add_pool_family(exp, "read_write", _HEALTH)
+    metrics._add_pool_family(exp, "read_only", _HEALTH)
     return exp.render()
 
 
@@ -118,19 +118,19 @@ class TestHistogramShape:
             block = [
                 l
                 for l in lines
-                if _family_of(l).startswith(_metrics._BORROW_WAIT)
+                if _family_of(l).startswith(metrics._BORROW_WAIT)
                 and not _family_of(l).endswith("_max")
                 and f'pool="{pool}"' in l
             ]
             assert "_bucket" in block[0]
-            assert block[-2].startswith(f"{_metrics._BORROW_WAIT}_sum")
-            assert block[-1].startswith(f"{_metrics._BORROW_WAIT}_count")
+            assert block[-2].startswith(f"{metrics._BORROW_WAIT}_sum")
+            assert block[-1].startswith(f"{metrics._BORROW_WAIT}_count")
 
     def test_an_unsorted_bucket_dict_is_still_rendered_ascending(self):
-        exp = _metrics._Exposition()
-        exp.declare(_metrics._BORROW_WAIT, "histogram")
+        exp = metrics._Exposition()
+        exp.declare(metrics._BORROW_WAIT, "histogram")
         for edge in ("le_+Inf", "le_1.0", "le_0.001"):
-            exp.sample(f"{_metrics._BORROW_WAIT}_bucket", 1, labels={"le": edge[3:]})
+            exp.sample(f"{metrics._BORROW_WAIT}_bucket", 1, labels={"le": edge[3:]})
         edges = [l.split('le="')[1].split('"')[0] for l in _samples(exp.render())]
         assert edges == ["0.001", "1.0", "+Inf"]
 
@@ -149,14 +149,14 @@ class TestValueFormatting:
         ],
     )
     def test_special_floats_use_the_exposition_spelling(self, value, rendered):
-        exp = _metrics._Exposition()
+        exp = metrics._Exposition()
         exp.add("m", value)
         assert _samples(exp.render()) == [f"m {rendered}"]
 
 
 class TestUndeclaredSamplesAreNotDropped:
     def test_a_sample_with_no_declaration_gets_an_untyped_family(self):
-        exp = _metrics._Exposition()
+        exp = metrics._Exposition()
         exp.sample("stray", 1)
         text = exp.render()
         assert "# TYPE stray untyped" in text

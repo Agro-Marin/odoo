@@ -44,6 +44,8 @@ from .exceptions import (
     abort,
 )
 
+from ._params import ParamSpec, coerce_params, get_param_specs
+
 from ._protocols import HttpExtension
 
 from .helpers import (
@@ -169,6 +171,7 @@ __all__ = [
     "Locked",
     "MethodNotAllowed",
     "NotFound",
+    "ParamSpec",
     "RegistryError",
     "Request",
     "RequestEntityTooLarge",
@@ -191,11 +194,13 @@ __all__ = [
     "_request_stack",
     "abort",
     "borrow_request",
+    "coerce_params",
     "content_disposition",
     "db_filter",
     "db_list",
     "dispatch_rpc",
     "fragment_to_query_string",
+    "get_param_specs",
     "get_session_max_inactivity",
     "invalidate_db_list_cache",
     "is_cors_preflight",

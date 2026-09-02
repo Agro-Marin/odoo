@@ -1,4 +1,4 @@
-from odoo.http._params import ParamSpec
+from odoo.http import ParamSpec
 from odoo.http.openapi import (
     RouteInfo,
     param_spec_to_schema,

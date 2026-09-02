@@ -9,7 +9,7 @@ from odoo.service import _process_state
 
 @pytest.fixture(scope="module")
 def mod():
-    import odoo.service._metrics as m
+    import odoo.service.metrics as m
 
     return m
 
@@ -19,7 +19,7 @@ def pooled_db():
     from odoo import db
 
     assert hasattr(db, "get_pool_health"), (
-        "odoo.db.get_pool_health is gone, but odoo/service/_metrics.py still calls "
+        "odoo.db.get_pool_health is gone, but odoo/service/metrics.py still calls "
         "it while building the exposition — /metrics would raise"
     )
     return db

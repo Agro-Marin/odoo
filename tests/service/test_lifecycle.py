@@ -421,9 +421,9 @@ class TestServerPhoenixSingleSourceOfTruth:
 
     def test_no_other_module_keeps_a_copy(self):
         """A second binding is a second answer the moment either is written."""
-        from odoo.service import _factory, _metrics, _threaded, _watcher, lifecycle
+        from odoo.service import _factory, _threaded, _watcher, lifecycle, metrics
 
-        for mod in (_factory, _metrics, _threaded, _watcher, lifecycle):
+        for mod in (_factory, metrics, _threaded, _watcher, lifecycle):
             for name in ("server", "server_phoenix"):
                 assert name not in vars(mod), (
                     f"{mod.__name__} binds {name} itself; writes through "

@@ -58,7 +58,8 @@ odoo/
 │   └── transaction (the retrying() primitive), model, security, common,
 │       _dispatch (one arity policy for the common/db RPC tables),
 │       _env, _limits (time/memory/back-off budgets),
-│       _db_helpers, _dump_scanner, _metrics
+│       _db_helpers, _dump_scanner, metrics (the Prometheus exposition
+│       web serves at /web/metrics)
 ├── modules/        The module graph (iterated by phase, dependency depth,
 │   │               then name) and what loads it
 │   └── module_graph, module, loading, migration, db, neutralize,
@@ -90,7 +91,7 @@ classes import (preload, the re-exec, resident-registry sizing);
 `_process_state` holds the `server` and `server_phoenix` globals they reach for;
 `_factory` picks a class and runs it, so it sits above all three. While those
 three jobs shared one module the graph was two-way, and `lifecycle`, `_watcher`,
-`_metrics`, `_threaded` and `_prefork` each carried a function-body import to
+`metrics`, `_threaded` and `_prefork` each carried a function-body import to
 work around it. None does now.
 
 > **Notation.** A name ending in `/` is a directory and a bare name is a module,
@@ -207,6 +208,18 @@ Addon code imports **`odoo.api`, `odoo.fields`, `odoo.models`** — never
 addon imports. `facade-boundary` fails CI on any runtime `odoo.orm.*` import
 under either addon tree (`if TYPE_CHECKING:` exempt). ADR-0008.
 
+The serving tier has the same rule in a different shape. `odoo.http` and
+`odoo.service` are packages whose public door is the package itself —
+`odoo.http.ParamSpec`, `odoo.http.HttpExtension`, `odoo.service.get_env_str`,
+`odoo.service.get_job_real_time_budget`, `odoo.service.metrics` — and whose
+underscore-prefixed modules (`http/_params.py`, `service/_limits.py`,
+`service/_env.py`) are theirs alone. `facade-boundary` also fails CI on an
+addon importing a private module of either package: a path component starting
+with `_` that resolves to a module on disk. `web`'s Prometheus endpoint read
+`odoo.service._metrics` and `_env`, `base`'s cron and job runners read
+`_limits`, and `test_http` read `_params` and `_protocols` until every one of
+those had a public name.
+
 | Tree | Module name | Note |
 |---|---|---|
 | `odoo/addons/` | `odoo.addons.*` | `base` plus the `test_*` suites |
@@ -306,7 +319,7 @@ definition that runs.
 | `orm-layer1-below-models-and-runtime` | `orm/fields` & `orm/domain` must not import `orm/models` or `orm/runtime` | ✅ clean |
 | `orm-models-below-runtime` | `orm/models` (Layer 2) must not import `orm/runtime` (Layer 3) | ✅ clean |
 | `orm-seams-stay-below-models-and-runtime` | `orm/_recordset` & `orm/decorators` must not import `orm/models` or `orm/runtime` | ✅ clean |
-| `facade-boundary` | addon code (`odoo/addons/**` **and** the repo-root `addons/**`) must not import `odoo.orm.*` (use `odoo.api`/`odoo.fields`/`odoo.models`) | ✅ clean |
+| `facade-boundary` | addon code (`odoo/addons/**` **and** the repo-root `addons/**`) must not import `odoo.orm.*` (use `odoo.api`/`odoo.fields`/`odoo.models`), nor a private module of `odoo.service` or `odoo.http` (`odoo.http._params`, `odoo.service._limits` — use what the package exports) | ✅ clean |
 | `core-does-not-depend-on-addons` | core packages must not import `odoo.addons.<module>` (bare `odoo.addons` for `__path__` discovery is fine) | ✅ 0 new, 2 pinned rules |
 | `db-resilience-below-connectivity` | `db/` `[resilience]` (breaker, lag, budget, leaks, reaper, probe, metrics, stats) must not import `[connectivity]` (pool, cursor, ddl, schema, savepoint, schema_cache, bulk, lifecycle, endpoints, replica) | ✅ clean |
 | `http-features-below-serving` | `http/` `[features]` (openapi, `_params`, geoip) and `[foundation]` (constants, exceptions, `_protocols`) must not import `[serving]` | ✅ clean |

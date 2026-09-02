@@ -26,6 +26,10 @@ class Contract:
     rationale: str
     allow_exact: tuple[str, ...] = ()
     source_exact: tuple[str, ...] = ()
+    # Packages whose underscore-prefixed submodules (a path component starting
+    # with `_` that resolves to a module or package on disk) are private to the
+    # package: `odoo.http._params` is forbidden, `odoo.http.request` is not.
+    forbidden_private_under: tuple[str, ...] = ()
     # True when the contract bounds *import-time* cost rather than use: an
     # import inside a function body creates no load-time edge and is the
     # sanctioned way to satisfy such a contract.
@@ -267,10 +271,15 @@ CONTRACTS: tuple[Contract, ...] = (
         source=("odoo.addons", "addons"),
         forbidden=("odoo.orm",),
         allow=(),
+        forbidden_private_under=("odoo.service", "odoo.http"),
         rationale=(
             "Addon and application code imports model features from the public facades "
             "(odoo.api, odoo.fields, odoo.models), never from odoo.orm.* internals, so "
-            "the ORM stays free to evolve behind a stable surface."
+            "the ORM stays free to evolve behind a stable surface. The same holds for "
+            "the serving tier's private modules: what an addon needs of odoo.service "
+            "or odoo.http is exported by the package (odoo.http.ParamSpec, "
+            "odoo.service.get_env_str, odoo.service.metrics), never reached through "
+            "an underscore-prefixed module such as odoo.http._params."
         ),
     ),
     Contract(
@@ -470,6 +479,24 @@ def _matches(dotted: str, prefixes: tuple[str, ...]) -> bool:
     return any(dotted == p or dotted.startswith(p + ".") for p in prefixes)
 
 
+def _is_module_on_disk(path: Path) -> bool:
+    return path.with_suffix(".py").is_file() or (path / "__init__.py").is_file()
+
+
+def _is_private_module_under(dotted: str, packages: tuple[str, ...]) -> bool:
+    for package in packages:
+        if not dotted.startswith(package + "."):
+            continue
+        path = ROOT.joinpath(*package.split("."))
+        for part in dotted[len(package) + 1 :].split("."):
+            path /= part
+            if not _is_module_on_disk(path):
+                break
+            if part.startswith("_"):
+                return True
+    return False
+
+
 _CORE_TEST_FRAMEWORK_PACKAGE = ("odoo", "tests")
 
 
@@ -541,7 +568,10 @@ def violations_for(
             continue
         reported: set[tuple[int, str]] = set()
         for target, lineno in imports:
-            if not _matches(target, contract.forbidden):
+            if not (
+                _matches(target, contract.forbidden)
+                or _is_private_module_under(target, contract.forbidden_private_under)
+            ):
                 continue
             if contract.module_scope_only and lineno in deferred:
                 continue

@@ -1,6 +1,6 @@
 from werkzeug.exceptions import BadRequest
 
-from odoo.http._params import ParamSpec, coerce_params, get_param_specs
+from odoo.http import ParamSpec, coerce_params, get_param_specs
 from odoo.tests import BaseCase, tagged
 
 from odoo.addons.test_http.tests.test_common import TestHttpBase

@@ -12,10 +12,9 @@ from odoo import http
 from odoo.exceptions import AccessError
 from odoo.http import Response, request
 from odoo.libs.json import dumps as json_dumps
-from odoo.service import security
-from odoo.service._env import get_env_str
-from odoo.service._metrics import CONTENT_TYPE as METRICS_CONTENT_TYPE
-from odoo.service._metrics import render_prometheus_exposition
+from odoo.service import get_env_str, security
+from odoo.service.metrics import CONTENT_TYPE as METRICS_CONTENT_TYPE
+from odoo.service.metrics import render_prometheus_exposition
 from odoo.tools import config, str2bool
 from odoo.tools.json import orjson_default
 from odoo.tools.misc import consteq, hmac
