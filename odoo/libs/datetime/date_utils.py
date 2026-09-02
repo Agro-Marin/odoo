@@ -12,6 +12,9 @@ __all__ = [
     "get_timedelta",
     "localized",
     "parse_iso_date",
+    "real_cpu_time",
+    "real_datetime_now",
+    "real_time",
     "start_of",
     "subtract",
     "sum_intervals",
@@ -24,6 +27,7 @@ __all__ = [
 
 import calendar
 import math
+import time as _time
 from datetime import date, datetime, time, timedelta, tzinfo
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -318,3 +322,8 @@ def weekstart(locale: babel.Locale, date: date) -> date:
 
 def weekend(locale: babel.Locale, date: date) -> date:
     return weekstart(locale, date) + relativedelta(days=6)
+
+
+real_time = _time.time
+real_cpu_time = _time.thread_time
+real_datetime_now = datetime.now

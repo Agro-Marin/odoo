@@ -20,9 +20,11 @@ from .date_utils import (
     weeknumber,
     weekstart,
     weekend,
+    real_cpu_time,
+    real_datetime_now,
+    real_time,
 )
 
-from .clock import real_cpu_time, real_datetime_now, real_time
 from .tz import (
     utc,
     timezone,
