@@ -335,3 +335,36 @@ class TestIrSequenceDateRangeSeeding(TransactionCase):
         rng = self._make_range(2036, number_next=42)
         self.assertEqual(rng.number_next, 42)
         self.assertEqual(self.seq.next_by_id(sequence_date=date(2036, 6, 1)), "042")
+
+
+class TestIrSequenceDateRangeUnlinkDropsPgSequences(TransactionCase):
+    def _pg_sequences(self, names):
+        self.env.cr.execute(
+            "SELECT relname FROM pg_class WHERE relkind = 'S' AND relname = ANY(%s)",
+            (list(names),),
+        )
+        return {row[0] for row in self.env.cr.fetchall()}
+
+    def test_unlink_drops_the_date_range_pg_sequences(self):
+        seq = self.env["ir.sequence"].create(
+            {
+                "code": "test_sequence_unlink_leak",
+                "name": "Unlink leak",
+                "implementation": "standard",
+                "use_date_range": True,
+            }
+        )
+        seq.next_by_id()
+        self.env.flush_all()
+        ranges = seq.date_range_ids
+        self.assertTrue(ranges, "precondition: a date range was materialized")
+        names = [seq._pg_sequence_name(), *(r._pg_sequence_name() for r in ranges)]
+        self.assertEqual(self._pg_sequences(names), set(names))
+
+        seq.unlink()
+        self.env.flush_all()
+        self.assertEqual(
+            self._pg_sequences(names),
+            set(),
+            "unlink must drop the main and every date-range PostgreSQL sequence",
+        )

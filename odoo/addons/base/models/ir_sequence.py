@@ -302,7 +302,13 @@ class IrSequence(models.Model):
         return seqs
 
     def unlink(self) -> bool:
-        _drop_sequences(self.env.cr, [x._pg_sequence_name() for x in self])
+        _drop_sequences(
+            self.env.cr,
+            [
+                *(x._pg_sequence_name() for x in self),
+                *(r._pg_sequence_name() for r in self.date_range_ids),
+            ],
+        )
         return super().unlink()
 
     def write(self, vals: dict[str, Any]) -> bool:
@@ -443,10 +449,6 @@ class IrSequence(models.Model):
             + f"{number_next:0{max(0, self.padding)}d}"
             + interpolated_suffix
         )
-
-    @api.model
-    def _get_interpolation_formats(self) -> dict[str, str]:
-        return dict(_INTERPOLATION_FORMATS)
 
     @api.model
     def _get_interpolation_mapping(self, date=None, range_date=None) -> dict[str, str]:
