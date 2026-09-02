@@ -4,7 +4,9 @@ import base64
 import logging
 from typing import Any
 
-from .guess import decode, guess_mimetype, looks_like_text
+from odoo.libs.filesystem import guess_mimetype
+
+from .guess import decode, looks_like_text
 from .readers import (
     BARCODES,
     DATA,
@@ -64,7 +66,7 @@ class Document:
             raise ValueError("A document needs data.")
         self.data: bytes = data
         self.name: str = name
-        self.mimetype: str = guess_mimetype(data, mimetype)
+        self.mimetype: str = guess_mimetype(data, declared=mimetype)
         self.options: dict[str, Any] = options
         self._derived: dict[str, Any] = {}
 

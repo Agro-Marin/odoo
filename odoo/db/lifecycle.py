@@ -3,11 +3,10 @@ from __future__ import annotations
 from time import monotonic
 
 import psycopg
+from psycopg.adapt import Loader
 from psycopg_pool import ConnectionPool as _PsycopgPool
 
 from odoo import tools
-
-from .utils import register_adapters
 
 _PREPARE_THRESHOLD = 2
 """Executions of one statement text before psycopg prepares it server-side.
@@ -45,6 +44,15 @@ def clear_prepared_cache(conn: psycopg.Connection) -> bool:
     except Exception:
         return False
     return True
+
+
+class _NumericToFloatLoader(Loader):
+    def load(self, data: bytes) -> float:
+        return float(data)
+
+
+def register_adapters(conn: psycopg.Connection) -> None:
+    conn.adapters.register_loader("numeric", _NumericToFloatLoader)
 
 
 def _configure_connection(conn: psycopg.Connection) -> None:

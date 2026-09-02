@@ -30,11 +30,10 @@ from .errors import (
     mark_stale_cached_plan,
 )
 from .lifecycle import clear_prepared_cache
-from .metrics import _MetricsMixin
+from .metrics import _MetricsMixin, categorize_query
 from .pool import ConnectionPool
 from .savepoint import Savepoint, _FlushingSavepoint
 from .schema_cache import TransactionSchemaCache
-from .utils import categorize_query
 
 if TYPE_CHECKING:
     from odoo.orm.runtime import Transaction

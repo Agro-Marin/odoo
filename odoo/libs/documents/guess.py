@@ -1,12 +1,8 @@
 from __future__ import annotations
 
 import codecs
-import json
 
 import chardet
-
-from odoo.libs.filesystem import UNKNOWN_MIMETYPE
-from odoo.libs.filesystem import guess_mimetype as _guess_mimetype
 
 # Bytes handed to chardet per `feed` call. Only affects how often the detector
 # is asked whether it is done, not what it sees -- see `guess_encoding`.
@@ -14,7 +10,6 @@ from odoo.libs.filesystem import guess_mimetype as _guess_mimetype
 __all__ = [
     "decode",
     "guess_encoding",
-    "guess_mimetype",
 ]
 _ENCODING_CHUNK = 1 << 16
 
@@ -24,10 +19,6 @@ _BOM_MAP = {
     "utf-32le": codecs.BOM_UTF32_LE,
     "utf-32be": codecs.BOM_UTF32_BE,
 }
-
-_UNPLACED = frozenset(
-    {"", UNKNOWN_MIMETYPE, "text/plain", "application/x-empty", "binary/octet-stream"}
-)
 
 
 def guess_encoding(data: bytes) -> str | None:
@@ -93,62 +84,3 @@ def looks_like_text(text: str) -> bool:
         return False
     control = sum(1 for c in text[:4096] if c < " " and c not in "\t\n\r\f\v")
     return control <= len(text[:4096]) // 20
-
-
-def guess_mimetype(data: bytes, declared: str = "") -> str:
-    """What ``data`` is, preferring a declaration that says something.
-
-    ``declared`` wins because the producer usually knows better than a probe --
-    but only when it says something. ``ir.attachment`` stores
-    ``application/octet-stream`` for anything the upload did not label, and
-    honouring that is how a readable document ends up providing nothing.
-
-    :param bytes data: the whole file
-    :param str declared: the mimetype the caller was handed, if any
-    :rtype: str
-    """
-    declared = (declared or "").lower()
-    if declared and declared not in _UNPLACED:
-        return declared
-
-    mimetype = _guess_mimetype(data or b"").lower()
-    if mimetype not in _UNPLACED:
-        return mimetype
-
-    # libmagic places structured text only by its declaration, so an XML
-    # document with no `<?xml ?>` prolog -- which plenty of EDI payloads are --
-    # comes back as text/plain and loses its tree. JSON is placed correctly
-    # today; probing for it keeps the two symmetric.
-    #
-    # The probe PARSES rather than peeking at the first byte. A note that opens
-    # `<note> this is prose` peeks identically to a document and is not one,
-    # and calling it XML costs it its text: no reader can parse it, and the
-    # decode path is no longer reached. Parsing is the only test that
-    # distinguishes them, and it runs only for text libmagic could not place.
-    head = data.lstrip()[:1]
-    if head == b"<" and _parses_as_xml(data):
-        return "application/xml"
-    if head in (b"{", b"[") and _parses_as_json(data):
-        return "application/json"
-    return mimetype or UNKNOWN_MIMETYPE
-
-
-def _parses_as_xml(data: bytes) -> bool:
-    try:
-        from lxml import etree
-
-        etree.fromstring(
-            data,
-            parser=etree.XMLParser(resolve_entities=False, decompress=False),
-        )
-    except Exception:
-        return False
-    return True
-
-
-def _parses_as_json(data: bytes) -> bool:
-    try:
-        json.loads(data)
-    except Exception:
-        return False
-    return True

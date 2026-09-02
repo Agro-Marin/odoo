@@ -1,23 +1,10 @@
 import os
-import re
 import warnings
 from urllib.parse import parse_qsl, urlsplit
-
-import psycopg
-from psycopg.adapt import Loader
 
 from odoo import tools
 
 _ODOO_PGAPPNAME_WARNED = False
-
-
-class _NumericToFloatLoader(Loader):
-    def load(self, data: bytes) -> float:
-        return float(data)
-
-
-def register_adapters(conn: psycopg.Connection) -> None:
-    conn.adapters.register_loader("numeric", _NumericToFloatLoader)
 
 
 SYSTEM_DBS = frozenset({"postgres", "template0", "template1"})
@@ -38,108 +25,6 @@ def get_value_marker_positions(query: str) -> list[int]:
         else:
             i += 1
     return out
-
-
-re_from = re.compile(
-    r'\bfrom\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
-)
-re_into = re.compile(
-    r'\binto\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
-)
-re_update = re.compile(
-    r'^\s*update\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
-)
-re_delete = re.compile(r"^\s*delete\b", re.IGNORECASE)
-
-re_cte_start = re.compile(r"\s*with\s+(recursive\s+)?", re.IGNORECASE)
-re_cte_name = re.compile(
-    r'\s*"?[a-zA-Z_][a-zA-Z_0-9]*"?\s*(\([^)]*\))?\s*as\s*', re.IGNORECASE
-)
-re_cte_comma = re.compile(r"\s*,\s*")
-
-
-def _get_offset_after_ctes(decoded_query: str) -> int:
-    m = re_cte_start.match(decoded_query)
-    if not m:
-        return 0
-    pos = m.end()
-    length = len(decoded_query)
-    while True:
-        m_name = re_cte_name.match(decoded_query, pos)
-        if not m_name:
-            return 0
-        pos = m_name.end()
-        if pos >= length or decoded_query[pos] != "(":
-            return 0
-        depth = 0
-        while pos < length:
-            char = decoded_query[pos]
-            if char == "(":
-                depth += 1
-            elif char == ")":
-                depth -= 1
-                if depth == 0:
-                    pos += 1
-                    break
-            pos += 1
-        else:
-            return 0
-        m_comma = re_cte_comma.match(decoded_query, pos)
-        if not m_comma:
-            return pos
-        pos = m_comma.end()
-
-
-_NESTED = "\x00"
-
-re_from_keyword = re.compile(r"\bfrom\b", re.IGNORECASE)
-
-
-def _mask_nested_parentheses(sql_text: str) -> str:
-    out = []
-    depth = 0
-    for char in sql_text:
-        if char == "(":
-            depth += 1
-            out.append(_NESTED)
-        elif char == ")":
-            depth -= 1
-            out.append(_NESTED)
-        else:
-            out.append(_NESTED if depth > 0 else char)
-    return "".join(out)
-
-
-def _match_from_clause(body: str) -> re.Match | None:
-    masked = _mask_nested_parentheses(body)
-    match = re_from.search(masked)
-    if match is not None:
-        return match
-    if re_from_keyword.search(masked) is not None:
-        return re_from.search(body)
-    return None
-
-
-def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
-    body = decoded_query[_get_offset_after_ctes(decoded_query) :]
-
-    res_update = re_update.match(body)
-    if res_update:
-        return "into", res_update.group(1)
-
-    if re_delete.match(body):
-        res_from = _match_from_clause(body)
-        return ("into", res_from.group(1)) if res_from else ("other", None)
-
-    res_into = re_into.search(body)
-    if res_into:
-        return "into", res_into.group(1)
-
-    res_from = _match_from_clause(body)
-    if res_from:
-        return "from", res_from.group(1)
-
-    return "other", None
 
 
 _REPLICA_OVERRIDABLE: tuple[str, ...] = (

@@ -120,12 +120,15 @@ genuine cycle. Moving `errors`/`dsn`/`utils` to `[foundation]` and `helpers` to
 
 | Tier pair | Downward | Back-edges | Convention |
 |---|---:|---:|---|
-| `db/` `[connectivity]` → `[resilience]` | had 6 connectivity → resilience edges | 1 | counting imported *symbols*, as `layer_check` does |
+| `db/` `[connectivity]` → `[resilience]` | had 7 connectivity → resilience edges | 1 | counting imported *symbols*, as `layer_check` does |
 | `http/` `[serving]` → `[features]` | 27 serving → features | 1 | counting import *statements*; by symbol it is 55 against 2 |
 
 **These are the pre-fix figures**, re-derived by
 `TestEdgeCountConventions`, which holds the *old* bracket assignment
-(`errors`/`dsn`/`utils` in `[connectivity]`) for exactly that reason. Correcting
+(`errors`/`dsn`/`utils` in `[connectivity]`) for exactly that reason. The
+`db/` row read 6 until `categorize_query` moved from `utils` to `metrics`:
+`cursor` now takes it from a `[resilience]` module, one more downward symbol
+under the old map, and the back-edge is unchanged. Correcting
 its map to match the one above would change all four numbers and measure a
 different claim.
 

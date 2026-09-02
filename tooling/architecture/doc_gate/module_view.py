@@ -603,9 +603,9 @@ class TestEdgeCountConventions(unittest.TestCase):
 
     def test_db_figures_are_per_symbol(self) -> None:
         edges = self._edges("db", per_symbol=True)
-        self.assertEqual(edges[("connectivity", "resilience")], 6)
+        self.assertEqual(edges[("connectivity", "resilience")], 7)
         self.assertEqual(edges[("resilience", "connectivity")], 1)
-        self.assertIn("had 6 connectivity", DOC_FLAT)
+        self.assertIn("had 7 connectivity", DOC_FLAT)
         self.assertIn("counting imported *symbols*", DOC_FLAT)
 
     def test_http_figures_are_per_statement_and_the_symbol_count_is_given(self) -> None:

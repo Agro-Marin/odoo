@@ -1,5 +1,6 @@
 import codecs
 import io
+import json
 import logging
 import mimetypes
 import re
@@ -206,12 +207,76 @@ except ImportError:
     magic = None
 
 
-def guess_mimetype(bin_data: bytes | bytearray, default: str = UNKNOWN_MIMETYPE) -> str:
+_UNPLACED = frozenset(
+    {"", UNKNOWN_MIMETYPE, "text/plain", "application/x-empty", "binary/octet-stream"}
+)
+
+
+def _parses_as_xml(data: bytes) -> bool:
+    try:
+        from lxml import etree
+
+        etree.fromstring(
+            data,
+            parser=etree.XMLParser(resolve_entities=False, decompress=False),
+        )
+    except Exception:
+        return False
+    return True
+
+
+def _parses_as_json(data: bytes) -> bool:
+    try:
+        json.loads(data)
+    except Exception:
+        return False
+    return True
+
+
+def _place_structured_text(data: bytes) -> str | None:
+    # libmagic places structured text only by its declaration, so an XML
+    # document with no `<?xml ?>` prolog -- which plenty of EDI payloads are --
+    # comes back as text/plain and loses its tree. JSON is placed correctly
+    # today; probing for it keeps the two symmetric.
+    #
+    # The probe PARSES rather than peeking at the first byte. A note that opens
+    # `<note> this is prose` peeks identically to a document and is not one,
+    # and calling it XML costs it its text: no reader can parse it, and the
+    # decode path is no longer reached. Parsing is the only test that
+    # distinguishes them, and it runs only for text libmagic could not place.
+    head = data.lstrip()[:1]
+    if head == b"<" and _parses_as_xml(data):
+        return "application/xml"
+    if head in (b"{", b"[") and _parses_as_json(data):
+        return "application/json"
+    return None
+
+
+def guess_mimetype(
+    bin_data: bytes | bytearray,
+    default: str = UNKNOWN_MIMETYPE,
+    *,
+    declared: str = "",
+) -> str:
     if isinstance(bin_data, bytearray):
         bin_data = bytes(bin_data)
     elif not isinstance(bin_data, bytes):
         msg = "`bin_data` must be bytes or bytearray"
         raise TypeError(msg)
+    # A declaration wins because the producer usually knows better than a
+    # probe -- but only when it says something. `ir.attachment` stores
+    # application/octet-stream for anything the upload did not label, and
+    # honouring that is how a readable document ends up providing nothing.
+    declared = (declared or "").lower()
+    if declared and declared not in _UNPLACED:
+        return declared
+    mimetype = _probe_mimetype(bin_data, default)
+    if mimetype.lower() not in _UNPLACED:
+        return mimetype
+    return _place_structured_text(bin_data) or mimetype or UNKNOWN_MIMETYPE
+
+
+def _probe_mimetype(bin_data: bytes, default: str) -> str:
     if magic is not None:
         mimetype = magic.from_buffer(bin_data[:MIMETYPE_HEAD_SIZE], mime=True)
     else:

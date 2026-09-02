@@ -40,7 +40,7 @@ from .formats import (
     register_extension,
     register_format,
 )
-from .guess import decode, guess_encoding, guess_mimetype
+from .guess import decode, guess_encoding
 from .layout import ALIGNMENTS, LEFT, RIGHT, Field, Layout
 from .readers import (
     BARCODES,
@@ -100,7 +100,6 @@ __all__ = [
     "group_digits",
     "guess",
     "guess_encoding",
-    "guess_mimetype",
     "infer_separators",
     "known_formats",
     "known_readers",

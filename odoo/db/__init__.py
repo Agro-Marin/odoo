@@ -4,15 +4,11 @@ import logging
 from .budget import ConnectionBudget
 from .cursor import BaseCursor, Cursor, Savepoint
 from .endpoints import EndpointRegistry, get_endpoint_key
+from .metrics import categorize_query
 from .pool import Connection, ConnectionPool, PoolError
 from .savepoint import get_or_create_row
 from .schema import FunctionStatus, get_unaccent_status, has_trigram
-from .utils import (
-    SYSTEM_DBS,
-    categorize_query,
-    get_connection_info_for_database,
-    is_maintenance_db,
-)
+from .utils import SYSTEM_DBS, get_connection_info_for_database, is_maintenance_db
 
 __all__ = [
     "SYSTEM_DBS",
