@@ -1055,10 +1055,18 @@ class DiscussChannel(models.Model):
     ) -> MailMessage:
         if message_type not in ["notification", "user_notification"]:
             self.sudo().last_interest_dt = fields.Datetime.now()
-        if "everyone" in kwargs.pop("special_mentions", []):
-            partner_ids = list(
-                OrderedSet((partner_ids or []) + self.channel_member_ids.partner_id.ids)
-            )
+        if special_mentions := kwargs.pop("special_mentions", []):
+            members = self.channel_member_ids.partner_id
+            mentioned = self.env["res.partner"]
+            if "everyone" in special_mentions:
+                mentioned |= members
+            if "here" in special_mentions:
+                mentioned |= members.filtered(
+                    lambda partner: any(
+                        user.im_status != "offline" for user in partner.sudo().user_ids
+                    )
+                )
+            partner_ids = list(OrderedSet((partner_ids or []) + mentioned.ids))
         if partner_ids:
             kwargs["partner_ids"] = self._get_allowed_message_partner_ids(partner_ids)
         return super(

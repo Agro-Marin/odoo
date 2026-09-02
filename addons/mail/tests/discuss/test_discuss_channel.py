@@ -1344,3 +1344,39 @@ class TestChannelInternals(MailCommon, HttpCase):
             lambda self: {"messages": ["a message from the publisher"]},
         ):
             self.assertTrue(contract.update_notification(cron_mode=True))
+
+    @mute_logger("odoo.models.unlink")
+    def test_the_here_mention_only_reaches_members_who_are_online(self):
+        self.test_channel._add_members(
+            users=self.user_employee | self.user_employee_nomail
+        )
+        # `im_status` is a non-stored compute with no inverse here, so presence
+        # has to be created rather than written.
+        self.env["mail.presence"]._update_presence(self.user_employee)
+        self.assertEqual(self.user_employee.im_status, "online")
+        self.assertEqual(self.user_employee_nomail.im_status, "offline")
+        with self.mock_mail_gateway():
+            new_msg = self.test_channel.message_post(
+                body="Test",
+                special_mentions=["here"],
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        self.assertEqual(new_msg.partner_ids, self.partner_employee)
+
+    @mute_logger("odoo.models.unlink")
+    def test_the_everyone_mention_still_reaches_offline_members(self):
+        """The `here` filter must not narrow `everyone`."""
+        self.test_channel._add_members(
+            users=self.user_employee | self.user_employee_nomail
+        )
+        with self.mock_mail_gateway():
+            new_msg = self.test_channel.message_post(
+                body="Test",
+                special_mentions=["everyone"],
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        self.assertEqual(
+            new_msg.partner_ids, self.test_channel.channel_member_ids.partner_id
+        )
