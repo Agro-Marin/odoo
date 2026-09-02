@@ -41,6 +41,7 @@ GATES = {
     "js_eager_mock_fixture": ["--count"],
     "module_suite_lane": ["--count"],
     "py_function_length": ["--count"],
+    "py_class_length": ["--count"],
     "py_x2many_count": ["--count"],
     "sql_in_placeholder": ["--count"],
     "py_count_as_boolean": ["--count"],

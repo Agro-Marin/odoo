@@ -6,8 +6,8 @@
 
 ## Running the checks
 
-The sixty-six blocking checkers do **not** share one CLI, and a loop that
-assumes they do fails on eighteen of them.
+The sixty-seven blocking checkers do **not** share one CLI, and a loop that
+assumes they do fails on nineteen of them.
 
 **Forty-three are contract gates.** Each takes bare for a human-readable
 report, `--check` for CI (exit 1 on a new violation), `--json` for a
@@ -19,19 +19,19 @@ python tooling/architecture/layer_check.py --check   # CI mode: exit 1 on new vi
 python tooling/architecture/layer_check.py --json    # machine-readable
 ```
 
-**Twenty-three are count ratchets.** `js_function_length`, `py_function_length`, `py_hook_arity`,
+**Twenty-four are count ratchets.** `js_function_length`, `py_function_length`, `py_class_length`, `py_hook_arity`,
 `py_x2many_count`, `sql_in_placeholder`, `py_count_as_boolean`,
 `py_shadowed_member`, `naming_vocabulary`, `naming_core_vocabulary`,
 `field_hook_naming`, `field_hook_purity`, `js_service_shape`,
 `js_vacuous_assertions`, `js_duplication`, `compute_context_deps`,
 `js_eager_mock_fixture`, `py_unresolved_calls` and `order_line_qty` implement no
-`--check` at all — the eighteen a `--check` loop breaks on. They print a number under `--count` and hand it
+`--check` at all — the nineteen a `--check` loop breaks on. They print a number under `--count` and hand it
 to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
 `js_forced_render` and `translation_catalog` also implement `--check`, but CI
-drives them as ratchets, so they belong to this group. Run any of the twenty-one bare
+drives them as ratchets, so they belong to this group. Run any of the twenty-two bare
 and it reports without enforcing.
 
-Forty-three plus twenty-three is sixty-six. All three figures derive from the
+Forty-three plus twenty-four is sixty-seven. All three figures derive from the
 workflow, by the assertion that divides its own list; so does the membership of
 the loop below (`test_the_reproduce_loop_is_exactly_the_contract_gates`) and,
 since a gate governing several scopes gets a CI step per scope, the scoped
@@ -110,9 +110,9 @@ orphan_depends     orphandepends
 module_suite_lane  suite_lane
 EOF
 
-# The two loops above run each checker once, at its default scope: 66 of the
-# workflow's 96 steps. A gate governing several scopes gets one step per scope,
-# and these are the other 30. The rows are the workflow's own argv, left/right of
+# The two loops above run each checker once, at its default scope: 67 of the
+# workflow's 98 steps. A gate governing several scopes gets one step per scope,
+# and these are the other 31. The rows are the workflow's own argv, left/right of
 # the pipe, because a scope is not always spelled `--addon` and the flag is not
 # always `--count`: `js_private_access` counts a second tree with
 # `--count-cross-tree`, and `pyfunclen_addons` is the one floor driven
@@ -171,7 +171,7 @@ prefix on a `[FAIL]` before concluding this tree is broken.
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **sixty-six** blocking checkers, after
+`Architecture Boundaries` workflow runs **sixty-seven** blocking checkers, after
 `pytest tooling/architecture/` self-tests them:
 
 | Gate | What it locks |
@@ -210,6 +210,7 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `js_vacuous_assertions.py` | a zero-count HOOT assertion naming a class no non-test file declares — the one assertion shape a wrong selector cannot be told from a passing test |
 | `js_eager_mock_fixture.py` | a mock fixture mutating another addon's model at module scope — hoot imports every test file during collection and model definitions are job-scoped per test, so such a statement runs for every suite in the bundle EXCEPT the one that wrote it (ADR-0067). Fifty of these cost 37 scoped failures across twelve POS addons; a hard zero with no baseline file |
 | `py_function_length.py` | the core's Python function-length budget — ratchets *excess lines* over 90, not the offender count, because splitting one long function raises the count while lowering the excess |
+| `py_class_length.py` | the class-length budget, the mass a function budget cannot see — a class of short methods; ratchets *excess lines* over 400 per class summed over offenders, the unit `py_function_length.py` uses and for the same reason, in the same scopes (`pyclasslen` for the core, `pyclasslen_addons` for the bundled tree as one number, `--mode no-increase`) |
 | `py_x2many_count.py` | a counter that counts by hand — `len(record.x_ids)` in a `_compute*`, or `search_count` inside a loop over `self` — which ADR-0052 replaced with `fields.Count`. Ratchets the offender count, not excess lines as `py_function_length` beside it does: there is nothing to split, each site is one declaration that was not written |
 | `sql_in_placeholder.py` | an `IN %s` psycopg3 cannot execute — a query handed straight to `cr.execute`, where nothing expands the placeholder, or an `SQL()` given a list where the builder's tuple branch is what makes `IN` work at all (ADR-0055). A hard zero on all four scopes, with no baseline file on any; a query assembled into a variable and executed elsewhere is out of its reach and is held by tests instead |
 | `py_count_as_boolean.py` | a `search_count` whose answer is only a yes or a no — consumed by an `if`, a `not`, a `bool()` or a comparison against `0` — and which passes no `limit`, so it scans the whole table to decide whether the first row exists (ADR-0057). O(rows) against O(1); the fix is one keyword. A count used inside a larger boolean expression is excluded, because the value escapes there |
@@ -310,7 +311,7 @@ retirement log is the last place to keep one. A backticked path in this repo
 asserts the file exists, so only *where on the page* a name sits distinguishes a
 citation from an assertion.
 
-### Checkers outside the sixty-six
+### Checkers outside the sixty-seven
 
 Five more block without appearing in the table, enforced by the
 `pytest tooling/architecture/` step rather than a `--check` invocation of their
@@ -323,7 +324,7 @@ produces it). Each carries a real-tree test —
 `test_the_surface_matches_the_committed_baseline`, and for the last one
 `test_every_prose_figure_is_fresh` — so a violation fails the self-test step,
 which is blocking. **Sixty-six run as steps of their own and five block through
-the self-test: seventy-one in all.** The membership of this list is derived rather
+the self-test: seventy-two in all.** The membership of this list is derived rather
 than kept: `GATES` in
 `test_every_gate_refuses_an_empty_tree.py` is the roster, and it is compared
 against the workflow's, so a gate can be in neither list only by being in no
@@ -335,7 +336,7 @@ which is the failure the paragraph describes: the roster in
 already called it a gate, and this page — the operator's manual for exactly this
 machinery — said three.
 
-`cross_repo_coherence.py` is a seventy-second checker and the only one outside CI: it
+`cross_repo_coherence.py` is a seventy-third checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub
 checks out this repo alone and the check needs the sibling checkouts. Opt-in per
 clone — `pre-commit install --hook-type pre-push`.
@@ -348,7 +349,7 @@ Eleven and not eight, which is what counting only the table above would give:
 the self-test rather than a step of their own, and `cross_repo_coherence` is the
 third.
 
-**Ninety-six** is how many steps CI runs the sixty-six in, each step invoking
+**Ninety-eight** is how many steps CI runs the sixty-seven in, each step invoking
 exactly one checker; the self-test is the step above them all. The two figures
 differ because a gate governing several scopes gets one step per scope —
 `py_function_length` alone accounts for eight.
@@ -366,8 +367,8 @@ done right: it derives the tree and compares.
 
 ## The two count ratchets beyond the boundary gates
 
-**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns seventy-three tool
-counts into one-way contracts: **mypy, ruff, c901, c901_addons, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_survey, pyfunclen, pyfunclen_addons, pyfunclen_mail, pyfunclen_crm, pyfunclen_survey, pyfunclen_tooling, py_x2many_count, py_x2many_count_addons, py_x2many_count_account, py_x2many_count_enterprise, py_x2many_count_agromarin, py_shadowed_member_addons, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsforcedrender, jsvacuous, jsduplication, prettier_scss, naming, naming_enterprise, naming_agromarin, fieldhooks, hookpurity, computectx, translations, mypy_tools, service_types_untyped, orderlineqty, orderlineqty_enterprise, unresolved_calls, unresolved_calls_enterprise, unresolved_calls_agromarin, bundle_double_eval, lint_docstring, lint_gettext_developer_error, lint_gettext_placeholders, lint_gettext_repr, lint_gettext_variable, lint_missing_gettext, lint_n_plus_one_query, lint_noqa_rationale, lint_raise_unlink_override, lint_sql_injection, lint_gettext_developer_error_enterprise, lint_missing_gettext_enterprise, lint_n_plus_one_query_enterprise, lint_noqa_rationale_enterprise, lint_raise_unlink_override_enterprise, lint_sql_injection_enterprise, lint_gettext_developer_error_agromarin, lint_gettext_placeholders_agromarin, lint_gettext_repr_agromarin, lint_gettext_variable_agromarin, lint_missing_gettext_agromarin, lint_n_plus_one_query_agromarin, lint_noqa_rationale_agromarin, lint_sql_injection_agromarin, lint_noqa_rationale_design-themes, lint_record_reference, orphandepends and suite_lane**
+**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns seventy-five tool
+counts into one-way contracts: **mypy, ruff, c901, c901_addons, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_survey, pyfunclen, pyfunclen_addons, pyclasslen, pyclasslen_addons, pyfunclen_mail, pyfunclen_crm, pyfunclen_survey, pyfunclen_tooling, py_x2many_count, py_x2many_count_addons, py_x2many_count_account, py_x2many_count_enterprise, py_x2many_count_agromarin, py_shadowed_member_addons, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsforcedrender, jsvacuous, jsduplication, prettier_scss, naming, naming_enterprise, naming_agromarin, fieldhooks, hookpurity, computectx, translations, mypy_tools, service_types_untyped, orderlineqty, orderlineqty_enterprise, unresolved_calls, unresolved_calls_enterprise, unresolved_calls_agromarin, bundle_double_eval, lint_docstring, lint_gettext_developer_error, lint_gettext_placeholders, lint_gettext_repr, lint_gettext_variable, lint_missing_gettext, lint_n_plus_one_query, lint_noqa_rationale, lint_raise_unlink_override, lint_sql_injection, lint_gettext_developer_error_enterprise, lint_missing_gettext_enterprise, lint_n_plus_one_query_enterprise, lint_noqa_rationale_enterprise, lint_raise_unlink_override_enterprise, lint_sql_injection_enterprise, lint_gettext_developer_error_agromarin, lint_gettext_placeholders_agromarin, lint_gettext_repr_agromarin, lint_gettext_variable_agromarin, lint_missing_gettext_agromarin, lint_n_plus_one_query_agromarin, lint_noqa_rationale_agromarin, lint_sql_injection_agromarin, lint_noqa_rationale_design-themes, lint_record_reference, orphandepends and suite_lane**
 (floors in `tooling/ratchet/baselines/`, one JSON per gate). CI fails
 on any increase and — in the default `exact` mode — on an un-committed decrease,
 so every cleanup is locked in.
@@ -536,9 +537,9 @@ stated once above and a second copy of it drifts.
 ### The limits of "enforced"
 
 **The integration gate is the only lane that runs addon tests in Python.** All
-sixty-six boundary checkers are structural and DB-free: they read import graphs,
+sixty-seven boundary checkers are structural and DB-free: they read import graphs,
 call graphs, reached-member sets and documents. A change can satisfy all
-sixty-six, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
+sixty-seven, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
 (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
 2026-08 while every gate and both DB-free tiers stayed green. Read a green
 boundary job as "the structure holds", never as "the framework works".
