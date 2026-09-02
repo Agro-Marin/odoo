@@ -169,6 +169,7 @@ _IMMUTABLE_ASSET_CSS_RE = re.compile(r"^/web/assets/(?!debug/)[^/]+/")
 _NATIVE_MERGE_MAX = 50
 
 PDF_OPTIONS_DATA_KEY = "__pdf_options__"
+_PER_BODY_PDF_OPTION_KEYS = frozenset(("dpi", "jpeg_quality"))
 _PDF_OPTION_KEYS = (
     "pdf_variant",
     "attachments",
@@ -342,11 +343,15 @@ _WEB_IMAGE_ID_RE = re.compile(
 _BARCODE_RE = re.compile(r"^/report/barcode/(?P<type>[^/]+)/(?P<value>.+)")
 
 
+def _path_has_route(path: str, route: str) -> bool:
+    return path.endswith(route) or f"{route}/" in path
+
+
 class OdooURLFetcher(URLFetcher):
     def __init__(self, env: Any, base_url: str | None = None) -> None:
         super().__init__(
             allowed_protocols=["http", "https", "data"],
-            allow_redirects=True,
+            allow_redirects=False,
         )
         self._env = env
         self._base_url = base_url or env["ir.actions.report"]._get_report_url()
@@ -425,12 +430,12 @@ class OdooURLFetcher(URLFetcher):
             if result:
                 return result
 
-        if "/web/image/" in path:
+        if _path_has_route(path, "/web/image"):
             result = self._resolve_web_image(url, path, parsed.query)
             if result:
                 return result
 
-        if "/report/barcode/" in path:
+        if _path_has_route(path, "/report/barcode"):
             result = self._resolve_barcode(url, path, parsed.query)
             if result:
                 return result
@@ -645,7 +650,11 @@ class OdooURLFetcher(URLFetcher):
 
     def _get_via_http(self, url: str, path: str) -> URLFetcherResponse:
         parsed = urlparse(url)
-        full_url = url if parsed.hostname else f"{self._base_url}{path}"
+        if parsed.hostname:
+            full_url = url
+        else:
+            query = f"?{parsed.query}" if parsed.query else ""
+            full_url = f"{self._base_url}{path}{query}"
         try:
             cookies = (
                 {"session_id": self._session_cookie} if self._session_cookie else {}
@@ -729,7 +738,11 @@ class WeasyPrintEngine:
 
         db_state = self._database_state()
         image_cache: dict[str, Any] = {}
-        wants_pdfa = bool((pdf_options or {}).get("pdf_variant"))
+        opts = pdf_options or {}
+        wants_pdfa = bool(opts.get("pdf_variant"))
+        wants_single_document = wants_pdfa or bool(
+            opts.get("attachments") or opts.get("xmp_metadata")
+        )
         if wants_pdfa:
             page_css = f"{page_css}\nhtml {{ image-rendering: crisp-edges; }}\n"
 
@@ -754,9 +767,9 @@ class WeasyPrintEngine:
                     for html_str, body_css in processed
                 ]
 
-            if not wants_pdfa and len(processed) > self._native_merge_max:
+            if not wants_single_document and len(processed) > self._native_merge_max:
                 return self._render_and_merge_incrementally(
-                    processed, fetcher, db_state, image_cache
+                    processed, fetcher, db_state, image_cache, pdf_options
                 )
 
             documents = [
@@ -795,7 +808,13 @@ class WeasyPrintEngine:
         fetcher: Any,
         db_state: Any,
         image_cache: dict[str, Any],
+        pdf_options: dict[str, Any] | None = None,
     ) -> bytes:
+        body_options = {
+            key: value
+            for key, value in (pdf_options or {}).items()
+            if key in _PER_BODY_PDF_OPTION_KEYS
+        }
         _logger.info(
             "WeasyPrint: %d bodies exceeds the native-merge threshold "
             "(%d); serializing incrementally and merging with pypdf to "
@@ -809,7 +828,7 @@ class WeasyPrintEngine:
                     html_str,
                     fetcher,
                     body_css,
-                    None,
+                    body_options or None,
                     db_state,
                     image_cache,
                 )
@@ -1194,7 +1213,6 @@ class IrActionsReport(models.Model):
         "b5",
         "letter",
         "legal",
-        "ledger",
     }
 
     @api.model
@@ -1375,7 +1393,7 @@ class IrActionsReport(models.Model):
 
             article_res_id = None
             if article_node.get("data-oe-model") == report_model:
-                article_res_id = int(article_node.get("data-oe-id", 0))
+                article_res_id = int(article_node.get("data-oe-id") or 0)
 
             parts = []
             if header_node is not None:
@@ -2067,19 +2085,8 @@ class IrActionsReport(models.Model):
                 continue
             pending.append((res_id, stream_data))
 
-        records_by_id = {
-            record.id: record
-            for record in self.env[report.model].browse(
-                [res_id for res_id, _stream_data in pending]
-            )
-        }
         for res_id, stream_data in pending:
             attachment_name = stream_data.get("attachment_name")
-            if attachment_name is None:
-                attachment_name = safe_eval(
-                    report.attachment, {"object": records_by_id[res_id], "time": time}
-                )
-
             if not attachment_name:
                 continue
 
