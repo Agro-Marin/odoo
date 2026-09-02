@@ -3,7 +3,8 @@ import uuid
 from datetime import datetime
 from urllib.parse import urlencode
 
-from odoo import api, models
+from odoo import _, api, models
+from odoo.exceptions import UserError
 from odoo.tools import consteq
 
 VALIDATION_KARMA_GAIN = 3
@@ -25,6 +26,28 @@ class ResUsers(models.Model):
             "website_description",
             "website_published",
         ]
+
+    def write(self, vals):
+        # `country_id` is self-writeable (above), which core's res.users.write()
+        # treats as license to re-run the whole write as sudo(). The country-
+        # change lock is otherwise only enforced by this module's own HTTP
+        # controller, so any other write path reaching this model directly
+        # (e.g. a generic RPC call) would bypass it. Enforce it here too, at
+        # the one place every self-write of country_id actually passes through.
+        if "country_id" in vals and self == self.env.user:
+            for user in self:
+                if (
+                    not user.partner_id._can_edit_country()
+                    and vals["country_id"] != user.partner_id.country_id.id
+                ):
+                    raise UserError(
+                        _(
+                            "Changing the country is not allowed once document(s) "
+                            "have been issued for your account. Please contact us "
+                            "directly for this operation."
+                        )
+                    )
+        return super().write(vals)
 
     @api.model
     def _generate_profile_token(self, user_id, email):
