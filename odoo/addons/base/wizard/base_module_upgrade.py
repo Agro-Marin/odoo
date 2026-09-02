@@ -17,10 +17,6 @@ class BaseModuleUpgrade(models.TransientModel):
         return self.env["ir.module.module"].search([("state", "in", states)])
 
     @api.model
-    def get_module_list(self) -> Self:
-        return self._get_pending_modules()
-
-    @api.model
     def _default_module_info(self) -> str:
         return "\n".join(
             f"{mod.name}: {mod.state}" for mod in self._get_pending_modules()
@@ -53,13 +49,7 @@ class BaseModuleUpgrade(models.TransientModel):
         return res
 
     def upgrade_module_cancel(self) -> dict[str, str]:
-        Module = self.env["ir.module.module"]
-        to_revert_installed = Module.search(
-            [("state", "in", ["to upgrade", "to remove"])]
-        )
-        to_revert_installed.write({"state": "installed"})
-        to_revert_uninstalled = Module.search([("state", "=", "to install")])
-        to_revert_uninstalled.write({"state": "uninstalled"})
+        self.env["ir.module.module"].button_reset_state()
         return {"type": "ir.actions.act_window_close"}
 
     @assert_log_admin_access
