@@ -400,19 +400,76 @@ class TestSubdomainNestingGuardCaseInsensitive(unittest.TestCase):
 
 
 class TestDeepDomainSurfacesValueError(unittest.TestCase):
-    def test_validate_surfaces_value_error(self):
+    # the depth limit is enforced at node construction, so the object API
+    # (&, |, any) cannot build a domain the list parser would refuse
+    def test_operator_chain_is_rejected_at_construction(self):
         domain = Domain("a", "=", 1)
-        for _ in range(2000):
-            domain = (domain & Domain("a", "=", 2)) | Domain("a", "=", 3)
         with self.assertRaisesRegex(ValueError, "nesting too deep"):
-            domain.validate(_as_model(_StubModel()))
+            for _ in range(2000):
+                domain = (domain & Domain("a", "=", 2)) | Domain("a", "=", 3)
 
-    def test_as_predicate_surfaces_value_error(self):
+    def test_any_chain_is_rejected_at_construction(self):
         domain = Domain("a", "=", 1)
-        for _ in range(5000):
-            domain = Domain("rel", "any", domain)
         with self.assertRaisesRegex(ValueError, "nesting too deep"):
-            domain._as_predicate(_as_model(_StubModel()))
+            for _ in range(5000):
+                domain = Domain("rel", "any", domain)
+
+    def test_a_flat_or_of_many_conditions_is_not_deep(self):
+        domain = Domain.OR(Domain("a", "=", i) for i in range(500))
+        self.assertLessEqual(domain._depth, 2)
+
+    def test_every_node_kind_carries_a_depth(self):
+        # DomainCustom's own __new__ once skipped the stamp, and the first
+        # `custom & condition` died in DomainNary's max() over children
+        from odoo.orm.domain.ast import DomainCustom, DomainNot
+
+        custom = DomainCustom(lambda model, alias, query: None)
+        self.assertEqual(custom._depth, 1)
+        self.assertEqual((custom & Domain("a", "=", 1))._depth, 2)
+        self.assertEqual(Domain.TRUE._depth, 1)
+        self.assertEqual(DomainNot(Domain("a", "=", 1))._depth, 2)
+
+
+class TestConditionHashHonoursEquality(unittest.TestCase):
+    def test_reordered_list_values_hash_together(self):
+        a = DomainCondition("f", "in", [1, 2])
+        b = DomainCondition("f", "in", [2, 1])
+        self.assertEqual(a, b)
+        self.assertEqual(hash(a), hash(b))
+        self.assertEqual(len({a, b}), 1)
+
+    def test_reordered_tuple_values_hash_together(self):
+        a = DomainCondition("f", "in", (1, 2))
+        b = DomainCondition("f", "in", (2, 1))
+        self.assertEqual(a, b)
+        self.assertEqual(hash(a), hash(b))
+        self.assertEqual(len({a, b}), 1)
+
+    def test_unhashable_members_still_fall_back(self):
+        a = DomainCondition("f", "in", [[1], [2]])
+        self.assertEqual(hash(a), hash(DomainCondition("f", "in", [[2], [1]])))
+
+
+class TestPredicateHonoursOptModel(unittest.TestCase):
+    def test_optimized_for_one_model_reoptimizes_for_another(self):
+        m = _as_model(_StubModel())
+        domain = Domain("d", "in", ["2024-01-05"])._optimize(
+            m, OptimizationLevel.DYNAMIC_VALUES
+        )
+        self.assertEqual(domain._opt[1], "m")
+
+        other = _StubModel()
+        other._name = "m2"
+        again = domain._predicate_optimized(_as_model(other))
+        self.assertIsNotNone(again)
+        self.assertEqual(again._opt[1], "m2")
+
+    def test_optimized_for_the_same_model_is_reused(self):
+        m = _as_model(_StubModel())
+        domain = Domain("d", "in", ["2024-01-05"])._optimize(
+            m, OptimizationLevel.DYNAMIC_VALUES
+        )
+        self.assertIsNone(domain._predicate_optimized(m))
 
 
 class TestMergedSetCanonicalOrder(unittest.TestCase):

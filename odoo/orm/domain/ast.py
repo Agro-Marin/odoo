@@ -93,13 +93,6 @@ def _comparand_eq(left: typing.Any, right: typing.Any) -> bool:
     return left == right
 
 
-def _iter_subdomains(node: Domain) -> typing.Iterator[Domain]:
-    if isinstance(node, DomainNary):
-        yield from node.children
-    elif isinstance(node, DomainNot):
-        yield node.child
-
-
 class DomainOptimizationError(ValueError):
     pass
 
@@ -115,16 +108,13 @@ def _recursion_error_as_value_error():
         ) from None
 
 
-def _check_domain_nesting(domain: Domain, max_depth: int) -> None:
-    stack: list[tuple[Domain, int]] = [(domain, 1)]
-    while stack:
-        node, depth = stack.pop()
-        if depth > max_depth:
-            raise ValueError(
-                f"Domain nesting too deep (>{max_depth} levels); refusing to "
-                f"build it to avoid a RecursionError during evaluation"
-            )
-        stack.extend((child, depth + 1) for child in _iter_subdomains(node))
+def _checked_depth(depth: int) -> int:
+    if depth > MAX_DOMAIN_NESTING:
+        raise ValueError(
+            f"Domain nesting too deep (>{MAX_DOMAIN_NESTING} levels); refusing "
+            f"to build it to avoid a RecursionError during evaluation"
+        )
+    return depth
 
 
 def _check_subdomain_nesting(value: object, max_depth: int) -> None:
@@ -222,7 +212,8 @@ def _leaf_to_domain(item: tuple | list, internal: bool) -> Domain:
 
 
 class Domain:
-    __slots__ = ("_opt",)
+    __slots__ = ("_depth", "_opt")
+    _depth: int
     _opt: tuple[OptimizationLevel, str | None]
 
     @property
@@ -266,9 +257,7 @@ class Domain:
                 return _leaf_to_domain(item, internal)
             if isinstance(item, Domain):
                 return item
-        result = _parse_prefix_domain(arg, internal)
-        _check_domain_nesting(result, MAX_DOMAIN_NESTING)
-        return result
+        return _parse_prefix_domain(arg, internal)
 
     @classproperty
     def TRUE(self) -> Domain:
@@ -390,7 +379,10 @@ class Domain:
         raise NotImplementedError
 
     def _predicate_optimized(self, records: BaseModel) -> Domain | None:
-        if self._opt_level >= OptimizationLevel.DYNAMIC_VALUES:
+        opt_level, opt_model = self._opt
+        if opt_level >= OptimizationLevel.DYNAMIC_VALUES and (
+            opt_model is None or opt_model == records._name
+        ):
             return None
         with _recursion_error_as_value_error():
             return self._optimize(records, OptimizationLevel.DYNAMIC_VALUES)
@@ -462,6 +454,7 @@ class DomainBool(Domain):
     def __new__(cls, value: bool):
         self = object.__new__(cls)
         object.__setattr__(self, "value", value)
+        object.__setattr__(self, "_depth", 1)
         object.__setattr__(self, "_opt", (OptimizationLevel.FULL, None))
         return self
 
@@ -513,6 +506,7 @@ class DomainNot(Domain):
     def __new__(cls, child: Domain):
         self = object.__new__(cls)
         object.__setattr__(self, "child", child)
+        object.__setattr__(self, "_depth", _checked_depth(child._depth + 1))
         object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
         return self
 
@@ -564,6 +558,11 @@ class DomainNary(Domain):
             )
         self = object.__new__(cls)
         object.__setattr__(self, "children", children)
+        object.__setattr__(
+            self,
+            "_depth",
+            _checked_depth(1 + max(child._depth for child in children)),
+        )
         object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
         return self
 
@@ -720,6 +719,7 @@ class DomainCustom(Domain):
         self = object.__new__(cls)
         object.__setattr__(self, "_sql", sql)
         object.__setattr__(self, "_filtered", filtered)
+        object.__setattr__(self, "_depth", 1)
         object.__setattr__(self, "_opt", (OptimizationLevel.FULL, None))
         return self
 
@@ -768,6 +768,11 @@ class DomainCondition(Domain):
         object.__setattr__(self, "field_expr", field_expr)
         object.__setattr__(self, "operator", operator)
         object.__setattr__(self, "value", value)
+        object.__setattr__(
+            self,
+            "_depth",
+            _checked_depth(value._depth + 1) if isinstance(value, Domain) else 1,
+        )
         object.__setattr__(self, "_field_instance", None)
         object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
         return self
@@ -853,10 +858,16 @@ class DomainCondition(Domain):
             pass
         value = self.value
         try:
-            if isinstance(value, (set, frozenset, OrderedSet)):
-                h = hash((self.field_expr, self.operator, frozenset(value)))
-            elif isinstance(value, list):
-                h = hash((self.field_expr, self.operator, tuple(value)))
+            if value.__class__ in (list, tuple, set, frozenset, OrderedSet):
+                # the same type-tagged set _comparand_eq compares with, so
+                # conditions that compare equal cannot hash apart
+                h = hash(
+                    (
+                        self.field_expr,
+                        self.operator,
+                        frozenset((type(v), v) for v in value),
+                    )
+                )
             else:
                 h = hash((self.field_expr, self.operator, value))
         except TypeError:
@@ -1035,7 +1046,8 @@ class DomainCondition(Domain):
         if not records:
             return lambda _: False
 
-        if self._opt_level < OptimizationLevel.DYNAMIC_VALUES:
+        opt_level, opt_model = self._opt
+        if opt_level < OptimizationLevel.DYNAMIC_VALUES or opt_model != records._name:
             with _recursion_error_as_value_error():
                 domain = self._optimize(records, OptimizationLevel.DYNAMIC_VALUES)
             return domain._as_predicate(records)
