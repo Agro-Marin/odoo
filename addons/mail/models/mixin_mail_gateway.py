@@ -85,6 +85,16 @@ class MixinMailGateway(models.AbstractModel):
     def _mail_is_thread(self, record_or_model: models.BaseModel) -> bool:
         return isinstance(record_or_model, self.pool["mixin.mail.thread"])
 
+    @api.model
+    def _mail_is_gateway_target(self, record_or_model: models.BaseModel) -> bool:
+        return (
+            not record_or_model._abstract
+            and not record_or_model._transient
+            and hasattr(record_or_model, "message_new")
+            and hasattr(record_or_model, "message_update")
+            and hasattr(record_or_model, "message_post")
+        )
+
     def _routing_warn(
         self,
         error_message: str,
@@ -325,7 +335,7 @@ class MixinMailGateway(models.AbstractModel):
                     False,
                 )
                 thread_id = None
-            elif not self._mail_is_thread(record_set):
+            elif not self._mail_is_gateway_target(record_set):
                 self._routing_warn(
                     _(
                         "reply to model %s that does not accept document update, fall back on document creation",
@@ -337,7 +347,7 @@ class MixinMailGateway(models.AbstractModel):
                 )
                 thread_id = None
 
-        if not thread_id and model and not self._mail_is_thread(record_set):
+        if not thread_id and model and not self._mail_is_gateway_target(record_set):
             self._routing_warn(
                 _("model %s does not accept document creation", model),
                 message_id,
@@ -845,8 +855,12 @@ class MixinMailGateway(models.AbstractModel):
 
     @api.model
     def _routing_get_alias_model(self, model: str) -> models.BaseModel:
-        if model in self.env and self._mail_is_thread(self.env[model]):
-            return self.env[model]
+        if (
+            model in self.env
+            and self._mail_is_gateway_target(target := self.env[model])
+            and hasattr(target, "_routing_check_route")
+        ):
+            return target
         return self
 
     @api.model
@@ -1178,7 +1192,7 @@ class MixinMailGateway(models.AbstractModel):
         Model = self.env[model].with_context(
             mail_create_nosubscribe=True, mail_create_nolog=True
         )
-        if not self._mail_is_thread(Model):
+        if not self._mail_is_gateway_target(Model):
             raise ValueError(
                 "Undeliverable mail with Message-Id %s, model %s does not accept incoming emails"
                 % (message_dict["message_id"], model)
