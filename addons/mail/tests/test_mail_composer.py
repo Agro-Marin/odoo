@@ -361,6 +361,48 @@ class TestMailComposerForm(TestMailComposer):
         )
         self.assertEqual(message.subject, "MSO FTW")
 
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    @users("employee")
+    def test_a_comment_can_be_sent_without_a_subject(self):
+        """`_compute_subject` already fills a default, so the field being
+        mandatory only bites the user who deliberately clears it."""
+        test_record = self.test_record.with_env(self.env)
+        form = Form(
+            self.env["mail.compose.message"].with_context(
+                {
+                    "default_composition_mode": "comment",
+                    "default_model": test_record._name,
+                    "default_res_ids": test_record.ids,
+                }
+            )
+        )
+        form.body = "<p>Hello</p>"
+        form.subject = False
+        composer = form.save()
+        with self.mock_mail_gateway():
+            composer._action_send_mail()
+        self.assertFalse(test_record.message_ids[0].subject)
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    @users("employee")
+    def test_a_mass_mailing_still_demands_a_subject(self):
+        """The subject is what the recipient sees in their inbox: in batch mode
+        there is no per-record fallback worth sending, so it stays mandatory."""
+        test_record = self.test_record.with_env(self.env)
+        form = Form(
+            self.env["mail.compose.message"].with_context(
+                {
+                    "default_composition_mode": "mass_mail",
+                    "default_model": test_record._name,
+                    "default_res_ids": test_record.ids,
+                }
+            )
+        )
+        form.body = "<p>Hello</p>"
+        form.subject = False
+        with self.assertRaises(AssertionError):
+            form.save()
+
 
 @tagged("mail_composer")
 class TestMailComposerRendering(TestMailComposer):
