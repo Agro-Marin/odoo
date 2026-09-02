@@ -23,10 +23,20 @@ const TEXT_MIMETYPES = new Set([
 ]);
 
 const VIDEO_MIMETYPES = new Set([
-    "audio/mpeg",
+    "video/mpeg",
+    "video/ogg",
     "video/x-matroska",
     "video/mp4",
     "video/webm",
+]);
+
+const AUDIO_MIMETYPES = new Set([
+    "audio/aac",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "audio/webm",
+    "audio/x-wav",
 ]);
 
 /**
@@ -121,11 +131,16 @@ export const FileModelMixin = (T) =>
             return VIDEO_MIMETYPES.has(this.mimetype);
         }
 
+        get isAudio() {
+            return AUDIO_MIMETYPES.has(this.mimetype);
+        }
+
         get isViewable() {
             return (
                 (this.isText ||
                     this.isImage ||
                     this.isVideo ||
+                    this.isAudio ||
                     this.isPdf ||
                     this.isUrlYoutube) &&
                 !this.uploading
