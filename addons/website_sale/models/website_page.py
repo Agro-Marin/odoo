@@ -37,6 +37,8 @@ class WebsitePage(models.Model):
 
         html = response.response[0]
         cache_quantity = re.search(my_cart_quantity_re, html)
+        if not cache_quantity:
+            return
         classname = cache_quantity.group("classname").replace("d-none", "") + (
             "" if quantity else "d-none"
         )

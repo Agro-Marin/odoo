@@ -120,7 +120,7 @@ class ProductRibbon(models.Model):
         # Check if the product is published within the ribbon's new period.
         if (  # noqa: SIM103
             self.assign == "new"
-            and self.new_period >= (fields.Datetime.today() - product.publish_date).days
+            and self.new_period >= (fields.Datetime.now() - product.publish_date).days
         ):
             return True
         return False

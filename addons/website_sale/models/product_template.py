@@ -13,6 +13,7 @@ from odoo.tools.translate import html_translate
 from odoo.addons.website.models import ir_http
 from odoo.addons.website.tools import text_from_html
 from odoo.addons.website_sale.const import SHOP_PATH
+from odoo.addons.website_sale.utils import get_base_unit_price, website_show_quick_add
 
 # A delimiter that users aren't likely to search for in product codes.
 RARE_DELIMITER = "\u241e"
@@ -274,8 +275,7 @@ class ProductTemplate(models.Model):
                 template.product_variant_ids.base_unit_id = template.base_unit_id
 
     def _get_base_unit_price(self, price):
-        self.check_singleton()
-        return self.base_unit_count and price / self.base_unit_count
+        return get_base_unit_price(self, price)
 
     @api.depends("list_price", "base_unit_count")
     def _compute_base_unit_price(self):
@@ -941,7 +941,7 @@ class ProductTemplate(models.Model):
             self.set_sequence_top()
 
     def set_sequence_down(self):
-        next_prodcut_tmpl = self.search(
+        next_prodcut_tmpl = self.sudo().search(
             [
                 ("website_sequence", ">", self.website_sequence),
                 ("website_published", "=", self.website_published),
@@ -1181,12 +1181,7 @@ class ProductTemplate(models.Model):
         return pricelist
 
     def _website_show_quick_add(self):
-        self.check_singleton()
-        if not self.filtered_domain(self.env["website"]._product_domain()):
-            return False
-        return (
-            not request.website.prevent_zero_price_sale or self._get_contextual_price()
-        )
+        return website_show_quick_add(self)
 
     @api.model
     def _get_configurator_display_price(

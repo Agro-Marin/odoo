@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
+from freezegun import freeze_time
 from lxml import etree
 
 from odoo.fields import Command
@@ -70,6 +71,20 @@ class TestWebsiteSaleGMC(WebsiteSaleGMCCommon, HttpCase):
                 '//item[g:id="SOFA-R"]/g:price',
                 namespaces={"g": "http://base.google.com/ns/1.0"},
             )[0].text,
+        )
+
+    def test_gmc_feed_cache_expiry_is_a_full_day(self):
+        # Regression test: caching late in the day must still grant ~24h before re-rendering,
+        # not just until the next midnight.
+        with freeze_time("2026-02-01 23:50:00"):
+            self.gmc_feed._render_and_cache_compressed_gmc_feed()
+            cache_expiry_late = self.gmc_feed.cache_expiry
+
+        self.assertGreater(
+            cache_expiry_late,
+            datetime(2026, 2, 2, 23, 0, 0),
+            "A feed rendered at 23:50 must stay cached for close to 24h, not expire shortly"
+            " after the next midnight.",
         )
 
     def test_gmc_items_required_fields(self):

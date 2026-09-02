@@ -30,9 +30,7 @@ class AccountMove(models.Model):
             action["url"] = f"/@{action['url']}"
         return action
 
-    @api.depends(
-        "partner_id"
-    )  # Dummy depends to trigger compute, will be dropped in master
+    @api.depends("line_ids.sale_line_ids.order_id.website_id")
     def _compute_website_id(self):
         for move in self:
             source_websites = move.line_ids.sale_line_ids.order_id.website_id

@@ -51,6 +51,25 @@ class SaleOrderLine(models.Model):
             self.shop_warning = ""
         return warn
 
+    def _set_shop_warning_stock(self, desired_qty, new_qty, save=True):
+        """Set (and return) a warning about a requested quantity being reduced to `new_qty`.
+
+        Defined here (rather than only in `website_sale_stock`) because `sale_order._check_
+        combo_quantities` calls it unconditionally to report a combo-item quantity mismatch,
+        which is not specific to stock availability and must work without `website_sale_stock`
+        installed.
+        """
+        self.check_singleton()
+        warning = self.env._(
+            "You ask for %(desired_qty)s %(product_name)s but only %(new_qty)s is available",
+            desired_qty=desired_qty,
+            product_name=self.product_id.name,
+            new_qty=new_qty,
+        )
+        if save:
+            self.shop_warning = warning
+        return warning
+
     def _get_displayed_unit_price(self):
         show_tax = self.order_id.website_id.show_line_subtotals_tax_selection
         tax_display = (

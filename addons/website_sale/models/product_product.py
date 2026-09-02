@@ -1,7 +1,8 @@
-
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.http import request
+
+from odoo.addons.website_sale.utils import get_base_unit_price, website_show_quick_add
 
 
 class ProductProduct(models.Model):
@@ -50,8 +51,7 @@ class ProductProduct(models.Model):
     # === COMPUTE METHODS ===#
 
     def _get_base_unit_price(self, price):
-        self.check_singleton()
-        return self.base_unit_count and price / self.base_unit_count
+        return get_base_unit_price(self, price)
 
     @api.depends("lst_price", "base_unit_count")
     def _compute_base_unit_price(self):
@@ -132,12 +132,7 @@ class ProductProduct(models.Model):
         )
 
     def _website_show_quick_add(self):
-        self.check_singleton()
-        if not self.filtered_domain(self.env["website"]._product_domain()):
-            return False
-        return (
-            not request.website.prevent_zero_price_sale or self._get_contextual_price()
-        )
+        return website_show_quick_add(self)
 
     def _is_add_to_cart_allowed(self):
         self.check_singleton()
