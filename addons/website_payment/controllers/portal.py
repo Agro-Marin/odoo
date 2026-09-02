@@ -104,7 +104,10 @@ class PaymentPortal(payment_portal.PaymentPortal):
                 }
             )
         elif not tx_sudo.partner_country_id:
-            tx_sudo.partner_country_id = int(kwargs["partner_details"]["country_id"])
+            country_id = kwargs.get("partner_details", {}).get("country_id")
+            if not country_id:
+                raise ValidationError(_("Country is required."))
+            tx_sudo.partner_country_id = int(country_id)
         # the user can change the donation amount on the payment page,
         # therefor we need to recompute the access_token
         access_token = payment_utils.generate_access_token(
