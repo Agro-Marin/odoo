@@ -134,6 +134,8 @@ def migrate(cr, version):
         """
     )
 
+    _repoint_link_foreign_key(cr, partner_tags)
+
     cr.execute(
         """
         INSERT INTO employee_category_rel (employee_id, category_id)
@@ -174,3 +176,49 @@ def migrate(cr, version):
         relinked,
         collapsed,
     )
+
+
+def _repoint_link_foreign_key(cr, partner_tags):
+    """Point ``employee_category_rel.category_id`` at the merged tag table.
+
+    The column's FOREIGN KEY still names ``hr_employee_category``, so inserting
+    a partner tag id into it raises ForeignKeyViolation and the merge cannot
+    land -- the constraint describes exactly the table this migration exists to
+    move away from. Waiting for the ORM does not help: 1.6 renames the table and
+    the column, and Postgres carries a constraint's target across both.
+
+    Called with the link table already emptied, so the replacement validates
+    against no rows. Idempotent: a re-run finds the key already pointing at the
+    tag table and does nothing.
+    """
+    cr.execute(
+        """
+        SELECT conname, confrelid::regclass::text
+          FROM pg_constraint
+         WHERE conrelid = 'employee_category_rel'::regclass AND contype = 'f'
+           AND conkey = ARRAY[(
+                SELECT attnum FROM pg_attribute
+                 WHERE attrelid = 'employee_category_rel'::regclass
+                   AND attname = 'category_id')]
+        """
+    )
+    existing = cr.fetchall()
+    if any(target == partner_tags for _, target in existing):
+        return
+
+    for conname, _target in existing:
+        cr.execute(
+            SQL(
+                "ALTER TABLE employee_category_rel DROP CONSTRAINT %s",
+                SQL.identifier(conname),
+            )
+        )
+    cr.execute(
+        SQL(
+            "ALTER TABLE employee_category_rel ADD CONSTRAINT %s "
+            "FOREIGN KEY (category_id) REFERENCES %s(id) ON DELETE CASCADE",
+            SQL.identifier("employee_category_rel_category_id_fkey"),
+            SQL.identifier(partner_tags),
+        )
+    )
+    _logger.info("employee_category_rel.category_id now references %s.", partner_tags)
