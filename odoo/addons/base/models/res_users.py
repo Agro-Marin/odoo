@@ -311,7 +311,10 @@ class ResUsers(models.Model):
         index=True,
         help="Partner-related data of the user",
     )
-    login = fields.Char(required=True, help="Used to log into the system")
+    login = fields.Char(
+        required=True,
+        help="Used to log into the system",
+    )
     password = fields.Char(
         compute="_compute_passwords",
         inverse="_inverse_password",
@@ -326,45 +329,74 @@ class ResUsers(models.Model):
         "changing the user's password, otherwise leave empty. After "
         "a change of password, the user has to login again.",
     )
-    api_key_ids = fields.One2many("res.users.apikeys", "user_id", string="API Keys")
+    api_key_ids = fields.One2many(
+        "res.users.apikeys",
+        "user_id",
+        string="API Keys",
+    )
     signature = fields.Html(
         string="Email Signature",
         compute="_compute_signature",
         readonly=False,
         store=True,
     )
+
     active = fields.Boolean(default=True)
+    tz_offset = fields.Char(
+        compute="_compute_tz_offset",
+        string="Timezone offset",
+    )
+
     active_partner = fields.Boolean(
         related="partner_id.active",
         readonly=True,
         string="Partner is Active",
     )
+    name = fields.Char(
+        related="partner_id.name",
+        inherited=True,
+        readonly=False,
+    )
+    phone = fields.Char(
+        related="partner_id.phone",
+        inherited=True,
+        readonly=False,
+    )
+    email = fields.Char(
+        related="partner_id.email",
+        inherited=True,
+        readonly=False,
+    )
+    email_domain_placeholder = fields.Char(
+        compute="_compute_email_domain_placeholder",
+    )
+
     action_id = fields.Many2one(
         "ir.actions.actions",
         string="Home Action",
         help="If specified, this action will be opened at log on for this user, in addition to the standard menu.",
     )
-    log_ids = fields.One2many("res.users.log", "create_uid", string="User log entries")
-    device_ids = fields.One2many("res.device", "user_id", string="User devices")
+
+    log_ids = fields.One2many(
+        "res.users.log",
+        "create_uid",
+        string="User log entries",
+    )
     login_date = fields.Datetime(
         related="log_ids.create_date",
         string="Latest Login",
     )
-    share = fields.Boolean(
-        compute="_compute_share",
-        compute_sudo=True,
-        string="Share User",
-        store=True,
-        help="External user with limited access, created only for the purpose of sharing data.",
+
+    device_ids = fields.One2many(
+        "res.device",
+        "user_id",
+        string="User devices",
     )
-    tz_offset = fields.Char(compute="_compute_tz_offset", string="Timezone offset")
 
-    name = fields.Char(related="partner_id.name", inherited=True, readonly=False)
-    email = fields.Char(related="partner_id.email", inherited=True, readonly=False)
-    email_domain_placeholder = fields.Char(compute="_compute_email_domain_placeholder")
-    phone = fields.Char(related="partner_id.phone", inherited=True, readonly=False)
-
-    res_users_settings_ids = fields.One2many("res.users.settings", "user_id")
+    res_users_settings_ids = fields.One2many(
+        "res.users.settings",
+        "user_id",
+    )
     res_users_settings_id = fields.Many2one(
         "res.users.settings",
         string="Settings",
@@ -372,10 +404,6 @@ class ResUsers(models.Model):
         search="_search_res_users_settings_id",
     )
 
-    companies_count = fields.Integer(
-        compute="_compute_companies_count",
-        string="Number of Companies",
-    )
     company_id = fields.Many2one(
         "res.company",
         string="Company",
@@ -391,6 +419,10 @@ class ResUsers(models.Model):
         "cid",
         string="Companies",
         default=lambda self: self.env.company.ids,
+    )
+    companies_count = fields.Integer(
+        compute="_compute_companies_count",
+        string="Number of Companies",
     )
 
     group_ids = fields.Many2many(
@@ -409,24 +441,31 @@ class ResUsers(models.Model):
         compute_sudo=True,
         search="_search_all_group_ids",
     )
+    share = fields.Boolean(
+        compute="_compute_share",
+        compute_sudo=True,
+        string="Share User",
+        store=True,
+        help="External user with limited access, created only for the purpose of sharing data.",
+    )
 
     accesses_count = fields.Integer(
         "# Access Rights",
-        help="Number of access rights that apply to the current user",
         compute="_compute_access_counts",
         compute_sudo=True,
+        help="Number of access rights that apply to the current user",
     )
     rules_count = fields.Integer(
         "# Record Rules",
-        help="Number of record rules that apply to the current user",
         compute="_compute_access_counts",
         compute_sudo=True,
+        help="Number of record rules that apply to the current user",
     )
     groups_count = fields.Integer(
         "# Groups",
-        help="Number of groups that apply to the current user",
         compute="_compute_access_counts",
         compute_sudo=True,
+        help="Number of groups that apply to the current user",
     )
 
     view_group_hierarchy = fields.Json(
