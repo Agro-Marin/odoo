@@ -958,15 +958,16 @@ class ProjectTask(models.Model):
             ):
                 task.display_in_project = False
 
-    @api.depends("predecessor_ids.state")
+    @api.depends("predecessor_ids.state", "step_id.task_state")
     def _compute_state(self) -> None:
         for task in self:
-            if task.state in CLOSED_STATES:
-                continue
-            if task.allow_dependencies and task.is_blocked_by_predecessors():
-                task.state = "blocked"
-            elif task.state == "blocked":
-                task.state = "in_progress"
+            if task.state not in CLOSED_STATES:
+                if task.allow_dependencies and task.is_blocked_by_predecessors():
+                    task.state = "blocked"
+                elif task.state == "blocked":
+                    task.state = "in_progress"
+            if task.step_id.task_state and task.state != "blocked":
+                task.state = task.step_id.task_state
 
     @api.depends("state")
     def _compute_is_closed(self) -> None:

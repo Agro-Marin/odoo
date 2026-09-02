@@ -3,6 +3,7 @@ from typing import Any
 
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
+from odoo.exceptions import ValidationError
 
 from .project_task import CLOSED_STATES
 
@@ -40,6 +41,11 @@ class ProjectWorkflowStep(models.Model):
     )
     color = fields.Integer(string="Color", export_string_translation=False)
     fold = fields.Boolean(string="Folded")
+    task_state = fields.Selection(
+        selection="_get_task_states",
+        help="When a task is moved into this step, its state is set to this "
+        "value. Leave empty to keep the task's state untouched.",
+    )
     rating_template_id = fields.Many2one(
         "mail.template",
         string="Rating Email Template",
@@ -194,3 +200,22 @@ class ProjectWorkflowStep(models.Model):
                 ("state", "not in", list(CLOSED_STATES)),
             ]
         )
+
+    def _get_task_states(self) -> list[tuple[str, str]]:
+        return (
+            self.env["project.task"]._fields["state"]._description_selection(self.env)
+        )
+
+    @api.constrains("task_state")
+    def _check_task_state_in_selection(self) -> None:
+        valid_keys = {key for key, _label in self._get_task_states()}
+        for step in self:
+            if step.task_state and step.task_state not in valid_keys:
+                raise ValidationError(
+                    self.env._(
+                        "Step %(step)s has task_state=%(value)s, which is not a "
+                        "valid project.task.state value.",
+                        step=step.display_name,
+                        value=step.task_state,
+                    )
+                )

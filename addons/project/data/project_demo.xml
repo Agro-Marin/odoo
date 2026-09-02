@@ -112,16 +112,19 @@
         <record id="project_stage_1" model="project.workflow.step">
             <field name="sequence">10</field>
             <field name="name">In Progress</field>
+            <field name="task_state">in_progress</field>
         </record>
         <record id="project_stage_2" model="project.workflow.step">
             <field name="sequence">20</field>
             <field name="name">Done</field>
             <field name="fold" eval="False" />
+            <field name="task_state">done</field>
         </record>
         <record id="project_stage_3" model="project.workflow.step">
             <field name="sequence">30</field>
             <field name="name">Cancelled</field>
             <field name="fold" eval="True" />
+            <field name="task_state">canceled</field>
         </record>
         <record id="project_project_1" model="project.project">
             <field name="date_start" eval="DateTime.today() - relativedelta(weeks=9)" />

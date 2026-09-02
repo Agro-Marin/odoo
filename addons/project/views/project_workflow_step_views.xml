@@ -40,6 +40,7 @@
                         <group>
                             <field name="name" placeholder="e.g. To Do" />
                             <field name="fold" />
+                            <field name="task_state" />
                             <field
                                 name="auto_update_state"
                                 invisible="not rating_template_id" />
@@ -120,6 +121,7 @@
                     options="{'color_field': 'color'}" />
                 <field name="color" optional="hide" widget="color_picker" />
                 <field name="fold" optional="show" />
+                <field name="task_state" optional="show" />
             </list>
         </field>
     </record>

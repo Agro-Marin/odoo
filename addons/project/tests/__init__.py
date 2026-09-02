@@ -62,3 +62,4 @@ from . import test_project_duplication
 from . import test_status_change_stamp
 from . import test_phase_mail_template
 from . import test_project_dates_alias
+from . import test_workflow_step_state
