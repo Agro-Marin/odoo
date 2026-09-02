@@ -21,8 +21,10 @@ def loader():
     """Patch the two function-local imports and the module-level `db`/`api`."""
     suite = MagicMock()
     suite.has_http_case.return_value = False
+    suite.countTestCases.return_value = 25
     fake = MagicMock()
     fake.prepare_suite.return_value = suite
+    fake.run_suite.return_value.testsRun = 25
     with (
         patch.dict("sys.modules", {}),
         patch("odoo.tests.loader", fake, create=True),
@@ -110,3 +112,31 @@ class TestSeedingPlannerStatsIsBestEffort:
         registry._assertion_report.update.assert_called_once_with(
             fake.run_suite.return_value
         )
+
+
+class TestAHollowPhaseIsReportedToTheCaller:
+    """Prepared N, started none: the shape `--no-http` produces when every
+    post_install class is an HttpCase. `testsRun` is counted at `startTest`,
+    which a class skipped at setUpClass never reaches, so the report alone
+    cannot tell this from a module that ships no post_install tests."""
+
+    def test_prepared_but_unstarted_returns_the_prepared_count(self, registry, loader):
+        fake, suite, _seed = loader
+        suite.countTestCases.return_value = 25
+        fake.run_suite.return_value.testsRun = 0
+
+        assert lifecycle._run_post_install_tests(registry, update_module=True) == 25
+
+    def test_a_phase_that_started_something_returns_zero(self, registry, loader):
+        fake, suite, _seed = loader
+        suite.countTestCases.return_value = 25
+        fake.run_suite.return_value.testsRun = 3
+
+        assert lifecycle._run_post_install_tests(registry, update_module=True) == 0
+
+    def test_a_module_with_no_post_install_tests_is_not_hollow(self, registry, loader):
+        fake, suite, _seed = loader
+        suite.countTestCases.return_value = 0
+        fake.run_suite.return_value.testsRun = 0
+
+        assert lifecycle._run_post_install_tests(registry, update_module=True) == 0

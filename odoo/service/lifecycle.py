@@ -66,7 +66,7 @@ def _reexec_server(updated_modules: list[str] | None = None) -> None:
     os.execve(sys.executable, args, os.environ)  # noqa: S606  re-exec of ourselves IS the restart
 
 
-def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
+def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
     from odoo.db.utils import seed_planner_stats
     from odoo.tests import loader
 
@@ -88,6 +88,7 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
     _logger.info("Starting post tests")
     tests_before = registry._assertion_report.testsRun
     post_install_suite = loader.prepare_suite(module_names, "post_install")
+    prepared = post_install_suite.countTestCases()
     if post_install_suite.has_http_case():
         with registry.cursor() as cr:
             env = api.Environment(cr, api.SUPERUSER_ID, {})
@@ -105,6 +106,7 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
         db.sql_counter - t0_sql,
     )
     registry._assertion_report.log_stats()
+    return prepared if prepared and not result.testsRun else 0
 
 
 def _get_narrowing_test_spec() -> str:
@@ -173,10 +175,21 @@ def preload_registries(dbnames: list[str] | None) -> int:
                         reinit_modules=config["reinit"],
                     )
 
+                unrun = 0
                 if config["test_enable"]:
-                    _run_post_install_tests(registry, update_module)
+                    unrun = _run_post_install_tests(registry, update_module)
                 report = registry._assertion_report
                 if report and not report.wasSuccessful():
+                    rc += 1
+                elif unrun:
+                    _logger.error(
+                        "post_install prepared %d tests for database %r and ran "
+                        "none of them: every class was skipped before its first "
+                        "test started (--no-http against HttpCase-only classes?), "
+                        "yet the run would otherwise have reported success.",
+                        unrun,
+                        dbname,
+                    )
                     rc += 1
                 elif (
                     report

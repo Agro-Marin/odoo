@@ -243,7 +243,15 @@ def make_report(*, successful=True, tests_run=1):
 class TestPreloadRegistriesReturnCode:
     @pytest.fixture
     def preload(self, mod):
-        def _run(dbnames, *, report=None, config_overrides=None, spec="", new=None):
+        def _run(
+            dbnames,
+            *,
+            report=None,
+            config_overrides=None,
+            spec="",
+            new=None,
+            unrun=0,
+        ):
             registry = MagicMock()
             registry._assertion_report = report
             registry_cls = MagicMock()
@@ -253,7 +261,9 @@ class TestPreloadRegistriesReturnCode:
             with (
                 patch.object(mod, "Registry", registry_cls),
                 patch.object(mod, "config", preload_config(**(config_overrides or {}))),
-                patch.object(mod, "_run_post_install_tests") as post_install,
+                patch.object(
+                    mod, "_run_post_install_tests", return_value=unrun
+                ) as post_install,
                 patch.object(mod, "_get_narrowing_test_spec", return_value=spec),
                 patch.object(mod, "_logger", logger),
             ):
@@ -318,6 +328,45 @@ class TestPreloadRegistriesReturnCode:
             spec="/base",
         )
         assert rc == 0
+
+    def test_a_post_install_phase_that_ran_nothing_fails_the_run(self, preload):
+        # The hole the narrowed-spec branch above cannot see: at_install ran,
+        # so the report holds tests, and every post_install class skipped
+        # itself at setUpClass -- `--no-http` against HttpCase-only classes --
+        # so the phase collected 25 and started none. testsRun is counted at
+        # startTest, which a class-level skip never reaches.
+        rc, logger, _, _ = preload(
+            ["db1"],
+            report=make_report(tests_run=310),
+            config_overrides={"test_enable": True},
+            unrun=25,
+        )
+        assert rc == 1
+        logger.error.assert_called_once()
+        message, *args = logger.error.call_args.args
+        assert "post_install prepared %d tests" in message
+        assert args == [25, "db1"], (
+            "the operator has to see how many were prepared and for which database"
+        )
+
+    def test_a_post_install_phase_that_ran_something_is_not_hollow(self, preload):
+        rc, logger, _, _ = preload(
+            ["db1"],
+            report=make_report(tests_run=310),
+            config_overrides={"test_enable": True},
+            unrun=0,
+        )
+        assert rc == 0
+        logger.error.assert_not_called()
+
+    def test_a_failed_run_is_counted_once_even_when_hollow(self, preload):
+        rc, _, _, _ = preload(
+            ["db1"],
+            report=make_report(successful=False),
+            config_overrides={"test_enable": True},
+            unrun=25,
+        )
+        assert rc == 1
 
     def test_post_install_tests_are_skipped_without_test_enable(self, preload):
         _, _, _, post_install = preload(["db1"], report=make_report())
