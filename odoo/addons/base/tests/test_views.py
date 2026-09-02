@@ -442,6 +442,37 @@ class TestViewInheritance(ViewCase):
 
         self.assertEqual(child_primary_no_arch.invalid_locators, False)
 
+    def test_invalid_locators_survive_a_malformed_move_xpath(self):
+        """A syntactically invalid xpath makes apply_inheritance_specs raise
+        ValidationError, not ValueError; the compute must report the bad
+        locator rather than crash while building it."""
+        base_view = self.makeView(
+            "malformed_move_base", arch="<form><field name='id'/></form>"
+        )
+        child = self.View.create(
+            {
+                "model": self.model,
+                "name": "malformed_move_child",
+                "inherit_id": base_view.id,
+                "active": False,
+                "priority": 12,
+                "arch": (
+                    '<xpath expr="//field[@name=\'id\']" position="after">'
+                    '<xpath expr="//field[@name=" position="move"/></xpath>'
+                ),
+            }
+        )
+        self.assertEqual(
+            child.invalid_locators,
+            [
+                {
+                    "tag": "xpath",
+                    "attrib": {"expr": "//field[@name=", "position": "move"},
+                    "sourceline": 1,
+                }
+            ],
+        )
+
     def test_invalid_locators_with_valid_xpath(self):
         base_view_arch = """
             <form string="View">

@@ -581,7 +581,7 @@ class IrUiView(models.Model):
                                 }
                             )
 
-                    with suppress(ValueError):
+                    with suppress(ValueError, ValidationError):
                         source = apply_inheritance_specs(source, spec)
             view.invalid_locators = invalid_locators or False
 
