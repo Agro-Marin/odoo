@@ -16869,6 +16869,12 @@ msgid "A payment provider for enabling Sepa Direct Debit in the EU."
 msgstr ""
 
 #. module: base
+#. odoo-python
+#: code:addons/base/models/mixin_hierarchy.py:0
+msgid "A record cannot be its own ancestor."
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,summary:base.module_payment_demo
 msgid "A payment provider for running fake payment flows for demo purposes."
 msgstr ""
