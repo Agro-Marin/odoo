@@ -33,7 +33,7 @@ import {
     mockService,
     models,
     mountView,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     preloadFullCalendar,
@@ -49,7 +49,6 @@ import { CalendarModel } from "@web/views/calendar/calendar_model";
 import { CalendarRenderer } from "@web/views/calendar/calendar_renderer";
 import { calendarView } from "@web/views/calendar/calendar_view";
 import { CalendarYearRenderer } from "@web/views/calendar/calendar_year/calendar_year_renderer";
-import { WebClient } from "@web/webclient/webclient";
 
 import {
     changeScale,
@@ -4444,7 +4443,7 @@ test(`initial_date given in the context`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_breadcrumb`).toHaveText("context initial date");
     expect(`.o_calendar_renderer .fc-col-header-cell .o_cw_day_name`).toHaveText(
@@ -5733,7 +5732,7 @@ test("sample data are not removed when switching back from calendar view", async
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_list_view`).toHaveCount(1);
     expect(`.o_view_sample_data`).toHaveCount(1);
@@ -5814,7 +5813,7 @@ test("save selected date during view switching", async () => {
         `,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await getService("action").switchView("calendar");

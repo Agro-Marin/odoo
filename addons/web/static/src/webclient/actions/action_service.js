@@ -42,6 +42,7 @@ import { BreadcrumbCache } from "./breadcrumb_cache.js";
 import {
     buildBreadcrumbs,
     controllersFromState as rebuildControllersFromState,
+    isMenuController,
 } from "./breadcrumb_manager.js";
 import { makeControllerComponent } from "./controller_component.js";
 import { loadState } from "./load_state.js";
@@ -463,6 +464,12 @@ export class ActionManager {
         } else if (options.spliceAt) {
             return options.spliceAt(stack);
         }
+        // The home menu is an overlay, not a step: an action landing over it
+        // takes its place rather than stacking on it.
+        const top = stack.at(-1);
+        if (top && isMenuController(top.action)) {
+            return stack.length - 1;
+        }
         return stack.length;
     }
 
@@ -860,7 +867,7 @@ export class ActionManager {
     }
 
     /**
-     * @param {string} jsId
+     * @param {string} [jsId]
      */
     async restore(jsId) {
         let index;

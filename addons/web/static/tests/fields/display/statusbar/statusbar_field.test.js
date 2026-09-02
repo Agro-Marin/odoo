@@ -24,7 +24,7 @@ import {
     mockService,
     models,
     mountView,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     pagerNext,
     pagerPrevious,
@@ -32,7 +32,6 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { patch } from "@web/core/utils/patch";
 import { StatusBarField } from "@web/fields/display/statusbar/statusbar_field";
-import { WebClient } from "@web/webclient/webclient";
 
 class Partner extends models.Model {
     name = fields.Char();
@@ -690,7 +689,7 @@ test("For the same record, a single rpc is done to recover the specialData", asy
     onRpc("has_group", () => true);
     onRpc("search_read", () => expect.step("search_read"));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await click(".o_data_row .o_data_cell");
@@ -730,7 +729,7 @@ test("open form with statusbar, leave and come back to another one with other do
     onRpc("has_group", () => true);
     onRpc("search_read", () => expect.step("search_read"));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await click(".o_data_row .o_data_cell");
@@ -1176,7 +1175,7 @@ test("cache: update current status if it changed", async () => {
     /** @type {any} */
     let def;
     onRpc("web_read", () => def);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         id: 1,
         name: "Partners",

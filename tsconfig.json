@@ -555,7 +555,6 @@
             "@voip_sms/*": ["../enterprise/voip_sms/static/src/*"],
             "@web/*": ["addons/web/static/src/*"],
             "@web_cohort/*": ["../enterprise/web_cohort/static/src/*"],
-            "@web_enterprise/*": ["../enterprise/web_enterprise/static/src/*"],
             "@web_gantt/*": ["../enterprise/web_gantt/static/src/*"],
             "@web_grid/*": ["../enterprise/web_grid/static/src/*"],
             "@web_hierarchy/*": ["addons/web_hierarchy/static/src/*"],

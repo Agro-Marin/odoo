@@ -12,7 +12,7 @@ import {
     getService,
     isItemSelected,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     serverState,
@@ -31,7 +31,6 @@ import { SupersededError } from "@web/core/utils/concurrency";
 import { redirect } from "@web/core/utils/urls";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SearchBar } from "@web/search/search_bar/search_bar";
-import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 const actionRegistry = registry.category("actions");
@@ -134,7 +133,7 @@ test("drop previous actions if possible", async () => {
     stepAllNetworkCalls();
     onRpc("/web/action/load", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("action").doAction(4);
     getService("action").doAction(8);
     def.resolve();
@@ -158,7 +157,7 @@ test("handle switching view and switching back on slow network", async () => {
     stepAllNetworkCalls();
     onRpc("web_search_read", () => defs.shift());
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(4);
     await switchView("list");
     await switchView("kanban");
@@ -188,7 +187,7 @@ test("clicking quickly on breadcrumbs...", async () => {
     let def;
     onRpc("web_read", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(4);
     await contains(".o_kanban_record").click();
     await getService("action").doAction(8);
@@ -224,7 +223,7 @@ test("execute a new action while loading a lazy-loaded controller", async () => 
     onRpc("partner", "search_read", () => def);
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
     expect(".o_form_view").toHaveCount(1, {
         message: "should display the form view of action 4",
@@ -276,7 +275,7 @@ test("execute a new action while handling a call_button", async () => {
     });
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await contains(".o_list_view .o_data_cell").click();
     expect(".o_form_view").toHaveCount(1, {
@@ -325,7 +324,7 @@ test("execute a new action while switching to another controller", async () => {
     stepAllNetworkCalls();
     onRpc("web_read", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1, {
         message: "should display the list view of action 3",
@@ -370,7 +369,7 @@ test("execute a new action while switching to another controller", async () => {
 
 test.tags("desktop");
 test("a navigation blocked in clearUncommittedChanges can't mount over a newer one", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const am = getService("action");
 
     const saveDef = new Deferred();
@@ -404,7 +403,7 @@ test("a navigation blocked in clearUncommittedChanges can't mount over a newer o
 
 test.tags("desktop");
 test("a switchView blocked in clearUncommittedChanges can't mount over a newer one", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const am = getService("action");
 
     await am.doAction(3);
@@ -441,7 +440,7 @@ test("a switchView blocked in clearUncommittedChanges can't mount over a newer o
 
 test.tags("desktop");
 test("a restore blocked in clearUncommittedChanges can't mount over a newer one", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const am = getService("action");
 
     await am.doAction(3);
@@ -486,7 +485,7 @@ test("a client action blocked in clearUncommittedChanges can't mount over a newe
     }
     actionRegistry.add("blockedClientAction", BlockedClientAction);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const am = getService("action");
 
     await am.doAction(3);
@@ -522,7 +521,7 @@ test("a client action blocked in clearUncommittedChanges can't mount over a newe
 });
 
 test("a loadState blocked reconstructing breadcrumbs can't commit over a newer one", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const am = getService("action");
 
     const breadcrumbDef = new Deferred();
@@ -563,7 +562,7 @@ test("execute a new action while loading views", async () => {
     stepAllNetworkCalls();
     onRpc("get_views", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("action").doAction(3);
     await animationFrame();
     expect(".o_list_view").toHaveCount(0, {
@@ -601,7 +600,7 @@ test("execute a new action while loading data of default view", async () => {
     stepAllNetworkCalls();
     onRpc("web_read", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("action").doAction({
         name: "A Partner",
         res_model: "partner",
@@ -644,7 +643,7 @@ test("open a record while reloading the list view", async () => {
     let def;
     onRpc("search_read", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_calendar_view").toHaveCount(0);
     expect(".o_list_view").toHaveCount(1);
@@ -679,7 +678,7 @@ test("properly drop client actions after new action is initiated", async () => {
     }
     actionRegistry.add("slowAction", ClientAction);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("action").doAction("slowAction");
     await animationFrame();
     expect(".client_action").toHaveCount(0, {
@@ -706,7 +705,7 @@ test("restoring a controller when doing an action -- load_action slow", async ()
     onRpc("/web/action/load", () => def);
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
@@ -748,7 +747,7 @@ test("switching when doing an action -- load_action slow", async () => {
     onRpc("/web/action/load", () => def);
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
@@ -786,7 +785,7 @@ test("switching when doing an action -- get_views slow", async () => {
     onRpc("get_views", () => def);
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
@@ -824,7 +823,7 @@ test("switching when doing an action -- search_read slow", async () => {
     onRpc("search_read", () => def);
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
@@ -860,7 +859,7 @@ test("click multiple times to open a record", async () => {
     const def = new Deferred();
     onRpc("web_read", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
@@ -882,7 +881,7 @@ test("dialog will only open once for two rapid actions with the target new", asy
     const def = new Deferred();
     onRpc("onchange", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("action").doAction(5);
     await animationFrame();
     expect(".o_dialog .o_form_view").toHaveCount(0);
@@ -932,7 +931,7 @@ test("local state, global state, and race conditions", async () => {
         Controller: ToyController,
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction({
         res_model: "partner",
@@ -965,7 +964,7 @@ test("doing browser back navigates to the previous action", async () => {
     /** @type {any} */
     let def;
     onRpc("partner", "web_search_read", () => def);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(4);
     await getService("action").doAction(8);
@@ -1010,7 +1009,7 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
     actionRegistry.add("clientA", ClientActionA);
     actionRegistry.add("clientB", ClientActionB);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const action = getService("action");
 
     let skeletonsPosted = 0;

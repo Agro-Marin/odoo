@@ -66,17 +66,16 @@ reads the real `innerWidth` and responsive components branch on it.
 
 Tests are selected by **tag**, not by directory, so the two presets execute
 different sets — overlapping, and neither a superset of the other. Measured on
-the same suite lists (2026-07-30): `@web/webclient` is 870 tests under desktop
-and 345 under mobile; `@web_enterprise/webclient @web_enterprise/views
-@web_enterprise/mobile` is 54 and 35. Verifying a change means running the same
-suite list under both. Re-measure after moving tests between addons rather than
-trusting these numbers — they drift, and a stale count reads as a regression.
+the same suite list (2026-09-02): `@web/webclient` is 1057 tests under desktop
+and 369 under mobile. Verifying a change means running the same suite list
+under both. Re-measure after moving tests between addons rather than trusting
+these numbers — they drift, and a stale count reads as a regression.
 
 A suite contributing **zero** tests under the current preset is not an error:
 the run only fails closed when the *whole* selection matches nothing. So
 
 ```bash
-./hoot '@web_enterprise/webclient' '@web_enterprise/mobile'   # desktop preset
+./hoot '@web/webclient' '@web/views/pivot_view'   # desktop preset
 ```
 
 reports PASS having never executed one of the two. Gate on the per-preset test

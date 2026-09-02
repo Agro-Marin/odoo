@@ -2,12 +2,14 @@
 /** @odoo-module native */
 
 import { Component, useState } from "@odoo/owl";
+import { isDisplayStandalone } from "@web/core/browser/feature_detection";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { Transition } from "@web/core/transition";
 import { user } from "@web/core/user";
 import { useBus } from "@web/core/utils/hooks";
 
+import { shareUrl } from "../share_url/share_url.js";
 import { SWIPE_RIGHT, SwipeTracker } from "../swipe.js";
 import { BurgerUserMenu } from "./burger_user_menu/burger_user_menu.js";
 import { MobileSwitchCompanyMenu } from "./mobile_switch_company_menu/mobile_switch_company_menu.js";
@@ -46,6 +48,12 @@ export class BurgerMenu extends Component {
                 }
             ),
         );
+    }
+    get canShareUrl() {
+        return Boolean(navigator.share) && isDisplayStandalone();
+    }
+    shareUrl() {
+        return shareUrl();
     }
     _closeBurger() {
         this.state.isBurgerOpened = false;

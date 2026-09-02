@@ -10,6 +10,7 @@ import {
     defineMenus,
     getService,
     makeMockEnv,
+    mountWebClient,
     mountWithCleanup,
     onRpc,
     patchWithCleanup,
@@ -38,37 +39,37 @@ beforeEach(async () => {
 test.tags("desktop");
 test("can be rendered", async () => {
     await mountWithCleanup(NavBar);
-    expect(".o_navbar_apps_menu button.dropdown-toggle").toHaveCount(1, {
-        message: "1 apps menu toggler present",
+    expect("a.o_menu_toggle").toHaveCount(1, { message: "1 home menu toggle present" });
+    expect("a.o_menu_toggle").toHaveAttribute("href", "/odoo");
+    expect(".o_navbar_apps_menu").toHaveCount(0, {
+        message: "the apps dropdown is gone: the home menu is the app switcher",
     });
 });
 
 test.tags("desktop");
-test("dropdown menu can be toggled", async () => {
+test("the toggle asks the home menu service to toggle", async () => {
     await mountWithCleanup(NavBar);
-    await contains(".o_navbar_apps_menu button.dropdown-toggle").click();
-    expect(".dropdown-menu").toHaveCount(1);
-    await contains(".o_navbar_apps_menu button.dropdown-toggle").click();
-    expect(".dropdown-menu").toHaveCount(0);
+    patchWithCleanup(getService("home_menu"), {
+        toggle: async (show) => {
+            expect.step(`toggle ${show}`);
+        },
+    });
+    await contains("a.o_menu_toggle").click();
+    expect.verifySteps(["toggle undefined"]);
 });
 
 test.tags("desktop");
-test("href attribute on apps menu items", async () => {
+test("href attribute on home menu apps", async () => {
     defineMenus([{ id: 1, actionID: 339 }]);
-    await mountWithCleanup(NavBar);
-    await contains(".o_navbar_apps_menu button.dropdown-toggle").click();
-    expect(".o-dropdown--menu .dropdown-item").toHaveAttribute(
-        "href",
-        "/odoo/action-339",
-    );
+    await mountWebClient();
+    expect(".o_home_menu .o_app").toHaveAttribute("href", "/odoo/action-339");
 });
 
 test.tags("desktop");
-test("href attribute with path on apps menu items", async () => {
+test("href attribute with path on home menu apps", async () => {
     defineMenus([{ id: 1, actionID: 339, actionPath: "my-path" }]);
-    await mountWithCleanup(NavBar);
-    await contains(".o_navbar_apps_menu button.dropdown-toggle").click();
-    expect(".o-dropdown--menu .dropdown-item").toHaveAttribute("href", "/odoo/my-path");
+    await mountWebClient();
+    expect(".o_home_menu .o_app").toHaveAttribute("href", "/odoo/my-path");
 });
 
 test.tags("desktop");
@@ -106,7 +107,23 @@ test("many sublevels in app menu items", async () => {
 });
 
 test.tags("desktop");
-test("data-menu-xmlid attribute on AppsMenu items", async () => {
+test("data-menu-xmlid attribute on home menu apps", async () => {
+    defineMenus([
+        { id: 1, actionID: 339, xmlid: "wowl" },
+        { id: 2, actionID: 340 },
+    ]);
+    await mountWebClient();
+    expect(queryAllAttributes(".o_home_menu .o_app", "data-menu-xmlid")).toEqual(
+        ["wowl", null],
+        {
+            message:
+                "apps should have the correct data-menu-xmlid attribute (only the first is set)",
+        },
+    );
+});
+
+test.tags("desktop");
+test("data-menu-xmlid attribute on section items", async () => {
     defineMenus([
         {
             id: 1,
@@ -119,15 +136,6 @@ test("data-menu-xmlid attribute on AppsMenu items", async () => {
         { id: 2 },
     ]);
     await mountWithCleanup(NavBar);
-
-    await contains(".o_navbar_apps_menu button.dropdown-toggle").click();
-    expect(queryAllAttributes(".o-dropdown--menu a", "data-menu-xmlid")).toEqual(
-        ["wowl", null],
-        {
-            message:
-                "menu items should have the correct data-menu-xmlid attribute (only the first is set)",
-        },
-    );
 
     getService("menu").setCurrentMenu(1);
     await animationFrame();
@@ -143,16 +151,16 @@ test("data-menu-xmlid attribute on AppsMenu items", async () => {
 
 test.tags("desktop");
 test("navbar can display current active app", async () => {
+    defineMenus([{ id: 1, name: "My app", actionID: 339 }]);
     await mountWithCleanup(NavBar);
-    await contains(".o_navbar_apps_menu button.dropdown-toggle").click();
-    expect(".o-dropdown--menu .dropdown-item:not(.focus)").toHaveCount(1, {
+    expect(".o_menu_brand").toHaveCount(0, {
         message:
             "should not show the current active app as the menus service has not loaded an app yet",
     });
 
     getService("menu").setCurrentMenu(1);
     await animationFrame();
-    expect(".o-dropdown--menu .dropdown-item.focus").toHaveCount(1, {
+    expect(".o_menu_brand").toHaveText("My app", {
         message: "should show the current active app",
     });
 });
@@ -637,9 +645,9 @@ test("the icon-only navbar toggles carry an accessible name", async () => {
     await mountWithCleanup(NavBar);
     await waitNavbarAdaptation();
 
-    expect(".o_navbar_apps_menu button").toHaveAttribute("aria-label", "Home Menu");
+    expect("a.o_menu_toggle").toHaveAttribute("aria-label", "Home menu");
+    expect("a.o_menu_toggle").toHaveAttribute("title", "Home menu");
     expect(".o_menu_sections_more button").toHaveAttribute("aria-label", "More Menu");
-    expect(".o_navbar_apps_menu button i").toHaveAttribute("aria-hidden", "true");
     expect(".o_menu_sections_more button i").toHaveAttribute("aria-hidden", "true");
 });
 

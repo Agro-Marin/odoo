@@ -51,7 +51,7 @@ import {
     models,
     mountView,
     mountViewInDialog,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     serverState,
@@ -993,7 +993,7 @@ test(`Form and subview with _view_ref contexts`, async () => {
         };
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_id: 1,
         type: "ir.actions.act_window",
@@ -1674,7 +1674,7 @@ test(`reset local state when switching to another view`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await contains(`.o_control_panel_main_buttons button.o_list_button_add`).click();
@@ -1728,20 +1728,22 @@ test(`trying to leave an invalid form view should not change the navbar`, async 
         list: `<list><field name="name"/></list>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
+    await contains(`.o_home_menu .o_app:eq(0)`).click();
     await animationFrame();
-    await getService("action").doAction(1);
     expect(`.o_main_navbar .o_menu_brand`).toHaveText("App0");
 
     await contains(`[name='foo'] input`).edit("blop");
-    await contains(`.o_navbar_apps_menu button`).click();
-    await contains(`.o-dropdown--menu .dropdown-item[data-section='2']`).click();
+    await contains(`.o_menu_toggle`).click();
     await animationFrame();
+    expect(`.o_home_menu`).toHaveCount(0, {
+        message: "an invalid form cannot be left, not even for the home menu",
+    });
     expect(`.o_main_navbar .o_menu_brand`).toHaveText("App0");
 
     await contains(`[name='name'] input`).edit("blop");
-    await contains(`.o_navbar_apps_menu button`).click();
-    await contains(`.o-dropdown--menu .dropdown-item[data-section='2']`).click();
+    await contains(`.o_menu_toggle`).click();
+    await contains(`.o_home_menu .o_app:eq(1)`).click();
     await animationFrame();
     expect(`.o_main_navbar .o_menu_brand`).toHaveText("App1");
 });
@@ -2905,7 +2907,7 @@ test(`form views in dialogs do not have a control panel`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_dialog .o_form_view`).toHaveCount(1);
     expect(`.o_dialog .o_form_view .o_control_panel`).toHaveCount(0);
@@ -2930,7 +2932,7 @@ test(`form views in dialogs do not add display_name field`, async () => {
         expect.step("onchange");
         expect(args[3]).toEqual({ foo: {} });
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_dialog .o_form_view`).toHaveCount(1);
     expect(`.o_dialog .o_form_view .o_control_panel`).toHaveCount(0);
@@ -2954,7 +2956,7 @@ test(`form views in dialogs closes on save`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_dialog .o_form_view`).toHaveCount(1);
 
@@ -2984,7 +2986,7 @@ test(`form views in dialogs closes on discard on existing record`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_dialog .o_form_view`).toHaveCount(1);
 
@@ -3021,7 +3023,7 @@ test(`form views in dialogs do not have class o_xxl_form_view`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_dialog .o_form_view`).toHaveCount(1);
     expect(`.o_dialog .o_form_view`).not.toHaveClass("o_xxl_form_view");
@@ -3075,7 +3077,7 @@ test(`form with custom cog action that has a confirmation target="new" action`, 
     ]);
 
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_form_view").toHaveCount(1);
 
@@ -3989,7 +3991,7 @@ test(`form view properly change its title`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_breadcrumb`).toHaveText("first record");
 
@@ -4181,7 +4183,7 @@ test(`archive a record with intermediary action`, async () => {
     onRpc(({ model, method, route }) =>
         expect.step(`${method || route}${method ? ": " + model : ""}`),
     );
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         res_id: 1,
@@ -5739,7 +5741,7 @@ test(`restore the open notebook page when switching to another view`, async () =
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2);
 
     expect(`.o_notebook:eq(0) .nav-link:eq(0)`).toHaveClass("active");
@@ -5807,7 +5809,7 @@ test(`don't restore the open notebook page when we create a new record`, async (
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(`.o_data_cell`).click();
     expect(`.o_notebook:eq(0) .nav-link:eq(0)`).toHaveClass("active");
@@ -6101,7 +6103,7 @@ test("delete the last record (without previous action)", async () => {
             expect.step("__DEFAULT_ACTION__ called");
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await toggleActionMenu();
     await toggleMenuItem("Delete");
     await contains(`.modal-footer button.btn-primary`).click();
@@ -6711,7 +6713,7 @@ test(`rpc complete after destroying parent`, async () => {
         await deferred;
         return { type: "ir.actions.act_window_close" };
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_form_view`).toHaveCount(1);
 
@@ -7607,7 +7609,7 @@ test(`modifiers are considered on multiple <footer/> tags`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(queryAllTexts`.modal-footer button:visible`).toEqual(["Hello", "World"]);
 
@@ -7637,7 +7639,7 @@ test(`buttons in footer are moved to $buttons if necessary`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.modal-footer button.infooter`).toHaveCount(1);
     expect(`.o_form_view button.infooter`).toHaveCount(0);
@@ -9229,7 +9231,7 @@ test("Redirect Warning full feature: additional context, action_id, leaving whil
         expect(args.kwargs.domain).toEqual([["id", "in", [4]]]);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await contains(".o_field_widget[name='name'] input").edit("some invalid input");
@@ -9937,7 +9939,7 @@ test(`coming to a form view from a grouped and sorted list`, async () => {
     });
     onRpc(({ model, method }) => expect.step(`${model}:${method}`));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect.verifySteps([
         "partner:get_views",
@@ -10151,7 +10153,7 @@ test(`leave the form view while saving`, async () => {
     const createDeferred = new Deferred();
     onRpc("web_save", () => createDeferred);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(`.o_control_panel_main_buttons button.o_list_button_add`).click();
 
@@ -10209,7 +10211,7 @@ test(`leave the form twice (clicking on the breadcrumb) should save only once`, 
         expect.step("web_save");
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await contains(`.o_list_table .o_data_row .o_data_cell`).click();
@@ -10261,7 +10263,7 @@ test(`discard after a failed save (and close notifications)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(`.o_control_panel_main_buttons button.o-kanban-button-new`).click();
 
@@ -10777,7 +10779,7 @@ test(`no 'oh snap' error in form view in dialog`, async () => {
         expect.step("save");
         throw makeServerError({ message: "Some business message" });
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         type: "ir.actions.act_window",
         target: "new",
@@ -10927,7 +10929,7 @@ test(`Action Button clicked with failing action on desktop`, async () => {
         `,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_id: 1,
         type: "ir.actions.act_window",
@@ -10970,7 +10972,7 @@ test(`Action Button clicked with failing action on mobile`, async () => {
         `,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_id: 1,
         type: "ir.actions.act_window",
@@ -11186,7 +11188,7 @@ test(`form view does not deactivate sample data on other views`, async () => {
         form: `<form><field name="name"/></form>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partner",
         res_model: "partner",
@@ -11225,7 +11227,7 @@ test(`empty x2manys when coming form a list with sample data`, async () => {
             </form>
         `,
     };
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partner",
         res_model: "partner",
@@ -11484,7 +11486,7 @@ test(`reload form view with an empty notebook`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(`.o_data_row .o_data_cell`).click();
     await contains(`.o_back_button`).click();
@@ -11706,7 +11708,7 @@ test(`prevent recreating a deleted record`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_data_row`).toHaveCount(1);
     expect(`.o_data_row`).toHaveText("first record");
@@ -11783,7 +11785,7 @@ test(`coming to an action with an error from a form view with a dirty x2m`, asyn
             expect.step(method);
         }
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await contains(
@@ -11864,7 +11866,7 @@ test(`coming to an action with an error from a form view with a record in creati
         expect(args[1]).toEqual({ foo: "new value" });
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await contains(`[name=foo] input`).edit("new value");
@@ -12467,7 +12469,7 @@ test(`field with special data (with persistent Cache)`, async () => {
                 <widget name="my_widget" />
             </form>`,
     };
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     def.resolve({ test: 1 });
     await getService("action").doAction(1);
@@ -12533,7 +12535,7 @@ test(`x2many field in form dialog view is correctly saved when using a view butt
         expect(args[1]).toEqual({ partner_ids: [[4, 6, false]] });
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_id: 19,
         type: "ir.actions.act_window",
@@ -13142,7 +13144,7 @@ test("executing new action, closes dialog, and avoid reload previous view", asyn
             </kanban>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_id: 1,
         type: "ir.actions.act_window",
@@ -13216,7 +13218,7 @@ test(`cached web_read`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_field_char input`).toHaveValue("yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("first record");
@@ -13269,7 +13271,7 @@ test(`cached web_read: don't cache if action have cache:false`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_field_char input`).toHaveValue("yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("first record");
@@ -13321,7 +13323,7 @@ test(`cached web_read - don't loose changes`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_field_char input`).toHaveValue("yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("first record");
@@ -13376,7 +13378,7 @@ test(`cached web_read - record stays dirty when revalidation lands after an edit
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await getService("action").doAction(2);
 
@@ -13419,7 +13421,7 @@ test(`cached web_read - invalid input survives revalidation`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await getService("action").doAction(2);
 
@@ -13470,7 +13472,7 @@ test(`cached web_read - savepoint survives revalidation`, async () => {
         },
     ]);
 
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     await getService("action").doAction(1);
     await getService("action").doAction(2);
 
@@ -13521,7 +13523,7 @@ test(`cached onchange - don't loose changes`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_field_char input`).toHaveValue("My little Foo Value");
     expect(`.o_last_breadcrumb_item`).toHaveText("New");

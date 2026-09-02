@@ -14,7 +14,7 @@ import {
     mockService,
     models,
     mountView,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     saveFavorite,
@@ -38,7 +38,6 @@ import { SampleServer } from "@web/model/sample_server";
 import { GraphArchParser } from "@web/views/graph/graph_arch_parser";
 import { DATA_LIMIT, GraphModel } from "@web/views/graph/graph_model";
 import { GraphRenderer } from "@web/views/graph/graph_renderer";
-import { WebClient } from "@web/webclient/webclient";
 
 import {
     checkDatasets,
@@ -2124,7 +2123,7 @@ test("graph view only keeps finer groupby filter option for a given groupby", as
 });
 
 test("action name is displayed in breadcrumbs", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Glou glou",
         res_model: "foo",
@@ -2688,7 +2687,7 @@ test.tags("desktop");
 test("reload chart with switchView button keep internal state", async () => {
     Foo._views.list = `<list />`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Foo Action 1",
         res_model: "foo",

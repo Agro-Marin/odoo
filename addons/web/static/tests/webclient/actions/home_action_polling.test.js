@@ -4,13 +4,12 @@ import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime, animationFrame } from "@odoo/hoot-mock";
 import {
     getService,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { redirect } from "@web/core/utils/urls";
-import { WebClient } from "@web/webclient/webclient";
 
 function doHome() {
     getService("action").doAction({ type: "ir.actions.client", tag: "home" });
@@ -44,7 +43,7 @@ describe("home action: bounded server-wait loop", () => {
             return true;
         });
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         doHome();
         await animationFrame();
         await advanceTime(1500);
@@ -77,7 +76,7 @@ describe("home action: bounded server-wait loop", () => {
             throw new Error("server is restarting");
         });
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         doHome();
         await animationFrame();
 
@@ -96,13 +95,13 @@ describe("home action: bounded server-wait loop", () => {
         browser.location.search = "";
         /** @type {any[]} */
         const assigned = [];
-        patchWithCleanup(browser.location, { assign: (url) => assigned.push(url) });
 
         onRpc("/web/webclient/version_info", () => {
             throw new Error("server never came back");
         });
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
+        patchWithCleanup(browser.location, { assign: (url) => assigned.push(url) });
         doHome();
         await animationFrame();
 
@@ -118,7 +117,6 @@ describe("home action: bounded server-wait loop", () => {
         browser.location.search = "";
         /** @type {any[]} */
         const assigned = [];
-        patchWithCleanup(browser.location, { assign: (url) => assigned.push(url) });
 
         let attempts = 0;
         onRpc("/web/webclient/version_info", () => {
@@ -129,7 +127,8 @@ describe("home action: bounded server-wait loop", () => {
             return true;
         });
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
+        patchWithCleanup(browser.location, { assign: (url) => assigned.push(url) });
         doHome();
         await animationFrame();
 

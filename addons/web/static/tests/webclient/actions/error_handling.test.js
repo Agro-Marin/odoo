@@ -11,7 +11,7 @@ import {
     fields,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     stepAllNetworkCalls,
@@ -20,7 +20,6 @@ import {
 import { registry } from "@web/core/registry";
 import { BooleanField } from "@web/fields/basic/boolean/boolean_field";
 import { FormController } from "@web/views/form/form_controller";
-import { WebClient } from "@web/webclient/webclient";
 
 const actionRegistry = registry.category("actions");
 
@@ -72,7 +71,7 @@ test("error in a client action (at rendering)", async () => {
         expect.step("web_search_read");
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_kanban_view").toHaveCount(1);
     expect(".o_breadcrumb").toHaveText("Partners Action 1");
@@ -120,7 +119,7 @@ test("error in a client action (after the first rendering)", async () => {
     }
     actionRegistry.add("Boom", Boom);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction("Boom");
     expect(".my_button").toHaveCount(1);
 
@@ -136,7 +135,7 @@ test("connection lost when opening form view from kanban", async () => {
 
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_kanban_view").toHaveCount(1);
 
@@ -198,7 +197,7 @@ test("connection lost when coming back to kanban from form", async () => {
         { pure: true },
     );
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_kanban_view").toHaveCount(1);
 
@@ -270,7 +269,7 @@ test("error on onMounted", async () => {
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await animationFrame();
     expect(".o_kanban_view").toHaveCount(1);

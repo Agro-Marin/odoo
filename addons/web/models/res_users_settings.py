@@ -29,6 +29,7 @@ class ResUsersSettings(models.Model):
         required=True,
         string="Color Scheme",
     )
+    homemenu_config = fields.Json(string="Home Menu Configuration", readonly=True)
 
     @api.model
     def _format_settings(self, fields_to_format: list[str]) -> dict[str, Any]:

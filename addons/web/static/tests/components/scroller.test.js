@@ -4,12 +4,15 @@ import { expect, test } from "@odoo/hoot";
 import { click, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { getService, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    getService,
+    mountWebClient,
+    mountWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { redirect } from "@web/core/utils/urls";
-import { WebClient } from "@web/webclient/webclient";
 
 const SUBPIXEL_TOLERANCE = 1;
 
@@ -138,7 +141,7 @@ test("clicking to scroll on a web client shouldn't open the default app", async 
         static path = "my_component";
     }
     registry.category("actions").add("my_component", MyComponent);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction("my_component");
 
     const scrollableParent = document.querySelector(".o_content");
@@ -531,7 +534,7 @@ test("scroll to anchor from load", async () => {
     }
     registry.category("actions").add("my_component", MyComponent);
     redirect("/odoo/my_component#scrollToHere");
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
 
     const scrollableParent = document.querySelector(".o_content");

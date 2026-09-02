@@ -1,0 +1,159 @@
+///
+/// This file is a copy of the bootstrap _variables.scss file where all the
+/// left-untouched variables definition have been removed.
+///
+
+// == Color system
+$danger: $o-danger !default;
+
+// From palette_dark.scss, which every bundle carries: web's tokens.scss holds
+// the dark ramp's labels to this bar while a light bundle is compiling.
+$min-contrast-ratio: $o-dark-min-contrast-ratio !default;
+
+$info-text-emphasis: $o-dark-info-text-emphasis !default;
+$info-bg-subtle: $o-dark-info-bg-subtle !default;
+$info-border-subtle: $o-dark-info-border-subtle !default;
+
+// == Characters which are escaped by the escape-svg function
+
+// == Options
+
+// == Prefix for :root CSS variables
+
+// == Gradient
+
+// == Spacing
+
+// == Position
+
+// == Body
+
+// == Links
+
+$link-shade-percentage: $o-dark-link-shade-percentage !default;
+$link-hover-color: $o-dark-link-hover-color !default;
+
+// == Paragraphs
+
+// == Grid breakpoints
+
+// == Grid containers
+
+// == Grid columns
+
+// == Components
+// Use subtle white-alpha borders for dark mode depth
+$border-color: $o-dark-border-color !default;
+
+$box-shadow: $o-dark-box-shadow !default;
+$box-shadow-sm: $o-dark-box-shadow-sm !default;
+$box-shadow-lg: $o-dark-box-shadow-lg !default;
+$box-shadow-inset: $o-dark-box-shadow-inset !default;
+
+$component-active-bg: $o-dark-surface-raised !default;
+
+// == Typography
+$mark-bg: $o-dark-mark-bg !default;
+$mark-color: $o-dark-mark-color !default;
+
+// == Tables
+$table-bg: $o-dark-surface-sunken !default;
+$table-border-color: $o-dark-hairline !default;
+$table-group-separator-color: $o-dark-hairline !default;
+$table-bg-scale: $o-dark-table-bg-scale !default;
+$table-striped-bg-factor: $o-dark-table-striped-bg-factor !default;
+$table-hover-bg-factor: $o-dark-table-hover-bg-factor !default;
+$table-active-bg-factor: $o-dark-table-active-bg-factor !default;
+
+// == Buttons + Forms
+
+// == Buttons
+
+// == Forms
+$input-border-color: $o-dark-hairline !default;
+// A checkbox boundary is "visual information required to identify a user
+// interface component" under WCAG 2.2 SC 1.4.11, so it needs 3:1 - unlike the
+// dividers `$border-color` exists for, which Bootstrap points this at by
+// default. Inheriting the divider tone left unchecked boxes at 1.26:1.
+$form-check-input-border: var(--border-width) solid #{$o-dark-gray-600} !default;
+$input-placeholder-color: $o-dark-input-placeholder-color !default;
+$input-focus-bg: $o-dark-input-focus-bg !default;
+$form-range-thumb-active-bg: $o-dark-form-range-thumb-active-bg !default;
+$form-range-track-bg: $o-dark-surface-raised !default;
+
+$form-switch-color: $o-dark-form-switch-color !default;
+$form-switch-focus-color: $o-dark-form-switch-focus-color !default;
+$form-switch-checked-color: $o-dark-surface-sunken !default;
+
+// == Form validation
+
+// == Z-index master list
+
+// == Navs
+
+// == Navbar
+
+// == Dropdowns
+$dropdown-bg: $o-dark-surface-raised !default;
+$dropdown-border-color: $o-dark-dropdown-border-color !default;
+$dropdown-header-color: $o-dark-dropdown-header-color !default;
+
+// == Pagination
+
+// == Placeholders
+
+// == Cards
+$card-cap-bg: $o-dark-surface-sunken !default;
+$card-border-color: $o-dark-card-border-color !default;
+
+// == Accordion
+
+// == Tooltips
+$tooltip-color: $o-dark-tooltip-color !default;
+$tooltip-bg: $o-dark-surface-raised !default;
+
+// == Form tooltips must come after regular tooltips
+
+// == Popovers
+$popover-bg: $o-dark-surface-raised !default;
+$popover-border-color: $o-dark-popover-border-color !default;
+
+// == Toasts
+$toast-background-color: $o-dark-toast-background-color !default;
+
+// == Badges
+
+// == Modals
+$modal-content-border-color: $o-dark-hairline !default;
+
+// == Alerts
+$alert-bg-scale: $o-dark-alert-bg-scale !default;
+$alert-border-scale: $o-dark-alert-border-scale !default;
+$alert-color-scale: $o-dark-alert-color-scale !default;
+
+// == Progress bars
+
+// == List group
+$list-group-bg: $o-dark-surface-sunken !default;
+$list-group-border-color: $o-dark-hairline !default;
+
+// == Image thumbnails
+
+// == Figures
+
+// == Breadcrumbs
+
+// == Carousel
+
+// == Spinners
+
+// == Close
+
+// == Offcanvas
+
+// == Code
+
+// == Keyboard Input
+$kbd-color: $o-dark-kbd-color !default;
+$kbd-bg: $o-dark-kbd-bg !default;
+$kbd-box-shadow: $o-dark-kbd-box-shadow !default;

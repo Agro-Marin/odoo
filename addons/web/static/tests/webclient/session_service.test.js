@@ -5,7 +5,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { Component, onMounted, onWillStart, xml } from "@odoo/owl";
 import {
     getService,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
@@ -49,7 +49,7 @@ test("Only call once session info data when services calls lazy session", async 
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
     expect.verifySteps([
         "service_a_before",
@@ -94,7 +94,7 @@ test("Only call once lazy session info data on action", async () => {
         force: true,
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
     await getService("action").doAction({
         tag: "__test__client__action__",
@@ -161,7 +161,7 @@ test("Call lazy session info after webclient init with action and service", asyn
         force: true,
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
     await getService("action").doAction({
         tag: "__test__client__action__",

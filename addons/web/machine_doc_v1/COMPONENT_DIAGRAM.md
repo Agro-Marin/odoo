@@ -165,7 +165,7 @@ prose must not reach for them.
 
 | Layer | File | Lines | Role |
 |-------|------|-------|------|
-| JS | `static/src/boot/main.js` | 12 | Entry point — imports WebClient, calls `startWebClient()`. No `.catch`: the failure boundary moved INTO `startWebClient`, because `enterprise/web_enterprise` replaces this file and a handler here covers only the community bundle |
+| JS | `static/src/boot/main.js` | 12 | Entry point — imports WebClient, calls `startWebClient()`. No `.catch`: the failure boundary lives INSIDE `startWebClient`, so an addon that replaces this entry file keeps it |
 | JS | `static/src/boot/start.js` | 183 | `startWebClient()` — `publishOdooInfo()`, `applyUserTimezone()` (validated: an unknown IANA zone makes every luxon DateTime invalid, silently), RPC cache, `whenReady()`, `mountComponent()`. Wraps its whole body: paints `paintBootFailureOverlay()` with the failing phase and never rejects. `applyBootBodyClasses()` runs via `mountComponent`'s `beforeMount`, i.e. BEFORE the first render |
 | JS | `static/src/env.js` | 410 | `makeEnv()`, `startServices()`, `ensureServicesStarted()`, `mountComponent()`, `customDirectives`, `globalValues` |
 | JS | `static/src/session.js` | 19 | Reads `odoo.__session_info__` into the exported `session`. **Does not delete it**: no `delete` exists in the tree; the raw payload stays on the `odoo` global for the page lifetime. |

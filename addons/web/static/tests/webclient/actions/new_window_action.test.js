@@ -8,12 +8,11 @@ import {
     fields,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { WebClient } from "@web/webclient/webclient";
 
 class TestClientAction extends Component {
     static template = xml`
@@ -78,13 +77,13 @@ beforeEach(() => {
 });
 
 test("can execute act_window actions from db ID in a new window", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1, { newWindow: true });
     expect.verifySteps(["open: /odoo/action-1"]);
 });
 
 test("'CLEAR-UNCOMMITTED-CHANGES' is not triggered for window action", async () => {
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     webClient.env.bus.addEventListener("CLEAR-UNCOMMITTED-CHANGES", () => {
         expect.step("CLEAR-UNCOMMITTED-CHANGES");
     });
@@ -100,7 +99,7 @@ test("'CLEAR-UNCOMMITTED-CHANGES' is not triggered for client actions", async ()
     }
     registry.category("actions").add("my_action", ClientAction);
 
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     webClient.env.bus.addEventListener("CLEAR-UNCOMMITTED-CHANGES", () => {
         expect.step("CLEAR-UNCOMMITTED-CHANGES");
     });
@@ -110,7 +109,7 @@ test("'CLEAR-UNCOMMITTED-CHANGES' is not triggered for client actions", async ()
 });
 
 test("'CLEAR-UNCOMMITTED-CHANGES' is not triggered for switchView", async () => {
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     webClient.env.bus.addEventListener("CLEAR-UNCOMMITTED-CHANGES", () => {
         expect.step("CLEAR-UNCOMMITTED-CHANGES");
     });
@@ -121,7 +120,7 @@ test("'CLEAR-UNCOMMITTED-CHANGES' is not triggered for switchView", async () => 
 });
 
 test("can execute dynamic act_window actions in a new window", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(
         {
             name: "Partners",
@@ -138,7 +137,7 @@ test("can execute dynamic act_window actions in a new window", async () => {
 });
 
 test("can execute an actions in a new window and preserve the breadcrumb", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await getService("action").doAction(
         {
@@ -159,7 +158,7 @@ test("can execute client actions in a new window", async () => {
     registry
         .category("actions")
         .add("__test__client__action__", TestClientAction, { force: true });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(
         {
             name: "Dialog Test",
@@ -196,7 +195,7 @@ test("opening in a new window seeds sessionStorage, then restores this window's"
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     const before = {
         action: browser.sessionStorage.getItem("current_action"),
@@ -227,7 +226,7 @@ test("opening in a new window from a blank session leaves no residue", async () 
     patchWithCleanup(browser, {
         open: (url) => expect.step("open: " + url),
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     browser.sessionStorage.removeItem("current_action");
     browser.sessionStorage.removeItem("current_state");
 

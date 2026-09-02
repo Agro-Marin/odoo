@@ -1,5 +1,5 @@
 $o-dark-colors-lighten: 12% !default;
-$o-dark-min-contrast-ratio: 3 !default;
+$o-dark-min-contrast-ratio: 4.5 !default;
 
 $o-dark-white: #000 !default;
 $o-dark-black: #e2e8f0 !default;
@@ -30,15 +30,18 @@ $o-dark-grays: (
 ) !default;
 
 $o-dark-community-color: #a29bfe !default;
-$o-dark-brand-odoo: $o-dark-community-color !default;
-$o-dark-brand-primary: $o-dark-community-color !default;
-$o-dark-action: $o-dark-community-color !default;
+$o-dark-enterprise-color: #c084fc !default;
+$o-dark-enterprise-action-color: #22d3ee !default;
+
+$o-dark-brand-odoo: $o-dark-enterprise-color !default;
+$o-dark-brand-primary: $o-dark-brand-odoo !default;
+$o-dark-action: $o-dark-enterprise-action-color !default;
 
 $o-dark-brand-primary-filled: $o-dark-brand-primary !default;
 $o-dark-action-text: $o-dark-action !default;
 
 $o-dark-theme-text-colors: (
-    "primary": $o-dark-brand-primary,
+    "primary": #c084fc,
     "success": #34d399,
     "info": #60a5fa,
     "warning": #fbbf24,
@@ -52,19 +55,16 @@ $o-dark-main-color-muted: rgba($o-dark-gray-700, 0.9) !default;
 $o-dark-bs-light: $o-dark-gray-300 !default;
 $o-dark-bs-dark: $o-dark-gray-700 !default;
 
-$o-dark-enterprise-action-color: #06b6d4 !default;
-
 $o-dark-main-favorite-color: #ffd532 !default;
 $o-dark-main-code-color: #c4b5fd !default;
 $o-dark-main-link-color: $o-dark-action-text !default;
-$o-dark-link-shade-percentage: null !default;
+$o-dark-link-shade-percentage: 15% !default;
 
-$o-dark-link-hover-color: mix(#fff, $o-dark-main-link-color, 30%) !default;
+$o-dark-link-hover-color: mix(#fff, $o-dark-action, 30%) !default;
 
-$o-dark-navbar-background: $o-dark-brand-odoo !default;
 $o-dark-navbar-border-bottom: 1px solid darken($o-dark-brand-odoo, 10%) !default;
-$o-dark-navbar-entry-color: rgba($o-dark-white, 0.9) !default;
-$o-dark-navbar-entry-color--hover: $o-dark-white !default;
+$o-dark-navbar-entry-color: rgba($o-dark-black, 0.9) !default;
+$o-dark-navbar-entry-color--hover: $o-dark-black !default;
 $o-dark-navbar-entry-bg--hover: rgba($o-dark-black, 0.08) !default;
 $o-dark-navbar-entry-color--active: $o-dark-navbar-entry-color--hover !default;
 $o-dark-navbar-brand-color: $o-dark-navbar-entry-color !default;
@@ -72,20 +72,21 @@ $o-dark-navbar-badge-bg: map-get($o-dark-theme-text-colors, "success") !default;
 $o-dark-navbar-badge-text-shadow: 1px 1px 0 rgba($o-dark-black, 0.3) !default;
 
 $o-dark-brand-lightsecondary: $o-dark-gray-100 !default;
-$o-dark-form-switch-color: null !default;
-$o-dark-form-switch-focus-color: null !default;
+$o-dark-form-switch-color: rgba($o-dark-black, 0.5) !default;
+$o-dark-form-switch-focus-color: $o-dark-black !default;
 
-$o-dark-form-range-thumb-active-bg: null !default;
+$o-dark-form-range-thumb-active-bg: lighten($o-dark-brand-primary, 10%) !default;
 $o-dark-form-range-track-bg: null !default;
 
-$o-dark-mark-bg: null !default;
-$o-dark-mark-color: null !default;
-$o-dark-border-color: null !default;
+$o-dark-mark-bg: #ffdebc !default;
+$o-dark-mark-color: mix(#000, $o-dark-mark-bg, 75%) !default;
+$o-dark-hairline: rgba(255, 255, 255, 0.08) !default;
+$o-dark-border-color: $o-dark-hairline !default;
 
-$o-dark-box-shadow: null !default;
-$o-dark-box-shadow-sm: null !default;
-$o-dark-box-shadow-lg: null !default;
-$o-dark-box-shadow-inset: null !default;
+$o-dark-box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.4) !default;
+$o-dark-box-shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.3) !default;
+$o-dark-box-shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.5) !default;
+$o-dark-box-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.2) !default;
 
 $o-dark-webclient-background-color: $o-dark-gray-100 !default;
 $o-dark-shadow-color: $o-dark-gray-700 !default;
@@ -168,14 +169,10 @@ $o-dark-success-border-subtle: mix(
 $o-dark-info-text-emphasis: mix(
     #fff,
     map-get($o-dark-theme-colors, "info"),
-    60%
+    90%
 ) !default;
-$o-dark-info-bg-subtle: mix(#000, map-get($o-dark-theme-colors, "info"), 80%) !default;
-$o-dark-info-border-subtle: mix(
-    #000,
-    map-get($o-dark-theme-colors, "info"),
-    60%
-) !default;
+$o-dark-info-bg-subtle: mix(#000, map-get($o-dark-theme-colors, "info"), 65%) !default;
+$o-dark-info-border-subtle: map-get($o-dark-theme-colors, "info") !default;
 $o-dark-warning-text-emphasis: mix(
     #fff,
     map-get($o-dark-theme-colors, "warning"),
@@ -240,10 +237,10 @@ $o-dark-theme-colors-border-subtle: (
     "dark": $o-dark-gray-500,
 ) !default;
 
-$o-dark-table-bg-scale: -80% !default;
-$o-dark-table-striped-bg-factor: null !default;
-$o-dark-table-active-bg-factor: null !default;
-$o-dark-table-hover-bg-factor: null !default;
+$o-dark-table-bg-scale: -70% !default;
+$o-dark-table-striped-bg-factor: 0.02 !default;
+$o-dark-table-active-bg-factor: 0.1 !default;
+$o-dark-table-hover-bg-factor: 0.1 !default;
 $o-dark-table-border-factor: null !default;
 
 $o-dark-table-variants: () !default;
@@ -261,6 +258,7 @@ $o-dark-table-variants: () !default;
 }
 
 $o-dark-view-background-color: $o-dark-gray-200 !default;
+$o-dark-navbar-background: $o-dark-view-background-color !default;
 $o-dark-component-active-bg: o-round-color(
     mix($o-dark-action, $o-dark-gray-300, 10%)
 ) !default;
@@ -404,3 +402,22 @@ $o-dark-btns-bs-outline-override: (
         active-color: $o-dark-white,
     ),
 ) !default;
+
+$o-dark-surface-raised: $o-dark-gray-300 !default;
+$o-dark-surface-sunken: $o-dark-view-background-color !default;
+
+$o-dark-input-focus-bg: inherit !default;
+$o-dark-input-placeholder-color: mix($o-dark-gray-500, $o-dark-gray-600) !default;
+$o-dark-dropdown-header-color: $o-dark-gray-700 !default;
+$o-dark-tooltip-color: $o-dark-gray-900 !default;
+$o-dark-toast-background-color: rgba($o-dark-gray-300, 0.9) !default;
+$o-dark-alert-bg-scale: -65% !default;
+$o-dark-alert-border-scale: 0% !default;
+$o-dark-alert-color-scale: 90% !default;
+
+$o-dark-kbd-color: $o-dark-gray-200 !default;
+$o-dark-kbd-bg: $o-dark-gray-900 !default;
+$o-dark-kbd-box-shadow:
+    0px 1px 1px rgba(0, 0, 0, 0.3),
+    inset 0px -1px 1px 1px rgba($o-dark-gray-800, 0.8),
+    inset 0px 2px 0px 0px rgba($o-dark-black, 0.8) !default;

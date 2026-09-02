@@ -21,6 +21,7 @@ import {
     makeMockEnv,
     MockServer,
     models,
+    mountWebClient,
     mountWithCleanup,
     mountWithSearch,
     onRpc,
@@ -314,7 +315,7 @@ test("when category is empty fallback to All", async () => {
             </search>
         `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     expect(`.o_search_panel`).toHaveCount(1);
@@ -339,7 +340,7 @@ test("cache search panel", async () => {
     onRpc("search_panel_select_range", () => spSelectRangeDef);
     onRpc("search_panel_select_multi_range", () => spSelectMultiRangeDef);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     expect(`.o_search_panel`).toHaveCount(1);
@@ -439,7 +440,7 @@ test("cache search panel (onFinish called after anoter load - Category)", async 
     let spSelectRangeCount = 0;
     onRpc("search_panel_select_range", () => spSelectRangeDef[spSelectRangeCount++]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     expect(`.o_search_panel`).toHaveCount(1);
@@ -513,7 +514,7 @@ test("cache search panel (onFinish called after anoter load - Filters)", async (
         () => spSelectMultiRangeDef[spSelectMultiRangeCount++],
     );
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     expect(`.o_search_panel`).toHaveCount(1);
@@ -1919,7 +1920,7 @@ test("search panel is available on list and kanban by default", async () => {
         `;
 
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_content.o_component_with_search_panel`).toHaveCount(1);
     expect(`.o_content.o_component_with_search_panel .o_search_panel`).toHaveCount(1);
@@ -1952,7 +1953,7 @@ test("search panel with view_types attribute", async () => {
         `;
 
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_content.o_component_with_search_panel`).toHaveCount(1);
     expect(`.o_content.o_component_with_search_panel .o_search_panel`).toHaveCount(1);
@@ -1971,7 +1972,7 @@ test("search panel state is shared between views", async () => {
         expect.step(kwargs.domain);
     });
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_search_panel_category_value header:eq(0)`).toHaveClass("active");
     expect(`.o_kanban_record:not(.o_kanban_ghost)`).toHaveCount(4);
@@ -2005,7 +2006,7 @@ test("search panel filters are kept between switch views", async () => {
         expect.step(kwargs.domain);
     });
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(0);
     expect(`.o_kanban_record:not(.o_kanban_ghost)`).toHaveCount(4);
@@ -2040,7 +2041,7 @@ test("search panel filters are kept between switch views", async () => {
 
 test("search panel filters are kept when switching to a view with no search panel", async () => {
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_content.o_component_with_search_panel`).toHaveCount(1);
     expect(`.o_content.o_component_with_search_panel .o_search_panel`).toHaveCount(1);
@@ -2064,7 +2065,7 @@ test("search panel filters are kept when switching to a view with no search pane
 });
 
 test('after onExecuteAction, selects "All" as default category value', async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1, { viewType: "form" });
     await contains(`.o_form_view .o_form_nosheet button`).click();
     expect(`.o_kanban_view`).toHaveCount(1);
@@ -2075,7 +2076,7 @@ test('after onExecuteAction, selects "All" as default category value', async () 
 test("categories and filters are not reloaded when switching between views", async () => {
     onRpc(/search_panel_/, ({ method }) => expect.step(method));
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await getService("action").switchView("list");
     await getService("action").switchView("kanban");
@@ -2105,7 +2106,7 @@ test("categories and filters are loaded when switching from a view without the s
 
     onRpc(/search_panel_/, ({ method }) => expect.step(method));
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect.verifySteps([]);
 
@@ -2198,7 +2199,7 @@ test("search panel is not instantiated in dialogs", async () => {
     };
 
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1, { viewType: "form" });
     await contains(`.o_field_widget[name="company_id"] .dropdown input`).click();
     await contains(
@@ -3170,7 +3171,7 @@ test("search panel can be collapsed/expanded", async () => {
             super.setItem(...arguments);
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_search_panel`).toHaveCount(1);
     expect(`.o_search_panel_section`).toHaveCount(2);
@@ -3196,7 +3197,7 @@ test("search panel can be collapsed/expanded", async () => {
 
 test("search panel can be collapsed by default if it was set in local storage beforehand", async () => {
     browser.localStorage.setItem("search_panel_expanded,false,1", false);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_search_panel`).toHaveCount(0);
     expect(`.o_search_panel_sidebar`).toHaveCount(1);
@@ -3234,7 +3235,7 @@ test("search panel collapse with multiple filter categories selected", async () 
 
 test("expand/collapse state is kept when switching between controllers", async () => {
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(`.o_search_panel button`).click();
     expect(`.o_search_panel`).toHaveCount(0);
@@ -3267,7 +3268,7 @@ test("search panel should be resizable", async () => {
 
 test("search panel width is kept when switching between controllers", async () => {
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     const searchPanel = queryFirst(".o_search_panel");
     const resizeHandle = queryFirst(".o_search_panel_resize");
@@ -3388,7 +3389,7 @@ test("search panel with sample data", async () => {
         </list>`;
 
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await getService("action").switchView("kanban");

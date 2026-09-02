@@ -28,6 +28,7 @@ import {
     models,
     mountView,
     mountViewInDialog,
+    mountWebClient,
     mountWithCleanup,
     onRpc,
     patchWithCleanup,
@@ -41,7 +42,6 @@ import { user } from "@web/core/user";
 import { Field } from "@web/fields/field";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { Record } from "@web/model/record";
-import { WebClient } from "@web/webclient/webclient";
 
 describe.current.tags("desktop");
 
@@ -3769,7 +3769,7 @@ test("click on many2one link in list view", async () => {
             res_id: args[0],
         };
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partner",
         res_model: "partner",
@@ -3833,7 +3833,7 @@ test("external_button performs a doAction by default", async () => {
             res_id: false,
         };
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partner",
         res_model: "partner",
@@ -3897,7 +3897,7 @@ test("external_button opens a new tab when middle clicked or ctrl+click", async 
         target: "current",
         res_id: false,
     }));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partner",
         res_model: "partner",

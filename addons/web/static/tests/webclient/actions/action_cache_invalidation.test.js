@@ -10,7 +10,7 @@ import {
     getMockEnv,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     webModels,
 } from "@web/../tests/web_test_helpers";
@@ -18,7 +18,6 @@ import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { installActionCacheInvalidation } from "@web/webclient/actions/action_cache_invalidation";
 import { BreadcrumbCache } from "@web/webclient/actions/breadcrumb_cache";
-import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
@@ -63,7 +62,7 @@ test("act_window write refreshes breadcrumbs in place (no stack rebuild)", async
         expect.step("/web/action/load_breadcrumbs");
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await contains(".o_data_cell").click();
     await animationFrame();
@@ -98,19 +97,21 @@ test("act_window write refreshes breadcrumbs in place (no stack rebuild)", async
     expect(am.controllerStack.at(-1)).toBe(stackBefore[0]);
 });
 
-test("act_window write with no active controller is a no-op", async () => {
-    await mountWithCleanup(WebClient);
+test("act_window write with no act_window controller is a no-op", async () => {
+    await mountWebClient();
     const am = getService("action");
-    expect(am.controllerStack.length).toBe(0);
+    expect(am.controllerStack.length).toBe(1);
+    expect(am.currentController.action.tag).toBe("menu");
 
     fireActWindowWrite();
     await animationFrame();
 
-    expect(am.controllerStack.length).toBe(0);
+    expect(am.controllerStack.length).toBe(1);
+    expect(am.currentController.action.tag).toBe("menu");
 });
 
 test("any ir.actions.* write clears the /web/action/load cache", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     /** @type {any[]} */
 
@@ -175,7 +176,7 @@ test("installActionCacheInvalidation returns a disposer that removes the listene
 });
 
 test("action service exposes the cache-invalidation disposer", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const am = getService("action");
     expect(typeof am.uninstallActionCacheInvalidation).toBe("function");
 
@@ -200,7 +201,7 @@ test("failed breadcrumb refresh keeps the current names", async () => {
         return Promise.reject(new Error("breadcrumbs unavailable"));
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await contains(".o_data_cell").click();
     await animationFrame();
@@ -371,7 +372,7 @@ test("act_window write during a URL restore refreshes the MOUNTED stack", async 
         }
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const am = getService("action");
     await am.doAction(3);
     await contains(".o_data_cell").click();
@@ -407,7 +408,7 @@ test("act_window write during a URL restore refreshes the MOUNTED stack", async 
 });
 
 test("env.destroy() reaches the action service's cache invalidation", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const env = /** @type {any} */ (getMockEnv());
 
     /** @type {any[]} */
@@ -425,7 +426,7 @@ test("env.destroy() reaches the action service's cache invalidation", async () =
 });
 
 test("the disposer is idempotent, so a second teardown is harmless", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const am = getService("action");
     am.destroy();
     expect(() => am.destroy()).not.toThrow();

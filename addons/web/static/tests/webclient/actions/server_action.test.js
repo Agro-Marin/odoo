@@ -7,11 +7,10 @@ import {
     defineModels,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     stepAllNetworkCalls,
 } from "@web/../tests/web_test_helpers";
-import { WebClient } from "@web/webclient/webclient";
 
 class Partner extends models.Model {
     _rec_name = "display_name";
@@ -68,7 +67,7 @@ test("can execute server actions from db ID", async () => {
     onRpc("/web/action/run", async () => 1);
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2, { additionalContext: { someKey: 44 } });
     expect(".o_control_panel").toHaveCount(1, {
         message: "should have rendered a control panel",
@@ -105,7 +104,7 @@ test("handle server actions returning false", async function () {
     ]);
     onRpc("/web/action/run", async () => false);
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     function onClose() {
         expect.step("close handler");
     }
@@ -146,7 +145,7 @@ test("action with html help returned by a server action", async () => {
         domain: [[0, "=", 1]],
     }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2);
 
     expect(".o_kanban_view .o_nocontent_help p").toHaveText("I am not a helper");
@@ -165,7 +164,7 @@ test("cyclic server action chains hit the recursion limit", async () => {
         return { type: "ir.actions.server", id: 2 };
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await expect(getService("action").doAction(2)).rejects.toThrow(
         "Action recursion limit exceeded (max 20)",
     );

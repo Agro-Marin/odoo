@@ -16,8 +16,9 @@ import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { Transition } from "@web/core/transition";
+import { _t } from "@web/core/translation";
 import { ErrorHandler } from "@web/core/utils/components";
-import { useService } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 
 import { menuHref } from "../menus/menu_utils.js";
@@ -53,15 +54,23 @@ export class NavBar extends Component {
      * @type {any[]}
      */
     currentAppSectionsExtra;
+    /** @type {import("services").ServiceFactories["home_menu"]} */
+    hm;
 
     setup() {
         this.currentAppSectionsExtra = [];
         this.failedSystrayKeys = new Set();
         this.actionService = useService("action");
         this.menuService = useService("menu");
+        this.hm = useService("home_menu");
         this.pwa = useService(/** @type {any} */ ("pwa"));
         this.root = useRef("root");
+        this.navRef = useRef("nav");
+        this.menuAppsRef = useRef("menuApps");
         this.appSubMenus = useRef("appSubMenus");
+        this._busToggledCallback = () => this._updateMenuAppsIcon();
+        useBus(this.env.bus, AppEvent.HOME_MENU_TOGGLED, this._busToggledCallback);
+        useEffect(() => this._updateMenuAppsIcon());
         const debouncedAdapt = debounce(this.adapt.bind(this), 250);
         onWillDestroy(() => debouncedAdapt.cancel());
         useExternalListener(window, "resize", debouncedAdapt);
@@ -124,6 +133,14 @@ export class NavBar extends Component {
 
     get isScopedApp() {
         return this.pwa.isScopedApp;
+    }
+
+    get hasBackgroundAction() {
+        return this.hm.hasBackgroundAction;
+    }
+
+    get isInApp() {
+        return !this.hm.hasHomeMenu;
     }
 
     /** @returns {Object[]} */
@@ -236,10 +253,55 @@ export class NavBar extends Component {
         this.state.isAppMenuSidebarOpened = false;
     }
     _openAppMenuSidebar() {
-        this.state.isAppMenuSidebarOpened = !this.state.isAppMenuSidebarOpened;
+        if (this.hm.hasHomeMenu) {
+            this.hm.toggle(false);
+        } else {
+            this.state.isAppMenuSidebarOpened = true;
+        }
+    }
+    _onMenuToggleClick() {
+        if (this.env.isSmall) {
+            this._openAppMenuSidebar();
+        } else {
+            this.hm.toggle();
+        }
+    }
+    _updateMenuAppsIcon() {
+        const menuAppsEl = this.menuAppsRef.el;
+        if (!menuAppsEl) {
+            return;
+        }
+        menuAppsEl.classList.toggle(
+            "o_hidden",
+            !this.isInApp && !this.hasBackgroundAction,
+        );
+        menuAppsEl.classList.toggle(
+            "o_menu_toggle_back",
+            !this.isInApp && this.hasBackgroundAction,
+        );
+        if (!this.isScopedApp) {
+            const title =
+                !this.isInApp && this.hasBackgroundAction
+                    ? _t("Previous view")
+                    : _t("Home menu");
+            menuAppsEl.title = title;
+            menuAppsEl.ariaLabel = title;
+        }
+        for (const selector of [
+            ".o_menu_brand",
+            ".o_menu_brand_icon",
+            ".o_breadcrumb",
+        ]) {
+            this.navRef.el
+                ?.querySelector(selector)
+                ?.classList.toggle("o_hidden", !this.isInApp);
+        }
+        this.appSubMenus.el?.classList.toggle("o_hidden", !this.isInApp);
     }
     onAllAppsBtnClick() {
         this.state.isAllAppsMenuOpened = !this.state.isAllAppsMenuOpened;
+        this.hm.toggle(true);
+        this._closeAppMenuSidebar();
     }
     async _onMenuClicked(menu) {
         try {

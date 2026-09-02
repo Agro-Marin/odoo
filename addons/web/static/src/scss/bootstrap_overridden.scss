@@ -20,6 +20,7 @@ $black: $o-black !default;
 
 $primary: $o-brand-primary !default;
 $secondary: $gray-300 !default;
+$light: $o-white !default;
 $dark: $o-gray-900 !default;
 
 $success: $o-success !default;
@@ -49,6 +50,8 @@ $min-contrast-ratio: 3 !default;
 
 $enable-smooth-scroll: false !default;
 
+$enable-shadows: true !default;
+
 $variable-prefix: "" !default;
 
 $enable-negative-margins: true !default;
@@ -77,7 +80,7 @@ $border-radius: $o-border-radius !default;
 $border-radius-sm: $o-border-radius-sm !default;
 $border-radius-lg: $o-border-radius-lg !default;
 
-$component-active-color: $o-component-active-color !default;
+$component-active-color: unset !default;
 $component-active-bg: $o-component-active-bg !default;
 
 $caret-width: 4px !default;
@@ -135,6 +138,14 @@ $input-btn-padding-x-lg: o-to-rem(16px) !default;
 $btn-font-weight: $font-weight-bold !default;
 $btn-disabled-opacity: $o-opacity-disabled !default;
 $btn-border-radius-lg: $border-radius !default;
+$btn-transition:
+    color $o-duration-fast $o-easing-standard,
+    background-color $o-duration-fast $o-easing-standard,
+    border-color $o-duration-fast $o-easing-standard,
+    box-shadow $o-duration-fast $o-easing-standard,
+    transform $o-duration-fast $o-easing-standard !default;
+
+$dropdown-box-shadow: $o-shadow-lg !default;
 
 $dropdown-header-color: o-palette-token(--o-gray-600, $gray-600) !default;
 $dropdown-border-color: o-token(--border-color, $border-color) !default;
@@ -157,13 +168,18 @@ $dropdown-item-padding-x: $o-dropdown-hpadding !default;
 $list-group-bg: $o-view-background-color !default;
 $list-group-hover-bg: $dropdown-link-hover-bg !default;
 
-$list-group-active-color: $o-list-group-active-color !default;
-$list-group-active-bg: $o-list-group-active-bg !default;
+$list-group-active-color: $o-enterprise-action-color !default;
+$list-group-active-bg: $component-active-bg !default;
+$list-group-active-border-color: $o-enterprise-action-color !default;
 $list-group-action-hover-color: o-palette-token(--o-gray-900, $gray-900) !default;
 
 $breadcrumb-item-padding-x: $o-breadcrumb-item-padding-x !default;
+$breadcrumb-active-color: $o-main-text-color !default;
+$breadcrumb-divider-color: $o-main-color-muted !default;
 
-$nav-tabs-link-active-bg: o-token(--o-white, $white) !default;
+$nav-link-color: $o-main-text-color !default;
+$nav-tabs-link-active-color: $o-main-headings-color !default;
+$nav-tabs-link-active-bg: transparent !default;
 
 $nav-pills-border-radius: 0 !default;
 $nav-pills-link-active-color: $white !default;
@@ -243,11 +259,17 @@ $kbd-box-shadow:
     inset 0px 2px 0px 0px rgba($o-white, 0.8) !default;
 
 $input-bg: $o-input-bg !default;
-$input-focus-border-color: $o-brand-primary !default;
+$input-border-color: $o-gray-200 !default;
+$input-box-shadow: 0 !default;
+$input-focus-bg: $o-white !default;
+$input-focus-box-shadow: 0 !default;
+$input-focus-border-color: mix($o-enterprise-action-color, $o-gray-200) !default;
 $form-check-input-border: var(--border-width) solid #{$o-input-boundary-color} !default;
-$form-check-input-checked-color: $o-brand-lightsecondary !default;
-$form-check-input-checked-border-color: $o-brand-primary !default;
-$form-check-input-checked-bg-color: $o-brand-primary !default;
+$form-check-input-checked-color: $o-white !default;
+$form-check-input-checked-border-color: $o-enterprise-action-color !default;
+$form-check-input-checked-bg-color: $o-enterprise-action-color !default;
+$form-select-focus-box-shadow: 0 !default;
+$form-range-track-box-shadow: 0 !default;
 $form-switch-checked-color: $white !default;
 $form-switch-focus-color: mix($o-success, $input-bg) !default;
 
@@ -257,6 +279,12 @@ $form-range-thumb-focus-box-shadow: 0 0 0 1px $o-brand-primary !default;
 $badge-color: inherit !default;
 $badge-padding-y: 0.25em !default;
 $badge-padding-x: 0.82em !default;
+$badge-border-radius: $o-border-radius !default;
+$badge-font-weight: normal !default;
+
+$alert-border-width: 0 !default;
+$progress-box-shadow: 0 !default;
+$thumbnail-box-shadow: 0 !default;
 
 $input-placeholder-color: unquote(
     "color-mix(in srgb, #{o-palette-token(--o-gray-400, $gray-400)} 50%, #{o-palette-token(--o-gray-500, $gray-500)})"

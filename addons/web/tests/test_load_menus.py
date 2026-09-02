@@ -96,6 +96,21 @@ class LoadMenusTests(HttpCase):
             "load_menus didn't return the expected value",
         )
 
+    def test_load_menus_web_icon_data(self):
+        self.menu.web_icon = False
+        self.menu.web_icon_data = b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+BCQAHBQICJmhD1AAAAABJRU5ErkJggg=="
+        menu_loaded = self.url_open("/web/webclient/load_menus").json()
+        root = menu_loaded[str(self.menu.id)]
+        self.assertEqual(
+            root["webIconData"],
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+BCQAHBQICJmhD1AAAAABJRU5ErkJggg==",
+        )
+        self.assertEqual(root["webIconDataMimetype"], "image/png")
+        self.assertFalse(root["webIcon"])
+        child = menu_loaded[str(self.menu_child.id)]
+        self.assertFalse(child["webIconData"])
+        self.assertFalse(child["webIconDataMimetype"])
+
     def test_load_menus_conditional(self):
         res = self.url_open("/web/webclient/load_menus")
         self.assertEqual(res.status_code, 200)

@@ -12,7 +12,7 @@ import {
     getService,
     mockService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     stepAllNetworkCalls,
@@ -21,7 +21,6 @@ import {
 import { ClientErrorDialog } from "@web/components/errors/error_dialogs";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
@@ -98,7 +97,7 @@ describe("new", () => {
     test('can execute act_window actions in target="new"', async () => {
         stepAllNetworkCalls();
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5);
         expect(".o_technical_modal .o_form_view").toHaveCount(1, {
             message: "should have rendered a form view in a modal",
@@ -123,7 +122,7 @@ describe("new", () => {
             expect(closeInfo).toBe("smallCandle");
             expect.step("Close Action");
         }
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5, { onClose });
         await getService("action").doAction(5);
         expect.verifySteps([]);
@@ -135,7 +134,7 @@ describe("new", () => {
     });
 
     test("dialog replacing another dialog: both on_close run, innermost first", async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5, {
             onClose: (infos) => expect.step(`origin on_close ${infos}`),
         });
@@ -156,7 +155,7 @@ describe("new", () => {
     });
 
     test("a throwing on_close cannot cancel the one it was chained with", async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5, {
             onClose: () => expect.step("stolen"),
         });
@@ -177,7 +176,7 @@ describe("new", () => {
     });
 
     test("a resolver on_close on a replacing dialog still settles", async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5, { onClose: () => {} });
         expect(".o_technical_modal").toHaveCount(1);
 
@@ -211,7 +210,7 @@ describe("new", () => {
             target: "new",
         };
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5, {
             onClose: (infos) => expect.step(`committed on_close ${infos}`),
         });
@@ -252,7 +251,7 @@ describe("new", () => {
         }
         registry.category("actions").add("failing_replacement", FailingClientAction);
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5, {
             onClose: (infos) => expect.step(`committed on_close ${infos}`),
         });
@@ -288,7 +287,7 @@ describe("new", () => {
         }
         registry.category("actions").add("failing_slot_owner", FailingClientAction);
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         const actionService = getService("action");
         await actionService.doAction(5, {
             onClose: () => expect.step("committed on_close"),
@@ -324,7 +323,7 @@ describe("new", () => {
         }
         registry.category("actions").add("never_mounts", SlowDialogAction);
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5, {
             onClose: () => expect.step("committed on_close"),
         });
@@ -362,7 +361,7 @@ describe("new", () => {
             target: "new",
         };
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5, {
             onClose: () => expect.step("committed on_close"),
         });
@@ -402,7 +401,7 @@ describe("new", () => {
             target: "new",
         };
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         let settled = false;
         new Promise((resolve) =>
             getService("action").doAction(request, { onClose: resolve }),
@@ -441,7 +440,7 @@ describe("new", () => {
         registry.category("actions").add("pending_then_failing", SlowDialogAction);
         registry.category("actions").add("the_failing_one", FailingClientAction);
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5, {
             onClose: () => expect.step("committed on_close"),
         });
@@ -491,7 +490,7 @@ describe("new", () => {
         registry.category("actions").add("lone_pending", SlowDialogAction);
         registry.category("actions").add("lone_failing", FailingClientAction);
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         expect(".o_technical_modal").toHaveCount(0);
 
         getService("action").doAction(
@@ -526,7 +525,7 @@ describe("new", () => {
             target: "new",
         }));
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5, {
             onClose: () => expect.step("wizard on_close"),
         });
@@ -561,7 +560,7 @@ describe("new", () => {
             target: "new",
         }));
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(1);
         expect(".o_technical_modal").toHaveCount(0);
 
@@ -587,7 +586,7 @@ describe("new", () => {
                 </footer>
             </form>`;
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5);
         expect(".o_technical_modal .modal-body button.infooter").toHaveCount(0, {
             message: "the button should not be in the body",
@@ -646,7 +645,7 @@ describe("new", () => {
         });
         stepAllNetworkCalls();
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         expect.verifySteps([
             "/web/webclient/translations",
             "/web/webclient/load_menus",
@@ -707,7 +706,7 @@ describe("new", () => {
         });
         stepAllNetworkCalls();
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         expect.verifySteps([
             "/web/webclient/translations",
             "/web/webclient/load_menus",
@@ -749,7 +748,7 @@ describe("new", () => {
                 </form>`,
         };
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(5);
         expect('.o_technical_modal .modal-body button[special="save"]').toHaveCount(0);
         expect(".o_technical_modal .modal-body button.infooter").toHaveCount(0);
@@ -791,7 +790,7 @@ describe("new", () => {
             views: [[1000, "form"]],
         }));
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(999);
         expect(".modal button[name=method]").toHaveCount(1);
 
@@ -814,7 +813,8 @@ describe("new", () => {
             },
         });
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
+        expect.verifySteps(["Home"]);
 
         await getService("action").doAction(1);
         expect.verifySteps(["Partners Action 1"]);
@@ -875,7 +875,7 @@ describe("new", () => {
             },
         });
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             type: "ir.actions.client",
             tag: "clientAction",
@@ -902,7 +902,7 @@ describe("new", () => {
     });
 
     test('breadcrumbs of actions in target="new"', async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
 
         await getService("action").doAction(1);
         expect(queryAllTexts(".o_breadcrumb span")).toEqual(["Partners Action 1"]);
@@ -919,7 +919,7 @@ describe("new", () => {
     });
 
     test('call switchView in an action in target="new"', async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
 
         await getService("action").doAction(4);
         expect(".o_kanban_view").toHaveCount(1);
@@ -948,7 +948,7 @@ describe("new", () => {
             target: "new",
             views: [[false, "form"]],
         };
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
 
         await getService("action").doAction(action);
         expect(".o_dialog .modal-dialog").toHaveClass("modal-lg");
@@ -983,7 +983,7 @@ describe("new", () => {
     });
 
     test('click on record in list view action in target="new"', async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "My Partners",
             res_model: "partner",
@@ -1005,7 +1005,7 @@ describe("new", () => {
 
 describe("fullscreen", () => {
     test('correctly execute act_window actions in target="fullscreen"', async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(15);
         await animationFrame();
         expect(".o_control_panel").toHaveCount(1, {
@@ -1018,7 +1018,7 @@ describe("fullscreen", () => {
     });
 
     test('action after another in target="fullscreen" is not displayed in fullscreen mode', async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(15);
         await animationFrame();
         expect(".o_main_navbar").toHaveCount(0);
@@ -1045,7 +1045,7 @@ describe("fullscreen", () => {
                 <button name="15" type="action" class="oe_stat_button" />
             </form>`;
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(6);
         expect(".o_main_navbar").toHaveCount(1);
 
@@ -1076,7 +1076,7 @@ describe("fullscreen", () => {
                 <button name="15" type="action" class="oe_stat_button" />
             </form>`;
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(6);
         await animationFrame();
         expect(".o_main_navbar").not.toHaveCount();
@@ -1125,7 +1125,8 @@ describe("fullscreen", () => {
                 <button type="action" name="15" icon="fa-star" context="{'default_partner': id}" class="oe_stat_button"/>
             </form>`;
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
+        await contains(".o_home_menu .o_app").click();
         await animationFrame();
         await animationFrame();
         expect("nav .o_menu_brand").toHaveCount(1);
@@ -1149,7 +1150,7 @@ describe("fullscreen", () => {
 describe("main", () => {
     test.tags("desktop");
     test('can execute act_window actions in target="main"', async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction(1);
         expect(".o_kanban_view").toHaveCount(1);
         expect(".o_breadcrumb span").toHaveCount(1);
@@ -1169,7 +1170,7 @@ describe("main", () => {
 
     test.tags("desktop");
     test('can switch view in an action in target="main"', async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partner Action",
             res_model: "partner",
@@ -1195,7 +1196,7 @@ describe("main", () => {
 
     test.tags("desktop");
     test('can restore an action in target="main"', async () => {
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partner Action",
             res_model: "partner",

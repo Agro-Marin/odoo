@@ -8,11 +8,10 @@ import {
     fields,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     webModels,
 } from "@web/../tests/web_test_helpers";
-import { WebClient } from "@web/webclient/webclient";
 
 /**
  * `switchView` bumps the navigation epoch, which rejects the `/web/action/load`
@@ -93,7 +92,7 @@ function holdNextActionLoad() {
 }
 
 test("a switchView refused by an open dialog does not lose the pending navigation", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const action = getService("action");
     await action.doAction(21);
     await action.doAction(23);
@@ -118,7 +117,7 @@ test("a switchView refused by an open dialog does not lose the pending navigatio
 });
 
 test("a switchView refused by a pending dispatch does not lose the pending navigation", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const action = getService("action");
     await action.doAction(21);
     action._pendingDispatch = /** @type {any} */ ({

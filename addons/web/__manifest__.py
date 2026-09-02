@@ -1,6 +1,6 @@
 {
     "name": "Web",
-    "version": "2.0",
+    "version": "2.1",
     "category": "Hidden",
     "description": """
 Odoo Web core module.
@@ -102,6 +102,7 @@ This module provides the core of the Odoo Web Client.
             "base/static/src/scss/res_partner.scss",
             "base/static/src/scss/res_users.scss",
             "web/static/src/views/form/button_box/*.scss",
+            "web/static/src/scss/view_skins.scss",
             (
                 "remove",
                 "web/static/src/**/*.dark.scss",
@@ -148,6 +149,7 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/libs/fontawesome7/css/v4-shims.css",
             "web/static/lib/odoo_ui_icons/*",
             "web/static/src/webclient/navbar/navbar.scss",
+            "web/static/src/webclient/home_menu/home_menu_background.scss",
             "web/static/src/scss/animation.scss",
             "web/static/src/scss/base_frontend.scss",
             "web/static/src/scss/rtl_icon_flip.scss",
@@ -337,6 +339,11 @@ This module provides the core of the Odoo Web Client.
                 "web/static/lib/bootstrap/scss/_functions.scss",
                 "web/static/src/scss/bs_functions_overridden.dark.scss",
             ),
+            (
+                "before",
+                "web/static/src/scss/bootstrap_overridden.scss",
+                "web/static/src/scss/bootstrap_overridden.dark.scss",
+            ),
             "web/static/src/**/*.dark.scss",
         ],
         "web.assets_backend_dark": [
@@ -356,6 +363,11 @@ This module provides the core of the Odoo Web Client.
                 "after",
                 "web/static/lib/bootstrap/scss/_functions.scss",
                 "web/static/src/scss/bs_functions_overridden.dark.scss",
+            ),
+            (
+                "before",
+                "web/static/src/scss/bootstrap_overridden.scss",
+                "web/static/src/scss/bootstrap_overridden.dark.scss",
             ),
             "web/static/src/**/*.dark.scss",
         ],

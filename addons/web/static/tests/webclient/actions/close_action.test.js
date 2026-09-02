@@ -8,13 +8,12 @@ import {
     defineModels,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { listView } from "@web/views/list/list_view";
-import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
@@ -76,7 +75,7 @@ defineActions([
 ]);
 
 test("close the currently opened dialog", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(5);
     expect(".o_technical_modal .o_form_view").toHaveCount(1);
     await getService("action").doAction({
@@ -87,7 +86,7 @@ test("close the currently opened dialog", async () => {
 });
 
 test("close dialog by clicking on the header button", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     function onClose() {
         expect.step("on_close");
     }
@@ -102,7 +101,7 @@ test("close dialog by clicking on the header button", async () => {
 });
 
 test('execute "on_close" only if there is no dialog to close', async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(5);
     function onClose() {
         expect.step("on_close");
@@ -123,7 +122,7 @@ test('execute "on_close" only if there is no dialog to close', async () => {
 test("close action with provided infos", async () => {
     expect.assertions(1);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const options = {
         onClose: function (/** @type {any} */ infos) {
             expect(infos).toBe("just for testing", {
@@ -145,7 +144,7 @@ test("on_close chaining a follow-up inline action fires exactly once", async () 
         const { params } = await request.json();
         expect.step(`load action ${params.action_id}`);
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     function onClose() {
         expect.step("on_close");
         return getService("action").doAction(1);
@@ -168,7 +167,7 @@ test("history back called within on_close", async () => {
             list = this;
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
     expect(".o_kanban_view").toHaveCount(1);
@@ -199,7 +198,7 @@ test("web client is not deadlocked when a view crashes", async () => {
             return readOnFirstRecordDef;
         }
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await contains(".o_list_view .o_data_cell").click();
     readOnFirstRecordDef.reject(new Error("not working as intended"));

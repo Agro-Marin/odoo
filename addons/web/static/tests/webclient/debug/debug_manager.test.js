@@ -20,6 +20,7 @@ import {
     getService,
     makeDialogMockEnv,
     models,
+    mountWebClient,
     mountWithCleanup,
     onRpc,
     patchWithCleanup,
@@ -37,7 +38,6 @@ import {
     becomeSuperuser,
     regenerateAssets,
 } from "@web/webclient/debug/debug_menu_items";
-import { WebClient } from "@web/webclient/webclient";
 
 class DebugMenuParent extends Component {
     static template = xml`<DebugMenu/>`;
@@ -261,7 +261,7 @@ describe("DebugMenu", () => {
             .category("default")
             .add("openViewItem", openViewItem);
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await contains(".o_debug_manager button").click();
         await contains(".dropdown-menu .dropdown-item").click();
         expect(".modal .o_list_view").toHaveCount(1);
@@ -277,7 +277,7 @@ describe("DebugMenu", () => {
 
         defineWebModels();
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partners",
             res_model: "res.partner",
@@ -301,7 +301,7 @@ describe("DebugMenu", () => {
         webModels.IrUiView._views.form = `<form><field name="id"/></form>`;
 
         defineWebModels();
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partners",
             res_model: "res.partner",
@@ -330,7 +330,7 @@ describe("DebugMenu", () => {
         webModels.IrUiView._views.form = `<form><field name="id"/></form>`;
 
         defineWebModels();
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partners",
             res_model: "res.partner",
@@ -355,7 +355,7 @@ describe("DebugMenu", () => {
         webModels.IrUiView._views.form = `<form><field name="id"/></form>`;
 
         defineWebModels();
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partners",
             res_model: "res.partner",
@@ -377,7 +377,7 @@ describe("DebugMenu", () => {
         webModels.ResPartner._views.form = `<form><field name="id"/></form>`;
 
         defineWebModels();
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Create a Partner",
             res_model: "res.partner",
@@ -401,7 +401,7 @@ describe("DebugMenu", () => {
         webModels.IrUiView._records.push({ id: 24 });
 
         defineWebModels();
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partners",
             res_model: "res.partner",
@@ -457,7 +457,7 @@ describe("DebugMenu", () => {
         }
 
         defineModels([Partner, IrUiView]);
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partners",
             res_model: "partner",
@@ -490,7 +490,7 @@ describe("DebugMenu", () => {
         webModels.IrUiView._records.push({ id: 25 });
 
         defineWebModels();
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partners",
             res_model: "res.partner",
@@ -524,7 +524,7 @@ describe("DebugMenu", () => {
         webModels.IrUiView._records.push({ id: 26 });
 
         defineWebModels();
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partners",
             res_model: "res.partner",
@@ -579,7 +579,7 @@ describe("DebugMenu", () => {
 
         defineWebModels();
         defineModels([Custom]);
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Custom",
             res_model: "custom",
@@ -630,7 +630,7 @@ describe("DebugMenu", () => {
         webModels.ResPartner._records.push({ id: 1003, name: "p1" });
 
         defineWebModels();
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partner",
             res_model: "res.partner",
@@ -714,7 +714,7 @@ describe("DebugMenu", () => {
         }
 
         defineModels([Partner, Pony, IrUiView]);
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
 
         for (const field_name of ["datetime", "reference", "m2o"]) {
             await getService("action").doAction({
@@ -760,7 +760,7 @@ describe("DebugMenu", () => {
             </form>`;
 
         defineWebModels();
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
         await getService("action").doAction({
             name: "Partners",
             res_model: "res.partner",
@@ -824,7 +824,7 @@ describe("DebugMenu", () => {
 
         defineModels([Partner, IrUiView]);
 
-        await mountWithCleanup(WebClient);
+        await mountWebClient();
 
         await getService("action").doAction({
             name: "Partners",

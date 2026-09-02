@@ -5,10 +5,10 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { markup } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
-import { WebClient } from "@web/webclient/webclient";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 test(`XML-like self-closing elements are fixed in a standalone HtmlViewer`, async () => {
-    await mountWithCleanup(WebClient);
+    await mountWithCleanup(MainComponentsContainer);
 
     registry.category("main_components").add("mycomponent", {
         Component: HtmlViewer,
@@ -25,7 +25,7 @@ test(`XML-like self-closing elements are fixed in a standalone HtmlViewer`, asyn
 });
 
 test(`copy from HtmlViewer must support application/vnd.odoo.odoo-editor`, async () => {
-    await mountWithCleanup(WebClient);
+    await mountWithCleanup(MainComponentsContainer);
 
     registry.category("main_components").add("mycomponent", {
         Component: HtmlViewer,
@@ -68,7 +68,7 @@ test(`copy from HtmlViewer must support application/vnd.odoo.odoo-editor`, async
 });
 
 test(`copy from HtmlViewer should copy all the selection`, async () => {
-    await mountWithCleanup(WebClient);
+    await mountWithCleanup(MainComponentsContainer);
 
     registry.category("main_components").add("mycomponent", {
         Component: HtmlViewer,

@@ -33,10 +33,13 @@ export class WebClient extends Component {
     menuService;
     /** @type {{ fullscreen: boolean }} */
     state;
+    /** @type {import("services").ServiceFactories["home_menu"]} */
+    hm;
 
     setup() {
         this.menuService = useService("menu");
         this.actionService = useService("action");
+        this.hm = useService("home_menu");
         this.title = useService("title");
         useOwnDebugContext({ categories: ["default"] });
         if (this.env.debug) {
@@ -142,10 +145,7 @@ export class WebClient extends Component {
     }
 
     _loadDefaultApp() {
-        const [firstApp] = this.menuService.getApps();
-        if (firstApp) {
-            return this.menuService.selectMenu(firstApp);
-        }
+        return this.hm.toggle(true);
     }
 
     /**

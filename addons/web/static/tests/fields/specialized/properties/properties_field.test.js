@@ -27,7 +27,7 @@ import {
     hideTab,
     models,
     mountView,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     serverState,
@@ -37,7 +37,6 @@ import {
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { PropertiesField } from "@web/fields/specialized/properties/properties_field";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
-import { WebClient } from "@web/webclient/webclient";
 
 async function closePopover() {
     await click(getFixture());
@@ -1786,7 +1785,7 @@ test("properties: switch view on desktop", async () => {
                 <field name="properties"/>
             </list>`;
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -1819,7 +1818,7 @@ test("properties: switch view on mobile", async () => {
                 <field name="properties"/>
             </list>`;
     onRpc("has_group", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",

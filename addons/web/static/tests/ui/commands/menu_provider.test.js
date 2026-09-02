@@ -9,11 +9,10 @@ import {
     defineActions,
     defineMenus,
     getService,
-    mountWithCleanup,
+    mountWebClient,
     useTestClientAction,
 } from "@web/../tests/web_test_helpers";
 import { Dialog } from "@web/ui/dialog/dialog";
-import { WebClient } from "@web/webclient/webclient";
 
 defineMenus([
     { id: 0 },
@@ -48,7 +47,7 @@ defineActions([
 
 test.tags("desktop");
 test("displays only apps if the search value is '/'", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     expect(".o_menu_brand").toHaveCount(0);
 
     await press(["control", "k"]);
@@ -63,7 +62,7 @@ test("displays only apps if the search value is '/'", async () => {
 
 test.tags("desktop");
 test("displays apps and menu items if the search value is not only '/'", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await press(["control", "k"]);
     await animationFrame();
@@ -80,7 +79,7 @@ test("displays apps and menu items if the search value is not only '/'", async (
 
 test.tags("desktop");
 test("opens an app", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     expect(".o_menu_brand").toHaveCount(0);
 
     await press(["control", "k"]);
@@ -98,7 +97,7 @@ test("opens an app", async () => {
 
 test.tags("desktop");
 test("opens a menu items", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     expect(".o_menu_brand").toHaveCount(0);
 
     await press(["control", "k"]);
@@ -123,7 +122,7 @@ test("open a menu item when a dialog is displayed", async () => {
         static props = ["*"];
     }
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     expect(".o_menu_brand").toHaveCount(0);
     expect(".modal .test").toHaveCount(0);
 

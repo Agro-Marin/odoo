@@ -43,7 +43,7 @@ name: Asset & Palette Lint (DB-backed)
 # the three defect classes above were found in. Two of the six token defects
 # were hidden by an 80-module database that happened to lack `project` and
 # `im_livechat`. Widen INSTALL rather than assume. The enterprise bundles
-# (project.webclient's theme globs, web_enterprise's navbar) are not reachable
+# (project.webclient's theme globs) are not reachable
 # from this repo and stay a manual check.
 #
 # TestOrphanAssets is the reverse of TestAssetPathsExist and joins it here for

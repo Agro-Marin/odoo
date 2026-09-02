@@ -1,11 +1,15 @@
+import json
+import logging
 import re
 from typing import Any
 
 import odoo
 from odoo import api, fields, models
 from odoo.http import DEFAULT_LANG, DEFAULT_MAX_CONTENT_LENGTH, request
-from odoo.tools import config, ormcache
+from odoo.tools import config, html_sanitize, ormcache
 from odoo.tools.misc import hmac, str2bool
+
+_logger = logging.getLogger(__name__)
 
 ALLOWED_DEBUG_MODES = ["", "1", "assets", "tests"]
 
@@ -273,6 +277,7 @@ class IrHttp(models.AbstractModel):
 
         info = self._get_session_info_base()
         ir_config_sudo = self.env["ir.config_parameter"].sudo()
+        info.update(self._get_expiration_info(ir_config_sudo))
 
         if "server_version" not in info:
             version_info = odoo.service.common.exp_version()
@@ -288,7 +293,7 @@ class IrHttp(models.AbstractModel):
                 ._get_or_create_for_user(user)
                 ._res_users_settings_format()
             ),
-            support_url="https://www.odoo.com/buy",
+            support_url="https://www.odoo.com/help",
             name=user.name,
             username=user.login,
             partner_write_date=fields.Datetime.to_string(user.partner_id.write_date),
@@ -308,6 +313,34 @@ class IrHttp(models.AbstractModel):
 
         if info["is_internal_user"]:
             info["user_companies"] = self._get_user_companies_info()
+        return info
+
+    def _get_expiration_info(self, ir_config_sudo: Any) -> dict[str, Any]:
+        user = self.env.user
+        if user.has_group("base.group_system"):
+            warning = "admin"
+        elif user._is_internal():
+            warning = "user"
+        else:
+            return {}
+        info = {
+            "warning": warning,
+            "expiration_date": ir_config_sudo.get_param("database.expiration_date"),
+            "expiration_reason": ir_config_sudo.get_param("database.expiration_reason"),
+        }
+        raw_message = ir_config_sudo.get_param("sysadmin.message")
+        if raw_message:
+            try:
+                sysadmin_message = json.loads(raw_message)
+                if "message" in sysadmin_message:
+                    sysadmin_message["message"] = html_sanitize(
+                        sysadmin_message["message"], sanitize_tags=False
+                    )
+                info["sysadmin_message"] = sysadmin_message
+            except ValueError, TypeError:
+                _logger.exception(
+                    "Failed to load sysadmin.message in ir.config_parameter"
+                )
         return info
 
     @api.model

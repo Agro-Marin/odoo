@@ -52,6 +52,8 @@ declare module "services" {
     import { colorSchemeService } from "@web/webclient/color_scheme/color_scheme_service";
     import { currencyService } from "@web/webclient/currency_service";
     import { densityService } from "@web/webclient/density/density_service";
+    import { enterpriseSubscriptionService } from "@web/webclient/home_menu/enterprise_subscription_service";
+    import { homeMenuService } from "@web/webclient/home_menu/home_menu_service";
     import { lazySession } from "@web/webclient/session_service";
     import { menuService } from "@web/webclient/menus/menu_service";
     import { profilingService } from "@web/webclient/debug/profiling/profiling_service";
@@ -77,11 +79,13 @@ declare module "services" {
         dialog: typeof dialogService;
         dismiss_alert: typeof dismissAlertService;
         effect: typeof effectService;
+        enterprise_subscription: typeof enterpriseSubscriptionService;
         error: typeof errorService;
         field: typeof fieldService;
         file_upload: typeof fileUploadService;
         fillTemporalService: typeof fillTemporalService;
         form_dialog_stack: typeof formDialogStackService;
+        home_menu: typeof homeMenuService;
         hotkey: typeof hotkeyService;
         http: typeof httpService;
         lazy_session: typeof lazySession;

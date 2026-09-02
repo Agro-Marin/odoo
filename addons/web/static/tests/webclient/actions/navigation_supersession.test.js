@@ -8,13 +8,12 @@ import {
     fields,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { AppEvent } from "@web/core/events";
 import { SupersededError } from "@web/core/utils/concurrency";
-import { WebClient } from "@web/webclient/webclient";
 
 describe.current.tags("desktop");
 
@@ -63,7 +62,7 @@ defineActions([
 
 test("a stale doAction whose load resolves late cannot dispatch", async () => {
     const slowLoad = new Deferred();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const action = getService("action");
 
     patchWithCleanup(action, {
@@ -96,7 +95,7 @@ test("a stale doAction whose load resolves late cannot dispatch", async () => {
 });
 
 test("rapid navigation: the last of a burst wins, none of it hangs", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const action = getService("action");
 
     const outcomes = await Promise.allSettled([
@@ -119,7 +118,7 @@ test("rapid navigation: the last of a burst wins, none of it hangs", async () =>
 
 test("a doAction minted during a loadState's reconstruction supersedes it", async () => {
     const reconstruction = new Deferred();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const action = getService("action");
 
     patchWithCleanup(action, {
@@ -149,7 +148,7 @@ test("a doAction minted during a loadState's reconstruction supersedes it", asyn
 
 test("entering loadState cancels an in-flight doAction load eagerly", async () => {
     const slowLoad = new Deferred();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const action = getService("action");
 
     patchWithCleanup(action, {
@@ -179,7 +178,7 @@ test("entering loadState cancels an in-flight doAction load eagerly", async () =
 });
 
 test("a dialog above a clearBreadcrumbs skeleton does not cancel the dispatch beneath", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const action = getService("action");
 
     let skeletonPosted = false;

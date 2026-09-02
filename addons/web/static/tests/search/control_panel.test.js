@@ -10,12 +10,11 @@ import {
     fields,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     mountWithSearch,
     onRpc,
 } from "@web/../tests/web_test_helpers";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { WebClient } from "@web/webclient/webclient";
 
 class Foo extends models.Model {
     _views = {
@@ -236,7 +235,7 @@ test("pager", async () => {
 test("view switcher hotkey cycles through views", async () => {
     onRpc("has_group", () => true);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "foo",
         type: "ir.actions.act_window",
@@ -260,7 +259,7 @@ test.tags("desktop");
 test("hotkey overlay not overlapped by active view button", async () => {
     onRpc("has_group", () => true);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "foo",
         type: "ir.actions.act_window",
@@ -302,7 +301,7 @@ test("control panel layout buttons in dialog", async () => {
     ];
     Foo._views["list"] = `<list editable="top"><field name="char"/></list>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "foo",
         type: "ir.actions.act_window",

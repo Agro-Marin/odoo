@@ -128,7 +128,8 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
     <template id="web.login_layout" name="Login Layout">
         <t t-call="web.frontend_layout">
             <t t-set="html_data" t-value="{'style': 'height: 100%;'}" />
-            <t t-set="body_classname" t-value="'bg-100'" />
+            <t t-set="body_classname" t-value="'o_home_menu_background'" />
+            <t t-set="login_card_classes" t-value="'rounded-0 shadow-sm bg-white'" />
             <t t-set="no_header" t-value="True" />
             <t t-set="no_footer" t-value="True" />
             <div class="container py-5">
@@ -297,7 +298,9 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
                 <meta
                     name="viewport"
                     content="width=device-width, initial-scale=1, user-scalable=no" />
-                <meta name="theme-color" content="#6C5CE7" />
+                <meta
+                    name="theme-color"
+                    t-att-content="'#242733' if color_scheme == 'dark' else '#714B67'" />
                 <link
                     rel="manifest"
                     href="/web/manifest.webmanifest"

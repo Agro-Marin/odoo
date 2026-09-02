@@ -1,6 +1,6 @@
 # Directory Map
 
-> **239 entries** (238 subdirectories + `(root)`) | Maps directory → layer + responsibility
+> **244 entries** (238 subdirectories + `(root)`) | Maps directory → layer + responsibility
 >
 > Layers (Feature-Sliced Design): shared → entities → features → widgets → pages
 >
@@ -242,12 +242,17 @@
 | `webclient/debug/` | pages | 7 | Debug menu: the menu component, its basic variant, registered items and providers, field-widgets dialog |
 | `webclient/debug/profiling/` | pages | 4 | Profiling: the `profiling` service, systray item, menu item, QWeb view |
 | `webclient/density/` | pages | 2 | `density` service (default/compact/condensed) and its systray control |
+| `webclient/home_menu/` | pages | 5 | Home menu (app drawer): `HomeMenu`, the `home_menu` service and its `menu` client action, the `enterprise_subscription` service, expiration and sysadmin banners, the home-menu background shared with the login page |
 | `webclient/errors/` | pages | 2 | Webclient error handlers: offline "Failed to fetch", visitor-facing errors |
 | `webclient/install_scoped_app/` | pages | 1 | Public page component for installing scoped PWAs |
 | `webclient/loading_indicator/` | pages | 1 | Counts active RPCs and blocks the UI after a 3 s delay |
 | `webclient/menus/` | pages | 4 | `menu` service, tree helpers, command providers, and the localStorage menu cache |
-| `webclient/navbar/` | pages | 1 | Navigation bar: app switcher, sub-menus, systray, mobile switch |
+| `webclient/mobile/` | pages | 1 | Small-screen patches over views: pivot cells drop their tooltips and shrink their indent |
+| `webclient/navbar/` | pages | 1 | Navigation bar: home-menu toggle, app brand, sub-menus, systray, mobile sidebar |
+| `webclient/promote_studio/` | pages | 4 | Studio upsell: the install dialog, its systray item, the "Add Custom Field" entry patched into the list optional-columns menu and the "Automations" entry patched into the group config menu |
+| `webclient/settings_form_view/` | pages | 0 | Template extension stamping the edition, licence and expiration date on the Settings about block |
 | `webclient/share_target/` | pages | 1 | `shareTarget` service receiving files from the PWA service worker |
+| `webclient/share_url/` | pages | 1 | `navigator.share` of the current URL: a user-menu item and the burger-menu button, shown only in a standalone (PWA) display |
 | `webclient/switch_company_menu/` | pages | 3 | Company switcher dropdown, its rows, and the toggle/log-into actions |
 | `webclient/user_menu/` | pages | 2 | Systray dropdown with the user avatar and `user_menuitems` entries |
 </content>

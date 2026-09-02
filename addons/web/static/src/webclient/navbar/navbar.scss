@@ -1,8 +1,13 @@
 .o_main_navbar {
     @include print-variable(o-navbar-height, $o-navbar-height);
 
-    --Dropdown_menu-margin-y: 0;
+    --Dropdown_menu-margin-y: #{map-get($spacers, 1)};
     --o-ring-color: #{o-ring-color-for($o-navbar-background)};
+    --NavBar-entry-color--active: #{o-token(--o-black, $o-component-active-color)};
+    --NavBar-entry-borderColor-active: #{$o-component-active-border};
+    --NavBar-entry-backgroundColor--active: var(--o-bg-active);
+    --NavBar-entry-backgroundColor--hover: var(--o-gray-200);
+    --NavBar-entry-backgroundColor--focus: var(--o-gray-200);
 
     display: flex;
     height: var(--o-navbar-height);
@@ -31,10 +36,7 @@
 
         @extend %-main-navbar-entry-base;
         @extend %-main-navbar-entry-spacing;
-        color: var(
-            --NavBar-entry-color,
-            var(--o-navbar-entry-color, #{$o-navbar-entry-color})
-        );
+        color: var(--NavBar-menuToggle-color, var(--o-brand-odoo));
 
         rect,
         g {
@@ -283,6 +285,7 @@ body.o_is_superuser .o_menu_systray {
         )
         2;
     border-image-width: map-get($border-widths, 2);
+    border-image-outset: map-get($border-widths, 5);
 }
 
 @include o-publish-per-scheme using ($-scheme, $-ramp, $-record-colors) {
@@ -336,5 +339,18 @@ body.o_is_superuser .o_menu_systray {
 
         border-bottom: $o-dark-navbar-border-bottom;
         background: $o-dark-navbar-background;
+
+        --o-navbar-badge-color: #{$o-dark-black};
+        --o-navbar-badge-text-shadow: none;
+        --NavBar-menuToggle-color: #{$o-dark-black};
+        --NavBar-brand-color: #{$o-dark-black};
+        --NavBar-entry-borderColor-active: #{darken($o-dark-action, 10%)};
+        --NavBar-entry-backgroundColor--active: #{mix(
+                $o-dark-action,
+                $o-dark-gray-100,
+                15%
+            )};
+        --NavBar-entry-backgroundColor--hover: #{$o-dark-gray-300};
+        --NavBar-entry-backgroundColor--focus: #{$o-dark-gray-300};
     }
 }

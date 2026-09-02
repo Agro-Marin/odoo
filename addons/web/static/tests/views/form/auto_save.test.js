@@ -10,7 +10,6 @@ import {
 } from "@odoo/hoot-mock";
 import { Component, onWillStart, useState, xml } from "@odoo/owl";
 import { useFormViewInDialog } from "@web/views/form/form_utils";
-import { WebClient } from "@web/webclient/webclient";
 
 import {
     contains,
@@ -24,6 +23,7 @@ import {
     models,
     mountView,
     mountViewInDialog,
+    mountWebClient,
     mountWithCleanup,
     onRpc,
 } from "../../web_test_helpers.js";
@@ -131,7 +131,7 @@ test(`save when page changed`, async () => {
         expect.step("web_save");
         expect(args).toEqual([[1], { name: "aaa" }]);
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(`.o_data_row td.o_data_cell`).click();
     expect(`.o_breadcrumb`).toHaveText("Partner\nXavier Lancer");
@@ -183,7 +183,7 @@ test(`save when breadcrumb clicked`, async () => {
         expect(args).toEqual([[1], { name: "aaa" }]);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_field_cell:eq(0)`).toHaveText("Xavier Lancer");
 
@@ -231,7 +231,7 @@ test(`error on save when breadcrumb clicked`, async () => {
         expect.step("web_save");
         throw makeServerError({ message: "Cannot save" });
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(`.o_data_row td.o_data_cell`).click();
 
@@ -285,7 +285,7 @@ test(`save when action changed`, async () => {
         expect(args).toEqual([[1], { name: "aaa" }]);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await contains(`.o_data_row td.o_data_cell`).click();
@@ -521,7 +521,7 @@ test(`save on closing tab/browser (detached form)`, async () => {
     mockSendBeacon(() => expect.step("sendBeacon"));
     onRpc("web_save", () => expect.step("save"));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await contains(`.o_data_row td.o_data_cell`).click();

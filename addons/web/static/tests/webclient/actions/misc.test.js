@@ -10,12 +10,11 @@ import {
     defineMenus,
     defineModels,
     fields,
-    getDropdownMenu,
     getService,
     makeMockEnv,
     makeServerError,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     serverState,
@@ -31,7 +30,6 @@ import { redirect } from "@web/core/utils/urls";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { listView } from "@web/views/list/list_view";
 import { PivotModel } from "@web/views/pivot/pivot_model";
-import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
@@ -208,7 +206,7 @@ test("action doesn't exists", async () => {
 });
 
 test("getCurrentAction", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     const currentAction = await getService("action").getCurrentAction();
     expect(currentAction).toEqual({
@@ -248,7 +246,7 @@ test("getCurrentAction (virtual controller)", async () => {
     actionRegistry.add("HelloWorldTest", ClientAction);
 
     redirect("/odoo/action-1/plop");
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await animationFrame();
 
@@ -282,7 +280,7 @@ test("getCurrentAction (virtual controller)", async () => {
 test.tags("desktop");
 test("restore to a deleted virtual action keeps the current controller and surfaces the error", async () => {
     redirect("/odoo/action-1/action-3");
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
     expect(".o_list_view").toHaveCount(1);
 
@@ -314,7 +312,7 @@ test.tags("desktop");
 test("restore to a virtual action whose view errors pre-mount keeps the displayed controller", async () => {
     expect.errors(1);
     redirect("/odoo/action-1/action-3");
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
     expect(".o_list_view").toHaveCount(1);
 
@@ -356,7 +354,7 @@ test("action in handler registry", async () => {
 
 test("properly handle case when action id does not exist", async () => {
     expect.errors(1);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("action").doAction(4448);
     await waitFor(".o_error_dialog");
     expect.verifyErrors(["RPC_ERROR"]);
@@ -366,7 +364,7 @@ test("properly handle case when action id does not exist", async () => {
 
 test("properly handle case when action path does not exist", async () => {
     expect.errors(1);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("action").doAction("plop");
     await waitFor(".o_error_dialog");
     expect.verifyErrors(["RPC_ERROR"]);
@@ -378,7 +376,7 @@ test("properly handle case when action path does not exist", async () => {
 
 test("properly handle case when action xmlId does not exist", async () => {
     expect.errors(1);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("action").doAction("not.found.action");
     await waitFor(".o_error_dialog");
     expect.verifyErrors(["RPC_ERROR"]);
@@ -474,7 +472,7 @@ test('action with "no_breadcrumbs" set to true', async () => {
             context: { no_breadcrumbs: true },
         },
     ]);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_breadcrumb").toHaveCount(1);
     await getService("action").doAction(42);
@@ -486,10 +484,10 @@ test('action with "no_breadcrumbs" set to true', async () => {
 });
 
 test("document's title is updated when an action is executed", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
     let currentTitle = getService("title").getParts();
-    expect(currentTitle).toEqual({});
+    expect(currentTitle).toEqual({ action: "Home" });
     let currentState;
     await getService("action").doAction(4);
     await animationFrame();
@@ -566,7 +564,7 @@ test('handles "history_back" event', async () => {
             list = this;
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(4);
     await getService("action").doAction(3);
     expect("ol.breadcrumb").toHaveCount(1);
@@ -596,7 +594,7 @@ test("stores and restores scroll position (in kanban)", async () => {
     container.classList.add("o_web_client");
     container.style.height = "250px";
     getFixture().appendChild(container);
-    await mountWithCleanup(WebClient, { target: container });
+    await mountWebClient({ target: container });
     await getService("action").doAction(10);
     expect(".o_content").toHaveProperty("scrollTop", 0);
     await scroll(".o_content", { top: 100 });
@@ -615,7 +613,7 @@ test("stores and restores scroll position (in list)", async () => {
     container.classList.add("o_web_client");
     container.style.height = "250px";
     getFixture().appendChild(container);
-    await mountWithCleanup(WebClient, { target: container });
+    await mountWebClient({ target: container });
     await getService("action").doAction(3);
     expect(".o_content").toHaveProperty("scrollTop", 0);
     expect(queryOne(".o_list_renderer").scrollTop).toBe(0);
@@ -636,7 +634,7 @@ test('executing an action with target != "new" closes all dialogs', async () => 
                 <form><field name="display_name"/></form>
             </field>
         </form>`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
     await contains(".o_list_view .o_data_row .o_list_char").click();
@@ -657,7 +655,7 @@ test('executing an action with target "new" does not close dialogs', async () =>
                 <form><field name="display_name"/></form>
             </field>
         </form>`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
     await contains(".o_list_view .o_data_row .o_data_cell").click();
@@ -687,7 +685,7 @@ test("search defaults are removed from context when switching view", async () =>
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -727,7 +725,7 @@ test("retrieving a stored action should remove 'allowed_company_ids' from its co
 
     Object.assign(browser.location, { search: "?model=partner&view_type=kanban" });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
 
     expect(getService("action").currentController.action.context).toEqual({
@@ -765,7 +763,7 @@ test("retrieving a stored action should remove 'allowed_company_ids' from its co
 
     redirect("/odoo/action-1?view_type=kanban");
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
 
     expect(getService("action").currentController.action.context).toEqual({
@@ -805,15 +803,14 @@ test("action is removed while waiting for another action with selectMenu", async
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
     await getService("action").doAction(4);
     expect(".o_kanban_view").toHaveCount(1);
 
     def = new Deferred();
-    await contains(".o_navbar_apps_menu .dropdown-toggle").click();
-    const appsMenu = getDropdownMenu(".o_navbar_apps_menu");
-    await contains(".o_app:contains(App1)", { root: appsMenu }).click();
+    await contains(".o_menu_toggle").click();
+    await contains(".o_home_menu .o_app:contains(App1)").click();
 
     expect(".o_action_manager").toHaveText("");
 
@@ -830,7 +827,7 @@ test("getView answers null — not a throw — when the tip is not a window acti
     }
     registry.category("actions").add("plain_client_action", PlainClientAction);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const actionService = getService("action");
     await actionService.doAction(3);
     expect(actionService.currentController.action.type).toBe("ir.actions.act_window");
@@ -857,7 +854,7 @@ test("a handler registered for a built-in action type is reported as dead", asyn
         expect.step("never-runs"),
     );
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({ type: "ir.actions.act_window_close" });
 
     expect.verifySteps([
@@ -870,7 +867,7 @@ test("an onClose dropped by an inline dispatch is reported in debug", async () =
     patchWithCleanup(console, {
         warn: (message) => expect.step(message),
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1, { onClose: () => {} });
     expect.verifySteps([
         `[action] "onClose" is ignored for inline dispatches: action "1" does not open a dialog.`,
@@ -891,7 +888,7 @@ test("a button's onClose is not reported when the action turns out to be inline"
         views: [[1, "kanban"]],
         target: "current",
     }));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doActionButton({
         type: "object",
         name: "open_something",
@@ -905,7 +902,7 @@ test("a button's onClose is not reported when the action turns out to be inline"
 
 test("ACTION_MANAGER:SETTLED fires for an action that changes nothing on screen", async () => {
     onRpc("/web/action/run", () => false);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     let settled = 0;
@@ -928,7 +925,7 @@ test("ACTION_MANAGER:SETTLED fires for an action that changes nothing on screen"
 });
 
 test("ACTION_MANAGER:SETTLED fires even when the dispatch fails", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     let settled = 0;
     getService("action").env.bus.addEventListener(
         AppEvent.ACTION_MANAGER_SETTLED,

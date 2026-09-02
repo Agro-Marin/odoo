@@ -33,7 +33,6 @@ import {
     models,
     mountView,
     mountWebClient,
-    mountWithCleanup,
     onRpc,
     patchWithCleanup,
     serverState,
@@ -48,7 +47,6 @@ import { RPCCache } from "@web/core/network/rpc_cache";
 import { pick } from "@web/core/utils/collections/objects";
 import { redirect } from "@web/core/utils/urls";
 import { SettingsFormCompiler } from "@web/views/settings/settings_form_compiler";
-import { WebClient } from "@web/webclient/webclient";
 
 const MOCK_IMAGE =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z9DwHwAGBQKA3H7sNwAAAABJRU5ErkJggg==";
@@ -692,7 +690,7 @@ test("settings views does not read existing id when coming back in breadcrumbs",
         }
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_field_boolean input").toHaveProperty("disabled", false);
     await click("button[name='4']");
@@ -812,7 +810,7 @@ test("settings views does not read existing id when reload", async () => {
         expect.step(method);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
 
@@ -861,7 +859,7 @@ test("settings views ask for confirmation when leaving if dirty", async () => {
         </form>
     `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     const action = getService("action").doAction(1);
@@ -912,7 +910,7 @@ test("settings views skip the confirmation dialog when leaving with forceLeave",
         </form>
     `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await click(".o_field_boolean input");
@@ -965,7 +963,7 @@ test("settings views settle beforeLeave even when the Discard save fails", async
         throw makeServerError();
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await click(".o_field_boolean input");
@@ -1107,7 +1105,7 @@ test("settings views does not write the id on the url", async () => {
         </list>
     `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
     await runAllTimers();
@@ -1160,7 +1158,7 @@ test("settings views can search when coming back in breadcrumbs", async () => {
         </list>
     `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await click("button[name='4']");
     await animationFrame();
@@ -1207,7 +1205,7 @@ test("search for default label when label has empty string", async () => {
         </list>
     `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
     expect(".o_form_label").toHaveCount(1);
@@ -1258,7 +1256,7 @@ test("clicking on any button in setting should show discard warning if setting f
         expect.step(method);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
     expect(".o_field_boolean input:checked").toHaveCount(0, {
@@ -1344,7 +1342,7 @@ test("header field don't dirty settings", async () => {
         );
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
     expect(".o_field_boolean input").not.toBeChecked({
@@ -1389,7 +1387,7 @@ test("header without string or field", async () => {
         </form>
     `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
     expect(".app_settings_block:not(.d-none) .app_settings_header").toHaveCount(1);
@@ -1606,7 +1604,7 @@ test("clicking on a button with noSaveDialog will not show discard warning", asy
     `;
     Task._views.list = `<list><field name="display_name"/></list>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
     expect(".o_field_boolean input").not.toBeChecked({
@@ -1768,7 +1766,7 @@ test("execute action from settings view with several actions in the breadcrumb",
         await def;
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
     expect(".o_breadcrumb").toHaveText("First action");
@@ -1856,7 +1854,7 @@ test('call "call_button/execute" when clicking on a button in dirty settings', a
         expect.step("web_save");
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
     expect(".o_field_boolean input").not.toBeChecked({
@@ -1905,7 +1903,7 @@ test("Discard button clean the settings view", async () => {
 
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(1);
     expect.verifySteps([
@@ -2262,7 +2260,7 @@ test("server actions are called with the correct context", async () => {
         return new Promise(() => {});
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await click("button[name='2']");
     await animationFrame();
@@ -2371,7 +2369,7 @@ test("Open settings from url, with app anchor", async () => {
     `;
 
     redirect("/odoo/settings#crm");
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
     expect(".selected").toHaveAttribute("data-key", "crm", {
         message: "crm setting selected",
@@ -2657,7 +2655,7 @@ test("escaping the unsaved-settings dialog keeps the changes and stays put", asy
         expect.step(method);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     await click(".o_field_boolean input");

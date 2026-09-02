@@ -11,7 +11,7 @@ import {
     getKwArgs,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     toggleMenuItem,
@@ -22,7 +22,6 @@ import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
 import { rpcBus } from "@web/core/network/rpc";
 import { user } from "@web/core/user";
-import { WebClient } from "@web/webclient/webclient";
 
 describe.current.tags("desktop");
 
@@ -294,7 +293,7 @@ beforeEach(() => {
 });
 
 test("can display embedded actions linked to the current action", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_control_panel").toHaveCount(1, {
         message: "should have rendered a control panel",
@@ -324,7 +323,7 @@ test("can display embedded actions linked to the current action", async () => {
 });
 
 test("can toggle visibility of embedded actions", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(".o_control_panel_navigation > button > i.fa-sliders").click();
     await waitFor(".o_popover.dropdown-menu");
@@ -352,7 +351,7 @@ test("can toggle visibility of embedded actions", async () => {
 });
 
 test("can click on a embedded action and execute the corresponding action (with xml_id)", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(".o_control_panel_navigation > button > i.fa-sliders").click();
     await waitFor(".o_popover.dropdown-menu");
@@ -379,7 +378,7 @@ test("can click on a embedded action and execute the corresponding action (with 
 });
 
 test("can click on a embedded action and execute the corresponding action (with python_method)", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     onRpc("do_python_method", () => ({
         id: 4,
         name: "Favorite Ponies from python action",
@@ -413,7 +412,7 @@ test("can click on a embedded action and execute the corresponding action (with 
 });
 
 test("breadcrumbs are updated when clicking on embeddeds", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     onRpc("do_python_method", () => ({
         id: 4,
         name: "Favorite Ponies from python action",
@@ -473,7 +472,7 @@ test("a view coming from a embedded can be saved in the embedded actions", async
         expect(args[0].user_ids).toEqual([]);
         return [5];
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(".o_control_panel_navigation > button > i.fa-sliders").click();
     await waitFor(".o_popover.dropdown-menu");
@@ -545,7 +544,7 @@ test("a view coming from a embedded with python_method can be saved in the embed
             };
         }
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(".o_control_panel_navigation > button > i.fa-sliders").click();
     await waitFor(".o_popover.dropdown-menu");
@@ -591,7 +590,7 @@ test("a view coming from a embedded with python_method can be saved in the embed
 });
 
 test("the embedded actions should not be displayed when switching view", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(".o_control_panel_navigation > button > i.fa-sliders").click();
     await waitFor(".o_popover.dropdown-menu");
@@ -610,7 +609,7 @@ test("the embedded actions should not be displayed when switching view", async (
 
 test("User can move the main (first) embedded action", async () => {
     mockTouch(true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(".o_control_panel_navigation > button > i.fa-sliders").click();
     await waitFor(".o_popover.dropdown-menu");
@@ -637,7 +636,7 @@ test("User can move the main (first) embedded action", async () => {
 });
 
 test("User can unselect the main (first) embedded action", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(".o_control_panel_navigation > button > i.fa-sliders").click();
     await waitFor(".o_popover.dropdown-menu");
@@ -668,7 +667,7 @@ test("User should be redirected to the first embedded action set in user setting
             embedded_actions_order: [102, false, 103],
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doActionButton({
         name: 1,
         type: "action",
@@ -705,7 +704,7 @@ test("newWindow is forwarded to the default embedded action", async () => {
             (/** @type {string} */ url) => expect.step("open: " + url)
         ),
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doActionButton(
         { name: 1, type: "action" },
         { newWindow: true },
@@ -722,7 +721,7 @@ test("execute a regular action from an embedded action", async () => {
             <button type="action" name="2" string="Execute another action"/>
             <field name="name"/>
         </form>`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_kanban_view").toHaveCount(1);
 
@@ -757,7 +756,7 @@ test("custom embedded action loaded first", async () => {
             embedded_actions_order: [104, false],
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doActionButton({
         name: 4,
         type: "action",
@@ -793,7 +792,7 @@ test("test get_embedded_actions_settings rpc args", async () => {
         });
         expect.step("get_embedded_actions_settings");
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1, {
         additionalContext: { active_id: 5 },
     });
@@ -821,7 +820,7 @@ test("an action containing embedded actions should reload if the page is refresh
     });
     onRpc("create_filter", () => [5]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(".o_control_panel_navigation > button > i.fa-sliders").click();
     await waitFor(".o_popover.dropdown-menu");

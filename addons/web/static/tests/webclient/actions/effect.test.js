@@ -8,13 +8,12 @@ import {
     defineModels,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { user } from "@web/core/user";
-import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
@@ -83,7 +82,7 @@ test.tags("desktop");
 test("rainbowman integrated to webClient", async () => {
     patchWithCleanup(user, { showEffect: true });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_kanban_view").toHaveCount(1);
     expect(".o_reward").toHaveCount(0);
@@ -114,7 +113,7 @@ test("on close with effect from server", async () => {
         },
     }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(6);
     await contains("button[name=object]").click();
     expect(".o_reward").toHaveCount(1);
@@ -135,7 +134,7 @@ test("on close with effect in xml on desktop", async () => {
         </form>`;
     onRpc("/web/dataset/call_button/*", () => false);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(6);
     await contains("button[name=object]").click();
     expect(".o_reward").toHaveCount(1);
@@ -157,7 +156,7 @@ test("on close with effect in xml on mobile", async () => {
         </form>`;
     onRpc("/web/dataset/call_button/*", () => false);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(6);
     await contains(`.o_cp_action_menus button:has(.fa-cog)`).click();
     await contains("button[name=object]").click();

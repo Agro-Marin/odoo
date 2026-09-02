@@ -27,7 +27,7 @@ import {
     models,
     mountView,
     mountViewInDialog,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     selectFieldDropdownItem,
@@ -38,7 +38,6 @@ import { registry } from "@web/core/registry";
 import { pick } from "@web/core/utils/collections/objects";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 import { RelationalRecord } from "@web/model/relational_model/record";
-import { WebClient } from "@web/webclient/webclient";
 
 class Partner extends models.Model {
     name = fields.Char();
@@ -10541,7 +10540,7 @@ test("one2many from a model that has been sorted", async () => {
     };
     Partner._records[0].turtles = [3, 2];
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         id: 1,
         name: "test",
@@ -11704,7 +11703,7 @@ test("open a one2many record with optional open record displayed", async () => {
     const rec = Partner._records.find(({ id }) => id === 2);
     rec.p = [1];
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -12757,7 +12756,7 @@ test("add a row to an x2many and ask canBeRemoved twice", async () => {
         },
     ];
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(actions[0]);
     expect(".o_form_view").toHaveCount(1);
 

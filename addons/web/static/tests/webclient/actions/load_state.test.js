@@ -467,19 +467,17 @@ describe(`new urls`, () => {
         stepAllNetworkCalls();
 
         await mountWebClient();
-        expect(`.o_action_manager`).toHaveText("", {
-            message: "should display nothing",
+        expect(`.o_home_menu`).toHaveCount(1, {
+            message: "should fall back to the home menu",
         });
         expect.verifySteps([
             "/web/webclient/translations",
             "/web/webclient/load_menus",
+            "pushState http://example.com/odoo",
         ]);
-        expect(browser.location.href).toBe(
-            "http://example.com/odoo/m-partner?view_type=list",
-            {
-                message: "the url did not change",
-            },
-        );
+        expect(browser.location.href).toBe("http://example.com/odoo", {
+            message: "the invalid state is replaced by the home menu's",
+        });
         expect.verifySteps([]);
     });
 
@@ -870,7 +868,11 @@ describe(`new urls`, () => {
         await getService("action").doAction(4);
         await animationFrame();
         expect(browser.location.href).toBe("http://example.com/odoo/action-4");
-        expect.verifySteps(["pushState http://example.com/odoo/action-4"]);
+        expect.verifySteps([
+            "Update the state without updating URL, nextState: actionStack,action",
+            "Update the state without updating URL, nextState: actionStack,action,globalState",
+            "pushState http://example.com/odoo/action-4",
+        ]);
         expect(queryAllTexts`.breadcrumb-item, .o_breadcrumb .active`).toEqual([
             "Partners Action 4",
         ]);
@@ -1217,13 +1219,11 @@ describe(`new urls`, () => {
         logHistoryInteractions();
 
         await mountWebClient();
-        expect.verifySteps(["clientAction setup"]);
-        expect(browser.location.href).toBe(
-            "http://example.com/odoo/__test__client__action__?menu_id=1",
-            {
-                message: "url did not change",
-            },
-        );
+        expect.verifySteps(["clientAction setup", "pushState http://example.com/odoo"]);
+        expect(browser.location.href).toBe("http://example.com/odoo", {
+            message:
+                "the recovery lands on the home menu, so a reload does not crash again",
+        });
 
         await animationFrame();
         expect.verifyErrors(["my error"]);
@@ -1232,26 +1232,17 @@ describe(`new urls`, () => {
         await contains(`.modal-header .btn-close`).click();
         expect(`.o_error_dialog`).toHaveCount(0);
 
-        await contains(`nav .o_navbar_apps_menu .dropdown-toggle`).click();
-        expect(`.dropdown-item.o_app`).toHaveCount(3);
-        expect(`.o_action_manager`).toHaveText("");
+        expect(`.o_home_menu .o_app`).toHaveCount(2);
+        expect(`nav .o_menu_toggle`).not.toBeVisible();
 
         await animationFrame();
         expect(router.current).toEqual({
-            action: "__test__client__action__",
-            menu_id: 1,
-            actionStack: [
-                {
-                    action: "__test__client__action__",
-                },
-            ],
+            action: "menu",
+            actionStack: [{ action: "menu", displayName: "Home" }],
         });
-        expect(browser.location.href).toBe(
-            "http://example.com/odoo/__test__client__action__?menu_id=1",
-            {
-                message: "url did not change",
-            },
-        );
+        expect(browser.location.href).toBe("http://example.com/odoo", {
+            message: "url did not change",
+        });
         expect.verifySteps([]);
     });
 
@@ -1489,8 +1480,8 @@ describe(`new urls`, () => {
         await animationFrame();
 
         expect.verifyErrors([/RPC_ERROR/]);
-        expect(`.test_client_action`).toHaveCount(1, {
-            message: "the default app was loaded",
+        expect(`.o_home_menu`).toHaveCount(1, {
+            message: "the home menu was loaded",
         });
     });
 
@@ -1514,12 +1505,15 @@ describe(`new urls`, () => {
         }));
         await mountWebClient();
 
-        await getService("action").doAction({
-            type: "ir.actions.act_window",
-            res_model: "partner",
-            res_id: 1,
-            views: [[false, "form"]],
-        });
+        await getService("action").doAction(
+            {
+                type: "ir.actions.act_window",
+                res_model: "partner",
+                res_id: 1,
+                views: [[false, "form"]],
+            },
+            { clearBreadcrumbs: true },
+        );
 
         expect(`.o_form_view`).toHaveCount(1);
 
@@ -1532,6 +1526,9 @@ describe(`new urls`, () => {
             "get current_lang-null",
             "get current_state-null",
             "get current_action-null",
+            'set current_state-{"actionStack":[{"displayName":"Home","action":"menu"}],"action":"menu"}',
+            'set current_action-{"target":"current","tag":"menu","type":"ir.actions.client"}',
+            "set current_lang-en",
             'set current_state-{"actionStack":[{"displayName":"First record","model":"partner","view_type":"form","resId":1}],"resId":1,"model":"partner"}',
             'set current_action-{"type":"ir.actions.act_window","res_model":"partner","res_id":1,"views":[[false,"form"]]}',
             "set current_lang-en",
@@ -1609,6 +1606,9 @@ describe(`new urls`, () => {
             "get current_lang-null",
             "get current_state-null",
             "get current_action-null",
+            'set current_state-{"actionStack":[{"displayName":"Home","action":"menu"}],"action":"menu"}',
+            'set current_action-{"target":"current","tag":"menu","type":"ir.actions.client"}',
+            "set current_lang-en",
             'set current_state-{"actionStack":[{"displayName":"First record","action":100,"view_type":"form","resId":1}],"resId":1,"action":100}',
             'set current_action-{"binding_type":"action","binding_view_types":"list,form","id":100,"type":"ir.actions.act_window","xml_id":100,"res_model":"partner","res_id":1,"views":[[false,"form"]],"context":{},"embedded_action_ids":[],"group_ids":[],"limit":80,"mobile_view_mode":"kanban","target":"current","view_ids":[],"view_mode":"list,form","cache":true}',
             "set current_lang-en",
@@ -1851,6 +1851,9 @@ describe(`new urls`, () => {
             "get current_lang-null",
             "get current_state-null",
             "get current_action-null",
+            'set current_state-{"actionStack":[{"displayName":"Home","action":"menu"}],"action":"menu"}',
+            'set current_action-{"target":"current","tag":"menu","type":"ir.actions.client"}',
+            "set current_lang-en",
             'set current_state-{"actionStack":[{"displayName":"Kanban Partners","action":200,"view_type":"kanban"}],"action":200}',
             'set current_action-{"binding_type":"action","binding_view_types":"list,form","id":200,"type":"ir.actions.act_window","xml_id":200,"res_model":"partner","name":"Kanban Partners","views":[[1,"kanban"],[false,"form"]],"context":{},"embedded_action_ids":[],"group_ids":[],"limit":80,"mobile_view_mode":"kanban","target":"current","view_ids":[],"view_mode":"list,form","cache":true}',
             "set current_lang-en",
@@ -2160,8 +2163,8 @@ describe(`legacy urls`, () => {
         stepAllNetworkCalls();
 
         await mountWebClient();
-        expect(`.o_action_manager`).toHaveText("", {
-            message: "should display nothing",
+        expect(`.o_home_menu`).toHaveCount(1, {
+            message: "should fall back to the home menu",
         });
         expect.verifySteps([
             "/web/webclient/translations",
@@ -2517,18 +2520,11 @@ describe(`legacy urls`, () => {
         await contains(`.modal-header .btn-close`).click();
         expect(`.o_error_dialog`).toHaveCount(0);
 
-        await contains(`nav .o_navbar_apps_menu .dropdown-toggle`).click();
-        expect(`.dropdown-item.o_app`).toHaveCount(3);
-        expect(`.o_menu_brand`).toHaveText("App1");
-        expect(`.o_action_manager`).toHaveText("");
+        expect(`.o_home_menu .o_app`).toHaveCount(2);
+        expect(`nav .o_menu_toggle`).not.toBeVisible();
         expect(router.current).toEqual({
-            action: "__test__client__action__",
-            menu_id: 1,
-            actionStack: [
-                {
-                    action: "__test__client__action__",
-                },
-            ],
+            action: "menu",
+            actionStack: [{ action: "menu", displayName: "Home" }],
         });
     });
 });

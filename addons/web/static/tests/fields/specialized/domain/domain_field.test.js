@@ -29,13 +29,12 @@ import {
     getService,
     models,
     mountView,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
-import { WebClient } from "@web/webclient/webclient";
 
 class PartnerType extends models.Model {
     name = fields.Char({ string: "Partner Type" });
@@ -427,7 +426,7 @@ test("domain field: manually edit domain with textarea", async function () {
     onRpc("search_count", ({ args }) => expect.step(args[0]));
     onRpc("/web/domain/validate", () => true);
     onRpc("/mail/data", () => ({}));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "test",
         res_id: 1,
@@ -483,7 +482,7 @@ test("domain field: manually set an invalid domain with textarea", async functio
     });
 
     onRpc("/mail/data", () => ({}));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "test",
         res_id: 1,
@@ -537,7 +536,7 @@ test("domain field: reload count by clicking on the refresh button", async funct
     onRpc("/web/domain/validate", () => true);
     onRpc("search_count", ({ args }) => expect.step(args[0]));
     onRpc("/mail/data", () => ({}));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "test",
         res_id: 1,
@@ -616,7 +615,7 @@ test("domain field: have a default count limit of 10000", async function () {
     });
 
     onRpc("/mail/data", () => ({}));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "test",
         res_id: 1,
@@ -652,7 +651,7 @@ test("domain field: foldable and count limit reached", async function () {
     });
 
     onRpc("/mail/data", () => ({}));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "test",
         res_id: 1,
@@ -688,7 +687,7 @@ test("domain field: configurable count limit", async function () {
     });
 
     onRpc("/mail/data", () => ({}));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "test",
         res_id: 1,
@@ -727,7 +726,7 @@ test("domain field: edit domain with dynamic content", async function () {
     });
     onRpc("/web/domain/validate", () => true);
     onRpc("/mail/data", () => ({}));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "test",
         res_id: 1,
@@ -773,7 +772,7 @@ test("domain field: edit through selector (dynamic content)", async function () 
     });
 
     onRpc("/mail/data", () => ({}));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "test",
         res_id: 1,

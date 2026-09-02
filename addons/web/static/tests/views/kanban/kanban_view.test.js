@@ -67,6 +67,7 @@ import {
     mockService,
     models,
     mountView,
+    mountWebClient,
     mountWithCleanup,
     onRpc,
     pagerNext,
@@ -103,7 +104,6 @@ import { KanbanRecord } from "@web/views/kanban/kanban_record";
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
 import { kanbanView } from "@web/views/kanban/kanban_view";
 import { ViewButton } from "@web/views/view_button/view_button";
-import { WebClient } from "@web/webclient/webclient";
 
 const { IrAttachment } = webModels;
 
@@ -1649,7 +1649,7 @@ test("Open new card in form view, without reloading the kanban view", async () =
 
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(4);
@@ -3616,7 +3616,7 @@ test("quick create record and click Edit, name_create fails", async () => {
         throw makeServerError({ message: "This is a user error" });
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -7070,7 +7070,7 @@ test("sample data does not change after reload with sample data", async () => {
         });
         return result;
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -11451,7 +11451,7 @@ test("folded groups kept when leaving/coming back", async () => {
                 </templates>
             </kanban>`,
     };
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partners",
         res_model: "partner",
@@ -11501,7 +11501,7 @@ test("filter groups kept when leaving/coming back", async () => {
                 <field name="state" widget="radio"/>
             </form>`,
     };
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partners",
         res_model: "partner",
@@ -11549,7 +11549,7 @@ test("folded groups kept when leaving/coming back (grouped by date)", async () =
                 </templates>
             </kanban>`,
     };
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partners",
         res_model: "partner",
@@ -11593,7 +11593,7 @@ test("loaded records kept when leaving/coming back", async () => {
                 </templates>
             </kanban>`,
     };
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partners",
         res_model: "partner",
@@ -13469,7 +13469,7 @@ test("kanbans with basic and custom compiler, same arch", async () => {
             </templates>
         </kanban>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -13758,7 +13758,7 @@ test("kanban records are middle clickable by default", async () => {
             <field name="foo"/>
         </form>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         id: 1,
         res_model: "partner",
@@ -13774,6 +13774,10 @@ test("kanban records are middle clickable by default", async () => {
         "get menu_id-null",
         "get current_lang-null",
         "get current_state-null",
+        "get current_action-null",
+        'set current_state-{"actionStack":[{"displayName":"Home","action":"menu"}],"action":"menu"}',
+        'set current_action-{"target":"current","tag":"menu","type":"ir.actions.client"}',
+        "set current_lang-en",
         'set current_state-{"actionStack":[{"displayName":"","action":1,"view_type":"kanban"}],"action":1}',
         'set current_action-{"id":1,"res_model":"partner","type":"ir.actions.act_window","views":[[false,"kanban"],[false,"form"]]}',
         "set current_lang-en",
@@ -14161,7 +14165,7 @@ test("drag and drop records and quickly open a record", async () => {
         return defs[saveCount++];
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -14437,7 +14441,7 @@ test(`kanban with custom cog action that has a confirmation target="new" action`
     ]);
 
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_kanban_view").toHaveCount(1);
 
@@ -14503,7 +14507,7 @@ test(`cache web_read_group (no change)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_kanban_view`).toHaveCount(1);
     expect(`.o_kanban_group`).toHaveCount(2);
@@ -14559,7 +14563,7 @@ test(`cache web_read_group (change)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_kanban_view`).toHaveCount(1);
     expect(`.o_kanban_group`).toHaveCount(4);
@@ -14634,7 +14638,7 @@ test(`cache web_read_group (no data, no change)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_column_quick_create`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_stages_nocontent`).toHaveCount(1);
@@ -14688,7 +14692,7 @@ test(`cache web_read_group (no data, change)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_column_quick_create`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_stages_nocontent`).toHaveCount(1);
@@ -14766,7 +14770,7 @@ test(`cache web_read_group (group_expand: groups, then no group)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_view_sample_data`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_group`).toHaveCount(1);
@@ -14838,7 +14842,7 @@ test(`cache web_read_group (group_expand: groups, then more groups)`, async () =
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_view_sample_data`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_group`).toHaveCount(1);
@@ -14898,7 +14902,7 @@ test(`cache web_read_group: less groups than in cache`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_kanban_group`).toHaveCount(2);
     expect(queryAllTexts(`.o_kanban_group .o_kanban_header`)).toEqual([
@@ -14951,7 +14955,7 @@ test("Cache: folded is now unfolded", async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     expect(queryAll(".o_kanban_record", { root: getKanbanColumn(0) })).toHaveCount(2);
@@ -14991,7 +14995,7 @@ test("Cache: unfolded is now folded", async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     expect(queryAll(".o_kanban_record", { root: getKanbanColumn(0) })).toHaveCount(2);
@@ -15038,7 +15042,7 @@ test("Cache: kanban view progressbar, filter, open a record, edit, come back", a
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(2);
@@ -15098,7 +15102,7 @@ test("scroll position is restored when coming back to kanban view", async () => 
     let def;
     onRpc("web_read_group", () => def);
     await resize({ width: 800, height: 300 });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -15153,7 +15157,7 @@ test("scroll position is restored when coming back to kanban view (mobile)", asy
 
     let def;
     onRpc("web_search_read", () => def);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -15209,7 +15213,7 @@ test("scroll position is restored when coming back to kanban view (grouped, mobi
     let def;
     onRpc("web_read_group", () => def);
     await resize({ width: 375, height: 667 });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -15270,7 +15274,7 @@ test("limit is reset when restoring a view after ungrouping", async () => {
         hasGroup: () => true,
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction({
         type: "ir.actions.act_window",

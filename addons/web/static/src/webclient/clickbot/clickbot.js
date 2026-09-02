@@ -94,14 +94,6 @@ async function ensureHomeMenu() {
     }
 }
 
-async function ensureAppsMenu() {
-    const apps = document.querySelectorAll(".o-dropdown--menu .o_app");
-    if (!apps.length) {
-        const toggler = document.querySelector(".o_navbar_apps_menu .dropdown-toggle");
-        await triggerClick(toggler, "apps menu toggle button");
-    }
-}
-
 class ClickBot {
     /**
      * @param {Object} [options]
@@ -110,7 +102,6 @@ class ClickBot {
      */
     constructor({ light = false, currentState } = {}) {
         this.env = /** @type {any} */ (odoo).__WOWL_DEBUG__.root.env;
-        this.isEnterprise = Boolean(odoo.info && odoo.info.isEnterprise);
 
         /** @type {Record<number, string>} */
         this.calledRPC = {};
@@ -285,13 +276,6 @@ class ClickBot {
         await this.waitForCondition(() => document.querySelector("div.o_home_menu"));
     }
 
-    async openAppsMenu() {
-        await ensureAppsMenu();
-        await this.waitForCondition(() =>
-            document.querySelector(".o-dropdown--menu .o_app"),
-        );
-    }
-
     /**
      * @returns {Promise<Element | undefined>}
      */
@@ -348,13 +332,8 @@ class ClickBot {
      */
     async getNextApp() {
         if (!this.apps || !this.apps.length) {
-            if (this.isEnterprise) {
-                await this.openHomeMenu();
-                this.apps = document.querySelectorAll(".o_apps .o_app");
-            } else {
-                await this.openAppsMenu();
-                this.apps = document.querySelectorAll(".o-dropdown--menu .o_app");
-            }
+            await this.openHomeMenu();
+            this.apps = document.querySelectorAll(".o_apps .o_app");
         }
         const appName = /** @type {HTMLElement} */ (this.apps[this.state.appIndex])
             ?.dataset?.menuXmlid;
@@ -532,18 +511,10 @@ class ClickBot {
      */
     async testApp() {
         if (!this.state.testedApps.includes(this.state.app)) {
-            let element;
-            if (this.isEnterprise) {
-                await this.openHomeMenu();
-                element = document.querySelector(
-                    `a.o_app.o_menuitem[data-menu-xmlid="${this.state.app}"]`,
-                );
-            } else {
-                await this.openAppsMenu();
-                element = document.querySelector(
-                    `.o-dropdown--menu .dropdown-item[data-menu-xmlid="${this.state.app}"]`,
-                );
-            }
+            await this.openHomeMenu();
+            const element = document.querySelector(
+                `a.o_app.o_menuitem[data-menu-xmlid="${this.state.app}"]`,
+            );
             if (!element) {
                 throw new Error(`No app found for xmlid ${this.state.app}`);
             }
@@ -585,7 +556,6 @@ class ClickBot {
     async run(xmlId) {
         this.start();
         console.log("Starting ClickEverywhere test");
-        console.log(`Odoo flavor: ${this.isEnterprise ? "Enterprise" : "Community"}`);
         const startTime = performance.now();
         try {
             if (xmlId) {

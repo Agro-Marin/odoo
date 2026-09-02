@@ -25,7 +25,7 @@ import {
     getService,
     models,
     mountView,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     preloadFullCalendar,
@@ -34,7 +34,6 @@ import {
 import { Domain } from "@web/core/domain";
 import { notificationService } from "@web/ui/notification/notification_service";
 import { CalendarModel } from "@web/views/calendar/calendar_model";
-import { WebClient } from "@web/webclient/webclient";
 
 import { selectDateRange } from "./calendar_test_helpers.js";
 
@@ -615,7 +614,7 @@ test("multi_create: use state to keep values of inputs", async () => {
         res_id: args[0][0],
     }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Event",
         res_model: "event",

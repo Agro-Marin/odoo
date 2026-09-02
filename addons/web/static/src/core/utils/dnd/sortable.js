@@ -27,6 +27,7 @@ import { applyGroupParams } from "@web/core/utils/dnd/draggable_hook_builder_uti
  * @property {string[]} [placeholderClasses]
  * @property {boolean} [applyChangeOnDrop]
  * @property {string[]} [followingElementClasses]
+ * @property {(params: SortableHandlerParams) => any} [onWillStartDrag]
  * @property {(params: SortableHandlerParams) => any} [onDragStart]
  * @property {(params: DraggableHandlerParams) => any} [onElementEnter]
  * @property {(params: DraggableHandlerParams) => any} [onElementLeave]

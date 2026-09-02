@@ -21,11 +21,10 @@ import {
     models,
     mountView,
     mountViewInDialog,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
 } from "@web/../tests/web_test_helpers";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
-import { WebClient } from "@web/webclient/webclient";
 
 class Partner extends models.Model {
     name = fields.Char({ string: "Displayed name" });
@@ -78,7 +77,7 @@ test("formviewdialog buttons in footer are positioned properly", async () => {
         </form>
     `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         resId: 1,
@@ -107,7 +106,7 @@ test("modifiers are considered on multiple <footer/> tags", async () => {
             </footer>
         </form>
     `;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         resId: 1,
@@ -138,7 +137,7 @@ test("formviewdialog buttons in footer are not duplicated", async () => {
             <footer><button string="Custom Button" type="object" class="my_button"/></footer>
         </form>
     `;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         resId: 1,
@@ -237,7 +236,7 @@ test("click on view buttons in a FormViewDialog", async () => {
 
     onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         resId: 1,
@@ -268,7 +267,7 @@ test("formviewdialog is not closed when button handlers return a rejected promis
             return Promise.reject("rejected");
         }
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         context: { answer: 42 },
@@ -294,7 +293,7 @@ test("formviewdialog is not closed when button handlers return a rejected promis
 
 test("FormViewDialog with remove button", async () => {
     Partner._views.form = `<form><field name="foo"/></form>`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         resId: 1,
@@ -323,7 +322,7 @@ test("Buttons are set as disabled on click", async () => {
 
     const def = new Deferred();
     onRpc("web_save", async () => await def);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         resId: 1,
@@ -349,7 +348,7 @@ test("Buttons are set as disabled on click", async () => {
 
 test("FormViewDialog with discard button", async () => {
     Partner._views.form = `<form><field name="foo"/></form>`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         resId: 1,
@@ -376,7 +375,7 @@ test("Save a FormViewDialog when a required field is empty don't close the dialo
             </footer>
         </form>
     `;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         context: { answer: 42 },
@@ -403,6 +402,9 @@ test("new record has an expand button", async () => {
     });
     mockService("action", {
         doAction(actionRequest) {
+            if (actionRequest === "menu") {
+                return;
+            }
             expect.step([
                 actionRequest.res_id,
                 actionRequest.res_model,
@@ -411,7 +413,7 @@ test("new record has an expand button", async () => {
             ]);
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
     });
@@ -435,6 +437,9 @@ test("expand after custom onRecordSave uses the persisted resId", async () => {
     });
     mockService("action", {
         doAction(actionRequest) {
+            if (actionRequest === "menu") {
+                return;
+            }
             expect.step([
                 actionRequest.res_id,
                 actionRequest.res_model,
@@ -443,7 +448,7 @@ test("expand after custom onRecordSave uses the persisted resId", async () => {
             ]);
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         onRecordSave: (record) => record.save({ reload: false }),
@@ -466,6 +471,9 @@ test("existing record has an expand button", async () => {
     });
     mockService("action", {
         doAction(actionRequest) {
+            if (actionRequest === "menu") {
+                return;
+            }
             expect.step([
                 actionRequest.res_id,
                 actionRequest.res_model,
@@ -475,7 +483,7 @@ test("existing record has an expand button", async () => {
             ]);
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         expandedFormRef: "test_partner_form_view",
         resModel: "partner",
@@ -511,6 +519,9 @@ test("expand button with save and new", async () => {
     });
     mockService("action", {
         doAction(actionRequest) {
+            if (actionRequest === "menu") {
+                return;
+            }
             expect.step([
                 actionRequest.res_id,
                 actionRequest.res_model,
@@ -519,7 +530,7 @@ test("expand button with save and new", async () => {
             ]);
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "instrument",
         resId: 1,
@@ -544,7 +555,7 @@ test("expand button with save and new", async () => {
 test("FormViewDialog with canExpand set to false", async () => {
     Partner._views.form = `<form><field name="foo"/></form>`;
     Partner._records = [];
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
         canExpand: false,
@@ -562,10 +573,10 @@ test("close dialog with escape after modifying a field with onchange (no blur)",
         throw new Error("should not save");
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
-    await contains(".o_navbar_apps_menu button").focus();
-    expect(".o_navbar_apps_menu button").toBeFocused();
+    await contains(".o_home_menu .o_search_hidden").focus();
+    expect(".o_home_menu .o_search_hidden").toBeFocused();
 
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
@@ -580,7 +591,7 @@ test("close dialog with escape after modifying a field with onchange (no blur)",
     await press("escape");
     await animationFrame();
     expect(".o_dialog").toHaveCount(0);
-    expect(".o_navbar_apps_menu button").toBeFocused();
+    expect(".o_home_menu .o_search_hidden").toBeFocused();
 });
 
 test.tags("desktop");

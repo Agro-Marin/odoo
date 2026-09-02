@@ -468,3 +468,183 @@
         }
     }
 }
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        // ==== The record ramp's two chip presentations
+        //
+        // Not the published `--o-record-color-*-chip-*` tokens: those carry a
+        // different formula (+25% lightness for the fill, -40% for the label).
+        // These two are the theme's own and are restated as they were.
+        .badge {
+            @for $-i from 1 through length($o-dark-colors) {
+                &.o_badge_color_#{$-i - 1} {
+                    background-color: #{mix(
+                            nth($o-dark-colors, $-i),
+                            $o-dark-view-background-color,
+                            15%
+                        )} !important;
+                    color: #{adjust-color(
+                            nth($o-dark-colors, $-i),
+                            $lightness: 5%,
+                            $saturation: -15%
+                        )} !important;
+                }
+            }
+        }
+
+        .o_tag {
+            @for $-i from 1 through length($o-dark-colors) {
+                &.o_tag_color_#{$-i - 1} {
+                    --background-color: #{mix(
+                            nth($o-dark-colors, $-i),
+                            $o-dark-view-background-color,
+                            15%
+                        )};
+                    --color: #{adjust-color(
+                            nth($o-dark-colors, $-i),
+                            $lightness: 5%,
+                            $saturation: -15%
+                        )};
+
+                    &::after {
+                        --background-color: var(--background-color);
+                        --color: var(--color);
+                    }
+                }
+            }
+        }
+
+        // The colour list's own pair, which inverts the tag's: the swatch takes
+        // the darkened colour and the mark on it takes the mixed one.
+        @for $-i from 2 through length($o-dark-colors) {
+            .o_colorlist_item_color_#{$-i - 1} {
+                --background-color: #{adjust-color(
+                        nth($o-dark-colors, $-i),
+                        $lightness: -5%,
+                        $saturation: -15%
+                    )};
+                --color: #{mix(
+                        nth($o-dark-colors, $-i),
+                        $o-dark-view-background-color,
+                        15%
+                    )};
+            }
+        }
+
+        // ==== Components
+        .o-dropdown {
+            --border-color: #{$o-dark-dropdown-border-color};
+            --o-input-border-color: #{$o-dark-dropdown-border-color};
+        }
+
+        .o_popover {
+            --border-color: #{$o-dark-popover-border-color};
+
+            .table {
+                --table-bg: #{$o-dark-popover-bg};
+            }
+
+            .o_input {
+                --o-input-border-color: #{$o-dark-popover-border-color};
+            }
+
+            .form-range {
+                &::-moz-range-track {
+                    background: darken($o-dark-popover-bg, 10%);
+                }
+                &::-webkit-slider-runnable-track {
+                    background: darken($o-dark-popover-bg, 10%);
+                }
+            }
+        }
+
+        .o_searchview_facet {
+            --SearchBar-facet-background: #{$o-dark-black};
+        }
+
+        .o_mobile_search {
+            --mobileSearch-bg: #{$o-dark-gray-200};
+            --mobileSearch__header-bg: #{$o-dark-gray-100};
+        }
+
+        .o_searchview {
+            --SearchBar-background-color: #{$o-dark-gray-100};
+        }
+
+        .o_field_image {
+            --ImageField-background-color: #{$o-dark-gray-900};
+        }
+
+        .o_dashboard_view {
+            --DashboardView-background-color: #{$o-dark-gray-100};
+            --DashboardView__controlPanel-background-color: transparent;
+            --DashboardView__pieChart-background-color: transparent;
+        }
+
+        .o_kanban_renderer {
+            --KanbanGroup-grouped-bg: #{$o-dark-view-background-color};
+            --KanbanRecord__image-bg-color: #{$o-dark-gray-900};
+            --KanbanColumn__highlight-background: #{mix(
+                    $o-dark-action,
+                    $o-dark-gray-100,
+                    15%
+                )};
+            --KanbanColumn__highlight-border: #{$o-dark-component-active-border};
+            --KanbanColumn__highlight-selected: #20364b;
+            --Kanban-background: #{$o-dark-gray-100};
+        }
+
+        .o_base_settings_view .o_form_renderer {
+            --settings__tab-bg: #{$o-dark-gray-100};
+            --settings__tab-bg--active: #{mix($o-dark-action, $o-dark-gray-100, 10%)};
+            --settings__tab-color: #{$o-dark-main-text-color};
+            --settings__title-bg: #{$o-dark-gray-300};
+        }
+
+        .o-form-buttonbox {
+            --o-stat-button-color: currentColor;
+            --o-stat-text-color: #{map-get($o-dark-theme-text-colors, "primary")};
+        }
+
+        // The property type's icon is a bitmap, so the scheme inverts it rather
+        // than recolouring it.
+        .o_field_property_definition_type,
+        .o_field_property_definition_type_menu {
+            img {
+                -webkit-filter: invert(100%);
+                filter: invert(100%);
+            }
+        }
+
+        .o_property_field_value select option {
+            background-color: $o-dark-border-color;
+        }
+
+        // ==== The bottom sheet, and what it restyles inside itself
+        .o_bottom_sheet {
+            .o_bottom_sheet_sheet {
+                --BottomSheetStatusBar__entry-background--active: #{rgba(
+                        $o-dark-gray-400,
+                        0.5
+                    )};
+                --BottomSheetStatusBar__entry-color--active: #{o-scheme-contrast(
+                        $o-dark-gray-400,
+                        o-dark-scheme()
+                    )};
+
+                .o_cp_switch_buttons .o-dropdown-item {
+                    --#{$prefix}btn-bg: #{$o-dark-gray-400};
+                }
+            }
+
+            .o_search_panel_section .list-group {
+                --#{$prefix}list-group-active-bg: #{$o-dark-gray-400};
+            }
+
+            .o-form-buttonbox {
+                --o-stat-button-border-color: #{$o-dark-gray-400};
+            }
+        }
+    }
+}

@@ -59,7 +59,7 @@ import {
     models,
     mountView,
     mountViewInDialog,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     pagerNext,
     pagerPrevious,
@@ -96,7 +96,6 @@ import { session } from "@web/session";
 import { ListController } from "@web/views/list/list_controller";
 import { ListRenderer } from "@web/views/list/list_renderer";
 import { listSortingMixin } from "@web/views/list/list_sorting";
-import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
@@ -2617,7 +2616,7 @@ test(`grouped list rendering with groupby m2o field: edit group`, async () => {
             search_view_id: [1, "search"],
         },
     ]);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     expect(queryAllTexts(`.o_group_name`)).toEqual(["Value 1 (3)", "Value 2 (1)"]);
@@ -3909,7 +3908,7 @@ test(`editable list view: check that controlpanel buttons are updating when grou
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(11);
     await contains(`.o_list_button_add`).click();
     expect(`.o_list_button_add`).toHaveCount(0);
@@ -3953,7 +3952,7 @@ test(`editable list view: check that add button is present when groupby applied`
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(11);
     expect(`.o_list_button_add`).toHaveCount(1);
 
@@ -6227,7 +6226,7 @@ test(`archive/unarchive handles returned action`, async () => {
         };
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(11);
 
     expect(`tbody tr.o_data_row[data-id]`).toHaveCount(4, {
@@ -6949,7 +6948,7 @@ test(`list keeps offset on switchView`, async () => {
         expect(kwargs.offset).toBe(offsets.shift());
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "foo",
         type: "ir.actions.act_window",
@@ -6981,7 +6980,7 @@ test(`Navigate between the list and kanban view using the command palette`, asyn
         `,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "foo",
         type: "ir.actions.act_window",
@@ -7026,7 +7025,7 @@ test(`grouped list keeps offset on switchView`, async () => {
         expect.step("web_read_group");
         expect(kwargs.offset).toBe(offsets.shift());
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "foo",
         type: "ir.actions.act_window",
@@ -7733,7 +7732,7 @@ test(`refresh empty list with sample data`, async () => {
         `,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "foo",
         type: "ir.actions.act_window",
@@ -13843,7 +13842,7 @@ test(`add filter in a grouped list with a pager`, async () => {
         expect.step({ domain: kwargs.domain, offset: kwargs.offset });
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(11);
     expect(`.o_list_view`).toHaveCount(1);
     expect(getPagerValue()).toEqual([1, 3]);
@@ -15710,7 +15709,7 @@ test(`optional fields is shown only if enabled`, async () => {
         `,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`th:not(.o_list_record_selector)`).toHaveCount(3, {
         message:
@@ -15846,7 +15845,7 @@ test(`change the viewType of the current action`, async () => {
         search: `<search><field name="foo" string="Foo"/></search>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2);
     expect(`.o_list_view`).toHaveCount(1, {
         message: "should have rendered a list view",
@@ -16063,7 +16062,7 @@ test(`list view with optional fields from local storage being the empty array`, 
     };
 
     const localStorageKey = "optional_fields,foo,list,42,foo,m2o,reference";
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     expect.verifySteps([["getItem", localStorageKey]]);
@@ -16222,7 +16221,7 @@ test(`Auto save: add a record and leave action`, async () => {
         "list,3": `<list editable="top"><field name="foo"/></list>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(queryAllTexts(`.o_data_cell`)).toEqual(["yop", "blip", "gnap", "blip"]);
     expect(`.o_data_row`).toHaveCount(4);
@@ -16266,7 +16265,7 @@ test(`Auto save: create a new record without modifying it and leave action`, asy
         "list,3": `<list editable="top"><field name="foo"/></list>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(queryAllTexts(`.o_data_cell`)).toEqual(["yop", "blip", "gnap", "blip"]);
     expect(`.o_data_row`).toHaveCount(4);
@@ -16303,7 +16302,7 @@ test(`Auto save: modify a record and leave action`, async () => {
         "list,3": `<list editable="top"><field name="foo"/></list>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(queryAllTexts(`.o_data_cell`)).toEqual(["yop", "blip", "gnap", "blip"]);
 
@@ -16343,7 +16342,7 @@ test(`Auto save: modify a record and leave action (reject)`, async () => {
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(queryAllTexts(`.o_data_cell`)).toEqual(["yop", "blip", "gnap", "blip"]);
 
@@ -16658,7 +16657,7 @@ test(`open groups are kept when leaving and coming back`, async () => {
         list: `<list><field name="foo"/></list>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partners",
         res_model: "foo",
@@ -16694,7 +16693,7 @@ test("empty groups are removed when leaving and coming back", async () => {
         search: "<search/>",
         form: `<form><field name="bar"/></form>`,
     };
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partners",
         res_model: "foo",
@@ -16721,7 +16720,7 @@ test(`open groups are kept when leaving and coming back (grouped by date)`, asyn
         list: `<list><field name="foo"/></list>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partners",
         res_model: "foo",
@@ -16756,7 +16755,7 @@ test(`go to the next page after leaving and coming back to a grouped list view`,
         list: `<list groups_limit="1"><field name="foo"/></list>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partners",
         res_model: "foo",
@@ -18473,7 +18472,7 @@ test(`restore order from state when using default order`, async () => {
     };
 
     onRpc("web_search_read", ({ kwargs }) => expect.step(`order:${kwargs.order}`));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await contains(`th[data-name=amount]`).click();
     await contains(`.o_data_row .o_data_cell`).click();
@@ -18579,7 +18578,7 @@ test(`context keys not passed down the stack and not to fields`, async () => {
         expect.step({ model, method, context: kwargs.context });
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect.verifySteps([
         {
@@ -18997,7 +18996,7 @@ test("open record, with invalid record in list", async () => {
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "foo",
         type: "ir.actions.act_window",
@@ -19469,7 +19468,7 @@ test(`list with custom cog action that has a confirmation target="new" action`, 
     ]);
 
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_list_view").toHaveCount(1);
 
@@ -19522,7 +19521,7 @@ test(`cache web_search_read`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
 
     expect(`tbody tr`).toHaveCount(4, { message: "should have 4 rows" });
@@ -19597,7 +19596,7 @@ test(`cache web_search_read (onUpdate called after another load)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_data_row`).toHaveCount(4);
     expect(queryAllTexts(`.o_list_char`)).toEqual(["yop", "blip", "gnap", "blip"]);
@@ -19669,7 +19668,7 @@ test(`cache web_search_read (revalidation while a row is edited)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_data_row`).toHaveCount(4);
     expect(queryAllTexts(`.o_list_char`)).toEqual(["yop", "blip", "gnap", "blip"]);
@@ -19742,7 +19741,7 @@ test(`cache web_read_group (no change)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_list_view`).toHaveCount(1);
     expect(`.o_group_header`).toHaveCount(2);
@@ -19798,7 +19797,7 @@ test(`cache web_read_group (change)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_list_view`).toHaveCount(1);
     expect(`.o_group_header`).toHaveCount(4);
@@ -19875,7 +19874,7 @@ test(`cache web_read_group (revalidation while a row is edited)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(queryAllTexts(`.o_group_header`)).toEqual(["No (1)", "Yes (3)"]);
     expect(`.o_data_row`).toHaveCount(4);
@@ -19943,7 +19942,7 @@ test(`cache web_read_group (with sample data, no change)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_list_view .o_view_sample_data`).toHaveCount(1);
 
@@ -19994,7 +19993,7 @@ test(`cache web_read_group (with sample data, change)`, async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_list_view .o_view_sample_data`).toHaveCount(1);
 
@@ -20186,7 +20185,7 @@ test("scroll position is restored when coming back to list view", async () => {
 
     let def;
     onRpc("web_search_read", () => def);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "foo",
         type: "ir.actions.act_window",

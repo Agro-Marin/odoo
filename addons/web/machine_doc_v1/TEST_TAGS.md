@@ -9,8 +9,8 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 
 | Tag | Type | Tests | Time |
 |-----|------|-------|------|
-| `web_unit` | TransactionCase (pure Python) | 314 tests | ~45s |
-| `web_http` | HttpCase (url_open, no browser) | 105 tests | ~5 min |
+| `web_unit` | TransactionCase (pure Python) | 315 tests | ~45s |
+| `web_http` | HttpCase (url_open, no browser) | 106 tests | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 5 tests | ~2 min |
 | `web_js` | Full JS suites (HOOT) | 37 tests | ~1-2 hr † |
 | `addon_js` | HOOT suites of addons with no runner of their own | 81 tests | depends on the DB's module set |
@@ -202,6 +202,7 @@ mobile-only suite as a silent zero — see `tooling/hoot/README.md`.
 | `web_partner` | test_partner | Partner access, vCard export |
 | `web_pivot` | test_pivot_export | Pivot XLSX export |
 | `web_profiler` | test_profiler | Profiling enable/disable |
+| `web_promote_studio` | test_promote_studio | Studio upsell tours over the list optional-columns menu (skip without `account` / `knowledge`) |
 | `web_properties` | test_res_partner_properties | Properties base definition |
 | `web_qweb` | test_ir_qweb | QWeb image field rendering |
 | `web_redirect` | test_web_redirect | URL redirect handling |

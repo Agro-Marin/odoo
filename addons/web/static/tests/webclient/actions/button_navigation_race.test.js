@@ -11,12 +11,11 @@ import {
     fields,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
-import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
@@ -97,7 +96,7 @@ test("a navigation made during a button's RPC supersedes the button", async () =
     const def = new Deferred();
     onRpc("/web/dataset/call_button/*", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3, { viewType: "form", props: { resId: 1 } });
     expect(".o_form_view").toHaveCount(1);
 
@@ -122,7 +121,7 @@ test("a button that saves first must not cancel a navigation made while it saved
     onRpc("web_save", () => saveDef);
     onRpc("/web/dataset/call_button/*", () => false);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await contains(".o_list_view .o_data_cell").click();
     expect(".o_form_view").toHaveCount(1);
@@ -147,7 +146,7 @@ test("a button that saves first must not cancel a navigation made while it saved
 
 test.tags("desktop");
 test("a bare act_window_close must not disturb an unrelated current controller", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3, { viewType: "form", props: { resId: 1 } });
     expect(".o_form_view").toHaveCount(1);
 
@@ -168,7 +167,7 @@ test("a button entering the KeepLast must not cancel a navigation already under 
     onRpc("web_save", () => saveDef);
     onRpc("/web/dataset/call_button/*", () => false);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await contains(".o_list_view .o_data_cell").click();
     await contains(".o_field_widget[name=display_name] input").edit("changed", {

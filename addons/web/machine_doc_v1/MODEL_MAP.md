@@ -94,7 +94,8 @@ Webclient context setup, session info, and request handling.
 - `session_info()` — Main bootstrap RPC. Returns dict built by `_get_session_info_base` + `session_info` additions. Full key list:
   - From `_get_session_info_base`: `uid`, `is_system`, `is_admin`, `is_public`, `is_internal_user`, `registry_hash`, `menus_cache_version`, `show_effect`, `currencies`, `quick_login`, `bundle_params`, `test_mode`, `cwv_sample_rate`, `feature_flags`, `has_unaccent`, optionally `server_version`, `server_version_info`
   - `has_unaccent` (`self.env.registry.has_unaccent`) reports whether `ilike` folds accents on this database. Load-bearing: the client evaluates the same domains in memory (`@web/core/domain`) and must make the same choice — `--unaccent` defaults to off, so on a database without the extension `café` and `cafe` are different text and the client must not fold either
-  - Added by `session_info`: `user_context`, `max_file_upload_size`, `active_ids_limit`, `db`, `support_url`, `name`, `username`, `partner_write_date`, `partner_display_name`, `partner_id`, `home_action_id`, `view_info`, `user_settings`, `groups`, `web.base.url`, conditionally `user_companies` (company hierarchy, only for internal users)
+  - Added by `session_info`: `user_context`, `max_file_upload_size`, `active_ids_limit`, `db`, `support_url` (`https://www.odoo.com/help`), `name`, `username`, `partner_write_date`, `partner_display_name`, `partner_id`, `home_action_id`, `view_info`, `user_settings`, `groups`, `web.base.url`, conditionally `user_companies` (company hierarchy, only for internal users)
+  - From `_get_expiration_info`, internal users only: `warning` (`admin` for `base.group_system`, else `user`), `expiration_date`, `expiration_reason` and, when `sysadmin.message` holds JSON, `sysadmin_message` with its `message` run through `html_sanitize`. Read by the `enterprise_subscription` service for the home-menu banners and the expired-database block
   - `menus_cache_version` is `f"{registry_hash}:{session_uid}"`, composed server side **once** because two independent consumers compare against it: the boot-time menus preload inlined in `webclient_templates.xml` and `menu_storage.js`. Do not recompose it on either side — when each built its own they drifted apart silently, the only symptom being a lost 304 and a full menu payload on every load
   - `groups` is a single-flag dict `{"base.group_allow_export": bool}`, NOT a full list of the user's groups
   - `browser_cache_secret` is NOT part of `session_info()` — it is injected separately by `home.py` into the HTML template after `session_info()` returns
@@ -170,6 +171,7 @@ Webclient user preferences.
 - `embedded_actions_config_ids` (One2many → `res.users.settings.embedded.action`)
 - `density` (Selection, `default='default'`, `required=True`): UI density — `default` / `compact` / `condensed`
 - `color_scheme` (Selection, `default='system'`, `required=True`): `system` / `light` / `dark`. `system` defers to the OS preference; `ir_http.color_scheme()` is the server-side override point
+- `homemenu_config` (Json, `readonly=True`): the user's app order on the home menu, a JSON array of menu xml ids written through `set_res_users_settings` when an app is dragged
 
 **Key Methods:**
 - `_format_settings(fields_to_format)` (`@api.model`) — `super()` + replaces `embedded_actions_config_ids` with its formatted payload when requested. This is what puts `user_settings` into `session_info`.

@@ -15,7 +15,7 @@ import {
     mockService,
     models,
     mountView,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     removeFacet,
@@ -29,7 +29,6 @@ import { renderToMarkup } from "@web/core/utils/render";
 import { kanbanView } from "@web/views/kanban/kanban_view";
 import { listView } from "@web/views/list/list_view";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
-import { WebClient } from "@web/webclient/webclient";
 
 class Partner extends models.Model {
     name = fields.Char({ string: "Displayed name" });
@@ -146,7 +145,7 @@ test("SelectCreateDialog use domain, group_by and search default on desktop", as
         }
         search++;
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(SelectCreateDialog, {
         noCreate: true,
         resModel: "partner",
@@ -219,7 +218,7 @@ test("SelectCreateDialog use domain, group_by and search default on mobile", asy
         }
         search++;
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(SelectCreateDialog, {
         noCreate: true,
         resModel: "partner",
@@ -251,7 +250,7 @@ test("SelectCreateDialog correctly evaluates domains", async () => {
             message: "should have correctly evaluated the domain",
         });
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(SelectCreateDialog, {
         noCreate: true,
         resModel: "partner",
@@ -271,7 +270,7 @@ test("SelectCreateDialog list view is readonly", async () => {
         </list>
     `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     getService("dialog").add(SelectCreateDialog, {
         resModel: "partner",
@@ -308,7 +307,7 @@ test("SelectCreateDialog list view is readonly (grouped by m2o)", async () => {
         </list>
     `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     getService("dialog").add(SelectCreateDialog, {
         resModel: "partner",
@@ -513,7 +512,7 @@ test("SelectCreateDialog: save current search on desktop", async () => {
         }
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     getService("dialog").add(SelectCreateDialog, {
         context: { shouldNotBeInFilterContext: false },
@@ -572,7 +571,7 @@ test("SelectCreateDialog: save current search on mobile", async () => {
         }
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     getService("dialog").add(SelectCreateDialog, {
         context: { shouldNotBeInFilterContext: false },
@@ -608,7 +607,7 @@ test("SelectCreateDialog calls on_selected with every record matching the domain
     `;
     Partner._views["search"] = `<search><field name="foo"/></search>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(SelectCreateDialog, {
         resModel: "partner",
         onSelected: (records) => expect(records.join(",")).toBe("1,2,3"),
@@ -631,7 +630,7 @@ test("SelectCreateDialog calls on_selected with every record matching without se
     `;
     Partner._views["search"] = `<search><field name="foo"/></search>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     getService("dialog").add(SelectCreateDialog, {
         resModel: "partner",
@@ -649,7 +648,7 @@ test("SelectCreateDialog: multiple clicks on record", async () => {
     Partner._views["list"] = `<list><field name="name"/></list>`;
     Partner._views["search"] = `<search><field name="foo"/></search>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(SelectCreateDialog, {
         resModel: "partner",
         onSelected: async function (records) {
@@ -673,7 +672,7 @@ test("SelectCreateDialog: default props, create a record on desktop", async () =
         </search>
     `;
     Partner._views["form"] = `<form><field name="name"/></form>`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     getService("dialog").add(SelectCreateDialog, {
         onSelected: (resIds) => expect.step(`onSelected ${resIds}`),
@@ -706,7 +705,7 @@ test("SelectCreateDialog: create a record without onSelected", async () => {
     Partner._views["list"] = `<list><field name="name"/></list>`;
     Partner._views["search"] = `<search/>`;
     Partner._views["form"] = `<form><field name="name"/></form>`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     getService("dialog").add(SelectCreateDialog, {
         resModel: "partner",
@@ -730,7 +729,7 @@ test("SelectCreateDialog: click on row once in selection", async () => {
         <search>
             <filter name="bar" help="Bar" domain="[('bar', '=', True)]"/>
         </search>`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     getService("dialog").add(SelectCreateDialog, {
         onSelected: (resIds) => expect.step(`onSelected ${resIds}`),
@@ -767,7 +766,7 @@ test("SelectCreateDialog: default props, create a record on mobile", async () =>
     Partner._views["kanban"] = `
         <kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
     Partner._views["form"] = `<form><field name="name"/></form>`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     getService("dialog").add(SelectCreateDialog, {
         onSelected: (resIds) => expect.step(`onSelected ${resIds}`),
@@ -804,7 +803,7 @@ test("SelectCreateDialog empty list, default no content helper", async () => {
             <field name="foo"/>
         </list>
     `;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(SelectCreateDialog, { resModel: "partner" });
     await animationFrame();
     expect(".o_dialog .o_list_view").toHaveCount(1);
@@ -823,7 +822,7 @@ test("SelectCreateDialog empty kanban, default no content helper", async () => {
     Partner._views["kanban"] =
         `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
     Partner._views["search"] = `<search/>`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("dialog").add(SelectCreateDialog, { resModel: "partner" });
     await animationFrame();
     expect(".o_dialog .o_kanban_view").toHaveCount(1);
@@ -847,7 +846,7 @@ test("SelectCreateDialog empty list, noContentHelp props", async () => {
         </list>
     `;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const template = xml`
             <p class="custom_classname">Hello</p>
             <p>I'm an helper</p>
@@ -917,7 +916,7 @@ test("SelectCreateDialog empty kanban, noContentHelp props", async () => {
         `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
     Partner._views["search"] = `<search/>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const template = xml`
             <p class="custom_classname">Hello</p>
             <p>I'm an helper</p>

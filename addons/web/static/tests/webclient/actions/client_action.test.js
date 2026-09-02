@@ -10,7 +10,7 @@ import {
     defineModels,
     getService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     stepAllNetworkCalls,
@@ -19,7 +19,6 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { redirect } from "@web/core/utils/urls";
-import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 const actionRegistry = registry.category("actions");
@@ -99,7 +98,7 @@ beforeEach(() => {
 });
 
 test("can display client actions in Dialog", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Dialog Test",
         target: "new",
@@ -112,7 +111,7 @@ test("can display client actions in Dialog", async () => {
 });
 
 test("can display client actions in Dialog and close the dialog", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Dialog Test",
         target: "new",
@@ -127,7 +126,7 @@ test("can display client actions in Dialog and close the dialog", async () => {
 });
 
 test("can display client actions as main, then in Dialog", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction("__test__client__action__");
     expect(".o_action_manager .test_client_action").toHaveCount(1);
 
@@ -141,7 +140,7 @@ test("can display client actions as main, then in Dialog", async () => {
 });
 
 test("can display client actions in Dialog, then as main destroys Dialog", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         target: "new",
         tag: "__test__client__action__",
@@ -156,7 +155,7 @@ test("can display client actions in Dialog, then as main destroys Dialog", async
 });
 
 test("dialog no header", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Dialog Test",
         target: "new",
@@ -173,7 +172,7 @@ test("soft_reload will refresh data", async () => {
     onRpc("web_search_read", () => {
         expect.step("web_search_read");
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect.verifySteps(["web_search_read"]);
 
@@ -185,7 +184,7 @@ test("soft_reload a form view", async () => {
     onRpc("web_read", ({ args }) => {
         expect.step(`read ${args[0][0]}`);
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partners",
         res_model: "partner",
@@ -204,7 +203,7 @@ test("soft_reload a form view", async () => {
 });
 
 test("soft_reload when there is no controller", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction("soft_reload");
     expect(true).toBe(true, {
         message: "No ControllerNotFoundError when there is no controller to restore",
@@ -219,7 +218,7 @@ test("can execute client actions from tag name", async () => {
     actionRegistry.add("HelloWorldTest", ClientAction);
 
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction("HelloWorldTest");
     expect(".o_control_panel").toHaveCount(0);
     expect(".o_client_action_test").toHaveText("Hello World");
@@ -231,7 +230,7 @@ test("async client action (function) returning another action", async () => {
         await Promise.resolve();
         return 1;
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction("my_action");
     expect(".o_kanban_view").toHaveCount(1);
 });
@@ -242,7 +241,7 @@ test("cyclic function client action chains hit the recursion limit", async () =>
         callCount++;
         return { type: "ir.actions.client", tag: "looping_client_action" };
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await expect(
         getService("action").doAction({
             type: "ir.actions.client",
@@ -257,7 +256,7 @@ test("'CLEAR-UNCOMMITTED-CHANGES' is not triggered for function client actions",
         expect.step("my_action");
     });
 
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     webClient.env.bus.addEventListener("CLEAR-UNCOMMITTED-CHANGES", () => {
         expect.step("CLEAR-UNCOMMITTED-CHANGES");
     });
@@ -289,7 +288,7 @@ test("ClientAction receives breadcrumbs and exports title", async () => {
     }
     actionRegistry.add("SomeClientAction", ClientAction);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     await getService("action").doAction("SomeClientAction");
     expect(".my_action").toHaveCount(1);
@@ -308,7 +307,7 @@ test("ClientAction receives arbitrary props from doAction", async () => {
         }
     }
     actionRegistry.add("SomeClientAction", ClientAction);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction("SomeClientAction", {
         props: { division: "bell" },
     });
@@ -334,13 +333,13 @@ test("ClientAction with extractProps", async () => {
         }
     }
     actionRegistry.add("SomeClientAction", ClientAction);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(128);
     expect(".my_client_action").toHaveText("coucou");
 });
 
 test("test display_notification client action", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_kanban_view").toHaveCount(1);
 
@@ -363,7 +362,7 @@ test("test display_notification client action", async () => {
 });
 
 test("test display_notification client action with links", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_kanban_view").toHaveCount(1);
 
@@ -412,7 +411,7 @@ test("test display_notification client action with links", async () => {
 });
 
 test("test next action on display_notification client action", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const options = {
         onClose: function () {
             expect.step("onClose");
@@ -456,7 +455,7 @@ test("test reload client action", async () => {
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await runAllTimers();
 
     await getService("action").doAction({
@@ -490,7 +489,8 @@ test("test reload client action", async () => {
     });
     await runAllTimers();
     expect.verifySteps([
-        "replaceState /odoo?test=42",
+        "pushState /odoo",
+        "pushState /odoo",
         "window_reload",
         "pushState /odoo/action-2",
         "window_reload",
@@ -505,16 +505,15 @@ test("test home client action", async () => {
     redirect("/odoo");
     browser.location.search = "";
 
-    patchWithCleanup(browser.location, {
-        assign: (url) => expect.step(`assign ${url}`),
-    });
-
     onRpc("/web/webclient/version_info", () => {
         expect.step("/web/webclient/version_info");
         return true;
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
+    patchWithCleanup(browser.location, {
+        assign: (url) => expect.step(`assign ${url}`),
+    });
     await getService("action").doAction({
         type: "ir.actions.client",
         tag: "home",
@@ -526,7 +525,7 @@ test("test home client action", async () => {
 
 test("test display_exception client action", async () => {
     expect.errors(1);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     getService("action").doAction({
         type: "ir.actions.client",
         tag: "display_exception",
@@ -549,7 +548,7 @@ test("test display_exception client action", async () => {
 });
 
 test("a notification link with an unsafe scheme is defused", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         type: "ir.actions.client",
         tag: "display_notification",
@@ -566,7 +565,7 @@ test("a notification link with an unsafe scheme is defused", async () => {
 });
 
 test("a notification link with a safe url is left alone", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         type: "ir.actions.client",
         tag: "display_notification",
@@ -584,7 +583,7 @@ test("a notification link with a safe url is left alone", async () => {
 });
 
 test("a function client action settles onClose like a close action does", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     let closedByNotification = 0;
     await getService("action").doAction(
@@ -613,7 +612,7 @@ test("a function client action that chains hands onClose to the follow-up", asyn
         tag: "display_notification",
         params: { message: "chained" },
     }));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     let closed = 0;
     await getService("action").doAction(
@@ -641,7 +640,7 @@ test("a button whose method returns a notification reloads its view", async () =
         params: { message: "written", type: "success" },
     }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         type: "ir.actions.act_window",
         res_model: "partner",

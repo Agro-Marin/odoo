@@ -10,7 +10,7 @@ import {
     getService,
     mockService,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     serverState,
@@ -22,7 +22,6 @@ import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { ReportAction } from "@web/webclient/actions/reports/report_action";
 import { downloadReport } from "@web/webclient/actions/reports/utils";
-import { WebClient } from "@web/webclient/webclient";
 
 class Partner extends models.Model {
     _rec_name = "display_name";
@@ -92,7 +91,7 @@ test("can execute report actions from db ID", async () => {
     });
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(7, { onClose: () => expect.step("on_close") });
     expect.verifySteps([
         "/web/webclient/translations",
@@ -120,7 +119,7 @@ test("report actions can close modals and reload views", async () => {
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(5, { onClose: () => expect.step("on_close") });
     expect(".o_technical_modal .o_form_view").toHaveCount(1, {
         message: "should have rendered a form view in a modal",
@@ -176,7 +175,7 @@ test("send context in case of html report", async () => {
     });
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(12);
     expect(".o_content iframe").toHaveCount(1, {
         message: "should have opened the client action",
@@ -218,7 +217,7 @@ test("UI unblocks after downloading the report even if it threw an error", async
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     const onBlock = () => {
         expect.step("block");
     };
@@ -257,7 +256,7 @@ test("can use custom handlers for report actions", async () => {
 
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     let customHandlerCalled = false;
     registry
         .category("ir.actions.report handlers")
@@ -302,7 +301,7 @@ test("custom handlers can close modals", async () => {
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     registry
         .category("ir.actions.report handlers")
         .add("custom_handler", async (action) => {
@@ -364,7 +363,7 @@ test("context is correctly passed to the client action report", async (assert) =
     });
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     const action = {
         context: {
@@ -394,7 +393,7 @@ test("url is valid", async (assert) => {
         },
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(12);
     await runAllTimers();
     const urlState = router.current;

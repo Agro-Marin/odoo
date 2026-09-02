@@ -9,14 +9,14 @@ RELEASE_LEVELS_DISPLAY: Final[dict[str, str]] = {
     FINAL: "",
 }
 
-version_info: Final[tuple[int, int, int, str, int, str]] = (19, 0, 0, FINAL, 0, "")
+version_info: Final[tuple[int, int, int, str, int, str]] = (19, 0, 0, FINAL, 0, "e")
 series: str = ".".join(str(s) for s in version_info[:2])
 serie = major_version = series
 version: str = (
     series
     + RELEASE_LEVELS_DISPLAY[version_info[3]]
     + str(version_info[4] or "")
-    + version_info[5]
+    + (f"+{version_info[5]}" if version_info[5] else "")
 )
 
 product_name: Final[str] = "Odoo"

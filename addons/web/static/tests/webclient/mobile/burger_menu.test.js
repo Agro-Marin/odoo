@@ -8,13 +8,12 @@ import {
     defineActions,
     defineMenus,
     getService,
-    mountWithCleanup,
+    mountWebClient,
     patchWithCleanup,
     useTestClientAction,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { config as transitionConfig } from "@web/core/transition";
-import { WebClient } from "@web/webclient/webclient";
 
 describe.current.tags("mobile");
 
@@ -30,7 +29,8 @@ beforeEach(() => {
 });
 
 test("Burger menu can be opened and closed", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
+    expect(queryAll(".o_home_menu", { root: document.body })).toHaveCount(1);
     await contains(".o_mobile_menu_toggle", { root: document.body }).click();
     expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(1);
     await contains(".o_sidebar_close", { root: document.body }).click();
@@ -54,14 +54,10 @@ test("Burger Menu on an App", async () => {
             ],
         },
     ]);
-    await mountWithCleanup(WebClient);
-    await contains("a.o_menu_toggle", { root: document.body }).click();
-    await contains(".o_sidebar_topbar a.btn-primary", { root: document.body }).click();
-    await contains(".o_burger_menu_content li:nth-of-type(2)", {
-        root: document.body,
-    }).click();
-
-    expect(queryAll(".o_burger_menu_content", { root: document.body })).toHaveCount(0);
+    await mountWebClient();
+    await contains(".o_home_menu .o_app", { root: document.body }).click();
+    await animationFrame();
+    expect(queryAll(".o_home_menu", { root: document.body })).toHaveCount(0);
 
     await contains("a.o_menu_toggle", { root: document.body }).click();
 
@@ -95,12 +91,9 @@ test("Burger Menu on an App", async () => {
 });
 
 test("Burger Menu on an App without SubMenu", async () => {
-    await mountWithCleanup(WebClient);
-    await contains("a.o_menu_toggle", { root: document.body }).click();
-    await contains(".o_sidebar_topbar a.btn-primary", { root: document.body }).click();
-    await contains(".o_burger_menu_content li:nth-of-type(2)", {
-        root: document.body,
-    }).click();
+    await mountWebClient();
+    await contains(".o_home_menu .o_app", { root: document.body }).click();
+    await animationFrame();
 
     expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(0);
 
@@ -112,7 +105,7 @@ test("Burger Menu on an App without SubMenu", async () => {
 });
 
 test("Burger menu closes when an action is requested", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await contains(".o_mobile_menu_toggle", { root: document.body }).click();
     expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(1);
     expect(queryAll(".test_client_action", { root: document.body })).toHaveCount(0);
@@ -139,8 +132,11 @@ test("Burger menu closes when click on menu item", async () => {
         },
         { id: 2, name: "App2", actionID: 1003, xmlid: "menu_2" },
     ]);
-    await mountWithCleanup(WebClient);
-    getService("menu").setCurrentMenu(2);
+    await mountWebClient();
+    await contains(".o_home_menu .o_app[data-menu-xmlid=menu_2]", {
+        root: document.body,
+    }).click();
+    await animationFrame();
 
     await contains(".o_menu_toggle", { root: document.body }).click();
     expect(
@@ -150,15 +146,17 @@ test("Burger menu closes when click on menu item", async () => {
     ).toHaveText("App2");
 
     await contains(".oi-apps", { root: document.body }).click();
-    expect(
-        queryAll(".o_app_menu_sidebar nav.o_burger_menu_content", {
-            root: document.body,
-        }),
-    ).toHaveText("App0\nApp1\nApp2");
+    await animationFrame();
+    expect(queryAll(".o_app_menu_sidebar", { root: document.body })).toHaveCount(0);
+    expect(queryAll(".o_home_menu", { root: document.body })).toHaveCount(1, {
+        message:
+            "All Apps lands on the home menu instead of listing the apps in the sidebar",
+    });
 
-    await contains(".o_burger_menu_app > ul > li:nth-of-type(2)", {
+    await contains(".o_home_menu .o_app[data-menu-xmlid=menu_1]", {
         root: document.body,
     }).click();
+    await animationFrame();
     expect(queryAll(".o_burger_menu_app")).toHaveCount(0);
 
     await contains(".o_menu_toggle", { root: document.body }).click();
@@ -188,7 +186,7 @@ test("Burger menu closes when click on user menu item", async () => {
         sequence: 5,
     }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(0);
 
@@ -202,4 +200,52 @@ test("Burger menu closes when click on user menu item", async () => {
     await animationFrame();
     expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(0);
     expect.verifySteps(["callback ring_item"]);
+});
+
+test("Burger Menu on home menu", async () => {
+    await mountWebClient();
+    expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(0);
+    expect(queryAll(".o_home_menu", { root: document.body })).toBeVisible();
+
+    await contains(".o_mobile_menu_toggle", { root: document.body }).click();
+    expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(1);
+    expect(queryAll(".o_user_menu_mobile", { root: document.body })).toHaveCount(1);
+    await contains(".o_sidebar_close", { root: document.body }).click();
+    expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(0);
+});
+
+test("Burger Menu on home menu over an App", async () => {
+    defineMenus([
+        {
+            id: 1,
+            children: [
+                {
+                    id: 99,
+                    name: "SubMenu",
+                    appID: 1,
+                    actionID: 1002,
+                    xmlid: "",
+                    webIconData: undefined,
+                    webIcon: false,
+                },
+            ],
+        },
+    ]);
+    await mountWebClient();
+    await contains(".o_home_menu .o_app", { root: document.body }).click();
+    await animationFrame();
+    await contains(".o_menu_toggle", { root: document.body }).click();
+    await contains(".o_sidebar_topbar a.btn-primary", { root: document.body }).click();
+    await animationFrame();
+
+    expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(0);
+    expect(queryAll(".o_home_menu", { root: document.body })).toBeVisible();
+
+    await contains(".o_mobile_menu_toggle", { root: document.body }).click();
+    expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(1);
+    expect(
+        queryAll(".o_burger_menu nav.o_burger_menu_content li", {
+            root: document.body,
+        }),
+    ).toHaveCount(0);
 });

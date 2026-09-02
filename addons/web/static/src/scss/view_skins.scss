@@ -1,0 +1,91 @@
+.o_kanban_view {
+    .o_column_quick_create .o_kanban_quick_create {
+        input {
+            &,
+            &:focus,
+            &:hover {
+                background: transparent;
+                border-bottom: 1px solid
+                    o-palette-token(--o-gray-600, map-get($grays, "600"));
+            }
+        }
+        .input-group-append,
+        .input-group-prepend {
+            border-left: 10px solid
+                o-palette-token(--o-gray-200, map-get($grays, "200"));
+        }
+    }
+}
+
+.o_list_renderer {
+    --ListRenderer-thead-border-end-color: transparent;
+}
+
+@include media-breakpoint-down(md) {
+    .o_pivot {
+        height: 100%;
+
+        .dropdown.show {
+            > .dropdown-toggle::after {
+                @include o-caret-down;
+            }
+        }
+
+        th > .o_group_by_menu > .dropdown-menu {
+            .dropdown-item {
+                // caret centered vertically
+                .dropdown-toggle::after {
+                    top: 12px;
+                }
+
+                // nested dropdown should be *under* the parent, not on its side
+                .dropdown-menu {
+                    top: initial !important;
+                    left: 5% !important;
+                    width: 95%;
+                }
+            }
+        }
+    }
+}
+
+.o_notebook {
+    .modal & {
+        --Notebook-padding-x: #{$modal-inner-padding};
+        --Notebook-margin-x: -#{$modal-inner-padding};
+    }
+
+    .nav-tabs {
+        .nav-link {
+            &.active {
+                --#{$prefix}nav-tabs-link-active-color: #{$o-enterprise-action-color};
+            }
+        }
+    }
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        // Dark mode overrides for pill/segmented-control notebook tabs
+        .o_notebook {
+            .nav {
+                background-color: $o-dark-gray-300;
+            }
+
+            .nav-link {
+                &.active {
+                    &,
+                    &:hover,
+                    &:focus,
+                    &:active {
+                        background: $o-dark-gray-200;
+                    }
+                }
+
+                &:hover:not(.active) {
+                    background: rgba($o-dark-gray-200, 0.6);
+                }
+            }
+        }
+    }
+}

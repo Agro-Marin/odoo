@@ -1,0 +1,107 @@
+// @ts-check
+/** @odoo-module native */
+
+import { Component, onMounted, onWillUnmount, reactive, xml } from "@odoo/owl";
+import { AppEvent } from "@web/core/events";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
+import { Mutex } from "@web/core/utils/concurrency";
+import { useBus, useService } from "@web/core/utils/hooks";
+import {
+    ControllerNotFoundError,
+    standardActionServiceProps,
+} from "@web/webclient/actions";
+import { computeAppsAndMenuItems, reorderApps } from "@web/webclient/menus/menu_utils";
+
+import { HomeMenu } from "./home_menu.js";
+
+export const homeMenuService = {
+    dependencies: ["action"],
+    /** @param {import("@web/env").OdooEnv} env */
+    start(env) {
+        const state = reactive({
+            hasHomeMenu: false,
+            hasBackgroundAction: false,
+            toggle,
+        });
+        const mutex = new Mutex();
+        class HomeMenuAction extends Component {
+            static components = { HomeMenu };
+            static target = "current";
+            static props = { ...standardActionServiceProps };
+            static template = xml`<HomeMenu t-props="homeMenuProps"/>`;
+            static displayName = _t("Home");
+
+            /** @type {import("services").ServiceFactories["menu"]} */
+            menus;
+
+            setup() {
+                this.menus = useService("menu");
+                onMounted(() => this.onMounted());
+                onWillUnmount(this.onWillUnmount);
+                useBus(this.env.bus, AppEvent.MENUS_APP_CHANGED, () => this.render());
+            }
+            get homeMenuProps() {
+                const homemenuConfig = JSON.parse(
+                    user.settings?.homemenu_config || "null",
+                );
+                const apps = reactive(
+                    computeAppsAndMenuItems(this.menus.getMenuAsTree("root")).apps,
+                );
+                if (homemenuConfig) {
+                    reorderApps(apps, homemenuConfig);
+                }
+                return {
+                    apps,
+                    reorderApps: (/** @type {string[]} */ order) =>
+                        reorderApps(apps, order),
+                };
+            }
+            onMounted() {
+                const { breadcrumbs } = this.env.config;
+                state.hasHomeMenu = true;
+                state.hasBackgroundAction = breadcrumbs.length > 0;
+                this.env.bus.trigger(AppEvent.HOME_MENU_TOGGLED);
+            }
+            onWillUnmount() {
+                state.hasHomeMenu = false;
+                state.hasBackgroundAction = false;
+                this.env.bus.trigger(AppEvent.HOME_MENU_TOGGLED);
+            }
+        }
+
+        registry.category("actions").add("menu", HomeMenuAction);
+
+        env.bus.addEventListener(AppEvent.HOME_MENU_TOGGLED, () => {
+            document.body.classList.toggle("o_home_menu_background", state.hasHomeMenu);
+        });
+
+        /** @param {boolean} [show] */
+        async function toggle(show) {
+            return mutex.exec(async () => {
+                show = show === undefined ? !state.hasHomeMenu : Boolean(show);
+                if (show !== state.hasHomeMenu) {
+                    if (show) {
+                        await env.services.action.doAction("menu");
+                    } else {
+                        try {
+                            await env.services.action.restore();
+                        } catch (err) {
+                            if (!(err instanceof ControllerNotFoundError)) {
+                                throw err;
+                            }
+                        }
+                    }
+                }
+                // The next toggle reads the url, and doAction's push is
+                // debounced, so wait a tick for it to land before returning.
+                return new Promise((r) => setTimeout(r));
+            });
+        }
+
+        return state;
+    },
+};
+
+registry.category("services").add("home_menu", homeMenuService);

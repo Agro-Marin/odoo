@@ -20,6 +20,7 @@ from odoo.tests.common import HttpCase, TransactionCase, tagged
 from odoo.tools.assets import esm_bridges
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import (
+    _IMPORT_ANY_RE,
     _BridgeExportResolver,
     _scan_import_specifiers,
     discover_transitive_import_specifiers,
@@ -2582,3 +2583,21 @@ class TestBundleDescriptorFormat(HttpCase):
             offenders,
             f"served in the classic envelope with no loadable script: {offenders}",
         )
+
+
+@tagged("web_unit", "web_assets")
+class TestImportDiscovery(TransactionCase):
+    def test_bridge_discovers_side_effect_imports(self):
+        m = _IMPORT_ANY_RE.search('import "@mail/chatter/web/chatter_patch";')
+        self.assertIsNotNone(m, "side-effect import must be discovered")
+        self.assertEqual(m.group("side"), "@mail/chatter/web/chatter_patch")
+        self.assertIsNone(m.group("spec"), "side-effect import has no binding spec")
+        for binding in (
+            'import { _t } from "@web/core/translation";',
+            'import * as ns from "@web/core/utils";',
+            'import def from "@web/core/registry";',
+        ):
+            m = _IMPORT_ANY_RE.search(binding)
+            self.assertIsNotNone(m, f"binding import must match: {binding}")
+            self.assertIsNone(m.group("side"), binding)
+            self.assertTrue(m.group("spec"), binding)

@@ -418,7 +418,7 @@ assert_eq "axe-core references" \
     "$(grep -rln "axe-core\|axeCore" "$WEB/static/src" "$WEB/static/tests" 2>/dev/null | wc -l)" "0"
 
 css_decls=$(grep -rh "^\s*--[a-zA-Z]" "$WEB/static/src" --include="*.scss" 2>/dev/null | wc -l)
-assert_range "CSS custom property declarations" "$css_decls" 300 500
+assert_range "CSS custom property declarations" "$css_decls" 300 600
 css_uses=$(grep -rh "var(--" "$WEB/static/src" --include="*.scss" 2>/dev/null | wc -l)
 assert_range "var(--*) usages" "$css_uses" 500 650
 
@@ -493,7 +493,7 @@ for p in sorted(pathlib.Path(sys.argv[1]).rglob("*.js")):
 print(n)
 PYEOF
 )
-assert_eq "markup() trust-hatch import sites" "${markup_importers:-PARSE_FAILED}" "15"
+assert_eq "markup() trust-hatch import sites" "${markup_importers:-PARSE_FAILED}" "17"
 
 # startViewTransition cannot wrap OWL's render; lock its absence so the
 # feature cannot half-return without the docs moving with it.
@@ -1065,7 +1065,7 @@ assert_eq "DIRECTORY_MAP.md lists no directory that does not exist" "${map_only:
 assert_eq "DIRECTORY_MAP.md omits no directory that does exist" "${disk_only:-none}" "none"
 # Cite-fingerprint: confirm the underlying count.
 assert_eq "static/src directory entries incl. root (excl. gitignored .claude cruft)" \
-    "$((SRC_DIRS + 1))" "239"
+    "$((SRC_DIRS + 1))" "244"
 assert_eq "polyfills/ directory deleted" \
     "$([ -d "$WEB/static/src/polyfills" ] && echo 1 || echo 0)" "0"
 assert_eq "DIRECTORY_MAP.md dropped the polyfills row" \

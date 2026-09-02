@@ -25,7 +25,7 @@ import {
     mockService,
     models,
     mountView,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
     saveFavorite,
@@ -37,7 +37,6 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { download } from "@web/core/network/download";
 import { PivotController } from "@web/views/pivot/pivot_controller";
-import { WebClient } from "@web/webclient/webclient";
 
 function getCurrentValues() {
     return queryAllTexts(".o_pivot_cell_value div").join();
@@ -1678,7 +1677,7 @@ test("Apply two groupby, and remove facet", async () => {
 		<filter name="group_by_bar" string="Bar" domain="[]" context="{'group_by': 'bar'}"/>
 	</search>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -1716,7 +1715,7 @@ test("Add a group by on the CP when a favorite already exists", async () => {
         },
     ];
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -1756,7 +1755,7 @@ test("Adding a Favorite at anytime should modify the row/column groupby", async 
         },
     ];
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -2108,7 +2107,7 @@ test("correctly group data after flip (1)", async () => {
     Partner._views["list"] = `<list><field name="foo"/></list>`;
     Partner._views["form"] = `<form><field name="foo"/></form>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -2132,7 +2131,7 @@ test("correctly group data after flip (2)", async () => {
     Partner._views["list"] = `<list><field name="foo"/></list>`;
     Partner._views["form"] = `<form><field name="foo"/></form>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -2558,7 +2557,7 @@ test("Navigation list view for a group and back with breadcrumbs", async () => {
         expect(domain).toEqual(["&", ["foo", "=", 12], ["customer", "=", 1]]);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -2861,7 +2860,7 @@ test("pivot is reloaded when leaving and coming back", async () => {
         expect.step("/web/webclient/load_menus");
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -2900,7 +2899,7 @@ test("expanded groups are kept when leaving and coming back", async () => {
 	</pivot>`;
     Partner._views["list"] = `<list><field name="foo"/></list>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -2936,7 +2935,7 @@ test("sorted rows are kept when leaving and coming back", async () => {
 	</pivot>`;
     Partner._views["list"] = `<list><field name="foo"/></list>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -2983,7 +2982,7 @@ test("correctly handle concurrent reloads", async () => {
         }
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -4147,7 +4146,7 @@ test("scroll position is restored when coming back to pivot view", async () => {
     let def;
     onRpc("formatted_read_grouping_sets", () => def);
     await resize({ width: 800, height: 300 });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
@@ -4193,7 +4192,7 @@ test("scroll position is restored when coming back to pivot view (mobile)", asyn
 
     let def;
     onRpc("formatted_read_grouping_sets", () => def);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",

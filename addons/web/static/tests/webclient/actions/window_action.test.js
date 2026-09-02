@@ -22,7 +22,7 @@ import {
     makeServerError,
     MockServer,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     pagerNext,
     patchWithCleanup,
@@ -45,7 +45,6 @@ import { redirect } from "@web/core/utils/urls";
 import { listView } from "@web/views/list/list_view";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { clearUncommittedChanges } from "@web/webclient/actions/action_service";
-import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
@@ -222,7 +221,7 @@ defineActions([
 
 test("can execute act_window actions from db ID", async () => {
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o_control_panel").toHaveCount(1, {
         message: "should have rendered a control panel",
@@ -242,7 +241,7 @@ test("can execute act_window actions from db ID", async () => {
 
 test("click on a list row when there is no form in the action", async () => {
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(9);
     expect.verifySteps([
         "/web/webclient/translations",
@@ -260,7 +259,7 @@ test("click on open form view button when there is no form in the action", async
     Pony._views["list"] =
         `<list editable="top" open_form_view="1"><field name="name"/></list>`;
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(9);
     expect.verifySteps([
         "/web/webclient/translations",
@@ -277,7 +276,7 @@ test("click on open form view button when there is no form in the action", async
 
 test("click on new record button in list when there is no form in the action", async () => {
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(9);
     expect.verifySteps([
         "/web/webclient/translations",
@@ -305,7 +304,7 @@ test("sidebar is present in list view", async () => {
         });
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_cp_action_menus .o_dropdown_title").toHaveCount(0);
 
@@ -320,7 +319,7 @@ test.tags("desktop");
 test("can switch between views", async () => {
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1, { message: "should display the list view" });
 
@@ -390,7 +389,7 @@ test("switching into a view with mode=edit lands in edit mode", async () => {
     ]);
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(10);
     expect(".o_kanban_view").toHaveCount(1, {
         message: "should display the kanban view",
@@ -454,7 +453,7 @@ test("orderedBy in context is not propagated when executing another action", asy
         searchReadCount += 1;
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await contains(".o_list_view th.o_column_sortable").click();
     await contains(".o_data_cell").click();
@@ -463,7 +462,7 @@ test("orderedBy in context is not propagated when executing another action", asy
 
 test.tags("desktop");
 test("breadcrumbs are updated when switching between views", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_control_panel .breadcrumb-item").toHaveCount(0);
     expect(".o_control_panel .o_breadcrumb .active").toHaveText("Partners");
@@ -503,7 +502,7 @@ test("breadcrumbs are updated when switching between views", async () => {
 
 test.tags("desktop");
 test("switch buttons are updated when switching between views", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_control_panel button.o_switch_view").toHaveCount(2, {
         message: "should have two switch buttons (list and kanban)",
@@ -557,7 +556,7 @@ test.tags("desktop");
 test("pager is updated when switching between views", async () => {
     Partner._views["list"] = `<list limit="3"><field name="foo"/></list>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(4);
     expect(".o_control_panel .o_pager_value").toHaveText("1-5", {
         message: "value should be correct for kanban",
@@ -616,7 +615,7 @@ test("Props are updated and kept when switching/restoring views", async () => {
         views: [[false, "form"]],
     }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     expect(".o_data_row").toHaveCount(5);
@@ -674,7 +673,7 @@ test("domain is kept when switching between views", async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(30);
     expect(".o_data_row").toHaveCount(5);
 
@@ -695,7 +694,7 @@ test("domain is kept when switching between views", async () => {
 test.tags("desktop");
 test("A new form view can be reloaded after a failed one", async () => {
     expect.errors(1);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1, {
@@ -758,7 +757,7 @@ test("there is no flickering when switching between views", async () => {
                                 <field name="foo"/>
                             </list>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     def = new Deferred();
@@ -844,7 +843,7 @@ test("there is no flickering when reloading a view", async () => {
     let def;
     onRpc(() => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
     expect(".o_list_view .o_data_row").toHaveCount(5);
@@ -874,7 +873,7 @@ test("there is no flickering when reloading a view", async () => {
 
 test.tags("desktop");
 test("breadcrumbs are updated when display_name changes", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     await contains(".o_list_view .o_data_cell").click();
@@ -893,7 +892,7 @@ test("breadcrumbs are updated when display_name changes", async () => {
 
 test.tags("desktop");
 test('reverse breadcrumb works on accesskey "b"', async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     await contains(".o_list_view .o_data_cell").click();
@@ -920,7 +919,7 @@ test('reverse breadcrumb works on accesskey "b"', async () => {
 test.tags("desktop");
 test("reload previous controller when discarding a new record", async () => {
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     await clickListNew();
@@ -960,7 +959,7 @@ test("execute_action of type object are handled", async () => {
     });
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     await contains(".o_list_view .o_data_cell").click();
@@ -1018,7 +1017,7 @@ test("execute_action of type object: disable buttons (2)", async () => {
     const def = new Deferred();
     onRpc("onchange", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
@@ -1049,7 +1048,7 @@ test("view button: block ui attribute", async () => {
     const def = new Deferred();
     onRpc("onchange", () => def);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
@@ -1076,7 +1075,7 @@ test("execute_action of type object raises error: re-enables buttons", async () 
         throw makeServerError({ message: "This is a user error" });
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3, { viewType: "form" });
     expect(".o_form_view").toHaveCount(1);
 
@@ -1103,7 +1102,7 @@ test("execute_action of type object raises error in modal: re-enables buttons", 
         throw makeServerError();
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(5);
     expect(".modal .o_form_view").toHaveCount(1);
     await click('.modal footer button[name="object"]');
@@ -1118,7 +1117,7 @@ test("execute_action of type object raises error in modal: re-enables buttons", 
 test.tags("desktop");
 test("execute_action of type action are handled", async () => {
     stepAllNetworkCalls();
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await contains(".o_list_view .o_data_cell").click();
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
@@ -1150,7 +1149,7 @@ test("execute_action of type action are handled", async () => {
 
 test.tags("mobile");
 test("smart button runs even when the tap lands on the More item wrapper", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2);
     expect(".o_form_view").toHaveCount(1);
     await contains(".o-form-buttonbox .o_button_more").click();
@@ -1175,7 +1174,7 @@ test("execute smart button and back", async () => {
         expect(kwargs.context.default_partner).toBe(2);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2);
     expect(".o_form_view").toHaveCount(1);
     expect(".o_form_button_create:not([disabled]):visible").toHaveCount(1);
@@ -1199,7 +1198,7 @@ test("execute smart button and fails on desktop", async () => {
     });
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2);
     expect(".o_form_view").toHaveCount(1);
     expect(".o_form_button_create:not([disabled]):visible").toHaveCount(1);
@@ -1237,7 +1236,7 @@ test("execute smart button and fails on mobile", async () => {
     });
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2);
     expect(".o_form_view").toHaveCount(1);
     expect(".o_form_button_create:not([disabled]):visible").toHaveCount(1);
@@ -1272,7 +1271,7 @@ test("requests for execute_action of type object: disable buttons", async () => 
     onRpc("web_read", () => def);
     onRpc("/web/dataset/call_button/*", () => false);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     await contains(".o_list_view .o_data_cell").click();
@@ -1298,7 +1297,7 @@ test("action with html help returned by a call_button", async () => {
         domain: [[0, "=", 1]],
     }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     await contains(".o_list_view .o_data_row .o_data_cell").click();
@@ -1310,7 +1309,7 @@ test.tags("desktop");
 test("can open different records from a multi record view", async () => {
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     await contains(".o_list_view .o_data_cell").click();
@@ -1358,7 +1357,7 @@ test("restore previous view state when switching back", async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(30);
     expect(".o_graph_renderer [data-mode='bar']").toHaveClass("active");
     expect(".o_graph_renderer [data-mode='line']").not.toHaveClass("active");
@@ -1377,7 +1376,7 @@ test.tags("desktop");
 test("can't restore previous action if form is invalid", async () => {
     Partner._fields.foo = fields.Char({ required: true });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
@@ -1410,7 +1409,7 @@ test("view switcher is properly highlighted in pivot view", async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(30);
     expect(".o_control_panel .o_switch_view.o_list").toHaveClass("active", {
         message: "list button in control panel is active",
@@ -1437,7 +1436,7 @@ test("can interact with search view", async () => {
             </group>
         </search>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_table").not.toHaveClass("o_list_table_grouped", {
         message: "list view is not grouped",
@@ -1472,7 +1471,7 @@ test("can open a many2one external window", async () => {
         res_id: 3,
         views: [[false, "form"]],
     }));
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await contains(".o_data_row .o_data_cell").click();
     await contains(".o_external_button", { visible: false }).click();
@@ -1497,7 +1496,7 @@ test('save when leaving a "dirty" view', async () => {
         expect(args).toEqual([[1], { foo: "pinkypie" }]);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(4);
     await contains(".o_kanban_record").click();
     await contains('.o_field_widget[name="foo"] input').edit("pinkypie");
@@ -1511,7 +1510,7 @@ test('save when leaving a "dirty" view', async () => {
 
 test.tags("desktop");
 test("limit set in action is passed to each created controller", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partners",
         res_model: "partner",
@@ -1530,7 +1529,7 @@ test("limit set in action is passed to each created controller", async () => {
 
 test.tags("desktop");
 test("go back to a previous action using the breadcrumbs", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     await contains(".o_list_view .o_data_cell").click();
@@ -1567,7 +1566,7 @@ test("go back to a previous action using the breadcrumbs", async () => {
 
 test.tags("desktop");
 test("form views are restored in edit when coming back in breadcrumbs", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     await contains(".o_list_view .o_data_cell").click();
@@ -1581,7 +1580,7 @@ test("form views are restored in edit when coming back in breadcrumbs", async ()
 
 test.tags("desktop");
 test("form views restore the correct id in url when coming back in breadcrumbs", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     await contains(".o_list_view .o_data_row .o_data_cell").click();
@@ -1615,7 +1614,7 @@ test("honor group_by specified in actions context", async () => {
             </group>
         </search>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(30);
     expect(".o_list_table_grouped").toHaveCount(1, { message: "should be grouped" });
     expect(".o_group_header").toHaveCount(2, {
@@ -1656,7 +1655,7 @@ test("switch request to unknown view type", async () => {
 
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(33);
     expect(".o_list_view").toHaveCount(1, { message: "should display the list view" });
     contains(".o_list_view .o_data_row:first").click();
@@ -1691,7 +1690,7 @@ test("execute action with unknown view type", async () => {
             ],
         },
     ]);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await expect(getService("action").doAction(33)).rejects.toThrow(
         /View types not defined unknown found in act_window action 33/,
     );
@@ -1731,7 +1730,7 @@ test("save current search", async () => {
         return [3];
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(33);
     expect(".o_data_row").toHaveCount(5, { message: "should contain 5 records" });
 
@@ -1770,7 +1769,7 @@ test("list with default_order and favorite filter with no orderedBy", async () =
             user_ids: [],
         },
     ];
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(100);
     expect(queryAllTexts(".o_data_row .o_data_cell")).toEqual(
         ["zoup", "yop", "plop", "gnap", "blip"],
@@ -1839,7 +1838,7 @@ test("action with default favorite and context.active_id", async () => {
         expect(kwargs.domain).toEqual([["bar", "=", 1]]);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(30);
 
     expect(".o_list_view").toHaveCount(1);
@@ -1849,7 +1848,7 @@ test("action with default favorite and context.active_id", async () => {
 
 test.tags("desktop");
 test("search menus are still available when switching between actions", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
         "Partners Action 1",
@@ -1872,7 +1871,8 @@ test("search menus are still available when switching between actions", async ()
 
 test.tags("desktop");
 test("current act_window action is stored in session_storage if possible", async () => {
-    let expectedAction;
+    /** @type {any} */
+    let expectedAction = { target: "current", tag: "menu", type: "ir.actions.client" };
     patchWithCleanup(browser.sessionStorage, {
         setItem(key, value) {
             if (key === "current_action") {
@@ -1880,7 +1880,7 @@ test("current act_window action is stored in session_storage if possible", async
             }
         },
     });
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     expectedAction = MockServer.current._findAction(3);
     await getService("action").doAction(3);
@@ -1899,7 +1899,7 @@ test("current act_window action is stored in session_storage if possible", async
 });
 
 test("stored action is restored correctly with domain", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         id: 1,
         type: "ir.actions.act_window",
@@ -1934,7 +1934,7 @@ test("current_action doesn't contains _originalAction", async () => {
     };
     registry.category("actions").add("myAction", myAction);
     redirect("/odoo/myAction");
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await animationFrame();
     expect(JSON.parse(browser.sessionStorage.getItem("current_action"))).toEqual(
@@ -1962,7 +1962,7 @@ test.tags("desktop");
 test("destroy action with lazy loaded controller", async () => {
     redirect("/odoo/action-3/2");
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
     expect(".o_list_view").toHaveCount(0);
     expect(".o_form_view").toHaveCount(1);
@@ -1994,7 +1994,7 @@ test("execute action from dirty, new record, and come back", async () => {
     }));
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(3);
     await clickListNew();
@@ -2062,7 +2062,7 @@ test("execute a contextual action from a form view", async () => {
         });
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
@@ -2095,7 +2095,7 @@ test("go back to action with form view as main view, and res_id", async () => {
         views: [[false, "form"]],
     }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(999);
     expect(".o_form_view .o_form_editable").toHaveCount(1);
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
@@ -2130,7 +2130,7 @@ test("action with res_id, load another res_id, do new action, restore previous",
     Partner._views["form,44"] = '<form><field name="m2o"/></form>';
     onRpc("get_formview_action", () => ({ ...action, res_id: 3 }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(999, { props: { resIds: [1, 2] } });
     expect(".o_form_view .o_form_editable").toHaveCount(1);
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
@@ -2159,7 +2159,7 @@ test("action with res_id, load another res_id, do new action, restore previous",
 
 test.tags("desktop");
 test("open a record, come back, and create a new record", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
@@ -2179,7 +2179,7 @@ test("open a record, come back, and create a new record", async () => {
 
 test.tags("desktop");
 test("open form view, use the pager, execute action, and come back", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
@@ -2202,7 +2202,7 @@ test("open form view, use the pager, execute action, and come back", async () =>
 
 test.tags("desktop");
 test("create a new record in a form view, execute action, and come back", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
@@ -2227,7 +2227,7 @@ test("create a new record in a form view, execute action, and come back", async 
 test("onClose should be called only once with right parameters", async () => {
     expect.assertions(4);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2);
     await getService("action").doAction(5, {
         onClose(infos) {
@@ -2256,7 +2256,7 @@ test("search view should keep focus during do_search", async () => {
         }
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await editSearch("m");
     await validateSearch();
@@ -2276,7 +2276,7 @@ test("Call twice clearUncommittedChanges in a row does not save twice", async ()
     });
 
     const env = await makeMockEnv();
-    await mountWithCleanup(WebClient, { env });
+    await mountWebClient({ env });
 
     await getService("action").doAction(3);
     await contains(".o_list_view .o_data_cell").click();
@@ -2307,7 +2307,7 @@ test("executing a window action with onchange warning does not hide it", async (
         },
     }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     await clickListNew();
     await waitFor(".modal.o_technical_modal");
@@ -2322,7 +2322,7 @@ test("executing a window action with onchange warning does not hide it", async (
 });
 
 test("do not call clearUncommittedChanges() when target=new and dialog is opened", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(3, { viewType: "form" });
     expect(".o_action_manager .o_form_view .o_form_editable").toHaveCount(1);
@@ -2334,7 +2334,7 @@ test("do not call clearUncommittedChanges() when target=new and dialog is opened
 });
 
 test("do not pushState when target=new and dialog is opened", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     await getService("action").doAction(3, { viewType: "form" });
     await runAllTimers();
@@ -2367,7 +2367,7 @@ test("do not restore after action button clicked", async () => {
 
     onRpc("/web/dataset/call_button/*", () => true);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3, { viewType: "form", props: { resId: 1 } });
     await contains("div[name='display_name'] input").edit("Edited value");
     expect(".o_form_button_save").toBeVisible();
@@ -2380,7 +2380,7 @@ test("do not restore after action button clicked", async () => {
 test("debugManager is active for views", async () => {
     serverState.debug = "1";
     onRpc("has_access", () => true);
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1);
     expect(".o-dropdown--menu .o-dropdown-item:contains('View: Kanban')").toHaveCount(
         0,
@@ -2397,7 +2397,7 @@ test("reload a view via the view switcher keep state", async () => {
         expect.step("formatted_read_grouping_sets");
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         id: 3,
         name: "Partners",
@@ -2446,7 +2446,7 @@ test("doAction supports being passed globalState prop", async () => {
         expect(kwargs.domain).toEqual([["id", "=", 99]]);
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(1, {
         props: {
             globalState: { searchModel },
@@ -2469,7 +2469,7 @@ test("window action in target new fails (onchange)", async () => {
             <field name="display_name"/>
         </form>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2);
     await contains(".o_form_view button[name='5']").click();
     await expect(waitFor(".modal .o_error_dialog .modal-title")).resolves.toHaveText(
@@ -2503,7 +2503,7 @@ test("Uncaught error in target new is catch only once", async () => {
             <field name="display_name"/>
         </form>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(2);
     await contains(".o_form_view button[name='26']").click();
     await expect(waitFor(".modal .o_error_dialog .modal-title")).resolves.toHaveText(
@@ -2520,7 +2520,7 @@ test("action and get_views rpcs are cached", async () => {
 
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     expect.verifySteps(["/web/webclient/translations", "/web/webclient/load_menus"]);
 
     await getService("action").doAction(1);
@@ -2552,7 +2552,7 @@ test("get_views rpcs are cached (different context.active_id)", async () => {
 
     stepAllNetworkCalls();
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     expect.verifySteps(["/web/webclient/translations", "/web/webclient/load_menus"]);
 
     await getService("action").doAction({
@@ -2578,7 +2578,7 @@ test("get_views rpcs are cached (different context.active_id)", async () => {
 
 test.tags("desktop");
 test("pushState also changes the title of the tab", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
 
     const titleService = getService("title");
@@ -2593,7 +2593,7 @@ test("pushState also changes the title of the tab", async () => {
 
 test("action group_by of type string", async () => {
     Partner._views["pivot,3"] = `<pivot />`;
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         name: "Partner",
         res_model: "partner",
@@ -2626,7 +2626,7 @@ test("action help given to View in props if not empty", async () => {
         },
     ]);
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(14);
     expect(".o_list_view").toHaveCount(1);
     expect(".o_view_nocontent").toHaveCount(1);
@@ -2643,7 +2643,7 @@ test("load a tree", async () => {
         list: `<list><field name="foo"/></list>`,
     };
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_id: 1,
         type: "ir.actions.act_window",
@@ -2685,7 +2685,7 @@ test("sample server: populate groups", async () => {
         length: 1,
     }));
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         res_id: 1,
         type: "ir.actions.act_window",
@@ -2712,7 +2712,7 @@ test("click on breadcrumb of a deleted record", async () => {
             <button type="action" name="3" string="Open Action 3" class="my_btn"/>
         </form>`;
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
@@ -2748,7 +2748,7 @@ test("click on breadcrumb of a deleted record", async () => {
 
 test.tags("desktop");
 test("executing an action closes dialogs", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
@@ -2765,7 +2765,7 @@ test("executing an action closes dialogs", async () => {
 
 test.tags("mobile");
 test("execute a window action with mobile_view_mode", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await getService("action").doAction({
         xml_id: "project.action",
         name: "Project Action",

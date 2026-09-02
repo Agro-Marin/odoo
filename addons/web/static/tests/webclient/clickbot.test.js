@@ -11,20 +11,20 @@ import {
 } from "@odoo/hoot-mock";
 import { onWillStart, onWillUpdateProps } from "@odoo/owl";
 import {
+    contains,
     defineActions,
     defineMenus,
     defineModels,
     fields,
     makeServerError,
     models,
-    mountWithCleanup,
+    mountWebClient,
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { ListRenderer } from "@web/views/list/list_renderer";
 import { SUCCESS_SIGNAL } from "@web/webclient/clickbot/clickbot";
-import { WebClient } from "@web/webclient/webclient";
 
 const RPC_ERROR_MARKER =
     "A RPC in error was detected, maybe it's related to the error dialog : ";
@@ -157,14 +157,13 @@ test("clickbot clickeverywhere test", async () => {
             xmlid: "app2",
         },
     ]);
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     patchWithCleanup(odoo, {
         __WOWL_DEBUG__: { root: webClient },
     });
     window.clickEverywhere();
     await clickEverywhereDef;
     expect.verifySteps([
-        "Clicking on: apps menu toggle button",
         "Testing app menu: app1",
         "Testing menu App1 app1",
         'Clicking on: menu item "App1"',
@@ -180,7 +179,7 @@ test("clickbot clickeverywhere test", async () => {
         'Clicking on: filter "Not Bar"',
         'Clicking on: filter "Date"',
         'Clicking on: filter option "October"',
-        "Clicking on: apps menu toggle button",
+        "Clicking on: home menu toggle button",
         "Testing app menu: app2",
         "Testing menu App2 app2",
         'Clicking on: menu item "App2"',
@@ -265,14 +264,13 @@ test("only one app", async () => {
             xmlid: "app2",
         },
     ]);
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     patchWithCleanup(odoo, {
         __WOWL_DEBUG__: { root: webClient },
     });
     window.clickEverywhere("app1");
     await clickEverywhereDef;
     expect.verifySteps([
-        "Clicking on: apps menu toggle button",
         "Testing app menu: app1",
         "Testing menu App1 app1",
         'Clicking on: menu item "App1"',
@@ -351,17 +349,18 @@ test("clickbot clickeverywhere test (with dropdown menu)", async () => {
         ],
         { mode: "replace" },
     );
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     patchWithCleanup(odoo, {
         __WOWL_DEBUG__: { root: webClient },
     });
+    await contains(".o_home_menu .o_app").click();
     await runAllTimers();
     await waitFor(".o_menu_sections .dropdown-toggle");
     expect(".o_menu_sections .dropdown-toggle").toHaveText("a dropdown");
     window.clickEverywhere();
     await clickEverywhereDef;
     expect.verifySteps([
-        "Clicking on: apps menu toggle button",
+        "Clicking on: home menu toggle button",
         "Testing app menu: app2",
         "Testing menu App2 app2",
         'Clicking on: menu item "App2"',
@@ -434,7 +433,7 @@ test("clickbot test waiting rpc after clicking filter", async () => {
             xmlid: "app1",
         },
     ]);
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     patchWithCleanup(odoo, {
         __WOWL_DEBUG__: { root: webClient },
     });
@@ -510,7 +509,7 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
             xmlid: "app1",
         },
     ]);
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     patchWithCleanup(odoo, {
         __WOWL_DEBUG__: { root: webClient },
     });
@@ -651,7 +650,7 @@ test("clickbot test waiting render after clicking filter", async () => {
             xmlid: "app1",
         },
     ]);
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     patchWithCleanup(odoo, {
         __WOWL_DEBUG__: { root: webClient },
     });
@@ -718,14 +717,13 @@ test("clickbot clickeverywhere menu modal", async () => {
             xmlid: "test.modal",
         },
     ]);
-    const webClient = await mountWithCleanup(WebClient);
+    const webClient = await mountWebClient();
     patchWithCleanup(odoo, {
         __WOWL_DEBUG__: { root: webClient },
     });
     window.clickEverywhere();
     await clickEverywhereDef;
     expect.verifySteps([
-        "Clicking on: apps menu toggle button",
         "Testing app menu: app1",
         "Testing menu App1 app1",
         'Clicking on: menu item "App1"',
@@ -741,7 +739,7 @@ test("clickbot clickeverywhere menu modal", async () => {
         'Clicking on: filter "Not Bar"',
         'Clicking on: filter "Date"',
         'Clicking on: filter option "October"',
-        "Clicking on: apps menu toggle button",
+        "Clicking on: home menu toggle button",
         "Testing app menu: test.modal",
         "Testing menu App Modal test.modal",
         'Clicking on: menu item "App Modal"',

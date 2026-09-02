@@ -7,6 +7,7 @@ import {
     contains,
     getService,
     makeMockEnv,
+    mountWebClient,
     mountWithCleanup,
     onRpc,
     patchWithCleanup,
@@ -17,7 +18,7 @@ import { watchServiceWorkerUpdates } from "@web/webclient/service_worker_service
 import { WebClient } from "@web/webclient/webclient";
 
 test("can be rendered", async () => {
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     expect(`header > nav.o_main_navbar`).toHaveCount(1);
 });
@@ -31,7 +32,7 @@ test("can render a main component", async () => {
     const env = await makeMockEnv();
     registry.category("main_components").add("mycomponent", { Component: MyComponent });
 
-    await mountWithCleanup(WebClient, { env });
+    await mountWebClient({ env });
 
     expect(`.chocolate`).toHaveCount(1);
 });
@@ -88,7 +89,7 @@ test("control-click propagation stopped on <a href/>", async () => {
         }
     }
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
 
     registry.category("main_components").add("mycomponent", { Component: MyComponent });
     await animationFrame();
@@ -211,7 +212,7 @@ test("SW update: periodic and visibility-triggered registration.update()", async
 });
 
 test.tags("desktop");
-test("the default app falls through a dangling first menu id", async () => {
+test("the default landing is the home menu even with a dangling first menu id", async () => {
     const def = new Deferred();
     onRpc("/web/webclient/load_menus", () => def);
     browser.localStorage.webclient_menus_version =
@@ -228,10 +229,12 @@ test("the default app falls through a dangling first menu id", async () => {
         selectMenu: (menu) => selected.push(menu?.id ?? menu),
     });
 
-    await mountWithCleanup(WebClient);
+    await mountWebClient();
     await animationFrame();
 
-    expect(selected).toEqual([2]);
+    expect(selected).toEqual([]);
+    expect(".o_home_menu").toHaveCount(1);
+    expect(".o_home_menu .o_app").toHaveCount(1);
     def.resolve();
 });
 

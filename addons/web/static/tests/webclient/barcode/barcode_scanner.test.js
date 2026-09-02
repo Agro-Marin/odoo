@@ -7,6 +7,7 @@ import { Component, useState, xml } from "@odoo/owl";
 import {
     contains,
     makeMockEnv,
+    mountWebClient,
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
@@ -14,13 +15,12 @@ import { scanBarcode } from "@web/components/barcode/barcode_dialog";
 import { BarcodeVideoScanner } from "@web/components/barcode/barcode_video_scanner";
 import { buildZXingBarcodeDetector } from "@web/components/barcode/ZXingBarcodeDetector";
 import { browser } from "@web/core/browser/browser";
-import { WebClient } from "@web/webclient/webclient";
 
 import * as ZXing from "zxing-library";
 
 test("Barcode scanner crop overlay", async () => {
     const env = await makeMockEnv();
-    await mountWithCleanup(WebClient, { env });
+    await mountWebClient({ env });
 
     const firstBarcodeValue = "Odoo";
     const secondBarcodeValue = "OCDTEST";
@@ -141,7 +141,7 @@ test("BarcodeVideoScanner onReady props", async () => {
 
 test("Closing barcode scanner before camera loads should not throw an error", async () => {
     const env = await makeMockEnv();
-    await mountWithCleanup(WebClient, { env });
+    await mountWebClient({ env });
     const cameraReady = new Deferred();
 
     patchWithCleanup(browser.navigator, {
@@ -172,7 +172,7 @@ test("Closing barcode scanner before camera loads should not throw an error", as
 
 test("Closing the barcode dialog manually resolves the scan promise with null", async () => {
     const env = await makeMockEnv();
-    await mountWithCleanup(WebClient, { env });
+    await mountWebClient({ env });
 
     patchWithCleanup(browser.navigator, {
         mediaDevices: /** @type {any} */ ({
@@ -184,7 +184,16 @@ test("Closing the barcode dialog manually resolves the scan promise with null", 
     });
 
     const escScan = scanBarcode(env);
-
+    for (let i = 0; i < 6; i++) {
+        console.error(
+            "DBG frame",
+            i,
+            document.querySelectorAll(".modal").length,
+            document.querySelectorAll(".o_home_menu").length,
+            document.querySelectorAll(".o_action_manager > *").length,
+        );
+        await animationFrame();
+    }
     await waitFor(".o-barcode-modal");
     expect(".o-barcode-modal").toHaveCount(1);
 
@@ -208,7 +217,7 @@ test("Closing the barcode dialog manually resolves the scan promise with null", 
 
 test("Closing barcode scanner while video is loading should not cause errors", async () => {
     const env = await makeMockEnv();
-    await mountWithCleanup(WebClient, { env });
+    await mountWebClient({ env });
 
     patchWithCleanup(browser.navigator, {
         mediaDevices: /** @type {any} */ ({

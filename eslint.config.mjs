@@ -111,7 +111,6 @@ const COMMUNITY_MODULES = [
 // repos share one ruleset. Do not add them to the default export: from here
 // they match nothing and only create the illusion of coverage.
 export const ENTERPRISE_MODULES = [
-    "web_enterprise",
     "web_mobile",
     "web_studio",
     "web_cohort",
@@ -230,8 +229,6 @@ const COMMUNITY_IGNORES = [
 // Consumed by addons/enterprise/eslint.config.mjs — see ENTERPRISE_MODULES.
 export const ENTERPRISE_IGNORES = [
     // Legacy code (only top-level adapters are linted)
-    "web_enterprise/static/src/legacy/**",
-    "!web_enterprise/static/src/legacy/*.js",
     "web_studio/static/src/legacy/**",
     "!web_studio/static/src/legacy/*.js",
     "web_cohort/static/src/legacy/**",
@@ -239,7 +236,6 @@ export const ENTERPRISE_IGNORES = [
     "web_map/static/src/legacy/**",
 
     // Legacy tests
-    "web_enterprise/static/tests/**/legacy/*",
     "web_studio/static/tests/**/legacy/*",
     "web_cohort/static/tests/legacy/**",
     "web_gantt/static/tests/legacy/**",
