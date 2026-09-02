@@ -23,17 +23,6 @@ class ResourceResource(models.Model):
     _description = "Resources"
     _order = "name"
 
-    @api.model
-    def default_get(self, fields: list[str]) -> dict[str, Any]:
-        res = super().default_get(fields)
-        if not res.get("calendar_id") and res.get("company_id"):
-            company = self.env["res.company"].browse(res["company_id"])
-            res["calendar_id"] = company.resource_calendar_id.id
-        return res
-
-    def _default_color(self):
-        return randint(1, 11)
-
     name = fields.Char(required=True)
     active = fields.Boolean(
         "Active",
@@ -76,7 +65,7 @@ class ResourceResource(models.Model):
         required=True,
         default=lambda self: self.env.context.get("tz") or self.env.user.tz or "UTC",
     )
-    color = fields.Integer(default=_default_color)
+    color = fields.Integer(default=lambda self: self._default_color())
     time_efficiency = fields.Float(
         "Efficiency Factor",
         default=100,
@@ -88,6 +77,17 @@ class ResourceResource(models.Model):
         "CHECK(time_efficiency>0)",
         "Time efficiency must be strictly positive",
     )
+
+    @api.model
+    def default_get(self, fields: list[str]) -> dict[str, Any]:
+        res = super().default_get(fields)
+        if not res.get("calendar_id") and res.get("company_id"):
+            company = self.env["res.company"].browse(res["company_id"])
+            res["calendar_id"] = company.resource_calendar_id.id
+        return res
+
+    def _default_color(self):
+        return randint(1, 11)
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -275,18 +275,8 @@ class ResourceResource(models.Model):
 
         return resource_work_intervals, calendar_work_intervals
 
-    def _is_fully_flexible(self) -> bool:
-        self.check_singleton()
-        return not self.calendar_id
-
     def _get_calendar_at(self, date_target: datetime, tz: bool = False) -> dict:
         return {resource: resource.calendar_id for resource in self}
-
-    def _is_flexible(self) -> bool:
-        self.check_singleton()
-        return self._is_fully_flexible() or (
-            self.calendar_id and self.calendar_id.flexible_hours
-        )
 
     def _get_flexible_resources_default_work_intervals(
         self,
@@ -553,3 +543,13 @@ class ResourceResource(models.Model):
                 work_hours_per_day[day] += day_working_hours
 
         return work_hours
+
+    def _is_fully_flexible(self) -> bool:
+        self.check_singleton()
+        return not self.calendar_id
+
+    def _is_flexible(self) -> bool:
+        self.check_singleton()
+        return self._is_fully_flexible() or (
+            self.calendar_id and self.calendar_id.flexible_hours
+        )
