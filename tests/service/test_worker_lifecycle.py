@@ -307,8 +307,8 @@ class TestTheCursorIsReleasedAndTheConnectionIsLeftAlone:
         """The clean-teardown site: this is the one that printed on SIGTERM."""
         worker = _worker.WorkerCron.__new__(_worker.WorkerCron)
         cursor, order = self._recording_cursor()
-        worker.dbcursor = cursor
-        worker._pg_selector = None
+        worker.listener = _cron.CronListener("ch", _cron._logger)
+        worker.listener._cursor = cursor
         worker.stop()
         assert order == ["cursor"]
 

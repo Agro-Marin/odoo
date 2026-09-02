@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
+import selectors
 import time
 import typing
 from collections.abc import Iterable, Iterator
@@ -27,6 +28,7 @@ __all__ = [
     "CRON_POLL_INTERVAL_S",
     "CRON_TRIGGER_CHANNEL",
     "JOB_QUEUE_CHANNEL",
+    "CronListener",
     "CronSchedule",
     "ReconnectBackoff",
     "arm_cron_listen",
@@ -201,6 +203,91 @@ class ReconnectBackoff:
             delay,
         )
         (sleep or time.sleep)(delay)
+
+
+class CronListener:
+    """One LISTEN connection: cursor, selector and reconnects, owned together.
+
+    Both cron loops used to wire these by hand, and the pieces could disagree:
+    a reconnect that opened a new cursor but failed before swapping the
+    selector left the loop selecting on one connection while draining another.
+    Held here, the cursor and the selector are created and destroyed as a unit
+    and no such state exists.
+    """
+
+    def __init__(
+        self,
+        channel: str,
+        logger: logging.Logger,
+        *,
+        extra_read_fd: int | None = None,
+    ) -> None:
+        self._channel = channel
+        self._logger = logger
+        self._extra_read_fd = extra_read_fd
+        self._cursor: BaseCursor | None = None
+        self._selector: selectors.BaseSelector | None = None
+        self._backoff = ReconnectBackoff(logger)
+
+    @property
+    def connected(self) -> bool:
+        return self._cursor is not None
+
+    @property
+    def connection_lost(self) -> bool:
+        return self._cursor is None or self._cursor.connection.closed
+
+    @property
+    def backing_off(self) -> bool:
+        return self._backoff.attempts > 0
+
+    def connect(self) -> None:
+        cursor = open_cron_listener(self._channel, self._logger)
+        selector = selectors.DefaultSelector()
+        try:
+            if self._extra_read_fd is not None:
+                selector.register(self._extra_read_fd, selectors.EVENT_READ)
+            selector.register(cursor.connection, selectors.EVENT_READ)
+        except BaseException:
+            with contextlib.suppress(Exception):
+                selector.close()
+            close_cron_cursor(cursor)
+            raise
+        self.close()
+        self._cursor = cursor
+        self._selector = selector
+        self._backoff.reset()
+
+    def reconnect_after_failure(
+        self,
+        what: str,
+        sleep: typing.Callable[[float], None] | None = None,
+    ) -> bool:
+        self.close()
+        try:
+            self.connect()
+        except Exception as exc:
+            self._backoff.wait_after_failure(what, exc, sleep)
+            return False
+        return True
+
+    def wait(self, timeout: float) -> None:
+        if self._selector is not None:
+            self._selector.select(timeout=timeout)
+
+    def drain(self) -> OrderedSet:
+        if self._cursor is None:
+            raise RuntimeError("CronListener.drain() before connect()")
+        return drain_cron_notifies(self._cursor.connection, channel=self._channel)
+
+    def close(self) -> None:
+        selector, self._selector = self._selector, None
+        if selector is not None:
+            with contextlib.suppress(Exception):
+                selector.close()
+        cursor, self._cursor = self._cursor, None
+        if cursor is not None:
+            close_cron_cursor(cursor)
 
 
 class CronSchedule:

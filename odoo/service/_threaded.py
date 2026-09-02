@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 import random
-import selectors
 import signal
 import threading
 import time
@@ -27,12 +26,10 @@ from ._cron import (
     CRON_POLL_INTERVAL_S,
     CRON_TRIGGER_CHANNEL,
     JOB_QUEUE_CHANNEL,
+    CronListener,
     CronSchedule,
     ReconnectBackoff,
-    close_cron_cursor,
-    drain_cron_notifies,
     drain_swept_database,
-    open_cron_listener,
 )
 from ._env import _IS_POSIX, _IS_WINDOWS
 from ._limits import (
@@ -198,36 +195,32 @@ class ThreadedServer(CommonServer):
 
     def _poll_cron_channel(
         self,
-        cr: Any,
+        listener: CronListener,
         number: int,
-        channel: str,
         process_jobs: Any,
         cron_logger: logging.Logger,
         max_age: int,
     ) -> str:
-        pg_conn = cr.connection
         schedule = CronSchedule()
         alive_time = time.monotonic()
         first_pass = True
-        with selectors.DefaultSelector() as _sel:
-            _sel.register(pg_conn, selectors.EVENT_READ)
-            while max_age <= 0 or (time.monotonic() - alive_time) <= max_age:
-                _sel.select(timeout=0 if first_pass else CRON_POLL_INTERVAL_S + number)
-                first_pass = False
-                time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
-                try:
-                    notified = drain_cron_notifies(pg_conn, channel=channel)
-                except Exception:
-                    if pg_conn.closed:
-                        return _RECYCLE_CONN_LOST
-                    raise
+        while max_age <= 0 or (time.monotonic() - alive_time) <= max_age:
+            listener.wait(0 if first_pass else CRON_POLL_INTERVAL_S + number)
+            first_pass = False
+            time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
+            try:
+                notified = listener.drain()
+            except Exception:
+                if listener.connection_lost:
+                    return _RECYCLE_CONN_LOST
+                raise
 
-                db_names = schedule.get_due_databases(notified)
-                if not db_names:
-                    continue
+            db_names = schedule.get_due_databases(notified)
+            if not db_names:
+                continue
 
-                cron_logger.debug("polling for jobs (notified: %s)", notified)
-                self._run_due_jobs(db_names, process_jobs, cron_logger)
+            cron_logger.debug("polling for jobs (notified: %s)", notified)
+            self._run_due_jobs(db_names, process_jobs, cron_logger)
         return _RECYCLE_MAX_AGE
 
     def _listen_thread(
@@ -248,12 +241,12 @@ class ThreadedServer(CommonServer):
         cron_logger.info("Alive")
 
         backoff = ReconnectBackoff(cron_logger)
+        listener = CronListener(channel, cron_logger)
         while True:
-            cr = None
             try:
-                cr = open_cron_listener(channel, cron_logger)
+                listener.connect()
                 reason = self._poll_cron_channel(
-                    cr, number, channel, process_jobs, cron_logger, max_age
+                    listener, number, process_jobs, cron_logger, max_age
                 )
                 backoff.reset()
                 if reason == _RECYCLE_CONN_LOST:
@@ -271,8 +264,7 @@ class ThreadedServer(CommonServer):
                 cron_logger.critical("Uncaught error in cron main loop", exc_info=True)
                 backoff.wait_after_failure("Cron main loop", exc)
             finally:
-                if cr is not None:
-                    close_cron_cursor(cr)
+                listener.close()
 
     def spawn_cron_threads(self) -> None:
         for i in range(self.settings.max_cron_threads):

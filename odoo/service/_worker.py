@@ -36,12 +36,9 @@ from ._cron import (
     CRON_POLL_INTERVAL_S,
     CRON_TRIGGER_CHANNEL,
     JOB_QUEUE_CHANNEL,
+    CronListener,
     CronSchedule,
-    ReconnectBackoff,
-    close_cron_cursor,
-    drain_cron_notifies,
     drain_swept_database,
-    open_cron_listener,
 )
 from ._env import get_env_int
 from ._limits import (
@@ -101,7 +98,7 @@ class Worker:
     def signal_handler(self, sig: int, frame: Any) -> None:
         self.alive = False
 
-    def signal_time_expired_handler(self, n: int, stack: Any) -> None:
+    def signal_time_expired_handler(self, sig: int, frame: Any) -> None:
         raise CpuTimeLimitExceeded(
             f"CPU time limit ({current().limit_time_cpu}s) exceeded"
         )
@@ -269,9 +266,10 @@ class WorkerCron(Worker):
         self.watchdog_timeout = multi.cron_timeout
         self.db_queue: deque[str] = deque()
         self.db_count: int = 0
-        self._backoff = ReconnectBackoff(self.logger)
         self.schedule = CronSchedule()
-        self._pg_selector: selectors.BaseSelector | None = None
+        self.listener = CronListener(
+            self.listen_channel, self.logger, extra_read_fd=self.wakeup_fd_r
+        )
 
     def _sleep_with_watchdog(self, total_seconds: float) -> None:
         tick = max(self.multi.beat / 2, 0.5)
@@ -289,7 +287,7 @@ class WorkerCron(Worker):
 
     def sleep(self) -> None:
         if not self.db_queue:
-            if self._backoff.attempts > 0:
+            if self.listener.backing_off:
                 return
 
             interval: float = CRON_POLL_INTERVAL_S + os.getpid() % 10
@@ -297,8 +295,7 @@ class WorkerCron(Worker):
             if self.watchdog_timeout:
                 interval = min(interval, max(self.watchdog_timeout / 2, 1))
 
-            if self._pg_selector is not None:
-                self._pg_selector.select(timeout=interval)
+            self.listener.wait(interval)
             time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
             empty_pipe(self.wakeup_fd_r)
 
@@ -313,38 +310,22 @@ class WorkerCron(Worker):
             self.logger.info("Max age (%ss) reached.", max_age)
             self.alive = False
 
-    def _connect_postgres(self) -> None:
-        cursor = open_cron_listener(self.listen_channel, self.logger)
-        try:
-            selector = selectors.DefaultSelector()
-            selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
-            selector.register(cursor.connection, selectors.EVENT_READ)
-        except Exception:
-            close_cron_cursor(cursor)
-            raise
-        if self._pg_selector is not None:
-            self._pg_selector.close()
-        self.dbcursor = cursor
-        self._pg_selector = selector
-
     def process_work(self) -> None:
         self.logger.debug("polling for jobs")
 
         if not self.db_queue:
-            try:
-                notified = drain_cron_notifies(
-                    self.dbcursor.connection, channel=self.listen_channel
+            if not self.listener.connected:
+                self.listener.reconnect_after_failure(
+                    "Reconnect to postgres", self._sleep_with_watchdog
                 )
+                return
+            try:
+                notified = self.listener.drain()
             except psycopg.OperationalError, PoolError:
                 self.logger.warning("Lost postgres connection, reconnecting...")
-                close_cron_cursor(self.dbcursor)
-                try:
-                    self._connect_postgres()
-                    self._backoff.reset()
-                except Exception as exc:
-                    self._backoff.wait_after_failure(
-                        "Reconnect to postgres", exc, self._sleep_with_watchdog
-                    )
+                self.listener.reconnect_after_failure(
+                    "Reconnect to postgres", self._sleep_with_watchdog
+                )
                 return
             self.db_queue.extend(self.schedule.get_due_databases(notified))
             self.db_count = len(self.db_queue)
@@ -392,21 +373,14 @@ class WorkerCron(Worker):
             Registry.registries.count = registries_size
 
         while self.alive:
-            try:
-                self._connect_postgres()
-                self._backoff.reset()
+            if self.listener.reconnect_after_failure(
+                "WorkerCron initial PG connect", self._sleep_with_watchdog
+            ):
                 break
-            except Exception as exc:
-                self._backoff.wait_after_failure(
-                    "WorkerCron initial PG connect", exc, self._sleep_with_watchdog
-                )
 
     def stop(self) -> None:
         super().stop()
-        if self._pg_selector is not None:
-            self._pg_selector.close()
-        if hasattr(self, "dbcursor"):
-            close_cron_cursor(self.dbcursor)
+        self.listener.close()
 
 
 class WorkerJob(WorkerCron):

@@ -65,10 +65,12 @@ def multi():
 def worker_cron(srv, multi):
     wc = srv.WorkerCron(multi)
     wc.pid = os.getpid()
-    wc.dbcursor = MagicMock()
+    cursor = MagicMock()
     shared_cnx = MagicMock()
-    wc.dbcursor._cnx = shared_cnx
-    wc.dbcursor.connection = shared_cnx
+    cursor._cnx = shared_cnx
+    cursor.connection = shared_cnx
+    wc.listener._cursor = cursor
+    wc.listener._selector = MagicMock()
     return wc
 
 
@@ -234,7 +236,7 @@ class TestPreforkForkAndReloadNoSocket:
         assert seen["env"].get("ODOO_HTTP_SOCKET_FD") == "7"
 
 
-class TestWorkerCronConnectPostgres:
+class TestCronListenerConnect:
     def _mock_db(self, *, in_recovery: bool):
         conn = MagicMock()
         cursor = MagicMock()
@@ -249,11 +251,11 @@ class TestWorkerCronConnectPostgres:
                 "odoo.service._cron.db.db_connect", return_value=conn
             ) as mock_connect,
             patch(
-                "odoo.service._worker.selectors.DefaultSelector",
+                "odoo.service._cron.selectors.DefaultSelector",
                 return_value=MagicMock(),
             ),
         ):
-            worker_cron._connect_postgres()
+            worker_cron.listener.connect()
         return conn, cursor, mock_connect
 
     def _executed(self, cursor):
@@ -274,25 +276,33 @@ class TestWorkerCronConnectPostgres:
         _, cursor, _ = self._connect(worker_cron, in_recovery=False)
         cursor.commit.assert_called_once()
 
-    def test_sets_dbcursor_on_self(self, worker_cron):
+    def test_holds_the_cursor_it_opened(self, worker_cron):
         _, cursor, _ = self._connect(worker_cron, in_recovery=False)
-        assert worker_cron.dbcursor is cursor
+        assert worker_cron.listener._cursor is cursor
+        assert worker_cron.listener.connected
 
     def test_connects_to_postgres_database(self, worker_cron):
         _, _, mock_connect = self._connect(worker_cron, in_recovery=False)
         mock_connect.assert_called_once_with("postgres")
 
+    def test_connect_replaces_the_previous_pair_as_a_unit(self, worker_cron):
+        old_cursor = worker_cron.listener._cursor
+        old_selector = worker_cron.listener._selector
+        _, cursor, _ = self._connect(worker_cron, in_recovery=False)
+        assert worker_cron.listener._cursor is cursor
+        old_cursor.close.assert_called_once()
+        old_selector.close.assert_called_once()
+
 
 class TestWorkerCronSleepWatchdog:
     def _select_timeout(self, worker_cron):
         worker_cron.db_queue.clear()
-        worker_cron._pg_selector = MagicMock()
         with (
             patch("odoo.service._worker.time.sleep"),
             patch("odoo.service._worker.empty_pipe"),
         ):
             worker_cron.sleep()
-        return worker_cron._pg_selector.select.call_args.kwargs["timeout"]
+        return worker_cron.listener._selector.select.call_args.kwargs["timeout"]
 
     def test_idle_sleep_capped_below_tight_watchdog(self, worker_cron):
         worker_cron.watchdog_timeout = 30
@@ -314,23 +324,23 @@ class TestWorkerCronSleepWatchdog:
 
 class TestWorkerCronProcessWorkReconnect:
     def test_operational_error_triggers_reconnect(self, worker_cron):
-        worker_cron.dbcursor.connection.notifies.side_effect = psycopg.OperationalError(
-            "SSL connection has been closed unexpectedly"
+        worker_cron.listener._cursor.connection.notifies.side_effect = (
+            psycopg.OperationalError("SSL connection has been closed unexpectedly")
         )
         with (
             patch("odoo.service._cron.get_cron_databases", return_value=["testdb"]),
-            patch.object(worker_cron, "_connect_postgres") as mock_reconnect,
+            patch.object(worker_cron.listener, "connect") as mock_reconnect,
         ):
             worker_cron.process_work()
         mock_reconnect.assert_called_once()
 
     def test_operational_error_returns_early(self, worker_cron):
-        worker_cron.dbcursor.connection.notifies.side_effect = psycopg.OperationalError(
-            "SSL"
+        worker_cron.listener._cursor.connection.notifies.side_effect = (
+            psycopg.OperationalError("SSL")
         )
         with (
             patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
-            patch.object(worker_cron, "_connect_postgres"),
+            patch.object(worker_cron.listener, "connect"),
         ):
             worker_cron.process_work()
         assert len(worker_cron.db_queue) == 0
@@ -358,8 +368,8 @@ class TestWorkerCronProcessWorkReconnect:
         socket might block) was measured and does not hold: with the backend
         terminated server-side, cursor-only took 0.15ms and logged nothing.
         """
-        old_cnx = worker_cron.dbcursor.connection
-        old_cursor = worker_cron.dbcursor
+        old_cnx = worker_cron.listener._cursor.connection
+        old_cursor = worker_cron.listener._cursor
         call_order = []
         old_cnx.close.side_effect = lambda: call_order.append("cnx")
         old_cursor.close.side_effect = lambda: call_order.append("cursor")
@@ -367,54 +377,55 @@ class TestWorkerCronProcessWorkReconnect:
 
         with (
             patch("odoo.service._cron.get_cron_databases", return_value=[]),
-            patch.object(worker_cron, "_connect_postgres"),
+            patch.object(worker_cron.listener, "connect"),
         ):
             worker_cron.process_work()
 
         assert call_order == ["cursor"]
 
     def test_close_error_on_broken_connection_is_suppressed(self, worker_cron):
-        worker_cron.dbcursor.connection.notifies.side_effect = psycopg.OperationalError(
-            "SSL"
-        )
-        worker_cron.dbcursor.connection.close.side_effect = Exception("already closed")
-        worker_cron.dbcursor.close.side_effect = Exception("already closed")
+        cursor = worker_cron.listener._cursor
+        cursor.connection.notifies.side_effect = psycopg.OperationalError("SSL")
+        cursor.connection.close.side_effect = Exception("already closed")
+        cursor.close.side_effect = Exception("already closed")
 
         with (
             patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
-            patch.object(worker_cron, "_connect_postgres") as mock_reconnect,
+            patch.object(worker_cron.listener, "connect") as mock_reconnect,
         ):
             worker_cron.process_work()
 
         mock_reconnect.assert_called_once()
 
     def test_reconnect_failure_does_not_propagate(self, worker_cron):
-        worker_cron.dbcursor.connection.notifies.side_effect = psycopg.OperationalError(
-            "SSL"
+        worker_cron.listener._cursor.connection.notifies.side_effect = (
+            psycopg.OperationalError("SSL")
         )
         with (
             patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch.object(
-                worker_cron,
-                "_connect_postgres",
+                worker_cron.listener,
+                "connect",
                 side_effect=psycopg.OperationalError("postgres still unreachable"),
             ),
             patch("odoo.service._worker.time.sleep"),
         ):
             worker_cron.process_work()
-        assert worker_cron._backoff.attempts == 1
+        assert worker_cron.listener._backoff.attempts == 1
 
     def test_reconnect_attempts_escalate_across_cycles(self, worker_cron):
-        worker_cron.dbcursor.connection.notifies.side_effect = psycopg.OperationalError(
-            "SSL"
+        """Cycle 1 loses the connection mid-drain; every later cycle finds the
+        listener disconnected and keeps paying an escalating backoff."""
+        worker_cron.listener._cursor.connection.notifies.side_effect = (
+            psycopg.OperationalError("SSL")
         )
         per_cycle_sleeps: list[list[float]] = []
         current_cycle_sleeps: list[float] = []
         with (
             patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch.object(
-                worker_cron,
-                "_connect_postgres",
+                worker_cron.listener,
+                "connect",
                 side_effect=Exception("PG down"),
             ),
             patch(
@@ -453,8 +464,8 @@ class TestWorkerCronStartGracefulShutdown:
 
         with (
             patch.object(
-                worker_cron,
-                "_connect_postgres",
+                worker_cron.listener,
+                "connect",
                 side_effect=Exception("PG unreachable"),
             ),
             patch.object(
@@ -494,14 +505,14 @@ class TestWorkerCronProcessWorkScheduling:
             yield mock_module.IrCron
 
     def test_no_databases_returns_immediately(self, worker_cron):
-        worker_cron.dbcursor.connection.notifies.return_value = iter([])
+        worker_cron.listener._cursor.connection.notifies.return_value = iter([])
         with patch("odoo.service._cron.get_cron_databases", return_value=[]):
             worker_cron.process_work()
         assert len(worker_cron.db_queue) == 0
         assert worker_cron.db_count == 0
 
     def test_all_databases_queued_on_first_call(self, worker_cron, mock_ir_cron):
-        worker_cron.dbcursor.connection.notifies.return_value = iter([])
+        worker_cron.listener._cursor.connection.notifies.return_value = iter([])
         with (
             patch(
                 "odoo.service._cron.get_cron_databases",
@@ -517,7 +528,7 @@ class TestWorkerCronProcessWorkScheduling:
         notif = MagicMock()
         notif.channel = "cron_trigger"
         notif.payload = "urgent_db"
-        worker_cron.dbcursor.connection.notifies.return_value = iter([notif])
+        worker_cron.listener._cursor.connection.notifies.return_value = iter([notif])
 
         with (
             patch(
@@ -535,7 +546,7 @@ class TestWorkerCronProcessWorkScheduling:
         notif = MagicMock()
         notif.channel = "cron_trigger"
         notif.payload = "unknown_db"
-        worker_cron.dbcursor.connection.notifies.return_value = iter([notif])
+        worker_cron.listener._cursor.connection.notifies.return_value = iter([notif])
 
         with (
             patch("odoo.service._cron.get_cron_databases", return_value=["real_db"]),
@@ -555,10 +566,10 @@ class TestWorkerCronProcessWorkScheduling:
         with patch("odoo.service._cron.db"):
             worker_cron.process_work()
 
-        worker_cron.dbcursor.connection.notifies.assert_not_called()
+        worker_cron.listener._cursor.connection.notifies.assert_not_called()
 
     def test_request_count_incremented(self, worker_cron, mock_ir_cron):
-        worker_cron.dbcursor.connection.notifies.return_value = iter([])
+        worker_cron.listener._cursor.connection.notifies.return_value = iter([])
         with (
             patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
             patch("odoo.service._cron.db"),
@@ -586,15 +597,17 @@ class TestWorkerStopReleasesResources:
         dead in the first case and destroys a live pooled connection in the
         second.  This asserted the opposite until 2026-08-30.
         """
-        worker_cron._pg_selector = MagicMock()
+        selector = worker_cron.listener._selector
+        cursor = worker_cron.listener._cursor
         worker_cron.stop()
-        worker_cron._pg_selector.close.assert_called_once_with()
-        worker_cron.dbcursor.close.assert_called_once_with()
-        worker_cron.dbcursor.connection.close.assert_not_called()
+        selector.close.assert_called_once_with()
+        cursor.close.assert_called_once_with()
+        cursor.connection.close.assert_not_called()
 
     def test_a_failing_cursor_close_does_not_escape(self, worker_cron):
-        worker_cron._pg_selector = MagicMock()
-        worker_cron.dbcursor.close.side_effect = psycopg.OperationalError("gone")
+        worker_cron.listener._cursor.close.side_effect = psycopg.OperationalError(
+            "gone"
+        )
         worker_cron.stop()
 
 
@@ -2511,9 +2524,9 @@ def _drive_listen_thread(listen_server, process_jobs, *, sleeps_before_stop=2):
     with (
         patch("odoo.service._cron.db.db_connect"),
         patch("odoo.service._cron.arm_cron_listen", return_value=True),
-        patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
+        patch("odoo.service._cron.drain_cron_notifies", return_value=set()),
         patch("odoo.service._cron.get_cron_databases", return_value=["db1"]) as db_list,
-        patch("odoo.service._threaded.selectors.DefaultSelector"),
+        patch("odoo.service._cron.selectors.DefaultSelector"),
         server_settings.override(**cfg),
         patch("odoo.service._threaded.time.sleep", fake_sleep),
     ):
@@ -2714,9 +2727,9 @@ class TestListenThreadFirstPassIsImmediate:
         with (
             patch("odoo.service._cron.db.db_connect"),
             patch("odoo.service._cron.arm_cron_listen", return_value=True),
-            patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
+            patch("odoo.service._cron.drain_cron_notifies", return_value=set()),
             patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
-            patch("odoo.service._threaded.selectors.DefaultSelector", _Sel),
+            patch("odoo.service._cron.selectors.DefaultSelector", _Sel),
             server_settings.override(**cfg),
             patch("odoo.service._threaded.time.sleep", lambda _s: None),
         ):
@@ -2760,9 +2773,9 @@ class TestListenThreadFirstPassIsImmediate:
         with (
             patch("odoo.service._cron.db.db_connect"),
             patch("odoo.service._cron.arm_cron_listen", return_value=True),
-            patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
+            patch("odoo.service._cron.drain_cron_notifies", return_value=set()),
             patch("odoo.service._cron.get_cron_databases", return_value=["db1"]),
-            patch("odoo.service._threaded.selectors.DefaultSelector", _Sel),
+            patch("odoo.service._cron.selectors.DefaultSelector", _Sel),
             server_settings.override(**cfg),
             patch("odoo.service._threaded.time.sleep", lambda _s: None),
         ):

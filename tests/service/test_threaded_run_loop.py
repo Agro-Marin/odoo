@@ -43,7 +43,7 @@ def listen(server):
             ),
             server_settings.override(limit_time_worker_cron=max_age),
             patch.object(_cron, "arm_cron_listen"),
-            patch.object(_threaded, "drain_cron_notifies", return_value=set()),
+            patch.object(_cron, "drain_cron_notifies", return_value=set()),
             patch.object(_cron, "get_cron_databases", return_value=[]),
             patch.object(_cron, "CRON_NOTIFY_JITTER_MAX_S", 0),
             patch.object(_threaded, "CRON_POLL_INTERVAL_S", 0),
