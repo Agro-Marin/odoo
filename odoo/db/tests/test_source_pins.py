@@ -1,0 +1,569 @@
+"""Source-text pins over odoo.db.
+
+Every test here reads SOURCE, through inspect.getsource, ast.parse or a code
+object's co_names, and asserts on its shape: which helper a method calls, that
+nothing follows a guarded block, that two counters are read under one lock.
+None of them exercises the pool, the cursor or the probe.
+
+A red here means "you moved code", not "you broke the pool": the observable
+half of these invariants lives in test_invariants.py, and a refactor that keeps
+that file green while turning this one red has changed a shape this file was
+pinning, which is a decision to record, not a regression to revert. Re-derive
+the pin against the new shape, or delete it if the shape was the point.
+"""
+
+import ast
+import inspect
+import pathlib
+import textwrap
+import typing
+import unittest
+
+from odoo.db import (
+    breaker,
+    bulk,
+    cursor,
+    endpoints,
+    lag,
+    leaks,
+    pool,
+    probe,
+)
+
+_DB_PACKAGE = pathlib.Path(pool.__file__).parent
+
+
+def _callees(func) -> set[str]:
+    return set(inspect.unwrap(func).__code__.co_names)
+
+
+def _def_ast(source: str) -> ast.FunctionDef | ast.ClassDef:
+    node = ast.parse(textwrap.dedent(source)).body[0]
+    if not isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+        raise TypeError(f"expected a def or a class, parsed {type(node).__name__}")
+    return node
+
+
+def _calls_on(func, receiver: str) -> set[str]:
+    tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
+    found = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        owner = node.func.value
+        if (
+            isinstance(owner, ast.Attribute)
+            and owner.attr == receiver
+            and isinstance(owner.value, ast.Name)
+            and owner.value.id == "self"
+        ):
+            found.add(node.func.attr)
+    return found
+
+
+def _instance_attrs(cls) -> set[str]:
+    tree = ast.parse(textwrap.dedent(inspect.getsource(cls)))
+    found = set()
+    for node in ast.walk(tree):
+        targets = []
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        for t in targets:
+            if (
+                isinstance(t, ast.Attribute)
+                and isinstance(t.value, ast.Name)
+                and t.value.id == "self"
+            ):
+                found.add(t.attr)
+    return found
+
+
+def _methods_calling(cls, name: str) -> set[str]:
+    found = set()
+    for attr in dir(cls):
+        member = inspect.getattr_static(cls, attr, None)
+        member = getattr(member, "__func__", member)
+        code = getattr(member, "__code__", None)
+        if code is not None and name in code.co_names:
+            found.add(attr)
+    return found
+
+
+class TestBudgetAccounting(unittest.TestCase):
+    def test_the_getconn_helpers_never_touch_the_budget(self):
+        for helper in ("_get_connection_with_retry", "_check_borrowed_connection"):
+            with self.subTest(helper=helper):
+                self.assertNotIn(
+                    "_budget", _callees(getattr(pool.ConnectionPool, helper))
+                )
+
+
+class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
+    def test_the_one_failure_seam_marks_it(self):
+        self.assertIn(
+            "_note_stale_cached_plan",
+            _callees(cursor.Cursor._statement_failed),
+            "nothing else can tell a recoverable 0A000 from a permanent one",
+        )
+
+    def test_every_statement_entry_point_routes_through_that_seam(self):
+        import inspect as _inspect
+
+        for owner, name in (
+            (cursor.Cursor, "execute"),
+            (cursor.Cursor, "executemany"),
+            (cursor.Cursor, "copy"),
+            (bulk._BulkAccessMixin, "copy_from"),
+        ):
+            fn = _inspect.unwrap(getattr(owner, name))
+            for seam in ("_statement_failed", "_statement_done"):
+                with self.subTest(entry_point=name, seam=seam):
+                    self.assertIn(
+                        seam,
+                        fn.__code__.co_names,
+                        "each entry point used to carry its own copy of the "
+                        "envelope: executemany's had dropped the stale-plan "
+                        "mark, copy_from's the failed-statement count, and "
+                        "cr.copy()'s the timing and the error log entirely",
+                    )
+
+    def test_the_marker_requires_prepared_statements(self):
+        src = inspect.getsource(cursor.Cursor._note_stale_cached_plan)
+        self.assertIn("_prepared", src)
+        self.assertIn("_names", src)
+        self.assertIn(
+            "PG_STALE_PLAN_EXCEPTIONS",
+            src,
+            "the family must come from errors.py, not be re-listed here",
+        )
+
+
+class TestEveryDsnConsumerExpandsConninfo(unittest.TestCase):
+    def test_conninfo_to_dict_is_imported_only_by_dsn(self):
+        importers = []
+        for path in sorted(_DB_PACKAGE.glob("*.py")):
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                names: tuple[str, ...] = ()
+                if isinstance(node, ast.ImportFrom):
+                    names = tuple(a.name for a in node.names)
+                if "conninfo_to_dict" in names:
+                    importers.append(path.name)
+        self.assertEqual(importers, ["dsn.py"])
+
+
+class TestLibpqTimeoutNeverLeaksZero(unittest.TestCase):
+    def test_every_call_site_guards_the_zero(self):
+        guarded = 0
+        skip_tests = 0
+        for module in (pool, probe):
+            source = inspect.getsource(module)
+            tree = ast.parse(source)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+                    fn = node.value.func
+                    if getattr(fn, "id", None) == "get_libpq_connect_timeout":
+                        guarded += 1
+            skip_tests += source.count("if not probe_timeout")
+            skip_tests += source.count("if not connect_timeout")
+        self.assertGreaterEqual(
+            guarded, 3, "call sites must bind the result so they can test it"
+        )
+        self.assertEqual(
+            skip_tests,
+            guarded,
+            "every get_libpq_connect_timeout result must be tested for the skip case",
+        )
+
+
+class TestSchemaCacheClearsHaveDistinctCallSites(unittest.TestCase):
+    def test_ddl_invalidation_keeps_the_lock_ledger(self):
+        self.assertEqual(
+            _calls_on(cursor.Cursor.invalidate_cached_plans, "_schema_cache"),
+            {"invalidate_catalog_facts"},
+            "DDL does not end the transaction, so the ROW EXCLUSIVE lock this "
+            "cursor already took is still held",
+        )
+
+    def test_transaction_boundaries_and_savepoint_rollback_clear_everything(self):
+        for method in ("commit", "_rollback", "_on_rollback_to_savepoint"):
+            with self.subTest(method=method):
+                self.assertEqual(
+                    _calls_on(getattr(cursor.Cursor, method), "_schema_cache"),
+                    {"clear"},
+                )
+
+
+class TestCursorSatisfiesItsMixinContracts(unittest.TestCase):
+    def _protocol_members(self, name):
+        source = inspect.getsource(bulk)
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name == name:
+                return {n.name for n in node.body if isinstance(n, ast.FunctionDef)} | {
+                    t.target.id
+                    for t in node.body
+                    if isinstance(t, ast.AnnAssign) and isinstance(t.target, ast.Name)
+                }
+        raise AssertionError(f"{name} not found in odoo.db.bulk")
+
+    def test_cursor_provides_every_bulk_host_member(self):
+        required = self._protocol_members("_CursorInternals")
+        self.assertTrue(required, "the Protocol declared nothing — check the parse")
+        provided = (
+            set(dir(cursor.Cursor))
+            | set(cursor.Cursor.__annotations__)
+            | _instance_attrs(cursor.Cursor)
+            | _instance_attrs(cursor.BaseCursor)
+        )
+        self.assertEqual(sorted(required - provided), [])
+
+
+class TestSchemaChangeDrainsAtCommit(unittest.TestCase):
+    def test_ddl_arms_the_flag_rather_than_draining_inline(self):
+        src = inspect.getsource(cursor.Cursor._invalidate_caches_after_ddl)
+        self.assertIn("_schema_changed", src)
+        self.assertNotIn(
+            "_drain_sibling_connections",
+            src,
+            "draining per statement closes and reopens every idle connection "
+            "once per DDL statement — ~1000 times during a module install — "
+            "and an uncommitted schema change is invisible to the connections "
+            "it would be healing.",
+        )
+
+    def test_commit_is_the_only_thing_that_drains(self):
+        self.assertIn(
+            "_drain_sibling_connections",
+            _callees(cursor.Cursor.commit),
+            "commit is the moment the schema change becomes visible to other "
+            "connections, so it is the moment they must be drained",
+        )
+        for name in ("_rollback", "_on_rollback_to_savepoint", "_close"):
+            with self.subTest(method=name):
+                self.assertNotIn(
+                    "_drain_sibling_connections",
+                    _callees(getattr(cursor.Cursor, name)),
+                    f"{name} must not drain: nothing it undoes ever became "
+                    f"visible to another connection",
+                )
+
+    def test_rollback_disarms_the_flag(self):
+        self.assertIn(
+            "_schema_changed",
+            _instance_attrs(cursor.Cursor),
+            "the flag must be reset on rollback, or a rolled-back schema "
+            "change drains on the next unrelated commit",
+        )
+        self.assertIn("_schema_changed", inspect.getsource(cursor.Cursor._rollback))
+
+
+class TestOneConnectionOptionsAssembler(unittest.TestCase):
+    def test_both_borrow_paths_use_it(self):
+        for path in ("_get_or_create_pool", "_borrow_directly"):
+            with self.subTest(path=path):
+                self.assertIn(
+                    "_prepare_connection_options",
+                    _callees(getattr(pool.ConnectionPool, path)),
+                    "the two paths built the same libpq options string twice; "
+                    "one assembler, or the exemption goes back to being an "
+                    "accident nobody can see.",
+                )
+
+
+class TestEveryCheckoutIsTracked(unittest.TestCase):
+    def test_the_leak_warning_uses_its_own_throttle(self):
+        names = _callees(pool.ConnectionPool._warn_about_leaks)
+        self.assertIn("acquire_report_interval", names)
+        self.assertNotIn(
+            "_reaper",
+            names,
+            "sharing the reaper's slot would let a leak warning silence a sweep",
+        )
+
+
+class TestBudgetBelongsToAServer(unittest.TestCase):
+    def test_the_key_is_the_resolved_endpoint(self):
+        names = _callees(endpoints.EndpointRegistry.get_budget_for_readonly)
+        self.assertIn("get_endpoint_for_readonly", names)
+        self.assertNotIn(
+            "db_replica_host",
+            names,
+            "keying on 'is a replica configured' hands one server two budgets "
+            "whenever the replica resolves back to the primary",
+        )
+
+    def test_the_endpoint_comes_from_the_resolved_connection_info(self):
+        self.assertIn(
+            "get_connection_info_for_database",
+            _callees(endpoints.EndpointRegistry.get_endpoint_for_readonly),
+        )
+
+    def test_the_replica_ceiling_is_gated_on_the_endpoint_differing(self):
+        self.assertIn(
+            "get_endpoint_for_readonly",
+            _callees(endpoints.EndpointRegistry.get_maxconn_for_readonly),
+        )
+
+
+class TestPipelineModeCannotBypassTheFailureSeam(unittest.TestCase):
+    def test_the_pipeline_exit_routes_the_deferred_error_through_the_seam(self):
+        self.assertIn(
+            "_statement_failed",
+            _callees(cursor.Cursor.pipeline),
+            "the ExitStack exit is where psycopg finally raises a pipelined "
+            "statement's error; nothing else can hand it to the seam",
+        )
+
+    def test_it_only_takes_errors_that_reached_the_server(self):
+        self.assertIn(
+            "has_reached_server",
+            _callees(cursor.Cursor.pipeline),
+            "the same except also sees whatever the caller's block raised; a "
+            "plain Python error carries no SQLSTATE and is not the seam's",
+        )
+
+    def test_only_the_outermost_block_hooks_the_sync(self):
+        fn = _def_ast(inspect.getsource(inspect.unwrap(cursor.Cursor.pipeline)))
+        nested = next(node for node in fn.body if isinstance(node, ast.If))
+        self.assertNotIn(
+            "_statement_failed",
+            {
+                node.func.attr
+                for node in ast.walk(nested)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            },
+            "a nested block syncs nothing, so it can observe no deferred error",
+        )
+
+    def test_the_seam_short_circuits_before_it_does_any_work(self):
+        fn = _def_ast(inspect.getsource(cursor.Cursor._statement_failed))
+        body = [n for n in fn.body if not isinstance(n, ast.Expr)]
+        self.assertIsInstance(
+            body[0],
+            ast.If,
+            "the idempotence check must be the first thing the seam does",
+        )
+        guard = typing.cast("ast.If", body[0])
+        self.assertIsInstance(
+            guard.test,
+            ast.Call,
+            "the guard must be the bare question, not a condition that can be "
+            "disabled beside it",
+        )
+        self.assertEqual(
+            getattr(typing.cast("ast.Call", guard.test).func, "id", None),
+            "is_handled_by_seam",
+            "the guard must be the bare question, not a condition that can be "
+            "disabled beside it",
+        )
+        self.assertIsInstance(
+            guard.body[-1], ast.Return, "the check must actually short-circuit"
+        )
+        self.assertIn(
+            "mark_handled_by_seam",
+            _callees(cursor.Cursor._statement_failed),
+            "a seam that never marks can never short-circuit",
+        )
+
+    def test_execute_values_hands_its_own_failures_to_the_seam(self):
+        called = _callees(bulk._BulkAccessMixin.execute_values)
+        self.assertIn("_statement_failed", called)
+        self.assertNotIn(
+            "_log_sql_error",
+            called,
+            "logging alone was a third of the seam: it left the stale-plan "
+            "mark off every pipelined execute_values, and the ORM's bulk "
+            "writers reach this path",
+        )
+        self.assertIn(
+            "has_reached_server",
+            called,
+            "a client-side rejection never reached the wire and is not the "
+            "seam's, as in Cursor.pipeline",
+        )
+
+
+class TestOneDecodeOfAStatementsText(unittest.TestCase):
+    def test_both_entry_points_read_the_text_through_one_function(self):
+        for name in ("_prepare_ddl_statement", "executemany"):
+            with self.subTest(entry_point=name):
+                self.assertIn(
+                    "_get_statement_text",
+                    _callees(getattr(cursor.Cursor, name)),
+                    "executemany used to spell it str(query), which turns a "
+                    "bytes DDL statement into the repr b'CREATE …' and hides "
+                    "it from classify_statement",
+                )
+
+
+class TestTheBreakerLockIsNotReentrant(unittest.TestCase):
+    def test_allow_does_not_go_through_the_property(self):
+        self.assertNotIn(
+            "closed",
+            _callees(breaker.CircuitBreaker.acquire_attempt),
+            "the lock-held path must read _open directly",
+        )
+
+    def test_the_cooldown_maths_exists_once(self):
+        members = {
+            "cooldown_remaining": typing.cast(
+                "property", breaker.CircuitBreaker.__dict__["cooldown_remaining"]
+            ).fget,
+            "get_snapshot": breaker.CircuitBreaker.get_snapshot,
+        }
+        for name, fn in members.items():
+            with self.subTest(method=name):
+                self.assertIn(
+                    "_get_cooldown_remaining_locked",
+                    _callees(fn),
+                    "two copies of the same expression drifted apart once "
+                    "already in this package",
+                )
+
+    def test_the_locked_helper_does_not_take_the_lock(self):
+        self.assertNotIn(
+            "_lock",
+            _callees(breaker.CircuitBreaker._get_cooldown_remaining_locked),
+            "it is called from inside the lock; taking it again deadlocks",
+        )
+
+
+class TestThePairedGaugesArePublishedTogether(unittest.TestCase):
+    def test_recording_a_lag_sample_takes_the_lock(self):
+        self.assertIn("_lock", _callees(lag.ReplicaLagGate.record))
+
+    def test_rendering_them_takes_it_too(self):
+        self.assertIn("_lock", _callees(lag.ReplicaLagGate.get_snapshot))
+
+    def test_the_per_cursor_read_stays_lock_free(self):
+        self.assertNotIn(
+            "_lock",
+            _callees(lag.ReplicaLagGate.is_replica_usable),
+            "is_replica_usable() runs per read-only cursor and reads ONE flag; a single "
+            "bool is never torn and the pair has its own guarded readers",
+        )
+
+    def test_the_leak_throttle_owns_a_lock(self):
+        self.assertIn(
+            "_report_lock", _callees(leaks.CheckoutTracker.acquire_report_interval)
+        )
+
+    def test_tracking_and_release_stay_lock_free(self):
+        for name in ("track", "release"):
+            with self.subTest(method=name):
+                self.assertNotIn(
+                    "_report_lock",
+                    _callees(getattr(leaks.CheckoutTracker, name)),
+                    "single dict operations; the throttle's lock is not theirs",
+                )
+
+
+class TestTheSaturationErrorReadsOneConsistentPair(unittest.TestCase):
+    def test_both_counters_come_from_one_acquisition(self):
+        src = inspect.getsource(pool.ConnectionPool._prepare_budget_exhausted_error)
+        self.assertIn("with self._lock:", src)
+        head, _, tail = src.partition("with self._lock:")
+        self.assertNotIn("len(self._pools)", head)
+        self.assertNotIn("self._direct_out", head)
+        body = tail[: tail.index("return PoolError")]
+        self.assertIn("len(self._pools)", body)
+        self.assertIn("self._direct_out", body)
+
+
+class TestNoSelfLockIsTakenTwice(unittest.TestCase):
+    LOCKED_CLASSES = (
+        pool.ConnectionPool,
+        probe.ReachabilityProbe,
+        breaker.CircuitBreaker,
+        lag.ReplicaLagGate,
+    )
+
+    @staticmethod
+    def _takes_self_lock(node) -> bool:
+        for sub in ast.walk(node):
+            if not isinstance(sub, ast.With):
+                continue
+            for item in sub.items:
+                ctx = item.context_expr
+                if (
+                    isinstance(ctx, ast.Attribute)
+                    and ctx.attr.endswith("lock")
+                    and isinstance(ctx.value, ast.Name)
+                    and ctx.value.id == "self"
+                ):
+                    return True
+        return False
+
+    @staticmethod
+    def _self_calls_inside_locks(node) -> set[str]:
+        found = set()
+        for sub in ast.walk(node):
+            if not isinstance(sub, ast.With):
+                continue
+            locked = any(
+                isinstance(i.context_expr, ast.Attribute)
+                and i.context_expr.attr.endswith("lock")
+                for i in sub.items
+            )
+            if not locked:
+                continue
+            for reached in ast.walk(ast.Module(body=sub.body, type_ignores=[])):
+                if (
+                    isinstance(reached, ast.Attribute)
+                    and isinstance(reached.value, ast.Name)
+                    and reached.value.id == "self"
+                ):
+                    found.add(reached.attr)
+        return found
+
+    def test_no_method_called_under_a_lock_takes_that_lock(self):
+        for cls in self.LOCKED_CLASSES:
+            tree = _def_ast(inspect.getsource(cls))
+            methods = {
+                n.name: n
+                for n in tree.body
+                if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)
+            }
+            called_under_lock = set()
+            for node in methods.values():
+                called_under_lock |= self._self_calls_inside_locks(node)
+            for name in sorted(called_under_lock & methods.keys()):
+                with self.subTest(cls=cls.__name__, method=name):
+                    self.assertFalse(
+                        self._takes_self_lock(methods[name]),
+                        f"{cls.__name__}.{name} is called from inside a "
+                        f"`with self._lock:` block and takes the lock itself; "
+                        f"threading.Lock is not reentrant, so that hangs",
+                    )
+
+    def test_the_check_can_see_a_violation(self):
+        src = textwrap.dedent("""
+            class Bad:
+                def outer(self):
+                    with self._lock:
+                        if self.prop:          # a property READ, not a call
+                            return self.inner()
+
+                @property
+                def prop(self):
+                    with self._lock:
+                        return True
+
+                def inner(self):
+                    with self._lock:
+                        return 1
+        """)
+        tree = _def_ast(src)
+        methods = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+        under_lock = self._self_calls_inside_locks(methods["outer"])
+        for name in ("inner", "prop"):
+            with self.subTest(reached_as=name):
+                self.assertIn(name, under_lock)
+                self.assertTrue(self._takes_self_lock(methods[name]))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,178 +1,286 @@
-import ast
-import inspect
-import pathlib
-import textwrap
-import typing
+import contextlib
+import os
+import threading
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
 import psycopg
 
-from odoo.db import (
-    breaker,
-    bulk,
-    cursor,
-    ddl,
-    dsn,
-    endpoints,
-    errors,
-    lag,
-    leaks,
-    pool,
-    probe,
-    schema_cache,
-)
-
-_DB_PACKAGE = pathlib.Path(pool.__file__).parent
+from odoo import tools
+from odoo.db import bulk, cursor, ddl, dsn, endpoints, errors, leaks, pool, probe
+from odoo.db.schema_cache import TransactionSchemaCache
+from odoo.db.stats import PoolStats
+from odoo.db.utils import SYSTEM_DBS
 
 
-def _callees(func) -> set[str]:
-    return set(inspect.unwrap(func).__code__.co_names)
-
-
-def _def_ast(source: str) -> ast.FunctionDef | ast.ClassDef:
-    node = ast.parse(textwrap.dedent(source)).body[0]
-    if not isinstance(node, (ast.FunctionDef, ast.ClassDef)):
-        raise TypeError(f"expected a def or a class, parsed {type(node).__name__}")
-    return node
-
-
-def _calls_on(func, receiver: str) -> set[str]:
-    tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
-    found = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
-            continue
-        owner = node.func.value
-        if (
-            isinstance(owner, ast.Attribute)
-            and owner.attr == receiver
-            and isinstance(owner.value, ast.Name)
-            and owner.value.id == "self"
-        ):
-            found.add(node.func.attr)
-    return found
-
-
-def _instance_attrs(cls) -> set[str]:
-    tree = ast.parse(textwrap.dedent(inspect.getsource(cls)))
-    found = set()
-    for node in ast.walk(tree):
-        targets = []
-        if isinstance(node, ast.Assign):
-            targets = node.targets
-        elif isinstance(node, ast.AnnAssign):
-            targets = [node.target]
-        for t in targets:
-            if (
-                isinstance(t, ast.Attribute)
-                and isinstance(t.value, ast.Name)
-                and t.value.id == "self"
-            ):
-                found.add(t.attr)
-    return found
-
-
-def _methods_calling(cls, name: str) -> set[str]:
-    found = set()
-    for attr in dir(cls):
-        member = inspect.getattr_static(cls, attr, None)
-        member = getattr(member, "__func__", member)
-        code = getattr(member, "__code__", None)
-        if code is not None and name in code.co_names:
-            found.add(attr)
-    return found
-
-
-class TestBudgetAccounting(unittest.TestCase):
-    def test_only_the_borrow_paths_acquire_a_permit(self):
-        acquirers = {
-            m
-            for m in _methods_calling(pool.ConnectionPool, "acquire")
-            if not m.startswith("__")
-        }
-        self.assertEqual(acquirers, {"borrow", "_borrow_directly"})
-
-    def test_exactly_one_release_site_per_outcome(self):
-        releasers = {
-            m
-            for m in _methods_calling(pool.ConnectionPool, "release")
-            if not m.startswith("__")
-        }
-        self.assertEqual(
-            releasers,
-            {"give_back", "_unwind_failed_borrow"},
-            "a borrow ends exactly two ways and each has one release site: "
-            "give_back for a connection that reached the caller, "
-            "_unwind_failed_borrow for one that did not. They used to be three "
-            "-- borrow and _borrow_directly released inline -- which is how the "
-            "post-acquisition bookkeeping ended up outside the guard and "
-            "leaked a permit per failure.",
+class _FakeConn:
+    def __init__(self, transaction_status=cursor._TX_IDLE):
+        self.closed = False
+        self.info = SimpleNamespace(
+            transaction_status=transaction_status, dsn="dbname=x"
         )
 
-    def test_the_getconn_helpers_never_touch_the_budget(self):
-        for helper in ("_get_connection_with_retry", "_check_borrowed_connection"):
-            with self.subTest(helper=helper):
-                self.assertNotIn(
-                    "_budget", _callees(getattr(pool.ConnectionPool, helper))
-                )
+    def close(self):
+        self.closed = True
+
+    def cursor(self):
+        return mock.Mock()
+
+
+class _FakePsycopgPool:
+    closed = False
+
+    def __init__(self):
+        self.returned = []
+
+    def putconn(self, conn):
+        self.returned.append(conn)
+
+    def get_stats(self):
+        return {}
+
+
+class _RaisingTracker(leaks.CheckoutTracker):
+    def track(self, conn, caller=None):
+        raise RuntimeError("tracker down")
+
+
+class _PooledBorrow(contextlib.ExitStack):
+    def __init__(self, connection_pool, fail_with=None):
+        super().__init__()
+        self.pool = connection_pool
+        self.psycopg_pool = _FakePsycopgPool()
+        self.conn = _FakeConn()
+        self.fail_with = fail_with
+
+    def __enter__(self):
+        super().__enter__()
+        self.enter_context(
+            mock.patch.object(
+                self.pool, "_get_or_create_pool", return_value=self.psycopg_pool
+            )
+        )
+        self.getconn = self.enter_context(
+            mock.patch.object(
+                self.pool, "_get_connection_with_retry", side_effect=self._hand_out
+            )
+        )
+        self.health_check = self.enter_context(
+            mock.patch.object(self.pool, "_check_borrowed_connection")
+        )
+        return self
+
+    def _hand_out(self, psycopg_pool, key, connection_info, deadline):
+        if self.fail_with is not None:
+            raise self.fail_with
+        self.conn._odoo_pool = psycopg_pool
+        return self.conn, psycopg_pool
+
+
+class _DirectBorrow(contextlib.ExitStack):
+    def __init__(self, connection_pool):
+        super().__init__()
+        self.pool = connection_pool
+        self.conn = _FakeConn()
+
+    def __enter__(self):
+        super().__enter__()
+        self.connect = self.enter_context(
+            mock.patch("odoo.db.pool.psycopg.connect", return_value=self.conn)
+        )
+        self.enter_context(mock.patch("odoo.db.pool._configure_connection"))
+        self.enter_context(
+            mock.patch.object(pool.ConnectionPool, "_check_min_server_version")
+        )
+        self.options = self.enter_context(
+            mock.patch(
+                "odoo.db.pool._prepare_connection_options",
+                wraps=pool._prepare_connection_options,
+            )
+        )
+        return self
+
+
+class TestPermitAccounting(unittest.TestCase):
+    """Sixteen source pins collapsed into these: the permit, the checkout and
+    the failure counter are observable, so the tests drive both borrow paths
+    through both outcomes instead of reading which helper releases what."""
+
+    def test_a_pooled_borrow_holds_one_permit_and_one_checkout_until_give_back(self):
+        p = pool.ConnectionPool(maxconn=2)
+        with _PooledBorrow(p) as h:
+            conn = p.borrow({"dbname": "some_db"})
+        self.assertIs(conn, h.conn)
+        self.assertEqual(p._budget.in_use, 1)
+        self.assertEqual(len(p._checkouts), 1)
+        p.give_back(conn)
+        self.assertEqual(p._budget.in_use, 0)
+        self.assertEqual(len(p._checkouts), 0)
+        self.assertEqual(h.psycopg_pool.returned, [conn])
+        self.assertFalse(conn.closed, "a clean connection goes back warm")
+
+    def test_a_pooled_borrow_that_fails_after_the_connection_arrived_releases_it(self):
+        p = pool.ConnectionPool(maxconn=2)
+        p._checkouts = _RaisingTracker()
+        with _PooledBorrow(p) as h, self.assertRaises(RuntimeError):
+            p.borrow({"dbname": "some_db"})
+        self.assertEqual(p._budget.in_use, 0, "the permit outlived the borrow")
+        self.assertEqual(p.stats.borrows_failed, 1)
+        self.assertEqual(p.stats.connections_discarded, 1)
+        self.assertTrue(h.conn.closed, "a connection nobody received is discarded")
+        self.assertEqual(h.psycopg_pool.returned, [h.conn])
+        self.assertEqual(len(p._checkouts), 0)
+
+    def test_a_pooled_borrow_whose_health_check_fails_releases_it_too(self):
+        p = pool.ConnectionPool(maxconn=2)
+        with _PooledBorrow(p) as h:
+            h.health_check.side_effect = psycopg.OperationalError("dead on arrival")
+            with self.assertRaises(psycopg.OperationalError):
+                p.borrow({"dbname": "some_db"})
+        self.assertEqual(p._budget.in_use, 0)
+        self.assertEqual(p.stats.borrows_failed, 1)
+        self.assertTrue(h.conn.closed)
+        self.assertEqual(h.psycopg_pool.returned, [h.conn])
+
+    def test_a_pooled_borrow_that_fails_before_a_connection_arrived_releases_it(self):
+        p = pool.ConnectionPool(maxconn=2)
+        with (
+            _PooledBorrow(p, fail_with=pool.PoolError("no connection")) as h,
+            self.assertRaises(pool.PoolError),
+        ):
+            p.borrow({"dbname": "some_db"})
+        self.assertEqual(p._budget.in_use, 0)
+        self.assertEqual(p.stats.borrows_failed, 1)
+        self.assertEqual(h.psycopg_pool.returned, [], "nothing arrived to give back")
+        self.assertEqual(len(p._checkouts), 0)
+
+    def test_a_direct_borrow_holds_and_releases_its_permit_and_its_direct_count(self):
+        p = pool.ConnectionPool(maxconn=2)
+        with _DirectBorrow(p) as h:
+            conn = p.borrow({"dbname": "postgres"})
+        self.assertIs(conn, h.conn)
+        self.assertIs(conn._odoo_pool, pool._DIRECT_CONNECTION)
+        self.assertEqual(p._budget.in_use, 1)
+        self.assertEqual(p._direct_out, 1)
+        self.assertEqual(len(p._checkouts), 1)
+        self.assertEqual(p.stats.borrows_direct, 1)
+        p.give_back(conn)
+        self.assertEqual(p._budget.in_use, 0)
+        self.assertEqual(p._direct_out, 0)
+        self.assertEqual(len(p._checkouts), 0)
+        self.assertTrue(conn.closed, "a maintenance connection is never kept")
+
+    def test_a_direct_borrow_that_fails_after_connecting_releases_its_permit(self):
+        p = pool.ConnectionPool(maxconn=2)
+        p._checkouts = _RaisingTracker()
+        with _DirectBorrow(p) as h, self.assertRaises(RuntimeError):
+            p.borrow({"dbname": "postgres"})
+        self.assertEqual(p._budget.in_use, 0)
+        self.assertEqual(p._direct_out, 0)
+        self.assertEqual(p.stats.borrows_failed, 1)
+        self.assertTrue(h.conn.closed)
+
+    def test_the_direct_path_asks_for_no_session_gucs(self):
+        p = pool.ConnectionPool(maxconn=2)
+        with _DirectBorrow(p) as h:
+            p.borrow({"dbname": "postgres"})
+        h.options.assert_called_once()
+        self.assertIs(h.options.call_args.kwargs["session_gucs"], False)
+        self.assertIn(
+            f"-c idle_session_timeout={pool._DIRECT_IDLE_SESSION_TIMEOUT_MS}",
+            h.connect.call_args.kwargs["options"],
+        )
+
+    def test_a_maintenance_database_never_creates_a_pool(self):
+        p = pool.ConnectionPool(maxconn=2)
+        sentinel = object()
+        with (
+            mock.patch.object(p, "_borrow_directly", return_value=sentinel) as direct,
+            mock.patch.object(p, "_get_or_create_pool") as pooled,
+        ):
+            for name in (*SYSTEM_DBS, tools.config["db_template"]):
+                with self.subTest(dbname=name):
+                    self.assertIs(p.borrow({"dbname": name}), sentinel)
+        self.assertEqual(direct.call_count, len(SYSTEM_DBS) + 1)
+        pooled.assert_not_called()
+        self.assertEqual(p._pools, {})
+
+    def test_an_exhausted_budget_fails_the_pooled_path_before_taking_a_connection(
+        self,
+    ):
+        p = pool.ConnectionPool(maxconn=1, borrow_timeout=0.01)
+        with _PooledBorrow(p) as h:
+            held = p.borrow({"dbname": "some_db"})
+            with self.assertRaises(pool.PoolError) as caught:
+                p.borrow({"dbname": "some_db"})
+            self.assertEqual(h.getconn.call_count, 1, "no second connection taken")
+        message = str(caught.exception)
+        self.assertIn("connection budget (1) reached", message)
+        self.assertIn("oldest checkouts:", message, "the error must say who holds it")
+        self.assertEqual(p._budget.in_use, 1)
+        self.assertEqual(p.stats.borrows_failed, 1)
+        p.give_back(held)
+        self.assertEqual(p._budget.in_use, 0)
+
+    def test_an_exhausted_budget_fails_the_direct_path_before_connecting(self):
+        p = pool.ConnectionPool(maxconn=1, borrow_timeout=0.01)
+        with _PooledBorrow(p):
+            held = p.borrow({"dbname": "some_db"})
+        with _DirectBorrow(p) as h, self.assertRaises(pool.PoolError) as caught:
+            p.borrow({"dbname": "postgres"})
+        h.connect.assert_not_called()
+        self.assertIn("connection budget (1) reached", str(caught.exception))
+        self.assertIn("oldest checkouts:", str(caught.exception))
+        self.assertEqual(p._budget.in_use, 1)
+        self.assertEqual(p._direct_out, 0)
+        self.assertEqual(p.stats.borrows_failed, 1)
+        p.give_back(held)
+
+    def test_one_budget_is_shared_by_both_paths(self):
+        p = pool.ConnectionPool(maxconn=2)
+        with _PooledBorrow(p):
+            pooled = p.borrow({"dbname": "some_db"})
+        with _DirectBorrow(p):
+            direct = p.borrow({"dbname": "postgres"})
+        self.assertEqual(p._budget.in_use, 2)
+        p.give_back(direct)
+        self.assertEqual(p._budget.in_use, 1)
+        p.give_back(pooled)
+        self.assertEqual(p._budget.in_use, 0)
+
+    def test_give_back_releases_the_checkout_of_an_unmarked_connection(self):
+        p = pool.ConnectionPool(maxconn=2)
+        stray = _FakeConn()
+        p._checkouts.track(stray, "somewhere")
+        p.give_back(stray)
+        self.assertEqual(len(p._checkouts), 0, "released before the early return")
+        self.assertTrue(stray.closed)
+        self.assertEqual(p._budget.in_use, 0, "no permit was taken, none is released")
 
 
 class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
-    def test_the_one_failure_seam_marks_it(self):
-        self.assertIn(
-            "_note_stale_cached_plan",
-            _callees(cursor.Cursor._statement_failed),
-            "nothing else can tell a recoverable 0A000 from a permanent one",
-        )
+    class _Prepared:
+        def __init__(self):
+            self._names = {"_pg3_0": b"stmt"}
 
-    def test_every_statement_entry_point_routes_through_that_seam(self):
-        import inspect as _inspect
+        def clear(self):
+            self._names.clear()
 
-        for owner, name in (
-            (cursor.Cursor, "execute"),
-            (cursor.Cursor, "executemany"),
-            (cursor.Cursor, "copy"),
-            (bulk._BulkAccessMixin, "copy_from"),
-        ):
-            fn = _inspect.unwrap(getattr(owner, name))
-            for seam in ("_statement_failed", "_statement_done"):
-                with self.subTest(entry_point=name, seam=seam):
-                    self.assertIn(
-                        seam,
-                        fn.__code__.co_names,
-                        "each entry point used to carry its own copy of the "
-                        "envelope: executemany's had dropped the stale-plan "
-                        "mark, copy_from's the failed-statement count, and "
-                        "cr.copy()'s the timing and the error log entirely",
-                    )
+    class _Refusing:
+        def __getattr__(self, name):
+            raise AssertionError(f"SQL layer touched through .{name} on an aborted tx")
 
-    def test_the_marker_requires_prepared_statements(self):
-        src = inspect.getsource(cursor.Cursor._note_stale_cached_plan)
-        self.assertIn("_prepared", src)
-        self.assertIn("_names", src)
-        self.assertIn(
-            "PG_STALE_PLAN_EXCEPTIONS",
-            src,
-            "the family must come from errors.py, not be re-listed here",
-        )
+    def _cursor(self):
+        cr = cursor.Cursor.__new__(cursor.Cursor)
+        cr._cnx = SimpleNamespace(_prepared=self._Prepared(), execute=self._Refusing())
+        cr._obj = self._Refusing()
+        cr._schema_cache = TransactionSchemaCache()
+        cr._schema_cache.set_id_sequence("t", "t_id_seq")
+        return cr
 
     def test_it_clears_the_plans_so_the_retry_re_prepares(self):
-        class _Prepared:
-            def __init__(self):
-                self._names = {"_pg3_0": b"stmt"}
-
-            def clear(self):
-                self._names.clear()
-
-        class _Cnx:
-            def __init__(self):
-                self._prepared = _Prepared()
-
-        cr = cursor.Cursor.__new__(cursor.Cursor)
-        cr._cnx = _Cnx()
-        cr._schema_cache = schema_cache.TransactionSchemaCache()
-        cr._schema_cache.set_id_sequence("t", "t_id_seq")
-
+        cr = self._cursor()
         exc = psycopg.errors.FeatureNotSupported("cached plan must not change")
         self.assertTrue(cr._note_stale_cached_plan(exc))
         self.assertFalse(
@@ -185,79 +293,18 @@ class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
         self.assertTrue(errors.is_stale_cached_plan(exc))
 
     def test_the_marker_issues_no_sql(self):
-        src = inspect.getsource(cursor.Cursor._note_stale_cached_plan)
-        self.assertNotIn(
-            "DEALLOCATE",
-            src,
-            "the transaction is already aborted here; issuing SQL would raise "
-            "InFailedSqlTransaction on top of the error being reported",
-        )
-        self.assertNotIn("self.execute", src)
+        cr = self._cursor()
+        exc = psycopg.errors.FeatureNotSupported("cached plan must not change")
+        # _Refusing raises on any attribute of the connection's execute or the
+        # psycopg cursor: the transaction is already aborted here, and a
+        # DEALLOCATE would raise InFailedSqlTransaction over the real error.
+        self.assertTrue(cr._note_stale_cached_plan(exc))
 
     def test_the_family_is_exported_for_the_request_layer(self):
         from odoo.db import errors as err
 
         self.assertTrue(err.PG_STALE_PLAN_EXCEPTIONS)
         self.assertTrue(callable(err.is_stale_cached_plan))
-
-
-class TestAFailedBorrowNeverKeepsItsPermit(unittest.TestCase):
-    def _borrow_body(self):
-        return textwrap.dedent(inspect.getsource(pool.ConnectionPool.borrow))
-
-    def test_the_bookkeeping_is_inside_the_guard(self):
-        tree = ast.parse(self._borrow_body())
-        fn = tree.body[0]
-        guarded = set()
-        for node in ast.walk(fn):
-            if isinstance(node, ast.Try):
-                for sub in ast.walk(ast.Module(body=node.body, type_ignores=[])):
-                    if isinstance(sub, ast.Call) and isinstance(
-                        sub.func, ast.Attribute
-                    ):
-                        guarded.add(sub.func.attr)
-        for name in ("track", "_warn_about_leaks", "record_borrow"):
-            with self.subTest(call=name):
-                self.assertIn(
-                    name,
-                    guarded,
-                    f"{name}() runs outside the try that releases the permit; "
-                    f"if it raises, the permit and the connection are gone for "
-                    f"the life of the process",
-                )
-
-    def test_nothing_follows_the_guard(self):
-        fn = ast.parse(self._borrow_body()).body[0]
-        self.assertIsInstance(
-            fn.body[-1],
-            ast.Try,
-            "borrow must end with the guarded block; a statement after it is "
-            "by definition outside the release path",
-        )
-
-    def test_both_paths_unwind_through_one_helper(self):
-        for path in ("borrow", "_borrow_directly"):
-            with self.subTest(path=path):
-                self.assertIn(
-                    "_unwind_failed_borrow",
-                    _callees(getattr(pool.ConnectionPool, path)),
-                )
-
-    def test_the_unwind_distinguishes_a_marked_connection(self):
-        src = inspect.getsource(pool.ConnectionPool._unwind_failed_borrow)
-        self.assertIn("_odoo_pool", src)
-        self.assertIn("give_back", src)
-        self.assertIn("release", src)
-
-
-class TestMaintenanceDatabasesAreNeverPooled(unittest.TestCase):
-    def test_borrow_consults_is_maintenance_db_and_diverts(self):
-        names = _callees(pool.ConnectionPool.borrow)
-        self.assertIn("is_maintenance_db", names)
-        self.assertIn("_borrow_directly", names)
-
-    def test_give_back_recognises_the_direct_marker(self):
-        self.assertIn("_DIRECT_CONNECTION", _callees(pool.ConnectionPool.give_back))
 
 
 class TestPasswordNeverReachesAPoolKey(unittest.TestCase):
@@ -287,20 +334,6 @@ class TestPasswordNeverReachesAPoolKey(unittest.TestCase):
         self.assertEqual(dsn._normalize_dsn_key(made), dsn._normalize_dsn_key(made))
 
 
-class TestEveryDsnConsumerExpandsConninfo(unittest.TestCase):
-    def test_conninfo_to_dict_is_imported_only_by_dsn(self):
-        importers = []
-        for path in sorted(_DB_PACKAGE.glob("*.py")):
-            tree = ast.parse(path.read_text())
-            for node in ast.walk(tree):
-                names: tuple[str, ...] = ()
-                if isinstance(node, ast.ImportFrom):
-                    names = tuple(a.name for a in node.names)
-                if "conninfo_to_dict" in names:
-                    importers.append(path.name)
-        self.assertEqual(importers, ["dsn.py"])
-
-
 class TestLibpqTimeoutNeverLeaksZero(unittest.TestCase):
     def test_it_returns_zero_or_at_least_one_never_between(self):
         now = probe.monotonic()
@@ -315,52 +348,30 @@ class TestLibpqTimeoutNeverLeaksZero(unittest.TestCase):
     def test_no_deadline_passes_the_cap_through(self):
         self.assertEqual(probe.get_libpq_connect_timeout(None, 5), 5)
 
-    def test_every_call_site_guards_the_zero(self):
-        guarded = 0
-        skip_tests = 0
-        for module in (pool, probe):
-            source = inspect.getsource(module)
-            tree = ast.parse(source)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
-                    fn = node.value.func
-                    if getattr(fn, "id", None) == "get_libpq_connect_timeout":
-                        guarded += 1
-            skip_tests += source.count("if not probe_timeout")
-            skip_tests += source.count("if not connect_timeout")
-        self.assertGreaterEqual(
-            guarded, 3, "call sites must bind the result so they can test it"
-        )
-        self.assertEqual(
-            skip_tests,
-            guarded,
-            "every get_libpq_connect_timeout result must be tested for the skip case",
-        )
 
+class TestSchemaCacheClearsHaveDistinctEffects(unittest.TestCase):
+    def test_the_ddl_clear_keeps_the_lock_ledger_and_the_transaction_clear_drops_it(
+        self,
+    ):
+        cache = TransactionSchemaCache()
+        cache.set_id_sequence("t", "t_id_seq")
+        cache.set_column_types("t", ["a"], [23])
+        cache.locked_tables.add("t")
 
-class TestSchemaCacheClearsHaveDistinctCallSites(unittest.TestCase):
-    def test_ddl_invalidation_keeps_the_lock_ledger(self):
+        cache.invalidate_catalog_facts()
+        self.assertIsNone(cache.get_id_sequence("t"))
+        self.assertIsNone(cache.get_column_types("t", ["a"]))
         self.assertEqual(
-            _calls_on(cursor.Cursor.invalidate_cached_plans, "_schema_cache"),
-            {"invalidate_catalog_facts"},
+            cache.locked_tables,
+            {"t"},
             "DDL does not end the transaction, so the ROW EXCLUSIVE lock this "
             "cursor already took is still held",
         )
 
-    def test_transaction_boundaries_and_savepoint_rollback_clear_everything(self):
-        for method in ("commit", "_rollback", "_on_rollback_to_savepoint"):
-            with self.subTest(method=method):
-                self.assertEqual(
-                    _calls_on(getattr(cursor.Cursor, method), "_schema_cache"),
-                    {"clear"},
-                )
-
-    def test_both_clears_exist_and_differ(self):
-        cache = schema_cache.TransactionSchemaCache()
-        self.assertNotEqual(
-            inspect.getsource(cache.invalidate_catalog_facts),
-            inspect.getsource(cache.clear),
-        )
+        cache.set_id_sequence("t", "t_id_seq")
+        cache.clear()
+        self.assertIsNone(cache.get_id_sequence("t"))
+        self.assertEqual(cache.locked_tables, set())
 
 
 class TestDdlDetectionCannotMissAHiddenStatement(unittest.TestCase):
@@ -397,185 +408,23 @@ class TestDdlDetectionCannotMissAHiddenStatement(unittest.TestCase):
         )
 
 
-class TestCursorSatisfiesItsMixinContracts(unittest.TestCase):
-    def _protocol_members(self, name):
-        source = inspect.getsource(bulk)
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef) and node.name == name:
-                return {n.name for n in node.body if isinstance(n, ast.FunctionDef)} | {
-                    t.target.id
-                    for t in node.body
-                    if isinstance(t, ast.AnnAssign) and isinstance(t.target, ast.Name)
-                }
-        raise AssertionError(f"{name} not found in odoo.db.bulk")
-
-    def test_cursor_provides_every_bulk_host_member(self):
-        required = self._protocol_members("_CursorInternals")
-        self.assertTrue(required, "the Protocol declared nothing — check the parse")
-        provided = (
-            set(dir(cursor.Cursor))
-            | set(cursor.Cursor.__annotations__)
-            | _instance_attrs(cursor.Cursor)
-            | _instance_attrs(cursor.BaseCursor)
-        )
-        self.assertEqual(sorted(required - provided), [])
-
-
-class TestSchemaChangeDrainsAtCommit(unittest.TestCase):
-    def test_ddl_arms_the_flag_rather_than_draining_inline(self):
-        src = inspect.getsource(cursor.Cursor._invalidate_caches_after_ddl)
-        self.assertIn("_schema_changed", src)
-        self.assertNotIn(
-            "_drain_sibling_connections",
-            src,
-            "draining per statement closes and reopens every idle connection "
-            "once per DDL statement — ~1000 times during a module install — "
-            "and an uncommitted schema change is invisible to the connections "
-            "it would be healing.",
-        )
-
-    def test_commit_is_the_only_thing_that_drains(self):
-        self.assertIn(
-            "_drain_sibling_connections",
-            _callees(cursor.Cursor.commit),
-            "commit is the moment the schema change becomes visible to other "
-            "connections, so it is the moment they must be drained",
-        )
-        for name in ("_rollback", "_on_rollback_to_savepoint", "_close"):
-            with self.subTest(method=name):
-                self.assertNotIn(
-                    "_drain_sibling_connections",
-                    _callees(getattr(cursor.Cursor, name)),
-                    f"{name} must not drain: nothing it undoes ever became "
-                    f"visible to another connection",
-                )
-
-    def test_rollback_disarms_the_flag(self):
-        self.assertIn(
-            "_schema_changed",
-            _instance_attrs(cursor.Cursor),
-            "the flag must be reset on rollback, or a rolled-back schema "
-            "change drains on the next unrelated commit",
-        )
-        self.assertIn("_schema_changed", inspect.getsource(cursor.Cursor._rollback))
-
-
 class TestOneConnectionOptionsAssembler(unittest.TestCase):
-    def test_both_borrow_paths_use_it(self):
-        for path in ("_get_or_create_pool", "_borrow_directly"):
-            with self.subTest(path=path):
-                self.assertIn(
-                    "_prepare_connection_options",
-                    _callees(getattr(pool.ConnectionPool, path)),
-                    "the two paths built the same libpq options string twice; "
-                    "one assembler, or the exemption goes back to being an "
-                    "accident nobody can see.",
-                )
-
     def test_the_assembler_renders_the_session_gucs_by_default(self):
-        self.assertIn(
-            "_prepare_session_gucs", _callees(pool._prepare_connection_options)
-        )
-        self.assertIn(
-            "-c idle_session_timeout=",
-            inspect.getsource(pool._prepare_connection_options),
-        )
-
-    def test_only_the_maintenance_path_opts_out(self):
-        self.assertIn(
-            "session_gucs=False",
-            inspect.getsource(pool.ConnectionPool._borrow_directly),
-        )
-        self.assertNotIn(
-            "session_gucs",
-            inspect.getsource(pool.ConnectionPool._get_or_create_pool),
-        )
-
-
-class TestEveryCheckoutIsTracked(unittest.TestCase):
-    def test_both_borrow_paths_track(self):
-        for path in ("borrow", "_borrow_directly"):
-            with self.subTest(path=path):
-                self.assertIn(
-                    "track",
-                    _calls_on(getattr(pool.ConnectionPool, path), "_checkouts"),
-                )
-
-    def test_give_back_releases(self):
-        self.assertIn("release", _calls_on(pool.ConnectionPool.give_back, "_checkouts"))
-
-    def test_give_back_releases_before_it_can_return_early(self):
-        tree = ast.parse(
-            textwrap.dedent(inspect.getsource(pool.ConnectionPool.give_back))
-        )
-        release_lines = [
-            node.lineno
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "release"
-            and getattr(node.func.value, "attr", None) == "_checkouts"
-        ]
-        return_lines = [
-            node.lineno for node in ast.walk(tree) if isinstance(node, ast.Return)
-        ]
-        self.assertTrue(release_lines, "give_back never releases the checkout")
-        self.assertTrue(return_lines, "give_back has no early exit to guard")
-        self.assertLess(min(release_lines), min(return_lines))
-
-    def test_the_leak_warning_uses_its_own_throttle(self):
-        names = _callees(pool.ConnectionPool._warn_about_leaks)
-        self.assertIn("acquire_report_interval", names)
-        self.assertNotIn(
-            "_reaper",
-            names,
-            "sharing the reaper's slot would let a leak warning silence a sweep",
-        )
-
-    def test_saturation_errors_name_the_holders(self):
-        self.assertIn(
-            "describe",
-            _calls_on(
-                pool.ConnectionPool._prepare_budget_exhausted_error, "_checkouts"
-            ),
-            "a budget-exhausted error must say who is holding the permits",
-        )
-
-    def test_both_borrow_paths_raise_the_one_saturation_error(self):
-        for path in ("borrow", "_borrow_directly"):
-            with self.subTest(path=path):
-                self.assertIn(
-                    "_prepare_budget_exhausted_error",
-                    _callees(getattr(pool.ConnectionPool, path)),
-                    "the two copies of this message had already drifted apart; "
-                    "a path that builds its own can drop the holders again",
-                )
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            mock.patch("odoo.db.pool._prepare_session_gucs", return_value="-c a=1"),
+        ):
+            self.assertEqual(
+                pool._prepare_connection_options("", {}, 5),
+                "-c a=1 -c idle_session_timeout=5",
+            )
+            self.assertEqual(
+                pool._prepare_connection_options("", {}, 5, session_gucs=False),
+                "-c idle_session_timeout=5",
+            )
 
 
 class TestBudgetBelongsToAServer(unittest.TestCase):
-    def test_the_key_is_the_resolved_endpoint(self):
-        names = _callees(endpoints.EndpointRegistry.get_budget_for_readonly)
-        self.assertIn("get_endpoint_for_readonly", names)
-        self.assertNotIn(
-            "db_replica_host",
-            names,
-            "keying on 'is a replica configured' hands one server two budgets "
-            "whenever the replica resolves back to the primary",
-        )
-
-    def test_the_endpoint_comes_from_the_resolved_connection_info(self):
-        self.assertIn(
-            "get_connection_info_for_database",
-            _callees(endpoints.EndpointRegistry.get_endpoint_for_readonly),
-        )
-
-    def test_the_replica_ceiling_is_gated_on_the_endpoint_differing(self):
-        self.assertIn(
-            "get_endpoint_for_readonly",
-            _callees(endpoints.EndpointRegistry.get_maxconn_for_readonly),
-        )
-
     def test_budgets_are_kept_per_endpoint_not_as_one_global(self):
         registry = endpoints.EndpointRegistry()
         self.assertIsInstance(registry._budgets, dict)
@@ -597,154 +446,47 @@ class TestBudgetBelongsToAServer(unittest.TestCase):
         self.assertIsInstance(package.registry, endpoints.EndpointRegistry)
 
 
-class TestPipelineModeCannotBypassTheFailureSeam(unittest.TestCase):
-    def test_the_pipeline_exit_routes_the_deferred_error_through_the_seam(self):
-        self.assertIn(
-            "_statement_failed",
-            _callees(cursor.Cursor.pipeline),
-            "the ExitStack exit is where psycopg finally raises a pipelined "
-            "statement's error; nothing else can hand it to the seam",
-        )
-
-    def test_it_only_takes_errors_that_reached_the_server(self):
-        self.assertIn(
-            "has_reached_server",
-            _callees(cursor.Cursor.pipeline),
-            "the same except also sees whatever the caller's block raised; a "
-            "plain Python error carries no SQLSTATE and is not the seam's",
-        )
-
-    def test_only_the_outermost_block_hooks_the_sync(self):
-        fn = _def_ast(inspect.getsource(inspect.unwrap(cursor.Cursor.pipeline)))
-        nested = next(node for node in fn.body if isinstance(node, ast.If))
-        self.assertNotIn(
-            "_statement_failed",
-            {
-                node.func.attr
-                for node in ast.walk(nested)
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-            },
-            "a nested block syncs nothing, so it can observe no deferred error",
-        )
-
-    def test_the_seam_short_circuits_before_it_does_any_work(self):
-        fn = _def_ast(inspect.getsource(cursor.Cursor._statement_failed))
-        body = [n for n in fn.body if not isinstance(n, ast.Expr)]
-        self.assertIsInstance(
-            body[0],
-            ast.If,
-            "the idempotence check must be the first thing the seam does",
-        )
-        guard = typing.cast("ast.If", body[0])
-        self.assertIsInstance(
-            guard.test,
-            ast.Call,
-            "the guard must be the bare question, not a condition that can be "
-            "disabled beside it",
-        )
-        self.assertEqual(
-            getattr(typing.cast("ast.Call", guard.test).func, "id", None),
-            "is_handled_by_seam",
-            "the guard must be the bare question, not a condition that can be "
-            "disabled beside it",
-        )
-        self.assertIsInstance(
-            guard.body[-1], ast.Return, "the check must actually short-circuit"
-        )
-        self.assertIn(
-            "mark_handled_by_seam",
-            _callees(cursor.Cursor._statement_failed),
-            "a seam that never marks can never short-circuit",
-        )
-
-    def test_execute_values_hands_its_own_failures_to_the_seam(self):
-        called = _callees(bulk._BulkAccessMixin.execute_values)
-        self.assertIn("_statement_failed", called)
-        self.assertNotIn(
-            "_log_sql_error",
-            called,
-            "logging alone was a third of the seam: it left the stale-plan "
-            "mark off every pipelined execute_values, and the ORM's bulk "
-            "writers reach this path",
-        )
-        self.assertIn(
-            "has_reached_server",
-            called,
-            "a client-side rejection never reached the wire and is not the "
-            "seam's, as in Cursor.pipeline",
-        )
-
-
 class TestASavepointIsNeverOpenedInsideAPipeline(unittest.TestCase):
     def test_savepoint_refuses_pipeline_mode(self):
-        src = inspect.getsource(cursor.BaseCursor.savepoint)
-        self.assertIn("in_pipeline", src)
-        self.assertIn("RuntimeError", src)
+        cr = cursor.BaseCursor.__new__(cursor.BaseCursor)
+        cr.in_pipeline = True
+        with self.assertRaisesRegex(RuntimeError, "inside cr.pipeline"):
+            cr.savepoint()
 
     def test_it_asks_through_getattr_so_a_test_cursor_forwards(self):
-        self.assertIn(
-            "getattr",
-            _callees(cursor.BaseCursor.savepoint),
-            "odoo.tests.cursor.TestCursor forwards by __getattr__, which runs "
-            "only for names the class does not have: a BaseCursor default "
-            "would answer False for a test cursor that is pipelining",
-        )
+        class _Forwarding(cursor.BaseCursor):
+            def __getattr__(self, name):
+                # odoo.tests.cursor.TestCursor forwards by __getattr__, which
+                # runs only for names the class does not have: a BaseCursor
+                # default would answer False for a test cursor that is
+                # pipelining.
+                if name == "in_pipeline":
+                    return True
+                raise AttributeError(name)
+
+        cr = _Forwarding.__new__(_Forwarding)
+        with self.assertRaisesRegex(RuntimeError, "inside cr.pipeline"):
+            cr.savepoint()
 
     def test_the_refusal_matches_the_precedent_copy_from_set(self):
-        self.assertIn("in_pipeline", inspect.getsource(bulk._check_copy_args))
+        def check(in_pipeline):
+            bulk._check_copy_args(
+                SimpleNamespace(in_pipeline=in_pipeline),
+                "t",
+                ["a"],
+                returning_ids=False,
+                binary=False,
+                on_error=None,
+            )
 
-
-class TestEveryFailedBorrowIsCounted(unittest.TestCase):
-    def _final_guard(self, name):
-        fn = _def_ast(inspect.getsource(getattr(pool.ConnectionPool, name)))
-        self.assertIsInstance(
-            fn.body[-1],
-            ast.Try,
-            f"{name} must end with the guarded block; a statement after it is "
-            f"by definition outside the release path",
-        )
-        guarded = typing.cast("ast.Try", fn.body[-1])
-        return {
-            node.func.attr
-            for handler in guarded.handlers
-            for node in ast.walk(handler)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-        }
-
-    def test_both_paths_count_and_unwind_in_the_same_handler(self):
-        for name in ("borrow", "_borrow_directly"):
-            with self.subTest(path=name):
-                handler_calls = self._final_guard(name)
-                self.assertIn("record_borrow_failed", handler_calls)
-                self.assertIn("_unwind_failed_borrow", handler_calls)
-
-    def test_the_direct_path_takes_its_permit_before_that_guard(self):
-        fn = _def_ast(inspect.getsource(pool.ConnectionPool._borrow_directly))
-        guard = typing.cast("ast.Try", fn.body[-1])
-        self.assertNotIn(
-            "acquire",
-            {
-                node.func.attr
-                for node in ast.walk(ast.Module(body=guard.body, type_ignores=[]))
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-            },
-            "a permit taken inside the guard would be released by a handler "
-            "that never took one",
-        )
+        check(False)
+        with self.assertRaisesRegex(
+            psycopg.errors.NotSupportedError, "cannot run inside pipeline mode"
+        ):
+            check(True)
 
 
 class TestOneDecodeOfAStatementsText(unittest.TestCase):
-    def test_both_entry_points_read_the_text_through_one_function(self):
-        for name in ("_prepare_ddl_statement", "executemany"):
-            with self.subTest(entry_point=name):
-                self.assertIn(
-                    "_get_statement_text",
-                    _callees(getattr(cursor.Cursor, name)),
-                    "executemany used to spell it str(query), which turns a "
-                    "bytes DDL statement into the repr b'CREATE …' and hides "
-                    "it from classify_statement",
-                )
-
     def test_it_decodes_bytes_rather_than_repring_them(self):
         self.assertEqual(
             cursor._get_statement_text(b"CREATE TABLE t (a int)"),
@@ -755,255 +497,110 @@ class TestOneDecodeOfAStatementsText(unittest.TestCase):
 
 
 class TestCursorConstructionNeverLeaksAPermit(unittest.TestCase):
-    def _init_handlers(self):
-        fn = ast.parse(textwrap.dedent(inspect.getsource(cursor.Cursor.__init__))).body[
-            0
-        ]
-        return [
-            h
-            for node in ast.walk(fn)
-            if isinstance(node, ast.Try)
-            for h in node.handlers
-        ]
+    class _FakePool:
+        readonly = False
+
+        def __init__(self, conn):
+            self.conn = conn
+            self.given_back = []
+
+        def borrow(self, dsn, key=None):
+            return self.conn
+
+        def give_back(self, conn, keep_in_pool=True):
+            self.given_back.append((conn, keep_in_pool))
 
     def test_the_construction_guard_catches_baseexception(self):
-        types = {
-            h.type.id for h in self._init_handlers() if isinstance(h.type, ast.Name)
-        }
-        self.assertIn(
-            "BaseException",
-            types,
+        conn = _FakeConn()
+        conn.cursor = mock.Mock(side_effect=KeyboardInterrupt)
+        fake_pool = self._FakePool(conn)
+        with self.assertRaises(KeyboardInterrupt):
+            cursor.Cursor(fake_pool, "db", {"dbname": "db"})
+        self.assertEqual(
+            fake_pool.given_back,
+            [(conn, True)],
             "an Exception-only guard misses the interrupt and the watchdog's "
             "SystemExit, which is the window where the leak is unrecoverable",
         )
 
     def test_it_gives_the_connection_back_on_the_same_terms_as_close(self):
-        handler_calls = {
-            node.func.attr
-            for h in self._init_handlers()
-            for node in ast.walk(h)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-        }
-        self.assertIn("give_back", handler_calls)
-        self.assertIn(
-            "_is_connection_clean",
-            handler_calls,
+        class _AbortedAfterAStatement(_FakeConn):
+            def __init__(self):
+                super().__init__(
+                    transaction_status=psycopg.pq.TransactionStatus.INERROR
+                )
+                self.obj = mock.Mock()
+
+            def cursor(self):
+                return self.obj
+
+            @property
+            def isolation_level(self):
+                return None
+
+            @isolation_level.setter
+            def isolation_level(self, value):
+                raise RuntimeError("setup failed after a statement")
+
+        conn = _AbortedAfterAStatement()
+        fake_pool = self._FakePool(conn)
+        with self.assertRaisesRegex(RuntimeError, "after a statement"):
+            cursor.Cursor(fake_pool, "db", {"dbname": "db"})
+        conn.obj.close.assert_called_once()
+        self.assertEqual(
+            fake_pool.given_back,
+            [(conn, False)],
             "a connection whose setup raised after a statement sits in a "
             "failed transaction; handing it back as warm passes it on",
         )
 
 
-class TestTheBreakerLockIsNotReentrant(unittest.TestCase):
-    def test_allow_does_not_go_through_the_property(self):
-        self.assertNotIn(
-            "closed",
-            _callees(breaker.CircuitBreaker.acquire_attempt),
-            "the lock-held path must read _open directly",
-        )
-
-    def test_the_cooldown_maths_exists_once(self):
-        members = {
-            "cooldown_remaining": typing.cast(
-                "property", breaker.CircuitBreaker.__dict__["cooldown_remaining"]
-            ).fget,
-            "get_snapshot": breaker.CircuitBreaker.get_snapshot,
-        }
-        for name, fn in members.items():
-            with self.subTest(method=name):
-                self.assertIn(
-                    "_get_cooldown_remaining_locked",
-                    _callees(fn),
-                    "two copies of the same expression drifted apart once "
-                    "already in this package",
-                )
-
-    def test_the_locked_helper_does_not_take_the_lock(self):
-        self.assertNotIn(
-            "_lock",
-            _callees(breaker.CircuitBreaker._get_cooldown_remaining_locked),
-            "it is called from inside the lock; taking it again deadlocks",
-        )
-
-
-class TestThePairedGaugesArePublishedTogether(unittest.TestCase):
-    def test_recording_a_lag_sample_takes_the_lock(self):
-        self.assertIn("_lock", _callees(lag.ReplicaLagGate.record))
-
-    def test_rendering_them_takes_it_too(self):
-        self.assertIn("_lock", _callees(lag.ReplicaLagGate.get_snapshot))
-
-    def test_the_per_cursor_read_stays_lock_free(self):
-        self.assertNotIn(
-            "_lock",
-            _callees(lag.ReplicaLagGate.is_replica_usable),
-            "is_replica_usable() runs per read-only cursor and reads ONE flag; a single "
-            "bool is never torn and the pair has its own guarded readers",
-        )
-
-    def test_the_leak_throttle_owns_a_lock(self):
-        self.assertIn(
-            "_report_lock", _callees(leaks.CheckoutTracker.acquire_report_interval)
-        )
-
-    def test_tracking_and_release_stay_lock_free(self):
-        for name in ("track", "release"):
-            with self.subTest(method=name):
-                self.assertNotIn(
-                    "_report_lock",
-                    _callees(getattr(leaks.CheckoutTracker, name)),
-                    "single dict operations; the throttle's lock is not theirs",
-                )
-
-
-class TestTheSaturationErrorReadsOneConsistentPair(unittest.TestCase):
-    def test_both_counters_come_from_one_acquisition(self):
-        src = inspect.getsource(pool.ConnectionPool._prepare_budget_exhausted_error)
-        self.assertIn("with self._lock:", src)
-        head, _, tail = src.partition("with self._lock:")
-        self.assertNotIn("len(self._pools)", head)
-        self.assertNotIn("self._direct_out", head)
-        body = tail[: tail.index("return PoolError")]
-        self.assertIn("len(self._pools)", body)
-        self.assertIn("self._direct_out", body)
-
-
 class TestTheProbeAsksItsQuestionOnce(unittest.TestCase):
-    def test_the_proof_and_the_inflight_map_share_one_acquisition(self):
-        src = inspect.getsource(probe.ReachabilityProbe.check_connectable)
+    class _CountingLock:
+        def __init__(self):
+            self.acquisitions = 0
+            self._lock = threading.Lock()
+
+        def __enter__(self):
+            self.acquisitions += 1
+            self._lock.acquire()
+
+        def __exit__(self, *exc):
+            self._lock.release()
+
+    def test_a_proven_key_costs_one_lock_acquisition_and_no_connect(self):
+        stats = PoolStats()
+        reachability = probe.ReachabilityProbe(stats)
+        key = frozenset({("dbname", "d")})
+        reachability.mark_proven(key)
+        counting = reachability._lock = self._CountingLock()
+        with mock.patch("odoo.db.probe.psycopg.connect") as connect:
+            reachability.check_connectable(key, "", {"dbname": "d"})
+        connect.assert_not_called()
+        self.assertEqual(stats.probe_skipped_proven, 1)
         self.assertEqual(
-            src.count("with self._lock:"),
+            counting.acquisitions,
             1,
             "two acquisitions left a window in which a key proven between "
             "them started a second probe -- a full extra connect on the path "
             "whose purpose is to avoid one",
         )
-        self.assertNotIn(
-            "is_proven",
-            _callees(probe.ReachabilityProbe.check_connectable),
-            "is_proven takes the lock itself; that is the second acquisition",
-        )
 
-    def test_only_the_connect_is_classified(self):
-        src = inspect.getsource(probe.ReachabilityProbe.probe_connectable)
-        tree = ast.parse(textwrap.dedent(src)).body[0]
-        tries = [n for n in ast.walk(tree) if isinstance(n, ast.Try)]
-        self.assertEqual(len(tries), 1, "one classifying try, no more")
-        block = tries[0]
-
-        def calls(nodes):
-            mod = ast.Module(body=list(nodes), type_ignores=[])
-            return {
-                n.func.attr
-                for n in ast.walk(mod)
-                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-            }
-
-        self.assertIn("connect", calls(block.body))
-        self.assertNotIn(
-            "close",
-            calls(block.body),
+    def test_a_close_that_raises_does_not_fail_the_probe(self):
+        stats = PoolStats()
+        reachability = probe.ReachabilityProbe(stats)
+        conn = mock.Mock()
+        conn.close.side_effect = RuntimeError("close blew up")
+        with mock.patch("odoo.db.probe.psycopg.connect", return_value=conn):
+            reachability.probe_connectable("", {"dbname": "d"})
+        conn.close.assert_called_once()
+        self.assertEqual(stats.probe_run, 1)
+        self.assertEqual(
+            stats.probe_transient,
+            0,
             "a connection that opened proves the DSN reachable; closing it is "
-            "not part of that question and must not be able to fail it -- "
-            "`psycopg.connect(...).close()` filed a reachable DSN as a "
-            "transient probe failure whenever the close raised",
+            "not part of that question and must not be able to fail it",
         )
-        self.assertIn(
-            "close",
-            calls(block.orelse),
-            "the close belongs in the else, where only a successful connect reaches it",
-        )
-
-
-class TestNoSelfLockIsTakenTwice(unittest.TestCase):
-    LOCKED_CLASSES = (
-        pool.ConnectionPool,
-        probe.ReachabilityProbe,
-        breaker.CircuitBreaker,
-        lag.ReplicaLagGate,
-    )
-
-    @staticmethod
-    def _takes_self_lock(node) -> bool:
-        for sub in ast.walk(node):
-            if not isinstance(sub, ast.With):
-                continue
-            for item in sub.items:
-                ctx = item.context_expr
-                if (
-                    isinstance(ctx, ast.Attribute)
-                    and ctx.attr.endswith("lock")
-                    and isinstance(ctx.value, ast.Name)
-                    and ctx.value.id == "self"
-                ):
-                    return True
-        return False
-
-    @staticmethod
-    def _self_calls_inside_locks(node) -> set[str]:
-        found = set()
-        for sub in ast.walk(node):
-            if not isinstance(sub, ast.With):
-                continue
-            locked = any(
-                isinstance(i.context_expr, ast.Attribute)
-                and i.context_expr.attr.endswith("lock")
-                for i in sub.items
-            )
-            if not locked:
-                continue
-            for reached in ast.walk(ast.Module(body=sub.body, type_ignores=[])):
-                if (
-                    isinstance(reached, ast.Attribute)
-                    and isinstance(reached.value, ast.Name)
-                    and reached.value.id == "self"
-                ):
-                    found.add(reached.attr)
-        return found
-
-    def test_no_method_called_under_a_lock_takes_that_lock(self):
-        for cls in self.LOCKED_CLASSES:
-            tree = _def_ast(inspect.getsource(cls))
-            methods = {
-                n.name: n
-                for n in tree.body
-                if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)
-            }
-            called_under_lock = set()
-            for node in methods.values():
-                called_under_lock |= self._self_calls_inside_locks(node)
-            for name in sorted(called_under_lock & methods.keys()):
-                with self.subTest(cls=cls.__name__, method=name):
-                    self.assertFalse(
-                        self._takes_self_lock(methods[name]),
-                        f"{cls.__name__}.{name} is called from inside a "
-                        f"`with self._lock:` block and takes the lock itself; "
-                        f"threading.Lock is not reentrant, so that hangs",
-                    )
-
-    def test_the_check_can_see_a_violation(self):
-        src = textwrap.dedent("""
-            class Bad:
-                def outer(self):
-                    with self._lock:
-                        if self.prop:          # a property READ, not a call
-                            return self.inner()
-
-                @property
-                def prop(self):
-                    with self._lock:
-                        return True
-
-                def inner(self):
-                    with self._lock:
-                        return 1
-        """)
-        tree = _def_ast(src)
-        methods = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
-        under_lock = self._self_calls_inside_locks(methods["outer"])
-        for name in ("inner", "prop"):
-            with self.subTest(reached_as=name):
-                self.assertIn(name, under_lock)
-                self.assertTrue(self._takes_self_lock(methods[name]))
 
 
 if __name__ == "__main__":
