@@ -25,10 +25,6 @@ from .mixin_format_address import ADDRESS_FIELDS
 SIMILAR_NAME_THRESHOLD_PARAM = "base.partner_name_similarity_threshold"
 DEFAULT_SIMILAR_NAME_THRESHOLD = 0.75
 
-# Candidates the trigram stage may return for one contact before the scorer
-# sees them. The recall threshold is deliberately looser than the scorer, so
-# an unbounded read of a name shared by thousands of rows -- a "Partner N"
-# import -- would fetch all of them to display a handful.
 SIMILAR_NAME_RECALL_LIMIT = 200
 
 EU_EXTRA_VAT_CODES = {
@@ -48,13 +44,6 @@ def _is_distinct_partner(
     company_id: int | None,
     company_scoped: bool = False,
 ) -> bool:
-    """Whether `candidate` could be a duplicate of the partner, not itself.
-
-    Shared by the exact matches (Tax ID, company registry) and by the
-    name-similarity search, so the three reasons a look-alike is not a
-    duplicate -- it is the record itself, it is one of its own addresses, it
-    belongs to another country or another company -- are stated once.
-    """
     if candidate.id == partner_id:
         return False
     if partner_id and _is_descendant_of(candidate, partner_id):
@@ -711,24 +700,10 @@ class ResPartner(models.Model):
             partner.duplicate_count = len(duplicates)
 
     def _get_similar_named_partners(self) -> dict[int, ResPartner]:
-        """Contacts whose name resembles each of `self`, keyed by partner id.
-
-        Two stages, as the merge wizard does it: the trigram index recalls
-        loosely, then `similarity_ratio` decides. The recall threshold sits
-        below the deciding one, so the index discards only what the scorer
-        would reject anyway.
-
-        One query per contact rather than one self-join for the whole
-        recordset. The self-join cannot carry a per-contact LIMIT -- a single
-        pathological name would spend the whole budget -- and this field is
-        read a record at a time, from the form.
-        """
         named = self.filtered(lambda partner: partner.complete_name)
         if not named or not self.env.registry.has_trigram:
             return {}
 
-        # Raw SQL: a name edited moments ago is exactly the one being checked,
-        # and pending writes are not in the table yet.
         self.flush_model(["active", "complete_name"])
         self.env.cr.execute(
             SQL(
@@ -738,9 +713,6 @@ class ResPartner(models.Model):
         )
         stored = SQL('candidate."complete_name"')
         if self.env.registry.has_unaccent == FunctionStatus.INDEXABLE:
-            # Match the expression the trigram index is built on. Without this
-            # the operator is a filter over every row instead of a bitmap index
-            # scan, measured 46.7 ms against 2.4 ms at 30k contacts.
             stored = self.env.registry.unaccent(stored)
 
         threshold = self._similar_name_threshold()
@@ -811,13 +783,6 @@ class ResPartner(models.Model):
         return max(0.3, self._similar_name_threshold() - 0.2)
 
     def action_view_duplicates(self) -> dict[str, Any]:
-        """List the contact *with* its look-alikes, not just the look-alikes.
-
-        Merging is the reason to open this, and `action_partner_merge` is bound
-        to a list selection: a list that omits the record you came from lets
-        you merge its duplicates into each other and leave it behind, which is
-        the opposite of the intent.
-        """
         self.check_singleton()
         return {
             "type": "ir.actions.act_window",
@@ -829,12 +794,6 @@ class ResPartner(models.Model):
         }
 
     def _get_identifier(self, code: str) -> str | Literal[False]:
-        """The value this contact carries under `code`, or False.
-
-        Reads the commercial entity for a type marked
-        `synced_with_commercial`, so a delivery address answers with its
-        company's tax ID rather than nothing.
-        """
         self.check_singleton()
         identifier = self.identifier_ids.filtered(
             lambda i, code=code: i.type_id.code == code
@@ -875,13 +834,6 @@ class ResPartner(models.Model):
             )
 
     def _commercial_sync_identifiers(self) -> None:
-        """Mirror the commercial entity's synced identifiers onto this contact.
-
-        The per-type flag is what `_synced_commercial_fields` cannot express:
-        that list is one set of column names for every contact, so a tax ID and
-        a personal national number have to be treated alike. Here each type
-        decides for itself.
-        """
         for partner in self:
             commercial = partner.commercial_partner_id
             if commercial == partner:
