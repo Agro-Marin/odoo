@@ -171,3 +171,52 @@ class TestMailMessageSearchChunking(MailCommon):
         ids = {m["id"] for m in res["messages"]}
         self.assertIn(with_att.id, ids, "message must match by its attachment name")
         self.assertNotIn(plain.id, ids)
+
+    def test_message_fetch_search_by_author_name(self):
+        record = self.env["res.partner"].create({"name": "SearchAuthor"})
+        author = self.env["res.partner"].create({"name": "Maria Bernal"})
+        by_maria = record.message_post(
+            author_id=author.id,
+            body="unrelated words",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        by_someone_else = record.message_post(
+            author_id=self.emp_partner.id,
+            body="also unrelated",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        res = self.env["mail.message"]._message_fetch(
+            domain=[("model", "=", "res.partner"), ("res_id", "=", record.id)],
+            thread=record,
+            search_term="Maria",
+        )
+        ids = {m["id"] for m in res["messages"]}
+        self.assertIn(by_maria.id, ids, "message must match by its author's name")
+        self.assertNotIn(by_someone_else.id, ids)
+
+    def test_message_fetch_search_by_guest_author_name(self):
+        record = self.env["res.partner"].create({"name": "SearchGuestAuthor"})
+        guest = self.env["mail.guest"].create({"name": "Visitor Zoe"})
+        Msg = self.env["mail.message"].sudo()
+        common = {
+            "model": "res.partner",
+            "res_id": record.id,
+            "message_type": "comment",
+            "subtype_id": self.comment_subtype,
+        }
+        by_guest = Msg.create(
+            {**common, "author_guest_id": guest.id, "body": "nothing matching"}
+        )
+        by_partner = Msg.create(
+            {**common, "author_id": self.emp_partner.id, "body": "nothing either"}
+        )
+        res = self.env["mail.message"]._message_fetch(
+            domain=[("model", "=", "res.partner"), ("res_id", "=", record.id)],
+            thread=record,
+            search_term="Zoe",
+        )
+        ids = {m["id"] for m in res["messages"]}
+        self.assertIn(by_guest.id, ids, "message must match by its guest author's name")
+        self.assertNotIn(by_partner.id, ids)
