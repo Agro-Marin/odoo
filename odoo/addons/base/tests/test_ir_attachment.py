@@ -2242,6 +2242,26 @@ class TestPermissions(TransactionCaseWithUserDemo):
             set(unbounded.ids), set(limited.ids), "unbounded must match limited"
         )
 
+    def test_a_limited_search_returns_the_head_of_the_unbounded_order(self):
+        """On the access-scan path a limited search must return the same head as
+        the unbounded one, i.e. the newest by the model's id-desc order -- not a
+        different (res_model, id) ordering that made limit=1 pick the oldest."""
+        atts = self.Attachments.create(
+            [{"name": f"headtest-{i:02d}", "public": True} for i in range(6)]
+        )
+        domain = [("name", "=like", "headtest-%")]
+        unbounded = self.Attachments.search(domain).ids
+        self.assertEqual(
+            set(unbounded), set(atts.ids), "precondition: all rows are accessible"
+        )
+        for n in (1, 3, 5):
+            with self.subTest(limit=n):
+                self.assertEqual(
+                    self.Attachments.search(domain, limit=n).ids,
+                    unbounded[:n],
+                    "a limited search must be the head of the unbounded order",
+                )
+
     def test_search_keyset_pagination_crosses_batches(self):
         all_ids = []
         for i in range(24):
@@ -2297,7 +2317,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
         for order in (model._order, "id desc", "id", "id ASC", "id desc, name"):
             with self.subTest(order=order):
-                effective, keyset = model._get_seek_order_and_keyset(order, None)
+                effective, keyset = model._get_seek_order_and_keyset(order)
                 self.assertEqual(effective, order, "an id-led order is already total")
                 self.assertIsNotNone(keyset, "no keyset derived for an id-led order")
                 seek = keyset(anchor)
@@ -2310,13 +2330,15 @@ class TestPermissions(TransactionCaseWithUserDemo):
                     [("id", expected, anchor.id)],
                 )
 
-        effective, keyset = model._get_seek_order_and_keyset("name", None)
+        effective, keyset = model._get_seek_order_and_keyset("name")
         self.assertEqual(effective, "name, id", "a caller order must be made total")
         self.assertIsNone(keyset, "an unvetted leading term must stay on OFFSET")
 
-        for bound in (None, 50):
-            _order, keyset = model._get_seek_order_and_keyset(None, bound)
-            self.assertIsNotNone(keyset, "the order-less scan must keep its keyset")
+        effective, keyset = model._get_seek_order_and_keyset(None)
+        self.assertEqual(
+            effective, "id desc", "the order-less scan must use the model order"
+        )
+        self.assertIsNotNone(keyset, "the order-less scan must keep its keyset")
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_write_access_is_enforced_without_the_duplicate_check(self):
