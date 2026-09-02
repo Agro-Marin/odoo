@@ -24,7 +24,7 @@ class ProductTemplate(models.Model):
         digit_suffixes = {
             '4': _("either 4, 6 or 8"),
             '6': _("either 6 or 8"),
-            '8': _("8")
+            '8': "8"
         }
         active_hsn_code_digit_len = max(
             int(company.l10n_in_hsn_code_digit)
