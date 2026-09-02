@@ -1233,6 +1233,12 @@ class MailActivity(models.Model):
     def action_reschedule_nextweek(self) -> None:
         self._action_reschedule_from_today(relativedelta(weeks=1, weekday=MO(-1)))
 
+    def action_reschedule_customdate(self, date_deadline: str | date) -> None:
+        """Unlike its today/tomorrow/nextweek siblings this target is absolute,
+        so it does not go through `_action_reschedule_from_today` and its
+        per-timezone grouping: a date the user picked has no "today" in it."""
+        self.filtered("active").date_deadline = fields.Date.to_date(date_deadline)
+
     def action_cancel(self) -> None:
         self.filtered("active").unlink()
 

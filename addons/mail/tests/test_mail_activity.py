@@ -1,3 +1,5 @@
+from datetime import date
+
 from freezegun import freeze_time
 
 from odoo import exceptions
@@ -69,3 +71,49 @@ class TestMailActivityIntegrity(ActivityScheduleCase):
             meeting.unlink()
         with self.assertRaises(exceptions.UserError):
             todo.unlink()
+
+
+@tagged("-at_install", "post_install", "mail_activity")
+class TestMailActivityReschedule(ActivityScheduleCase):
+    """The reschedule dropdown offers today/tomorrow/next week; a custom date
+    is the fourth target."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env["res.partner"].create({"name": "Rescheduled Partner"})
+        cls.activity = cls.env["mail.activity"].create(
+            {
+                "activity_type_id": cls.activity_type_todo.id,
+                "date_deadline": date(2026, 1, 5),
+                "res_id": cls.record.id,
+                "res_model_id": cls.env["ir.model"]._get_id("res.partner"),
+                "summary": "Call them back",
+                "user_id": cls.env.user.id,
+            }
+        )
+
+    def test_an_activity_reschedules_to_a_date_the_user_picked(self):
+        self.activity.action_reschedule_customdate("2026-12-24")
+        self.assertEqual(self.activity.date_deadline, date(2026, 12, 24))
+
+    def test_an_archived_activity_keeps_its_deadline(self):
+        """`active` is what the today/tomorrow/nextweek siblings filter on."""
+        self.activity.active = False
+        self.activity.action_reschedule_customdate("2026-12-24")
+        self.assertEqual(self.activity.date_deadline, date(2026, 1, 5))
+
+    def test_the_record_reschedules_only_my_own_next_activity(self):
+        other = self.env["mail.activity"].create(
+            {
+                "activity_type_id": self.activity_type_call.id,
+                "date_deadline": date(2026, 1, 3),
+                "res_id": self.record.id,
+                "res_model_id": self.env["ir.model"]._get_id("res.partner"),
+                "summary": "Someone else's",
+                "user_id": self.user_employee.id,
+            }
+        )
+        self.record.action_reschedule_my_next_customdate("2026-12-24")
+        self.assertEqual(self.activity.date_deadline, date(2026, 12, 24))
+        self.assertEqual(other.date_deadline, date(2026, 1, 3))

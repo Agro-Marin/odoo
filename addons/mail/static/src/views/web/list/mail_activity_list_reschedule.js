@@ -1,6 +1,8 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { serializeDate } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -8,7 +10,7 @@ import { standardWidgetProps } from "@web/views/widgets";
 const { DateTime } = luxon;
 
 export class MailActivityListRescheduleDropdown extends Component {
-    static components = { Dropdown, DropdownItem };
+    static components = { DateTimeInput, Dropdown, DropdownItem };
     static props = {
         ...standardWidgetProps,
     };
@@ -31,19 +33,29 @@ export class MailActivityListRescheduleDropdown extends Component {
                 displayDay: today.plus({ weeks: 1 }).startOf("week").weekdayShort,
                 actionName: "action_reschedule_nextweek",
             },
+            customDate: {
+                actionName: "action_reschedule_customdate",
+            },
         };
     }
 
     /**
-     * @param {MouseEvent} click
+     * @param {MouseEvent|false} click
      * @param {string} actionName
+     * @param {import("@web/core/l10n/luxon").DateTime} [customDate] the date
+     *  picked in the dropdown; clearing the picker calls back with nothing,
+     *  which must not reschedule anything.
      */
-    async rescheduleActivity(click, actionName) {
+    async rescheduleActivity(click, actionName, customDate) {
+        if (actionName === this.targetDays.customDate.actionName && !customDate) {
+            return this.props.record;
+        }
         await this.action.doActionButton({
             type: "object",
             name: actionName,
             resModel: this.props.record.resModel,
             resId: this.props.record.resId,
+            ...(customDate ? { args: JSON.stringify([serializeDate(customDate)]) } : {}),
             onClose: async () => {
                 await this.props.record.model.root.load();
                 this.props.record.model.notify();
@@ -60,6 +72,7 @@ export class MailActivityMixinListRescheduleDropdown extends MailActivityListRes
         this.targetDays.today.actionName = "action_reschedule_my_next_today";
         this.targetDays.tomorrow.actionName = "action_reschedule_my_next_tomorrow";
         this.targetDays.nextWeek.actionName = "action_reschedule_my_next_nextweek";
+        this.targetDays.customDate.actionName = "action_reschedule_my_next_customdate";
     }
 }
 
