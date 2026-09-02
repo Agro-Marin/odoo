@@ -499,6 +499,8 @@ Keys come from the known set, in the canonical order
 * **``depends`` lists direct dependencies only**, never transitive ones.
 * **``auto_install``** only for a genuine bridge module between two independent
   modules, as ``sale_crm`` bridges ``sale`` and ``crm``.
+* **A mixin is not a module by default.** One that depends on ``base`` alone
+  and ships no data lives in ``base``; §2.2.2 says what earns one a module.
 * **Demo data belongs in ``demo``**, not ``data``.
 * **``license``** must match how the module is actually distributed. The fork
   ships ``LGPL-3``, ``OPL-1``, ``AGPL-3`` and ``OEEL-1``; do not copy a
@@ -776,6 +778,40 @@ every literal model string in XML, CSV or Python -- ``self.env["…"]``,
 ``ir.model`` XML id is ``model_`` plus ``_name`` with dots as underscores, so
 every ``ref()`` of it moves with the model. Renaming an inherited *method* to fit
 §2.4 remains forbidden (Appendix C); renaming the model is not.
+
+2.2.2 Where a mixin lives
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**A mixin that depends on ``base`` alone and ships no data lives in ``base``**
+``[review]``, beside ``mixin.tag``, ``mixin.tag.nested``, ``mixin.catalog``,
+``mixin.image``, ``mixin.band`` and the rest of ``odoo/addons/base/models``. A
+module around such a mixin is a directory, a manifest and an
+``ir.module.module`` row for one abstract model that every installation loads
+anyway: ``base`` is in every closure, so putting the mixin there costs no
+dependency and removes a place to look.
+
+**A mixin earns a module of its own on one of two grounds**, and a module that
+has neither is a fold waiting to happen:
+
+* **An external dependency.** ``mixin_encryption`` imports ``cryptography``
+  at module level; a model in ``base`` may not, because ``base`` must import
+  on an interpreter that has only what the framework itself requires.
+* **Data, configuration or security of its own.** ``mixin_report_sql`` owns a
+  materialized-view lifecycle and its cron; ``mixin_attribute`` carries a
+  ``pre_init_hook`` and its own tables. Records need a module to belong to,
+  and ``base``'s data is the framework's.
+
+A mixin's ``depends`` beyond ``base`` is a third ground only when the mixin
+genuinely reads that module's models; a ``depends`` on ``mail`` for a
+``_inherit`` of ``mail.thread`` is real, one copied from a neighbour is not.
+
+**``mixin_recurrence`` is the one that should move.** It depends on ``base``
+alone, ships one abstract model and nothing else, and is inherited by
+``project.task.recurrence``, ``maintenance`` and ``planning.recurrency``. The
+move is a follow-up for whoever next holds ``base/models/__init__.py``: the
+file relocates to ``odoo/addons/base/models/mixin_recurrence_rule.py``, the
+three consumers drop the ``depends`` entry, and the module directory goes.
+Nothing stored changes -- a mixin has no table (§2.2.1).
 
 2.3 Field conventions
 ---------------------
