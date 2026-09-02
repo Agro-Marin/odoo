@@ -205,9 +205,8 @@ class CreateMixin(_ModelStubs):
                 ) or key in cached_only:
                     protected.update(self.pool.field_computed.get(field, [field]))
                 if field.is_many2one and field.bypass_search_access and not self.env.su:
-                    co_ids = bypass_access_ids[field]
                     if co_id := field.convert_to_cache(val, self):
-                        co_ids.add(co_id)
+                        bypass_access_ids[field].add(co_id)
 
             data_list.append(data)
 

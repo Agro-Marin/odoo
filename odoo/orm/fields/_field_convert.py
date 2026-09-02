@@ -107,13 +107,16 @@ class _FieldConvertMixin[T](_FieldStubs):
         values = {}
         found = False
         saw_pending = False
+        # the cache key is ordered by the field's depends_context, and an
+        # explicit depends_context may place "company" after other keys
+        company_index = record.env.registry.field_depends_context[self].index("company")
         for ctx_key, cache in record.env._core.iter_context_caches(self):
             if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
                 found = True
                 if value is PENDING:
                     saw_pending = True
                 else:
-                    values[ctx_key[0]] = self._to_json_value(
+                    values[ctx_key[company_index]] = self._to_json_value(
                         self.convert_to_column(value, record)
                     )
         if not values:

@@ -87,6 +87,16 @@ class Reference(Selection["BaseModel | None"]):
         per_field = env.cr.cache.setdefault(REFERENCE_VERIFIED_CACHE_KEY, {})
         return per_field.setdefault((self.model_name, self.name), set())
 
+    @staticmethod
+    def discard_verified_models(env, model_names: typing.Iterable[str]) -> None:
+        per_field = env.cr.cache.get(REFERENCE_VERIFIED_CACHE_KEY)
+        if not per_field:
+            return
+        names = set(model_names)
+        for pairs in per_field.values():
+            stale = [pair for pair in pairs if pair[0] in names]
+            pairs.difference_update(stale)
+
     def _reference_exists(
         self,
         record: ModelLike,

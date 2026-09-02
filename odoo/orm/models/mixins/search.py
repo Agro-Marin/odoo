@@ -3,6 +3,7 @@ import logging
 import typing
 from typing import Self
 
+from odoo.exceptions import UserError
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
 
 from ... import decorators as api
@@ -130,11 +131,32 @@ class SearchMixin(_ModelStubs):
         search_fnames = self._rec_names_search or (
             [self._rec_name] if self._rec_name else []
         )
-        search_fnames = [
-            fname
-            for fname in search_fnames
-            if not self._is_rec_names_search_cyclic(fname)
-        ]
+        if search_fnames:
+            usable = [
+                fname
+                for fname in search_fnames
+                if not self._is_rec_names_search_cyclic(fname)
+            ]
+            if not usable:
+                # a cycle is a configuration defect; degrading to the
+                # unsearchable fallback would return Domain.TRUE and turn a
+                # previously restricting search into "match everything"
+                raise UserError(
+                    self.env._(
+                        "Cannot search %(model)s by name: every entry of its "
+                        "_rec_names_search (%(entries)s) recurses back into "
+                        "%(model)s",
+                        model=self._name,
+                        entries=", ".join(search_fnames),
+                    )
+                )
+            if len(usable) != len(search_fnames):
+                _logger.warning(
+                    "Dropping cyclic _rec_names_search entries %s on %s",
+                    [f for f in search_fnames if f not in usable],
+                    self._name,
+                )
+            search_fnames = usable
         if not search_fnames:
             return self._search_display_name_unsearchable(operator, value)
         if operator.endswith("like") and not value and "=" not in operator:

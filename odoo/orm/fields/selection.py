@@ -241,7 +241,7 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> str | None:
-        if not validate or self._selection is None:
+        if not validate or not self.validate or self._selection is None:
             return value or None
         if value in self._selection:
             return value

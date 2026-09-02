@@ -4,6 +4,7 @@ from typing import Self
 
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
 
+from ...fields.reference import REFERENCE_VERIFIED_CACHE_KEY, Reference
 from ...primitives import MODULE_UNINSTALL_FLAG
 from ._crud_common import (
     _orm_crud,
@@ -35,15 +36,6 @@ class UnlinkMixin(_ModelStubs):
         prof.mark("ondelete")
 
         self.env.flush_all()
-
-        core = self.env._core
-        if core.has_pending():
-            model_name = self._name
-            pending_ids = self._ids
-            for field in core.pending_fields():
-                if field.model_name == model_name:
-                    core.mark_done(field, pending_ids)
-
         prof.mark("flush")
 
         cr = self.env.cr
@@ -55,6 +47,17 @@ class UnlinkMixin(_ModelStubs):
 
         with self.env.protecting(self._fields.values(), self):
             self._modified_before(self._fields)
+
+        # after _modified_before, not before it: the trigger walk can mark the
+        # very ids being deleted (self-referencing computes), and such marks
+        # would later be computed against missing rows
+        core = self.env._core
+        if core.has_pending():
+            model_name = self._name
+            pending_ids = self._ids
+            for field in core.pending_fields():
+                if field.model_name == model_name:
+                    core.mark_done(field, pending_ids)
         prof.mark("before")
 
         deleted_ids: list[int] = self.ids
@@ -71,6 +74,7 @@ class UnlinkMixin(_ModelStubs):
 
         if self.env.context.get(MODULE_UNINSTALL_FLAG):
             self.env.invalidate_all(flush=False)
+            self.env.cr.cache.pop(REFERENCE_VERIFIED_CACHE_KEY, None)
         else:
             self._invalidate_after_delete()
 
@@ -130,6 +134,7 @@ class UnlinkMixin(_ModelStubs):
                 field._invalidate_cache(env, keep_dirty=True)
         for field in registry.fields_reading_through_a_reference:
             field._invalidate_cache(env, keep_dirty=True)
+        Reference.discard_verified_models(env, gone)
         self._forget_ref_cache(gone)
 
     def _forget_ref_cache(self, model_names: typing.Iterable[str]) -> None:
