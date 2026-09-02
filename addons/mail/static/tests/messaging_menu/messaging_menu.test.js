@@ -1475,3 +1475,14 @@ test("user notification from inbox redirect to discuss inbox", async () => {
         ".o-mail-Message.o-highlighted .o-mail-Message-body:text('Hello world!')",
     );
 });
+
+test("a conversation with no message says so instead of showing a blank line", async () => {
+    const pyEnv = await startServer();
+    pyEnv["discuss.channel"].create({ name: "general" });
+    await start();
+    await click(".o_menu_systray i[aria-label='Messages']");
+    await contains(".o-mail-NotificationItem-name", { text: "general" });
+    await contains(".o-mail-NotificationItem-text", {
+        text: "This is the start of your conversation",
+    });
+});
