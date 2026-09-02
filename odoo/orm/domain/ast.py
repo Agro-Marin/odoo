@@ -500,7 +500,8 @@ _FALSE_DOMAIN = DomainBool(False)
 class DomainNot(Domain):
     OPERATOR = "!"
 
-    __slots__ = ("child",)
+    __slots__ = ("_hash", "child")
+    _hash: int
     child: Domain
 
     def __new__(cls, child: Domain):
@@ -532,7 +533,12 @@ class DomainNot(Domain):
         )
 
     def __hash__(self) -> int:
-        return ~hash(self.child)
+        try:
+            return self._hash
+        except AttributeError:
+            h = ~hash(self.child)
+            object.__setattr__(self, "_hash", h)
+            return h
 
     def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         predicate = self.child._as_predicate(records)
@@ -548,7 +554,8 @@ class DomainNary(Domain):
     OPERATOR_SQL: SQL = SQL(" ??? ")
     ZERO: DomainBool = _FALSE_DOMAIN
 
-    __slots__ = ("children",)
+    __slots__ = ("_hash", "children")
+    _hash: int
     children: tuple[Domain, ...]
 
     def __new__(cls, children: tuple[Domain, ...]):
@@ -599,7 +606,12 @@ class DomainNary(Domain):
         )
 
     def __hash__(self) -> int:
-        return hash(self.OPERATOR) ^ hash(self.children)
+        try:
+            return self._hash
+        except AttributeError:
+            h = hash(self.OPERATOR) ^ hash(self.children)
+            object.__setattr__(self, "_hash", h)
+            return h
 
     @classproperty
     def INVERSE(self) -> type[DomainNary]:

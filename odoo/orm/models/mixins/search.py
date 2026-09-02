@@ -5,6 +5,7 @@ from typing import Self
 
 from odoo.exceptions import UserError
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
+from odoo.tools import ormcache
 
 from ... import decorators as api
 from ..._typing import (
@@ -210,6 +211,7 @@ class SearchMixin(_ModelStubs):
         return aggregator(domains)
 
     @api.model
+    @ormcache("field_name")
     def _is_rec_names_search_cyclic(self, field_name: str) -> bool:
         field = self._rec_names_search_field(field_name)
         if not field.relational or not field.comodel_name:

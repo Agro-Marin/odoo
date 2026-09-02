@@ -38,6 +38,17 @@ class InMemoryRecordRulesNotSupported(NotImplementedError):
     pass
 
 
+class _GenerationDict(dict):
+    # the @ormcache decorator reads d.generation around the compute and only
+    # stores when it did not move -- mirror the real LRU's clear() bump so
+    # cached model methods work under the in-memory registry
+    generation = 0
+
+    def clear(self) -> None:
+        self.generation += 1
+        super().clear()
+
+
 class _TestBase(AbstractModel):
     _name = "base"
     _description = "Base"
@@ -234,7 +245,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         self.field_setup_dependents: Collector = Collector()
         self.many2one_company_dependents: Collector = Collector()
 
-        self.ormcache_lrus: dict[str, dict] = defaultdict(dict)
+        self.ormcache_lrus: dict[str, dict] = defaultdict(_GenerationDict)
 
         self.ready = True
 

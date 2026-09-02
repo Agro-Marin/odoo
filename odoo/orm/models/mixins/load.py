@@ -604,17 +604,24 @@ class LoadMixin(_ModelStubs):
     def _load_records_check_import_prefix(self, to_create: list[dict]) -> None:
         if not self.env.context.get("import_file"):
             return
-        existing_modules = self.env["ir.module.module"].sudo().search([]).mapped("name")
-        for data in to_create:
-            xml_id = data.get("xml_id")
-            if xml_id and not data.get("noupdate"):
-                module_name, sep, record_id = xml_id.partition(".")
-                if sep and module_name in existing_modules:
-                    raise UserError(
-                        _(
-                            "The record %(xml_id)s has the module prefix %(module_name)s. This is the part before the '.' in the external id. Because the prefix refers to an existing module, the record would be deleted when the module is upgraded. Use either no prefix and no dot or a prefix that isn't an existing module. For example, __import__, resulting in the external id __import__.%(record_id)s.",
-                            xml_id=xml_id,
-                            module_name=module_name,
-                            record_id=record_id,
-                        )
+        dotted = [
+            data["xml_id"]
+            for data in to_create
+            if data.get("xml_id") and not data.get("noupdate") and "." in data["xml_id"]
+        ]
+        if not dotted:
+            return
+        existing_modules = set(
+            self.env["ir.module.module"].sudo().search([]).mapped("name")
+        )
+        for xml_id in dotted:
+            module_name, _sep, record_id = xml_id.partition(".")
+            if module_name in existing_modules:
+                raise UserError(
+                    _(
+                        "The record %(xml_id)s has the module prefix %(module_name)s. This is the part before the '.' in the external id. Because the prefix refers to an existing module, the record would be deleted when the module is upgraded. Use either no prefix and no dot or a prefix that isn't an existing module. For example, __import__, resulting in the external id __import__.%(record_id)s.",
+                        xml_id=xml_id,
+                        module_name=module_name,
+                        record_id=record_id,
                     )
+                )

@@ -36,9 +36,16 @@ class TransientModel(Model):
         return self._name, has_remaining
 
     def _transient_clean_old_rows(self, max_count: int) -> bool:
-        self.env.cr.execute(SQL("SELECT count(*) FROM %s", SQL.identifier(self._table)))
-        [count] = self.env.cr.fetchone()
-        if count > max_count:
+        # "count > max_count" without counting the whole table: one row at
+        # OFFSET max_count exists exactly when the count exceeds it
+        self.env.cr.execute(
+            SQL(
+                "SELECT 1 FROM %s OFFSET %s LIMIT 1",
+                SQL.identifier(self._table),
+                max_count,
+            )
+        )
+        if self.env.cr.fetchone():
             return self._transient_clean_rows_older_than(
                 _TRANSIENT_VACUUM_MIN_AGE_SECONDS
             )
