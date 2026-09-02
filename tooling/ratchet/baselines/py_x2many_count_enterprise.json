@@ -1,4 +1,6 @@
 {
-  "count": 28,
-  "note": "Six more counters split out of computes that also compute their collection: 34 -> 28. Same class as the addons half of this move. Verified: account_asset, account_loans, hr_sign 0 failed of 154; hr_payroll 6 failed of 136, the same six pre-existing names as before the change."
+  "count": 26,
+  "measured_at": "64f3a68ce2e801d8278598b824a07b6d1bd8df5f",
+  "measured_root": "enterprise",
+  "note": "28 -> 26. THE FLOOR WAS RED IN THE FALLING DIRECTION and carried no `measured_at`, so nothing could say when it stopped being true. Re-measured on a clean detached worktree at the stamped commit -- python odoo/tooling/architecture/py_x2many_count.py --addon enterprise --count -- and it reads 26.\n\nWHAT FELL CANNOT BE ATTRIBUTED, and that is the cost of the missing stamp rather than an omission here: with no commit recorded there is no tree to diff the finding set against. The baseline file was last written by 876ba89f63b (2026-08-22); enterprise has moved since and nothing recorded where. A sibling floor's stamp is the SIBLING's commit, recorded through `--update --root enterprise` from a clean detached worktree of that checkout, so it resolves in the repository that was actually measured.\n\nPREVIOUS NOTE, kept because a floor that loses its history costs more than the stamp gains:\n\nSix more counters split out of computes that also compute their collection: 34 -> 28. Same class as the addons half of this move. Verified: account_asset, account_loans, hr_sign 0 failed of 154; hr_payroll 6 failed of 136, the same six pre-existing names as before the change."
 }
