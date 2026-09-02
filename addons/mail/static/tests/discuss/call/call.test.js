@@ -963,6 +963,9 @@ test("Shows warning badge on mic/camera on non-granted permission in meeting con
 
     await click(".o-mail-DiscussSidebarChannel:text('General')");
     await click("[title='Join Call']");
+    // joining from inside the meeting is a call switch, so it asks first
+    await contains(".modal[role='dialog']", { count: 1 });
+    await click(".modal-footer button", { text: "Switch" });
     await contains("button[title='Turn camera on']");
     await contains("button[title='Turn camera on'].o-tag-DANGER", { count: 0 });
     await contains("button[title='Turn camera on'].o-tag-WARNING_BADGE", { count: 0 });
@@ -1342,4 +1345,38 @@ test("show warning when blur hardware acceleration is not available", async () =
     ).toBeVisible();
     await click("[title='Dismiss warning']");
     await contains(".o-discuss-BlurPerformanceWarning-button", { count: 0 });
+});
+
+test("confirm before switching calls", async () => {
+    const pyEnv = await startServer();
+    const channelIds = pyEnv["discuss.channel"].create([
+        { name: "channel" },
+        { name: "channel2" },
+    ]);
+    await start();
+    await openDiscuss(channelIds[0]);
+    await click("[title='Start Call']");
+    await contains(".o-discuss-CallMenu-channelInfo:text('channel')");
+
+    await click(".o-mail-DiscussSidebarChannel:text('channel2')");
+    await contains(".o-mail-AutoresizeInput[title='channel2']");
+
+    // declining leaves the first call running
+    await click("[title='Start Call']");
+    await contains(".modal[role='dialog']", { count: 1 });
+    // one <p class="text-prewrap">, so the description is the second line
+    await contains(".modal p", {
+        textContent:
+            "Switch to the other call?\nThis will disconnect you from your ongoing call.",
+    });
+    await click(".modal-footer button", { text: "Cancel" });
+    await contains(".modal", { count: 0 });
+    await contains(".o-discuss-CallMenu-channelInfo:text('channel')");
+
+    // confirming switches
+    await click("[title='Start Call']");
+    await contains(".modal[role='dialog']", { count: 1 });
+    await click(".modal-footer button", { text: "Switch" });
+    await contains(".modal", { count: 0 });
+    await contains(".o-discuss-CallMenu-channelInfo:text('channel2')");
 });

@@ -314,7 +314,8 @@ export const acceptWithCamera = {
     name: _t("Accept with camera"),
     icon: "fa-solid fa-video",
     /** @param {ActionParams} params */
-    onSelected: ({ store, thread }) => store.rtc.toggleCall(thread, { camera: true }),
+    onSelected: ({ store, thread }) =>
+        store.rtc.requestToggleCall(thread, { camera: true }),
     sequence: 100,
     sequenceGroup: 300,
     tags: [ACTION_TAGS.JOIN_LEAVE_CALL, ACTION_TAGS.SUCCESS],
@@ -342,7 +343,7 @@ registerCallAction("join-back", {
         thread.useCameraByDefault ? _t("Join Video Call") : _t("Join Call"),
     /** @param {ActionParams} params */
     onSelected: ({ store, thread }) =>
-        store.rtc.toggleCall(thread, { camera: thread.useCameraByDefault }),
+        store.rtc.requestToggleCall(thread, { camera: thread.useCameraByDefault }),
     sequence: 110,
     sequenceGroup: 300,
     tags: [ACTION_TAGS.JOIN_LEAVE_CALL, ACTION_TAGS.SUCCESS],
@@ -360,8 +361,10 @@ registerCallAction("join-with-camera", {
     icon: "fa-solid fa-video",
     /** @param {ActionParams} params */
     onSelected: async ({ store, thread }) => {
-        await store.rtc.toggleCall(thread, { camera: true });
-        if (store.rtc.selfSession) {
+        if (
+            (await store.rtc.requestToggleCall(thread, { camera: true })) &&
+            store.rtc.selfSession
+        ) {
             store.rtc.enterFullscreen();
         }
     },
@@ -381,7 +384,7 @@ export const joinAction = {
      * @param {ActionParams} params
      * @param {Event} ev
      */
-    onSelected: ({ store, thread }, ev) => store.rtc.toggleCall(thread),
+    onSelected: ({ store, thread }, ev) => store.rtc.requestToggleCall(thread),
     sequence: 130,
     sequenceGroup: 300,
     tags: [ACTION_TAGS.JOIN_LEAVE_CALL, ACTION_TAGS.SUCCESS],

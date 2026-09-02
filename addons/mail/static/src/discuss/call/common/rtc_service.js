@@ -18,6 +18,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { debounce } from "@web/core/utils/timing";
+import { ConfirmationDialog } from "@web/ui/dialog";
 import { rootIdOf } from "@web/ui/overlay/root_id";
 
 import { CallAction, computeActionsStack } from "./call_actions.js";
@@ -842,6 +843,55 @@ export class Rtc extends Record {
     async exitFullscreen() {
         this.store.fullscreenChannel = null;
         await this.fullscreen.exit(CALL_FULLSCREEN_ID);
+    }
+
+    /**
+     * Asks whether the ongoing call may be dropped for another one.
+     *
+     * @param {Object} [options]
+     * @param {string} [options.confirmLabel] label of the confirm button.
+     * @param {string} [options.description] what leaving costs, second line.
+     * @param {string} [options.message] the question, first line.
+     * @param {string} [options.title] title of the dialog.
+     * @returns {Promise<boolean>} whether the user confirmed.
+     */
+    askCallSwitchConfirmation({
+        confirmLabel = _t("Switch"),
+        description = _t("This will disconnect you from your ongoing call."),
+        message = _t("Switch to the other call?"),
+        title = _t("Call Switch Confirmation"),
+    } = {}) {
+        return new Promise((resolve) => {
+            this.dialog.add(ConfirmationDialog, {
+                // ConfirmationDialog takes a plain string and renders it
+                // `text-prewrap`, so the newline is the second line.
+                body: `${message}\n${description}`,
+                cancel: () => resolve(false),
+                confirm: () => resolve(true),
+                confirmLabel,
+                dismiss: () => resolve(false),
+                title,
+            });
+        });
+    }
+
+    /**
+     * `toggleCall`, but asks first when it would drop a call in progress.
+     *
+     * @param {import("models").Thread} channel
+     * @param {Object} [options]
+     * @returns {Promise<boolean>} whether the call was toggled.
+     */
+    async requestToggleCall(channel, options) {
+        if (
+            this.channel &&
+            channel.notEq(this.channel) &&
+            !(await this.askCallSwitchConfirmation())
+        ) {
+            return false;
+        }
+        await this.toggleCall(channel, options);
+        return true;
     }
 
     /**

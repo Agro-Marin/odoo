@@ -1,7 +1,7 @@
 # Mail Module Test Tags
 
 Reference for running targeted subsets of the `mail` module's tests — Python
-(`tests/`, 61 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 145 `*.test.js`).
+(`tests/`, 62 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 145 `*.test.js`).
 
 > **See also**: `CONVENTIONS.md` (the mock-gateway / bus test helpers), `ROUTE_MAP.md`
 > (the controller-contract tests), `STATE_MANAGEMENT.md` (what the JS store tests exercise).
@@ -10,7 +10,7 @@ Reference for running targeted subsets of the `mail` module's tests — Python
 
 Almost every mail test class is decorated `@tagged("post_install", "-at_install", …)` — the
 suites need a fully-installed database (mail wires into `res.partner`, `res.users`, the bus,
-etc.). Of **93** tagged classes, **72** carry `post_install`/`-at_install`. Note both
+etc.). Of **94** tagged classes, **73** carry `post_install`/`-at_install`. Note both
 decorator spellings are in use (`@tagged(...)` and `@odoo.tests.tagged(...)`, the latter in
 e.g. `test_js.py` and `discuss/test_discuss_attachment_controller.py`) — grep for both or you
 will undercount. Topic tags on top of that are
@@ -44,14 +44,15 @@ Class counts measured 2026-08-17 at `dd172d10485`; `factcheck.sh` pins them.
 | `discuss_action` | 1 | `discuss/test_discuss_action.py` | Discuss client-action loading |
 | `RTC` | 1 | `discuss/test_rtc.py` | WebRTC call session model |
 | `is_tour` | 1 | `discuss/test_discuss_channel_as_guest.py` | Guest browser tours |
+| `mail_followers` | 1 | `test_mail_followers.py` | The log-access audit trail on `mail.followers`, raw bulk INSERT included |
 | `mail_notification` | 1 | `test_mail_notification.py` | `format_failure_reason`, in the recipient's language |
 | `web_manifest` | 1 | `test_webmanifest.py` | Service worker + web manifest served to the browser |
 
-**34 of the 61 test files carry no topic tag at all** and are reachable only by the module
+**34 of the 62 test files carry no topic tag at all** and are reachable only by the module
 filter — among them `test_fetchmail.py`, `test_mail_mail.py`, `test_mail_blacklist.py`,
 `test_mail_message_access_parity.py`, `test_mail_message_search.py`, `test_uninstall.py`,
 `test_update_notification.py`, and **18 of the 27 files** in `discuss/`. That is **more than
-half the module**: a `--test-tags` run covers 24 files, so treat the tag table as a way to
+half the module**: a `--test-tags` run covers 25 files, so treat the tag table as a way to
 go fast, never as a way to say "mail passed". Use `-u mail --test-enable` for that.
 
 > **The round-numbered hardening suites are gone.** `test_mail_hardening_v2` … `_v13` and

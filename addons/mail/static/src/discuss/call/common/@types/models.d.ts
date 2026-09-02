@@ -31,6 +31,7 @@ declare module "models" {
         nextTalkingTime: number;
         ringingThreads: Thread[];
         rtc: Rtc;
+        requestStartMeeting: () => Promise<void>;
         startMeeting: () => Promise<void>;
         Rtc: StaticMailRecord<Rtc, typeof RtcClass>;
     }
