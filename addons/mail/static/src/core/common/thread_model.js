@@ -66,6 +66,8 @@ export class Thread extends Record {
                     thread_id: data.id,
                     request_list: missingFieldNames,
                 });
+            } catch {
+                return;
             } finally {
                 store._threadFetchPromises.delete(promiseKey);
             }
@@ -641,11 +643,7 @@ export class Thread extends Record {
         }
         const alreadyKnownMessages = new Set(this.messages.map((m) => m.id));
         const filtered = fetched.filter(
-            (message) =>
-                !alreadyKnownMessages.has(message.id) &&
-                (this.persistentMessages.length === 0 ||
-                    message.id < this.oldestPersistentMessage.id ||
-                    message.id > this.newestPersistentMessage.id),
+            (message) => !alreadyKnownMessages.has(message.id),
         );
         this.messages.splice(startIndex, 0, ...filtered);
         if (
@@ -657,6 +655,8 @@ export class Thread extends Record {
         }
         if (after === undefined) {
             this.loadOlder = fetched.length === this.store.FETCH_LIMIT;
+        } else {
+            this.loadNewer = fetched.length === this.store.FETCH_LIMIT;
         }
     }
 
