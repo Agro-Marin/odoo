@@ -883,19 +883,15 @@ test("Unfollow message", async function () {
     await contains(".o-dropdown-item:contains('Unfollow')", { count: 0 });
     await click(".o-mail-Message:eq(0) [title='Expand']");
     await click(".o-dropdown-item:contains('Unfollow')");
-    await contains(".o-mail-Message", { count: 2 });
-    await contains(".o-mail-Message:eq(0)", {
-        contains: [[".o-mail-Message-header small", { text: "on Thread followed" }]],
-    });
-    await click(".o-mail-Message:eq(0) [title='Expand']");
-    await contains(".o-dropdown-item:contains('Reply')");
-    await contains(".o-dropdown-item:contains('Unfollow')", { count: 0 });
-    await contains(".o-mail-Message:eq(1)", {
+    // unfollowing is a per-document action, so every pending notification of
+    // that document leaves the inbox, not only the one acted on
+    await contains(".o-mail-Message", { count: 1 });
+    await contains(".o-mail-Message", {
         contains: [
             [".o-mail-Message-header small", { text: "on Thread not followed" }],
         ],
     });
-    await click(".o-mail-Message:eq(1) [title='Expand']");
+    await click(".o-mail-Message [title='Expand']");
     await contains(".o-dropdown-item:contains('Reply')");
     await contains(".o-dropdown-item:contains('Unfollow')", { count: 0 });
 });
