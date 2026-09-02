@@ -91,9 +91,21 @@ def _reads_a_file(body: list[ast.AST]) -> bool:
     return False
 
 
+def _virtualenv_roots() -> frozenset[Path]:
+    # tooling/ hosts the gate launcher's own interpreter, and site-packages is
+    # full of third-party handlers this rule has no standing over. A pyvenv.cfg
+    # marks a virtualenv whatever it was named, which a directory-name list
+    # would not.
+    return frozenset(cfg.parent for cfg in TOOLING.rglob("pyvenv.cfg"))
+
+
 def _sources() -> list[Path]:
+    venvs = _virtualenv_roots()
     return sorted(
-        path for path in TOOLING.rglob("*.py") if not SKIP_DIRS & set(path.parts)
+        path
+        for path in TOOLING.rglob("*.py")
+        if not SKIP_DIRS & set(path.parts)
+        and not any(path.is_relative_to(venv) for venv in venvs)
     )
 
 
