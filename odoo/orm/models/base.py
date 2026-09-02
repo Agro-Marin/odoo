@@ -84,11 +84,6 @@ class BaseModel(
             raise ValueError(f"Expected singleton or no record: {self}")
         return self.env["ir.config_parameter"].sudo().get_param("web.base.url")
 
-    @property
-    @api.deprecated("Deprecated since 19.0, use self.env.cr directly")
-    def _cr(self) -> typing.Any:
-        return self.env.cr
-
 
 collections.abc.Set.register(BaseModel)
 collections.abc.Sequence.register(BaseModel)

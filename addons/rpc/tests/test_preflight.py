@@ -597,7 +597,6 @@ class TestMentionedFieldNames(TransactionCase):
 class TestCallShapesMatchTheOrm(TransactionCase):
     UNCOVERED = {
         "fields_get",
-        "check_field_access_rights",
         "get_gantt_data",
         "get_cohort_data",
         "grid_unavailability",

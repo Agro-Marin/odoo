@@ -131,32 +131,6 @@ class AccessMixin(_ModelStubs):
         )
 
     @api.model
-    @api.deprecated(
-        "Deprecated since 19.0, use `_check_field_access` on models."
-        " To get the list of allowed fields, use `fields_get`.",
-    )
-    def check_field_access_rights(
-        self,
-        operation: typing.Literal["read", "write"],
-        field_names: list[str] | None,
-    ) -> list[str]:
-        if self.env.su:
-            return field_names or list(self._fields)
-
-        if not field_names:
-            return [
-                field_name
-                for field_name, field in self._fields.items()
-                if self._has_field_access(field, operation)
-            ]
-
-        for field_name in field_names:
-            field = self._fields.get(field_name)
-            if field is None:
-                continue
-            self._check_field_access(field, operation)
-        return field_names
-
     def check_access(self, operation: str) -> None:
         if not self.env.su and (result := self._check_access(operation)):
             raise result[1]()  # noqa: RSE102  result[1] builds the exception, it is not the class
@@ -191,24 +165,6 @@ class AccessMixin(_ModelStubs):
                 )
 
         return None
-
-    @api.model
-    @api.deprecated(
-        "check_access_rights() is deprecated since 18.0; use check_access() instead."
-    )
-    def check_access_rights(
-        self, operation: str, raise_exception: bool = True
-    ) -> bool | None:
-        if raise_exception:
-            self.browse().check_access(operation)
-            return True
-        return self.browse().has_access(operation)
-
-    @api.deprecated(
-        "check_access_rule() is deprecated since 18.0; use check_access() instead."
-    )
-    def check_access_rule(self, operation: str) -> None:
-        self.check_access(operation)
 
     def _check_company_domain(self, companies) -> Domain:
         if not companies:

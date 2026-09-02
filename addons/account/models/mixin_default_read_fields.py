@@ -12,19 +12,6 @@ class MixinDefaultReadFields(models.AbstractModel):
         return field.exportable and field.name not in self._UNREADABLE_BY_DEFAULT
 
     @api.model
-    @api.deprecated("Override of a deprecated method")
-    def check_field_access_rights(self, operation, field_names):
-        result = super().check_field_access_rights(operation, field_names)
-        if not field_names:
-            model_fields = self._fields
-            result = [
-                fname
-                for fname in result
-                if self._is_readable_by_default(model_fields[fname])
-            ]
-        return result
-
-    @api.model
     def _get_fields_default_read(self):
         model_fields = self._fields
         return [

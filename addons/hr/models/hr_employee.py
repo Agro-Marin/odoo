@@ -745,18 +745,6 @@ class HrEmployee(models.Model):
             version.write({**inherited, "employee_id": employee.id})
         return result
 
-    @api.model
-    @api.deprecated("Override of a deprecated method")
-    def check_field_access_rights(self, operation, field_names):
-        result = super().check_field_access_rights(operation, field_names)
-        if not self.env.user.has_group("hr.group_hr_user"):
-            result = [
-                field
-                for field in result
-                if field not in self._DIRTY_HACK_PRIVATE_FIELDS
-            ]
-        return result
-
     def _has_field_access(self, field, operation):
         return super()._has_field_access(field, operation) and (
             self.env.su
