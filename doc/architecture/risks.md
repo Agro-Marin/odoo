@@ -225,7 +225,7 @@ record to learn what `ir.attachment`'s dual storage costs.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **225 specifiers**
+the surface can only shrink. It stands at **229 specifiers**
 (`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 
@@ -244,7 +244,8 @@ mean:
 | `date_range` entered at the `@web/core/tree` face | **218** | `in_range_providers` was reached directly by the only consumer outside `web`; the face republishes it, so the file stops being surface |
 | `fields/field_options` published | **219** | the shared `supportedOptions` entries, reached by `html_editor` and `analytic`; one option descriptor had been written out twelve times across ten files, so this is a specifier bought deliberately to delete duplication |
 | the search bar split, and one selector newly reached | **221** | `adfb8afce15` gave `purchase_stock` and `product` real accessors instead of reaching around the search model, and split `search_bar` into `search_bar` and `search_bar_toggler` — one pinned specifier becoming two is +1 with no new exposure — while `components/record_selectors/avatar_models` is a genuinely new one specifier |
-| **today** | **225 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
+| the enterprise web client folded into `web` | **229** | `c0481e4b06e` moved the home menu, the app switcher and the Studio upsell into `web` and `caa80b58e1b` deleted the module, so `home_menu` and `promote_studio`'s three specifiers are now reached from `enterprise` rather than shipped there — four entries the pin had never needed to carry |
+| **today** | **229 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
 
 **A scope is not a specifier.** Recording that `agromarin`'s `geoengine` also
 enters at `@web/views/widgets` added a third scope tag to a line already pinned
