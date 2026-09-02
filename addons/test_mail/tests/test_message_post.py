@@ -2154,6 +2154,62 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
         self.assertEqual(self._new_mails.subject, "Incidencia 42")
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_recipients_sharing_a_mailbox_get_one_email(self):
+        """Two contacts on the same mailbox got the same notification twice.
+
+        A shared inbox (info@, ventas@) reached through two contact records, or a
+        plain duplicated contact, produced one envelope per partner: the person
+        reading that mailbox received the same notice twice in a row. One
+        mail.mail carries several recipients, so the duplication shows up in the
+        envelopes actually sent, not in the number of mail.mail records.
+        Matching is on the normalized address, not on the raw string.
+        """
+        shared = self.env["res.partner"].create(
+            [
+                {"name": "Contacto Uno", "email": "compartido@example.com"},
+                {"name": "Contacto Dos", "email": "Dos <COMPARTIDO@example.com>"},
+            ]
+        )
+        self.assertEqual(
+            shared[0].email_normalized,
+            shared[1].email_normalized,
+            "sanity: the fixture must share a normalized address",
+        )
+        with self.mock_mail_gateway():
+            self.test_record.with_user(self.user_employee).message_post(
+                body="<p>Test Body</p>",
+                partner_ids=shared.ids,
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        sent_to = [email for mail in self._mails for email in mail["email_to"]]
+        self.assertEqual(
+            len(sent_to), 1, f"one envelope for one mailbox, got {sent_to}"
+        )
+        self.assertIn("compartido@example.com", sent_to[0])
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_recipients_on_distinct_mailboxes_still_get_one_email_each(self):
+        """The guard must not collapse recipients that are genuinely distinct."""
+        distinct = self.env["res.partner"].create(
+            [
+                {"name": "Contacto Tres", "email": "tres@example.com"},
+                {"name": "Contacto Cuatro", "email": "cuatro@example.com"},
+            ]
+        )
+        with self.mock_mail_gateway():
+            self.test_record.with_user(self.user_employee).message_post(
+                body="<p>Test Body</p>",
+                partner_ids=distinct.ids,
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        sent_to = [email for mail in self._mails for email in mail["email_to"]]
+        self.assertEqual(len(sent_to), 2, f"got {sent_to}")
+        self.assertTrue(any("tres@example.com" in one for one in sent_to))
+        self.assertTrue(any("cuatro@example.com" in one for one in sent_to))
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_notification_header_shortens_record_name(self):
         """The notification layout prints the record name inline in the header
         bar, next to the access button, in a <td> with no clamp. A 260-character

@@ -3480,13 +3480,16 @@ class MixinMailThread(models.AbstractModel):
 
         skip_author_id = self._notify_get_skip_author(message, msg_vals, pids, kwargs)
 
-        emailed_normalized = set(
+        # Mailboxes this conversation already reaches: the incoming To/Cc, plus
+        # every mailbox accepted below. Skipping a partner whose mailbox is
+        # already covered is what stops two contacts on a shared inbox -- or a
+        # duplicated contact -- from getting the same notification twice.
+        emailed_normalized_covered = set(
             email_normalize_all(
                 f"{msg_vals.get('incoming_email_to', msg_sudo.incoming_email_to) or ''}, "
                 f"{msg_vals.get('incoming_email_cc', msg_sudo.incoming_email_cc) or ''}"
             )
         )
-        emailed_normalized_covered = set(emailed_normalized)
 
         for pid, pdata in res.items():
             if pid and pid == skip_author_id:
@@ -3495,7 +3498,7 @@ class MixinMailThread(models.AbstractModel):
                 continue
             if (
                 pdata["notif"] == "email"
-                and pdata["email_normalized"] in emailed_normalized
+                and pdata["email_normalized"] in emailed_normalized_covered
             ):
                 continue
             recipients_data.append(pdata)
