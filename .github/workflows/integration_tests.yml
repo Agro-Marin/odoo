@@ -283,12 +283,15 @@ env:
   #
   # `-i hr_holidays` pulls hr, calendar, mail and resource; the tests are its own.
   #
-  # Runs under --no-http like the lanes above, which SKIPS the tour classes and
-  # reports them as skipped rather than as passes, so the count is 310 rather
-  # than 334 and the floor sits under it. One of those tours,
-  # TestHolidaysCalendar.test_hours_time_off_request_calendar_view, is red on
-  # this branch independently of this lane (CLAUDE.md section 4) -- fix it before
-  # dropping --no-http, or the lane goes red on a defect it did not introduce.
+  # Runs WITHOUT --no-http since 2026-09-02: the quick-create tour that used to
+  # be red is repaired (the web_read many2one crash behind it, the FullCalendar
+  # click, and the first-Thursday selector), and the full suite measures 334
+  # with a browser. Dropping the flag is safe on a Chrome-less runner too:
+  # a missing Chrome raises InfrastructureUnavailable, a SkipTest subclass, so
+  # the tour classes skip and the count falls back to ~310 -- still over the
+  # floor of 300. The floor moves up only after the first CI run confirms the
+  # runner's Chrome actually drives the tours (same posture as the other lanes
+  # deferring on unconfirmed headless Chrome).
   # hr_work_entry + hr_work_entry_holidays, added 2026-08-30 -- the same hole as
   # hr_holidays below, found by asking the same question of a sibling module:
   # `grep -rln hr_work_entry .github/workflows/` returns nothing. No lane here,
@@ -904,13 +907,15 @@ jobs:
             -i "${HR_HOLIDAYS_INSTALL}" \
             --test-enable --test-tags "${HR_HOLIDAYS_TEST_TAGS}" \
             --stop-after-init \
-            --max-cron-threads=0 --no-http \
+            --max-cron-threads=0 \
             --log-level=test --logfile=/dev/stdout | tee /tmp/hr-holidays-suite.log
 
       - name: Assert the hr_holidays suite actually ran
-        # Same guard as the suites above. 310 tests under --no-http, the tour
-        # classes skipping for want of a browser; the floor sits under that so a
-        # narrowed tag or a module that failed to install fails loudly.
+        # Same guard as the suites above. 334 tests with a browser, ~310 when
+        # the tour classes skip for want of one; the floor sits under the
+        # Chrome-less count so a narrowed tag or a module that failed to
+        # install fails loudly either way. Raise it toward 334 after the first
+        # CI run proves the runner's Chrome drives the tours.
         run: |
           RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/hr-holidays-suite.log \
                 | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
