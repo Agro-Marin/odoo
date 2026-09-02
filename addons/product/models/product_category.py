@@ -86,8 +86,7 @@ class ProductCategory(models.Model):
         self_ids = set(self.ids)
         count_by_categ = {}
         for categ, count in read_group_res:
-            parent_path = categ.parent_path or f"{categ.id}/"
-            for ancestor_id in map(int, parent_path.split("/")[:-1]):
+            for ancestor_id in categ._ancestor_ids(include_self=True):
                 if ancestor_id in self_ids:
                     count_by_categ[ancestor_id] = (
                         count_by_categ.get(ancestor_id, 0) + count

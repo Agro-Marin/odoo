@@ -711,10 +711,7 @@ class ProductPricelistItem(models.Model):
         if self.applied_on == "2_product_category":
             if not product.categ_id:
                 return False
-            return (
-                product.categ_id == self.categ_id
-                or product.categ_id.parent_path.startswith(self.categ_id.parent_path)
-            )
+            return product.categ_id._is_descendant_of(self.categ_id)
 
         if product._name == "product.template":
             if self.applied_on == "1_product":
