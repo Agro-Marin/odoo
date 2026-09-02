@@ -23,11 +23,11 @@ function makeList() {
         _unknownRecordCommands: new Map(),
         model: {
             mutex: { exec: (/** @type {() => any} */ fn) => fn() },
-            _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+            patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
                 Object.assign(config, patch),
         },
     });
-    list._applyCommands = async (/** @type {any[]} */ commands) => {
+    list.applyCommandsLocked = async (/** @type {any[]} */ commands) => {
         applied.push(...commands);
     };
     return { list, applied };
@@ -40,7 +40,7 @@ function makeRecord({ resId, virtualId }) {
     return {
         id: "datapoint_1",
         resId,
-        _virtualId: virtualId,
+        virtualId: virtualId,
         isNew: !resId,
         config: {
             activeFields: { display_name: makeActiveField() },
@@ -49,8 +49,8 @@ function makeRecord({ resId, virtualId }) {
         activeFields: {},
         data: {},
         _addSavePoint() {},
-        _applyDefaultValues() {},
-        _applyValues() {},
+        applyDefaultValues() {},
+        applyValues() {},
         extendActiveFields() {},
     };
 }
@@ -76,7 +76,7 @@ describe("extendRecord replays the commands parked for the row", () => {
         const { list, applied } = makeList();
         const record = makeRecord({ resId: 42, virtualId: false });
         list._unknownRecordCommands.set(42, [[1, 42, { a: 2 }]]);
-        list.model._loadRecords = async () => [{ id: 42 }];
+        list.model.loadRecords = async () => [{ id: 42 }];
 
         await list.extendRecord(PARAMS, /** @type {any} */ (record));
 

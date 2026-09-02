@@ -11,15 +11,15 @@ function makeFakeAm(overrides = {}) {
     const calls = { updateUI: [], confirmLeave: [] };
     const am = {
         env: { isSmall: false },
-        _confirmLeave: async (opts) => {
+        confirmLeave: async (opts) => {
             calls.confirmLeave.push(opts);
             return true;
         },
-        _makeController: (params) => ({ jsId: "controller_1", ...params }),
-        _getViewInfo: (view, action, views, props) => ({
+        makeController: (params) => ({ jsId: "controller_1", ...params }),
+        getViewInfo: (view, action, views, props) => ({
             props: { ...props, type: view.type },
         }),
-        _updateUI: async (controller, options) => {
+        updateUI: async (controller, options) => {
             calls.updateUI.push({ controller, options });
             return "updateUI-result";
         },
@@ -47,7 +47,7 @@ function makeAction(overrides = {}) {
 describe.current.tags("desktop");
 
 test("a refused leave aborts before anything is rendered", async () => {
-    const am = makeFakeAm({ _confirmLeave: async () => false });
+    const am = makeFakeAm({ confirmLeave: async () => false });
     expect(await executeActWindowAction(makeAction(), {}, am)).toBe(undefined);
     expect(am.__calls.updateUI).toEqual([]);
 });

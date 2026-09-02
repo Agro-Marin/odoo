@@ -18,9 +18,9 @@ function realSetupKeys() {
     Object.assign(list, {
         _config: config,
         model: {
-            _patchConfig: () => {},
+            patchConfig: () => {},
             /** @returns {Promise<any[]>} */
-            _loadRecords: async () => [],
+            loadRecords: async () => [],
         },
     });
     StaticList.prototype.setup.call(list, config, [], {});

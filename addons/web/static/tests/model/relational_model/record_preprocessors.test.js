@@ -46,7 +46,7 @@ function makeRecord({
             __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: { lifecycle: {}, ui: { onDisplayPropertyWarning } },
         },
-        _processProperties: processProperties,
+        processProperties: processProperties,
     };
 }
 
@@ -214,13 +214,13 @@ describe("preprocessReferenceChanges", () => {
 });
 
 describe("preprocessX2manyChanges", () => {
-    test("SET command calls list._replaceWith with the new ids array", async () => {
+    test("SET command calls list.replaceWith with the new ids array", async () => {
         let replacedWith = null;
         const list = {
-            _replaceWith: async (ids) => {
+            replaceWith: async (ids) => {
                 replacedWith = ids;
             },
-            _applyCommands: async () => {},
+            applyCommandsLocked: async () => {},
         };
         const rec = makeRecord({
             fields: { turtles: { type: "one2many" } },
@@ -232,11 +232,11 @@ describe("preprocessX2manyChanges", () => {
         expect(changes.turtles).toBe(list);
     });
 
-    test("non-SET command calls list._applyCommands with a single-element array", async () => {
+    test("non-SET command calls list.applyCommandsLocked with a single-element array", async () => {
         let appliedCommands = null;
         const list = {
-            _replaceWith: async () => {},
-            _applyCommands: async (cmds) => {
+            replaceWith: async () => {},
+            applyCommandsLocked: async (cmds) => {
                 appliedCommands = cmds;
             },
         };
@@ -253,7 +253,7 @@ describe("preprocessX2manyChanges", () => {
 });
 
 describe("preprocessPropertiesChanges", () => {
-    test("properties field calls _processProperties and merges result into changes", () => {
+    test("properties field calls processProperties and merges result into changes", () => {
         const rec = makeRecord({
             fields: {
                 my_props: { type: "properties", definition_record: "project_id" },

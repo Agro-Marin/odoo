@@ -15,16 +15,16 @@ function makeSpyList() {
         _currentIds: [],
         snapshots: 0,
         restores: 0,
-        _snapshot() {
+        snapshot() {
             this.snapshots++;
             return { token: this.snapshots };
         },
-        _restore(snapshot) {
+        restoreSnapshot(snapshot) {
             this.restores++;
             this.restored = snapshot;
         },
-        async _applyCommands() {},
-        async _replaceWith() {},
+        async applyCommandsLocked() {},
+        async replaceWith() {},
     };
 }
 
@@ -58,12 +58,12 @@ function makeRecordWithList({ failIn } = {}) {
                 ui: { onDisplayInvalidFields: () => () => {} },
             },
         },
-        _setEvalContext() {},
-        _parseServerValues: (values) => ({ ...values }),
+        setEvalContext() {},
+        parseServerValues: (values) => ({ ...values }),
         _getTextValues: () => ({}),
-        _isInvisible: () => false,
-        _isRequired: () => false,
-        _isReadonly: () => false,
+        isFieldInvisible: () => false,
+        isFieldRequired: () => false,
+        isFieldReadonly: () => false,
         _onUpdate: async () => {
             if (failIn === "onUpdate") {
                 throw new Error("boom");
@@ -79,7 +79,7 @@ function makeRecordWithList({ failIn } = {}) {
     return { record, list };
 }
 
-describe("_update rolls x2many state back through _restore", () => {
+describe("updateLocked rolls x2many state back through restoreSnapshot", () => {
     for (const failIn of /** @type {const} */ ([
         "preprocess",
         "onchange",
@@ -89,7 +89,7 @@ describe("_update rolls x2many state back through _restore", () => {
             const { record, list } = makeRecordWithList({ failIn });
 
             await expect(
-                record._update({ line_ids: [[4, 5, false]] }),
+                record.updateLocked({ line_ids: [[4, 5, false]] }),
             ).rejects.toThrow();
 
             expect(list.snapshots).toBeGreaterThan(0);
@@ -100,14 +100,14 @@ describe("_update rolls x2many state back through _restore", () => {
     test("a successful update restores nothing", async () => {
         const { record, list } = makeRecordWithList();
 
-        await record._update({ line_ids: [[4, 5, false]] });
+        await record.updateLocked({ line_ids: [[4, 5, false]] });
 
         expect(list.snapshots).toBeGreaterThan(0);
         expect(list.restores).toBe(0);
     });
 });
 
-describe("_discard restores the savepoint's page limit", () => {
+describe("discardLocked restores the savepoint's page limit", () => {
     function makeList() {
         const list = Object.create(StaticList.prototype);
         Object.assign(list, {
@@ -136,15 +136,15 @@ describe("_discard restores the savepoint's page limit", () => {
             _extendedRecords: new Set(),
             _onUpdate: async () => {},
             model: {
-                _patchConfig: (config, patch) => Object.assign(config, patch),
-                _loadRecords: async () => [],
+                patchConfig: (config, patch) => Object.assign(config, patch),
+                loadRecords: async () => [],
             },
         });
         for (const id of [1, 2, 3]) {
             list._cache.set(id, {
                 resId: id,
-                _virtualId: false,
-                _discard() {},
+                virtualId: false,
+                discardLocked() {},
                 _addSavePoint() {},
             });
         }
@@ -161,7 +161,7 @@ describe("_discard restores the savepoint's page limit", () => {
         list._bumpLimit(1);
         expect(list.limit).toBe(4);
 
-        list._discard();
+        list.discardLocked();
 
         expect(list.limit).toBe(3);
         expect(list._tmpIncreaseLimit).toBe(1);
@@ -174,7 +174,7 @@ describe("_discard restores the savepoint's page limit", () => {
         list._bumpLimit(1);
         list._currentIds = [1, 2, 3];
 
-        list._discard();
+        list.discardLocked();
 
         expect(list.limit).toBe(2);
         expect(list._tmpIncreaseLimit).toBe(0);

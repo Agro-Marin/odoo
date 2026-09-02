@@ -33,7 +33,7 @@ export function buildConcurrencyBaseline(record, fieldNames) {
         ) {
             continue;
         }
-        const value = /** @type {Record<string, any>} */ (record._values)[fieldName];
+        const value = /** @type {Record<string, any>} */ (record.savedData)[fieldName];
         if (
             field.type === "selection" &&
             value === 0 &&

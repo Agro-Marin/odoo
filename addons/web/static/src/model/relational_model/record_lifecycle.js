@@ -30,7 +30,7 @@ export async function unarchive(record, reload) {
  * @param {boolean} state
  * @returns {Promise<any>}
  */
-async function toggleArchive(record, state, reload = () => record._load()) {
+async function toggleArchive(record, state, reload = () => record.loadLocked()) {
     const method = state ? "action_archive" : "action_unarchive";
     const action = await record.model.orm.call(
         record.resModel,
@@ -64,8 +64,8 @@ export async function deleteRecord(record) {
     if (resId) {
         await record.model.load({ resId, resIds });
     } else {
-        record.model._patchConfig(record.config, { resId: false });
-        record._resetValues(record._parseServerValues(record._getDefaultValues()));
+        record.model.patchConfig(record.config, { resId: false });
+        record.resetValues(record.parseServerValues(record.getDefaultValues()));
     }
 }
 

@@ -102,7 +102,7 @@ export const DocumentsModelMixin = (component) =>
                 return [];
             }
             const shortcutTargetRecords = [];
-            const targetRecords = await this._loadRecords(
+            const targetRecords = await this.loadRecords(
                 {
                     ...this.config,
                     resIds: shortcuts.map(

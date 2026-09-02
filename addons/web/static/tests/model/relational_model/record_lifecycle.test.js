@@ -40,22 +40,25 @@ function makeRecord({
         context: { uid: 1 },
         config: { resId, resIds, context: { uid: 1 } },
         _values: markRaw({ id: resId, name: "Test" }),
+        get savedData() {
+            return this._values;
+        },
         _textValues: markRaw({ name: "Test" }),
-        _changes: markRaw({}),
+        changes: markRaw({}),
         data: { id: resId, name: "Test" },
-        _parseServerValues(defaults) {
+        parseServerValues(defaults) {
             return { ...defaults };
         },
-        _getDefaultValues() {
+        getDefaultValues() {
             return { id: false, name: false };
         },
         ...RECORD_STATE_TRANSITIONS,
         _clearChanges() {
-            this._changes = markRaw({});
+            this.changes = markRaw({});
             this.dirty = false;
         },
-        _setEvalContext() {},
-        _load: async () => {},
+        setEvalContext() {},
+        loadLocked: async () => {},
         model: {
             orm: {
                 unlink: unlink ?? (async () => true),
@@ -69,7 +72,7 @@ function makeRecord({
                     }),
             },
             load: load ?? (async () => {}),
-            _patchConfig: () => {},
+            patchConfig: () => {},
             __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 ui: {
@@ -143,12 +146,12 @@ describe("archive hook routing", () => {
         expect(result).toBe("hook-return-value");
     });
 
-    test("the reload callback passed to the hook invokes record._load", async () => {
+    test("the reload callback passed to the hook invokes record.loadLocked", async () => {
         let loadCalled = false;
         const rec = makeRecord({
             onDisplayArchiveAction: (_action, reload) => reload(),
         });
-        rec._load = async () => {
+        rec.loadLocked = async () => {
             loadCalled = true;
         };
         await archive(rec);
@@ -218,7 +221,7 @@ describe("deleteRecord navigation", () => {
 });
 
 describe("deleteRecord state reset (last record)", () => {
-    test("when resIds becomes empty, resets _values / _textValues / _changes / data", async () => {
+    test("when resIds becomes empty, resets _values / _textValues / changes / data", async () => {
         let loadCalled = false;
         let patchConfigArgs = null;
         let setEvalContextCalled = false;
@@ -229,10 +232,10 @@ describe("deleteRecord state reset (last record)", () => {
                 loadCalled = true;
             },
         });
-        rec.model._patchConfig = (_config, patch) => {
+        rec.model.patchConfig = (_config, patch) => {
             patchConfigArgs = { patch };
         };
-        rec._setEvalContext = () => {
+        rec.setEvalContext = () => {
             setEvalContextCalled = true;
         };
         await deleteRecord(rec);

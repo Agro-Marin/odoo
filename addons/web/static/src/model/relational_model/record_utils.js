@@ -212,7 +212,7 @@ export function computeChangeset({
         }
 
         if (isX2Many(field)) {
-            if (typeof value?._getCommands !== "function") {
+            if (typeof value?.getCommands !== "function") {
                 if (isNew) {
                     result[fieldName] = [];
                 }

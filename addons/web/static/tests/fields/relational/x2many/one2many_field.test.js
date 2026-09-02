@@ -2257,11 +2257,11 @@ test("embedded one2many with handle widget with minimum setValue calls", async (
     Partner._records[0].turtles = [1, 2, 3, 4, 5, 6, 7];
 
     patchWithCleanup(RelationalRecord.prototype, {
-        _update() {
+        updateLocked() {
             if (this.resModel === "turtle") {
                 expect.step(`${this.resId}`);
             }
-            return super._update(...arguments);
+            return super.updateLocked(...arguments);
         },
     });
 

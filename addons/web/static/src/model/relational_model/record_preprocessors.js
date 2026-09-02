@@ -161,16 +161,16 @@ export async function preprocessX2manyChanges(record, changes) {
         for (const command of value) {
             if (command[0] === x2ManyCommands.SET) {
                 if (batch.length) {
-                    await list._applyCommands(batch);
+                    await list.applyCommandsLocked(batch);
                     batch = [];
                 }
-                await list._replaceWith(command[2]);
+                await list.replaceWith(command[2]);
             } else {
                 batch.push(command);
             }
         }
         if (batch.length) {
-            await list._applyCommands(batch);
+            await list.applyCommandsLocked(batch);
         }
         changes[fieldName] = list;
     }
@@ -190,7 +190,7 @@ export function preprocessPropertiesChanges(record, changes) {
                 /** @type {Record<string, any>} */ (record.data)[definitionRecord];
             Object.assign(
                 changes,
-                record._processProperties(value, fieldName, parent, record.data),
+                record.processProperties(value, fieldName, parent, record.data),
             );
         } else if (field?.relatedPropertyField) {
             const [propertyFieldName, propertyName] = field.name.split(".");

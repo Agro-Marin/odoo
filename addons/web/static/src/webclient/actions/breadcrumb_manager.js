@@ -248,7 +248,7 @@ export async function controllersFromState(state, am) {
     const controllers = state.actionStack
         .slice(0, -1)
         .map((actionState, index) => {
-            const controller = am._makeController({
+            const controller = am.makeController({
                 displayName: actionState.displayName,
                 virtual: true,
                 stackIndex: index,

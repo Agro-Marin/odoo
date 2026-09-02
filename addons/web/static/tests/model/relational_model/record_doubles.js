@@ -14,12 +14,12 @@ export { RECORD_CONTRACT_SURFACE };
  * _values: Record<string, any>,
  * _editState: import("@web/model/relational_model/record_edit_state").RecordEditState,
  * _hasChanges: boolean,
- * _changes: Record<string, any>,
+ * changes: Record<string, any>,
  * _textValues: Record<string, any>,
  * _initialTextValues: Record<string, any>,
- * _setEvalContext: () => void,
+ * setEvalContext: () => void,
  * _clearChanges: () => void,
- * _rebuildData: () => void,
+ * rebuildData: () => void,
  * }} RecordStateSurface
  */
 
@@ -31,7 +31,7 @@ export { RECORD_CONTRACT_SURFACE };
  */
 export function installEditState(target, seed = {}) {
     const editState = new RecordEditState();
-    editState.changes = { ...(seed.changes ?? target._changes ?? {}) };
+    editState.changes = { ...(seed.changes ?? target.changes ?? {}) };
     editState.textValues = markRaw({
         ...(seed.textValues ?? target._textValues ?? {}),
     });
@@ -41,7 +41,7 @@ export function installEditState(target, seed = {}) {
     editState.dirty = seed.dirty ?? target.dirty ?? false;
     Object.defineProperties(target, {
         _editState: { value: editState, writable: true },
-        _changes: {
+        changes: {
             get: () => editState.changes,
             set: (v) => {
                 editState.changes = v;
@@ -75,32 +75,32 @@ export function installEditState(target, seed = {}) {
 
 export const RECORD_STATE_TRANSITIONS = {
     /** @this {RecordStateSurface} */
-    _rebuildData() {
-        this.data = { ...this._values, ...this._changes };
-        this._setEvalContext();
+    rebuildData() {
+        this.data = { ...this._values, ...this.changes };
+        this.setEvalContext();
     },
     /**
      * @this {RecordStateSurface}
      * @param {Record<string, any>} [extraValues]
      */
-    _commitChanges(extraValues) {
-        this._values = { ...this._values, ...this._changes, ...extraValues };
+    commitChanges(extraValues) {
+        this._values = { ...this._values, ...this.changes, ...extraValues };
         this._editState.commit();
-        this._rebuildData();
+        this.rebuildData();
     },
     /** @this {RecordStateSurface} */
-    _discardChanges() {
+    discardChanges() {
         this._editState.rollback();
-        this._rebuildData();
+        this.rebuildData();
     },
     /**
      * @this {RecordStateSurface}
      * @param {Record<string, any>} values
      */
-    _resetValues(values) {
+    resetValues(values) {
         this._values = values;
         this._editState.reset();
-        this._rebuildData();
+        this.rebuildData();
     },
 };
 
@@ -206,16 +206,16 @@ export function makeRecordDouble({
         get _hasChanges() {
             return !editState.isChangeSetEmpty;
         },
-        _snapshotEditState() {
+        snapshotEditState() {
             editState.snapshot();
         },
-        _restoreEditState() {
+        restoreEditState() {
             return editState.restoreSnapshot();
         },
-        get _changes() {
+        get changes() {
             return editState.changes;
         },
-        set _changes(value) {
+        set changes(value) {
             editState.changes = value;
         },
         get _textValues() {
@@ -230,42 +230,42 @@ export function makeRecordDouble({
         set _initialTextValues(value) {
             editState.initialTextValues = value;
         },
-        get _invalidFields() {
+        get invalidFields() {
             return editState.invalidFields;
         },
-        set _invalidFields(value) {
+        set invalidFields(value) {
             editState.invalidFields = value;
         },
-        get _unsetRequiredFields() {
+        get unsetRequiredFields() {
             return editState.unsetRequiredFields;
         },
 
-        _loadedFieldNames: new Set(Object.keys(merged)),
+        loadedFieldNames: new Set(Object.keys(merged)),
 
         ...RECORD_STATE_TRANSITIONS,
         saveState: new RecordSaveCoordinator(),
         _clearChanges: () => editState.clearChanges(),
-        _clearValidity: () => editState.clearValidity(),
-        _isRequired: isRequired,
-        _isInvisible: isInvisible,
-        _processProperties:
+        clearValidity: () => editState.clearValidity(),
+        isFieldRequired: isRequired,
+        isFieldInvisible: isInvisible,
+        processProperties:
             processProperties ??
             (() => {
                 throw new Error(
-                    "makeRecordDouble: _processProperties is not modelled; " +
+                    "makeRecordDouble: processProperties is not modelled; " +
                         "pass `processProperties` if the code under test needs it",
                 );
             }),
-        _createStaticListDatapoint:
+        createStaticListDatapoint:
             createStaticListDatapoint ??
             (() => {
                 throw new Error(
-                    "makeRecordDouble: _createStaticListDatapoint is not modelled; " +
+                    "makeRecordDouble: createStaticListDatapoint is not modelled; " +
                         "pass `createStaticListDatapoint` if the code under test needs it",
                 );
             }),
-        _setEvalContext: () => {},
-        _restoreActiveFields: () => {},
+        setEvalContext: () => {},
+        restoreActiveFields: () => {},
         setInvalidFieldsNotification: (/** @type {() => void} */ close) => {
             editState.closeInvalidFieldsNotification = close;
         },
@@ -273,6 +273,6 @@ export function makeRecordDouble({
             editState.closeInvalidFieldsNotification();
             editState.closeInvalidFieldsNotification = () => {};
         },
-        _checkValidity: () => true,
+        checkValidityLocked: () => true,
     };
 }

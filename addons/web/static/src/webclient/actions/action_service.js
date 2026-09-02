@@ -28,14 +28,21 @@ import {
 } from "./action_executors/act_url.js";
 import { executeActWindowAction } from "./action_executors/act_window.js";
 import { executeClientAction } from "./action_executors/client.js";
-import { executeCloseAction } from "./action_executors/close.js";
+import { executeCloseAction as closeAction } from "./action_executors/close.js";
 import { executeServerAction } from "./action_executors/server.js";
 import { buildActionInfo, buildViewInfo } from "./action_info_builders.js";
-import { loadAction, makeController, preprocessAction } from "./action_loader.js";
-import { getActionParams, makeActionState } from "./action_state.js";
+import {
+    loadAction,
+    makeController as buildController,
+    preprocessAction,
+} from "./action_loader.js";
+import { getActionParams as actionParamsOf, makeActionState } from "./action_state.js";
 import { actionStorage } from "./action_storage.js";
 import { BreadcrumbCache } from "./breadcrumb_cache.js";
-import { buildBreadcrumbs, controllersFromState } from "./breadcrumb_manager.js";
+import {
+    buildBreadcrumbs,
+    controllersFromState as rebuildControllersFromState,
+} from "./breadcrumb_manager.js";
 import { makeControllerComponent } from "./controller_component.js";
 import { loadState } from "./load_state.js";
 import { NavigationTracker } from "./navigation_token.js";
@@ -248,7 +255,7 @@ export class ActionManager {
         this._actionExecutors = {
             "ir.actions.act_url": (a, o) => executeActURLAction(a, o, this),
             "ir.actions.act_window": (a, o) => executeActWindowAction(a, o, this),
-            "ir.actions.act_window_close": (a, o) => this._executeCloseAction(a, o),
+            "ir.actions.act_window_close": (a, o) => this.executeCloseAction(a, o),
             "ir.actions.client": (a, o) => executeClientAction(a, o, this),
             "ir.actions.server": (a, o) => executeServerAction(a, o, this),
             "ir.actions.report": (a, o) => executeReportAction(a, o, this),
@@ -257,8 +264,8 @@ export class ActionManager {
         this.ControllerComponent = makeControllerComponent(this);
     }
 
-    async _controllersFromState(/** @type {any} */ state) {
-        return controllersFromState(state, this);
+    async controllersFromState(/** @type {any} */ state) {
+        return rebuildControllersFromState(state, this);
     }
 
     /**
@@ -266,7 +273,7 @@ export class ActionManager {
      * @param {Function} [removeFn]
      * @return {Promise<void>}
      */
-    async _removeDialog(closeParams, removeFn) {
+    async removeDialog(closeParams, removeFn) {
         if (removeFn && this.nextDialog && this.nextDialog.remove === removeFn) {
             const { stolenOnClose, supersededOnClose } = this.nextDialog;
             this.nextDialog = null;
@@ -315,7 +322,7 @@ export class ActionManager {
         if (currentController) {
             if (currentController.virtual) {
                 try {
-                    action = await this._loadAction(currentController.action.id);
+                    action = await this.fetchAction(currentController.action.id);
                 } catch (error) {
                     if (
                         error.exceptionName ===
@@ -336,7 +343,7 @@ export class ActionManager {
     /**
      * @returns {number}
      */
-    _nextId() {
+    nextId() {
         return ++this._id;
     }
 
@@ -344,18 +351,18 @@ export class ActionManager {
      * @param {{ forceLeave?: boolean }} [options]
      * @returns {Promise<boolean>}
      */
-    async _confirmLeave(options = {}) {
+    async confirmLeave(options = {}) {
         const token = this.navigation.snapshot();
         const canProceed = await clearUncommittedChanges(this.env, options);
         return canProceed && token.isCurrent();
     }
 
-    async _loadAction(/** @type {any} */ actionRequest, context = {}) {
+    async fetchAction(/** @type {any} */ actionRequest, context = {}) {
         return loadAction(actionRequest, context);
     }
 
-    _makeController(/** @type {any} */ params) {
-        return makeController(params, this);
+    makeController(/** @type {any} */ params) {
+        return buildController(params, this);
     }
 
     _preprocessAction(/** @type {any} */ action, context = {}) {
@@ -367,7 +374,7 @@ export class ActionManager {
      * @throws {ControllerNotFoundError}
      * @returns {any}
      */
-    _getView(viewType) {
+    getView(viewType) {
         const currentController = this.controllerStack.at(-1);
         if (!currentController) {
             throw new ControllerNotFoundError(
@@ -383,12 +390,12 @@ export class ActionManager {
         return view || null;
     }
 
-    _getBreadcrumbs(/** @type {any} */ stack) {
+    getBreadcrumbs(/** @type {any} */ stack) {
         return buildBreadcrumbs(stack, this);
     }
 
-    _getActionParams(/** @type {any} */ state) {
-        return getActionParams(state);
+    getActionParams(/** @type {any} */ state) {
+        return actionParamsOf(state);
     }
 
     /**
@@ -396,7 +403,7 @@ export class ActionManager {
      * @param {ActionProps} props
      * @returns {{ props: ActionProps, config: Config }}
      */
-    _getActionInfo(action, props) {
+    getActionInfo(action, props) {
         return buildActionInfo(action, props, this);
     }
 
@@ -406,7 +413,7 @@ export class ActionManager {
      * @param {BaseView[]} views
      * @param {Object} props
      */
-    _getViewInfo(view, action, views, props = {}) {
+    getViewInfo(view, action, views, props = {}) {
         return buildViewInfo(view, action, views, props, this);
     }
 
@@ -472,7 +479,7 @@ export class ActionManager {
      * @param {boolean} [options.isBreadcrumbRestore]
      * @returns {Promise<any>}
      */
-    async _updateUI(controller, options = {}) {
+    async updateUI(controller, options = {}) {
         const action = controller.action;
         const baseStack =
             action.target !== "new" && options.newStack
@@ -524,7 +531,7 @@ export class ActionManager {
      */
     _prepareControllerConfig(controller, action, nextStack) {
         controller.config.breadcrumbs = reactive(
-            action.target === "new" ? [] : this._getBreadcrumbs(nextStack),
+            action.target === "new" ? [] : this.getBreadcrumbs(nextStack),
         );
         controller.config.getDisplayName = () => controller.displayName;
         controller.config.setDisplayName = (/** @type {any} */ displayName) => {
@@ -592,7 +599,7 @@ export class ActionManager {
             actionDialogProps,
             {
                 onClose: (closeParams) =>
-                    this._removeDialog(closeParams, removeDialogFn),
+                    this.removeDialog(closeParams, removeDialogFn),
             },
         ));
         if (superseded) {
@@ -621,7 +628,7 @@ export class ActionManager {
         const def = new Deferred();
         const isActWindow = action.type === "ir.actions.act_window";
         this.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, {
-            id: this._nextId(),
+            id: this.nextId(),
             Component: SkeletonView,
             componentProps: {
                 onMounted: () => def.resolve(),
@@ -711,7 +718,7 @@ export class ActionManager {
             options.onActionReady(action);
         }
         controller.__info__ = {
-            id: this._nextId(),
+            id: this.nextId(),
             Component: this.ControllerComponent,
             componentProps: { ...controller.props, _context: dispatch },
         };
@@ -728,8 +735,8 @@ export class ActionManager {
         return openActionInNewWindow(action, state, this);
     }
 
-    _executeCloseAction(action = {}, options = {}) {
-        return executeCloseAction(this, action, options);
+    executeCloseAction(action = {}, options = {}) {
+        return closeAction(this, action, options);
     }
 
     /**
@@ -756,7 +763,7 @@ export class ActionManager {
     async _doAction(actionRequest, options = {}) {
         actionLog("doAction", actionRequest, options);
         options = { ...options };
-        const actionProm = this._loadAction(actionRequest, options.additionalContext);
+        const actionProm = this.fetchAction(actionRequest, options.additionalContext);
         let action = await this.navigation.guard(actionProm);
         action = this._preprocessAction(action, options.additionalContext);
         options.clearBreadcrumbs = action.target === "main" || options.clearBreadcrumbs;
@@ -803,7 +810,7 @@ export class ActionManager {
             return;
         }
         const controller = this.controllerStack.at(-1);
-        const view = this._getView(viewType);
+        const view = this.getView(viewType);
         if (!view) {
             throw new ViewNotFoundError(
                 _t(
@@ -818,20 +825,20 @@ export class ActionManager {
         await this.navigation.guard(Promise.resolve());
         const newController =
             controller.action.controllers[viewType] ||
-            this._makeController({
+            this.makeController({
                 Component: View,
                 action: controller.action,
                 views: controller.views,
                 view,
             });
 
-        if (!newWindow && !(await this._confirmLeave())) {
+        if (!newWindow && !(await this.confirmLeave())) {
             return;
         }
 
         Object.assign(
             newController,
-            this._getViewInfo(view, controller.action, controller.views, props),
+            this.getViewInfo(view, controller.action, controller.views, props),
         );
         controller.action.controllers[viewType] = newController;
         const actionJsId = controller.action.jsId;
@@ -849,7 +856,7 @@ export class ActionManager {
                   );
                   return at > -1 ? at : stack.length;
               };
-        return this._updateUI(newController, { newWindow, spliceAt });
+        return this.updateUI(newController, { newWindow, spliceAt });
     }
 
     /**
@@ -872,12 +879,12 @@ export class ActionManager {
         }
         // See switchView: the epoch is bumped only once the restore is certain.
         await this.navigation.guard(Promise.resolve());
-        if (!(await this._confirmLeave())) {
+        if (!(await this.confirmLeave())) {
             return;
         }
         const controller = this.controllerStack[index];
         if (controller.virtual) {
-            const actionParams = this._getActionParams(controller.state);
+            const actionParams = this.getActionParams(controller.state);
             if (!actionParams) {
                 throw new Error(
                     "Attempted to restore a virtual controller whose state is invalid",
@@ -899,9 +906,9 @@ export class ActionManager {
             if (exportedState && "resId" in exportedState) {
                 props.resId = exportedState.resId;
             }
-            Object.assign(controller, this._getViewInfo(view, action, views, props));
+            Object.assign(controller, this.getViewInfo(view, action, views, props));
         }
-        return this._updateUI(controller, {
+        return this.updateUI(controller, {
             spliceAt: (stack) => {
                 const at = stack.findIndex((ct) => ct.jsId === controller.jsId);
                 return at > -1 ? at : stack.length;
@@ -923,7 +930,7 @@ export class ActionManager {
         /** @type {any} */ actionRequest,
         /** @type {any} */ context = {},
     ) {
-        const action = await this._loadAction(actionRequest, context);
+        const action = await this.fetchAction(actionRequest, context);
         return this._preprocessAction(action, context);
     }
 

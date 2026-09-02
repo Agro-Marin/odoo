@@ -92,7 +92,7 @@ async function resolveButtonAction(am, params, context) {
         context.active_id = params.resId ?? null;
         context.active_ids = params.resIds;
         context.active_model = params.resModel;
-        return am.navigation.guard(am._loadAction(params.name, context));
+        return am.navigation.guard(am.fetchAction(params.name, context));
     }
     throw new InvalidButtonParamsError("Missing type for doActionButton request");
 }
@@ -218,7 +218,7 @@ export async function executeActionButton(
             viewType,
         });
         if (params.close) {
-            await am._executeCloseAction(undefined, { dialog: dialogAtPress });
+            await am.executeCloseAction(undefined, { dialog: dialogAtPress });
         }
     } finally {
         if (blockUi) {

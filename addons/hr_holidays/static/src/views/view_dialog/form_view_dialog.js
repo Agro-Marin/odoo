@@ -85,7 +85,7 @@ export class TimeOffDialogFormController extends FormController {
     }
 
     async onClick(action) {
-        await this.save(this.record._changes);
+        await this.save(this.record.changes);
         await this.action.doActionButton({
             resModel: "hr.leave",
             name: action,

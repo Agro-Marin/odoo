@@ -29,7 +29,7 @@ export class IntegerUpdateFlagField extends IntegerField {
         super.setup(...arguments);
         const inputRef = useRef("numpadDecimal");
         const onChange = async () => {
-            await this.props.record._update({
+            await this.props.record.update({
                 [this.props.flagFieldName]:
                     parseInt(this.formattedValue) !== this.props.referenceValue,
             });

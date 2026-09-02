@@ -67,7 +67,7 @@ export class AccrualLevels extends Component {
     }
 
     getCarryOverDate(planRecord) {
-        switch (planRecord._values.carryover_date) {
+        switch (planRecord.savedData.carryover_date) {
             case "year_start":
                 return _t("start of the year");
             case "allocation":

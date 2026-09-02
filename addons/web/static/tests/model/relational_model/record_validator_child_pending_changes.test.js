@@ -10,7 +10,7 @@ function makeChild(/** @type {any} */ { resId, dirty, changes }) {
     editState.dirty = dirty;
     return {
         resId,
-        _virtualId: false,
+        virtualId: false,
         _editState: editState,
         get dirty() {
             return editState.dirty;
@@ -18,13 +18,13 @@ function makeChild(/** @type {any} */ { resId, dirty, changes }) {
         get hasPendingChanges() {
             return editState.hasPendingChanges;
         },
-        get _changes() {
+        get changes() {
             return editState.changes;
         },
         get isValid() {
             return false;
         },
-        _checkValidity: () => false,
+        checkValidityLocked: () => false,
     };
 }
 
@@ -47,15 +47,15 @@ function makeParent(/** @type {any} */ child) {
         activeFields: { line_ids: {} },
         data: { line_ids: list },
         _editState: editState,
-        get _invalidFields() {
+        get invalidFields() {
             return editState.invalidFields;
         },
-        get _unsetRequiredFields() {
+        get unsetRequiredFields() {
             return editState.unsetRequiredFields;
         },
         setInvalidFieldsNotification(/** @type {any} */ _close) {},
-        _isInvisible: () => false,
-        _isRequired: () => false,
+        isFieldInvisible: () => false,
+        isFieldRequired: () => false,
     };
 }
 

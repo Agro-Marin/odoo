@@ -39,7 +39,7 @@ export function installActionCacheInvalidation(am) {
         tip.config.breadcrumbs.splice(
             0,
             tip.config.breadcrumbs.length,
-            ...am._getBreadcrumbs(stack),
+            ...am.getBreadcrumbs(stack),
         );
     });
 }

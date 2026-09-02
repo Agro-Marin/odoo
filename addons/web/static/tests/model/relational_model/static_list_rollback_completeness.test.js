@@ -33,8 +33,8 @@ function makeList(overrides = {}) {
         _extendedRecords: new Set(),
         _onUpdate: async () => {},
         model: {
-            _patchConfig: (config, patch) => Object.assign(config, patch),
-            _loadRecords: async () => [],
+            patchConfig: (config, patch) => Object.assign(config, patch),
+            loadRecords: async () => [],
         },
         ...overrides,
     });
@@ -42,18 +42,18 @@ function makeList(overrides = {}) {
 }
 
 function snapshotAsUpdateDoes(list) {
-    return { list, snapshot: list._snapshot() };
+    return { list, snapshot: list.snapshot() };
 }
 
 function rollbackAsUpdateDoes(snap) {
-    snap.list._restore(snap.snapshot);
+    snap.list.restoreSnapshot(snap.snapshot);
 }
 
 describe("rollback completeness after a failed commit", () => {
     test("a SET wider than the page leaves limit/_tmpIncreaseLimit inflated", async () => {
         const list = makeList({ _currentIds: [1] });
         for (const id of [1, 2, 3]) {
-            list._cache.set(id, { resId: id, _virtualId: false });
+            list._cache.set(id, { resId: id, virtualId: false });
         }
         list.records = [list._cache.get(1)];
 
@@ -61,7 +61,7 @@ describe("rollback completeness after a failed commit", () => {
         expect(list.limit).toBe(1);
         expect(list._tmpIncreaseLimit).toBe(0);
 
-        await list._replaceWith([1, 2, 3]);
+        await list.replaceWith([1, 2, 3]);
         expect(list.limit).toBe(3);
         expect(list._tmpIncreaseLimit).toBe(2);
 
@@ -88,12 +88,14 @@ describe("rollback completeness after a failed commit", () => {
             },
             _currentIds: [1, 7],
         });
-        list._cache.set(1, { resId: 1, _virtualId: false });
+        list._cache.set(1, { resId: 1, virtualId: false });
         list.records = [list._cache.get(1)];
 
         const snap = snapshotAsUpdateDoes(list);
 
-        await list._applyCommands([[1, 7, { name: "from a change that will fail" }]]);
+        await list.applyCommandsLocked([
+            [1, 7, { name: "from a change that will fail" }],
+        ]);
         expect(list._unknownRecordCommands.get(7)).toHaveLength(1);
 
         rollbackAsUpdateDoes(snap);
@@ -118,7 +120,7 @@ describe("_needsReordering is part of the restorable set", () => {
             },
             _currentIds: [1],
         });
-        list._cache.set(1, { resId: 1, _virtualId: false, data: { sequence: 1 } });
+        list._cache.set(1, { resId: 1, virtualId: false, data: { sequence: 1 } });
         list.records = [list._cache.get(1)];
         expect(list._needsReordering).toBe(false);
 

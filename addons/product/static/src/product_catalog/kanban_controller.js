@@ -72,7 +72,7 @@ export class ProductCatalogKanbanController extends KanbanController {
      *
      * Hooked here rather than on the "Back to Order" button because the button
      * is not the only way out: a breadcrumb, a menu, or any other action all
-     * leave through `_confirmLeave`, which awaits this. The order form is
+     * leave through `confirmLeave`, which awaits this. The order form is
      * reloaded by whatever comes next, so the write has to have landed first.
      *
      * `allSettled`: a card whose write failed has already reported it, and one

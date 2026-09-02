@@ -40,7 +40,7 @@ function makeRecord({
 }
 
 describe("addSavePoint", () => {
-    test("snapshots _changes, _textValues, _invalidFields", () => {
+    test("snapshots changes, _textValues, invalidFields", () => {
         const rec = makeRecord({
             changes: { name: "Edited", age: 30 },
             textValues: { name: "Edited" },
@@ -59,8 +59,8 @@ describe("addSavePoint", () => {
         const rec = makeRecord({ changes: { name: "A" } });
         addSavePoint(rec);
 
-        rec._changes.name = "B";
-        rec._invalidFields.add("late_invalid");
+        rec.changes.name = "B";
+        rec.invalidFields.add("late_invalid");
 
         expect(rec._savePoint.changes).toEqual({ name: "A" });
         expect(rec._savePoint.invalidFields).toEqual([]);
@@ -72,7 +72,7 @@ describe("addSavePoint", () => {
         expect("dirty" in rec._savePoint).toBe(false);
     });
 
-    test("recurses into x2many children when _changes contains them", () => {
+    test("recurses into x2many children when changes contains them", () => {
         let childSnapshotCalls = 0;
         const childList = {
             _addSavePoint: () => {
@@ -112,57 +112,57 @@ describe("addSavePoint", () => {
     });
 });
 
-describe("restoreFromSavePoint — Invariant 1 (committed _changes)", () => {
-    test("round-trips _changes and derives dirty=true", () => {
+describe("restoreFromSavePoint — Invariant 1 (committed changes)", () => {
+    test("round-trips changes and derives dirty=true", () => {
         const rec = makeRecord({
             changes: { name: "Snapshot value" },
             dirty: true,
         });
         addSavePoint(rec);
 
-        rec._changes = markRaw({ name: "Mid-flow" });
+        rec.changes = markRaw({ name: "Mid-flow" });
         rec.dirty = true;
 
         restoreFromSavePoint(rec);
 
-        expect(rec._changes).toEqual({ name: "Snapshot value" });
+        expect(rec.changes).toEqual({ name: "Snapshot value" });
         expect(rec.dirty).toBe(true);
     });
 });
 
 describe("restoreFromSavePoint — Invariant 2 (invalid input only)", () => {
-    test("round-trips _invalidFields and derives dirty=true with empty _changes", () => {
+    test("round-trips invalidFields and derives dirty=true with empty changes", () => {
         const rec = makeRecord({
             invalidFields: ["age"],
             dirty: true,
         });
         addSavePoint(rec);
 
-        rec._invalidFields.clear();
+        rec.invalidFields.clear();
         rec.dirty = false;
 
         restoreFromSavePoint(rec);
 
-        expect(rec._invalidFields.has("age")).toBe(true);
-        expect(rec._invalidFields.size).toBe(1);
+        expect(rec.invalidFields.has("age")).toBe(true);
+        expect(rec.invalidFields.size).toBe(1);
         expect(rec.dirty).toBe(true);
     });
 
-    test("the restored _invalidFields is a NEW Set — not a reference into the snapshot", () => {
+    test("the restored invalidFields is a NEW Set — not a reference into the snapshot", () => {
         const rec = makeRecord({ invalidFields: ["age"], dirty: true });
         addSavePoint(rec);
         const snapshotArray = rec._savePoint.invalidFields;
 
-        rec._invalidFields = new Set();
+        rec.invalidFields = new Set();
         restoreFromSavePoint(rec);
 
-        rec._invalidFields.add("late");
+        rec.invalidFields.add("late");
         expect(snapshotArray).toEqual(["age"]);
     });
 });
 
 describe("restoreFromSavePoint — mixed state", () => {
-    test("both _changes and _invalidFields populated → dirty=true", () => {
+    test("both changes and invalidFields populated → dirty=true", () => {
         const rec = makeRecord({
             changes: { name: "Edited" },
             invalidFields: ["age"],
@@ -170,20 +170,20 @@ describe("restoreFromSavePoint — mixed state", () => {
         });
         addSavePoint(rec);
 
-        rec._changes = markRaw({});
-        rec._invalidFields.clear();
+        rec.changes = markRaw({});
+        rec.invalidFields.clear();
         rec.dirty = false;
 
         restoreFromSavePoint(rec);
 
-        expect(rec._changes).toEqual({ name: "Edited" });
-        expect(rec._invalidFields.has("age")).toBe(true);
+        expect(rec.changes).toEqual({ name: "Edited" });
+        expect(rec.invalidFields.has("age")).toBe(true);
         expect(rec.dirty).toBe(true);
     });
 });
 
 describe("restoreFromSavePoint — clean state", () => {
-    test("no _changes and no _invalidFields → dirty=false (no ghost dirty)", () => {
+    test("no changes and no invalidFields → dirty=false (no ghost dirty)", () => {
         const rec = makeRecord({ dirty: false });
         addSavePoint(rec);
 
@@ -191,8 +191,8 @@ describe("restoreFromSavePoint — clean state", () => {
 
         restoreFromSavePoint(rec);
 
-        expect(rec._changes).toEqual({});
-        expect(rec._invalidFields.size).toBe(0);
+        expect(rec.changes).toEqual({});
+        expect(rec.invalidFields.size).toBe(0);
         expect(rec.dirty).toBe(false);
     });
 });
@@ -207,7 +207,7 @@ describe("restoreFromSavePoint — single-use semantics", () => {
 });
 
 describe("restoreFromSavePoint — _textValues", () => {
-    test("round-trips _textValues independently of _changes", () => {
+    test("round-trips _textValues independently of changes", () => {
         const rec = makeRecord({
             textValues: { description: "" },
             changes: {},
@@ -264,14 +264,14 @@ function makeDiscardRecord({
 }
 
 describe("discard — no savepoint (clear to server truth)", () => {
-    test("calls _clearChanges so _changes={} and dirty=false (Invariant I3)", () => {
+    test("calls _clearChanges so changes={} and dirty=false (Invariant I3)", () => {
         const rec = makeDiscardRecord({
             values: { name: "server" },
             changes: { name: "user-edit" },
         });
         expect(rec.dirty).toBe(true);
         discard(rec);
-        expect(rec._changes).toEqual({});
+        expect(rec.changes).toEqual({});
         expect(rec.dirty).toBe(false);
     });
 
@@ -284,16 +284,16 @@ describe("discard — no savepoint (clear to server truth)", () => {
         expect(rec._textValues).toEqual({ description: "initial server text" });
     });
 
-    test("wipes _invalidFields (stale by construction once data is back to _values)", () => {
+    test("wipes invalidFields (stale by construction once data is back to _values)", () => {
         const rec = makeDiscardRecord({
             values: { name: "x" },
             invalid: ["name", "email"],
         });
         discard(rec);
-        expect([...rec._invalidFields]).toEqual([]);
+        expect([...rec.invalidFields]).toEqual([]);
     });
 
-    test("rebuilds data from _values + _changes (post-clear)", () => {
+    test("rebuilds data from _values + changes (post-clear)", () => {
         const rec = makeDiscardRecord({
             values: { name: "server", age: 30 },
             changes: { name: "edit", age: 99 },
@@ -304,7 +304,7 @@ describe("discard — no savepoint (clear to server truth)", () => {
 });
 
 describe("discard — savepoint path (restore snapshot)", () => {
-    test("calls restoreFromSavePoint: _changes/_textValues/_invalidFields back to snapshot", () => {
+    test("calls restoreFromSavePoint: changes/_textValues/invalidFields back to snapshot", () => {
         const rec = makeDiscardRecord({
             hasSavePoint: true,
             values: { name: "server" },
@@ -315,16 +315,16 @@ describe("discard — savepoint path (restore snapshot)", () => {
                 unsetRequiredFields: ["email"],
             }),
         });
-        rec._changes = markRaw({ name: "post-snapshot edit" });
+        rec.changes = markRaw({ name: "post-snapshot edit" });
         rec._textValues = markRaw({ description: "post-snapshot text" });
-        rec._invalidFields = new Set(["other"]);
+        rec.invalidFields = new Set(["other"]);
         discard(rec);
-        expect(rec._changes).toEqual({ name: "snapshot-edit" });
+        expect(rec.changes).toEqual({ name: "snapshot-edit" });
         expect(rec._textValues).toEqual({ description: "snapshot-text" });
-        expect([...rec._invalidFields]).toEqual(["email"]);
+        expect([...rec.invalidFields]).toEqual(["email"]);
     });
 
-    test("derives dirty from restored _changes + _invalidFields (snapshot truth)", () => {
+    test("derives dirty from restored changes + invalidFields (snapshot truth)", () => {
         const rec = makeDiscardRecord({
             hasSavePoint: true,
             values: { name: "server" },
@@ -336,7 +336,7 @@ describe("discard — savepoint path (restore snapshot)", () => {
         expect(rec.dirty).toBe(true);
     });
 
-    test("savepoint branch does NOT wipe _invalidFields (preserved from snapshot)", () => {
+    test("savepoint branch does NOT wipe invalidFields (preserved from snapshot)", () => {
         const rec = makeDiscardRecord({
             hasSavePoint: true,
             savePoint: createSavePoint({
@@ -344,12 +344,12 @@ describe("discard — savepoint path (restore snapshot)", () => {
                 unsetRequiredFields: ["email"],
             }),
         });
-        rec._invalidFields = new Set(["email", "noise"]);
+        rec.invalidFields = new Set(["email", "noise"]);
         discard(rec);
-        expect([...rec._invalidFields]).toEqual(["email"]);
+        expect([...rec.invalidFields]).toEqual(["email"]);
     });
 
-    test("rebuilds data from _values + restored _changes", () => {
+    test("rebuilds data from _values + restored changes", () => {
         const rec = makeDiscardRecord({
             hasSavePoint: true,
             values: { name: "server", age: 30 },
@@ -363,10 +363,10 @@ describe("discard — savepoint path (restore snapshot)", () => {
 });
 
 describe("discard — common post-branch behavior", () => {
-    test("re-runs _checkValidity when !isNew", () => {
+    test("re-runs checkValidityLocked when !isNew", () => {
         let called = false;
         const rec = makeDiscardRecord({ isNew: false });
-        rec._checkValidity = () => {
+        rec.checkValidityLocked = () => {
             called = true;
             return true;
         };
@@ -374,10 +374,10 @@ describe("discard — common post-branch behavior", () => {
         expect(called).toBe(true);
     });
 
-    test("skips _checkValidity when isNew (new draft)", () => {
+    test("skips checkValidityLocked when isNew (new draft)", () => {
         let called = false;
         const rec = makeDiscardRecord({ isNew: true });
-        rec._checkValidity = () => {
+        rec.checkValidityLocked = () => {
             called = true;
             return true;
         };
@@ -399,10 +399,10 @@ describe("discard — common post-branch behavior", () => {
         expect(closeCalled).toBe(false);
     });
 
-    test("calls _restoreActiveFields at the end of the discard sequence", () => {
+    test("calls restoreActiveFields at the end of the discard sequence", () => {
         let called = false;
         const rec = makeDiscardRecord();
-        rec._restoreActiveFields = () => {
+        rec.restoreActiveFields = () => {
             called = true;
         };
         discard(rec);
@@ -412,7 +412,7 @@ describe("discard — common post-branch behavior", () => {
     test("refreshes the eval context after the rebuild", () => {
         let called = false;
         const rec = makeDiscardRecord();
-        rec._setEvalContext = () => {
+        rec.setEvalContext = () => {
             called = true;
         };
         discard(rec);
@@ -420,32 +420,32 @@ describe("discard — common post-branch behavior", () => {
     });
 });
 
-describe("discard — x2many child._discard() cascade", () => {
-    test("calls _discard on each x2many StaticList in _changes BEFORE the parent's main logic", () => {
+describe("discard — x2many child.discardLocked() cascade", () => {
+    test("calls discardLocked on each x2many StaticList in changes BEFORE the parent's main logic", () => {
         const order = [];
         const childList = {
-            _discard() {
-                order.push("child._discard");
+            discardLocked() {
+                order.push("child.discardLocked");
             },
         };
         const rec = makeDiscardRecord({
             changes: { line_ids: childList },
         });
         rec.fields = { line_ids: { type: "one2many" } };
-        const origDiscardChanges = rec._discardChanges.bind(rec);
-        rec._discardChanges = () => {
-            order.push("_discardChanges");
+        const origDiscardChanges = rec.discardChanges.bind(rec);
+        rec.discardChanges = () => {
+            order.push("discardChanges");
             origDiscardChanges();
         };
         discard(rec);
-        expect(order).toEqual(["child._discard", "_discardChanges"]);
-        expect({ .../** @type {any} */ (rec)._changes }).toEqual({});
+        expect(order).toEqual(["child.discardLocked", "discardChanges"]);
+        expect({ .../** @type {any} */ (rec).changes }).toEqual({});
     });
 
-    test("does NOT call _discard on scalar fields in _changes", () => {
+    test("does NOT call discardLocked on scalar fields in changes", () => {
         let scalarDiscardCalled = false;
         const scalarField = {
-            _discard() {
+            discardLocked() {
                 scalarDiscardCalled = true;
             },
         };

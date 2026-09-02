@@ -47,37 +47,37 @@ function makeList({ loadRecords = async () => [] } = {}) {
         _tmpIncreaseLimit: 0,
         _extendedRecords: new Set(),
         model: {
-            _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+            patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
                 Object.assign(config, patch),
-            _loadRecords: (/** @type {any} */ config) => loadRecords(config),
+            loadRecords: (/** @type {any} */ config) => loadRecords(config),
         },
         _createRecordDatapoint(/** @type {any} */ data, params = {}) {
             const resId = data.id || false;
             const record = {
                 resId,
-                _virtualId: params.virtualId || null,
+                virtualId: params.virtualId || null,
                 activeFields: {},
                 fields: {},
                 fieldNames: [],
-                _loadedFieldNames: new Set(Object.keys(data)),
+                loadedFieldNames: new Set(Object.keys(data)),
                 data: { ...data },
-                _changes: {},
-                _discard() {},
-                _applyChanges(/** @type {any} */ changes, serverChanges = {}) {
+                changes: {},
+                discardLocked() {},
+                applyChanges(/** @type {any} */ changes, serverChanges = {}) {
                     Object.assign(
                         this.data,
                         changes,
-                        this._parseServerValues(serverChanges),
+                        this.parseServerValues(serverChanges),
                     );
                 },
-                _applyValues(/** @type {any} */ values) {
+                applyValues(/** @type {any} */ values) {
                     if (values) {
                         Object.assign(this.data, values);
                     }
                 },
-                _parseServerValues: (/** @type {any} */ changes) => changes,
+                parseServerValues: (/** @type {any} */ changes) => changes,
             };
-            this._cache.set(resId || record._virtualId, record);
+            this._cache.set(resId || record.virtualId, record);
             return record;
         },
     });
@@ -91,7 +91,7 @@ describe("floating commands rejection", () => {
             loadRecords: () => Promise.reject(new Error("load boom")),
         });
 
-        list._applyInitialCommands([[LINK, 42, false]]);
+        list.applyInitialCommands([[LINK, 42, false]]);
         expect(list._commandsPromise).not.toBe(null);
 
         await animationFrame();
@@ -103,22 +103,26 @@ describe("floating commands rejection", () => {
     test("synchronous command application does not create a pending promise", () => {
         const list = makeList();
 
-        list._applyInitialCommands([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);
+        list.applyInitialCommands([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);
 
         expect(list._commandsPromise).toBe(null);
         expect(list._currentIds).toInclude(7);
     });
 });
 
-describe("_discard prune sequencing", () => {
+describe("discardLocked prune sequencing", () => {
     test("_pruneCache runs only after the pending commands load settles", async () => {
         const def = new Deferred();
         const list = makeList({ loadRecords: () => def });
 
-        list._cache.set("stale", { resId: false, _virtualId: "stale", _discard() {} });
+        list._cache.set("stale", {
+            resId: false,
+            virtualId: "stale",
+            discardLocked() {},
+        });
         list._initialCommands = [[LINK, 42, false]];
 
-        list._discard();
+        list.discardLocked();
 
         expect(list._commandsPromise).not.toBe(null);
         expect(list._cache.has("stale")).toBe(true);
@@ -133,9 +137,13 @@ describe("_discard prune sequencing", () => {
 
     test("_pruneCache runs synchronously when nothing is pending", () => {
         const list = makeList();
-        list._cache.set("stale", { resId: false, _virtualId: "stale", _discard() {} });
+        list._cache.set("stale", {
+            resId: false,
+            virtualId: "stale",
+            discardLocked() {},
+        });
 
-        list._discard();
+        list.discardLocked();
 
         expect(list._cache.has("stale")).toBe(false);
     });
@@ -156,25 +164,28 @@ describe("save barrier on pending commands", () => {
             data: { lines: list },
             config: { isRoot: false, context: {} },
             isInEdition: true,
-            _changes: markRaw({}),
+            changes: markRaw({}),
             _values: markRaw({}),
+            get savedData() {
+                return this._values;
+            },
             _textValues: markRaw({}),
-            _setEvalContext() {},
-            _checkValidity: () => true,
-            _getChanges: () => ({ lines: list._getCommands() }),
+            setEvalContext() {},
+            checkValidityLocked: () => true,
+            getChangesLocked: () => ({ lines: list.getCommands() }),
             ...RECORD_STATE_TRANSITIONS,
             _clearChanges() {},
-            _discard: () => {},
-            _load: async () => {},
-            _setData: () => {},
+            discardLocked: () => {},
+            loadLocked: async () => {},
+            setData: () => {},
             model: {
                 closeUrgentSaveNotification() {},
                 urgentSave: { isActive: false },
                 useSendBeaconToSaveUrgently: false,
                 env: { inDialog: false },
                 load: async () => {},
-                _patchConfig: () => {},
-                _updateSimilarRecords: () => {},
+                patchConfig: () => {},
+                updateSimilarRecords: () => {},
                 __proto__: MODEL_LIFECYCLE_PROTO,
                 hooks: {
                     lifecycle: {
@@ -195,7 +206,7 @@ describe("save barrier on pending commands", () => {
         const def = new Deferred();
         const list = makeList({ loadRecords: () => def });
 
-        list._trackCommandsPromise(list._applyCommands([[LINK, 42, false]]));
+        list._trackCommandsPromise(list.applyCommandsLocked([[LINK, 42, false]]));
         expect(list._commandsPromise).not.toBe(null);
 
         /** @type {any[]} */
@@ -227,7 +238,7 @@ describe("save barrier on pending commands", () => {
 
     test("save proceeds without delay when no commands load is pending", async () => {
         const list = makeList();
-        list._applyCommands([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);
+        list.applyCommandsLocked([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);
 
         const rec = makeRecord(list, {
             webSave: async () => {
@@ -257,7 +268,7 @@ describe("save barrier on pending commands", () => {
             },
         });
 
-        list._trackCommandsPromise(list._applyCommands([[LINK, 42, false]]));
+        list._trackCommandsPromise(list.applyCommandsLocked([[LINK, 42, false]]));
         await animationFrame();
         expect.verifyErrors([/replay boom/]);
 
@@ -290,7 +301,7 @@ describe("save barrier on pending commands", () => {
 
     test("the barrier gives up after a bounded number of iterations", async () => {
         const list = makeList();
-        list._applyCommands([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);
+        list.applyCommandsLocked([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);
         Object.defineProperty(list, "_commandsPromise", {
             get: () => Promise.resolve(),
             set: () => {},

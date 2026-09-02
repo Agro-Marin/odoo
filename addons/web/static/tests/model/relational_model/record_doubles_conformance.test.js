@@ -14,7 +14,7 @@ describe.current.tags("headless");
 function makeRealRecord() {
     const model = {
         Class: { Record: RelationalRecord },
-        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+        patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
             Object.assign(config, patch),
     };
     const config = {
@@ -65,18 +65,18 @@ describe("the record contract, the class and the double agree", () => {
         });
     });
 
-    test("the double's _loadedFieldNames answers the question the real one does", () => {
+    test("the double's loadedFieldNames answers the question the real one does", () => {
         const record = makeRealRecord();
         const double = makeRecordDouble({ values: { id: 1, name: "n" } });
 
-        expect(/** @type {Set<string>} */ (record._loadedFieldNames)).toBeInstanceOf(
+        expect(/** @type {Set<string>} */ (record.loadedFieldNames)).toBeInstanceOf(
             Set,
         );
-        expect(double._loadedFieldNames).toBeInstanceOf(Set);
-        expect(/** @type {Set<string>} */ (record._loadedFieldNames).has("name")).toBe(
+        expect(double.loadedFieldNames).toBeInstanceOf(Set);
+        expect(/** @type {Set<string>} */ (record.loadedFieldNames).has("name")).toBe(
             true,
         );
-        expect(double._loadedFieldNames.has("name")).toBe(true);
+        expect(double.loadedFieldNames.has("name")).toBe(true);
     });
 
     test("a real RelationalRecord carries every member the OWNER surface names", () => {
@@ -106,7 +106,7 @@ describe("the double BEHAVES like the record, not merely looks like it", () => {
         return JSON.stringify({
             data: { name: record.data.name },
             values: { name: record._values.name },
-            changes: { ...record._changes },
+            changes: { ...record.changes },
             textValues: { ...record._textValues },
             initialTextValues: { ...record._initialTextValues },
             dirty: record.dirty,
@@ -119,20 +119,20 @@ describe("the double BEHAVES like the record, not merely looks like it", () => {
      */
     function drive(record) {
         const trace = [];
-        record._changes.name = "edited";
+        record.changes.name = "edited";
         record._textValues.name = "edited";
         record.dirty = true;
-        record._rebuildData();
+        record.rebuildData();
         trace.push(`rebuild ${stateOf(record)}`);
-        record._commitChanges();
+        record.commitChanges();
         trace.push(`commit ${stateOf(record)}`);
-        record._changes.name = "again";
+        record.changes.name = "again";
         record._textValues.name = "again";
         record.dirty = true;
-        record._rebuildData();
-        record._discardChanges();
+        record.rebuildData();
+        record.discardChanges();
         trace.push(`discard ${stateOf(record)}`);
-        record._resetValues({ name: "reset" });
+        record.resetValues({ name: "reset" });
         trace.push(`reset ${stateOf(record)}`);
         return trace;
     }

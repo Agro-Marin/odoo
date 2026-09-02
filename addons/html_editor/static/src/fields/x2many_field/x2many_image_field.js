@@ -65,8 +65,7 @@ export class X2ManyImageField extends ImageField {
     }
 
     onFileRemove() {
-        const parentRecord = this.props.record._parentRecord.data;
-        parentRecord[this.env.parentField].delete(this.props.record);
+        this.env.removeRecord(this.props.record);
     }
 }
 

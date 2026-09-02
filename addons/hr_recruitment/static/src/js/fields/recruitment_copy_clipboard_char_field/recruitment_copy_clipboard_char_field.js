@@ -36,7 +36,7 @@ class RecruitmentCopyClipboardCharField extends CopyClipboardCharField {
         if (this.props.contentGenerationFunctionName) {
             return () =>
                 this.orm.call(
-                    this.props.record._config.resModel,
+                    this.props.record.resModel,
                     this.props.contentGenerationFunctionName,
                     [this.props.record.resId],
                 );

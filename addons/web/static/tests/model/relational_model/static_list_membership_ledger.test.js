@@ -38,9 +38,9 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
     /** @type {any} */
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+        patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
             Object.assign(config, patch),
-        _loadRecords: async (/** @type {{ resIds: number[] }} */ { resIds: ids }) =>
+        loadRecords: async (/** @type {{ resIds: number[] }} */ { resIds: ids }) =>
             ids.filter((id) => !deleted.has(id)).map((id) => SERVER_ROWS[id]),
     };
     /** @type {any} */
@@ -69,20 +69,20 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
         parent,
         onUpdate: async () => {},
     });
-    list.model._patchConfig(list.config, { resIds });
+    list.model.patchConfig(list.config, { resIds });
     list._currentIds = [...resIds];
     return list;
 }
 
 describe("count follows membership through a partial load", () => {
-    test("_load drops a vanished id from count, not just from _currentIds", async () => {
+    test("loadLocked drops a vanished id from count, not just from _currentIds", async () => {
         const list = makeList({
             resIds: [1, 2, 3, 99],
             limit: 2,
             deleted: new Set([99]),
         });
 
-        await list._load({ offset: 2 });
+        await list.loadLocked({ offset: 2 });
 
         expect(list._currentIds).toEqual([1, 2, 3]);
         expect(list.count).toBe(3);
@@ -103,10 +103,10 @@ describe("count follows membership through a partial load", () => {
         expect(list.count).toBe(3);
     });
 
-    test("a growing load (_addRecord under an orderBy) grows count with it", async () => {
+    test("a growing load (addRecord under an orderBy) grows count with it", async () => {
         const list = makeList({ resIds: [1, 2, 3], limit: 10 });
 
-        await list._load({ nextCurrentIds: [1, 2, 3, 99] });
+        await list.loadLocked({ nextCurrentIds: [1, 2, 3, 99] });
 
         expect(list._currentIds).toEqual([1, 2, 3, 99]);
         expect(list.count).toBe(4);
@@ -116,7 +116,7 @@ describe("count follows membership through a partial load", () => {
         const list = makeList({ resIds: [1, 2], limit: 10 });
         list._currentIds = [1, 1, 2];
 
-        await list._load({ nextCurrentIds: [1, 2] });
+        await list.loadLocked({ nextCurrentIds: [1, 2] });
 
         expect(list._currentIds).toEqual([1, 2]);
         expect(list.count).toBe(2);
@@ -141,7 +141,7 @@ describe("removedIds counts removals rather than flagging them", () => {
 
     test("CLEAR then LINK then UNLINK of the same id leaves nothing behind", async () => {
         const list = makeList({ resIds: [1, 2, 3] });
-        await list._replaceWith([1, 2, 3]);
+        await list.replaceWith([1, 2, 3]);
 
         await applyCommands(/** @type {any} */ (list), [
             [CLEAR, false, false],
@@ -160,7 +160,7 @@ describe("an UNLINK cancelling a re-LINK keeps the original UNLINK", () => {
     test("unlink a server member", async () => {
         const list = makeList({ resIds: [1, 2] });
 
-        await list._applyCommands([[UNLINK, 1, false]]);
+        await list.applyCommandsLocked([[UNLINK, 1, false]]);
 
         expect(readable(list._commands)).toEqual(["UNLINK:1"]);
         expect(list._currentIds).toEqual([2]);
@@ -169,8 +169,8 @@ describe("an UNLINK cancelling a re-LINK keeps the original UNLINK", () => {
     test("unlink then relink nets back to linked", async () => {
         const list = makeList({ resIds: [1, 2] });
 
-        await list._applyCommands([[UNLINK, 1, false]]);
-        await list._applyCommands([[LINK, 1, false]]);
+        await list.applyCommandsLocked([[UNLINK, 1, false]]);
+        await list.applyCommandsLocked([[LINK, 1, false]]);
 
         expect(readable(list._commands)).toEqual(["UNLINK:1", "LINK:1"]);
         expect(list._currentIds).toEqual([2, 1]);
@@ -180,9 +180,9 @@ describe("an UNLINK cancelling a re-LINK keeps the original UNLINK", () => {
     test("unlink, relink, unlink must still ship an UNLINK", async () => {
         const list = makeList({ resIds: [1, 2] });
 
-        await list._applyCommands([[UNLINK, 1, false]]);
-        await list._applyCommands([[LINK, 1, false]]);
-        await list._applyCommands([[UNLINK, 1, false]]);
+        await list.applyCommandsLocked([[UNLINK, 1, false]]);
+        await list.applyCommandsLocked([[LINK, 1, false]]);
+        await list.applyCommandsLocked([[UNLINK, 1, false]]);
 
         expect(readable(list._commands)).toEqual(["UNLINK:1"]);
         expect(list._currentIds).toEqual([2]);
@@ -192,8 +192,8 @@ describe("an UNLINK cancelling a re-LINK keeps the original UNLINK", () => {
     test("link then unlink of a non-member still cancels out entirely", async () => {
         const list = makeList({ resIds: [2] });
 
-        await list._applyCommands([[LINK, 1, false]]);
-        await list._applyCommands([[UNLINK, 1, false]]);
+        await list.applyCommandsLocked([[LINK, 1, false]]);
+        await list.applyCommandsLocked([[UNLINK, 1, false]]);
 
         expect(readable(list._commands)).toEqual([]);
         expect(list._currentIds).toEqual([2]);
@@ -202,9 +202,9 @@ describe("an UNLINK cancelling a re-LINK keeps the original UNLINK", () => {
     test("delete, relink, delete keeps shipping a DELETE", async () => {
         const list = makeList({ resIds: [1, 2] });
 
-        await list._applyCommands([[DELETE, 1, false]]);
-        await list._applyCommands([[LINK, 1, false]]);
-        await list._applyCommands([[DELETE, 1, false]]);
+        await list.applyCommandsLocked([[DELETE, 1, false]]);
+        await list.applyCommandsLocked([[LINK, 1, false]]);
+        await list.applyCommandsLocked([[DELETE, 1, false]]);
 
         expect(readable(list._commands)).toEqual(["DELETE:1"]);
         expect(list._currentIds).toEqual([2]);

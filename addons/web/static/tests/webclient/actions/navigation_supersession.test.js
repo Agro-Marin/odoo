@@ -67,11 +67,11 @@ test("a stale doAction whose load resolves late cannot dispatch", async () => {
     const action = getService("action");
 
     patchWithCleanup(action, {
-        async _loadAction(request, context) {
+        async fetchAction(request, context) {
             if (request === 21) {
                 await slowLoad;
             }
-            return super._loadAction(request, context);
+            return super.fetchAction(request, context);
         },
     });
 
@@ -123,9 +123,9 @@ test("a doAction minted during a loadState's reconstruction supersedes it", asyn
     const action = getService("action");
 
     patchWithCleanup(action, {
-        async _controllersFromState(state) {
+        async controllersFromState(state) {
             await reconstruction;
-            return super._controllersFromState(state);
+            return super.controllersFromState(state);
         },
     });
 
@@ -153,11 +153,11 @@ test("entering loadState cancels an in-flight doAction load eagerly", async () =
     const action = getService("action");
 
     patchWithCleanup(action, {
-        async _loadAction(request, context) {
+        async fetchAction(request, context) {
             if (request === 21) {
                 await slowLoad;
             }
-            return super._loadAction(request, context);
+            return super.fetchAction(request, context);
         },
     });
 

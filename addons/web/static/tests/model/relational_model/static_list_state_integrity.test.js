@@ -32,8 +32,8 @@ function makeList(overrides = {}) {
         _extendedRecords: new Set(),
         _onUpdate: async () => {},
         model: {
-            _patchConfig: (config, patch) => Object.assign(config, patch),
-            _loadRecords: async () => [],
+            patchConfig: (config, patch) => Object.assign(config, patch),
+            loadRecords: async () => [],
         },
         ...overrides,
     });
@@ -83,14 +83,14 @@ describe("_pruneCache", () => {
     });
 });
 
-describe("_abandonRecords", () => {
+describe("abandonRecords", () => {
     function makeAbandonable(virtualId) {
         return {
             id: `dp_${virtualId}`,
             resId: false,
-            _virtualId: virtualId,
+            virtualId: virtualId,
             canBeAbandoned: true,
-            _checkValidity: () => true,
+            checkValidityLocked: () => true,
         };
     }
 
@@ -101,7 +101,7 @@ describe("_abandonRecords", () => {
         list._currentIds = ["virtual_1", 7];
         list._commands = [[0, "virtual_1"]];
 
-        list._abandonRecords([rec], { force: true });
+        list.abandonRecords([rec], { force: true });
 
         expect(list._currentIds).toEqual([7]);
         expect(list.records).toEqual([]);
@@ -115,7 +115,7 @@ describe("_abandonRecords", () => {
         list.records = [];
         list._currentIds = [7, 8];
 
-        list._abandonRecords([rec], { force: true });
+        list.abandonRecords([rec], { force: true });
 
         expect(list._currentIds).toEqual([7, 8]);
         expect(list.count).toBe(2);
@@ -129,11 +129,11 @@ describe("_addNewRecordAtIndex", () => {
             const rec = {
                 id: `dp_${resId}`,
                 resId,
-                _virtualId: null,
+                virtualId: null,
                 dirty: false,
                 data: { sequence },
-                _loadedFieldNames: new Set(["sequence"]),
-                _update(changes) {
+                loadedFieldNames: new Set(["sequence"]),
+                updateLocked(changes) {
                     Object.assign(this.data, changes);
                     this.dirty = true;
                     return Promise.resolve();
@@ -164,11 +164,11 @@ describe("_addNewRecordAtIndex", () => {
             const rec = {
                 id: "dp_new",
                 resId: false,
-                _virtualId: "virtual_new",
+                virtualId: "virtual_new",
                 dirty: true,
                 data: { sequence: 0 },
-                _loadedFieldNames: new Set(["sequence"]),
-                _update(changes) {
+                loadedFieldNames: new Set(["sequence"]),
+                updateLocked(changes) {
                     Object.assign(this.data, changes);
                     return Promise.resolve();
                 },

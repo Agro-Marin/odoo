@@ -116,7 +116,7 @@ export class ActionDispatch {
         if (componentStatus === "mounted") {
             this._reject(new SupersededError());
             am.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, {
-                id: am._nextId(),
+                id: am.nextId(),
                 Component: BlankComponent,
                 componentProps: {
                     onMounted: () => {},

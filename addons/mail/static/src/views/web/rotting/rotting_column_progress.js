@@ -13,7 +13,7 @@ export class RottingColumnProgress extends ColumnProgress {
      * @returns {Object}
      */
     getRottingGroupCount(group) {
-        const isRottingField = group._config.fields.is_rotting;
+        const isRottingField = group.fields.is_rotting;
         if (!isRottingField) {
             return {};
         }
@@ -24,7 +24,7 @@ export class RottingColumnProgress extends ColumnProgress {
     }
 
     get rottingFilterAvailable() {
-        return Boolean(this.props.group._config.fields.is_rotting);
+        return Boolean(this.props.group.fields.is_rotting);
     }
 
     async onRottingIconClick() {

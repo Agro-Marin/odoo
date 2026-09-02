@@ -77,7 +77,7 @@ describe("update() opens the multi-edit envelope", () => {
     });
 });
 
-describe("_update rolls the x2many snapshots back", () => {
+describe("updateLocked rolls the x2many snapshots back", () => {
     test("when the multi-edit dispatch rejects", async () => {
         const harness = makeRecord({
             dispatch: () => Promise.reject(new Error("boom")),
@@ -87,7 +87,8 @@ describe("_update rolls the x2many snapshots back", () => {
         harness.record._snapshotTouchedLists = () => [
             {
                 list: {
-                    _restore: (/** @type {any} */ snapshot) => restored.push(snapshot),
+                    restoreSnapshot: (/** @type {any} */ snapshot) =>
+                        restored.push(snapshot),
                 },
                 snapshot: "snap",
             },

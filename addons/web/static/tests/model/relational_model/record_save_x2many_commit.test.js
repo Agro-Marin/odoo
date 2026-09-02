@@ -80,7 +80,7 @@ describe("reload:false save re-baselines its x2many lists", () => {
         expect(list.config.resIds.length).toBe(1);
         const line = list.records[0];
         expect(typeof line.resId).toBe("number");
-        expect(line._virtualId).toBe(false);
+        expect(line.virtualId).toBe(false);
         expect(list._currentIds).toEqual([line.resId]);
 
         await line.update({ name: "renamed" });

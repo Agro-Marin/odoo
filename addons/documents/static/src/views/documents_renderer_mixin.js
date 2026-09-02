@@ -125,7 +125,7 @@ export const DocumentsRendererMixin = (component) =>
             /**
              * @override making
              */
-            record._update = async (changes) => {
+            record.updateLocked = async (changes) => {
                 record.dirty = true;
                 const fieldsToSave = new Set(Object.keys(changes));
                 await Promise.all([
@@ -134,9 +134,9 @@ export const DocumentsRendererMixin = (component) =>
                     preprocessReferenceChanges(record, changes),
                     preprocessX2manyChanges(record, changes),
                 ]);
-                record._applyChanges(changes);
+                record.applyChanges(changes);
                 const changesToSave = Object.fromEntries(
-                    Object.entries(record._getChanges()).filter(([name]) =>
+                    Object.entries(record.getChangesLocked()).filter(([name]) =>
                         fieldsToSave.has(name),
                     ),
                 );
@@ -156,7 +156,7 @@ export const DocumentsRendererMixin = (component) =>
             /**
              * @override skip
              */
-            record._save = async () => true;
+            record.saveLocked = async () => true;
             return record;
         }
 

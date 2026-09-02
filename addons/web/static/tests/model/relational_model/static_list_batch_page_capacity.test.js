@@ -20,9 +20,9 @@ for (let id = 1; id <= 12; id++) {
 function makeList({ resIds = [], limit = 3 } = {}) {
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
-        _loadNewRecord: async () => ({ display_name: "" }),
+        patchConfig: (config, patch) => Object.assign(config, patch),
+        loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
+        loadNewRecord: async () => ({ display_name: "" }),
     };
     const config = {
         resModel: "res.partner",
@@ -51,7 +51,7 @@ describe("a batch that removes and adds must not inflate the page", () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
         expect(list.records.map((r) => r.resId)).toEqual([1, 2, 3]);
 
-        await list._applyCommands([
+        await list.applyCommandsLocked([
             [DELETE, 2, false],
             [CREATE, false, { display_name: "new" }],
         ]);
@@ -66,7 +66,7 @@ describe("a batch that removes and adds must not inflate the page", () => {
     test("UNLINK + CREATE on a full page leaves limit untouched", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
 
-        await list._applyCommands([
+        await list.applyCommandsLocked([
             [UNLINK, 1, false],
             [CREATE, false, { display_name: "new" }],
         ]);
@@ -80,8 +80,8 @@ describe("a batch that removes and adds must not inflate the page", () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
         for (let i = 0; i < 4; i++) {
             const victim = list.records[0];
-            await list._applyCommands([
-                [DELETE, victim.resId || victim._virtualId, false],
+            await list.applyCommandsLocked([
+                [DELETE, victim.resId || victim.virtualId, false],
                 [CREATE, false, { display_name: `new${i}` }],
             ]);
         }
@@ -93,7 +93,7 @@ describe("a batch that removes and adds must not inflate the page", () => {
     test("a CLEAR-led batch re-declaring fewer rows leaves limit untouched", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
 
-        await list._applyCommands([
+        await list.applyCommandsLocked([
             [CLEAR, false, false],
             [LINK, 1, SERVER_ROWS[1]],
             [CREATE, false, { display_name: "new" }],
@@ -110,7 +110,7 @@ describe("a genuine over-limit add still opens a slot", () => {
     test("CREATE alone on a full page bumps the limit by one", async () => {
         const list = makeList({ resIds: [1, 2, 3], limit: 3 });
 
-        await list._applyCommands([[CREATE, false, { display_name: "new" }]]);
+        await list.applyCommandsLocked([[CREATE, false, { display_name: "new" }]]);
 
         expect(list.limit).toBe(4);
         expect(list._tmpIncreaseLimit).toBe(1);
@@ -120,7 +120,7 @@ describe("a genuine over-limit add still opens a slot", () => {
     test("two CREATEs on a full page bump it by two", async () => {
         const list = makeList({ resIds: [1, 2, 3], limit: 3 });
 
-        await list._applyCommands([
+        await list.applyCommandsLocked([
             [CREATE, false, { display_name: "a" }],
             [CREATE, false, { display_name: "b" }],
         ]);
@@ -133,7 +133,7 @@ describe("a genuine over-limit add still opens a slot", () => {
     test("addAndRemove over the limit only opens slots for rows that remain", async () => {
         const list = makeList({ resIds: [1, 2, 3], limit: 3 });
 
-        await list._applyCommands(
+        await list.applyCommandsLocked(
             [
                 [UNLINK, 1, false],
                 [LINK, 4, SERVER_ROWS[4]],
@@ -152,10 +152,10 @@ describe("a genuine over-limit add still opens a slot", () => {
 describe("the slot is still handed back on discard", () => {
     test("discard after a genuine bump restores the original limit", async () => {
         const list = makeList({ resIds: [1, 2, 3], limit: 3 });
-        await list._applyCommands([[CREATE, false, { display_name: "new" }]]);
+        await list.applyCommandsLocked([[CREATE, false, { display_name: "new" }]]);
         expect(list.limit).toBe(4);
 
-        list._discard();
+        list.discardLocked();
         await list._commandsPromise;
 
         expect(list.limit).toBe(3);

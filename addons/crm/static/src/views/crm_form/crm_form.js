@@ -4,41 +4,41 @@ import { registry } from "@web/core/registry";
 import { formView } from "@web/views/form";
 
 class CrmFormRecord extends formView.Model.Record {
-    async _save() {
+    async saveLocked() {
         if (this.resModel !== "crm.lead") {
-            return super._save(...arguments);
+            return super.saveLocked(...arguments);
         }
         let changeStage = false;
         const needsSynchronizationEmail =
-            this._changes.partner_email_update === undefined
-                ? this._values.partner_email_update
-                : this._changes.partner_email_update;
+            this.changes.partner_email_update === undefined
+                ? this.savedData.partner_email_update
+                : this.changes.partner_email_update;
 
         const needsSynchronizationPhone =
-            this._changes.partner_phone_update === undefined
-                ? this._values.partner_phone_update
-                : this._changes.partner_phone_update;
+            this.changes.partner_phone_update === undefined
+                ? this.savedData.partner_phone_update
+                : this.changes.partner_phone_update;
 
         if (
             needsSynchronizationEmail &&
-            this._changes.email_from === undefined &&
-            this._values.email_from
+            this.changes.email_from === undefined &&
+            this.savedData.email_from
         ) {
-            this._changes.email_from = this._values.email_from;
+            this.changes.email_from = this.savedData.email_from;
         }
         if (
             needsSynchronizationPhone &&
-            this._changes.phone === undefined &&
-            this._values.phone
+            this.changes.phone === undefined &&
+            this.savedData.phone
         ) {
-            this._changes.phone = this._values.phone;
+            this.changes.phone = this.savedData.phone;
         }
 
-        if ("stage_id" in this._changes) {
-            changeStage = this._values.stage_id?.id !== this.data.stage_id?.id;
+        if ("stage_id" in this.changes) {
+            changeStage = this.savedData.stage_id?.id !== this.data.stage_id?.id;
         }
 
-        const res = await super._save(...arguments);
+        const res = await super.saveLocked(...arguments);
         if (changeStage) {
             await checkRainbowmanMessage(this.model.orm, this.model.effect, this.resId);
         }

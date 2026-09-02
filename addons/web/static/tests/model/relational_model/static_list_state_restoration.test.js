@@ -42,21 +42,21 @@ function makeList({ resIds = [], limit = 40, offset = 0 } = {}) {
         _tmpIncreaseLimit: 0,
         _extendedRecords: new Set(),
         model: {
-            _patchConfig: (config, patch) => Object.assign(config, patch),
-            _loadRecords: async (config) => config.resIds.map((id) => ({ id })),
+            patchConfig: (config, patch) => Object.assign(config, patch),
+            loadRecords: async (config) => config.resIds.map((id) => ({ id })),
         },
         _createRecordDatapoint(data, params = {}) {
             const id = data.id || params.virtualId;
             const record = {
                 id: `dp_${id}`,
                 resId: data.id || false,
-                _virtualId: params.virtualId || false,
+                virtualId: params.virtualId || false,
                 data: { ...data },
-                _changes: {},
+                changes: {},
                 dirty: false,
-                _loadedFieldNames: new Set(Object.keys(data)),
-                _getChanges: () => ({}),
-                _applyValues() {},
+                loadedFieldNames: new Set(Object.keys(data)),
+                getChangesLocked: () => ({}),
+                applyValues() {},
             };
             this._cache.set(id, record);
             return record;
@@ -72,10 +72,10 @@ function makeList({ resIds = [], limit = 40, offset = 0 } = {}) {
 describe("snapshot / restore", () => {
     test("the page window round-trips", () => {
         const list = makeList({ resIds: [1, 2, 3], limit: 1, offset: 1 });
-        const snapshot = list._snapshot();
+        const snapshot = list.snapshot();
 
-        list.model._patchConfig(list.config, { limit: 5, offset: 0 });
-        list._restore(snapshot);
+        list.model.patchConfig(list.config, { limit: 5, offset: 0 });
+        list.restoreSnapshot(snapshot);
 
         expect(list.limit).toBe(1);
         expect(list.offset).toBe(1);
@@ -87,13 +87,13 @@ describe("snapshot / restore", () => {
         list._unknownRecordCommands = new Map([[9, [[1, 9, { display_name: "x" }]]]]);
         list._loadingStubIds.add(9);
         list._tmpIncreaseLimit = 2;
-        const snapshot = list._snapshot();
+        const snapshot = list.snapshot();
 
         list._unknownRecordCommands = new Map();
         list._loadingStubIds.clear();
         list._tmpIncreaseLimit = 0;
         list._currentIds = [];
-        list._restore(snapshot);
+        list.restoreSnapshot(snapshot);
 
         expect([...list._unknownRecordCommands]).toEqual([
             [9, [[1, 9, { display_name: "x" }]]],
@@ -120,7 +120,7 @@ describe("_pruneCache", () => {
     test("still evicts a datapoint nothing references", () => {
         const list = makeList({ resIds: [1, 2] });
         list._currentIds = [1];
-        list.model._patchConfig(list.config, { resIds: [1] });
+        list.model.patchConfig(list.config, { resIds: [1] });
 
         list._pruneCache();
 
@@ -129,11 +129,11 @@ describe("_pruneCache", () => {
     });
 });
 
-describe("_replaceWith", () => {
+describe("replaceWith", () => {
     test("leaves records equal to the page window and lands on page 1", async () => {
         const list = makeList({ resIds: [1, 2, 3], limit: 1, offset: 1 });
 
-        await list._replaceWith([1, 2, 3]);
+        await list.replaceWith([1, 2, 3]);
 
         expect(list.offset).toBe(0);
         expect(list.records.map((r) => r.resId)).toEqual(

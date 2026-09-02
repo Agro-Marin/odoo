@@ -32,11 +32,11 @@ export async function sortStaticList(
             Object.hasOwn(activeFields, name),
         );
         const config = { ...list.config, resIds, activeFields };
-        const records = await list.model._loadRecords(config, list.evalContext);
+        const records = await list.model.loadRecords(config, list.evalContext);
         for (const record of records) {
             const cached = /** @type {Map<any, any>} */ (list._cache).get(record.id);
             if (cached) {
-                cached._applyValues(record);
+                cached.applyValues(record);
                 continue;
             }
             if (sortSpecIsTotal) {
@@ -61,7 +61,7 @@ export async function sortStaticList(
     entries.sort((a, b) =>
         compareRecords(a.sortable, b.sortable, orderBy, list.fields),
     );
-    await list._load({
+    await list.loadLocked({
         orderBy,
         nextCurrentIds: entries.map((e) => e.id),
     });
@@ -93,7 +93,7 @@ export async function resequenceStaticList(list, movedId, targetId) {
     const proms = [];
     for (const [i, record] of Object.entries(toReorder)) {
         proms.push(
-            record._update(
+            record.updateLocked(
                 { [handleField]: offset + Number(i) },
                 { withoutParentUpdate: true },
             ),
@@ -102,7 +102,7 @@ export async function resequenceStaticList(list, movedId, targetId) {
     await Promise.all(proms);
 
     await sortStaticList(list);
-    await list._onUpdate();
+    await list.notifyParentUpdate();
 }
 
 /**

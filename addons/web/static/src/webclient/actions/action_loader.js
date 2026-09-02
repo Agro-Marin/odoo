@@ -69,7 +69,7 @@ export async function loadAction(actionRequest, context = {}) {
 export function makeController(params, am) {
     return /** @type {Controller & Record<string, any>} */ ({
         ...params,
-        jsId: `controller_${am._nextId()}`,
+        jsId: `controller_${am.nextId()}`,
         isMounted: false,
     });
 }
@@ -95,7 +95,7 @@ export function preprocessAction(action, context, am) {
     if (action.help && isHtmlEmpty(action.help)) {
         delete action.help;
     }
-    action.jsId = `action_${am._nextId()}`;
+    action.jsId = `action_${am.nextId()}`;
     if (
         action.type === "ir.actions.act_window" ||
         action.type === "ir.actions.client"

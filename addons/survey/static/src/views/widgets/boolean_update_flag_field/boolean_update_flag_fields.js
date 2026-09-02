@@ -26,7 +26,7 @@ export class BooleanUpdateFlagField extends BooleanField {
      */
     async onChange(newValue) {
         super.onChange(...arguments);
-        await this.props.record._update({
+        await this.props.record.update({
             [this.props.flagFieldName]: newValue !== this.props.referenceValue,
         });
     }

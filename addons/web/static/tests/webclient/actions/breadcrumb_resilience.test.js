@@ -38,7 +38,7 @@ async function restore(/** @type {any} */ state, /** @type {any} */ handler) {
     patchWithCleanup(console, { warn: () => {} });
     await makeMockEnv();
     const am = /** @type {any} */ (getService("action"));
-    const controllers = await am._controllersFromState(state);
+    const controllers = await am.controllersFromState(state);
     return { calls, names: controllers.map((/** @type {any} */ c) => c.displayName) };
 }
 
@@ -68,7 +68,7 @@ test("one named crumb lends its name to another for the same record", async () =
     });
     await makeMockEnv();
     const am = /** @type {any} */ (getService("action"));
-    const controllers = await am._controllersFromState({
+    const controllers = await am.controllersFromState({
         action: 9,
         actionStack: [
             { action: 4, model: "partner", resId: 1, displayName: "The record" },
@@ -174,7 +174,7 @@ test("a name from the url is not remembered for later navigations", async () => 
     await makeMockEnv();
     const am = /** @type {any} */ (getService("action"));
 
-    const first = await am._controllersFromState({
+    const first = await am.controllersFromState({
         action: 2,
         actionStack: [{ action: 1, displayName: "Stale from the url" }, { action: 2 }],
     });
@@ -183,7 +183,7 @@ test("a name from the url is not remembered for later navigations", async () => 
     ]);
     expect(calls).toBe(0);
 
-    const second = await am._controllersFromState({
+    const second = await am.controllersFromState({
         action: 2,
         actionStack: [{ action: 1 }, { action: 2 }],
     });

@@ -5,7 +5,7 @@ import { RelationalModel } from "@web/model/relational_model/relational_model";
 
 describe.current.tags("headless");
 
-describe("RelationalModel._patchConfig", () => {
+describe("RelationalModel.patchConfig", () => {
     test("is synchronous: patch is visible immediately, no await", () => {
         const config = {
             activeFields: {},
@@ -13,7 +13,7 @@ describe("RelationalModel._patchConfig", () => {
             mode: "readonly",
             resId: false,
         };
-        const result = RelationalModel.prototype._patchConfig.call(null, config, {
+        const result = RelationalModel.prototype.patchConfig.call(null, config, {
             mode: "edit",
             resId: 42,
         });
@@ -23,9 +23,7 @@ describe("RelationalModel._patchConfig", () => {
     });
 
     test("is not an async function (guard against reintroducing await)", () => {
-        expect(RelationalModel.prototype._patchConfig.constructor.name).toBe(
-            "Function",
-        );
+        expect(RelationalModel.prototype.patchConfig.constructor.name).toBe("Function");
     });
 
     test("keeps keys not present in the patch", () => {
@@ -35,7 +33,7 @@ describe("RelationalModel._patchConfig", () => {
             limit: 80,
             offset: 40,
         };
-        RelationalModel.prototype._patchConfig.call(null, config, {
+        RelationalModel.prototype.patchConfig.call(null, config, {
             offset: 0,
         });
         expect(config.limit).toBe(80);

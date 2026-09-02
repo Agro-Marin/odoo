@@ -32,14 +32,14 @@ export class CalendarFormController extends FormController {
      */
     async deleteRecord() {
         const record = this.model.root;
-        const rootValues = record._values;
+        const rootValues = record.savedData;
         let recurrenceUpdate = false;
         if (record.data.recurrency) {
             recurrenceUpdate = await this.askRecurrenceUpdatePolicy();
         }
         if (
             rootValues.attendees_count === 1 &&
-            rootValues.user_id.id !== rootValues.partner_ids._currentIds[0]
+            rootValues.user_id.id !== rootValues.partner_ids.currentIds[0]
         ) {
             await this._archiveRecord(record.resId, recurrenceUpdate);
         } else {

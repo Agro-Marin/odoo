@@ -52,7 +52,7 @@ export async function executeActWindowAction(action, options, am) {
     if (
         action.target !== "new" &&
         !options.newWindow &&
-        !(await am._confirmLeave(pick(options, "forceLeave")))
+        !(await am.confirmLeave(pick(options, "forceLeave")))
     ) {
         return;
     }
@@ -70,14 +70,14 @@ export async function executeActWindowAction(action, options, am) {
             ) || view;
     }
 
-    const controller = am._makeController({
+    const controller = am.makeController({
         Component: View,
         action,
         view,
         views,
-        ...am._getViewInfo(view, action, views, options.props),
+        ...am.getViewInfo(view, action, views, options.props),
     });
     (action.controllers ??= {})[view.type] = controller;
 
-    return am._updateUI(controller, resolveLazyCrumb(action, options));
+    return am.updateUI(controller, resolveLazyCrumb(action, options));
 }

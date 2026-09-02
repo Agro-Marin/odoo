@@ -25,7 +25,7 @@ function makeModel() {
                 config: this.config,
                 hasData: true,
                 records: /** @type {any[]} */ ([]),
-                _setData() {},
+                setData() {},
             };
         }
         /** @returns {any} */

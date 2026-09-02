@@ -349,7 +349,7 @@ Records maintain a three-layer state model:
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  _values    │    │  _changes   │    │  data       │
+│  _values    │    │  changes    │    │  data       │
 │  (server)   │ +  │  (user)     │ =  │  (merged)   │
 │             │    │  markRaw()  │    │  read by UI │
 └─────────────┘    └─────────────┘    └─────────────┘
@@ -358,20 +358,20 @@ Records maintain a three-layer state model:
 | Property | Source | Reactive? | Purpose |
 |----------|--------|-----------|---------|
 | `_values` | Server (read/write RPC) | No (markRaw) | Last-known server state |
-| `_changes` | User edits | No (markRaw) | Accumulated unsaved changes |
-| `data` | `{..._values, ..._changes}` | Yes | Merged view consumed by UI |
-| `dirty` | Imperative plain field (set in `_applyChanges`, `discard`, `_load`) | Yes (reactive) | Whether record has unsaved edits. NOT computed from `_changes` — `dirty=true` can coexist with an empty `_changes` briefly during flow transitions. |
-| `_invalidFields` | Validation | Yes (Set) | Fields that failed validation |
+| `changes` | User edits | No (markRaw) | Accumulated unsaved changes |
+| `data` | `{..._values, ...changes}` | Yes | Merged view consumed by UI |
+| `dirty` | Imperative plain field (set in `applyChanges`, `discard`, `loadLocked`) | Yes (reactive) | Whether record has unsaved edits. NOT computed from `changes` — `dirty=true` can coexist with an empty `changes` briefly during flow transitions. |
+| `invalidFields` | Validation | Yes (Set) | Fields that failed validation |
 
-**Save flow**: `_changes` → RPC write → server returns new `_values` → `_changes` cleared → `data` rebuilt.
-**Discard flow**: `_changes` cleared → `data` rebuilt from `_values` only → `dirty = false`.
+**Save flow**: `changes` → RPC write → server returns new `_values` → `changes` cleared → `data` rebuilt.
+**Discard flow**: `changes` cleared → `data` rebuilt from `_values` only → `dirty = false`.
 
 **Edit-state owner (`RecordEditState`, `model/relational_model/record_edit_state.js`)**:
 the editable-state layer — the pending-edit `ChangeSet`, the reactive `dirty`
 signal, `invalidFields`/`unsetRequiredFields`, the char/text/html `textValues`
 tracking, and the `savePoint` — is owned by a single `RecordEditState` instance
-held at `record._editState`. The record exposes back-compat getters/setters
-(`dirty`, `_changes`, `_invalidFields`, `_unsetRequiredFields`,
+held at `record._editState`. The record exposes getters/setters
+(`dirty`, `changes`, `invalidFields`, `unsetRequiredFields`,
 `_textValues`, `_initialTextValues`, `_savePoint`,
 `closeInvalidFieldsNotification`) that delegate to the owner, so every consumer
 (sibling helpers, fields/views, subclasses, test mocks) is unchanged. `_values`
@@ -381,7 +381,7 @@ sanctioned reset and pairs bag-clear with `dirty=false` atomically (I3);
 `markDirty()` raises `dirty` alone (I1/I2). **Reactivity**: `_editState` is NOT
 `markRaw`, so reached through the record's reactive proxy `dirty`/`invalidFields`
 stay reactive, while `toRaw(record)._editState` yields the raw owner for the raw
-reads in `_update`; the bags (`changeSet`, `textValues`, `unsetRequiredFields`)
+reads in `updateLocked`; the bags (`changeSet`, `textValues`, `unsetRequiredFields`)
 are `markRaw` inside the owner exactly as before.
 
 **Scoped re-validation on commit**: committing changes re-checks
@@ -392,7 +392,7 @@ plus every field whose `invisible` / `required` / `readonly` modifier
 expression references one of them (a per-`activeFields` memoized dependency
 map), plus fields with an unparseable modifier (always re-validated as a
 fallback — fails safe). The scope is passed as `scopedFields` to
-`_checkValidity({ removeInvalidOnly: true, scopedFields })`
+`checkValidityLocked({ removeInvalidOnly: true, scopedFields })`
 (`record.js`; orchestration lives in
 `model/relational_model/record_validator.js`), so a keystroke does not
 re-evaluate the modifier expressions of every field in a large form.
@@ -468,7 +468,7 @@ the mutex and normal flow.
 - `views/form/form_controller.js` — `discard()` entry point
 - `views/form/form_controller.js` — `beforeLeave()` auto-save
 - `model/relational_model/record_edit_state.js` — `RecordEditState` owner (change set, `dirty`, validity, text-values, savepoint; `clearChanges()`/`markDirty()`)
-- `model/relational_model/record.js` — `_applyChanges()` (dirty tracking)
+- `model/relational_model/record.js` — `applyChanges()` (dirty tracking)
 - `model/relational_model/record.js` — `discard()` (mutex-wrapped)
 - `core/network/result_set_cache_invalidator_service.js` — `CLEAR-CACHES` emission (unlink + action_archive + action_unarchive; method set defined by `RESULT_SET_REMOVING_METHODS`; model-scoped on BOTH layers: RAM via reverse index, IndexedDB via cursor filter on the stored `model` — see Flow 14).
 

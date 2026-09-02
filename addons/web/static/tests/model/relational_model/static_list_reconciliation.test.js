@@ -26,8 +26,8 @@ describe("StaticList create reconciliation", () => {
         const token = list.snapshotCreateReconciliation();
         list.config.resIds = [3, 10, 11];
 
-        expect(list.resolveCreatedResId(token, { _virtualId: "virtual_1" })).toBe(10);
-        expect(list.resolveCreatedResId(token, { _virtualId: "virtual_2" })).toBe(11);
+        expect(list.resolveCreatedResId(token, { virtualId: "virtual_1" })).toBe(10);
+        expect(list.resolveCreatedResId(token, { virtualId: "virtual_2" })).toBe(11);
     });
 
     test("resolveCreatedResId sorts new resIds so out-of-order ids still map by rank", () => {
@@ -41,8 +41,8 @@ describe("StaticList create reconciliation", () => {
         const token = list.snapshotCreateReconciliation();
         list.config.resIds = [21, 20];
 
-        expect(list.resolveCreatedResId(token, { _virtualId: "virtual_1" })).toBe(20);
-        expect(list.resolveCreatedResId(token, { _virtualId: "virtual_2" })).toBe(21);
+        expect(list.resolveCreatedResId(token, { virtualId: "virtual_1" })).toBe(20);
+        expect(list.resolveCreatedResId(token, { virtualId: "virtual_2" })).toBe(21);
     });
 
     test("resolveCreatedResId returns undefined on a row-count mismatch", () => {
@@ -53,7 +53,7 @@ describe("StaticList create reconciliation", () => {
         const token = list.snapshotCreateReconciliation();
         list.config.resIds = [10, 11];
 
-        expect(list.resolveCreatedResId(token, { _virtualId: "virtual_1" })).toBe(
+        expect(list.resolveCreatedResId(token, { virtualId: "virtual_1" })).toBe(
             undefined,
         );
     });
@@ -66,7 +66,7 @@ describe("StaticList create reconciliation", () => {
         const token = list.snapshotCreateReconciliation();
         list.config.resIds = [3, 10];
 
-        expect(list.resolveCreatedResId(token, { _virtualId: "virtual_9" })).toBe(
+        expect(list.resolveCreatedResId(token, { virtualId: "virtual_9" })).toBe(
             undefined,
         );
     });
@@ -84,6 +84,6 @@ describe("StaticList create reconciliation", () => {
         expect(token.createVirtualIds).toEqual(["virtual_1"]);
         list.config.resIds = [3, 4, 12];
 
-        expect(list.resolveCreatedResId(token, { _virtualId: "virtual_1" })).toBe(12);
+        expect(list.resolveCreatedResId(token, { virtualId: "virtual_1" })).toBe(12);
     });
 });

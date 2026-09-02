@@ -35,7 +35,7 @@ function makeFakeAm(overrides = {}) {
                 this._pendingDispatch = null;
             }
         },
-        _nextId: () => ++id,
+        nextId: () => ++id,
         ...overrides,
     };
     am.env.bus.addEventListener(AppEvent.ACTION_MANAGER_UPDATE, (ev) =>
@@ -398,12 +398,12 @@ test("the dispatch reaches only the documented manager members", async () => {
     await expect(failing.promise).rejects.toThrow(/boom/);
 
     expect([...reached].sort()).toEqual([
-        "_nextId",
         "_pendingDispatch",
         "controllerStack",
         "dialog",
         "env",
         "nextDialog",
+        "nextId",
         "pushState",
         "restore",
         "settlePendingDispatch",

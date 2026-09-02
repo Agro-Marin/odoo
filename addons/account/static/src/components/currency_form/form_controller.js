@@ -9,8 +9,8 @@ export class CurrencyFormController extends FormController {
     async onWillSaveRecord(record) {
         if (
             record.data.display_rounding_warning &&
-            record._values.rounding !== undefined &&
-            record.data.rounding < record._values.rounding
+            record.savedData.rounding !== undefined &&
+            record.data.rounding < record.savedData.rounding
         ) {
             return new Promise((resolve) => {
                 this.dialogService.add(ConfirmationDialog, {

@@ -23,20 +23,20 @@ import {
     preprocessReferenceChanges,
     preprocessX2manyChanges,
 } from "./record_preprocessors.js";
-import { processProperties } from "./record_properties.js";
+import { processProperties as processRecordProperties } from "./record_properties.js";
 import { save } from "./record_save.js";
 import { RecordSaveCoordinator } from "./record_save_coordinator.js";
 import { addSavePoint, discard } from "./record_savepoint.js";
 import {
     computeChangeset,
     computeRevalidationScope,
-    isFieldInvisible,
-    isFieldReadonly,
-    isFieldRequired,
+    isFieldInvisible as isActiveFieldInvisible,
+    isFieldReadonly as isActiveFieldReadonly,
+    isFieldRequired as isActiveFieldRequired,
 } from "./record_utils.js";
 import {
     checkValidity,
-    displayInvalidFieldNotification,
+    displayInvalidFieldNotification as notifyInvalidFields,
     removeInvalidFields,
     resetFieldValidity,
     setInvalidField,
@@ -44,9 +44,9 @@ import {
 import {
     computeDataContext,
     formatServerValue,
-    getDefaultValues,
+    getDefaultValues as defaultValuesOf,
     getTextValues,
-    parseServerValues,
+    parseServerValues as parseRecordServerValues,
 } from "./record_value_transforms.js";
 
 /**
@@ -81,6 +81,12 @@ function openMultiEditEnvelope(dispatched) {
     return { dispatched: false, result: undefined };
 }
 
+/**
+ * A `*Locked` method is the half of a public/locked pair that runs inside
+ * `model.mutex`: `update()` queues `updateLocked()` on it, and a caller that
+ * already holds the mutex -- a list, a save, a savepoint -- calls the locked
+ * half directly. Calling a locked half from outside the mutex races the queue.
+ */
 export class RelationalRecord extends DataPoint {
     static type = "Record";
 
@@ -93,11 +99,11 @@ export class RelationalRecord extends DataPoint {
      * }>}
      */
     setup(_config, data, options = {}) {
-        this._manuallyAdded = options.manuallyAdded === true;
+        this.manuallyAdded = options.manuallyAdded === true;
         this._onUpdate = options.onUpdate || (() => {});
         this._parentRecord = options.parentRecord;
         this.canSaveOnUpdate = !options.parentRecord;
-        this._virtualId = options.virtualId || false;
+        this.virtualId = options.virtualId || false;
         this._isEvalContextReady = false;
 
         this._editState = new RecordEditState();
@@ -123,31 +129,31 @@ export class RelationalRecord extends DataPoint {
             this.evalContextWithVirtualIds = {};
         }
         /** @type {Set<string>} */
-        this._loadedFieldNames = markRaw(new Set(Object.keys(data)));
+        this.loadedFieldNames = markRaw(new Set(Object.keys(data)));
         const missingFields = this.fieldNames.filter(
             (fieldName) => !(fieldName in data),
         );
-        data = { ...this._getDefaultValues(missingFields), ...data };
-        this._setData(data);
+        data = { ...this.getDefaultValues(missingFields), ...data };
+        this.setData(data);
     }
 
     /**
      * @param {Record<string, any>} data
      * @param {FieldSpecifications} [params]
      */
-    _setData(data, { orderBys, keepChanges } = {}) {
+    setData(data, { orderBys, keepChanges } = {}) {
         this._isEvalContextReady = false;
         if (this.data) {
             for (const fieldName of Object.keys(data)) {
-                this._loadedFieldNames.add(fieldName);
+                this.loadedFieldNames.add(fieldName);
             }
         }
         if (this.resId) {
-            this._values = markRaw(this._parseServerValues(data, { orderBys }));
+            this._values = markRaw(this.parseServerValues(data, { orderBys }));
             Object.assign(this._textValues, this._getTextValues(data));
         } else {
-            const allVals = { ...this._getDefaultValues(), ...data };
-            this._values = markRaw(this._parseServerValues(allVals, { orderBys }));
+            const allVals = { ...this.getDefaultValues(), ...data };
+            this._values = markRaw(this.parseServerValues(allVals, { orderBys }));
             Object.assign(this._textValues, this._getTextValues(allVals));
         }
         for (const fieldName of Object.keys(this._textValues)) {
@@ -160,24 +166,24 @@ export class RelationalRecord extends DataPoint {
         } else {
             this.dirty = this.dirty || this._hasChanges;
         }
-        this.data = { ...this._values, ...this._changes };
+        this.data = { ...this._values, ...this.changes };
         this._initialTextValues = markRaw({ ...this._textValues });
         if (keepChanges) {
-            Object.assign(this._textValues, this._getTextValues(this._changes));
+            Object.assign(this._textValues, this._getTextValues(this.changes));
         }
-        this._setEvalContext();
+        this.setEvalContext();
 
         if (!keepChanges) {
-            this._clearValidity();
+            this.clearValidity();
             this._savePoint = undefined;
         }
         if (!this.isNew && this.isInEdition && !this._parentRecord) {
-            this._checkValidity();
+            this.checkValidityLocked();
         }
     }
 
     get canBeAbandoned() {
-        return this.isNew && !this.dirty && this._manuallyAdded;
+        return this.isNew && !this.dirty && this.manuallyAdded;
     }
 
     get hasData() {
@@ -207,7 +213,7 @@ export class RelationalRecord extends DataPoint {
     }
 
     get isValid() {
-        return !this._invalidFields.size;
+        return !this.invalidFields.size;
     }
 
     get resId() {
@@ -231,12 +237,12 @@ export class RelationalRecord extends DataPoint {
 
     /** @param {{ displayNotification?: boolean }} [options] */
     async checkValidity({ displayNotification } = {}) {
-        await this.model.urgentSave.awaitUnlessUrgent(this.model._askChanges());
+        await this.model.urgentSave.awaitUnlessUrgent(this.model.askChanges());
         if (this.model.urgentSave.isActive) {
-            return this._checkValidity({ displayNotification });
+            return this.checkValidityLocked({ displayNotification });
         }
         return this.model.mutex.exec(() =>
-            this._checkValidity({ displayNotification }),
+            this.checkValidityLocked({ displayNotification }),
         );
     }
 
@@ -270,8 +276,8 @@ export class RelationalRecord extends DataPoint {
      * @returns {void}
      */
     assignResId(resId) {
-        this.model._patchConfig(this.config, { resId, resIds: [resId] });
-        this._virtualId = false;
+        this.model.patchConfig(this.config, { resId, resIds: [resId] });
+        this.virtualId = false;
     }
 
     delete() {
@@ -280,8 +286,8 @@ export class RelationalRecord extends DataPoint {
 
     async discard() {
         this.model.closeUrgentSaveNotification();
-        await this.model._askChanges();
-        return this.model.mutex.exec(() => this._discard());
+        await this.model.askChanges();
+        return this.model.mutex.exec(() => this.discardLocked());
     }
 
     duplicate() {
@@ -292,14 +298,14 @@ export class RelationalRecord extends DataPoint {
      * @param {FieldSpecifications} [params]
      */
     async getChanges({ withReadonly } = {}) {
-        await this.model._askChanges();
+        await this.model.askChanges();
         return this.model.mutex.exec(() =>
-            this._getChanges(this._changes, { withReadonly }),
+            this.getChangesLocked(this.changes, { withReadonly }),
         );
     }
 
     async isDirty() {
-        await this.model._askChanges();
+        await this.model.askChanges();
         return this.dirty;
     }
 
@@ -307,22 +313,22 @@ export class RelationalRecord extends DataPoint {
      * @param {string} fieldName
      */
     isFieldInvalid(fieldName) {
-        return this._invalidFields.has(fieldName);
+        return this.invalidFields.has(fieldName);
     }
 
     load() {
         if (arguments.length) {
             throw new Error("Record.load() does not accept arguments");
         }
-        return this.model.mutex.exec(() => this._load());
+        return this.model.mutex.exec(() => this.loadLocked());
     }
 
     /**
-     * @param {Parameters<RelationalRecord["_save"]>[0]} [options]
+     * @param {Parameters<RelationalRecord["saveLocked"]>[0]} [options]
      */
     async save(options) {
-        await this.model._askChanges();
-        return this.model.mutex.exec(() => this._save(options));
+        await this.model.askChanges();
+        return this.model.mutex.exec(() => this.saveLocked(options));
     }
 
     /**
@@ -344,7 +350,7 @@ export class RelationalRecord extends DataPoint {
      * @param {Mode} mode
      */
     switchMode(mode) {
-        return this.model.mutex.exec(() => this._switchMode(mode));
+        return this.model.mutex.exec(() => this.switchModeLocked(mode));
     }
 
     toggleSelection(/** @type {any} */ selected) {
@@ -363,11 +369,11 @@ export class RelationalRecord extends DataPoint {
      */
     async update(changes, { save, withoutParentUpdate } = {}) {
         if (this.model.urgentSave.isActive) {
-            const envelope = await this._update(changes, { withoutParentUpdate });
+            const envelope = await this.updateLocked(changes, { withoutParentUpdate });
             return openMultiEditEnvelope(envelope).result;
         }
         return this.model.mutex.exec(async () => {
-            const envelope = await this._update(changes, {
+            const envelope = await this.updateLocked(changes, {
                 withoutOnchange: save,
                 withoutParentUpdate,
             });
@@ -376,7 +382,7 @@ export class RelationalRecord extends DataPoint {
                 return result;
             }
             if (save && this.canSaveOnUpdate) {
-                return this._save();
+                return this.saveLocked();
             }
         });
     }
@@ -385,7 +391,7 @@ export class RelationalRecord extends DataPoint {
         if (toRaw(this).saveState.isInFlight) {
             return true;
         }
-        return this.model.urgentSave.run(() => this._save({ reload: false }));
+        return this.model.urgentSave.run(() => this.saveLocked({ reload: false }));
     }
 
     /** @returns {boolean} */
@@ -419,25 +425,25 @@ export class RelationalRecord extends DataPoint {
     /**
      * @returns {Record<string, any>}
      */
-    get _changes() {
+    get changes() {
         return this._editState.changes;
     }
 
-    set _changes(initial) {
+    set changes(initial) {
         this._editState.changes = initial;
     }
 
     /** @returns {Set<string>} */
-    get _invalidFields() {
+    get invalidFields() {
         return this._editState.invalidFields;
     }
 
-    set _invalidFields(value) {
+    set invalidFields(value) {
         this._editState.invalidFields = value;
     }
 
     /** @returns {Set<string>} */
-    get _unsetRequiredFields() {
+    get unsetRequiredFields() {
         return this._editState.unsetRequiredFields;
     }
 
@@ -472,39 +478,39 @@ export class RelationalRecord extends DataPoint {
         this._editState.clearChanges();
     }
 
-    _rebuildData() {
-        this.data = { ...this._values, ...this._changes };
-        this._setEvalContext();
+    rebuildData() {
+        this.data = { ...this._values, ...this.changes };
+        this.setEvalContext();
     }
 
     /**
      * @param {Record<string, any>} [extraValues]
      */
-    _commitChanges(extraValues) {
+    commitChanges(extraValues) {
         this._values = markRaw({
             ...this._values,
-            ...this._changes,
+            ...this.changes,
             ...extraValues,
         });
         this._editState.commit();
-        this._rebuildData();
+        this.rebuildData();
     }
 
-    _discardChanges() {
+    discardChanges() {
         this._editState.rollback();
-        this._rebuildData();
+        this.rebuildData();
     }
 
     /**
      * @param {Record<string, any>} values
      */
-    _resetValues(values) {
+    resetValues(values) {
         this._values = markRaw(values);
         this._editState.reset();
-        this._rebuildData();
+        this.rebuildData();
     }
 
-    _clearValidity() {
+    clearValidity() {
         this._editState.clearValidity();
     }
 
@@ -519,27 +525,27 @@ export class RelationalRecord extends DataPoint {
     /**
      * @returns {void}
      */
-    _snapshotEditState() {
+    snapshotEditState() {
         this._editState.snapshot();
     }
 
     /**
      * @returns {boolean}
      */
-    _restoreEditState() {
+    restoreEditState() {
         return this._editState.restoreSnapshot();
     }
 
     /** @param {any} changes */
-    _applyChanges(changes, serverChanges = {}, { undoable = false } = {}) {
+    applyChanges(changes, serverChanges = {}, { undoable = false } = {}) {
         let undoChanges = NO_UNDO;
         if (undoable) {
             const initialTextValues = { ...this._textValues };
-            const initialChanges = { ...this._changes };
+            const initialChanges = { ...this.changes };
             const initialData = { ...toRaw(this.data) };
             const initialDirty = this.dirty;
-            const invalidFields = [...toRaw(this._invalidFields)];
-            const unsetRequiredFields = [...toRaw(this._unsetRequiredFields)];
+            const invalidFields = [...toRaw(this.invalidFields)];
+            const unsetRequiredFields = [...toRaw(this.unsetRequiredFields)];
             const listSnapshots = [];
             for (const fieldName of new Set([
                 ...Object.keys(changes),
@@ -547,7 +553,7 @@ export class RelationalRecord extends DataPoint {
             ])) {
                 const value = toRaw(this.data)[fieldName];
                 if (isX2Many(this.fields[fieldName]) && value?._commands) {
-                    listSnapshots.push({ list: value, snapshot: value._snapshot() });
+                    listSnapshots.push({ list: value, snapshot: value.snapshot() });
                 }
             }
             undoChanges = () => {
@@ -555,7 +561,7 @@ export class RelationalRecord extends DataPoint {
                     this._setInvalidFieldFlag(fieldName);
                 }
                 for (const fieldName of unsetRequiredFields) {
-                    this._unsetRequiredFields.add(fieldName);
+                    this.unsetRequiredFields.add(fieldName);
                 }
                 for (const fieldName of Object.keys(toRaw(this.data))) {
                     if (!(fieldName in initialData)) {
@@ -564,12 +570,12 @@ export class RelationalRecord extends DataPoint {
                 }
                 Object.assign(this.data, initialData);
                 for (const { list, snapshot } of listSnapshots) {
-                    list._restore(snapshot);
+                    list.restoreSnapshot(snapshot);
                 }
-                this._changes = markRaw(initialChanges);
+                this.changes = markRaw(initialChanges);
                 Object.assign(this._textValues, initialTextValues);
                 this.dirty = initialDirty;
-                this._setEvalContext();
+                this.setEvalContext();
             };
         }
 
@@ -578,7 +584,7 @@ export class RelationalRecord extends DataPoint {
             if (change instanceof Operation) {
                 change = change.compute(this.data[fieldName]);
             }
-            this._changes[fieldName] = change;
+            this.changes[fieldName] = change;
             this.data[fieldName] = change;
             if (this.fields[fieldName].type === "html") {
                 this._textValues[fieldName] =
@@ -588,16 +594,16 @@ export class RelationalRecord extends DataPoint {
             }
         }
 
-        const parsedChanges = this._parseServerValues(serverChanges, {
+        const parsedChanges = this.parseServerValues(serverChanges, {
             currentValues: this.data,
         });
         for (const fieldName of Object.keys(parsedChanges)) {
-            this._changes[fieldName] = parsedChanges[fieldName];
+            this.changes[fieldName] = parsedChanges[fieldName];
             this.data[fieldName] = parsedChanges[fieldName];
         }
         Object.assign(this._textValues, this._getTextValues(serverChanges));
 
-        this._setEvalContext();
+        this.setEvalContext();
 
         const changedFieldNames = [
             ...Object.keys(changes),
@@ -608,58 +614,58 @@ export class RelationalRecord extends DataPoint {
             changedFieldNames,
             this.activeFields,
         );
-        this._checkValidity({ removeInvalidOnly: true, scopedFields });
+        this.checkValidityLocked({ removeInvalidOnly: true, scopedFields });
         return undoChanges;
     }
 
-    _applyDefaultValues() {
+    applyDefaultValues() {
         const fieldNames = this.fieldNames.filter(
             (fieldName) => !(fieldName in this.data),
         );
-        const defaultValues = this._getDefaultValues(fieldNames);
+        const defaultValues = this.getDefaultValues(fieldNames);
         if (this.isNew) {
-            this._applyChanges({}, defaultValues);
+            this.applyChanges({}, defaultValues);
         } else {
-            this._applyValues(defaultValues);
+            this.applyValues(defaultValues);
         }
     }
 
-    _applyValues(/** @type {any} */ values) {
+    applyValues(/** @type {any} */ values) {
         const x2manyMerges = [];
         for (const fieldName of Object.keys(values)) {
             const field = this.fields[fieldName];
-            if (isX2Many(field) && this._changes[fieldName]?._commands?.length) {
+            if (isX2Many(field) && this.changes[fieldName]?._commands?.length) {
                 x2manyMerges.push(fieldName);
             }
         }
-        const newValues = this._parseServerValues(
+        const newValues = this.parseServerValues(
             x2manyMerges.length ? omit(values, ...x2manyMerges) : values,
         );
         for (const fieldName of x2manyMerges) {
-            const list = this._changes[fieldName];
-            list._applyServerValues(values[fieldName]);
+            const list = this.changes[fieldName];
+            list.applyServerValues(values[fieldName]);
             newValues[fieldName] = list;
         }
         Object.assign(this._values, newValues);
         for (const fieldName of Object.keys(newValues)) {
-            this._loadedFieldNames.add(fieldName);
-            if (fieldName in this._changes) {
+            this.loadedFieldNames.add(fieldName);
+            if (fieldName in this.changes) {
                 if (isX2Many(this.fields[fieldName])) {
-                    this._changes[fieldName] = newValues[fieldName];
+                    this.changes[fieldName] = newValues[fieldName];
                 }
             }
         }
-        Object.assign(this.data, this._values, this._changes);
+        Object.assign(this.data, this._values, this.changes);
         const textValues = this._getTextValues(values);
         Object.assign(this._initialTextValues, textValues);
-        Object.assign(this._textValues, textValues, this._getTextValues(this._changes));
-        this._setEvalContext();
+        Object.assign(this._textValues, textValues, this._getTextValues(this.changes));
+        this.setEvalContext();
     }
 
     /**
      * @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean, scopedFields?: Set<string> }} [options]
      */
-    _checkValidity(options) {
+    checkValidityLocked(options) {
         return checkValidity(this, options);
     }
 
@@ -680,7 +686,7 @@ export class RelationalRecord extends DataPoint {
      * @param {string} fieldName
      * @param {FieldSpecifications} [params]
      */
-    _createStaticListDatapoint(data, fieldName, { orderBys } = {}) {
+    createStaticListDatapoint(data, fieldName, { orderBys } = {}) {
         const { related, limit, defaultOrderBy } = this.activeFields[fieldName];
         const relatedActiveFields = related?.activeFields || {};
         const config = {
@@ -699,7 +705,7 @@ export class RelationalRecord extends DataPoint {
         const options = {
             onUpdate: (
                 /** @type {{ withoutOnchange?: boolean }} */ { withoutOnchange } = {},
-            ) => this._update({ [fieldName]: [] }, { withoutOnchange }),
+            ) => this.updateLocked({ [fieldName]: [] }, { withoutOnchange }),
             parent: this,
         };
         return new this.model.Class.StaticList(
@@ -710,12 +716,12 @@ export class RelationalRecord extends DataPoint {
         );
     }
 
-    _discard() {
+    discardLocked() {
         return discard(this);
     }
 
-    _displayInvalidFieldNotification() {
-        return displayInvalidFieldNotification(this);
+    displayInvalidFieldNotification() {
+        return notifyInvalidFields(this);
     }
 
     _formatServerValue(/** @type {any} */ fieldType, /** @type {any} */ value) {
@@ -727,7 +733,7 @@ export class RelationalRecord extends DataPoint {
      * @param {FieldSpecifications} [params]
      * @returns {Record<string, any>}
      */
-    _getChanges(changes = this._changes, { withReadonly } = {}) {
+    getChangesLocked(changes = this.changes, { withReadonly } = {}) {
         return computeChangeset({
             changes,
             values: this._values,
@@ -737,14 +743,14 @@ export class RelationalRecord extends DataPoint {
             evalContext: this.evalContextWithVirtualIds,
             options: { withReadonly },
             getCommands: (fieldName, value, wr) =>
-                /** @type {import("./static_list").StaticList} */ (value)._getCommands({
+                /** @type {import("./static_list").StaticList} */ (value).getCommands({
                     withReadonly: wr,
                 }),
         });
     }
 
-    _getDefaultValues(fieldNames = this.fieldNames) {
-        return getDefaultValues(fieldNames, this.fields);
+    getDefaultValues(fieldNames = this.fieldNames) {
+        return defaultValuesOf(fieldNames, this.fields);
     }
 
     /**
@@ -757,8 +763,8 @@ export class RelationalRecord extends DataPoint {
     /**
      * @param {string} fieldName
      */
-    _isInvisible(fieldName) {
-        return isFieldInvisible(
+    isFieldInvisible(fieldName) {
+        return isActiveFieldInvisible(
             this.activeFields[fieldName],
             this.evalContextWithVirtualIds,
         );
@@ -767,8 +773,8 @@ export class RelationalRecord extends DataPoint {
     /**
      * @param {string} fieldName
      */
-    _isReadonly(fieldName) {
-        return isFieldReadonly(
+    isFieldReadonly(fieldName) {
+        return isActiveFieldReadonly(
             this.activeFields[fieldName],
             this.evalContextWithVirtualIds,
         );
@@ -777,23 +783,23 @@ export class RelationalRecord extends DataPoint {
     /**
      * @param {string} fieldName
      */
-    _isRequired(fieldName) {
-        return isFieldRequired(
+    isFieldRequired(fieldName) {
+        return isActiveFieldRequired(
             this.activeFields[fieldName],
             this.evalContextWithVirtualIds,
         );
     }
 
-    async _load(nextConfig = {}) {
+    async loadLocked(nextConfig = {}) {
         if ("resId" in nextConfig && this.resId) {
             throw new Error("Cannot change resId of a record");
         }
-        await this.model._reloadWithConfig(this.config, nextConfig, {
+        await this.model.reloadWithConfig(this.config, nextConfig, {
             commit: (values) => {
                 if (this.resId) {
-                    this.model._updateSimilarRecords(this, values);
+                    this.model.updateSimilarRecords(this, values);
                 }
-                this._setData(values);
+                this.setData(values);
             },
         });
     }
@@ -804,16 +810,22 @@ export class RelationalRecord extends DataPoint {
      * @param {any} parent
      * @param {Object} [currentValues]
      */
-    _processProperties(properties, fieldName, parent, currentValues) {
-        return processProperties(this, properties, fieldName, parent, currentValues);
+    processProperties(properties, fieldName, parent, currentValues) {
+        return processRecordProperties(
+            this,
+            properties,
+            fieldName,
+            parent,
+            currentValues,
+        );
     }
 
     /**
      * @param {RecordType<string, unknown>} serverValues
      * @param {FieldSpecifications} [options]
      */
-    _parseServerValues(serverValues, options) {
-        return parseServerValues(this, serverValues, options);
+    parseServerValues(serverValues, options) {
+        return parseRecordServerValues(this, serverValues, options);
     }
 
     /**
@@ -826,12 +838,12 @@ export class RelationalRecord extends DataPoint {
     /**
      * @returns {void}
      */
-    _restoreActiveFields() {
+    restoreActiveFields() {
         this._noUpdateParent = false;
         if (!this._activeFieldsToRestore) {
             return;
         }
-        this.model._patchConfig(this.config, {
+        this.model.patchConfig(this.config, {
             activeFields: { ...this._activeFieldsToRestore },
         });
         this._activeFieldsToRestore = undefined;
@@ -840,11 +852,11 @@ export class RelationalRecord extends DataPoint {
     /**
      * @param {{ reload?: boolean, onError?: (e: Error, actions: { discard: () => void, retry: () => any }) => any, nextId?: number }} [options]
      */
-    async _save(options) {
+    async saveLocked(options) {
         return save(this, options);
     }
 
-    _setEvalContext() {
+    setEvalContext() {
         const evalContext = getBasicEvalContext(this.config);
         const dataContext = this._computeDataContext();
         Object.assign(this.evalContext, evalContext, dataContext.withoutVirtualIds);
@@ -858,7 +870,7 @@ export class RelationalRecord extends DataPoint {
         if (!this._parentRecord || this._parentRecord._isEvalContextReady) {
             for (const [fieldName, value] of Object.entries(toRaw(this.data))) {
                 if (isX2Many(this.fields[fieldName])) {
-                    value._updateContext(getFieldContext(this, fieldName));
+                    value.updateContext(getFieldContext(this, fieldName));
                 }
             }
         }
@@ -875,7 +887,7 @@ export class RelationalRecord extends DataPoint {
      * @param {string} fieldName
      */
     _setInvalidFieldFlag(fieldName) {
-        this._invalidFields.add(fieldName);
+        this.invalidFields.add(fieldName);
     }
 
     _resetFieldValidity(/** @type {any} */ fieldName) {
@@ -885,11 +897,11 @@ export class RelationalRecord extends DataPoint {
     /**
      * @param {Mode} mode
      */
-    _switchMode(mode) {
-        this.model._patchConfig(this.config, { mode });
+    switchModeLocked(mode) {
+        this.model.patchConfig(this.config, { mode });
         if (mode === "readonly") {
             this._noUpdateParent = false;
-            this._clearValidity();
+            this.clearValidity();
         }
     }
 
@@ -900,7 +912,7 @@ export class RelationalRecord extends DataPoint {
             this.selected = !this.selected;
         }
         if (!this.selected) {
-            this.model.root._onRecordDeselected?.();
+            this.model.root.onRecordDeselected?.();
         }
     }
 
@@ -928,26 +940,26 @@ export class RelationalRecord extends DataPoint {
             return /** @type {Record<string, any>} */ ({});
         }
 
-        const localChanges = this._getChanges(
-            { ...this._changes, ...changes },
+        const localChanges = this.getChangesLocked(
+            { ...this.changes, ...changes },
             { withReadonly: true },
         );
         if (this.config.relationField) {
             const parentRecord = this._parentRecord;
-            localChanges[this.config.relationField] = parentRecord._getChanges(
-                parentRecord._changes,
+            localChanges[this.config.relationField] = parentRecord.getChangesLocked(
+                parentRecord.changes,
                 { withReadonly: true },
             );
             if (!this._parentRecord.isNew) {
                 localChanges[this.config.relationField].id = this._parentRecord.resId;
             }
         }
-        return this.model._onchange(this.config, {
+        return this.model.onchange(this.config, {
             changes: localChanges,
             fieldNames: onChangeFields,
             evalContext: toRaw(this.evalContext),
             onError: (e) => {
-                const undoChanges = this._applyChanges(
+                const undoChanges = this.applyChanges(
                     changes,
                     {},
                     {
@@ -972,7 +984,7 @@ export class RelationalRecord extends DataPoint {
             }
             const list = toRaw(this.data)[fieldName];
             if (list?._commands) {
-                listSnapshots.push({ list, snapshot: list._snapshot() });
+                listSnapshots.push({ list, snapshot: list.snapshot() });
             }
         }
         return listSnapshots;
@@ -1015,7 +1027,7 @@ export class RelationalRecord extends DataPoint {
         }
     }
 
-    async _update(
+    async updateLocked(
         /** @type {any} */ changes,
         /** @type {{ withoutOnchange?: boolean, withoutParentUpdate?: boolean }} */ {
             withoutOnchange,
@@ -1027,14 +1039,14 @@ export class RelationalRecord extends DataPoint {
         const wasDirty = raw.dirty;
         this._markDirty();
         const restoreDirty = () => {
-            if (!raw._hasChanges && !raw._invalidFields.size) {
+            if (!raw._hasChanges && !raw.invalidFields.size) {
                 this.dirty = wasDirty;
             }
         };
         const listSnapshots = this._snapshotTouchedLists(changes);
         const rollbackLists = () => {
             for (const { list, snapshot } of listSnapshots) {
-                list._restore(snapshot);
+                list.restoreSnapshot(snapshot);
             }
         };
 
@@ -1077,7 +1089,7 @@ export class RelationalRecord extends DataPoint {
 
         this._pruneUnchangedMany2ones(changes);
 
-        const undoChanges = this._applyChanges(changes, onchangeServerValues, {
+        const undoChanges = this.applyChanges(changes, onchangeServerValues, {
             undoable: true,
         });
         const changedSomething =
@@ -1098,7 +1110,7 @@ export class RelationalRecord extends DataPoint {
             await this.model.notifyLifecycle(
                 "onRecordChanged",
                 this,
-                this._getChanges(),
+                this.getChangesLocked(),
             );
         }
     }

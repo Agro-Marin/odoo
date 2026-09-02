@@ -18,7 +18,7 @@ function makeModel() {
     return model;
 }
 
-describe("settleBeforeReload waits for everything _askChanges drains", () => {
+describe("settleBeforeReload waits for everything askChanges drains", () => {
     test("idle model: nothing to wait for", () => {
         const model = makeModel();
         expect(model.settleBeforeReload()).toBe(undefined);
@@ -56,7 +56,7 @@ describe("settleBeforeReload waits for everything _askChanges drains", () => {
         const settling = model.settleBeforeReload();
         expect(settling).not.toBe(undefined, {
             message:
-                "the guard must cover both things `_askChanges` drains, or the " +
+                "the guard must cover both things `askChanges` drains, or the " +
                 "reload runs against a root the cascade is still writing to",
         });
 

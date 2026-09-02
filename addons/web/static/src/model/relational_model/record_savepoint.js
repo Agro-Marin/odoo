@@ -15,10 +15,10 @@ export { createSavePoint } from "./record_edit_state.js";
  * @param {ConstructedRecord} record
  */
 export function addSavePoint(record) {
-    record._snapshotEditState();
-    for (const fieldName of Object.keys(record._changes)) {
+    record.snapshotEditState();
+    for (const fieldName of Object.keys(record.changes)) {
         if (isX2Many(record.fields[fieldName])) {
-            record._changes[fieldName]._addSavePoint();
+            record.changes[fieldName]._addSavePoint();
         }
     }
 }
@@ -28,27 +28,27 @@ export function addSavePoint(record) {
  * @returns {boolean}
  */
 export function restoreFromSavePoint(record) {
-    return record._restoreEditState();
+    return record.restoreEditState();
 }
 
 /**
  * @param {ConstructedRecord} record
  */
 export function discard(record) {
-    for (const fieldName of Object.keys(record._changes)) {
+    for (const fieldName of Object.keys(record.changes)) {
         if (isX2Many(record.fields[fieldName])) {
-            record._changes[fieldName]._discard();
+            record.changes[fieldName].discardLocked();
         }
     }
     if (restoreFromSavePoint(record)) {
-        record._rebuildData();
+        record.rebuildData();
     } else {
-        record._discardChanges();
-        record._clearValidity();
+        record.discardChanges();
+        record.clearValidity();
     }
     if (!record.isNew) {
-        record._checkValidity();
+        record.checkValidityLocked();
     }
     record.closeInvalidFieldsNotification();
-    record._restoreActiveFields();
+    record.restoreActiveFields();
 }

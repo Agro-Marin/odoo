@@ -12,8 +12,8 @@ const LINK = 4;
 function makeRecord({ lines = [] } = {}) {
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async () => [],
+        patchConfig: (config, patch) => Object.assign(config, patch),
+        loadRecords: async () => [],
     };
     const config = {
         resModel: "parent.model",
@@ -43,18 +43,18 @@ function makeRecord({ lines = [] } = {}) {
     return new RelationalRecord(model, config, { id: 1, lines }, {});
 }
 
-describe("_applyValues x2many merge", () => {
-    test("pending commands survive _applyValues (list merged, not replaced)", async () => {
+describe("applyValues x2many merge", () => {
+    test("pending commands survive applyValues (list merged, not replaced)", async () => {
         const record = makeRecord({ lines: [{ id: 10, name: "L1" }] });
         const list = record.data.lines;
 
-        await list._applyCommands([[LINK, 11, { id: 11, name: "Linked" }]]);
-        record._applyChanges({ lines: list });
+        await list.applyCommandsLocked([[LINK, 11, { id: 11, name: "Linked" }]]);
+        record.applyChanges({ lines: list });
         expect(list._commands).toEqual([[LINK, 11, false]]);
 
-        record._applyValues({ id: 1, lines: [{ id: 10, name: "L1-updated" }] });
+        record.applyValues({ id: 1, lines: [{ id: 10, name: "L1-updated" }] });
 
-        expect(record._changes.lines).toBe(list);
+        expect(record.changes.lines).toBe(list);
         expect(record._values.lines).toBe(list);
         expect(record.data.lines).toBe(list);
         expect(list._commands).toEqual([[LINK, 11, false]]);
@@ -66,13 +66,13 @@ describe("_applyValues x2many merge", () => {
     test("without pending commands the list is still replaced by fresh values", () => {
         const record = makeRecord({ lines: [{ id: 10, name: "L1" }] });
         const list = record.data.lines;
-        record._applyChanges({ lines: list });
+        record.applyChanges({ lines: list });
         expect(list._commands).toEqual([]);
 
-        record._applyValues({ id: 1, lines: [{ id: 10, name: "L1-updated" }] });
+        record.applyValues({ id: 1, lines: [{ id: 10, name: "L1-updated" }] });
 
         expect(record.data.lines).not.toBe(list);
         expect(record.data.lines._cache.get(10).data.name).toBe("L1-updated");
-        expect(record._changes.lines).toBe(record.data.lines);
+        expect(record.changes.lines).toBe(record.data.lines);
     });
 });

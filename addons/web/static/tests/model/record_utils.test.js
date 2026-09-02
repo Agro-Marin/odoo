@@ -253,7 +253,7 @@ describe("computeChangeset", () => {
             return mockCommands;
         };
         const result = computeChangeset({
-            changes: { tag_ids: { _getCommands: () => mockCommands } },
+            changes: { tag_ids: { getCommands: () => mockCommands } },
             values: {},
             isNew: false,
             fields,

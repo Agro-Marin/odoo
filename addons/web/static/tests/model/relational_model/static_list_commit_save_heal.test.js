@@ -129,7 +129,7 @@ describe("a save whose new id is not where the created row was", () => {
         const list = record.data.turtles;
         await record.update({ turtles: [[0, false, { name: "user line" }]] });
         await settle();
-        const virtualId = list.records.at(-1)._virtualId;
+        const virtualId = list.records.at(-1).virtualId;
         expect(virtualId).not.toBe(false);
 
         await record.save({ reload: false });
@@ -143,7 +143,7 @@ describe("a save whose new id is not where the created row was", () => {
         expect(list._cache.has(virtualId)).toBe(false);
         const foreign = list._cache.get(999);
         expect(foreign.data.name).toBe("t999");
-        expect(foreign._virtualId).toBe(false);
+        expect(foreign.virtualId).toBe(false);
         expect(list.records.map((/** @type {any} */ r) => r.data.name)).toEqual([
             "t2",
             "t3",
@@ -161,9 +161,9 @@ describe("_healMissingWindow in isolation", () => {
         }
         const model = {
             Class: { Record: RelationalRecord, StaticList },
-            _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+            patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
                 Object.assign(config, patch),
-            _loadRecords: async ({ resIds: /** @type {any} */ ids }) => {
+            loadRecords: async ({ resIds: /** @type {any} */ ids }) => {
                 loaded.push([...ids]);
                 return ids.map((/** @type {any} */ id) => rows[id]);
             },

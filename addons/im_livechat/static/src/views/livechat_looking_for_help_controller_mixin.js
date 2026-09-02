@@ -52,7 +52,7 @@ export const LivechatLookingForHelpReloadMixin = (ViewController) =>
                 .map((resId) => recordIdByResId[resId])
                 .filter(Boolean);
             if (recordIdsToRemove.length) {
-                this.model.root._removeRecords(recordIdsToRemove);
+                this.model.root.removeRecords(recordIdsToRemove);
             }
         }
 
@@ -60,7 +60,7 @@ export const LivechatLookingForHelpReloadMixin = (ViewController) =>
             const channel = this.model.root.records.find((r) => r.resId === channel_id);
             if (
                 JSON.stringify(
-                    channel?.data.livechat_conversation_tag_ids._currentIds,
+                    channel?.data.livechat_conversation_tag_ids.currentIds,
                 ) !== JSON.stringify(tag_ids)
             ) {
                 channel?.load();

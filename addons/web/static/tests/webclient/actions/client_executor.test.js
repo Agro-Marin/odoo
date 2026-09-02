@@ -14,16 +14,16 @@ function makeFakeAm(overrides = {}) {
     const calls = { updateUI: [], doAction: [], confirmLeave: [], actionInfo: [] };
     const am = {
         env: { isSmall: false, marker: "the-env" },
-        _confirmLeave: async (opts) => {
+        confirmLeave: async (opts) => {
             calls.confirmLeave.push(opts);
             return true;
         },
-        _makeController: (params) => ({ jsId: "controller_1", ...params }),
-        _getActionInfo: (action, props) => {
+        makeController: (params) => ({ jsId: "controller_1", ...params }),
+        getActionInfo: (action, props) => {
             calls.actionInfo.push({ action, props });
             return { props };
         },
-        _updateUI: async (controller, options) => {
+        updateUI: async (controller, options) => {
             calls.updateUI.push({ controller, options });
             return "updateUI-result";
         },
@@ -49,7 +49,7 @@ class SomeClientAction extends Component {
 
 describe.current.tags("desktop");
 
-test("a component entry is rendered through _updateUI", async () => {
+test("a component entry is rendered through updateUI", async () => {
     const tag = defineClientAction("ce_plain", SomeClientAction);
     const am = makeFakeAm();
     const res = await executeClientAction(
@@ -64,7 +64,7 @@ test("a component entry is rendered through _updateUI", async () => {
 
 test("a refused leave aborts before anything is rendered", async () => {
     const tag = defineClientAction("ce_refused", SomeClientAction);
-    const am = makeFakeAm({ _confirmLeave: async () => false });
+    const am = makeFakeAm({ confirmLeave: async () => false });
     expect(await executeClientAction(/** @type {any} */ ({ tag }), {}, am)).toBe(
         undefined,
     );

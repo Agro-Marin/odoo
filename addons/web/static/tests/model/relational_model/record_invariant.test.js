@@ -18,43 +18,43 @@ function makeSetDataProbeRecord({ dirty, changes = {} } = {}) {
         set dirty(value) {
             editState.dirty = value;
         },
-        get _changes() {
+        get changes() {
             return editState.changes;
         },
         get _hasChanges() {
             return !editState.isChangeSetEmpty;
         },
         _clearChanges: () => editState.clearChanges(),
-        _clearValidity: () => editState.clearValidity(),
+        clearValidity: () => editState.clearValidity(),
         resModel: "test.model",
         resId: 42,
         _textValues: {},
         isNew: false,
         isInEdition: false,
         _parentRecord: null,
-        _parseServerValues: (data) => data,
+        parseServerValues: (data) => data,
         _getTextValues: () => ({}),
-        _setEvalContext() {},
-        _setData: RelationalRecord.prototype._setData,
+        setEvalContext() {},
+        setData: RelationalRecord.prototype.setData,
     };
 }
 
-describe("_setData(keepChanges) dirty derivation", () => {
+describe("setData(keepChanges) dirty derivation", () => {
     test("Invariant-1 window: dirty=true with an empty changeSet survives a reload", () => {
         const rec = makeSetDataProbeRecord({ dirty: true, changes: {} });
-        rec._setData({ id: 1 }, { keepChanges: true });
+        rec.setData({ id: 1 }, { keepChanges: true });
         expect(rec.dirty).toBe(true);
     });
 
     test("clean record with pending changes becomes dirty", () => {
         const rec = makeSetDataProbeRecord({ dirty: false, changes: { name: "x" } });
-        rec._setData({ id: 1 }, { keepChanges: true });
+        rec.setData({ id: 1 }, { keepChanges: true });
         expect(rec.dirty).toBe(true);
     });
 
     test("clean record with no pending changes stays clean", () => {
         const rec = makeSetDataProbeRecord({ dirty: false, changes: {} });
-        rec._setData({ id: 1 }, { keepChanges: true });
+        rec.setData({ id: 1 }, { keepChanges: true });
         expect(rec.dirty).toBe(false);
     });
 });

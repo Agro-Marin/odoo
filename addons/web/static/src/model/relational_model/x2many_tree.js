@@ -125,10 +125,10 @@ export function commitSubtree(record, values, seen = new Set()) {
     for (const [fieldName, list] of x2manyLists(record)) {
         const serverValue = values?.[fieldName];
         if (serverValue === undefined) {
-            list._clearCommands();
+            list.clearCommands();
             continue;
         }
-        list._commitSave(serverValue);
+        list.commitSave(serverValue);
         for (const row of serverValue) {
             if (row && typeof row === "object") {
                 const child = list.getCachedRecord(row.id);

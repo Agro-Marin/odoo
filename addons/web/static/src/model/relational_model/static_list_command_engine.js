@@ -219,7 +219,7 @@ function applyCreate(list, command, batch) {
     let record;
     if (isEcho) {
         record = list._cache.get(virtualId);
-        record._applyChanges({}, command[2]);
+        record.applyChanges({}, command[2]);
     } else {
         record = list._createRecordDatapoint(command[2], { virtualId });
     }
@@ -237,7 +237,7 @@ function applyCreate(list, command, batch) {
     } else {
         list.records.push(record);
     }
-    list._insertMemberAt(atTop ? list.offset : list.offset + list.limit, virtualId);
+    list.insertMemberAt(atTop ? list.offset : list.offset + list.limit, virtualId);
     if (atTop) {
         if (list.records.length > list.limit) {
             list.records.pop();
@@ -325,7 +325,7 @@ function applyUpdate(list, command, batch) {
     if (deferredChanges) {
         deferCommand(list, id, [command[0], id, deferredChanges]);
     }
-    record._applyChanges({}, changes);
+    record.applyChanges({}, changes);
 }
 
 /**
@@ -391,9 +391,9 @@ function applyLink(list, command, batch) {
         if (occupancy > list.limit) {
             list._bumpLimit(occupancy - list.limit);
         }
-        list._insertMemberAt(list.offset + list.records.length - 1, record.resId);
+        list.insertMemberAt(list.offset + list.records.length - 1, record.resId);
     } else {
-        list._appendMember(record.resId);
+        list.appendMember(record.resId);
     }
     batch.currentIdsSet.add(record.resId);
     batch.addOwnCommand([command[0], command[1], false]);
@@ -405,7 +405,7 @@ function applyLink(list, command, batch) {
  * @returns {void}
  */
 function commitBatch(list, batch) {
-    list._commitCommands(batch.orderedCommands());
+    list.commitCommands(batch.orderedCommands());
 
     if (Object.keys(batch.removedIds).length) {
         let removedBeforeOffset = 0;
@@ -415,12 +415,12 @@ function commitBatch(list, batch) {
             }
         }
         if (removedBeforeOffset) {
-            list.model._patchConfig(list.config, {
+            list.model.patchConfig(list.config, {
                 offset: Math.max(0, list.offset - removedBeforeOffset),
             });
         }
         list.records = dropFirstOccurrences(list.records, batch.removedIds, listId);
-        list._commitCurrentIds(
+        list.commitCurrentIds(
             dropFirstOccurrences(list._currentIds, batch.removedIds, (id) => id),
         );
     }
@@ -460,7 +460,7 @@ function flushPendingLoads(list, batch) {
     }
     const resIds = batch.recordsToLoad.map((r) => r.resId);
     return list.model
-        ._loadRecords({ ...list.config, resIds }, list.evalContext)
+        .loadRecords({ ...list.config, resIds }, list.evalContext)
         .then(async (recordValues) => {
             const valuesById = Object.fromEntries(recordValues.map((v) => [v.id, v]));
             for (const record of batch.recordsToLoad) {
@@ -468,7 +468,7 @@ function flushPendingLoads(list, batch) {
                     list._loadingStubIds.delete(record.resId);
                     continue;
                 }
-                record._applyValues(valuesById[record.resId]);
+                record.applyValues(valuesById[record.resId]);
                 list._loadingStubIds.delete(record.resId);
                 const commands = list._unknownRecordCommands.get(record.resId);
                 if (commands) {

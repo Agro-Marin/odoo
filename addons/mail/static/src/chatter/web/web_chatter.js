@@ -218,13 +218,13 @@ export class WebChatter extends Chatter {
         const partnerIds = [];
         let email;
         this.mailImpactingFields.recordFields.forEach((field) => {
-            const value = record._changes[field];
+            const value = record.changes[field];
             if (record.data[field] !== undefined && value) {
                 partnerIds.push(value.id);
             }
         });
         this.mailImpactingFields.emailFields.forEach((field) => {
-            const value = record._changes[field];
+            const value = record.changes[field];
             if (record.data[field] !== undefined && value) {
                 email = value;
                 return;

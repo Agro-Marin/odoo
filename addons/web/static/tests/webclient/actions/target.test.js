@@ -278,7 +278,7 @@ describe("new", () => {
         expect(".o_technical_modal").toHaveCount(0);
     });
 
-    test("a failed replacement's pending slot is cleared by _removeDialog alone", async () => {
+    test("a failed replacement's pending slot is cleared by removeDialog alone", async () => {
         class FailingClientAction extends Component {
             static template = xml`<div/>`;
             static props = ["*"];

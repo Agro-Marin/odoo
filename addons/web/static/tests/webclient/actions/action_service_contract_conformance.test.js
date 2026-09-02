@@ -7,37 +7,57 @@ import { ACTION_MANAGER_SURFACE } from "@web/webclient/actions/action_service_co
 
 describe.current.tags("headless");
 
-const PRIVATE = ACTION_MANAGER_SURFACE.filter((k) => k.startsWith("_"));
-const PUBLIC = ACTION_MANAGER_SURFACE.filter((k) => !k.startsWith("_"));
+const isPrototypeMethod = (/** @type {string} */ key) =>
+    typeof Object.getOwnPropertyDescriptor(ActionManager.prototype, key)?.value ===
+    "function";
+const OPERATIONS = ACTION_MANAGER_SURFACE.filter(isPrototypeMethod);
+const STATE = ACTION_MANAGER_SURFACE.filter((key) => !isPrototypeMethod(key));
 
 describe("the ActionManager contract and the class agree", () => {
-    test("every operation the contract names is a method on the class", () => {
-        const missing = PRIVATE.filter(
-            (key) =>
-                typeof (/** @type {any} */ (ActionManager.prototype)[key]) !==
-                "function",
-        );
-        expect(missing).toEqual([], {
+    test("every operation an executor calls is a method on the class", () => {
+        const called = [
+            "makeController",
+            "updateUI",
+            "confirmLeave",
+            "getActionInfo",
+            "removeDialog",
+            "fetchAction",
+            "executeCloseAction",
+            "getBreadcrumbs",
+            "nextId",
+            "getViewInfo",
+            "getView",
+            "controllersFromState",
+            "getActionParams",
+        ];
+        expect(called.filter((key) => !OPERATIONS.includes(key))).toEqual([], {
             message:
                 "ACTION_MANAGER_SURFACE names an operation ActionManager no " +
                 "longer has -- update the contract, and every executor using it",
         });
     });
 
-    test("every public member the contract names exists on a real manager", async () => {
+    test("every state member the contract names exists on a real manager", async () => {
         const env = await makeMockEnv();
         const manager = new ActionManager(/** @type {any} */ (env));
-        const missing = PUBLIC.filter((key) => !(key in manager));
+        const missing = STATE.filter((key) => !(key in manager));
         expect(missing).toEqual([], {
             message:
-                "the public half is per-instance state, so it is checked " +
+                "the state half is per-instance, so it is checked " +
                 "against a constructed manager rather than the prototype",
         });
     });
 
-    test("control: the halves are populated", () => {
-        expect(PRIVATE.length).toBeGreaterThan(10);
-        expect(PUBLIC.length).toBeGreaterThan(8);
+    test("control: the halves are populated, and nothing is spelled private", () => {
+        expect(OPERATIONS.length).toBeGreaterThan(20);
+        expect(STATE.length).toBeGreaterThan(8);
+        expect(ACTION_MANAGER_SURFACE.filter((key) => key.startsWith("_"))).toEqual(
+            [],
+            {
+                message:
+                    "a member executors reach is public; the underscore was the lie",
+            },
+        );
     });
 
     test("the retired `_loadStateGeneration` counter must not come back", async () => {

@@ -22,6 +22,7 @@ export const FIELD_RECORD_SURFACE = [
     "isActive",
     "isValid",
     "isFieldInvalid",
+    "isFieldRequired",
     "activeFields",
     "setInvalidField",
     "resetFieldValidity",

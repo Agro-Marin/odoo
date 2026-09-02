@@ -16,9 +16,9 @@ function makeList() {
     const requested = [];
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+        patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
             Object.assign(config, patch),
-        _loadRecords: async (/** @type {any} */ { resIds }) => {
+        loadRecords: async (/** @type {any} */ { resIds }) => {
             requested.push([...resIds]);
             return resIds.map((/** @type {number} */ id) => ({
                 .../** @type {Record<number, any>} */ (SERVER)[id],
@@ -59,7 +59,7 @@ describe("a LINK payload is authoritative", () => {
     test("a BARE link is completed by a read", async () => {
         const { list, requested } = makeList();
 
-        await list._applyCommands([[x2ManyCommands.LINK, 6, false]]);
+        await list.applyCommandsLocked([[x2ManyCommands.LINK, 6, false]]);
 
         expect(requested).toEqual([[6]]);
         expect(/** @type {any} */ (list._cache).get(6).data.note).toBe("N6");
@@ -68,7 +68,7 @@ describe("a LINK payload is authoritative", () => {
     test("a COMPLETE payload costs no round trip", async () => {
         const { list, requested } = makeList();
 
-        await list._applyCommands([
+        await list.applyCommandsLocked([
             [x2ManyCommands.LINK, 5, { name: "five", note: "N5" }],
         ]);
 
@@ -79,23 +79,23 @@ describe("a LINK payload is authoritative", () => {
     test("a PARTIAL payload is trusted, NOT completed", async () => {
         const { list, requested } = makeList();
 
-        await list._applyCommands([[x2ManyCommands.LINK, 5, { name: "five" }]]);
+        await list.applyCommandsLocked([[x2ManyCommands.LINK, 5, { name: "five" }]]);
 
         expect(requested).toEqual([]);
         expect(/** @type {any} */ (list._cache).get(5).data.note).toBe("");
         expect(
-            [.../** @type {any} */ (list._cache).get(5)._loadedFieldNames].sort(),
+            [.../** @type {any} */ (list._cache).get(5).loadedFieldNames].sort(),
         ).toEqual(["id", "name"]);
     });
 
     test("an already fully cached row is not re-read", async () => {
         const { list, requested } = makeList();
-        await list._applyCommands([[x2ManyCommands.LINK, 5, false]]);
+        await list.applyCommandsLocked([[x2ManyCommands.LINK, 5, false]]);
         expect(requested).toEqual([[5]]);
-        await list._applyCommands([[x2ManyCommands.UNLINK, 5, false]]);
+        await list.applyCommandsLocked([[x2ManyCommands.UNLINK, 5, false]]);
         requested.length = 0;
 
-        await list._applyCommands([[x2ManyCommands.LINK, 5, false]]);
+        await list.applyCommandsLocked([[x2ManyCommands.LINK, 5, false]]);
 
         expect(requested).toEqual([]);
         expect(/** @type {any} */ (list._cache).get(5).data.note).toBe("N5");

@@ -18,7 +18,7 @@ export class ProjectMany2OneField extends Component {
         const props = computeM2OProps(this.props);
         const { name, record } = this.props;
         props.cssClass = "w-100";
-        if (!record.data[name] && !record._isRequired(name)) {
+        if (!record.data[name] && !record.isFieldRequired(name)) {
             props.placeholder = _t("Private");
             props.cssClass += " private_placeholder";
         }

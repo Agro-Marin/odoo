@@ -39,12 +39,12 @@ function makeRecord({ failIn, required = false } = {}) {
                 ui: { onDisplayInvalidFields: () => () => {} },
             },
         },
-        _setEvalContext() {},
-        _parseServerValues: (values) => ({ ...values }),
+        setEvalContext() {},
+        parseServerValues: (values) => ({ ...values }),
         _getTextValues: () => ({}),
-        _isInvisible: () => false,
-        _isRequired: () => required,
-        _isReadonly: () => false,
+        isFieldInvisible: () => false,
+        isFieldRequired: () => required,
+        isFieldReadonly: () => false,
         _onUpdate: async () => {
             if (failIn === "onUpdate") {
                 throw new Error("boom");
@@ -60,70 +60,70 @@ function makeRecord({ failIn, required = false } = {}) {
     return record;
 }
 
-describe("RelationalRecord._update failure paths", () => {
+describe("RelationalRecord.updateLocked failure paths", () => {
     test("a preprocessor failure lowers dirty again", async () => {
         const record = makeRecord({ failIn: "preprocess" });
-        await expect(record._update({ name: "new" })).rejects.toThrow();
+        await expect(record.updateLocked({ name: "new" })).rejects.toThrow();
         expect(record.dirty).toBe(false);
     });
 
     test("an onchange failure lowers dirty again", async () => {
         const record = makeRecord({ failIn: "onchange" });
-        await expect(record._update({ name: "new" })).rejects.toThrow();
+        await expect(record.updateLocked({ name: "new" })).rejects.toThrow();
         expect(record.dirty).toBe(false);
-        expect(Object.keys(record._changes)).toEqual([]);
+        expect(Object.keys(record.changes)).toEqual([]);
     });
 
     test("an _onUpdate failure lowers dirty again", async () => {
         const record = makeRecord({ failIn: "onUpdate" });
-        await expect(record._update({ name: "new" })).rejects.toThrow();
+        await expect(record.updateLocked({ name: "new" })).rejects.toThrow();
         expect(record.dirty).toBe(false);
     });
 
     test("a successful update leaves the record dirty", async () => {
         const record = makeRecord();
-        await record._update({ name: "new" });
+        await record.updateLocked({ name: "new" });
         expect(record.dirty).toBe(true);
         expect(record.data.name).toBe("new");
     });
 });
 
-describe("RelationalRecord._applyChanges undo — validity sets", () => {
-    test("undo restores both _invalidFields and _unsetRequiredFields", () => {
+describe("RelationalRecord.applyChanges undo — validity sets", () => {
+    test("undo restores both invalidFields and unsetRequiredFields", () => {
         const record = makeRecord({ required: true });
-        record._checkValidity();
-        expect([...record._invalidFields]).toEqual(["name"]);
-        expect([...record._unsetRequiredFields]).toEqual(["name"]);
+        record.checkValidityLocked();
+        expect([...record.invalidFields]).toEqual(["name"]);
+        expect([...record.unsetRequiredFields]).toEqual(["name"]);
 
-        record._applyChanges({ name: "filled" }, {}, { undoable: true })();
+        record.applyChanges({ name: "filled" }, {}, { undoable: true })();
 
         expect(record.data.name).toBe(false);
-        expect([...record._invalidFields]).toEqual(["name"]);
-        expect([...record._unsetRequiredFields]).toEqual(["name"]);
+        expect([...record.invalidFields]).toEqual(["name"]);
+        expect([...record.unsetRequiredFields]).toEqual(["name"]);
     });
 
     test("a later removeInvalidOnly pass can still clear the restored field", () => {
         const record = makeRecord({ required: true });
-        record._checkValidity();
-        record._applyChanges({ name: "filled" }, {}, { undoable: true })();
+        record.checkValidityLocked();
+        record.applyChanges({ name: "filled" }, {}, { undoable: true })();
 
         record.data.name = "filled for real";
-        record._checkValidity({ removeInvalidOnly: true });
+        record.checkValidityLocked({ removeInvalidOnly: true });
 
-        expect([...record._invalidFields]).toEqual([]);
-        expect([...record._unsetRequiredFields]).toEqual([]);
+        expect([...record.invalidFields]).toEqual([]);
+        expect([...record.unsetRequiredFields]).toEqual([]);
     });
 });
 
-describe("RelationalRecord._applyChanges undo — data keys", () => {
+describe("RelationalRecord.applyChanges undo — data keys", () => {
     test("undo removes keys the change introduced", () => {
         const record = makeRecord();
-        record._parseServerValues = (values) => ({
+        record.parseServerValues = (values) => ({
             ...values,
             "properties.new_one": "invented by the onchange",
         });
 
-        const undo = record._applyChanges({}, { name: "srv" }, { undoable: true });
+        const undo = record.applyChanges({}, { name: "srv" }, { undoable: true });
         expect("properties.new_one" in record.data).toBe(true);
 
         undo();

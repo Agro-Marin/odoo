@@ -70,16 +70,16 @@ export class DynamicList extends EditableListDataPoint {
      * @param {import("@web/core/domain").DomainListRepr} _domain
      * @returns {Promise<any>}
      */
-    _load(_offset, _limit, _orderBy, _domain) {
-        return this._abstract("_load");
+    loadLocked(_offset, _limit, _orderBy, _domain) {
+        return this._abstract("loadLocked");
     }
 
     /**
      * @abstract
      * @param {(string | number)[]} _recordIds
      */
-    _removeRecords(_recordIds) {
-        this._abstract("_removeRecords");
+    removeRecords(_recordIds) {
+        this._abstract("removeRecords");
     }
 
     /**
@@ -169,8 +169,8 @@ export class DynamicList extends EditableListDataPoint {
             const canProceed = await this.leaveEditMode();
             if (canProceed) {
                 const tail = () => {
-                    record._checkValidity();
-                    this.model._patchConfig(record.config, { mode: "edit" });
+                    record.checkValidityLocked();
+                    this.model.patchConfig(record.config, { mode: "edit" });
                 };
                 if (this.model.urgentSave.isActive) {
                     tail();
@@ -216,7 +216,7 @@ export class DynamicList extends EditableListDataPoint {
         for (const fieldName of Object.keys(changes)) {
             if (isX2Many(this.fields[fieldName])) {
                 const list = editedRecord.data[fieldName];
-                let commands = list._getCommands();
+                let commands = list.getCommands();
                 if ("display_name" in list.activeFields) {
                     commands = commands.map((command) => {
                         if (command[0] === x2ManyCommands.LINK) {
@@ -232,7 +232,9 @@ export class DynamicList extends EditableListDataPoint {
                 }
                 for (const record of selectedRecords) {
                     if (record !== editedRecord) {
-                        proms.push(record.data[fieldName]._applyCommands(commands));
+                        proms.push(
+                            record.data[fieldName].applyCommandsLocked(commands),
+                        );
                     }
                 }
             }
@@ -253,9 +255,9 @@ export class DynamicList extends EditableListDataPoint {
             const isEditedRecord = record === editedRecord;
             if (
                 Object.keys(changes).every(
-                    (fieldName) => !record._isReadonly(fieldName),
+                    (fieldName) => !record.isFieldReadonly(fieldName),
                 ) &&
-                record._checkValidity({ silent: !isEditedRecord })
+                record.checkValidityLocked({ silent: !isEditedRecord })
             ) {
                 validRecords.push(record);
             } else {
@@ -286,7 +288,7 @@ export class DynamicList extends EditableListDataPoint {
             const changesById = {};
             for (const record of validRecords) {
                 changesById[record.resId] =
-                    changesById[record.resId] || record._getChanges();
+                    changesById[record.resId] || record.getChangesLocked();
             }
             const valsList = resIds.map((resId) => changesById[resId]);
             const multiKwargs = buildKnownValuesKwargs(
@@ -302,7 +304,7 @@ export class DynamicList extends EditableListDataPoint {
                     multiKwargs,
                 );
         } else {
-            const vals = editedRecord._getChanges();
+            const vals = editedRecord.getChangesLocked();
             const saveKwargs = buildKnownValuesKwargs(
                 validRecords,
                 Object.keys(vals),
@@ -328,8 +330,8 @@ export class DynamicList extends EditableListDataPoint {
             if (!serverValues) {
                 continue;
             }
-            record._setData(serverValues);
-            this.model._updateSimilarRecords(record, serverValues);
+            record.setData(serverValues);
+            this.model.updateSimilarRecords(record, serverValues);
         }
     }
 
@@ -344,10 +346,10 @@ export class DynamicList extends EditableListDataPoint {
         }
         try {
             if (editedRecord) {
-                await this.model._askChanges();
+                await this.model.askChanges();
             }
             if (!discard && this.editedRecord) {
-                await this.model._askChanges();
+                await this.model.askChanges();
             }
             return await this.model.mutex.exec(() => this._leaveEditMode({ discard }));
         } finally {
@@ -362,11 +364,13 @@ export class DynamicList extends EditableListDataPoint {
         const offset = params.offset === undefined ? this.offset : params.offset;
         const orderBy = params.orderBy === undefined ? this.orderBy : params.orderBy;
         const domain = params.domain === undefined ? this.domain : params.domain;
-        return this.model.mutex.exec(() => this._load(offset, limit, orderBy, domain));
+        return this.model.mutex.exec(() =>
+            this.loadLocked(offset, limit, orderBy, domain),
+        );
     }
 
     async multiSave(record, changes) {
-        return this.model.mutex.exec(() => this._multiSave(record, changes));
+        return this.model.mutex.exec(() => this.multiSaveLocked(record, changes));
     }
 
     selectDomain(value) {
@@ -381,7 +385,7 @@ export class DynamicList extends EditableListDataPoint {
             const orderBy = computeNextOrderBy(fieldName, this.orderBy, false, {
                 resetOrderBy: [],
             });
-            return this._load(this.offset, this.limit, orderBy, this.domain);
+            return this.loadLocked(this.offset, this.limit, orderBy, this.domain);
         });
     }
 
@@ -497,29 +501,29 @@ export class DynamicList extends EditableListDataPoint {
             this.model.closeUrgentSaveNotification();
             this._recordToDiscard = editedRecord;
             try {
-                editedRecord._discard();
+                editedRecord.discardLocked();
             } finally {
                 this._recordToDiscard = null;
             }
             editedRecord = this.editedRecord;
             if (editedRecord?.isNew) {
-                this._removeRecords([editedRecord.id]);
+                this.removeRecords([editedRecord.id]);
             }
         } else {
             let isValid = true;
             if (!this.model.urgentSave.isActive) {
-                isValid = editedRecord._checkValidity();
+                isValid = editedRecord.checkValidityLocked();
             }
             if (editedRecord.isNew && !editedRecord.dirty) {
-                this._removeRecords([editedRecord.id]);
+                this.removeRecords([editedRecord.id]);
             } else if (isValid || editedRecord.dirty) {
-                canProceed = await editedRecord._save();
+                canProceed = await editedRecord.saveLocked();
             }
         }
 
         editedRecord = this.editedRecord;
         if (canProceed && editedRecord) {
-            this.model._patchConfig(editedRecord.config, {
+            this.model.patchConfig(editedRecord.config, {
                 mode: "readonly",
             });
         }
@@ -528,12 +532,12 @@ export class DynamicList extends EditableListDataPoint {
 
     async _leaveSampleMode() {
         if (this.model.useSampleModel) {
-            await this._load(this.offset, this.limit, this.orderBy, this.domain);
+            await this.loadLocked(this.offset, this.limit, this.orderBy, this.domain);
             this.model.useSampleModel = false;
         }
     }
 
-    async _multiSave(editedRecord, changes) {
+    async multiSaveLocked(editedRecord, changes) {
         if (!Object.keys(changes).length || editedRecord === this._recordToDiscard) {
             return;
         }
@@ -561,7 +565,7 @@ export class DynamicList extends EditableListDataPoint {
                     perRecordChanges[fieldName] = record.data[fieldName];
                 }
             }
-            record._applyChanges(perRecordChanges);
+            record.applyChanges(perRecordChanges);
         });
 
         const { validRecords, invalidRecords } = this._partitionByValidity(
@@ -570,10 +574,10 @@ export class DynamicList extends EditableListDataPoint {
             changes,
         );
         const discardInvalidRecords = () =>
-            invalidRecords.forEach((record) => record._discard());
+            invalidRecords.forEach((record) => record.discardLocked());
 
         if (!validRecords.length) {
-            editedRecord._displayInvalidFieldNotification();
+            editedRecord.displayInvalidFieldNotification();
             discardInvalidRecords();
             return false;
         }
@@ -594,7 +598,7 @@ export class DynamicList extends EditableListDataPoint {
             validRecords,
         );
         if (canProceed === false) {
-            selectedRecords.forEach((record) => record._discard());
+            selectedRecords.forEach((record) => record.discardLocked());
             this.leaveEditMode({ discard: true }).catch((e) => console.error(e));
             return false;
         }
@@ -603,17 +607,17 @@ export class DynamicList extends EditableListDataPoint {
         try {
             records = await save();
         } catch (e) {
-            selectedRecords.forEach((record) => record._discard());
-            this.model._patchConfig(editedRecord.config, { mode: "readonly" });
+            selectedRecords.forEach((record) => record.discardLocked());
+            this.model.patchConfig(editedRecord.config, { mode: "readonly" });
             throw e;
         }
         this._applyMultiSaveResult(records, validRecords);
-        this.model._patchConfig(editedRecord.config, { mode: "readonly" });
+        this.model.patchConfig(editedRecord.config, { mode: "readonly" });
         this.model.notifyLifecycle("onSavedMulti", validRecords);
         return true;
     }
 
-    async _resequence(originalList, resModel, movedId, targetId) {
+    async resequenceLocked(originalList, resModel, movedId, targetId) {
         if (this.resModel === resModel && !this.canResequence()) {
             return;
         }
@@ -637,7 +641,7 @@ export class DynamicList extends EditableListDataPoint {
         for (const dpData of resequencedRecords) {
             const dp = originalList.find((d) => getResId(d) === dpData.id);
             if (dp instanceof RelationalRecord) {
-                dp._applyValues(dpData);
+                dp.applyValues(dpData);
             } else {
                 dp[handleField] = dpData[handleField];
             }
@@ -648,11 +652,11 @@ export class DynamicList extends EditableListDataPoint {
      * @param {RelationalRecord} record
      * @returns {boolean}
      */
-    _isRecordToDiscard(record) {
+    isRecordToDiscard(record) {
         return this._recordToDiscard === record;
     }
 
-    _onRecordDeselected() {
+    onRecordDeselected() {
         if (this.isDomainSelected) {
             this._selectDomain(false);
         }

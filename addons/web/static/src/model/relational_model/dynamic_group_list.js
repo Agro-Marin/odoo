@@ -30,13 +30,13 @@ export class DynamicGroupList extends DynamicList {
         /** @type {number | null} */
         this._nbRecordsMatchingDomain = null;
         this._countedDomainKey = undefined;
-        this._setData(/** @type {any} */ (data));
+        this.setData(/** @type {any} */ (data));
     }
 
     /**
      * @param {{ groups: any[], length: number, [key: string]: any }} data
      */
-    _setData(data) {
+    setData(data) {
         if (
             this._nbRecordsMatchingDomain !== null &&
             JSON.stringify(this.domain) !== this._countedDomainKey
@@ -117,7 +117,7 @@ export class DynamicGroupList extends DynamicList {
     async moveRecord(dataRecordId, dataGroupId, refId, targetGroupId) {
         const targetGroup = this.groups.find((g) => g.id === targetGroupId);
         if (dataGroupId === targetGroupId) {
-            await targetGroup.list._resequence(
+            await targetGroup.list.resequenceLocked(
                 targetGroup.list.records,
                 this.resModel,
                 dataRecordId,
@@ -136,8 +136,8 @@ export class DynamicGroupList extends DynamicList {
         const mustReloadSourceList =
             sourceList.count > sourceList.offset + sourceList.limit;
 
-        sourceGroup._removeRecords([record.id]);
-        targetGroup._addRecord(record, refIndex + 1);
+        sourceGroup.removeRecords([record.id]);
+        targetGroup.addRecord(record, refIndex + 1);
         let value = targetGroup.value;
         if (targetGroup.groupByField.type === "many2one") {
             value = value
@@ -155,9 +155,9 @@ export class DynamicGroupList extends DynamicList {
                 const currentSourceGroup = this.groups.find(
                     (g) => g.value === sourceGroupValue,
                 );
-                currentTargetGroup?._removeRecords([record.id]);
-                currentSourceGroup?._addRecord(record, oldIndex);
-                record._discard();
+                currentTargetGroup?.removeRecords([record.id]);
+                currentSourceGroup?.addRecord(record, oldIndex);
+                record.discardLocked();
             });
         try {
             const changes = { [targetGroup.groupByField.name]: value };
@@ -175,7 +175,7 @@ export class DynamicGroupList extends DynamicList {
             const { offset, limit, orderBy, domain } = sourceGroup.list;
             proms.push(
                 this.model.mutex.exec(() =>
-                    sourceGroup.list._load(offset, limit, orderBy, domain),
+                    sourceGroup.list.loadLocked(offset, limit, orderBy, domain),
                 ),
             );
         }
@@ -184,7 +184,12 @@ export class DynamicGroupList extends DynamicList {
             const targetList = targetGroup.list;
             const records = targetList.records;
             proms.push(
-                targetList._resequence(records, this.resModel, dataRecordId, refId),
+                targetList.resequenceLocked(
+                    records,
+                    this.resModel,
+                    dataRecordId,
+                    refId,
+                ),
             );
         }
         return Promise.all(proms);
@@ -196,7 +201,7 @@ export class DynamicGroupList extends DynamicList {
         }
 
         return this.model.mutex.exec(async () => {
-            await this._resequence(
+            await this.resequenceLocked(
                 this.groups,
                 this.groupByField.relation,
                 movedGroupId,
@@ -289,7 +294,7 @@ export class DynamicGroupList extends DynamicList {
                 offset: 0,
             },
         };
-        this.model._patchConfig(this.config, { groups: nextConfigGroups });
+        this.model.patchConfig(this.config, { groups: nextConfigGroups });
         return { domain, groupBy };
     }
 
@@ -332,7 +337,7 @@ export class DynamicGroupList extends DynamicList {
 
         if (lastGroup) {
             const groups = [...this.groups, group];
-            await this._resequence(
+            await this.resequenceLocked(
                 groups,
                 this.groupByField.relation,
                 group.id,
@@ -364,16 +369,16 @@ export class DynamicGroupList extends DynamicList {
             delete configGroups[group.value];
         }
         if (shouldReload) {
-            await this.model._reloadWithConfig(
+            await this.model.reloadWithConfig(
                 this.config,
                 { groups: configGroups },
-                { commit: /** @type {any} */ (this._setData.bind(this)) },
+                { commit: /** @type {any} */ (this.setData.bind(this)) },
             );
         } else {
             for (const group of groups) {
                 this._removeGroup(group);
             }
-            this.model._patchConfig(this.config, { groups: configGroups });
+            this.model.patchConfig(this.config, { groups: configGroups });
         }
     }
 
@@ -396,11 +401,11 @@ export class DynamicGroupList extends DynamicList {
         return group[handleField];
     }
 
-    async _load(offset, limit, orderBy, domain) {
-        await this.model._reloadWithConfig(
+    async loadLocked(offset, limit, orderBy, domain) {
+        await this.model.reloadWithConfig(
             this.config,
             { offset, limit, orderBy, domain },
-            { commit: /** @type {any} */ (this._setData.bind(this)) },
+            { commit: /** @type {any} */ (this.setData.bind(this)) },
         );
         if (this.isDomainSelected) {
             await this._ensureCorrectRecordCount();
@@ -418,9 +423,9 @@ export class DynamicGroupList extends DynamicList {
     }
 
     /** @param {(string | number)[]} recordIds */
-    _removeRecords(recordIds) {
+    removeRecords(recordIds) {
         for (const group of this.groups) {
-            group._removeRecords(recordIds);
+            group.removeRecords(recordIds);
         }
     }
 

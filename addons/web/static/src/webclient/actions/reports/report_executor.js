@@ -33,13 +33,13 @@ export function executeReportClientAction(action, options, am) {
         context: { ...action.context },
     };
 
-    const controller = am._makeController({
+    const controller = am.makeController({
         Component: ReportAction,
         action,
-        ...am._getActionInfo(action, props),
+        ...am.getActionInfo(action, props),
     });
 
-    return am._updateUI(controller, options);
+    return am.updateUI(controller, options);
 }
 
 /**

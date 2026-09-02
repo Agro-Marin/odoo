@@ -92,7 +92,7 @@ export class Group extends DataPoint {
             await this.list.load({ domain: this.groupDomain });
             this.count = this.list.isGrouped ? this.list.recordCount : this.list.count;
         }
-        this.model._patchConfig(this.config, { extraDomain: filter });
+        this.model.patchConfig(this.config, { extraDomain: filter });
     }
 
     deleteRecords(records) {
@@ -105,7 +105,7 @@ export class Group extends DataPoint {
 
     async _toggle() {
         if (this.config.isFolded) {
-            await this.list._load(
+            await this.list.loadLocked(
                 this.list.offset,
                 this.list.limit,
                 this.list.orderBy,
@@ -113,16 +113,16 @@ export class Group extends DataPoint {
             );
         }
         this._useGroupCountForList();
-        this.model._patchConfig(this.config, {
+        this.model.patchConfig(this.config, {
             isFolded: !this.config.isFolded,
         });
     }
 
-    _addRecord(record, index) {
+    addRecord(record, index) {
         if (record.resId && this.list.records.some((r) => r.resId === record.resId)) {
             return;
         }
-        this.list._addRecord(record, index);
+        this.list.addRecord(record, index);
         this.count++;
     }
 
@@ -143,11 +143,11 @@ export class Group extends DataPoint {
     /**
      * @param {(string | number)[]} recordIds
      */
-    _removeRecords(recordIds) {
+    removeRecords(recordIds) {
         const idsToRemove = recordIds.filter((id) =>
             this.list.records.some((r) => r.id === id),
         );
-        this.list._removeRecords(idsToRemove);
+        this.list.removeRecords(idsToRemove);
         this.count -= idsToRemove.length;
     }
 }

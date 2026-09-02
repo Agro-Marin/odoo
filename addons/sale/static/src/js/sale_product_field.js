@@ -51,7 +51,7 @@ async function applyProduct(record, product) {
     if (product.uom) {
         update_values.product_uom_id = product.uom;
     }
-    await record._update(update_values);
+    await record.update(update_values);
 }
 
 export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
@@ -106,7 +106,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         return (
             this.props.readonlyField ||
             (this.props.record.model.root.activeFields.line_ids &&
-                this.props.record.model.root._isReadonly("line_ids"))
+                this.props.record.model.root.isFieldReadonly("line_ids"))
         );
     }
     get hasConfigurationButton() {

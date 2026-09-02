@@ -35,7 +35,7 @@ export async function loadState(am, state) {
     /** @type {any[]} */
     let newStack;
     try {
-        newStack = await am._controllersFromState(routeState);
+        newStack = await am.controllersFromState(routeState);
     } catch (error) {
         console.warn(
             "Failed to restore the action stack from the url state; " +
@@ -45,7 +45,7 @@ export async function loadState(am, state) {
         newStack = [];
     }
     token.throwIfSuperseded();
-    const actionParams = am._getActionParams(routeState);
+    const actionParams = am.getActionParams(routeState);
     if (actionParams) {
         const { actionRequest, options } = actionParams;
         const popped = options.poppedLeaves || 0;

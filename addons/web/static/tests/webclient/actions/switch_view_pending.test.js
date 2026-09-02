@@ -47,8 +47,8 @@ function makeManager() {
             hideKeyFromUrl() {},
         }),
     );
-    am._confirmLeave = async () => true;
-    am._getViewInfo = (view) => ({
+    am.confirmLeave = async () => true;
+    am.getViewInfo = (view) => ({
         props: { type: view.type },
         config: {},
         currentState: {},
@@ -151,7 +151,7 @@ test("a spliceAt that misses appends instead of eating the last crumb", async ()
     am.controllerStack = [a, b];
     const incoming = makeController("c2", "a2", "list", true);
 
-    await am._updateUI(/** @type {any} */ (incoming), { spliceAt: () => -1 });
+    await am.updateUI(/** @type {any} */ (incoming), { spliceAt: () => -1 });
 
     const dispatched = /** @type {any} */ (am).__dispatches.at(-1);
     expect(dispatched.nextStack.map((/** @type {any} */ c) => c.jsId)).toEqual([

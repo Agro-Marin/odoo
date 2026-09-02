@@ -19,8 +19,8 @@ const SERVER_ROWS = {
 function makeX2ManyList(resIds) {
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
+        patchConfig: (config, patch) => Object.assign(config, patch),
+        loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
     };
     const config = {
         resModel: "res.partner",
@@ -62,8 +62,8 @@ function makeRecordWith(list) {
         },
         data: { line_ids: list },
         _editState: new RecordEditState(),
-        _setEvalContext() {},
-        _checkValidity() {},
+        setEvalContext() {},
+        checkValidityLocked() {},
         _removeInvalidFields() {},
         _getTextValues() {
             return {};
@@ -72,7 +72,7 @@ function makeRecordWith(list) {
     return record;
 }
 
-describe("RelationalRecord._applyChanges undo — x2many sub-list", () => {
+describe("RelationalRecord.applyChanges undo — x2many sub-list", () => {
     test("undoChanges reverts an in-place onchange LINK on the x2many list", async () => {
         const list = makeX2ManyList([1, 2]);
         expect(list._commands).toEqual([]);
@@ -81,7 +81,7 @@ describe("RelationalRecord._applyChanges undo — x2many sub-list", () => {
 
         const record = makeRecordWith(list);
 
-        const undoChanges = record._applyChanges(
+        const undoChanges = record.applyChanges(
             {},
             { line_ids: [[LINK, 99, SERVER_ROWS[99]]] },
             { undoable: true },
@@ -104,20 +104,20 @@ describe("RelationalRecord._applyChanges undo — x2many sub-list", () => {
 
     test("after undo the x2many save payload carries no phantom command", async () => {
         const list = makeX2ManyList([1, 2]);
-        expect(list._getCommands()).toEqual([]);
+        expect(list.getCommands()).toEqual([]);
 
         const record = makeRecordWith(list);
 
-        const undoChanges = record._applyChanges(
+        const undoChanges = record.applyChanges(
             {},
             { line_ids: [[LINK, 99, SERVER_ROWS[99]]] },
             { undoable: true },
         );
-        expect(list._getCommands().length).toBe(1);
+        expect(list.getCommands().length).toBe(1);
 
         undoChanges();
 
-        expect(list._getCommands()).toEqual([]);
+        expect(list.getCommands()).toEqual([]);
 
         if (list._commandsPromise) {
             await list._commandsPromise;

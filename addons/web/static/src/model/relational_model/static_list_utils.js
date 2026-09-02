@@ -18,7 +18,7 @@ import { x2ManyCommands } from "@web/core/network/commands";
  * @returns {DatapointId}
  */
 export function listId(record) {
-    return /** @type {DatapointId} */ (record.resId || record._virtualId);
+    return /** @type {DatapointId} */ (record.resId || record.virtualId);
 }
 
 function compareFieldValues(v1, v2, fieldType) {
@@ -110,8 +110,8 @@ export function copyRecordData(record, copyFields = []) {
     for (const [name, value] of Object.entries(record.data)) {
         if (
             ![...copyFields, "display_name"].includes(name) &&
-            (record._isReadonly(name) || record._isInvisible(name)) &&
-            !record._isRequired(name)
+            (record.isFieldReadonly(name) || record.isFieldInvisible(name)) &&
+            !record.isFieldRequired(name)
         ) {
             continue;
         }

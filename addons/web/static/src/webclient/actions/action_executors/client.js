@@ -21,7 +21,7 @@ export async function executeClientAction(action, options, am) {
     action.path ||= clientAction.path;
     if (clientAction.prototype instanceof Component) {
         if (action.target !== "new" && !options.newWindow) {
-            if (!(await am._confirmLeave(pick(options, "forceLeave")))) {
+            if (!(await am.confirmLeave(pick(options, "forceLeave")))) {
                 return;
             }
             if (clientAction.target) {
@@ -29,13 +29,13 @@ export async function executeClientAction(action, options, am) {
             }
         }
         const props = /** @type {any} */ (clientAction).extractProps?.(action) || {};
-        const controller = am._makeController({
+        const controller = am.makeController({
             Component: /** @type {any} */ (clientAction),
             action,
-            ...am._getActionInfo(action, { ...props, ...options.props }),
+            ...am.getActionInfo(action, { ...props, ...options.props }),
         });
         controller.displayName ||= clientAction.displayName?.toString() || "";
-        return am._updateUI(controller, options);
+        return am.updateUI(controller, options);
     } else {
         const next = await /** @type {any} */ (clientAction)(am.env, action, options);
         if (next) {

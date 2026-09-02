@@ -30,15 +30,15 @@ function makeList() {
         _createRecordDatapoint(/** @type {any} */ data) {
             const record = {
                 resId: data.id || false,
-                _virtualId: false,
+                virtualId: false,
                 activeFields: {},
                 data: { ...data },
                 complete: Boolean(data.name),
-                _applyValues(/** @type {any} */ values) {
+                applyValues(/** @type {any} */ values) {
                     Object.assign(this.data, values);
                     this.complete = true;
                 },
-                _applyChanges() {},
+                applyChanges() {},
             };
             list._cache.set(data.id, record);
             return record;
@@ -47,21 +47,21 @@ function makeList() {
             ids.filter((/** @type {any} */ id) => !list._cache.get(id)?.complete),
         _bumpLimit() {},
         _clampOffset() {},
-        _commitCommands(/** @type {any[]} */ commands) {
+        commitCommands(/** @type {any[]} */ commands) {
             this._commands = commands;
         },
-        _commitCurrentIds(/** @type {any[]} */ ids) {
+        commitCurrentIds(/** @type {any[]} */ ids) {
             this._currentIds = ids;
         },
-        _insertMemberAt(/** @type {number} */ index, /** @type {any} */ id) {
+        insertMemberAt(/** @type {number} */ index, /** @type {any} */ id) {
             this._currentIds.splice(index, 0, id);
         },
-        _appendMember(/** @type {any} */ id) {
+        appendMember(/** @type {any} */ id) {
             this._currentIds.push(id);
         },
         model: {
-            _patchConfig: () => {},
-            _loadRecords: (/** @type {any} */ { resIds }) => {
+            patchConfig: () => {},
+            loadRecords: (/** @type {any} */ { resIds }) => {
                 loadedIds.push(...resIds);
                 return Promise.resolve(
                     resIds.map((/** @type {any} */ id) => ({ id, name: `n${id}` })),

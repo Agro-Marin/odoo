@@ -11,7 +11,7 @@ import { StaticList } from "@web/model/relational_model/static_list";
  * @returns {number | string}
  */
 export function doubleListId(record) {
-    return record.resId || record._virtualId;
+    return record.resId || record.virtualId;
 }
 
 /**
@@ -66,10 +66,10 @@ export function makeStaticListDouble(overrides = {}) {
         _extendedRecords: new Set(),
         handleField: undefined,
         model: {
-            _patchConfig: (/** @type {any} */ target, /** @type {any} */ patch) =>
+            patchConfig: (/** @type {any} */ target, /** @type {any} */ patch) =>
                 Object.assign(target, patch),
             /** @returns {Promise<any[]>} */
-            _loadRecords: async () => [],
+            loadRecords: async () => [],
             ...model,
         },
     });

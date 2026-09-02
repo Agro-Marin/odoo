@@ -25,7 +25,7 @@ function makeManager() {
             hideKeyFromUrl() {},
         }),
     );
-    am._confirmLeave = async () => true;
+    am.confirmLeave = async () => true;
     return am;
 }
 
@@ -79,7 +79,7 @@ test("a restore of an unknown controller does not supersede", async () => {
 
 test("a switchView that proceeds still supersedes the load it replaces", async () => {
     const am = makeManager();
-    am._getViewInfo = /** @type {any} */ (
+    am.getViewInfo = /** @type {any} */ (
         (/** @type {any} */ view) => ({
             props: { type: view.type },
             config: {},

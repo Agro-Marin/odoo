@@ -70,7 +70,7 @@ describe("extendRecord activeFields purity", () => {
             _extendedRecords: new Set(),
             model: {
                 mutex: { exec: (fn) => fn() },
-                _patchConfig: (config, patch) => Object.assign(config, patch),
+                patchConfig: (config, patch) => Object.assign(config, patch),
             },
         });
         return list;

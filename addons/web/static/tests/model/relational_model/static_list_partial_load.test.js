@@ -16,8 +16,8 @@ function makeList({ resIds = [], limit = 2, deleted = new Set() } = {}) {
     const loadedResIds = [];
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds: ids }) => {
+        patchConfig: (config, patch) => Object.assign(config, patch),
+        loadRecords: async ({ resIds: ids }) => {
             loadedResIds.push([...ids]);
             return ids.filter((id) => !deleted.has(id)).map((id) => SERVER_ROWS[id]);
         },
@@ -46,7 +46,7 @@ function makeList({ resIds = [], limit = 2, deleted = new Set() } = {}) {
     return { list, loadedResIds };
 }
 
-describe("StaticList._load partial server response", () => {
+describe("StaticList.loadLocked partial server response", () => {
     test("a concurrently-deleted id is dropped, not left as an undefined hole", async () => {
         const { list } = makeList({
             resIds: [1, 2, 3, 99],
@@ -55,7 +55,7 @@ describe("StaticList._load partial server response", () => {
         });
         expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
 
-        await list._load({ offset: 2 });
+        await list.loadLocked({ offset: 2 });
 
         expect(list.records.includes(undefined)).toBe(false);
         expect(list.records.map((r) => r.resId)).toEqual([3]);
@@ -66,7 +66,7 @@ describe("StaticList._load partial server response", () => {
     test("a full response still keeps every id (guard is inert on the happy path)", async () => {
         const { list } = makeList({ resIds: [1, 2, 3, 99], limit: 2 });
 
-        await list._load({ offset: 2 });
+        await list.loadLocked({ offset: 2 });
 
         expect(list.records.map((r) => r.resId)).toEqual([3, 99]);
         expect(list._currentIds).toEqual([1, 2, 3, 99]);

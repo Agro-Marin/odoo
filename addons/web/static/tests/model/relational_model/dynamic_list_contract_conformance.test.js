@@ -50,7 +50,7 @@ describe("the DynamicList owner contract and the class agree", () => {
         );
         expect(shared).toEqual([], {
             message:
-                "_multiSave / _resequence / _isRecordToDiscard / _onRecordDeselected " +
+                "multiSaveLocked / resequenceLocked / isRecordToDiscard / onRecordDeselected " +
                 "are the server-backed list's own; an x2many has no domain selection " +
                 "and no multi-edit",
         });

@@ -7,8 +7,11 @@ import { RELATIONAL_MODEL_SURFACE } from "@web/model/relational_model/relational
 
 describe.current.tags("headless");
 
-const PRIVATE = RELATIONAL_MODEL_SURFACE.filter((k) => k.startsWith("_"));
-const PUBLIC = RELATIONAL_MODEL_SURFACE.filter((k) => !k.startsWith("_"));
+const isPrototypeMethod = (/** @type {string} */ key) =>
+    typeof Object.getOwnPropertyDescriptor(RelationalModel.prototype, key)?.value ===
+    "function";
+const OPERATIONS = RELATIONAL_MODEL_SURFACE.filter(isPrototypeMethod);
+const STATE = RELATIONAL_MODEL_SURFACE.filter((key) => !isPrototypeMethod(key));
 
 function makeRealModel() {
     return new RelationalModel(
@@ -28,11 +31,17 @@ function makeRealModel() {
 
 describe("the RelationalModel contract and the class agree", () => {
     test("every operation the contract names is a method on the class", () => {
-        const missing = PRIVATE.filter(
-            (key) =>
-                typeof (/** @type {any} */ (RelationalModel.prototype)[key]) !==
-                "function",
-        );
+        const called = [
+            "askChanges",
+            "fetchExactCount",
+            "loadNewRecord",
+            "loadRecords",
+            "onchange",
+            "patchConfig",
+            "reloadWithConfig",
+            "updateSimilarRecords",
+        ];
+        const missing = called.filter((key) => !OPERATIONS.includes(key));
         expect(missing).toEqual([], {
             message:
                 "RELATIONAL_MODEL_SURFACE names an operation RelationalModel no " +
@@ -40,19 +49,26 @@ describe("the RelationalModel contract and the class agree", () => {
         });
     });
 
-    test("every public member the contract names exists on a real model", () => {
+    test("every state member the contract names exists on a real model", () => {
         const model = makeRealModel();
-        const missing = PUBLIC.filter((key) => !(key in model));
+        const missing = STATE.filter((key) => !(key in model));
         expect(missing).toEqual([], {
             message:
-                "the public half is per-instance state, so it is checked against " +
+                "the state half is per-instance, so it is checked against " +
                 "a constructed model rather than the prototype",
         });
     });
 
     test("control: the members really are what the contract claims", () => {
-        expect(PRIVATE.length).toBeGreaterThan(5);
-        expect(PUBLIC.length).toBeGreaterThan(10);
+        expect(OPERATIONS.length).toBeGreaterThan(10);
+        expect(STATE.length).toBeGreaterThan(5);
+        expect(RELATIONAL_MODEL_SURFACE.filter((key) => key.startsWith("_"))).toEqual(
+            [],
+            {
+                message:
+                    "a member datapoints reach is public; the underscore was the lie",
+            },
+        );
         expect(makeRealModel().mutex).toBeInstanceOf(Mutex, {
             message: "`mutex` is the concurrency primitive datapoints serialise on",
         });
@@ -60,16 +76,16 @@ describe("the RelationalModel contract and the class agree", () => {
 });
 
 describe("the contract's declared SHAPES, which a name check cannot see", () => {
-    test("_reloadWithConfig calls `commit` — it is a function, not a flag", async () => {
+    test("reloadWithConfig calls `commit` — it is a function, not a flag", async () => {
         const model = makeRealModel();
         const loaded = { records: [{ id: 1 }], length: 1 };
         /** @type {any[]} */
         const received = [];
         model._loadData = async () => loaded;
-        model._patchConfig = (/** @type {any} */ c, /** @type {any} */ p) =>
+        model.patchConfig = (/** @type {any} */ c, /** @type {any} */ p) =>
             Object.assign(c, p);
 
-        await model._reloadWithConfig(
+        await model.reloadWithConfig(
             /** @type {any} */ ({ isRoot: false, activeFields: {}, fields: {} }),
             {},
             { commit: (data) => received.push(data) },
@@ -80,7 +96,7 @@ describe("the contract's declared SHAPES, which a name check cannot see", () => 
         });
     });
 
-    test("_loadRecords accepts the cache and signal it declares", async () => {
+    test("loadRecords accepts the cache and signal it declares", async () => {
         const model = makeRealModel();
         /** @type {any[]} */
         const seen = [];
@@ -96,7 +112,7 @@ describe("the contract's declared SHAPES, which a name check cannot see", () => 
             webRead: async () => [{ id: 1 }],
         });
         const controller = new AbortController();
-        await model._loadRecords(
+        await model.loadRecords(
             /** @type {any} */ ({
                 resModel: "line",
                 resId: 1,

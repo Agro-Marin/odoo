@@ -247,7 +247,7 @@ test("the product cascade holds the model until the combo configurator is done",
     });
 
     const winner = await Promise.race([
-        model._askChanges().then(() => "askChanges-first"),
+        model.askChanges().then(() => "askChanges-first"),
         comboWork.then(() => "combo-first"),
         new Promise((resolve) => setTimeout(() => resolve("nothing-settled"), 0)),
     ]);

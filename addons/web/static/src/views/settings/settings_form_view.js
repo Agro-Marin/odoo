@@ -12,7 +12,7 @@ import { SettingsFormController } from "./settings_form_controller.js";
 import { SettingsFormRenderer } from "./settings_form_renderer.js";
 
 class SettingRecord extends formView.Model.Record {
-    _update(changes) {
+    updateLocked(changes) {
         const changedFields = Object.keys(changes);
         let dirty = true;
         if (
@@ -27,10 +27,10 @@ class SettingRecord extends formView.Model.Record {
                             this.model
                         )._onChangeHeaderFields();
                         if (isDiscard) {
-                            await /** @type {any} */ (super._update)(changes);
+                            await /** @type {any} */ (super.updateLocked)(changes);
                             this.dirty = false;
                         } else {
-                            const undoChanges = this._applyChanges(
+                            const undoChanges = this.applyChanges(
                                 changes,
                                 {},
                                 {
@@ -46,7 +46,7 @@ class SettingRecord extends formView.Model.Record {
                 return;
             }
         }
-        const prom = /** @type {any} */ (super._update)(changes);
+        const prom = /** @type {any} */ (super.updateLocked)(changes);
         this.dirty = dirty;
         return prom;
     }

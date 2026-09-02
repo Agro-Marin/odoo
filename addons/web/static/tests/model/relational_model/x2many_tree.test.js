@@ -49,8 +49,8 @@ function makeList({ pending = null, staged = false, cached = [] } = {}) {
         cachedRecords: cached,
         getCachedRecord: (/** @type {string} */ id) =>
             cached.find((/** @type {any} */ r) => r.__id === id),
-        _clearCommands: () => cleared.push(true),
-        _commitSave: (/** @type {any} */ v) => committed.push(v),
+        clearCommands: () => cleared.push(true),
+        commitSave: (/** @type {any} */ v) => committed.push(v),
         cleared,
         committed,
     };

@@ -29,7 +29,7 @@ function makeFakeAm(overrides = {}) {
         },
         restore: (jsId) => calls.restore.push(jsId),
         breadcrumbCache: new BreadcrumbCache(),
-        _makeController: (params) => ({ ...params }),
+        makeController: (params) => ({ ...params }),
         ...overrides,
     };
     am.__calls = calls;

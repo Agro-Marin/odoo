@@ -19,8 +19,8 @@ function makeManager({ actionParams, controllerStack }) {
         }),
     );
     am.controllerStack = controllerStack;
-    am._getActionParams = () => actionParams;
-    am._confirmLeave = async () => true;
+    am.getActionParams = () => actionParams;
+    am.confirmLeave = async () => true;
     const calls = [];
     am.doAction = async (actionRequest, options) => {
         calls.push({ actionRequest, options });

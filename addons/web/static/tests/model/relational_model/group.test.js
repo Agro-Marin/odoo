@@ -29,14 +29,14 @@ describe("Group._deleteRecords count integrity", () => {
     });
 });
 
-describe("Group._addRecord resId dedupe", () => {
+describe("Group.addRecord resId dedupe", () => {
     function makeGroup(records) {
         const group = Object.create(Group.prototype);
         group.count = records.length;
         const added = [];
         group.list = {
             records,
-            _addRecord: (record, index) => added.push({ record, index }),
+            addRecord: (record, index) => added.push({ record, index }),
         };
         return { group, added };
     }
@@ -45,7 +45,7 @@ describe("Group._addRecord resId dedupe", () => {
         const existing = { resId: 7 };
         const { group, added } = makeGroup([existing]);
 
-        group._addRecord({ resId: 7 }, 0);
+        group.addRecord({ resId: 7 }, 0);
 
         expect(added.length).toBe(0);
         expect(group.count).toBe(1);
@@ -54,7 +54,7 @@ describe("Group._addRecord resId dedupe", () => {
     test("adds a record with a new resId", () => {
         const { group, added } = makeGroup([{ resId: 7 }]);
 
-        group._addRecord({ resId: 9 }, 1);
+        group.addRecord({ resId: 9 }, 1);
 
         expect(added.length).toBe(1);
         expect(group.count).toBe(2);
@@ -63,7 +63,7 @@ describe("Group._addRecord resId dedupe", () => {
     test("always adds a new (resId-less) record", () => {
         const { group, added } = makeGroup([{ resId: 7 }]);
 
-        group._addRecord({ resId: false, _virtualId: "virt-1" }, 0);
+        group.addRecord({ resId: false, virtualId: "virt-1" }, 0);
 
         expect(added.length).toBe(1);
         expect(group.count).toBe(2);

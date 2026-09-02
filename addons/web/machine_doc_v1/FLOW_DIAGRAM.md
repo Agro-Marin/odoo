@@ -643,7 +643,7 @@ User Interaction                 Action Service               Server
   │  └─ Close current dialog or    │                            │
   │     pop controller off stack   │                            │
   │     (dispatched to             │                            │
-  │      _executeCloseAction)      │                            │
+  │      executeCloseAction)       │                            │
   │                                │                            │
   │  REGISTRY EXTENSION:           │                            │
   │  └─ registry.category(         │                            │

@@ -29,13 +29,13 @@ function makeList(/** @type {any[]} */ groups = []) {
     list.model = {
         initialLimit: 80,
         orm: { call: async () => [42], write: async () => {} },
-        _patchConfig: () => {},
+        patchConfig: () => {},
     };
     list._createGroupDatapoint = (/** @type {any} */ data) => ({
         id: `g-${data.value}`,
         value: data.value,
     });
-    list._resequence = async () => {};
+    list.resequenceLocked = async () => {};
     return list;
 }
 

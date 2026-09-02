@@ -19,8 +19,8 @@ const SERVER_ROWS = {
 function makeList({ resIds = [], limit = 2 } = {}) {
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
+        patchConfig: (config, patch) => Object.assign(config, patch),
+        loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
     };
     const config = {
         resModel: "res.partner",
@@ -48,10 +48,10 @@ function makeList({ resIds = [], limit = 2 } = {}) {
 describe("page offset after a shrinking command batch", () => {
     test("an onchange replacing the relation with a shorter one", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4], limit: 2 });
-        await list._load({ offset: 2 });
+        await list.loadLocked({ offset: 2 });
         expect(list.records.map((r) => r.resId)).toEqual([3, 4]);
 
-        await list._applyCommands([[SET, false, [1, 2]]]);
+        await list.applyCommandsLocked([[SET, false, [1, 2]]]);
 
         expect(list.count).toBe(2);
         expect(list._currentIds).toEqual([1, 2]);
@@ -61,10 +61,10 @@ describe("page offset after a shrinking command batch", () => {
 
     test("unlinking every record of the current page", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4], limit: 2 });
-        await list._load({ offset: 2 });
+        await list.loadLocked({ offset: 2 });
         expect(list.records.map((r) => r.resId)).toEqual([3, 4]);
 
-        await list._applyCommands([
+        await list.applyCommandsLocked([
             [UNLINK, 3, false],
             [UNLINK, 4, false],
         ]);
@@ -76,10 +76,10 @@ describe("page offset after a shrinking command batch", () => {
 
     test("lands on the last page with data, not on the first", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 2 });
-        await list._load({ offset: 4 });
+        await list.loadLocked({ offset: 4 });
         expect(list.records.map((r) => r.resId)).toEqual([5]);
 
-        await list._applyCommands([[UNLINK, 5, false]]);
+        await list.applyCommandsLocked([[UNLINK, 5, false]]);
 
         expect(list.count).toBe(4);
         expect(list.offset).toBe(2);
@@ -88,10 +88,10 @@ describe("page offset after a shrinking command batch", () => {
 
     test("a page that still holds data keeps its offset", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 2 });
-        await list._load({ offset: 2 });
+        await list.loadLocked({ offset: 2 });
         expect(list.records.map((r) => r.resId)).toEqual([3, 4]);
 
-        await list._applyCommands([[UNLINK, 4, false]]);
+        await list.applyCommandsLocked([[UNLINK, 4, false]]);
 
         expect(list.count).toBe(4);
         expect(list.offset).toBe(2);
@@ -100,9 +100,9 @@ describe("page offset after a shrinking command batch", () => {
 
     test("emptying the relation returns to the first page", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4], limit: 2 });
-        await list._load({ offset: 2 });
+        await list.loadLocked({ offset: 2 });
 
-        await list._applyCommands([
+        await list.applyCommandsLocked([
             [UNLINK, 1, false],
             [UNLINK, 2, false],
             [UNLINK, 3, false],

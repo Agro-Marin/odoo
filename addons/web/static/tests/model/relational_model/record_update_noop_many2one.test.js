@@ -62,7 +62,7 @@ test("re-setting a many2one to its current pair still runs the onchange", async 
 
     expect.verifySteps(["onchange"]);
     expect(record.dirty).toBe(false);
-    expect(Object.keys(record._changes)).toEqual([]);
+    expect(Object.keys(record.changes)).toEqual([]);
     expect(record.data.partner_id).toEqual({ id: 7, display_name: "Seven" });
 });
 

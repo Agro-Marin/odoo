@@ -18,11 +18,11 @@ function makeList() {
             awaitUnlessUrgent: (/** @type {any} */ prom) => prom,
             unlessUrgent: (/** @type {any} */ fn) => fn(),
         },
-        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+        patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
             Object.assign(config, patch),
-        _loadRecords: async (/** @type {any} */ { resIds }) =>
+        loadRecords: async (/** @type {any} */ { resIds }) =>
             resIds.map((/** @type {number} */ id) => ({ id, name: `row ${id}` })),
-        _loadNewRecord: async () => ({ name: "" }),
+        loadNewRecord: async () => ({ name: "" }),
     };
     const config = {
         resModel: "line",
@@ -63,7 +63,7 @@ describe("validateExtendedRecord", () => {
             note: makeActiveField(),
         });
         list.config.fields.note = { type: "char", name: "note" };
-        list.model._patchConfig(record.config, { activeFields: widened });
+        list.model.patchConfig(record.config, { activeFields: widened });
         record._activeFieldsToRestore = { ...list.config.activeFields };
 
         await list.validateExtendedRecord(/** @type {any} */ (record));
@@ -81,8 +81,8 @@ describe("validateExtendedRecord", () => {
             note: makeActiveField(),
         });
         list.config.fields.note = { type: "char", name: "note" };
-        list.model._patchConfig(record.config, { activeFields: widened });
-        await record._update({ name: "edited" });
+        list.model.patchConfig(record.config, { activeFields: widened });
+        await record.updateLocked({ name: "edited" });
         record._addSavePoint();
         record._activeFieldsToRestore = { ...list.config.activeFields };
         updates.length = 0;
@@ -93,7 +93,7 @@ describe("validateExtendedRecord", () => {
         expect(record._activeFieldsToRestore).toBe(/** @type {any} */ (undefined));
         expect(record._savePoint).toBe(/** @type {any} */ (undefined));
         expect(updates).toEqual(["parent"]);
-        expect(record._changes.name).toBe("edited");
+        expect(record.changes.name).toBe("edited");
     });
 
     test("a record that is not yet a member is added, then ends the session", async () => {
@@ -104,7 +104,7 @@ describe("validateExtendedRecord", () => {
 
         await list.validateExtendedRecord(/** @type {any} */ (record));
 
-        expect(list.currentIds).toInclude(/** @type {string} */ (record._virtualId));
+        expect(list.currentIds).toInclude(/** @type {string} */ (record.virtualId));
         expect(list.count).toBe(3);
         expect(record._savePoint).toBe(/** @type {any} */ (undefined));
         expect(record._activeFieldsToRestore).toBe(/** @type {any} */ (undefined));

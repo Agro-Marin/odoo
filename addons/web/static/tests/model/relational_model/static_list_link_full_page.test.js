@@ -18,8 +18,8 @@ function makeList({ resIds = [], limit = 2 } = {}) {
     const loadedResIds = [];
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds: ids }) => {
+        patchConfig: (config, patch) => Object.assign(config, patch),
+        loadRecords: async ({ resIds: ids }) => {
             loadedResIds.push([...ids]);
             return ids.map((id) => SERVER_ROWS[id]);
         },
@@ -53,14 +53,14 @@ describe("LINK on a full page", () => {
         const { list, loadedResIds } = makeList({ resIds: [1, 2, 3], limit: 2 });
         expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
 
-        await list._applyCommands([[LINK, 99, false]]);
+        await list.applyCommandsLocked([[LINK, 99, false]]);
 
         expect(list._currentIds).toEqual([1, 2, 3, 99]);
         expect(list.count).toBe(4);
         expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
         expect(loadedResIds).toEqual([]);
 
-        await list._load({ offset: 2 });
+        await list.loadLocked({ offset: 2 });
 
         expect(loadedResIds).toEqual([[3, 99]]);
         expect(list.records.map((r) => r.resId)).toEqual([3, 99]);
@@ -71,7 +71,7 @@ describe("LINK on a full page", () => {
     test("fully loaded cached records are not refetched on navigation", async () => {
         const { list, loadedResIds } = makeList({ resIds: [1, 2], limit: 2 });
 
-        await list._load({ offset: 0 });
+        await list.loadLocked({ offset: 0 });
 
         expect(loadedResIds).toEqual([]);
         expect(list.records.map((r) => r.data.display_name)).toEqual([
@@ -83,8 +83,8 @@ describe("LINK on a full page", () => {
     test("a LINK with server data on a full page needs no later load", async () => {
         const { list, loadedResIds } = makeList({ resIds: [1, 2], limit: 2 });
 
-        await list._applyCommands([[LINK, 99, SERVER_ROWS[99]]]);
-        await list._load({ offset: 2 });
+        await list.applyCommandsLocked([[LINK, 99, SERVER_ROWS[99]]]);
+        await list.loadLocked({ offset: 2 });
 
         expect(loadedResIds).toEqual([]);
         expect(list.records.map((r) => r.resId)).toEqual([99]);

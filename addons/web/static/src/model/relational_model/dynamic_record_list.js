@@ -15,10 +15,10 @@ export class DynamicRecordList extends DynamicList {
      */
     setup(config, data) {
         super.setup(config);
-        this._setData(data);
+        this.setData(data);
     }
 
-    _setData(data) {
+    setData(data) {
         /** @type {RelationalRecord[]} */
         this._records = data.records.map((r) => this._createRecordDatapoint(r));
         this._adoptCount(data);
@@ -41,8 +41,8 @@ export class DynamicRecordList extends DynamicList {
     addExistingRecord(resId, { position } = {}) {
         return this.model.mutex.exec(async () => {
             const record = this._createRecordDatapoint({});
-            await record._load({ resId });
-            this._addRecord(record, position === "top" ? 0 : this.records.length);
+            await record.loadLocked({ resId });
+            this.addRecord(record, position === "top" ? 0 : this.records.length);
             return record;
         });
     }
@@ -67,7 +67,7 @@ export class DynamicRecordList extends DynamicList {
     }
 
     async fetchCount() {
-        this.count = await this.model._fetchExactCount(this.config);
+        this.count = await this.model.fetchExactCount(this.config);
         this.hasLimitedCount = false;
         return this.count;
     }
@@ -75,7 +75,7 @@ export class DynamicRecordList extends DynamicList {
     async resequence(movedRecordId, targetRecordId) {
         return this.model.mutex.exec(
             async () =>
-                await this._resequence(
+                await this.resequenceLocked(
                     this.records,
                     this.resModel,
                     movedRecordId,
@@ -85,7 +85,7 @@ export class DynamicRecordList extends DynamicList {
     }
 
     async _addNewRecord(atFirstPosition) {
-        const values = await this.model._loadNewRecord(
+        const values = await this.model.loadNewRecord(
             /** @type {any} */ ({
                 resModel: this.resModel,
                 activeFields: this.activeFields,
@@ -94,11 +94,11 @@ export class DynamicRecordList extends DynamicList {
             }),
         );
         const record = this._createRecordDatapoint(values, "edit");
-        this._addRecord(record, atFirstPosition ? 0 : this.records.length);
+        this.addRecord(record, atFirstPosition ? 0 : this.records.length);
         return record;
     }
 
-    _addRecord(record, index) {
+    addRecord(record, index) {
         this.records.splice(
             Number.isInteger(index) ? index : this.records.length,
             0,
@@ -137,22 +137,22 @@ export class DynamicRecordList extends DynamicList {
         return record.data[handleField];
     }
 
-    async _load(offset, limit, orderBy, domain) {
-        await this.model._reloadWithConfig(
+    async loadLocked(offset, limit, orderBy, domain) {
+        await this.model.reloadWithConfig(
             this.config,
             { offset, limit, orderBy, domain },
-            { commit: this._setData.bind(this) },
+            { commit: this.setData.bind(this) },
         );
     }
 
-    _removeRecords(recordIds) {
+    removeRecords(recordIds) {
         const idSet = new Set(recordIds);
         const keptRecords = this.records.filter((r) => !idSet.has(r.id));
         this.count -= this.records.length - keptRecords.length;
         this._records = keptRecords;
         if (this.offset && !this.records.length) {
             const offset = Math.max(this.offset - this.limit, 0);
-            this.model._patchConfig(this.config, { offset });
+            this.model.patchConfig(this.config, { offset });
         }
     }
 

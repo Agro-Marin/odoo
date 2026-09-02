@@ -35,7 +35,7 @@ export class ProjectTaskRecord extends RelationalRecord {
                 sequence,
             },
         };
-        await this._load({
+        await this.loadLocked({
             activeFields: { ...this.config.activeFields, child_ids: activeField },
         });
         this.displaySubtasks = !this.displaySubtasks;

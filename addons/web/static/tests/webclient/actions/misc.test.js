@@ -823,7 +823,7 @@ test("action is removed while waiting for another action with selectMenu", async
 });
 
 test.tags("desktop");
-test("_getView answers null — not a throw — when the tip is not a window action", async () => {
+test("getView answers null — not a throw — when the tip is not a window action", async () => {
     class PlainClientAction extends Component {
         static template = xml`<div class="plain_client_action"/>`;
         static props = ["*"];
@@ -843,7 +843,7 @@ test("_getView answers null — not a throw — when the tip is not a window act
     expect(".plain_client_action").toHaveCount(1);
     expect(actionService.currentController.action.type).toBe("ir.actions.client");
 
-    expect(actionService._getView("form")).toBe(null);
+    expect(actionService.getView("form")).toBe(null);
     await selectRecord(1, {});
     expect(".plain_client_action").toHaveCount(1);
 });

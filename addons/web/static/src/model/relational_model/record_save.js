@@ -49,9 +49,9 @@ async function quiesceAndValidate(record) {
         await waitForPendingCommands(record);
     }
     for (const [, list] of x2manyLists(record)) {
-        list._abandonRecords();
+        list.abandonRecords();
     }
-    return record._checkValidity({ displayNotification: true });
+    return record.checkValidityLocked({ displayNotification: true });
 }
 
 /**
@@ -65,9 +65,9 @@ async function settleWithoutSaving(record, nextId) {
         return true;
     }
     for (const [, list] of x2manyLists(record)) {
-        list._clearCommands();
+        list.clearCommands();
     }
-    record._discardChanges();
+    record.discardChanges();
     return true;
 }
 
@@ -112,9 +112,9 @@ function saveByBeacon(record, changes, concurrencyBaseline) {
     if (succeeded) {
         record.saveState.noteBeaconFired();
         for (const [, list] of x2manyLists(record)) {
-            list._clearCommands();
+            list.clearCommands();
         }
-        record._commitChanges();
+        record.commitChanges();
         return true;
     }
     record.model.displayUrgentSaveNotification(
@@ -193,29 +193,29 @@ async function applySaveResult(
     }
     if (creation) {
         const resId = records[0].id;
-        record.model._patchConfig(record.config, {
+        record.model.patchConfig(record.config, {
             resId,
             resIds: [...(record.resIds ?? []), resId],
         });
     }
     await record.model.notifyLifecycle("onRecordSaved", record, changes);
     if (record.config.isRoot) {
-        record.model._patchConfig(record.config, { loadId: getId("load") });
+        record.model.patchConfig(record.config, { loadId: getId("load") });
     }
     if (reload) {
         if (record.resId) {
-            record.model._updateSimilarRecords(record, records[0]);
+            record.model.updateSimilarRecords(record, records[0]);
         }
         if (nextId) {
-            record.model._patchConfig(record.config, { resId: nextId });
+            record.model.patchConfig(record.config, { resId: nextId });
         }
         if (record.config.isRoot) {
             record.model.notifyLifecycleSync("onWillLoadRoot", record.config);
         }
-        record._setData(records[0], { orderBys });
+        record.setData(records[0], { orderBys });
     } else {
         commitSubtree(record, records[0]);
-        record._commitChanges(
+        record.commitChanges(
             "id" in record.activeFields ? { id: records[0].id } : undefined,
         );
     }
@@ -241,7 +241,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         return false;
     }
 
-    const changes = record._getChanges();
+    const changes = record.getChangesLocked();
     record.saveState.clearBeacon();
     const concurrencyBaseline = buildConcurrencyBaseline(record, Object.keys(changes));
     if (!creation && !Object.keys(changes).length) {
@@ -285,12 +285,12 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         } catch (e) {
             if (onError && !(e instanceof RequestEntityTooLargeError)) {
                 return onError(e, {
-                    discard: () => record._discard(),
+                    discard: () => record.discardLocked(),
                     retry: () => save(record, { reload, onError, nextId }),
                 });
             }
             if (!record.isInEdition) {
-                await record._load({});
+                await record.loadLocked({});
             }
             throw e;
         }

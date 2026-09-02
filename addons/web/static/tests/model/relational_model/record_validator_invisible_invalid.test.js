@@ -55,16 +55,16 @@ test("a widget-invalid field hidden by a modifier stops blocking the save", asyn
 
     await contains("[name=qty] input").edit("not-a-number");
     await animationFrame();
-    expect([...record._invalidFields]).toEqual(["qty"], {
+    expect([...record.invalidFields]).toEqual(["qty"], {
         message: "the widget rejected the input, so the field is invalid",
     });
-    expect([...record._unsetRequiredFields]).toEqual([]);
+    expect([...record.unsetRequiredFields]).toEqual([]);
 
     await record.update({ kind: "service" });
     await animationFrame();
 
     expect("[name=qty] input").toHaveCount(0);
-    expect([...record._invalidFields]).toEqual([], {
+    expect([...record.invalidFields]).toEqual([], {
         message: "a field the user cannot see cannot be corrected by them",
     });
 
@@ -110,7 +110,7 @@ test("a VISIBLE widget-invalid field still blocks the save", async () => {
     await animationFrame();
 
     expect.verifySteps([]);
-    expect([...record._invalidFields]).toEqual(["qty"]);
+    expect([...record.invalidFields]).toEqual(["qty"]);
 });
 
 test("checkValidity({ silent: true }) still writes nothing", async () => {
@@ -123,7 +123,7 @@ test("checkValidity({ silent: true }) still writes nothing", async () => {
     await record.update({ kind: "service" });
     record._setInvalidFieldFlag("qty");
 
-    record._checkValidity({ silent: true });
+    record.checkValidityLocked({ silent: true });
 
-    expect([...record._invalidFields]).toEqual(["qty"]);
+    expect([...record.invalidFields]).toEqual(["qty"]);
 });

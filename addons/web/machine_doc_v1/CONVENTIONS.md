@@ -172,7 +172,7 @@ the flag past the operation's lifetime.
 
 | Coordinator | File | Replaces | Used by |
 |---|---|---|---|
-| `UrgentSaveCoordinator` | `model/relational_model/urgent_save_coordinator.js` | the `model._urgentSave` bool + `_withUrgentSaveScope` helper | `record.update`, `record._update`, `record.checkValidity`, `record_save.save`, `dynamic_list._askChanges`, `record.urgentSave` |
+| `UrgentSaveCoordinator` | `model/relational_model/urgent_save_coordinator.js` | the `model._urgentSave` bool + `_withUrgentSaveScope` helper | `record.update`, `record.updateLocked`, `record.checkValidity`, `record_save.save`, `model.askChanges`, `record.urgentSave` |
 | `SampleDataCoordinator` | `model/sample_data_coordinator.js` | the `model.useSampleModel` bool (kept as backward-compat getter/setter) | pivot_controller, list_renderer, list_keyboard_nav, list_controller, list_styling, kanban renderer (read); PivotModel, GraphModel (write) |
 | `FormSaveCoordinator` | `views/form/form_save_coordinator.js` | per-controller `isSaving` + `record.isDirty` plumbing | form_controller (9 entry points), settings_form_controller (Apply / discard-then-save); FormStatusIndicator (reads `status`/`isSaving`) |
 

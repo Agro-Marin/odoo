@@ -17,8 +17,8 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
     const requested = [];
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds: ids }) => {
+        patchConfig: (config, patch) => Object.assign(config, patch),
+        loadRecords: async ({ resIds: ids }) => {
             requested.push([...ids]);
             return ids.filter((id) => !deleted.has(id)).map((id) => SERVER_ROWS[id]);
         },
@@ -47,7 +47,7 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
         parent,
         onUpdate: async () => {},
     });
-    list.model._patchConfig(list.config, { resIds });
+    list.model.patchConfig(list.config, { resIds });
     list._currentIds = [...resIds];
     return { list, requested };
 }

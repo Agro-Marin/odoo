@@ -226,9 +226,9 @@ export class StaticList extends EditableListDataPoint {
                 manuallyAdded: true,
                 mode,
             });
-            await this._addRecord(record, { position });
+            await this.addRecord(record, { position });
             await this._onUpdate({
-                withoutOnchange: !record._checkValidity({ silent: true }),
+                withoutOnchange: !record.checkValidityLocked({ silent: true }),
             });
             return record;
         });
@@ -257,7 +257,7 @@ export class StaticList extends EditableListDataPoint {
      */
     applyCommands(commands, options = {}) {
         return this.model.mutex.exec(async () => {
-            await this._applyCommands(commands, omit(options, "sort"));
+            await this.applyCommandsLocked(commands, omit(options, "sort"));
             if (options.sort) {
                 await sortStaticList(this);
             }
@@ -278,7 +278,7 @@ export class StaticList extends EditableListDataPoint {
 
     delete(record) {
         return this.model.mutex.exec(async () => {
-            await this._applyCommands([x2ManyCommands.delete(listId(record))]);
+            await this.applyCommandsLocked([x2ManyCommands.delete(listId(record))]);
             await this._onUpdate();
         });
     }
@@ -355,7 +355,7 @@ export class StaticList extends EditableListDataPoint {
                 };
 
                 if (this._extendedRecords.has(record.id)) {
-                    this.model._patchConfig(record.config, config);
+                    this.model.patchConfig(record.config, config);
                     record._addSavePoint();
                     return record;
                 }
@@ -367,13 +367,13 @@ export class StaticList extends EditableListDataPoint {
                         config.context,
                     );
                     const resIds = /** @type {number[]} */ ([record.resId]);
-                    [data] = await this.model._loadRecords(
+                    [data] = await this.model.loadRecords(
                         { ...config, resIds },
                         evalContext,
                     );
                 }
-                this.model._patchConfig(record.config, config);
-                record._applyDefaultValues();
+                this.model.patchConfig(record.config, config);
+                record.applyDefaultValues();
                 for (const fieldName of Object.keys(record.activeFields)) {
                     if (isX2Many(record.fields[fieldName])) {
                         const list = record.data[fieldName];
@@ -382,17 +382,17 @@ export class StaticList extends EditableListDataPoint {
                             fields: activeFields[fieldName].related.fields,
                         };
                         for (const subRecord of list._cache.values()) {
-                            this.model._patchConfig(subRecord.config, patch);
+                            this.model.patchConfig(subRecord.config, patch);
                         }
-                        this.model._patchConfig(list.config, patch);
+                        this.model.patchConfig(list.config, patch);
                     }
                 }
-                record._applyValues(data);
+                record.applyValues(data);
                 const ledgerId = listId(record);
                 const commands = this._unknownRecordCommands.get(ledgerId);
                 this._unknownRecordCommands.delete(ledgerId);
                 if (commands) {
-                    await this._applyCommands(commands);
+                    await this.applyCommandsLocked(commands);
                 }
                 record._addSavePoint();
             } else {
@@ -412,7 +412,7 @@ export class StaticList extends EditableListDataPoint {
 
     forget(record) {
         return this.model.mutex.exec(async () => {
-            await this._applyCommands([x2ManyCommands.unlink(record.resId)]);
+            await this.applyCommandsLocked([x2ManyCommands.unlink(record.resId)]);
             await this._onUpdate();
         });
     }
@@ -423,7 +423,7 @@ export class StaticList extends EditableListDataPoint {
             return this._leaveEditMode({ discard, canAbandon, validate });
         }
         if (this.editedRecord) {
-            await this.model._askChanges();
+            await this.model.askChanges();
         }
         return this.model.mutex.exec(() =>
             this._leaveEditMode({ discard, canAbandon, validate }),
@@ -437,20 +437,20 @@ export class StaticList extends EditableListDataPoint {
     async _leaveEditMode({ discard, canAbandon, validate } = {}) {
         let editedRecord = this.editedRecord;
         if (editedRecord) {
-            const isValid = editedRecord._checkValidity();
+            const isValid = editedRecord.checkValidityLocked();
             if (!isValid && validate) {
                 return false;
             }
             if (canAbandon !== false && !validate) {
-                this._abandonRecords([editedRecord], { force: true });
+                this.abandonRecords([editedRecord], { force: true });
             }
             editedRecord = this.editedRecord;
             if (editedRecord) {
                 if (isValid && !editedRecord.dirty && discard) {
                     return false;
                 }
-                if (isValid || (!editedRecord.dirty && !editedRecord._manuallyAdded)) {
-                    editedRecord._switchMode("readonly");
+                if (isValid || (!editedRecord.dirty && !editedRecord.manuallyAdded)) {
+                    editedRecord.switchModeLocked("readonly");
                 }
             }
         }
@@ -459,14 +459,16 @@ export class StaticList extends EditableListDataPoint {
 
     linkTo(resId, serverData) {
         return this.model.mutex.exec(async () => {
-            await this._applyCommands([[x2ManyCommands.LINK, resId, serverData]]);
+            await this.applyCommandsLocked([[x2ManyCommands.LINK, resId, serverData]]);
             await this._onUpdate();
         });
     }
 
     unlinkFrom(resId, serverData) {
         return this.model.mutex.exec(async () => {
-            await this._applyCommands([[x2ManyCommands.UNLINK, resId, serverData]]);
+            await this.applyCommandsLocked([
+                [x2ManyCommands.UNLINK, resId, serverData],
+            ]);
             await this._onUpdate();
         });
     }
@@ -474,17 +476,17 @@ export class StaticList extends EditableListDataPoint {
     /** @param {{ limit?: number, offset?: number, orderBy?: object[] }} [options] */
     async load({ limit, offset, orderBy } = {}) {
         if (this.editedRecord) {
-            await this.model._askChanges();
+            await this.model.askChanges();
         }
         return this.model.mutex.exec(async () => {
             const editedRecord = this.editedRecord;
-            if (editedRecord && !editedRecord._checkValidity()) {
+            if (editedRecord && !editedRecord.checkValidityLocked()) {
                 return;
             }
             limit = limit !== undefined ? limit : this.limit;
             offset = offset !== undefined ? offset : this.offset;
             orderBy = orderBy !== undefined ? orderBy : this.orderBy;
-            return this._load({ limit, offset, orderBy });
+            return this.loadLocked({ limit, offset, orderBy });
         });
     }
 
@@ -499,7 +501,7 @@ export class StaticList extends EditableListDataPoint {
                 ...(add || []).map((id) => x2ManyCommands.link(id)),
                 ...(remove || []).map((id) => x2ManyCommands.unlink(id)),
             ];
-            await this._applyCommands(commands, { canAddOverLimit: true });
+            await this.applyCommandsLocked(commands, { canAddOverLimit: true });
             await this._onUpdate();
         });
     }
@@ -516,12 +518,12 @@ export class StaticList extends EditableListDataPoint {
     validateExtendedRecord(record) {
         return this.model.mutex.exec(async () => {
             if (!this._currentIds.includes(listId(record))) {
-                await this._addRecord(record);
+                await this.addRecord(record);
             } else if (!record.hasPendingChanges) {
                 return;
             }
             await this._onUpdate();
-            record._restoreActiveFields();
+            record.restoreActiveFields();
             record._savePoint = undefined;
         });
     }
@@ -558,19 +560,19 @@ export class StaticList extends EditableListDataPoint {
         return pairs?.get(listId(record));
     }
 
-    _abandonRecords(
+    abandonRecords(
         records = this.records,
         /** @type {{ force?: boolean }} */ { force } = {},
     ) {
         for (const record of records) {
-            if (record.canBeAbandoned && (force || !record._checkValidity())) {
+            if (record.canBeAbandoned && (force || !record.checkValidityLocked())) {
                 const virtualId = listId(record);
                 if (!this._membership.removeMember(virtualId, record)) {
                     continue;
                 }
                 this._commands = this._commands.filter((c) => c[1] !== virtualId);
                 if (this._tmpIncreaseLimit > 0) {
-                    this.model._patchConfig(this.config, {
+                    this.model.patchConfig(this.config, {
                         limit: this.limit - 1,
                     });
                     this._tmpIncreaseLimit--;
@@ -582,7 +584,7 @@ export class StaticList extends EditableListDataPoint {
     _clampOffset() {
         const offset = this._membership.clampedOffset(this.offset, this.limit);
         if (offset !== null) {
-            this.model._patchConfig(this.config, { offset });
+            this.model.patchConfig(this.config, { offset });
         }
     }
 
@@ -595,17 +597,17 @@ export class StaticList extends EditableListDataPoint {
      */
     _bumpLimit(n) {
         this._tmpIncreaseLimit += n;
-        this.model._patchConfig(this.config, { limit: this.limit + n });
+        this.model.patchConfig(this.config, { limit: this.limit + n });
     }
 
     /**
      * @param {RelationalRecord} record
      * @param {{ position?: string, sort?: boolean }} [options]
      */
-    async _addRecord(record, { position, sort = true } = {}) {
-        const virtualId = record._virtualId;
+    async addRecord(record, { position, sort = true } = {}) {
+        const virtualId = record.virtualId;
         if (position === "top" || position === "bottom") {
-            await this._applyCommands([[x2ManyCommands.CREATE, virtualId]], {
+            await this.applyCommandsLocked([[x2ManyCommands.CREATE, virtualId]], {
                 position,
             });
         } else {
@@ -627,6 +629,13 @@ export class StaticList extends EditableListDataPoint {
         this._needsReordering = false;
     }
 
+    /**
+     * @param {{ withoutOnchange?: boolean }} [options]
+     */
+    notifyParentUpdate(options) {
+        return this._onUpdate(options);
+    }
+
     async _addNewRecordAtIndex(index, options = {}) {
         const newRecord = await this._createNewRecordDatapoint({
             context: options.context,
@@ -636,7 +645,7 @@ export class StaticList extends EditableListDataPoint {
         if (this.records.length === this.limit) {
             this._bumpLimit(1);
         }
-        await this._addRecord(newRecord);
+        await this.addRecord(newRecord);
         const targetRecord =
             index >= 0
                 ? this.records[Math.min(index, this.records.length - 1)]
@@ -653,7 +662,7 @@ export class StaticList extends EditableListDataPoint {
     /**
      * @returns {Record<string, any>}
      */
-    _snapshot() {
+    snapshot() {
         /** @type {Record<string, any>} */
         const snapshot = { config: {} };
         for (const [key, { clone }] of Object.entries(RESTORABLE_STATE)) {
@@ -668,7 +677,7 @@ export class StaticList extends EditableListDataPoint {
     /**
      * @param {Record<string, any>} snapshot
      */
-    _restore(snapshot) {
+    restoreSnapshot(snapshot) {
         for (const [key, { clone, restore }] of Object.entries(RESTORABLE_STATE)) {
             const value = clone(snapshot[key]);
             if (restore) {
@@ -685,7 +694,7 @@ export class StaticList extends EditableListDataPoint {
             }
         }
         if (Object.keys(patch).length) {
-            this.model._patchConfig(this.config, patch);
+            this.model.patchConfig(this.config, patch);
         }
         this._materializeWindow();
     }
@@ -694,17 +703,17 @@ export class StaticList extends EditableListDataPoint {
         for (const record of this._cache.values()) {
             record._addSavePoint();
         }
-        this._savePoint = this._snapshot();
+        this._savePoint = this.snapshot();
     }
 
-    _applyCommands(commands, options) {
+    applyCommandsLocked(commands, options) {
         return applyCommands(this, commands, options);
     }
 
     /**
      * @param {any[]} serverValue
      */
-    _applyServerValues(serverValue) {
+    applyServerValues(serverValue) {
         if (!Array.isArray(serverValue)) {
             return;
         }
@@ -727,7 +736,7 @@ export class StaticList extends EditableListDataPoint {
      * @param {{ canAddOverLimit?: boolean }} [options]
      */
     stageCommands(commands, options) {
-        this._trackCommandsPromise(this._applyCommands(commands, options));
+        this._trackCommandsPromise(this.applyCommandsLocked(commands, options));
     }
 
     /**
@@ -755,7 +764,7 @@ export class StaticList extends EditableListDataPoint {
         });
     }
 
-    _applyInitialCommands(commands) {
+    applyInitialCommands(commands) {
         this.stageCommands(commands);
         this._initialCommands = [...commands];
     }
@@ -763,12 +772,12 @@ export class StaticList extends EditableListDataPoint {
     async _createNewRecordDatapoint(params = {}) {
         const changes = {};
         if (!params.withoutParent && this.config.relationField) {
-            changes[this.config.relationField] = this._parent._getChanges();
+            changes[this.config.relationField] = this._parent.getChangesLocked();
             if (!this._parent.isNew) {
                 changes[this.config.relationField].id = this._parent.resId;
             }
         }
-        const values = await this.model._loadNewRecord(
+        const values = await this.model.loadNewRecord(
             /** @type {any} */ ({
                 resModel: this.resModel,
                 activeFields: params.activeFields || this.activeFields,
@@ -822,7 +831,7 @@ export class StaticList extends EditableListDataPoint {
         const id = resId || params.virtualId;
         const cachedRecord = this._cache.get(id);
         if (cachedRecord?.hasPendingChanges) {
-            cachedRecord._applyValues(data);
+            cachedRecord.applyValues(data);
             return cachedRecord;
         }
         /** @type {any} */
@@ -856,7 +865,7 @@ export class StaticList extends EditableListDataPoint {
                 }
                 if (!withoutParentUpdate) {
                     await this._onUpdate({
-                        withoutOnchange: !record._checkValidity({
+                        withoutOnchange: !record.checkValidityLocked({
                             silent: true,
                         }),
                     });
@@ -877,7 +886,7 @@ export class StaticList extends EditableListDataPoint {
         return record;
     }
 
-    _clearCommands() {
+    clearCommands() {
         this._commands = [];
         this._unknownRecordCommands.clear();
         this._loadingStubIds.clear();
@@ -888,7 +897,7 @@ export class StaticList extends EditableListDataPoint {
      * @param {any[]} commands
      * @returns {void}
      */
-    _commitCommands(commands) {
+    commitCommands(commands) {
         this._commands = commands;
     }
 
@@ -896,7 +905,7 @@ export class StaticList extends EditableListDataPoint {
      * @param {(string|number)[]} ids
      * @returns {void}
      */
-    _commitCurrentIds(ids) {
+    commitCurrentIds(ids) {
         this._currentIds = ids;
     }
 
@@ -905,7 +914,7 @@ export class StaticList extends EditableListDataPoint {
      * @param {string|number} id
      * @returns {void}
      */
-    _insertMemberAt(index, id) {
+    insertMemberAt(index, id) {
         /** @type {ListMembership} */ (this._membership).insertAt(index, id);
     }
 
@@ -913,16 +922,16 @@ export class StaticList extends EditableListDataPoint {
      * @param {string|number} id
      * @returns {void}
      */
-    _appendMember(id) {
+    appendMember(id) {
         /** @type {ListMembership} */ (this._membership).append(id);
     }
 
     /**
      * @param {(number | Record<string, any>)[]} serverValue
      */
-    _commitSave(serverValue) {
+    commitSave(serverValue) {
         if (!Array.isArray(serverValue)) {
-            this._clearCommands();
+            this.clearCommands();
             return;
         }
         const serverIds = serverValue.map((v) =>
@@ -941,7 +950,7 @@ export class StaticList extends EditableListDataPoint {
         const kept = this._currentIds.filter((id) => confirmed.has(id));
         const keptSet = new Set(kept);
         this._currentIds = [...kept, ...serverIds.filter((id) => !keptSet.has(id))];
-        this.model._patchConfig(this.config, { resIds: [...serverIds] });
+        this.model.patchConfig(this.config, { resIds: [...serverIds] });
         this._commands = [];
         this._initialCommands = [];
         this._unknownRecordCommands.clear();
@@ -988,7 +997,7 @@ export class StaticList extends EditableListDataPoint {
         }
         this._trackCommandsPromise(
             (async () => {
-                const records = await this.model._loadRecords(
+                const records = await this.model.loadRecords(
                     { ...this.config, resIds: missingIds },
                     this.evalContext,
                 );
@@ -1054,14 +1063,14 @@ export class StaticList extends EditableListDataPoint {
         return pinnedIds;
     }
 
-    _discard() {
+    discardLocked() {
         for (const record of this._cache.values()) {
-            record._discard();
+            record.discardLocked();
         }
         if (this._savePoint) {
             const savePoint = this._savePoint;
             this._savePoint = undefined;
-            this._restore(savePoint);
+            this.restoreSnapshot(savePoint);
             return;
         }
         this._commands = [];
@@ -1070,7 +1079,7 @@ export class StaticList extends EditableListDataPoint {
         this._loadingStubIds.clear();
         const limit = this.limit - this._tmpIncreaseLimit;
         this._tmpIncreaseLimit = 0;
-        this.model._patchConfig(this.config, { limit });
+        this.model.patchConfig(this.config, { limit });
         this._materializeWindow();
         this.stageCommands(this._initialCommands);
         if (this._commandsPromise) {
@@ -1105,7 +1114,7 @@ export class StaticList extends EditableListDataPoint {
         );
         await Promise.all(
             records.map((record, index) =>
-                newRecords[index]._update({
+                newRecords[index].updateLocked({
                     ...copyRecordData(record, copyFields),
                     [this.handleField]: sequence++,
                 }),
@@ -1125,17 +1134,17 @@ export class StaticList extends EditableListDataPoint {
                 }),
             );
         }
-        await this._applyCommands(commands);
+        await this.applyCommandsLocked(commands);
 
         await Promise.all(
-            newRecords.map((record) => this._addRecord(record, { sort: false })),
+            newRecords.map((record) => this.addRecord(record, { sort: false })),
         );
 
         await sortStaticList(this);
     }
 
     /** @param {{ withReadonly?: boolean }} [options] */
-    _getCommands({ withReadonly } = {}) {
+    getCommands({ withReadonly } = {}) {
         return serializeCommands(this._commands, {
             unknownRecordCommands: this._unknownRecordCommands,
             fields: this.fields,
@@ -1144,7 +1153,7 @@ export class StaticList extends EditableListDataPoint {
             withReadonly,
             getRecord: (id) => this._cache.get(id),
             getRecordChanges: (record, wr) =>
-                record._getChanges(record._changes, { withReadonly: wr }),
+                record.getChangesLocked(record.changes, { withReadonly: wr }),
             convertUnityValues: fromUnityToServerValues,
         });
     }
@@ -1160,12 +1169,12 @@ export class StaticList extends EditableListDataPoint {
                 return true;
             }
             return relevantFields.some(
-                (fieldName) => !record._loadedFieldNames.has(fieldName),
+                (fieldName) => !record.loadedFieldNames.has(fieldName),
             );
         });
     }
 
-    async _load({
+    async loadLocked({
         limit = this.limit,
         offset = this.offset,
         orderBy = this.orderBy,
@@ -1174,7 +1183,7 @@ export class StaticList extends EditableListDataPoint {
         const currentIds = nextCurrentIds.slice(offset, offset + limit);
         const resIds = this._getResIdsToLoad(currentIds);
         if (resIds.length) {
-            const records = await this.model._loadRecords(
+            const records = await this.model.loadRecords(
                 { ...this.config, resIds },
                 this.evalContext,
             );
@@ -1189,16 +1198,16 @@ export class StaticList extends EditableListDataPoint {
         }
         this.records = /** @type {RelationalRecord[]} */ (window.filter(Boolean));
         this._currentIds = nextCurrentIds;
-        this.model._patchConfig(this.config, { limit, offset, orderBy });
+        this.model.patchConfig(this.config, { limit, offset, orderBy });
     }
 
     /**
      * @param {number[]} ids
      */
-    async _replaceWith(ids) {
+    async replaceWith(ids) {
         const resIds = ids.filter((id) => !this._cache.has(id));
         if (resIds.length) {
-            const records = await this.model._loadRecords(
+            const records = await this.model.loadRecords(
                 { ...this.config, resIds, context: this.context },
                 this.evalContext,
             );
@@ -1229,12 +1238,12 @@ export class StaticList extends EditableListDataPoint {
             this._bumpLimit(this._currentIds.length - this.limit);
         }
         if (this.offset) {
-            this.model._patchConfig(this.config, { offset: 0 });
+            this.model.patchConfig(this.config, { offset: 0 });
         }
         this._materializeWindow();
     }
 
-    _updateContext(context) {
+    updateContext(context) {
         let changed = false;
         const keys = new Set([...Object.keys(this.context), ...Object.keys(context)]);
         for (const key of keys) {
@@ -1253,7 +1262,7 @@ export class StaticList extends EditableListDataPoint {
         }
         Object.assign(this.context, context);
         for (const record of this._cache.values()) {
-            record._setEvalContext();
+            record.setEvalContext();
         }
     }
 }

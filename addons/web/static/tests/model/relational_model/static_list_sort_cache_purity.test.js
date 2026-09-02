@@ -38,9 +38,9 @@ function makeList({
     }
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+        patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
             Object.assign(config, patch),
-        _loadRecords: async (/** @type {any} */ { resIds: ids, activeFields: af }) => {
+        loadRecords: async (/** @type {any} */ { resIds: ids, activeFields: af }) => {
             requested.push({ ids: [...ids], spec: Object.keys(af).sort() });
             return ids.map((/** @type {number} */ id) => {
                 /** @type {Record<string, any>} */
@@ -78,7 +78,7 @@ function makeList({
             onUpdate: async () => {},
         },
     );
-    list.model._patchConfig(list.config, { resIds });
+    list.model.patchConfig(list.config, { resIds });
     list._currentIds = [...resIds];
     return { list, requested };
 }
@@ -111,12 +111,12 @@ describe("sortStaticList() keeps _cache free of narrowly-specified datapoints", 
     test("a cached row is refreshed in place, not replaced", async () => {
         const { list } = makeList();
         const before = /** @type {any} */ (list._cache).get(1);
-        before._changes.note = "PENDING";
+        before.changes.note = "PENDING";
 
         await sortStaticList(list, list._currentIds, [{ name: "name", asc: true }]);
 
         expect(/** @type {any} */ (list._cache).get(1)).toBe(before);
-        expect(before._changes.note).toBe("PENDING");
+        expect(before.changes.note).toBe("PENDING");
     });
 
     test("ordering still uses the freshly read keys of off-page rows", async () => {

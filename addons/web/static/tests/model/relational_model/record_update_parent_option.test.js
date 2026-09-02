@@ -20,11 +20,11 @@ function makeRecord({ urgent = false } = {}) {
         },
         canSaveOnUpdate: false,
         /**
-         * @param {Record<string, any>} _changes
+         * @param {Record<string, any>} changes
          * @param {Record<string, any>} options
          * @returns {Promise<undefined>}
          */
-        _update: async (_changes, options) => {
+        updateLocked: async (changes, options) => {
             seen.push(options);
             return undefined;
         },
@@ -32,7 +32,7 @@ function makeRecord({ urgent = false } = {}) {
     return { record, seen };
 }
 
-test("update forwards withoutParentUpdate to _update", async () => {
+test("update forwards withoutParentUpdate to updateLocked", async () => {
     const { record, seen } = makeRecord();
     await record.update({ a: 1 }, { withoutParentUpdate: true });
     expect(seen.length).toBe(1);
@@ -61,7 +61,7 @@ test("suppressing the parent update does not suppress the save", async () => {
     const { record, seen } = makeRecord();
     let saved = 0;
     record.canSaveOnUpdate = true;
-    record._save = async () => {
+    record.saveLocked = async () => {
         saved++;
     };
     await record.update({ a: 1 }, { save: true, withoutParentUpdate: true });

@@ -14,23 +14,23 @@ function makeList({ hasEditedRecord }) {
         isInEdition: true,
         isNew: false,
         dirty: false,
-        _checkValidity: () => true,
-        _save: async () => true,
-        _discard() {},
+        checkValidityLocked: () => true,
+        saveLocked: async () => true,
+        discardLocked() {},
         config: {},
         id: "rec_1",
     };
     list._records = hasEditedRecord ? [record] : [];
     Object.defineProperty(list, "records", { get: () => list._records });
-    list._removeRecords = () => {};
+    list.removeRecords = () => {};
     list.model = {
         urgentSave: { isActive: false },
         mutex: new Mutex(),
         closeUrgentSaveNotification() {},
-        _askChanges: async () => {
+        askChanges: async () => {
             askChangesCalls++;
         },
-        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+        patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
             Object.assign(config, patch),
     };
     return { list, counts: () => askChangesCalls };

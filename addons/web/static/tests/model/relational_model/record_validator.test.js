@@ -407,15 +407,15 @@ function makeOrchestrationRecord({
         data,
         selected,
         dirty: false,
-        _invalidFields: new Set(invalid),
-        _unsetRequiredFields: new Set(unsetRequired),
+        invalidFields: new Set(invalid),
+        unsetRequiredFields: new Set(unsetRequired),
         invalidFieldsNotificationCloser: () => {},
         setInvalidFieldsNotification(/** @type {any} */ close) {
             this.invalidFieldsNotificationCloser = close;
         },
-        _isInvisible: (name) => invisible.includes(name),
-        _isRequired: (name) => required.includes(name),
-        _checkValidity(options) {
+        isFieldInvisible: (name) => invisible.includes(name),
+        isFieldRequired: (name) => required.includes(name),
+        checkValidityLocked(options) {
             return checkValidity(this, options);
         },
         discard: async () => {},
@@ -424,7 +424,7 @@ function makeOrchestrationRecord({
             multiEdit,
             root: {
                 _recordToDiscard: null,
-                _isRecordToDiscard(rec) {
+                isRecordToDiscard(rec) {
                     return this._recordToDiscard === rec;
                 },
             },
@@ -452,8 +452,8 @@ describe("checkValidity — silent mode", () => {
         });
         const result = checkValidity(rec, { silent: true });
         expect(result).toBe(true);
-        expect(rec._invalidFields.size).toBe(0);
-        expect(rec._unsetRequiredFields.size).toBe(0);
+        expect(rec.invalidFields.size).toBe(0);
+        expect(rec.unsetRequiredFields.size).toBe(0);
     });
 
     test("returns false when a required field is unset, without mutating state", () => {
@@ -465,13 +465,13 @@ describe("checkValidity — silent mode", () => {
         });
         const result = checkValidity(rec, { silent: true });
         expect(result).toBe(false);
-        expect(rec._invalidFields.size).toBe(0);
-        expect(rec._unsetRequiredFields.size).toBe(0);
+        expect(rec.invalidFields.size).toBe(0);
+        expect(rec.unsetRequiredFields.size).toBe(0);
     });
 });
 
 describe("checkValidity — default mode", () => {
-    test("populates _invalidFields and _unsetRequiredFields when a required field is unset", () => {
+    test("populates invalidFields and unsetRequiredFields when a required field is unset", () => {
         const rec = makeOrchestrationRecord({
             activeFields: { name: {} },
             fields: { name: { type: "char" } },
@@ -480,11 +480,11 @@ describe("checkValidity — default mode", () => {
         });
         const result = checkValidity(rec);
         expect(result).toBe(false);
-        expect([...rec._invalidFields]).toEqual(["name"]);
-        expect([...rec._unsetRequiredFields]).toEqual(["name"]);
+        expect([...rec.invalidFields]).toEqual(["name"]);
+        expect([...rec.unsetRequiredFields]).toEqual(["name"]);
     });
 
-    test("replaces the prior _unsetRequiredFields subset on rescan", () => {
+    test("replaces the prior unsetRequiredFields subset on rescan", () => {
         const rec = makeOrchestrationRecord({
             activeFields: { name: {}, email: {} },
             fields: { name: { type: "char" }, email: { type: "char" } },
@@ -495,8 +495,8 @@ describe("checkValidity — default mode", () => {
         });
         const result = checkValidity(rec);
         expect(result).toBe(false);
-        expect([...rec._invalidFields]).toEqual(["email"]);
-        expect([...rec._unsetRequiredFields]).toEqual(["email"]);
+        expect([...rec.invalidFields]).toEqual(["email"]);
+        expect([...rec.unsetRequiredFields]).toEqual(["email"]);
     });
 
     test("preserves invalid-input flags (not in unsetRequiredFields) across the rescan", () => {
@@ -509,12 +509,12 @@ describe("checkValidity — default mode", () => {
             unsetRequired: [],
         });
         checkValidity(rec);
-        expect([...rec._invalidFields]).toEqual(["name"]);
+        expect([...rec.invalidFields]).toEqual(["name"]);
     });
 });
 
 describe("checkValidity — removeInvalidOnly mode", () => {
-    test("removes fields from _unsetRequiredFields that are no longer unset, without adding new ones", () => {
+    test("removes fields from unsetRequiredFields that are no longer unset, without adding new ones", () => {
         const rec = makeOrchestrationRecord({
             activeFields: { name: {}, email: {} },
             fields: { name: { type: "char" }, email: { type: "char" } },
@@ -524,8 +524,8 @@ describe("checkValidity — removeInvalidOnly mode", () => {
             unsetRequired: ["name"],
         });
         checkValidity(rec, { removeInvalidOnly: true });
-        expect([...rec._invalidFields]).toEqual([]);
-        expect([...rec._unsetRequiredFields]).toEqual([]);
+        expect([...rec.invalidFields]).toEqual([]);
+        expect([...rec.unsetRequiredFields]).toEqual([]);
     });
 });
 
@@ -576,22 +576,22 @@ describe("checkValidity — displayNotification", () => {
 });
 
 describe("setInvalidField", () => {
-    test("adds the field name to _invalidFields", async () => {
+    test("adds the field name to invalidFields", async () => {
         const rec = makeOrchestrationRecord();
         await setInvalidField(rec, "name");
-        expect(rec._invalidFields.has("name")).toBe(true);
+        expect(rec.invalidFields.has("name")).toBe(true);
     });
 
     test("is idempotent — adding the same field twice does not duplicate", async () => {
         const rec = makeOrchestrationRecord({ invalid: ["name"] });
         await setInvalidField(rec, "name");
-        expect(rec._invalidFields.size).toBe(1);
+        expect(rec.invalidFields.size).toBe(1);
     });
 
     test("returns early without adding when onWillSetInvalidField returns false", async () => {
         const rec = makeOrchestrationRecord({ willSetInvalidResult: false });
         await setInvalidField(rec, "name");
-        expect(rec._invalidFields.size).toBe(0);
+        expect(rec.invalidFields.size).toBe(0);
     });
 
     test("multiEdit + selected: triggers discard + switchMode + notification", async () => {
@@ -629,33 +629,33 @@ describe("setInvalidField", () => {
             discardCalled = true;
         };
         await setInvalidField(rec, "name");
-        expect(rec._invalidFields.has("name")).toBe(true);
+        expect(rec.invalidFields.has("name")).toBe(true);
         expect(discardCalled).toBe(false);
     });
 });
 
 describe("resetFieldValidity", () => {
-    test("removes the field name from _invalidFields", () => {
+    test("removes the field name from invalidFields", () => {
         const rec = makeOrchestrationRecord({ invalid: ["name", "email"] });
         resetFieldValidity(rec, "name");
-        expect(rec._invalidFields.has("name")).toBe(false);
-        expect(rec._invalidFields.has("email")).toBe(true);
+        expect(rec.invalidFields.has("name")).toBe(false);
+        expect(rec.invalidFields.has("email")).toBe(true);
     });
 
     test("is a no-op when the field is not flagged", () => {
         const rec = makeOrchestrationRecord({ invalid: ["email"] });
         resetFieldValidity(rec, "name");
-        expect(rec._invalidFields.size).toBe(1);
+        expect(rec.invalidFields.size).toBe(1);
     });
 
-    test("does NOT touch _unsetRequiredFields", () => {
+    test("does NOT touch unsetRequiredFields", () => {
         const rec = makeOrchestrationRecord({
             invalid: ["name"],
             unsetRequired: ["name"],
         });
         resetFieldValidity(rec, "name");
-        expect(rec._invalidFields.has("name")).toBe(false);
-        expect(rec._unsetRequiredFields.has("name")).toBe(true);
+        expect(rec.invalidFields.has("name")).toBe(false);
+        expect(rec.unsetRequiredFields.has("name")).toBe(true);
     });
 });
 
@@ -663,13 +663,13 @@ describe("removeInvalidFields (bulk)", () => {
     test("removes multiple field names in one call", () => {
         const rec = makeOrchestrationRecord({ invalid: ["a", "b", "c"] });
         removeInvalidFields(rec, "a", "c");
-        expect([...rec._invalidFields]).toEqual(["b"]);
+        expect([...rec.invalidFields]).toEqual(["b"]);
     });
 
     test("is a no-op when no field names are passed", () => {
         const rec = makeOrchestrationRecord({ invalid: ["a", "b"] });
         removeInvalidFields(rec);
-        expect(rec._invalidFields.size).toBe(2);
+        expect(rec.invalidFields.size).toBe(2);
     });
 });
 
@@ -788,11 +788,11 @@ function makeModifierCountingRecord({
         invalid: unsetRequired,
     });
     const evalContext = data;
-    rec._isRequired = (name) => {
+    rec.isFieldRequired = (name) => {
         requiredEvalCount[name] = (requiredEvalCount[name] || 0) + 1;
         return isFieldRequired(activeFields[name], evalContext);
     };
-    rec._isInvisible = (name) =>
+    rec.isFieldInvisible = (name) =>
         activeFields[name].invisible
             ? isFieldRequired({ required: activeFields[name].invisible }, evalContext)
             : false;
@@ -820,7 +820,7 @@ describe("checkValidity — scoped removeInvalidOnly (modifier evaluation)", () 
         const scopedFields = computeRevalidationScope(["a"], activeFields);
         checkValidity(rec, { removeInvalidOnly: true, scopedFields });
         expect(requiredEvalCount["b"] || 0).toBe(0);
-        expect(rec._unsetRequiredFields.has("b")).toBe(true);
+        expect(rec.unsetRequiredFields.has("b")).toBe(true);
     });
 
     test("(4b) committing A DOES re-evaluate B's required modifier when B references A", () => {
@@ -839,8 +839,8 @@ describe("checkValidity — scoped removeInvalidOnly (modifier evaluation)", () 
         const scopedFields = computeRevalidationScope(["a"], activeFields);
         checkValidity(rec, { removeInvalidOnly: true, scopedFields });
         expect(requiredEvalCount["b"] || 0).toBeGreaterThan(0);
-        expect(rec._unsetRequiredFields.has("b")).toBe(false);
-        expect(rec._invalidFields.has("b")).toBe(false);
+        expect(rec.unsetRequiredFields.has("b")).toBe(false);
+        expect(rec.invalidFields.has("b")).toBe(false);
     });
 });
 
@@ -851,11 +851,11 @@ function makeChildRecord({ valid, dirty = true }) {
         dirty,
         hasPendingChanges: dirty,
         resId: false,
-        _virtualId: `virtual_${nextVirtualId++}`,
+        virtualId: `virtual_${nextVirtualId++}`,
         get isValid() {
             return valid;
         },
-        _checkValidity() {
+        checkValidityLocked() {
             checkValidityCalls++;
             return valid;
         },
@@ -872,7 +872,7 @@ function makeChildList(/** @type {any[]} */ children) {
     /** @type {any[]} */
     const _currentIds = [];
     for (const child of children) {
-        const id = child.resId || child._virtualId;
+        const id = child.resId || child.virtualId;
         _cache.set(id, child);
         _currentIds.push(id);
     }

@@ -21,7 +21,7 @@ function makePropertyRecord({
     const record = {
         fields,
         activeFields,
-        _createStaticListDatapoint:
+        createStaticListDatapoint:
             createStaticList ??
             ((data, fieldName) => ({ data, fieldName, __isStaticList: true })),
     };

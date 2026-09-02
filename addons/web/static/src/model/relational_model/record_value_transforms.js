@@ -192,13 +192,13 @@ export function parseServerValues(
                 if (data.length && typeof data[0] === "number") {
                     data = data.map((resId) => ({ id: resId }));
                 }
-                staticList = record._createStaticListDatapoint(
+                staticList = record.createStaticListDatapoint(
                     /** @type {Array<{id: number, [key: string]: any}>} */ (data),
                     fieldName,
                     { orderBys },
                 );
                 if (valueIsCommandList && staticList) {
-                    staticList._applyInitialCommands(listValue);
+                    staticList.applyInitialCommands(listValue);
                 }
             } else if (valueIsCommandList && staticList) {
                 staticList.stageCommands(listValue);
@@ -213,7 +213,7 @@ export function parseServerValues(
                     );
                 Object.assign(
                     parsedValues,
-                    record._processProperties(
+                    record.processProperties(
                         parsedValues[fieldName],
                         fieldName,
                         parent,

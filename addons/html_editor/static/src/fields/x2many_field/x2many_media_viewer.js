@@ -28,7 +28,8 @@ export class X2ManyMediaViewer extends X2ManyField {
             "image_128",
         ];
         useChildSubEnv({
-            parentField: this.props.name,
+            removeRecord: (record) =>
+                this.props.record.data[this.props.name].delete(record),
         });
     }
 

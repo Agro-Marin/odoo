@@ -528,7 +528,7 @@ test("a loadState blocked reconstructing breadcrumbs can't commit over a newer o
     const breadcrumbDef = new Deferred();
     let firstCall = true;
     patchWithCleanup(am, {
-        async _controllersFromState() {
+        async controllersFromState() {
             if (firstCall) {
                 firstCall = false;
                 await breadcrumbDef;

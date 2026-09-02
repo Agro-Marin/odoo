@@ -21,15 +21,23 @@ describe("the StaticList owner contract and the class agree", () => {
         });
     });
 
-    test("every `_` member of the contract is an operation, not state", () => {
-        const notMethods = STATIC_LIST_OWNER_SURFACE.filter(
+    test("the owner surface is operations, plus the five accessors an owner reads", () => {
+        const accessors = STATIC_LIST_OWNER_SURFACE.filter(
             (key) =>
-                key.startsWith("_") &&
-                typeof (/** @type {any} */ (StaticList.prototype)[key]) !== "function",
+                typeof Object.getOwnPropertyDescriptor(StaticList.prototype, key)
+                    ?.value !== "function",
         );
-        expect(notMethods).toEqual([], {
-            message: "the private half of the owner surface must be operations",
-        });
+        expect(accessors).toEqual(
+            ["cachedRecords", "hasStagedCommands", "orderBy", "pendingCommands"],
+            { message: "an owner surface member is an operation or a named accessor" },
+        );
+        expect(STATIC_LIST_OWNER_SURFACE.filter((key) => key.startsWith("_"))).toEqual(
+            [],
+            {
+                message:
+                    "a member an owner reaches is public; the underscore was the lie",
+            },
+        );
     });
 
     test("the internal-state list is disjoint from the contract", () => {

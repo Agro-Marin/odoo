@@ -16,8 +16,8 @@ for (let id = 1; id <= 8; id++) {
 function makeList({ resIds = [], limit = 3 } = {}) {
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
+        patchConfig: (config, patch) => Object.assign(config, patch),
+        loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
     };
     const config = {
         resModel: "res.partner",
@@ -51,10 +51,10 @@ function expectWindowMatchesRecords(list) {
 describe("page anchor after rows are removed ahead of the offset", () => {
     test("unlinking earlier-page rows keeps the user on the same records", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
-        await list._load({ offset: 3 });
+        await list.loadLocked({ offset: 3 });
         expect(list.records.map((r) => r.resId)).toEqual([4, 5, 6]);
 
-        await list._applyCommands([
+        await list.applyCommandsLocked([
             [UNLINK, 1, false],
             [UNLINK, 2, false],
             [UNLINK, 3, false],
@@ -69,9 +69,9 @@ describe("page anchor after rows are removed ahead of the offset", () => {
 
     test("a partial shift re-anchors by exactly the number removed ahead", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
-        await list._load({ offset: 3 });
+        await list.loadLocked({ offset: 3 });
 
-        await list._applyCommands([[UNLINK, 2, false]]);
+        await list.applyCommandsLocked([[UNLINK, 2, false]]);
 
         expect(list._currentIds).toEqual([1, 3, 4, 5, 6, 7]);
         expect(list.offset).toBe(2);
@@ -81,25 +81,25 @@ describe("page anchor after rows are removed ahead of the offset", () => {
 
     test("a removal on the CURRENT page does not move the anchor", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
-        await list._load({ offset: 3 });
+        await list.loadLocked({ offset: 3 });
 
-        await list._applyCommands([[UNLINK, 5, false]]);
+        await list.applyCommandsLocked([[UNLINK, 5, false]]);
 
         expect(list.offset).toBe(3);
         expect(list._currentIds).toEqual([1, 2, 3, 4, 6, 7]);
         expectWindowMatchesRecords(list);
     });
 
-    test("a later _load lands on the rows the user was shown", async () => {
+    test("a later loadLocked lands on the rows the user was shown", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
-        await list._load({ offset: 3 });
-        await list._applyCommands([
+        await list.loadLocked({ offset: 3 });
+        await list.applyCommandsLocked([
             [UNLINK, 1, false],
             [UNLINK, 2, false],
         ]);
         const onScreen = list.records.map((r) => r.resId);
 
-        await list._load({});
+        await list.loadLocked({});
 
         expect(list.records.map((r) => r.resId)).toEqual(onScreen);
     });

@@ -11,7 +11,7 @@ describe.current.tags("headless");
  * @returns {any}
  */
 function row(datapointId, resId) {
-    return { id: datapointId, resId, _virtualId: false };
+    return { id: datapointId, resId, virtualId: false };
 }
 
 describe("_extendedRecords never outlives the datapoints it names", () => {
@@ -21,8 +21,8 @@ describe("_extendedRecords never outlives the datapoints it names", () => {
         list._cache.set(7, first);
         list._extendedRecords.add(first.id);
 
-        list._commitCurrentIds([]);
-        list.model._patchConfig(list.config, { resIds: [] });
+        list.commitCurrentIds([]);
+        list.model.patchConfig(list.config, { resIds: [] });
         list._pruneCache();
 
         expect([...list._cache.keys()]).toEqual([]);
@@ -76,9 +76,9 @@ describe("_cache keys are the real ids, not their string forms", () => {
         list._cache.set("virtual_3", {
             id: "dpv",
             resId: false,
-            _virtualId: "virtual_3",
+            virtualId: "virtual_3",
         });
-        list.model._patchConfig(list.config, { resIds: [7] });
+        list.model.patchConfig(list.config, { resIds: [7] });
 
         list._pruneCache();
 

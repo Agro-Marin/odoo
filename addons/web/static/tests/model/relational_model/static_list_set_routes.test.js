@@ -36,22 +36,22 @@ function makeList(resIds) {
         _tmpIncreaseLimit: 0,
         _extendedRecords: new Set(),
         model: {
-            _patchConfig: (config, patch) => Object.assign(config, patch),
-            _loadRecords: async (config) => config.resIds.map((id) => ({ id })),
+            patchConfig: (config, patch) => Object.assign(config, patch),
+            loadRecords: async (config) => config.resIds.map((id) => ({ id })),
         },
         _createRecordDatapoint(data, params = {}) {
             const id = data.id || params.virtualId;
             const record = {
                 id: `dp_${id}`,
                 resId: data.id || false,
-                _virtualId: params.virtualId || false,
+                virtualId: params.virtualId || false,
                 data: { ...data },
-                _changes: { display_name: "edited" },
+                changes: { display_name: "edited" },
                 dirty: true,
-                _loadedFieldNames: new Set(Object.keys(data)),
-                _getChanges: () => ({ display_name: "edited" }),
-                _applyChanges() {},
-                _applyValues() {},
+                loadedFieldNames: new Set(Object.keys(data)),
+                getChangesLocked: () => ({ display_name: "edited" }),
+                applyChanges() {},
+                applyValues() {},
             };
             this._cache.set(id, record);
             return record;
@@ -64,16 +64,16 @@ function makeList(resIds) {
     return list;
 }
 
-describe("client-authored SET (_replaceWith)", () => {
+describe("client-authored SET (replaceWith)", () => {
     test("emits a SET and KEEPS a staged edit on a surviving row", async () => {
         const list = makeList([1, 2, 3]);
         list._commands.push([UPDATE, 1]);
 
-        await list._replaceWith([1, 2]);
+        await list.replaceWith([1, 2]);
 
         expect(list._commands[0][0]).toBe(SET);
         expect(list._commands[0][2]).toEqual([1, 2]);
-        const serialized = list._getCommands();
+        const serialized = list.getCommands();
         const update = serialized.find((c) => c[0] === UPDATE && c[1] === 1);
         expect(update).not.toBe(undefined);
         expect(update[2]).toEqual({ display_name: "edited" });
@@ -83,9 +83,9 @@ describe("client-authored SET (_replaceWith)", () => {
         const list = makeList([1, 2, 3]);
         list._commands.push([UPDATE, 3]);
 
-        await list._replaceWith([1, 2]);
+        await list.replaceWith([1, 2]);
 
-        expect(list._getCommands().some((c) => c[0] === UPDATE && c[1] === 3)).toBe(
+        expect(list.getCommands().some((c) => c[0] === UPDATE && c[1] === 3)).toBe(
             false,
         );
     });
@@ -96,17 +96,17 @@ describe("server-authored SET (expandSetCommands)", () => {
         const list = makeList([1, 2, 3]);
         list._commands.push([UPDATE, 1]);
 
-        await list._applyCommands([[SET, false, [1, 2]]]);
+        await list.applyCommandsLocked([[SET, false, [1, 2]]]);
 
         expect(list._commands.map((c) => c[0])).toEqual([CLEAR, LINK, LINK]);
-        expect(list._getCommands().some((c) => c[0] === UPDATE)).toBe(false);
+        expect(list.getCommands().some((c) => c[0] === UPDATE)).toBe(false);
         expect(list._currentIds).toEqual([1, 2]);
     });
 
     test("omits the CLEAR when there was nothing to reset", async () => {
         const list = makeList([]);
 
-        await list._applyCommands([[SET, false, [1, 2]]]);
+        await list.applyCommandsLocked([[SET, false, [1, 2]]]);
 
         expect(list._commands.map((c) => c[0])).toEqual([LINK, LINK]);
     });
@@ -115,10 +115,10 @@ describe("server-authored SET (expandSetCommands)", () => {
 describe("both routes agree on membership", () => {
     test("same resulting currentIds and count", async () => {
         const viaReplaceWith = makeList([1, 2, 3]);
-        await viaReplaceWith._replaceWith([2, 3]);
+        await viaReplaceWith.replaceWith([2, 3]);
 
         const viaExpandSet = makeList([1, 2, 3]);
-        await viaExpandSet._applyCommands([[SET, false, [2, 3]]]);
+        await viaExpandSet.applyCommandsLocked([[SET, false, [2, 3]]]);
 
         expect(viaReplaceWith._currentIds).toEqual(viaExpandSet._currentIds);
         expect(viaReplaceWith.count).toBe(viaExpandSet.count);

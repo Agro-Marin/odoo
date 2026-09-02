@@ -22,7 +22,7 @@ describe("extendRecord fields identity", () => {
             _extendedRecords: new Set(),
             model: {
                 mutex: { exec: (fn) => fn() },
-                _patchConfig: (config, patch) => Object.assign(config, patch),
+                patchConfig: (config, patch) => Object.assign(config, patch),
             },
         });
 
@@ -56,9 +56,9 @@ class FakeRecord {
         this.config = config;
         this.data = data;
         this.resId = data.id || false;
-        this._virtualId = options.virtualId;
+        this.virtualId = options.virtualId;
         this.dirty = false;
-        this._changes = {};
+        this.changes = {};
         this.constructedByClass = true;
     }
 }
@@ -87,12 +87,12 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
         const list = makeBareList();
         const dirty = {
             resId: 1,
-            _virtualId: null,
+            virtualId: null,
             dirty: true,
             hasPendingChanges: true,
-            _changes: { child_ids: "PENDING_UPDATE" },
+            changes: { child_ids: "PENDING_UPDATE" },
             appliedWith: null,
-            _applyValues(data) {
+            applyValues(data) {
                 this.appliedWith = data;
             },
         };
@@ -105,7 +105,7 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
 
         expect(out).toBe(dirty);
         expect(list._cache.get(1)).toBe(dirty);
-        expect(dirty._changes.child_ids).toBe("PENDING_UPDATE");
+        expect(dirty.changes.child_ids).toBe("PENDING_UPDATE");
         expect(dirty.appliedWith).toEqual({ id: 1, name: "reloaded" });
     });
 
@@ -115,8 +115,8 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
             resId: 2,
             dirty: false,
             hasPendingChanges: false,
-            _changes: {},
-            _applyValues() {
+            changes: {},
+            applyValues() {
                 throw new Error("clean records must be replaced, not merged");
             },
         };
@@ -131,7 +131,7 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
 });
 
 describe("sort restricted-field reload preserves dirty datapoint", () => {
-    test("dirty record keeps its _changes across a sort reload", async () => {
+    test("dirty record keeps its changes across a sort reload", async () => {
         const list = Object.create(StaticList.prototype);
         Object.assign(list, {
             _membership: new ListMembership(),
@@ -147,9 +147,9 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
             _parent: {},
             _needsReordering: true,
             model: {
-                _loadRecords: async () => [{ id: 1, name: "A" }],
+                loadRecords: async () => [{ id: 1, name: "A" }],
             },
-            _load: async () => {
+            loadLocked: async () => {
                 list._loadCalled = true;
             },
             _getResIdsToLoad: () => [1],
@@ -157,12 +157,12 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
 
         const dirty = {
             resId: 1,
-            _virtualId: null,
+            virtualId: null,
             dirty: true,
             hasPendingChanges: true,
-            _changes: { other: "PENDING_UPDATE" },
+            changes: { other: "PENDING_UPDATE" },
             data: { name: "" },
-            _applyValues(data) {
+            applyValues(data) {
                 Object.assign(this.data, data);
             },
         };
@@ -171,7 +171,7 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
         await sortStaticList(list, [1], [{ name: "name", asc: true }]);
 
         expect(list._cache.get(1)).toBe(dirty);
-        expect(dirty._changes.other).toBe("PENDING_UPDATE");
+        expect(dirty.changes.other).toBe("PENDING_UPDATE");
         expect(dirty.data.name).toBe("A");
         expect(list._loadCalled).toBe(true);
     });

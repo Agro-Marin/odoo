@@ -38,21 +38,21 @@ function makeList(overrides = {}) {
             const virtualId = opts.virtualId || `virtual_${nextVirtualId++}`;
             const record = {
                 resId: data.id || false,
-                _virtualId: virtualId,
+                virtualId: virtualId,
                 activeFields: {},
-                _applyChanges(/** @type {any} */ changes, serverChanges = {}) {
+                applyChanges(/** @type {any} */ changes, serverChanges = {}) {
                     Object.assign(
                         this.data,
                         changes,
-                        this._parseServerValues(serverChanges),
+                        this.parseServerValues(serverChanges),
                     );
                 },
-                _applyValues(/** @type {any} */ values) {
+                applyValues(/** @type {any} */ values) {
                     if (values) {
                         Object.assign(this.data, values);
                     }
                 },
-                _parseServerValues: (/** @type {any} */ changes) => changes,
+                parseServerValues: (/** @type {any} */ changes) => changes,
                 data: { ...data },
             };
             if (data.id) {
@@ -65,7 +65,7 @@ function makeList(overrides = {}) {
         _getResIdsToLoad: (/** @type {any} */ ids) => ids,
         _bumpLimit(/** @type {any} */ n) {
             this._tmpIncreaseLimit += n;
-            this.model._patchConfig(this.config, { limit: this.limit + n });
+            this.model.patchConfig(this.config, { limit: this.limit + n });
         },
         _clampOffset() {
             const length = this._currentIds.length;
@@ -77,21 +77,21 @@ function makeList(overrides = {}) {
                     ? Math.floor((length - 1) / this.limit) * this.limit
                     : 0;
         },
-        _commitCommands(/** @type {any[]} */ commands) {
+        commitCommands(/** @type {any[]} */ commands) {
             this._commands = commands;
         },
-        _commitCurrentIds(/** @type {any[]} */ ids) {
+        commitCurrentIds(/** @type {any[]} */ ids) {
             this._currentIds = ids;
         },
-        _insertMemberAt(/** @type {number} */ index, /** @type {any} */ id) {
+        insertMemberAt(/** @type {number} */ index, /** @type {any} */ id) {
             this._currentIds.splice(index, 0, id);
         },
-        _appendMember(/** @type {any} */ id) {
+        appendMember(/** @type {any} */ id) {
             this._currentIds.push(id);
         },
         model: {
-            _patchConfig: () => {},
-            _loadRecords: () => Promise.resolve([]),
+            patchConfig: () => {},
+            loadRecords: () => Promise.resolve([]),
         },
         ...overrides,
     };
@@ -106,18 +106,18 @@ function makeList(overrides = {}) {
 function addRecord(list, resId) {
     const record = {
         resId,
-        _virtualId: null,
+        virtualId: null,
         activeFields: {},
         data: { id: resId },
-        _applyChanges(/** @type {any} */ changes, serverChanges = {}) {
-            Object.assign(this.data, changes, this._parseServerValues(serverChanges));
+        applyChanges(/** @type {any} */ changes, serverChanges = {}) {
+            Object.assign(this.data, changes, this.parseServerValues(serverChanges));
         },
-        _applyValues(/** @type {any} */ values) {
+        applyValues(/** @type {any} */ values) {
             if (values) {
                 Object.assign(this.data, values);
             }
         },
-        _parseServerValues: (/** @type {any} */ changes) => changes,
+        parseServerValues: (/** @type {any} */ changes) => changes,
     };
     list._cache.set(resId, record);
     list.records.push(record);
@@ -163,7 +163,7 @@ describe("applyCommands — DELETE", () => {
         const list = makeList();
         list._commands = [[CREATE, "virtual_1"]];
         list._currentIds = ["virtual_1"];
-        const fakeRecord = { resId: false, _virtualId: "virtual_1" };
+        const fakeRecord = { resId: false, virtualId: "virtual_1" };
         list.records = [fakeRecord];
         list._cache.set("virtual_1", fakeRecord);
 
@@ -277,7 +277,7 @@ describe("applyCommands — UNLINK", () => {
 describe("applyCommands — LINK", () => {
     test("adds a cached record to records and _currentIds", () => {
         const list = makeList();
-        const rec = { resId: 9, _virtualId: null, activeFields: {}, data: {} };
+        const rec = { resId: 9, virtualId: null, activeFields: {}, data: {} };
         list._cache.set(9, rec);
 
         applyCommands(list, [[LINK, 9, { id: 9, display_name: "Rec 9" }]]);
@@ -425,13 +425,13 @@ describe("applyCommands — UPDATE", () => {
         ]);
     });
 
-    test("routes UPDATE payloads through the SERVER slot of _applyChanges, unparsed", () => {
+    test("routes UPDATE payloads through the SERVER slot of applyChanges, unparsed", () => {
         const list = makeList();
         const record = addRecord(list, 20);
         list.fields = { name: { type: "char" } };
         record.activeFields = { name: {} };
         const calls = [];
-        record._applyChanges = (/** @type {any} */ changes, serverChanges = {}) => {
+        record.applyChanges = (/** @type {any} */ changes, serverChanges = {}) => {
             calls.push([changes, serverChanges]);
         };
 
@@ -544,11 +544,11 @@ describe("applyCommands — command log integrity", () => {
         list._commands = [[CREATE, "virtual_1"]];
         const fakeVirtual = {
             resId: false,
-            _virtualId: "virtual_1",
+            virtualId: "virtual_1",
             activeFields: {},
             data: {},
-            _applyChanges() {},
-            _parseServerValues: (/** @type {any} */ v) => v,
+            applyChanges() {},
+            parseServerValues: (/** @type {any} */ v) => v,
         };
         list.records.push(fakeVirtual);
         list._currentIds.push("virtual_1");
@@ -676,7 +676,7 @@ describe("applyCommands — SET and CLEAR", () => {
     test("a CREATE echoing a virtual id the list owns reuses that row", () => {
         const list = makeList();
         applyCommands(list, [[CREATE, false, { name: "typed" }]]);
-        const virtualId = list.records[0]._virtualId;
+        const virtualId = list.records[0].virtualId;
 
         applyCommands(list, [
             [CLEAR, false, false],
@@ -695,8 +695,8 @@ describe("applyCommands — record loading", () => {
     test("server returning fewer records than requested does not misassign values", async () => {
         const list = makeList({
             model: {
-                _patchConfig: () => {},
-                _loadRecords: ({ /** @type {any} */ resIds }) => {
+                patchConfig: () => {},
+                loadRecords: ({ /** @type {any} */ resIds }) => {
                     expect(resIds).toEqual([1, 2, 3]);
                     return Promise.resolve([
                         { id: 1, name: "One" },

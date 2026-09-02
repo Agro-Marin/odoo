@@ -93,7 +93,7 @@ ACKNOWLEDGED_OVERLAPS = {
             "model/relational_model/record_contract.js",
             "model/relational_model/static_list_contract.js",
         }
-    ): {"_discard", "_load"},
+    ): {"discardLocked", "loadLocked"},
 }
 
 

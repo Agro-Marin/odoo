@@ -11,7 +11,7 @@ function makeFakeAm(overrides = {}) {
     const calls = { removeDialog: [] };
     const am = {
         dialog: null,
-        _removeDialog: async (infos) => {
+        removeDialog: async (infos) => {
             calls.removeDialog.push(infos);
             return "removed";
         },
@@ -21,7 +21,7 @@ function makeFakeAm(overrides = {}) {
     return am;
 }
 
-test("with a dialog open: delegates to _removeDialog and forwards infos", async () => {
+test("with a dialog open: delegates to removeDialog and forwards infos", async () => {
     const am = makeFakeAm({ dialog: { remove() {} } });
     let onCloseCalled = false;
     await executeCloseAction(
@@ -64,7 +64,7 @@ test("am.dialog is read live, not captured when the executor is bound", async ()
     expect(am.__calls.removeDialog).toEqual(["late"]);
 });
 
-test("returns the _removeDialog promise so callers can await the teardown", async () => {
+test("returns the removeDialog promise so callers can await the teardown", async () => {
     const am = makeFakeAm({ dialog: { remove() {} } });
     expect(await executeCloseAction(am, {}, {})).toBe("removed");
 });

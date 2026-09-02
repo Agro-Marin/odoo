@@ -64,7 +64,7 @@ function makeFakeActionManager() {
     return {
         breadcrumbCache: new BreadcrumbCache(),
         controllerStack: [],
-        _getBreadcrumbs: () => [],
+        getBreadcrumbs: () => [],
     };
 }
 

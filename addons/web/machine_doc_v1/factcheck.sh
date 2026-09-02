@@ -1138,8 +1138,8 @@ assert_eq "form_controller.js defines discard()" \
     "$(grep -cE 'async discard\(' "$WEB/static/src/views/form/form_controller.js")" "1"
 assert_eq "form_controller.js defines beforeLeave()" \
     "$(grep -cE 'async beforeLeave\(' "$WEB/static/src/views/form/form_controller.js")" "1"
-assert_eq "record.js defines _applyChanges()" \
-    "$(grep -cE '^    _applyChanges\(' "$WEB/static/src/model/relational_model/record.js")" "1"
+assert_eq "record.js defines applyChanges()" \
+    "$(grep -cE '^    applyChanges\(' "$WEB/static/src/model/relational_model/record.js")" "1"
 assert_eq "record.js defines discard()" \
     "$(grep -cE 'async discard\(' "$WEB/static/src/model/relational_model/record.js")" "1"
 # CLEAR-CACHES emission/listener inventory (STATE_MANAGEMENT "emission sites").

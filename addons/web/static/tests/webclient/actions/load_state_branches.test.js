@@ -21,11 +21,11 @@ function makeFakeAm(overrides = {}) {
         router: { current: { action: 7, actionStack: [{ action: 7 }] } },
         navigation: new NavigationTracker(),
         env: { bus: new EventBus() },
-        _controllersFromState: async (state) => {
+        controllersFromState: async (state) => {
             calls.controllersFromState.push(state);
             return [{ jsId: "ancestor" }];
         },
-        _getActionParams: () => ({ actionRequest: 7, options: {} }),
+        getActionParams: () => ({ actionRequest: 7, options: {} }),
         doAction: async (actionRequest, options) => {
             calls.doAction.push({ actionRequest, options });
         },
@@ -97,7 +97,7 @@ test("a failed reconstruction still loads the leaf action, without ancestry", as
     const warnings = [];
     patchWithCleanup(console, { warn: (...args) => warnings.push(args[0]) });
     const am = makeFakeAm({
-        _controllersFromState: async () => {
+        controllersFromState: async () => {
             throw new Error("breadcrumbs exploded");
         },
     });
@@ -111,7 +111,7 @@ test("a failed reconstruction still loads the leaf action, without ancestry", as
 
 test("a newer navigation started mid-reconstruction supersedes this one", async () => {
     const am = makeFakeAm({
-        _controllersFromState: async () => {
+        controllersFromState: async () => {
             am.navigation.mint();
             return [];
         },
@@ -124,7 +124,7 @@ test("a newer navigation started mid-reconstruction supersedes this one", async 
 test("the guard also fires when the reconstruction failed", async () => {
     patchWithCleanup(console, { warn: () => {} });
     const am = makeFakeAm({
-        _controllersFromState: async () => {
+        controllersFromState: async () => {
             am.navigation.mint();
             throw new Error("both at once");
         },
@@ -134,14 +134,14 @@ test("the guard also fires when the reconstruction failed", async () => {
 });
 
 test("an unusable state resolves to undefined without dispatching", async () => {
-    const am = makeFakeAm({ _getActionParams: () => null });
+    const am = makeFakeAm({ getActionParams: () => null });
     expect(await loadState(am)).toBe(undefined);
     expect(am.__calls.doAction).toEqual([]);
 });
 
 test("the reconstructed stack is handed to doAction whole", async () => {
     const stack = [{ jsId: "a" }, { jsId: "b" }];
-    const am = makeFakeAm({ _controllersFromState: async () => stack });
+    const am = makeFakeAm({ controllersFromState: async () => stack });
     await loadState(am);
     expect(am.__calls.doAction[0].options.newStack).toBe(stack);
 });
@@ -159,8 +159,8 @@ test("poppedLeaves cuts at the entry it settled on, and is consumed", async () =
         { jsId: "c", stackIndex: 2 },
     ];
     const am = makeFakeAm({
-        _controllersFromState: async () => stack,
-        _getActionParams: POPPED_PARAMS,
+        controllersFromState: async () => stack,
+        getActionParams: POPPED_PARAMS,
     });
 
     await loadState(am, POPPED_STATE);
@@ -172,8 +172,8 @@ test("poppedLeaves cuts at the entry it settled on, and is consumed", async () =
 
 test("a dropped ancestor cannot shift the cut", async () => {
     const am = makeFakeAm({
-        _controllersFromState: async () => [{ jsId: "c", stackIndex: 2 }],
-        _getActionParams: POPPED_PARAMS,
+        controllersFromState: async () => [{ jsId: "c", stackIndex: 2 }],
+        getActionParams: POPPED_PARAMS,
     });
     await loadState(am, POPPED_STATE);
     expect(am.__calls.doAction[0].options.newStack).toEqual([]);
@@ -185,8 +185,8 @@ test("a drop inside the popped tail does not take a live crumb with it", async (
         { jsId: "b", stackIndex: 1 },
     ];
     const am = makeFakeAm({
-        _controllersFromState: async () => stack,
-        _getActionParams: POPPED_PARAMS,
+        controllersFromState: async () => stack,
+        getActionParams: POPPED_PARAMS,
     });
     await loadState(am, POPPED_STATE);
     expect(am.__calls.doAction[0].options.newStack).toEqual(stack);
@@ -195,8 +195,8 @@ test("a drop inside the popped tail does not take a live crumb with it", async (
 test("poppedLeaves of 0 leaves the stack alone", async () => {
     const stack = [{ jsId: "a" }];
     const am = makeFakeAm({
-        _controllersFromState: async () => stack,
-        _getActionParams: () => ({ actionRequest: 7, options: { poppedLeaves: 0 } }),
+        controllersFromState: async () => stack,
+        getActionParams: () => ({ actionRequest: 7, options: { poppedLeaves: 0 } }),
     });
     await loadState(am);
     expect(am.__calls.doAction[0].options.newStack).toBe(stack);

@@ -15,12 +15,12 @@ function makeModel() {
     return model;
 }
 
-describe("_askChanges settle loop", () => {
+describe("askChanges settle loop", () => {
     test("returns once nothing is left in flight", async () => {
         const model = makeModel();
         let rounds = 0;
         model.bus.addEventListener(ModelEvent.NEED_LOCAL_CHANGES, () => rounds++);
-        await model._askChanges();
+        await model.askChanges();
         expect(rounds).toBe(1);
         expect(model._compoundUpdates.size).toBe(0);
     });
@@ -36,7 +36,7 @@ describe("_askChanges settle loop", () => {
                 );
             }
         });
-        await model._askChanges();
+        await model.askChanges();
         expect(model._compoundUpdates.size).toBe(0);
     });
 
@@ -62,14 +62,14 @@ describe("_askChanges settle loop", () => {
 
         let roundsRun;
         try {
-            await model._askChanges();
+            await model.askChanges();
             roundsRun = rounds;
         } finally {
             rounds = ROUND_CAP;
             console.warn = originalWarn;
         }
         expect(warnings.length).toBe(1);
-        expect(warnings[0]).toInclude("_askChanges");
+        expect(warnings[0]).toInclude("askChanges");
         expect(warnings[0]).toInclude("res.partner");
         expect(roundsRun).toBeLessThan(ROUND_CAP);
     });

@@ -20,15 +20,15 @@ function makeRec(
         get isInEdition() {
             return this.config.mode === "edit";
         },
-        _checkValidity() {
+        checkValidityLocked() {
             steps.push(`${id}:checkValidity`);
             return valid;
         },
-        async _save() {
+        async saveLocked() {
             steps.push(`${id}:save`);
             return saveResult;
         },
-        _discard() {
+        discardLocked() {
             steps.push(`${id}:discard`);
         },
     };
@@ -43,12 +43,12 @@ function makeList(records, steps, { mutex = new Mutex() } = {}) {
             mutex,
             urgentSave: { isActive: false },
             closeUrgentSaveNotification() {},
-            _askChanges: async () => {
+            askChanges: async () => {
                 steps.push(`askChanges:${list._recordToDiscard?.id ?? "none"}`);
             },
-            _patchConfig: (config, patch) => Object.assign(config, patch),
+            patchConfig: (config, patch) => Object.assign(config, patch),
         },
-        _removeRecords(ids) {
+        removeRecords(ids) {
             steps.push(`remove:${ids.join(",")}`);
             for (const id of ids) {
                 const index = records.findIndex((r) => r.id === id);
@@ -137,7 +137,7 @@ describe("leaveEditMode save path", () => {
 });
 
 describe("leaveEditMode discard path", () => {
-    test("discards via _discard and removes a new record", async () => {
+    test("discards via discardLocked and removes a new record", async () => {
         const steps = [];
         const rec = makeRec("r1", steps, { isNew: true, dirty: true });
         const list = makeList([rec], steps);

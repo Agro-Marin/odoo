@@ -178,7 +178,7 @@ patch(SaleOrderLineListRenderer.prototype, {
                     changes = { product_uom_qty: 0, price_total: 0, price_subtotal: 0 };
                 } else {
                     proms.push(
-                        sectionRecord._update({
+                        sectionRecord.update({
                             product_uom_qty: sectionRecord.data.product_uom_qty || 1,
                         }),
                     );

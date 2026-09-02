@@ -60,10 +60,10 @@ async function mountCounting(listContext) {
     /** @type {Map<any, number>} */
     const counts = new Map();
     patchWithCleanup(RelationalRecord.prototype, {
-        _setEvalContext() {
+        setEvalContext() {
             const self = /** @type {any} */ (this);
             counts.set(self.id, (counts.get(self.id) || 0) + 1);
-            return super._setEvalContext();
+            return super.setEvalContext();
         },
     });
     await mountView({

@@ -17,7 +17,7 @@ function makeList(overrides = {}) {
         config: {},
         _cache: new Map(),
         _getResIdsToLoad: () => [],
-        _load: async (params) => {
+        loadLocked: async (params) => {
             loadCalls.push(params);
         },
         markReordered() {
@@ -25,7 +25,7 @@ function makeList(overrides = {}) {
         },
         _createRecordDatapoint: () => {},
         model: {
-            _loadRecords: async () => [],
+            loadRecords: async () => [],
         },
         _loadCalls: loadCalls,
         ...overrides,
@@ -41,7 +41,7 @@ describe("sort — empty orderBy", () => {
         expect(result).toBe(ids);
     });
 
-    test("does not call list._load when orderBy is empty", async () => {
+    test("does not call list.loadLocked when orderBy is empty", async () => {
         const list = makeList();
         await sortStaticList(list, [1, 2], []);
         expect(list._loadCalls.length).toBe(0);
@@ -56,14 +56,14 @@ describe("sort — empty orderBy", () => {
 });
 
 describe("sort — with cached records", () => {
-    test("sorts records by field and calls _load with sorted IDs", async () => {
+    test("sorts records by field and calls loadLocked with sorted IDs", async () => {
         const list = makeList({
             fields: { name: { type: "char" } },
         });
         list._cache = new Map([
-            [1, { resId: 1, _virtualId: null, data: { name: "Zebra" } }],
-            [2, { resId: 2, _virtualId: null, data: { name: "Apple" } }],
-            [3, { resId: 3, _virtualId: null, data: { name: "Mango" } }],
+            [1, { resId: 1, virtualId: null, data: { name: "Zebra" } }],
+            [2, { resId: 2, virtualId: null, data: { name: "Apple" } }],
+            [3, { resId: 3, virtualId: null, data: { name: "Mango" } }],
         ]);
 
         await sortStaticList(list, [1, 2, 3], [{ name: "name", asc: true }]);

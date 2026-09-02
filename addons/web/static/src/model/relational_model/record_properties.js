@@ -63,7 +63,7 @@ function buildPropertyValue(record, property, propertyFieldName, currentValues) 
     if (property.type === "many2many") {
         const staticList = currentValues[propertyFieldName];
         if (!staticList) {
-            return record._createStaticListDatapoint(
+            return record.createStaticListDatapoint(
                 (property.value || []).map((/** @type {[number, string]} */ rec) => ({
                     id: rec[0],
                     display_name: rec[1],

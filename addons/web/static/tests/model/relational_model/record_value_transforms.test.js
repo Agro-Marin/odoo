@@ -398,7 +398,7 @@ function makeParseRecord({
     const record = {
         activeFields,
         fields,
-        _createStaticListDatapoint:
+        createStaticListDatapoint:
             createStaticList ??
             ((data, fieldName, options) => ({
                 data,
@@ -406,14 +406,14 @@ function makeParseRecord({
                 options,
                 _appliedInitialCommands: null,
                 _appliedCommands: null,
-                _applyInitialCommands(commands) {
+                applyInitialCommands(commands) {
                     this._appliedInitialCommands = commands;
                 },
                 stageCommands(commands) {
                     this._appliedCommands = commands;
                 },
             })),
-        _processProperties: processProperties ?? (() => ({})),
+        processProperties: processProperties ?? (() => ({})),
     };
     return record;
 }
@@ -483,7 +483,7 @@ describe("parseServerValues — scalar / m2o", () => {
 });
 
 describe("parseServerValues — x2many record list", () => {
-    test("forwards a list of records to _createStaticListDatapoint as-is", () => {
+    test("forwards a list of records to createStaticListDatapoint as-is", () => {
         const rec = makeParseRecord({
             activeFields: { line_ids: {} },
             fields: { line_ids: { type: "one2many" } },
@@ -507,7 +507,7 @@ describe("parseServerValues — x2many record list", () => {
         expect(result.line_ids.data).toEqual([{ id: 3 }, { id: 7 }, { id: 11 }]);
     });
 
-    test("forwards orderBys to _createStaticListDatapoint", () => {
+    test("forwards orderBys to createStaticListDatapoint", () => {
         const rec = makeParseRecord({
             activeFields: { line_ids: {} },
             fields: { line_ids: { type: "one2many" } },
@@ -539,7 +539,7 @@ describe("parseServerValues — x2many command list", () => {
             data: [{ id: 1 }],
             _appliedInitialCommands: null,
             _appliedCommands: null,
-            _applyInitialCommands(commands) {
+            applyInitialCommands(commands) {
                 this._appliedInitialCommands = commands;
             },
             stageCommands(commands) {
@@ -566,7 +566,7 @@ describe("parseServerValues — x2many command list", () => {
             data: [{ id: 1 }],
             _appliedInitialCommands: null,
             _appliedCommands: null,
-            _applyInitialCommands() {},
+            applyInitialCommands() {},
             stageCommands() {},
         };
         const rec = makeParseRecord({
@@ -585,7 +585,7 @@ describe("parseServerValues — x2many command list", () => {
 });
 
 describe("parseServerValues — properties", () => {
-    test("delegates to _processProperties and merges its return into the parsed bag", () => {
+    test("delegates to processProperties and merges its return into the parsed bag", () => {
         let capturedArgs = null;
         const rec = makeParseRecord({
             activeFields: { props: {} },

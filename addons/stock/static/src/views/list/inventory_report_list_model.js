@@ -8,7 +8,7 @@ export class InventoryReportListModel extends RelationalModel {
         return super.setup(...arguments);
     }
 
-    async _updateSimilarRecords(reloadedRecord, serverValues) {
+    async updateSimilarRecords(reloadedRecord, serverValues) {
         if (this.config.isMonoRecord) {
             return;
         }
@@ -31,13 +31,13 @@ export class InventoryReportListModel extends RelationalModel {
             );
             const isGrouped = this.config.groupBy.length > 0;
             if (isGrouped || duplicateRecords.length > 0) {
-                await this.root._removeRecords([reloadedRecord.id]);
+                await this.root.removeRecords([reloadedRecord.id]);
                 for (const record of duplicateRecords) {
-                    record._applyValues(serverValues);
+                    record.applyValues(serverValues);
                 }
             }
         } else {
-            super._updateSimilarRecords(...arguments);
+            super.updateSimilarRecords(...arguments);
         }
     }
 }

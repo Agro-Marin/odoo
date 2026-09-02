@@ -54,11 +54,11 @@ export const DocumentsRecordMixin = (component) =>
                     type: "danger",
                 });
                 if (Object.keys(changes).length === 1) {
-                    this._discard();
+                    this.discardLocked();
                     return;
                 }
                 delete changes.name;
-                this._setEvalContext();
+                this.setEvalContext();
             }
             const modelMultiEdit = this.model.multiEdit;
             let movedRecordsIds =
@@ -78,7 +78,7 @@ export const DocumentsRecordMixin = (component) =>
                 this.model.multiEdit = modelMultiEdit;
             }
             if ((this.data.folder_id?.id ?? false) !== originalFolderId) {
-                this.model.root._removeRecords(movedRecordsIds);
+                this.model.root.removeRecords(movedRecordsIds);
                 this.model.env.documentsView.bus.trigger("documents-close-preview");
             }
             if (this.isDetailsPanelRecord && this.data.type === "folder") {

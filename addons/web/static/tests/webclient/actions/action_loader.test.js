@@ -21,7 +21,7 @@ import {
  */
 function makeFakeAm(overrides = {}) {
     let id = 0;
-    return { _nextId: () => ++id, ...overrides };
+    return { nextId: () => ++id, ...overrides };
 }
 
 class SomeClientAction extends Component {

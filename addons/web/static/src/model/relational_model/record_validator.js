@@ -94,10 +94,10 @@ export function findUnsetRequiredFields(
  * @param {RelationalRecord} record
  */
 function pruneUnreachableInvalidFields(record) {
-    for (const fieldName of [...toRaw(record._invalidFields)]) {
-        if (!(fieldName in record.activeFields) || record._isInvisible(fieldName)) {
-            record._invalidFields.delete(fieldName);
-            record._unsetRequiredFields.delete(fieldName);
+    for (const fieldName of [...toRaw(record.invalidFields)]) {
+        if (!(fieldName in record.activeFields) || record.isFieldInvisible(fieldName)) {
+            record.invalidFields.delete(fieldName);
+            record.unsetRequiredFields.delete(fieldName);
         }
     }
 }
@@ -110,8 +110,9 @@ function pruneUnreachableInvalidFields(record) {
  */
 function makeValidityCallbacks(record, { silent, removeInvalidOnly }) {
     return {
-        isInvisible: (/** @type {any} */ fieldName) => record._isInvisible(fieldName),
-        isRequired: (/** @type {any} */ fieldName) => record._isRequired(fieldName),
+        isInvisible: (/** @type {any} */ fieldName) =>
+            record.isFieldInvisible(fieldName),
+        isRequired: (/** @type {any} */ fieldName) => record.isFieldRequired(fieldName),
         isChildListValid: (/** @type {any} */ _fieldName, /** @type {any} */ list) => {
             const membership = new Set(list.currentIds);
             return list.cachedRecords.every((/** @type {any} */ r) => {
@@ -124,7 +125,7 @@ function makeValidityCallbacks(record, { silent, removeInvalidOnly }) {
                 if (removeInvalidOnly && r.isValid) {
                     return true;
                 }
-                return r._checkValidity({ silent, removeInvalidOnly });
+                return r.checkValidityLocked({ silent, removeInvalidOnly });
             });
         },
     };
@@ -138,10 +139,10 @@ function makeValidityCallbacks(record, { silent, removeInvalidOnly }) {
  */
 function releaseSatisfiedFields(record, callbacks, scopedFields) {
     const candidates = [];
-    for (const fieldName of Array.from(record._unsetRequiredFields)) {
+    for (const fieldName of Array.from(record.unsetRequiredFields)) {
         if (!(fieldName in record.activeFields)) {
-            record._unsetRequiredFields.delete(fieldName);
-            record._invalidFields.delete(fieldName);
+            record.unsetRequiredFields.delete(fieldName);
+            record.invalidFields.delete(fieldName);
             continue;
         }
         if (
@@ -169,8 +170,8 @@ function releaseSatisfiedFields(record, callbacks, scopedFields) {
     );
     for (const fieldName of candidates) {
         if (!stillUnset.has(fieldName)) {
-            record._unsetRequiredFields.delete(fieldName);
-            record._invalidFields.delete(fieldName);
+            record.unsetRequiredFields.delete(fieldName);
+            record.invalidFields.delete(fieldName);
         }
     }
 }
@@ -181,13 +182,13 @@ function releaseSatisfiedFields(record, callbacks, scopedFields) {
  * @returns {void}
  */
 function adoptUnsetRequiredFields(record, unsetRequiredFields) {
-    for (const fieldName of Array.from(record._unsetRequiredFields)) {
-        record._invalidFields.delete(fieldName);
+    for (const fieldName of Array.from(record.unsetRequiredFields)) {
+        record.invalidFields.delete(fieldName);
     }
-    record._unsetRequiredFields.clear();
+    record.unsetRequiredFields.clear();
     for (const fieldName of unsetRequiredFields) {
-        record._unsetRequiredFields.add(fieldName);
-        record._invalidFields.add(fieldName);
+        record.unsetRequiredFields.add(fieldName);
+        record.invalidFields.add(fieldName);
     }
 }
 
@@ -197,7 +198,7 @@ function adoptUnsetRequiredFields(record, unsetRequiredFields) {
  * @returns {boolean}
  */
 function reportValidity(record, displayNotification) {
-    const isValid = !record._invalidFields.size;
+    const isValid = !record.invalidFields.size;
     if (!isValid && displayNotification) {
         record.setInvalidFieldsNotification(displayInvalidFieldNotification(record));
     }
@@ -250,14 +251,14 @@ export async function setInvalidField(record, fieldName) {
     if (canProceed === false) {
         return;
     }
-    if (toRaw(record._invalidFields).has(fieldName)) {
+    if (toRaw(record.invalidFields).has(fieldName)) {
         return;
     }
-    record._invalidFields.add(fieldName);
+    record.invalidFields.add(fieldName);
     if (
         record.selected &&
         record.model.multiEdit &&
-        !record.model.root._isRecordToDiscard?.(record)
+        !record.model.root.isRecordToDiscard?.(record)
     ) {
         displayInvalidFieldNotification(record);
         await record.discard();
@@ -270,7 +271,7 @@ export async function setInvalidField(record, fieldName) {
  * @param {string} fieldName
  */
 export function resetFieldValidity(record, fieldName) {
-    record._invalidFields.delete(fieldName);
+    record.invalidFields.delete(fieldName);
 }
 
 /**
@@ -279,7 +280,7 @@ export function resetFieldValidity(record, fieldName) {
  */
 export function removeInvalidFields(record, ...fieldNames) {
     for (const fieldName of fieldNames) {
-        record._invalidFields.delete(fieldName);
+        record.invalidFields.delete(fieldName);
     }
 }
 

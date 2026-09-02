@@ -14,7 +14,7 @@ function makeFakeAm(overrides = {}) {
     const calls = { pushState: 0, switchView: [], doAction: [] };
     const am = {
         pushState: () => calls.pushState++,
-        _getView: () => null,
+        getView: () => null,
         switchView: (type, props, options) =>
             calls.switchView.push({ type, props, options }),
         doAction: (action, options) => calls.doAction.push({ action, options }),
@@ -304,7 +304,7 @@ test("a caller-supplied onSave is not overwritten", async () => {
 });
 
 test("selecting a record switches to the form view when the action has one", async () => {
-    const am = makeFakeAm({ _getView: () => FORM });
+    const am = makeFakeAm({ getView: () => FORM });
     const { props } = buildViewInfo(LIST, makeAction(), [LIST, FORM], {}, am);
 
     props.selectRecord(5, { activeIds: [5, 6], readonly: true, newWindow: true });
@@ -320,7 +320,7 @@ test("selecting a record switches to the form view when the action has one", asy
 });
 
 test("without a form view, selecting an existing record does nothing", async () => {
-    const am = makeFakeAm({ _getView: () => null });
+    const am = makeFakeAm({ getView: () => null });
     const { props } = buildViewInfo(LIST, makeAction(), [LIST], {}, am);
 
     props.selectRecord(5, {});
@@ -330,7 +330,7 @@ test("without a form view, selecting an existing record does nothing", async () 
 });
 
 test("without a form view, force or a new record dispatches a standalone form action", async () => {
-    const am = makeFakeAm({ _getView: () => null });
+    const am = makeFakeAm({ getView: () => null });
     const { props } = buildViewInfo(LIST, makeAction(), [LIST], {}, am);
 
     props.selectRecord(5, { force: true });
@@ -346,7 +346,7 @@ test("without a form view, force or a new record dispatches a standalone form ac
 });
 
 test("a dialog action never navigates on record selection", async () => {
-    const am = makeFakeAm({ _getView: () => FORM });
+    const am = makeFakeAm({ getView: () => FORM });
     const { props } = buildViewInfo(
         LIST,
         makeAction({ target: "new" }),

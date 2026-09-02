@@ -275,7 +275,7 @@ export class RelationalModel extends Model {
      * @returns {Promise<any>}
      */
     multiEditDispatch(record, changes) {
-        return this.root._multiSave(record, changes);
+        return this.root.multiSaveLocked(record, changes);
     }
 
     /**
@@ -442,11 +442,11 @@ export class RelationalModel extends Model {
      */
     settleBeforeReload() {
         if (this.mutex.locked || this._compoundUpdates.size) {
-            return this._askChanges();
+            return this.askChanges();
         }
     }
 
-    async _askChanges() {
+    async askChanges() {
         for (let round = 0; round < ASK_CHANGES_MAX_ROUNDS; round++) {
             const proms = [];
             this.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
@@ -459,7 +459,7 @@ export class RelationalModel extends Model {
             }
         }
         console.warn(
-            `RelationalModel._askChanges: local changes did not settle after ` +
+            `RelationalModel.askChanges: local changes did not settle after ` +
                 `${ASK_CHANGES_MAX_ROUNDS} rounds (resModel: ${this.config.resModel}); ` +
                 `${this._compoundUpdates.size} compound update(s) still in flight. ` +
                 `A field widget is very likely re-opening one from a render side ` +
@@ -564,7 +564,7 @@ export class RelationalModel extends Model {
                     delete this.root.config.currentGroups;
                     result = await this._postprocessReadGroup(this.root.config, result);
                 }
-                this.root._setData(result);
+                this.root.setData(result);
             }
             return;
         }
@@ -573,12 +573,12 @@ export class RelationalModel extends Model {
         }
         if (root.config.isMonoRecord) {
             if (!root.config.resId) {
-                return root._setData(result.value, { keepChanges: true });
+                return root.setData(result.value, { keepChanges: true });
             }
             if (!result.length) {
                 throw new FetchRecordError([root.config.resId]);
             }
-            return root._setData(result[0], { keepChanges: true });
+            return root.setData(result[0], { keepChanges: true });
         }
         if (
             root.records.some((r) => r.isInEdition || r.hasPendingChanges || r.selected)
@@ -589,7 +589,7 @@ export class RelationalModel extends Model {
             delete root.config.currentGroups;
             result = await this._postprocessReadGroup(root.config, result);
         }
-        root._setData(result);
+        root.setData(result);
     }
 
     /**
@@ -615,9 +615,9 @@ export class RelationalModel extends Model {
         if (config.isMonoRecord) {
             const evalContext = getSpecEvalContext(config);
             if (!config.resId) {
-                return this._loadNewRecord(config, { evalContext, cache, signal });
+                return this.loadNewRecord(config, { evalContext, cache, signal });
             }
-            const records = await this._loadRecords(config, evalContext, cache, signal);
+            const records = await this.loadRecords(config, evalContext, cache, signal);
             return records[0];
         }
         if (config.resIds) {
@@ -629,7 +629,7 @@ export class RelationalModel extends Model {
                 config.offset,
                 config.offset + config.limit,
             );
-            const records = await this._loadRecords(
+            const records = await this.loadRecords(
                 { ...config, resIds },
                 getSpecEvalContext(config),
                 cache,
@@ -698,8 +698,8 @@ export class RelationalModel extends Model {
      * @param {OnChangeParams} [params={}]
      * @returns {Promise<Record<string, any>>}
      */
-    async _loadNewRecord(config, params = {}) {
-        return this._onchange(config, params);
+    async loadNewRecord(config, params = {}) {
+        return this.onchange(config, params);
     }
 
     /**
@@ -708,12 +708,7 @@ export class RelationalModel extends Model {
      * @param {Object} [cache]
      * @param {AbortSignal} [signal]
      */
-    async _loadRecords(
-        config,
-        evalContext = getSpecEvalContext(config),
-        cache,
-        signal,
-    ) {
+    async loadRecords(config, evalContext = getSpecEvalContext(config), cache, signal) {
         const { resModel, activeFields, fields, context } = config;
         const resIds = config.resId ? [config.resId] : config.resIds;
         if (!resIds.length) {
@@ -773,7 +768,7 @@ export class RelationalModel extends Model {
      * @param {OnChangeParams} params
      * @returns {Promise<Record<string, unknown>>}
      */
-    async _onchange(
+    async onchange(
         config,
         {
             changes = {},
@@ -823,7 +818,7 @@ export class RelationalModel extends Model {
      * @param {RelationalModelConfig} config
      * @param {Partial<RelationalModelConfig>} patch
      */
-    _patchConfig(config, patch) {
+    patchConfig(config, patch) {
         const tmpConfig = { ...config, ...patch };
         markRaw(tmpConfig.activeFields);
         markRaw(tmpConfig.fields);
@@ -837,7 +832,7 @@ export class RelationalModel extends Model {
      * commit?: (data: Record<string, unknown>) => unknown;
      * }} [options]
      */
-    async _reloadWithConfig(config, patch, { commit } = {}) {
+    async reloadWithConfig(config, patch, { commit } = {}) {
         const tmpConfig = { ...config, ...patch };
         if (tmpConfig.groups) {
             tmpConfig.groups = cloneGroupTree(tmpConfig.groups);
@@ -848,7 +843,7 @@ export class RelationalModel extends Model {
             this.notifyLifecycleSync("onWillLoadRoot", tmpConfig);
         }
         const data = await this._loadData(tmpConfig);
-        this._patchConfig(config, tmpConfig);
+        this.patchConfig(config, tmpConfig);
         if (data && commit) {
             commit(data);
         }
@@ -861,7 +856,7 @@ export class RelationalModel extends Model {
      * @param {RelationalModelConfig} config
      * @returns {Promise<number>}
      */
-    async _fetchExactCount(config) {
+    async fetchExactCount(config) {
         const count = await this.countKeepLast.add(
             this.orm.searchCount(config.resModel, config.domain, {
                 context: config.context,
@@ -875,7 +870,7 @@ export class RelationalModel extends Model {
      * @param {RelationalRecord} reloadedRecord
      * @param {Record<string, unknown>} serverValues
      */
-    _updateSimilarRecords(reloadedRecord, serverValues) {
+    updateSimilarRecords(reloadedRecord, serverValues) {
         if (this.config.isMonoRecord || !this.config.groupBy.length) {
             return;
         }
@@ -884,7 +879,7 @@ export class RelationalModel extends Model {
                 continue;
             }
             if (record.resId === reloadedRecord.resId) {
-                record._applyValues(serverValues);
+                record.applyValues(serverValues);
             }
         }
     }

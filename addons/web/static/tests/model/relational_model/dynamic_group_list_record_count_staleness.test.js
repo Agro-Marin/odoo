@@ -54,7 +54,7 @@ function makeGroupList({ limit, searchCount }) {
  */
 function reload(list, counts, domain = list._config.domain) {
     list._config.domain = domain;
-    list._setData({
+    list.setData({
         groups: counts.map((count) => ({ count })),
         length: counts.length,
     });

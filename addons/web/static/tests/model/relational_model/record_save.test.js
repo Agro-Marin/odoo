@@ -51,27 +51,30 @@ function makeRecord({
             context: { uid: 1, allowed_company_ids: [1] },
         },
         isInEdition: true,
-        _changes: markRaw({}),
+        changes: markRaw({}),
         _values: markRaw({}),
-        _checkValidity: () => validity,
-        _getChanges: () => ({ ...changes }),
+        get savedData() {
+            return this._values;
+        },
+        checkValidityLocked: () => validity,
+        getChangesLocked: () => ({ ...changes }),
         ...RECORD_STATE_TRANSITIONS,
         _clearChanges() {
-            this._changes = markRaw({});
+            this.changes = markRaw({});
             this.dirty = false;
         },
-        _discard: () => {},
-        _load: async () => {},
-        _setData: () => {},
-        _setEvalContext: () => {},
+        discardLocked: () => {},
+        loadLocked: async () => {},
+        setData: () => {},
+        setEvalContext: () => {},
         model: {
             closeUrgentSaveNotification() {},
             urgentSave: { isActive: false },
             useSendBeaconToSaveUrgently: false,
             env: { inDialog: false },
             load: async () => {},
-            _patchConfig: () => {},
-            _updateSimilarRecords: () => {},
+            patchConfig: () => {},
+            updateSimilarRecords: () => {},
             __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 lifecycle: {
@@ -106,7 +109,7 @@ describe("nextId on new record", () => {
 });
 
 describe("validity guard", () => {
-    test("returns false when _checkValidity fails", async () => {
+    test("returns false when checkValidityLocked fails", async () => {
         let webSaveCalled = false;
         const rec = makeRecord({
             resId: 1,
@@ -134,7 +137,7 @@ describe("no-changes short-circuit", () => {
             },
         });
         let evalContextCalls = 0;
-        rec._setEvalContext = () => evalContextCalls++;
+        rec.setEvalContext = () => evalContextCalls++;
         const result = await save(rec, { reload: false });
         expect(result).toBe(true);
         expect(webSaveCalled).toBe(false);
@@ -188,7 +191,7 @@ describe("reload:false save-in-place text-value baseline", () => {
         rec._textValues = markRaw({ name: "Typed value" });
         rec._initialTextValues = markRaw({ name: false });
         let evalContextCalls = 0;
-        rec._setEvalContext = () => evalContextCalls++;
+        rec.setEvalContext = () => evalContextCalls++;
 
         const result = await save(rec, { reload: false });
 
@@ -378,8 +381,8 @@ describe("urgent save (sendBeacon path)", () => {
         rec.fields = fields;
         rec.activeFields = activeFields;
         rec._values = markRaw({ name: "orig", partner_id: false, line_ids: [] });
-        rec.data = { line_ids: { _abandonRecords() {}, _clearCommands() {} } };
-        rec._getChanges = () =>
+        rec.data = { line_ids: { abandonRecords() {}, clearCommands() {} } };
+        rec.getChangesLocked = () =>
             computeChangeset({
                 changes: rawChanges,
                 values: rec._values,
@@ -387,7 +390,7 @@ describe("urgent save (sendBeacon path)", () => {
                 fields,
                 activeFields,
                 evalContext: {},
-                getCommands: (f, value, wr) => value._getCommands({ withReadonly: wr }),
+                getCommands: (f, value, wr) => value.getCommands({ withReadonly: wr }),
             });
         rec.model.urgentSave.isActive = true;
         rec.model.useSendBeaconToSaveUrgently = true;
@@ -408,11 +411,11 @@ describe("urgent save (sendBeacon path)", () => {
 
         const list = {
             clearCommandsCalls: 0,
-            _clearCommands() {
+            clearCommands() {
                 this.clearCommandsCalls++;
             },
-            _abandonRecords() {},
-            _getCommands() {
+            abandonRecords() {},
+            getCommands() {
                 return [[0, "virt-1", { name: "child" }]];
             },
         };
@@ -429,25 +432,28 @@ describe("urgent save (sendBeacon path)", () => {
             data: { lines: list },
             config: { isRoot: false, context: {} },
             isInEdition: true,
-            _changes: markRaw({ lines: list }),
+            changes: markRaw({ lines: list }),
             _values: markRaw({}),
+            get savedData() {
+                return this._values;
+            },
             _textValues: markRaw({}),
             _initialTextValues: markRaw({}),
-            _checkValidity: () => true,
-            _getChanges: () => ({ lines: list._getCommands() }),
+            checkValidityLocked: () => true,
+            getChangesLocked: () => ({ lines: list.getCommands() }),
             ...RECORD_STATE_TRANSITIONS,
-            _discard: () => {},
-            _load: async () => {},
-            _setData: () => {},
-            _setEvalContext: () => {},
+            discardLocked: () => {},
+            loadLocked: async () => {},
+            setData: () => {},
+            setEvalContext: () => {},
             model: {
                 closeUrgentSaveNotification() {},
                 urgentSave: { isActive: true },
                 useSendBeaconToSaveUrgently: true,
                 env: { inDialog: false },
                 load: async () => {},
-                _patchConfig: () => {},
-                _updateSimilarRecords: () => {},
+                patchConfig: () => {},
+                updateSimilarRecords: () => {},
                 __proto__: MODEL_LIFECYCLE_PROTO,
                 hooks: {
                     lifecycle: {
@@ -466,7 +472,7 @@ describe("urgent save (sendBeacon path)", () => {
 
         expect(result).toBe(true);
         expect(list.clearCommandsCalls).toBe(1);
-        expect({ ...rec._changes }).toEqual({});
+        expect({ ...rec.changes }).toEqual({});
         expect(rec.dirty).toBe(false);
     });
 });
@@ -489,12 +495,12 @@ describe("urgentSave in-flight guard", () => {
         rec.dirty = true;
         rec.saveState = new RecordSaveCoordinator();
         rec._values = markRaw({ name: "orig" });
-        rec._checkValidity = () => true;
-        rec._getChanges = () => ({ name: "X" });
-        rec._discard = () => {};
-        rec._load = async () => {};
-        rec._setData = () => {};
-        rec._setEvalContext = () => {};
+        rec.checkValidityLocked = () => true;
+        rec.getChangesLocked = () => ({ name: "X" });
+        rec.discardLocked = () => {};
+        rec.loadLocked = async () => {};
+        rec.setData = () => {};
+        rec.setEvalContext = () => {};
         rec.model = makeRecord({ resId: 7, webSave }).model;
         rec.model.urgentSave = new UrgentSaveCoordinator();
         rec.model.useSendBeaconToSaveUrgently = true;

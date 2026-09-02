@@ -24,12 +24,12 @@ function makeFakeAm(overrides = {}) {
             block: () => calls.ui.push("block"),
             unblock: () => calls.ui.push("unblock"),
         },
-        _makeController: (params) => ({ jsId: "controller_1", ...params }),
-        _getActionInfo: (action, props) => {
+        makeController: (params) => ({ jsId: "controller_1", ...params }),
+        getActionInfo: (action, props) => {
             calls.actionInfo.push({ action, props });
             return { props };
         },
-        _updateUI: async (controller, options) => {
+        updateUI: async (controller, options) => {
             calls.updateUI.push({ controller, options });
             return "updateUI-result";
         },

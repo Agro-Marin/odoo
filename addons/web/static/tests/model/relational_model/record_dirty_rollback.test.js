@@ -8,7 +8,7 @@ describe.current.tags("headless");
 
 function makeRecord(data = {}) {
     const model = {
-        _patchConfig: (config, patch) => Object.assign(config, patch),
+        patchConfig: (config, patch) => Object.assign(config, patch),
         urgentSave: {
             isActive: false,
             awaitUnlessUrgent: (promise) => promise,
@@ -53,10 +53,10 @@ describe("dirty rollback", () => {
         });
         expect(record.dirty).toBe(false);
 
-        await record._update({ partner_id: { id: 7, display_name: "Partner" } });
+        await record.updateLocked({ partner_id: { id: 7, display_name: "Partner" } });
 
         expect(record.dirty).toBe(false);
-        expect(Object.keys(record._changes)).toEqual([]);
+        expect(Object.keys(record.changes)).toEqual([]);
     });
 
     test("a real change after the no-op still marks dirty", async () => {
@@ -65,10 +65,10 @@ describe("dirty rollback", () => {
             partner_id: { id: 7, display_name: "Partner" },
         });
 
-        await record._update({ foo: "changed" });
+        await record.updateLocked({ foo: "changed" });
 
         expect(record.dirty).toBe(true);
-        expect(record._changes.foo).toBe("changed");
+        expect(record.changes.foo).toBe("changed");
     });
 
     test("a failing _onUpdate rolls dirty back on a pristine record", async () => {
@@ -79,7 +79,7 @@ describe("dirty rollback", () => {
 
         let thrown = null;
         try {
-            await record._update({ foo: "changed" });
+            await record.updateLocked({ foo: "changed" });
         } catch (e) {
             thrown = e;
         }
@@ -87,13 +87,13 @@ describe("dirty rollback", () => {
         expect(thrown).not.toBe(null);
         expect(thrown.message).toBe("onUpdate boom");
         expect(record.data.foo).toBe("yop");
-        expect(Object.keys(record._changes)).toEqual([]);
+        expect(Object.keys(record.changes)).toEqual([]);
         expect(record.dirty).toBe(false);
     });
 
     test("a failing _onUpdate keeps dirty when earlier edits exist", async () => {
         const record = makeRecord({ foo: "yop" });
-        await record._update({ foo: "first edit" });
+        await record.updateLocked({ foo: "first edit" });
         expect(record.dirty).toBe(true);
 
         record._onUpdate = () => {
@@ -101,14 +101,14 @@ describe("dirty rollback", () => {
         };
         let thrown = null;
         try {
-            await record._update({ foo: "second edit" });
+            await record.updateLocked({ foo: "second edit" });
         } catch (e) {
             thrown = e;
         }
 
         expect(thrown).not.toBe(null);
         expect(record.data.foo).toBe("first edit");
-        expect(record._changes.foo).toBe("first edit");
+        expect(record.changes.foo).toBe("first edit");
         expect(record.dirty).toBe(true);
     });
 });
@@ -116,10 +116,10 @@ describe("dirty rollback", () => {
 describe("undo invalid-field restore", () => {
     test("undoChanges restores flags synchronously without side effects", () => {
         const record = makeRecord({ foo: "yop" });
-        record._invalidFields.add("foo");
+        record.invalidFields.add("foo");
         record.dirty = true;
 
-        const undo = record._applyChanges({ foo: "fixed" }, {}, { undoable: true });
+        const undo = record.applyChanges({ foo: "fixed" }, {}, { undoable: true });
         expect(record.isFieldInvalid("foo")).toBe(false);
 
         undo();

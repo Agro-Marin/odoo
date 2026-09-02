@@ -19,7 +19,7 @@ function makeRec(id, steps, { updateResult = true, updateThrows = false } = {}) 
             }
             return updateResult;
         },
-        _discard() {
+        discardLocked() {
             steps.push(`${id}:discard`);
             rec.discarded = true;
         },
@@ -41,17 +41,17 @@ function makeGroup(id, value, records, steps) {
             limit: 40,
             orderBy: [],
             domain: [],
-            async _load() {
+            async loadLocked() {
                 steps.push(`${id}:load`);
             },
-            async _resequence() {
+            async resequenceLocked() {
                 steps.push(`${id}:reseq`);
             },
         },
-        _removeRecords() {
+        removeRecords() {
             steps.push(`${id}:remove`);
         },
-        _addRecord() {
+        addRecord() {
             steps.push(`${id}:add`);
         },
     };

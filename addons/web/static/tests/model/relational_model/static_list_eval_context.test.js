@@ -36,9 +36,9 @@ describe.current.tags("desktop");
 function trackEvalContext() {
     const calls = {};
     patchWithCleanup(RelationalRecord.prototype, {
-        _setEvalContext() {
+        setEvalContext() {
             calls[this.resModel] = (calls[this.resModel] || 0) + 1;
-            return super._setEvalContext(...arguments);
+            return super.setEvalContext(...arguments);
         },
     });
     return calls;

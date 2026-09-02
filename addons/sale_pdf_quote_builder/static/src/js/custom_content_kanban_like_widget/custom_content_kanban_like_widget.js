@@ -141,7 +141,9 @@ export class CustomContentKanbanLikeWidget extends Component {
             { product_document_ids: [command] },
             { save: true, withoutParentUpdate: true },
         );
-        await this.props.record.data.line_ids._onUpdate({ withoutOnchange: true });
+        await this.props.record.data.line_ids.notifyParentUpdate({
+            withoutOnchange: true,
+        });
         this.updateJson();
     }
 

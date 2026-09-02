@@ -132,7 +132,7 @@ function makeFormViewOpener(action, target, am) {
         if (target === "new") {
             return undefined;
         }
-        if (am._getView("form")) {
+        if (am.getView("form")) {
             return am.switchView(
                 "form",
                 { readonly, resId, resIds: activeIds },

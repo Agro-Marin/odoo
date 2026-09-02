@@ -36,10 +36,10 @@ function makeFakeAm(overrides = {}) {
             },
         },
         navigation: { guard: (prom) => prom },
-        _loadAction: async () => ({ type: "ir.actions.act_window" }),
+        fetchAction: async () => ({ type: "ir.actions.act_window" }),
         doAction: async () => {},
         doActionButton: async () => {},
-        _executeCloseAction: async () => {},
+        executeCloseAction: async () => {},
         ...overrides,
     };
     am.__ui = ui;
@@ -56,7 +56,7 @@ test("block-ui: overlay is released after a successful action", async () => {
 
 test("block-ui: overlay is released when the action load rejects", async () => {
     const am = makeFakeAm({
-        _loadAction: async () => {
+        fetchAction: async () => {
             throw new Error("load failed");
         },
     });
@@ -74,7 +74,7 @@ test("block-ui: overlay is released on the embedded-action early return", async 
     });
     let embeddedCalled = false;
     const am = makeFakeAm({
-        _loadAction: async () => ({
+        fetchAction: async () => ({
             id: 7,
             res_model: "res.partner",
             embedded_action_ids: [
@@ -104,7 +104,7 @@ test("block-ui: overlay is released when the RPC phase is superseded", async () 
     const loadDef = new Deferred();
     const am = makeFakeAm({
         navigation,
-        _loadAction: () => loadDef,
+        fetchAction: () => loadDef,
     });
     const prom = executeActionButton(am, {
         name: 1,
@@ -141,7 +141,7 @@ test("block-ui: the close flow runs when doAction resolves normally", async () =
     let closed = false;
     const am = makeFakeAm({
         doAction: async () => {},
-        _executeCloseAction: async () => {
+        executeCloseAction: async () => {
             closed = true;
         },
     });
@@ -267,7 +267,7 @@ test("an embedded-action delegation still settles the click's obligations", asyn
         context: {},
     };
     const am = makeFakeAm({
-        _loadAction: async () => ({
+        fetchAction: async () => ({
             type: "ir.actions.act_window",
             id: 5,
             embedded_action_ids: [embedded],
@@ -276,7 +276,7 @@ test("an embedded-action delegation still settles the click's obligations", asyn
             expect.step("doAction");
             await options?.onClose?.();
         },
-        _executeCloseAction: async () => expect.step("closeAction"),
+        executeCloseAction: async () => expect.step("closeAction"),
     });
     am.doActionButton = (params, options) => executeActionButton(am, params, options);
 
@@ -301,12 +301,12 @@ test("an embedded-action delegation still settles the click's obligations", asyn
 
 test("an embedded-action delegation matches the plain path's obligations", async () => {
     const am = makeFakeAm({
-        _loadAction: async () => ({ type: "ir.actions.act_window", id: 5 }),
+        fetchAction: async () => ({ type: "ir.actions.act_window", id: 5 }),
         doAction: async (_action, options) => {
             expect.step("doAction");
             await options?.onClose?.();
         },
-        _executeCloseAction: async () => expect.step("closeAction"),
+        executeCloseAction: async () => expect.step("closeAction"),
     });
     await executeActionButton(am, {
         name: 5,

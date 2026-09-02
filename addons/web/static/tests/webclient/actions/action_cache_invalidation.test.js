@@ -237,7 +237,7 @@ test("a non-act_window action write clears the cache but skips the refresh", asy
         controllerStack: [
             { state: { action: 1 }, action: {}, config: { breadcrumbs: [] } },
         ],
-        _getBreadcrumbs: () => [],
+        getBreadcrumbs: () => [],
     };
     const uninstall = installActionCacheInvalidation(am);
 
@@ -278,7 +278,7 @@ test("an ir.embedded.actions create/unlink clears the cache but skips the refres
         controllerStack: [
             { state: { action: 1 }, action: {}, config: { breadcrumbs: [] } },
         ],
-        _getBreadcrumbs: () => [],
+        getBreadcrumbs: () => [],
     };
     const uninstall = installActionCacheInvalidation(am);
 
@@ -340,7 +340,7 @@ test("navigation during the refresh abandons the stale breadcrumb write", async 
     const am = {
         breadcrumbCache: new BreadcrumbCache(),
         controllerStack: [staleTip],
-        _getBreadcrumbs: () => ["REBUILT"],
+        getBreadcrumbs: () => ["REBUILT"],
     };
     const uninstall = installActionCacheInvalidation(am);
 

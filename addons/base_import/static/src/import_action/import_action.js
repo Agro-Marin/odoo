@@ -142,7 +142,7 @@ export class ImportAction extends Component {
                 continue;
             }
             try {
-                const action = await this.actionService._loadAction(actionId);
+                const action = await this.actionService.fetchAction(actionId);
                 if (action?.type === "ir.actions.act_window") {
                     return action;
                 }

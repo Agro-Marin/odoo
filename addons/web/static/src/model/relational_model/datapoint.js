@@ -19,7 +19,7 @@ export class DataPoint extends SignalStore {
     _editState;
 
     /** @type {Set<string>} */
-    _loadedFieldNames;
+    loadedFieldNames;
 
     /**
      * @param {RelationalModel} model

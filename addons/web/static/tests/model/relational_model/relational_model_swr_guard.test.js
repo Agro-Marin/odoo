@@ -20,7 +20,7 @@ function makeModelWithRoot(records) {
             resId: undefined,
         },
         records,
-        _setData: (result) => setDataCalls.push(result),
+        setData: (result) => setDataCalls.push(result),
     };
     model.root = root;
     const rootLoadDef = Promise.resolve({ root, loadId: "load_1" });
@@ -45,7 +45,7 @@ function makeMonoModelWithRoot({ resId = 5, loadId = "load_1" } = {}) {
             loadId,
             resId,
         },
-        _setData: (result) => setDataCalls.push(result),
+        setData: (result) => setDataCalls.push(result),
     };
     model.root = root;
     const rootLoadDef = Promise.resolve({ root, loadId });

@@ -21,8 +21,8 @@ const SERVER_ROWS = {
 function makeList({ resIds = [], deleted = new Set() } = {}) {
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds: ids }) =>
+        patchConfig: (config, patch) => Object.assign(config, patch),
+        loadRecords: async ({ resIds: ids }) =>
             ids.filter((id) => !deleted.has(id)).map((id) => SERVER_ROWS[id]),
     };
     const config = {
@@ -48,11 +48,11 @@ function makeList({ resIds = [], deleted = new Set() } = {}) {
     });
 }
 
-describe("StaticList._replaceWith partial server response", () => {
+describe("StaticList.replaceWith partial server response", () => {
     test("a concurrently-deleted id is dropped, not left as an undefined hole", async () => {
         const list = makeList({ resIds: [1], deleted: new Set([99]) });
 
-        await list._replaceWith([1, 2, 99]);
+        await list.replaceWith([1, 2, 99]);
 
         expect(list.records.includes(/** @type {any} */ (undefined))).toBe(false);
         expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
@@ -63,7 +63,7 @@ describe("StaticList._replaceWith partial server response", () => {
     test("the phantom id is not shipped in the SET command", async () => {
         const list = makeList({ resIds: [1], deleted: new Set([99]) });
 
-        await list._replaceWith([1, 2, 99]);
+        await list.replaceWith([1, 2, 99]);
 
         expect(list._commands).toEqual([x2ManyCommands.set([1, 2])]);
     });
@@ -71,7 +71,7 @@ describe("StaticList._replaceWith partial server response", () => {
     test("a full response still keeps every id (guard is inert on the happy path)", async () => {
         const list = makeList({ resIds: [1] });
 
-        await list._replaceWith([1, 2, 3, 99]);
+        await list.replaceWith([1, 2, 3, 99]);
 
         expect(list.records.map((r) => r.resId)).toEqual([1, 2, 3, 99]);
         expect(list._currentIds).toEqual([1, 2, 3, 99]);

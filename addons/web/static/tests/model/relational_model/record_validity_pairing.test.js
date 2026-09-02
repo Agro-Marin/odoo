@@ -15,7 +15,8 @@ import { checkValidity } from "@web/model/relational_model/record_validator";
  */
 function makeRecord({ isNew = true, data = {}, isRequired = () => false } = {}) {
     const rec = makeRecordDouble({ isNew, data, values: data, isRequired });
-    rec._checkValidity = (/** @type {any} */ options) => checkValidity(rec, options);
+    rec.checkValidityLocked = (/** @type {any} */ options) =>
+        checkValidity(rec, options);
     return rec;
 }
 
@@ -33,22 +34,22 @@ describe("RecordEditState.clearValidity", () => {
 describe("savepoint", () => {
     test("captures and restores both validity sets", () => {
         const rec = makeRecord({ data: { name: false }, isRequired: () => true });
-        rec._checkValidity();
-        expect([...rec._invalidFields]).toEqual(["name"]);
-        expect([...rec._unsetRequiredFields]).toEqual(["name"]);
+        rec.checkValidityLocked();
+        expect([...rec.invalidFields]).toEqual(["name"]);
+        expect([...rec.unsetRequiredFields]).toEqual(["name"]);
 
         addSavePoint(rec);
         expect(rec._savePoint.unsetRequiredFields).toEqual(["name"]);
 
         rec.data.name = "filled";
-        rec._checkValidity();
-        expect([...rec._invalidFields]).toEqual([]);
-        expect([...rec._unsetRequiredFields]).toEqual([]);
+        rec.checkValidityLocked();
+        expect([...rec.invalidFields]).toEqual([]);
+        expect([...rec.unsetRequiredFields]).toEqual([]);
 
         rec.data.name = false;
         discard(rec);
-        expect([...rec._invalidFields]).toEqual(["name"]);
-        expect([...rec._unsetRequiredFields]).toEqual(["name"]);
+        expect([...rec.invalidFields]).toEqual(["name"]);
+        expect([...rec.unsetRequiredFields]).toEqual(["name"]);
     });
 
     test("a restored flag can still be pruned once the field stops being required", () => {
@@ -57,18 +58,18 @@ describe("savepoint", () => {
             data: { name: false },
             isRequired: () => required,
         });
-        rec._checkValidity();
+        rec.checkValidityLocked();
         addSavePoint(rec);
         rec.data.name = "filled";
-        rec._checkValidity();
+        rec.checkValidityLocked();
         rec.data.name = false;
         discard(rec);
 
         required = false;
-        rec._checkValidity({ removeInvalidOnly: true });
+        rec.checkValidityLocked({ removeInvalidOnly: true });
 
-        expect([...rec._invalidFields]).toEqual([]);
-        expect([...rec._unsetRequiredFields]).toEqual([]);
+        expect([...rec.invalidFields]).toEqual([]);
+        expect([...rec.unsetRequiredFields]).toEqual([]);
     });
 });
 
@@ -79,10 +80,10 @@ describe("discard without a savepoint", () => {
             data: { name: false },
             isRequired: () => true,
         });
-        rec._checkValidity();
+        rec.checkValidityLocked();
         rec._textValues = markRaw({});
         discard(rec);
-        expect([...rec._invalidFields]).toEqual([]);
-        expect([...rec._unsetRequiredFields]).toEqual([]);
+        expect([...rec.invalidFields]).toEqual([]);
+        expect([...rec.unsetRequiredFields]).toEqual([]);
     });
 });

@@ -35,8 +35,8 @@ function makeRecord(multiSaveResult) {
                 return multiSaveResult;
             },
         },
-        _save: () => {
-            calls.push("_save");
+        saveLocked: () => {
+            calls.push("saveLocked");
             return true;
         },
         _onUpdate: async () => {},
@@ -79,6 +79,6 @@ describe("multi-edit dispatch from update()", () => {
 
         await record.update({ foo: "after" }, { save: true });
 
-        expect(calls).toEqual(["_save"]);
+        expect(calls).toEqual(["saveLocked"]);
     });
 });
