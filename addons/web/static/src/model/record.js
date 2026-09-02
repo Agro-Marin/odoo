@@ -9,7 +9,7 @@ import { getFieldsSpec } from "@web/model/relational_model/field_spec";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 
 /** @import { Field, FieldInfo } from "@web/model/types" */
-/** @import { RelationalModelConfig } from "@web/model/relational_model/relational_model" */
+/** @import { LifecycleHooks, RelationalModelConfig, UIHooks } from "@web/model/relational_model/relational_model" */
 /** @import { ServiceFactories } from "services" */
 
 /**
@@ -18,7 +18,7 @@ import { RelationalModel } from "@web/model/relational_model/relational_model";
  * resId?: number | false;
  * mode?: "edit" | "readonly";
  * context?: {[key: string]: any};
- * hooks?: {[key: string]: Function};
+ * hooks?: { lifecycle?: Partial<LifecycleHooks>; ui?: Partial<UIHooks> };
  * activeFields?: {[key: string]: Partial<FieldInfo>};
  * fieldNames?: string[];
  * }} RecordInfo
