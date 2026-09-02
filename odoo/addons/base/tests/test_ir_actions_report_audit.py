@@ -290,7 +290,7 @@ class TestReportAttachmentNameCache(TransactionCase):
         ]._prepare_pdf_report_attachment_vals_list(self.report, streams)
         self.assertEqual(vals_list, [])
 
-    def test_missing_cache_falls_back_to_safe_eval(self):
+    def test_entry_without_a_name_is_skipped(self):
         for entry in (self._stream_entry(), self._stream_entry(attachment_name=None)):
             with self.subTest(entry=entry):
                 vals_list = self.env[
@@ -298,10 +298,7 @@ class TestReportAttachmentNameCache(TransactionCase):
                 ]._prepare_pdf_report_attachment_vals_list(
                     self.report, {self.partner.id: entry}
                 )
-                self.assertEqual(len(vals_list), 1)
-                self.assertEqual(
-                    vals_list[0]["name"], f"fallback-{self.partner.id}.pdf"
-                )
+                self.assertEqual(vals_list, [])
 
 
 @tagged("post_install", "-at_install")

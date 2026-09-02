@@ -511,7 +511,7 @@ class IrActionsServer(models.Model):
 
         def with_inherited(vals: ValuesType) -> ValuesType:
             if not (parent_id := vals.get("parent_id")):
-                return vals
+                return dict(vals)
             parent = self.browse(parent_id)
             return {
                 **vals,
@@ -608,7 +608,7 @@ class IrActionsServer(models.Model):
         )
         self.available_model_ids = allowed_models.ids
 
-    @api.depends("model_id", "update_path", "state")
+    @api.depends("model_id", "update_path", "state", "evaluation_type")
     def _compute_crud_relations(self) -> None:
         for action in self:
             action.update_related_model_id = False
@@ -950,10 +950,13 @@ class IrActionsServer(models.Model):
 
     def _resolve_runner(self) -> tuple[Callable | None, bool]:
         model_class = self.env.registry[self._name]
-        fn = getattr(model_class, f"_run_action_{self.state}_multi", None)
-        if fn and self._is_batch_safe():
-            return fn, True
-        return getattr(model_class, f"_run_action_{self.state}", None), False
+        fn = getattr(model_class, f"_run_action_{self.state}", None)
+        fn_multi = getattr(model_class, f"_run_action_{self.state}_multi", None)
+        if fn_multi is None and self.state in ("multi", "object_write"):
+            fn_multi = fn
+        if fn_multi and self._is_batch_safe():
+            return fn_multi, True
+        return fn, False
 
     def _is_batch_safe(self) -> bool:
         self.check_singleton()
@@ -989,27 +992,29 @@ class IrActionsServer(models.Model):
         safe_eval(self.code.strip(), eval_context, mode="exec", filename=str(self))
         return eval_context.get("action")
 
-    def _run_action_multi_multi(
-        self, eval_context: dict[str, Any] | None = None
-    ) -> Any:
-        return self._run_action_multi(eval_context)
-
     def _run_action_multi(self, eval_context: dict[str, Any] | None = None) -> Any:
         res = False
-        for act in self.child_ids.sorted():
+        children = self.child_ids.sorted()
+        if (env := (eval_context or {}).get("env")) is not None:
+            children = children.with_env(env)
+        for act in children:
             res = act.run() or res
         return res
 
-    def _run_action_object_write_multi(
-        self, eval_context: dict[str, Any] | None = None
-    ) -> None:
-        self._run_action_object_write(eval_context)
+    def _get_records_from_eval_context(
+        self, eval_context: dict[str, Any] | None
+    ) -> Any:
+        records = (eval_context or {}).get("records")
+        if records is None:
+            return self._get_records_targeted()
+        return records
 
     def _run_action_object_write(
         self, eval_context: dict[str, Any] | None = None
     ) -> None:
         self._write_update_path(
-            self._get_records_targeted(), self._eval_value(eval_context=eval_context)
+            self._get_records_from_eval_context(eval_context),
+            self._eval_value(eval_context=eval_context),
         )
 
     def _write_update_path(self, records: Any, vals: dict[int, Any]) -> None:
@@ -1044,7 +1049,7 @@ class IrActionsServer(models.Model):
         targets.write(value)
 
     def _run_action_webhook(self, eval_context: dict[str, Any] | None = None) -> None:
-        record = self._get_records_targeted()[:1]
+        record = self._get_records_from_eval_context(eval_context)[:1]
         url = self.webhook_url
         if not record:
             return
@@ -1142,10 +1147,12 @@ class IrActionsServer(models.Model):
                 _scrub_webhook_url(str(e), url, target),
             )
 
-    def _link_to_active_record(self, new_id: int) -> None:
+    def _link_to_active_record(
+        self, new_id: int, eval_context: dict[str, Any] | None = None
+    ) -> None:
         if not self.link_field_id:
             return
-        record = self._get_records_targeted()[:1]
+        record = self._get_records_from_eval_context(eval_context)[:1]
         if not record:
             return
         if self.link_field_id.ttype in ("one2many", "many2many"):
@@ -1159,13 +1166,13 @@ class IrActionsServer(models.Model):
         if not self.resource_ref:
             raise UserError(_("No record selected to duplicate."))
         dupe = self.resource_ref.copy()
-        self._link_to_active_record(dupe.id)
+        self._link_to_active_record(dupe.id, eval_context)
 
     def _run_action_object_create(
         self, eval_context: dict[str, Any] | None = None
     ) -> None:
         res_id, _res_name = self.env[self.crud_model_id.model].name_create(self.value)
-        self._link_to_active_record(res_id)
+        self._link_to_active_record(res_id, eval_context)
 
     def _prepare_eval_context(self, action: Self) -> dict[str, Any]:
 
@@ -1192,7 +1199,7 @@ class IrActionsServer(models.Model):
         eval_context = super()._prepare_eval_context(action=action)
         model_name = action.model_id.sudo().model
         model = self.env[model_name]
-        targets = action._get_records_targeted()
+        targets = self._get_records_targeted(action)
         records = targets or None
         record = targets[:1] or None
         if onchange_self := self.env.context.get("onchange_self"):
@@ -1212,8 +1219,8 @@ class IrActionsServer(models.Model):
 
     def _get_records_targeted(self, action: Self | None = None) -> Any:
         action = action or self
-        model = action.env[action.sudo().model_name]
-        context = action.env.context
+        model = self.env[action.sudo().model_name]
+        context = self.env.context
         if context.get("active_model") != model._name:
             if onchange_self := context.get("onchange_self"):
                 if onchange_self._name == model._name:

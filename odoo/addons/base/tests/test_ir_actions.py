@@ -1261,31 +1261,111 @@ ZeroDivisionError: division by zero"""
         self.assertIn("_action", payload)
         self.assertIn("name", payload)
 
-    def test_c5_record_level_acl_is_the_live_gate(self):
-        rule_model = self.env["ir.model"].search([("model", "=", "ir.rule")])
-        a_rule = self.env["ir.rule"].search([], limit=1)
-        self.assertTrue(a_rule, "precondition: at least one ir.rule exists")
-        self.assertFalse(
-            self.env["ir.rule"].with_user(self.user_demo).has_access("write"),
-            "precondition: demo user cannot write ir.rule",
+    def _hidden_partner_for_demo(self):
+        self.user_demo.write(
+            {"group_ids": [Command.link(self.env.ref("base.group_partner_manager").id)]}
         )
-        action = self.env["ir.actions.server"].create(
+        other_company = self.env["res.company"].create({"name": "Other Company"})
+        hidden = self.env["res.partner"].create(
+            {"name": "Hidden", "company_id": other_company.id}
+        )
+        self.assertTrue(
+            self.env["res.partner"].with_user(self.user_demo).has_access("write"),
+            "precondition: demo user has model-level write on res.partner",
+        )
+        with self.assertRaises(AccessError):
+            hidden.with_user(self.user_demo).check_access("write")
+        return hidden
+
+    def _run_as_demo_on(self, action, record):
+        return (
+            action.with_user(self.user_demo)
+            .with_context(
+                active_model=record._name, active_id=record.id, active_ids=record.ids
+            )
+            .run()
+        )
+
+    def test_c5_record_level_acl_is_the_live_gate(self):
+        hidden = self._hidden_partner_for_demo()
+        self.action.write(
             {
-                "name": "Touch a rule",
-                "model_id": rule_model.id,
-                "state": "code",
-                "code": "x = 1",
+                "state": "object_write",
+                "update_path": "name",
+                "evaluation_type": "value",
+                "value": "pwned",
             }
         )
         with (
             self.assertRaises(AccessError),
             mute_logger("odoo.addons.base.models.ir_actions_server"),
         ):
-            action.with_user(self.user_demo).with_context(
-                active_model="ir.rule",
-                active_id=a_rule.id,
-                active_ids=[a_rule.id],
-            ).run()
+            self._run_as_demo_on(self.action, hidden)
+        self.assertEqual(hidden.name, "Hidden")
+
+    def test_c5_record_level_acl_gates_the_children_of_a_multi_action(self):
+        hidden = self._hidden_partner_for_demo()
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "name",
+                "evaluation_type": "value",
+                "value": "pwned",
+            }
+        )
+        parent = self.env["ir.actions.server"].create(
+            {
+                "name": "Parent",
+                "model_id": self.res_partner_model.id,
+                "state": "multi",
+                "child_ids": [Command.set(self.action.ids)],
+            }
+        )
+        with (
+            self.assertRaises(AccessError),
+            mute_logger("odoo.addons.base.models.ir_actions_server"),
+        ):
+            self._run_as_demo_on(parent, hidden)
+        self.assertEqual(hidden.name, "Hidden")
+
+    def test_c6_multi_children_run_with_the_caller_privileges(self):
+        child = self.env["ir.actions.server"].create(
+            {
+                "name": "Child",
+                "model_id": self.res_partner_model.id,
+                "state": "code",
+                "code": "action = {'su': env.su, 'uid': env.uid}",
+            }
+        )
+        parent = self.env["ir.actions.server"].create(
+            {
+                "name": "Parent",
+                "model_id": self.res_partner_model.id,
+                "state": "multi",
+                "child_ids": [Command.set(child.ids)],
+            }
+        )
+        res = self._run_as_demo_on(parent, self.test_partner)
+        self.assertEqual(res, {"su": False, "uid": self.user_demo.id})
+
+    def test_c7_update_related_model_follows_evaluation_type(self):
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "parent_id",
+                "evaluation_type": "equation",
+                "value": "False",
+            }
+        )
+        self.assertFalse(self.action.update_related_model_id)
+        self.action.evaluation_type = "value"
+        self.assertEqual(self.action.update_related_model_id, self.res_partner_model)
+
+    def test_c8_create_does_not_mutate_the_caller_vals(self):
+        vals = {"name": "Kept", "model_id": self.res_partner_model.id, "state": "code"}
+        snapshot = dict(vals)
+        self.env["ir.actions.server"].create(vals)
+        self.assertEqual(vals, snapshot)
 
 
 @tagged("post_install", "-at_install")
