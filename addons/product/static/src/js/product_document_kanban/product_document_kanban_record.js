@@ -9,6 +9,18 @@ export class ProductDocumentKanbanRecord extends KanbanRecord {
         this.store = useService("mail.store");
         this.fileViewer = useFileViewer();
     }
+
+    /**
+     * The ir.attachment holding the file, or a falsy value for a record that
+     * has none (a document pointing at a URL).
+     *
+     * The view is reused by models that name that relation differently, so a
+     * subclass points this at its own field.
+     */
+    get attachment() {
+        return this.props.record.data.attachment_id;
+    }
+
     /**
      * @override
      *
@@ -17,9 +29,9 @@ export class ProductDocumentKanbanRecord extends KanbanRecord {
     onGlobalClick(ev) {
         if (ev.target.closest(CANCEL_GLOBAL_CLICK)) {
             return;
-        } else if (ev.target.closest(".o_kanban_previewer")) {
+        } else if (this.attachment && ev.target.closest(".o_kanban_previewer")) {
             const attachment = this.store["ir.attachment"].insert({
-                id: this.props.record.data.ir_attachment_id.id,
+                id: this.attachment.id,
                 name: this.props.record.data.name,
                 mimetype: this.props.record.data.mimetype,
             });
