@@ -334,7 +334,7 @@
                 <field name="user_id" />
                 <field name="activity_type_id" />
                 <filter
-                    name="filter_user_id_uid"
+                    name="filter_activities_my"
                     string="My Activities"
                     domain="[('user_id', '=', uid)]" />
                 <filter
@@ -345,12 +345,12 @@
                 <separator invisible="1" />
                 <filter
                     string="Overdue"
-                    name="filter_date_deadline_past"
+                    name="activities_overdue"
                     domain="[('date_deadline', '&lt;', 'today')]"
                     help="Show all records whose next activity date is past" />
                 <filter
                     string="Today"
-                    name="filter_date_deadline_today"
+                    name="activities_today"
                     domain="[('date_deadline', '=', 'today')]" />
                 <filter
                     string="Tomorrow"
@@ -364,7 +364,7 @@
                     domain="[                         ('date_deadline', '&gt;=', '=week_start'),                         ('date_deadline', '&lt;', '=week_start +1w')                         ]" />
                 <filter
                     string="Future"
-                    name="filter_date_deadline_future"
+                    name="activities_upcoming_all"
                     domain="[('date_deadline', '&gt;', 'today')]" />
                 <separator />
                 <filter
@@ -625,9 +625,9 @@
         <field
             name="context">{
             'force_search_count': 1,
-            'search_default_filter_user_id_uid': 1,
-            'search_default_filter_date_deadline_past': 1,
-            'search_default_filter_date_deadline_today': 1,
+            'search_default_filter_activities_my': 1,
+            'search_default_activities_overdue': 1,
+            'search_default_activities_today': 1,
             }</field>
     </record>
 
