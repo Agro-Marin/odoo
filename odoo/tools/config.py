@@ -15,7 +15,10 @@ from os.path import expandvars, normcase
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import odoo
 from odoo import release
+from odoo.db.settings import PoolSettings
+from odoo.db.settings import provide as _provide_pool_settings
 from odoo.libs.filesystem import appdirs
 from odoo.libs.func import classproperty
 from odoo.libs.password import CryptContext
@@ -2248,3 +2251,10 @@ class configmanager:
 
 
 config = configmanager()
+
+
+def _pool_settings() -> PoolSettings:
+    return PoolSettings.from_config(config, evented=odoo.evented)
+
+
+_provide_pool_settings(_pool_settings)

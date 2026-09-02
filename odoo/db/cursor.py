@@ -13,11 +13,10 @@ from psycopg import IsolationLevel
 from psycopg import sql as _sql
 from psycopg.pq import TransactionStatus as _TxStatus
 
-from odoo import tools
 from odoo.libs.accel import rows_to_dicts as _rows_to_dicts
-from odoo.libs.func import frame_codeinfo
-from odoo.tools import SQL
-from odoo.tools.misc import Callbacks, real_time
+from odoo.libs.datetime import real_time
+from odoo.libs.func import Callbacks, frame_codeinfo
+from odoo.libs.sql import SQL
 
 from .bulk import _BulkAccessMixin
 from .ddl import _inline_ddl_params, _is_schema_change, classify_statement
@@ -34,6 +33,7 @@ from .metrics import _MetricsMixin, categorize_query
 from .pool import ConnectionPool
 from .savepoint import Savepoint, _FlushingSavepoint
 from .schema_cache import TransactionSchemaCache
+from .settings import current as current_pool_settings
 
 if TYPE_CHECKING:
     from odoo.orm.runtime import Transaction
@@ -265,7 +265,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
             if (
                 os.getenv("ODOO_FAKETIME_TEST_MODE")
-                and self.dbname in tools.config["db_name"]
+                and self.dbname in current_pool_settings().db_names
             ):
                 self.execute("SET search_path = public, pg_catalog;")
                 self._cnx.commit()

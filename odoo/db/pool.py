@@ -13,7 +13,6 @@ import psycopg
 from psycopg_pool import ConnectionPool as _PsycopgPool
 from psycopg_pool import PoolClosed, PoolTimeout
 
-from odoo import tools
 from odoo.release import MIN_PG_VERSION
 
 from .budget import ConnectionBudget
@@ -26,6 +25,7 @@ from .lifecycle import (
 )
 from .probe import PROBE_CONNECT_TIMEOUT, ReachabilityProbe, get_libpq_connect_timeout
 from .reaper import IdlePoolReaper, note_activity
+from .settings import PoolSettings, current
 from .stats import PoolStats
 from .utils import is_maintenance_db
 
@@ -82,9 +82,8 @@ def _get_base_connection_options(conninfo: str, kwargs: dict) -> str:
 _GUC_NAME_RE = re.compile(r"-c\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=")
 
 
-def _prepare_session_gucs(base_options: str) -> str:
+def _prepare_session_gucs(base_options: str, configured: str) -> str:
     already_set = set(_GUC_NAME_RE.findall(base_options))
-    configured = tools.config["db_session_gucs"] or ""
     gucs = []
     for entry in configured.split(","):
         name, _, value = entry.partition("=")
@@ -95,12 +94,12 @@ def _prepare_session_gucs(base_options: str) -> str:
 
 
 def _prepare_connection_options(
-    conninfo: str, kwargs: dict, idle_session_ms: int, *, session_gucs: bool = True
+    conninfo: str, kwargs: dict, idle_session_ms: int, *, session_gucs: str | None
 ) -> str:
     base = _get_base_connection_options(conninfo, kwargs)
     parts = [
         base,
-        _prepare_session_gucs(base) if session_gucs else "",
+        _prepare_session_gucs(base, session_gucs) if session_gucs else "",
         f"-c idle_session_timeout={idle_session_ms}",
     ]
     return " ".join(p for p in parts if p)
@@ -133,6 +132,7 @@ class ConnectionPool:
         reap_idle_ttl: float = _DEFAULT_REAP_IDLE_TTL,
         budget: ConnectionBudget | None = None,
         pool_workers: int = _DEFAULT_POOL_WORKERS,
+        settings: PoolSettings | None = None,
     ):
         if maxconn <= 0:
             raise ValueError(f"ConnectionPool maxconn must be >= 1, got {maxconn}")
@@ -154,6 +154,7 @@ class ConnectionPool:
         self._max_lifetime = max_lifetime
         self._max_idle = max_idle
         self._pool_workers = pool_workers
+        self._settings = settings if settings is not None else current()
         self._reaper = IdlePoolReaper(reap_idle_ttl)
         self._lock = threading.Lock()
         self.stats = PoolStats()
@@ -198,7 +199,7 @@ class ConnectionPool:
 
         idle_session_ms = max(900, int(self._max_idle * 1.5)) * 1000
         kwargs["options"] = _prepare_connection_options(
-            conninfo, kwargs, idle_session_ms
+            conninfo, kwargs, idle_session_ms, session_gucs=self._settings.session_gucs
         )
 
         self._probe.check_connectable(key, conninfo, kwargs, deadline)
@@ -219,8 +220,8 @@ class ConnectionPool:
                 max_idle=self._max_idle,
                 reconnect_timeout=15,
                 configure=_configure_connection,
-                reset=_reset_connection,
-                check=_check_connection,
+                reset=self._reset_connection,
+                check=self._check_connection,
                 num_workers=self._pool_workers,
                 open=True,
             )
@@ -295,7 +296,7 @@ class ConnectionPool:
         if key is None:
             key = _normalize_dsn_key(connection_info)
         dbname = connection_info.get("dbname") or dict(key).get("database", "")
-        if is_maintenance_db(dbname):
+        if is_maintenance_db(dbname, self._settings):
             return self._borrow_directly(connection_info, deadline)
         try:
             pool = self._get_or_create_pool(key, connection_info, deadline)
@@ -339,8 +340,18 @@ class ConnectionPool:
         else:
             self._budget.release()
 
+    @property
+    def settings(self) -> PoolSettings:
+        return self._settings
+
+    def _reset_connection(self, conn: psycopg.Connection) -> None:
+        _reset_connection(conn, discard=self._settings.discard_on_return)
+
+    def _check_connection(self, conn: psycopg.Connection) -> None:
+        _check_connection(conn, grace=self._settings.healthcheck_grace)
+
     def _warn_about_leaks(self) -> None:
-        threshold = tools.config["db_leak_detection"]
+        threshold = self._settings.leak_detection
         if not threshold:
             return
         if not self._checkouts.acquire_report_interval(
@@ -364,7 +375,7 @@ class ConnectionPool:
         conninfo = kwargs.pop("dsn", "")
         kwargs["autocommit"] = False
         kwargs["options"] = _prepare_connection_options(
-            conninfo, kwargs, _DIRECT_IDLE_SESSION_TIMEOUT_MS, session_gucs=False
+            conninfo, kwargs, _DIRECT_IDLE_SESSION_TIMEOUT_MS, session_gucs=None
         )
         if not self._budget.acquire(_get_seconds_remaining(deadline)):
             self.stats.record_borrow_failed()

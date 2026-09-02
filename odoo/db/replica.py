@@ -5,11 +5,10 @@ import typing
 
 import psycopg
 
-from odoo.tools import config
-
 from .breaker import CircuitBreaker
 from .lag import LAG_SQL, ReplicaLagGate
 from .pool import PoolError
+from .settings import PoolSettings, current
 
 if typing.TYPE_CHECKING:
     from .cursor import BaseCursor
@@ -22,12 +21,8 @@ REPLICA_RETRY_TIME = 20 * 60
 CursorMode = typing.Literal["ro", "ro->rw", "rw"]
 
 
-def is_readonly_cursor_enabled() -> bool:
-    return bool(
-        config["db_replica_host"]
-        or config["test_enable"]
-        or "replica" in config["dev_mode"]
-    )
+def is_readonly_cursor_enabled(settings: PoolSettings | None = None) -> bool:
+    return (settings if settings is not None else current()).readonly_cursors
 
 
 class ReplicaRouter:

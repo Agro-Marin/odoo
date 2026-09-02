@@ -2,7 +2,7 @@ import os
 import warnings
 from urllib.parse import parse_qsl, urlsplit
 
-from odoo import tools
+from .settings import PoolSettings, current
 
 _ODOO_PGAPPNAME_WARNED = False
 
@@ -10,8 +10,11 @@ _ODOO_PGAPPNAME_WARNED = False
 SYSTEM_DBS = frozenset({"postgres", "template0", "template1"})
 
 
-def is_maintenance_db(db_name: str) -> bool:
-    return db_name in SYSTEM_DBS or db_name == tools.config["db_template"]
+def is_maintenance_db(db_name: str, settings: PoolSettings | None = None) -> bool:
+    if db_name in SYSTEM_DBS:
+        return True
+    template = (settings if settings is not None else current()).template
+    return db_name == template
 
 
 def get_value_marker_positions(query: str) -> list[int]:
@@ -27,14 +30,6 @@ def get_value_marker_positions(query: str) -> list[int]:
     return out
 
 
-_REPLICA_OVERRIDABLE: tuple[str, ...] = (
-    "host",
-    "port",
-    "user",
-    "password",
-    "sslmode",
-)
-
 _HEALTH_PARAMS: dict[str, str] = {
     "connect_timeout": "10",
     "tcp_user_timeout": "30000",
@@ -47,10 +42,11 @@ _HEALTH_PARAMS: dict[str, str] = {
 
 
 def get_connection_info_for_database(
-    db_or_uri: str, readonly: bool = False
+    db_or_uri: str, readonly: bool = False, settings: PoolSettings | None = None
 ) -> tuple[str, dict]:
     global _ODOO_PGAPPNAME_WARNED  # noqa: PLW0603  warn-once latch for the whole process
-    app_name = tools.config["db_app_name"]
+    settings = settings if settings is not None else current()
+    app_name = settings.app_name
     if "ODOO_PGAPPNAME" in os.environ:
         if not _ODOO_PGAPPNAME_WARNED:
             warnings.warn(
@@ -85,12 +81,7 @@ def get_connection_info_for_database(
         return db_name, info
 
     connection_info = {"dbname": db_or_uri, "application_name": app_name}
-    for p in _REPLICA_OVERRIDABLE:
-        cfg = tools.config["db_" + p]
-        if readonly:
-            cfg = tools.config.get("db_replica_" + p) or cfg
-        if cfg:
-            connection_info[p] = cfg
+    connection_info.update(settings.connection_keywords(readonly))
 
     connection_info.update(_HEALTH_PARAMS)
     return db_or_uri, connection_info

@@ -188,7 +188,7 @@ class TestPermitAccounting(unittest.TestCase):
         with _DirectBorrow(p) as h:
             p.borrow({"dbname": "postgres"})
         h.options.assert_called_once()
-        self.assertIs(h.options.call_args.kwargs["session_gucs"], False)
+        self.assertIsNone(h.options.call_args.kwargs["session_gucs"])
         self.assertIn(
             f"-c idle_session_timeout={pool._DIRECT_IDLE_SESSION_TIMEOUT_MS}",
             h.connect.call_args.kwargs["options"],
@@ -417,11 +417,11 @@ class TestOneConnectionOptionsAssembler(unittest.TestCase):
             mock.patch("odoo.db.pool._prepare_session_gucs", return_value="-c a=1"),
         ):
             self.assertEqual(
-                pool._prepare_connection_options("", {}, 5),
+                pool._prepare_connection_options("", {}, 5, session_gucs="a=1"),
                 "-c a=1 -c idle_session_timeout=5",
             )
             self.assertEqual(
-                pool._prepare_connection_options("", {}, 5, session_gucs=False),
+                pool._prepare_connection_options("", {}, 5, session_gucs=None),
                 "-c idle_session_timeout=5",
             )
 

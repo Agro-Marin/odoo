@@ -2,10 +2,10 @@ import logging
 import os
 import sys
 import threading
-import time
 import traceback
 from typing import Any
 
+from odoo.libs.datetime import real_time
 from odoo.libs.filesystem import which
 
 from .config import config
@@ -85,9 +85,6 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
         )
 
     return [x for i, x in enumerate(args) if not strip(args, i)]
-
-
-real_time = time.time
 
 
 def dumpstacks(

@@ -16,6 +16,7 @@ from odoo.libs.collections import (
     frozendict,
     submap,
 )
+from odoo.libs.func import Callbacks
 from odoo.libs.iteration import (
     PENDING,
     SENTINEL,
@@ -198,30 +199,6 @@ default_parser = _xml_lib.default_parser
 
 def clean_context(context: dict[str, typing.Any]) -> dict[str, typing.Any]:
     return {k: v for k, v in context.items() if not k.startswith("default_")}
-
-
-class Callbacks:
-    __slots__ = ["_funcs", "data"]
-
-    def __init__(self):
-        self._funcs: collections.deque[Callable] = collections.deque()
-        self.data = {}
-
-    def add(self, func: Callable) -> None:
-        self._funcs.append(func)
-
-    def run(self) -> None:
-        while self._funcs:
-            func = self._funcs.popleft()
-            func()
-        self.clear()
-
-    def clear(self) -> None:
-        self._funcs.clear()
-        self.data.clear()
-
-    def __len__(self) -> int:
-        return len(self._funcs)
 
 
 def get_diff(

@@ -1,12 +1,14 @@
 import atexit
 import logging
 
+from . import settings as pool_settings
 from .budget import ConnectionBudget
 from .cursor import BaseCursor, Cursor, Savepoint
 from .endpoints import EndpointRegistry, get_endpoint_key
 from .metrics import categorize_query
 from .pool import Connection, ConnectionPool, PoolError
 from .savepoint import get_or_create_row
+from .settings import PoolSettings
 from .schema import FunctionStatus, get_unaccent_status, has_trigram
 from .utils import SYSTEM_DBS, get_connection_info_for_database, is_maintenance_db
 
@@ -20,6 +22,7 @@ __all__ = [
     "EndpointRegistry",
     "FunctionStatus",
     "PoolError",
+    "PoolSettings",
     "Savepoint",
     "categorize_query",
     "close_all",
@@ -43,12 +46,17 @@ registry = EndpointRegistry()
 
 
 def db_connect(to: str, allow_uri: bool = False, readonly: bool = False) -> Connection:
-    db, info = get_connection_info_for_database(to, readonly)
+    settings = pool_settings.current()
+    db, info = get_connection_info_for_database(to, readonly, settings)
     if not allow_uri and db != to:
         msg = "URI connections not allowed"
         raise ValueError(msg)
     return Connection(
-        registry.get_pool_at_endpoint(get_endpoint_key(info), readonly), db, info
+        registry.get_pool_at_endpoint(
+            get_endpoint_key(info, settings), readonly, settings
+        ),
+        db,
+        info,
     )
 
 

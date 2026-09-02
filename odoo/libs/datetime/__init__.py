@@ -22,6 +22,7 @@ from .date_utils import (
     weekend,
 )
 
+from .clock import real_cpu_time, real_datetime_now, real_time
 from .tz import (
     utc,
     timezone,
@@ -51,6 +52,9 @@ __all__ = [
     "localize_standard",
     "localized",
     "parse_iso_date",
+    "real_cpu_time",
+    "real_datetime_now",
+    "real_time",
     "start_of",
     "subtract",
     "sum_intervals",

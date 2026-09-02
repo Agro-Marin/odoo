@@ -1,4 +1,5 @@
 import functools
+from collections import deque
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -6,6 +7,7 @@ if TYPE_CHECKING:
     import types
 
 __all__ = [
+    "Callbacks",
     "classproperty",
     "conditional",
     "frame_codeinfo",
@@ -15,6 +17,30 @@ __all__ = [
     "reset_cached_properties",
     "synchronized",
 ]
+
+
+class Callbacks:
+    __slots__ = ("_funcs", "data")
+
+    def __init__(self) -> None:
+        self._funcs: deque[Callable[[], object]] = deque()
+        self.data: dict[Any, Any] = {}
+
+    def add(self, func: Callable[[], object]) -> None:
+        self._funcs.append(func)
+
+    def run(self) -> None:
+        while self._funcs:
+            func = self._funcs.popleft()
+            func()
+        self.clear()
+
+    def clear(self) -> None:
+        self._funcs.clear()
+        self.data.clear()
+
+    def __len__(self) -> int:
+        return len(self._funcs)
 
 
 def reset_cached_properties(obj: object) -> None:

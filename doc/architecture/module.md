@@ -24,7 +24,9 @@ odoo/
 │   └── decorators, registration, helpers                        (cross-cutting)
 ├── api/ · fields/ · models/   Thin public re-export shims over orm/ (stable imports)
 ├── db/             Decomposed sql_db.py + the resilience tier (flat modules)
-│   ├── [foundation]   errors, dsn, utils
+│   ├── [foundation]   errors, dsn, utils,
+│   │                  settings (PoolSettings: the frozen snapshot of the
+│   │                  db_* options the pool is handed at boot)
 │   ├── [connectivity] pool, cursor, ddl, schema, savepoint, schema_cache,
 │   │                  bulk, lifecycle,
 │   │                  endpoints (the endpoint-keyed pool/budget registry),
@@ -156,7 +158,7 @@ contract, the direction is a CI gate rather than a convention.
 | Package | Owns | Must not import | Contract |
 |---------|------|-----------------|----------|
 | `libs/` | Odoo-agnostic utilities | any `odoo.*` except `odoo.libs` | `libs-is-dependency-free` |
-| `db/` | connections, cursors, DDL, pool resilience | `odoo.orm`, `odoo.models`, `odoo.fields`, `odoo.api` | `db-is-orm-agnostic` |
+| `db/` | connections, cursors, DDL, pool resilience | any `odoo.*` except `odoo.libs`, `odoo.exceptions`, `odoo.release` — the ORM by `db-is-orm-agnostic`, and `odoo.tools` with everything else by `db-imports-only-libs`, so its settings arrive as a `PoolSettings` snapshot | `db-is-orm-agnostic`, `db-imports-only-libs` |
 | `orm/` | models, fields, domains, Environment/Registry/Transaction, cache & compute | `odoo.service`, `odoo.http`, `odoo.cli` | `orm-below-the-serving-tier` |
 | `tools/` | Odoo-coupled utilities | `odoo.orm.runtime` (Layers 0–1 stay allowed); `odoo.http` at module scope | `tools-does-not-reach-the-orm-runtime`, `tools-stays-below-the-serving-tier` |
 | `modules/` | the module graph and what loads it | `odoo.addons.<module>` | `core-does-not-depend-on-addons` |
@@ -328,6 +330,7 @@ definition that runs.
 |----------|------|--------|
 | `libs-is-dependency-free` | `odoo/libs/**` must not import `odoo.*` (except `odoo.libs`) | ✅ clean |
 | `db-is-orm-agnostic` | `odoo/db/**` must not import `odoo.orm/models/fields/api` | ✅ clean |
+| `db-imports-only-libs` | `odoo/db/**` imports `odoo.libs`, `odoo.exceptions`, `odoo.release` and the standard library, nothing else — not `odoo.tools`, whose option dict reached the pool from eight modules until `db/settings.py` gave it one typed `PoolSettings` snapshot that `odoo.tools.config` builds and hands in | ✅ clean |
 | `tools-does-not-reach-the-orm-runtime` | `odoo/tools/**` must not import `odoo.orm.runtime` (Layers 0–1 stay allowed) | ✅ clean |
 | `tools-stays-below-the-serving-tier` | `odoo/tools/**` must not import `odoo.http` **at module scope**; an import inside a function is the sanctioned form, because the contract bounds what the layer costs to *load*, not what it may use | ✅ clean |
 | `orm-helpers-and-registration-stay-below-runtime` | `orm/helpers.py` & `orm/registration.py` must not import `orm/runtime` | ✅ clean |
@@ -609,6 +612,7 @@ seam, not an import.**
 | Seam | Mechanism |
 |---|---|
 | `db/` ↔ ORM | `orm/runtime/savepoint.py` assigns `_OrmFlushingSavepoint` to `BaseCursor._flushing_savepoint_cls` at import, so `db/` never imports the ORM |
+| `db/` ↔ `tools.config` | `tools/config.py` gives `db/settings.py`'s slot a source that builds a frozen `PoolSettings` from the option dict; every pool captures the snapshot it was built from, the free functions take one or ask the slot, and a test installs its own — so `db/` reads typed fields and never the dict, and never imports `odoo.tools` |
 | `components/` ↔ runtime | `FieldCache`/`ComputeEngine` take callbacks for SQL and recompute, so the engine never imports `Environment` |
 | Layer 1 ↔ `BaseModel` | the model layer injects `BaseModel` into `orm/_recordset.py` via `set_base_model()`, so `fields/` and `domain/` recognise recordsets without importing Layer 2 |
 | CRUD ↔ persistence | the model mixins dispatch row I/O through `env.backend` |

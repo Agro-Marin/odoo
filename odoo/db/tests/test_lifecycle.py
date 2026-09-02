@@ -2,7 +2,7 @@ import unittest
 from time import monotonic
 from unittest.mock import patch
 
-from odoo.db import lifecycle
+from odoo.db import settings as pool_settings
 from odoo.db.lifecycle import (
     _IDLE_SINCE_ATTR,
     _PREPARE_THRESHOLD,
@@ -12,6 +12,7 @@ from odoo.db.lifecycle import (
     _configure_connection,
     _reset_connection,
 )
+from odoo.db.settings import PoolSettings
 
 
 class _FakePrepared:
@@ -86,9 +87,17 @@ class TestResetSessionStateSql(unittest.TestCase):
 class TestResetConnection(unittest.TestCase):
     def _reset(self, discard):
         conn = _FakeConn()
-        with patch.object(lifecycle.tools, "config", {"db_discard_on_return": discard}):
-            _reset_connection(conn)
+        _reset_connection(conn, discard=discard)
         return conn
+
+    def test_the_default_is_the_installed_pool_policy(self):
+        for discard in (False, True):
+            with self.subTest(discard=discard):
+                conn = _FakeConn()
+                with pool_settings.installed(PoolSettings(discard_on_return=discard)):
+                    _reset_connection(conn)
+                expected = "DISCARD ALL" if discard else _RESET_SESSION_STATE_SQL
+                self.assertEqual([sql for sql, _ in conn.executed], [expected])
 
     def test_default_uses_the_cheap_reset(self):
         conn = self._reset(False)
@@ -139,8 +148,17 @@ class TestCheckConnection(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def _check(self, conn, grace=GRACE):
-        with patch.object(lifecycle.tools, "config", {"db_healthcheck_grace": grace}):
+        _check_connection(conn, grace=grace)
+
+    def test_the_default_is_the_installed_pool_policy(self):
+        conn = _FakeConn()
+        setattr(conn, _IDLE_SINCE_ATTR, monotonic() - 5)
+        with pool_settings.installed(PoolSettings(healthcheck_grace=60.0)):
             _check_connection(conn)
+        self.assertEqual(self.probed, [], "a 60s grace spares a 5s-idle connection")
+        with pool_settings.installed(PoolSettings(healthcheck_grace=1.0)):
+            _check_connection(conn)
+        self.assertEqual(self.probed, [conn])
 
     def test_recently_released_connection_skips_the_probe(self):
         conn = _FakeConn()

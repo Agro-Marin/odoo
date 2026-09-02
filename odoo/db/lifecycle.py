@@ -6,7 +6,7 @@ import psycopg
 from psycopg.adapt import Loader
 from psycopg_pool import ConnectionPool as _PsycopgPool
 
-from odoo import tools
+from .settings import current
 
 _PREPARE_THRESHOLD = 2
 """Executions of one statement text before psycopg prepares it server-side.
@@ -64,8 +64,10 @@ def _configure_connection(conn: psycopg.Connection) -> None:
     setattr(conn, _IDLE_SINCE_ATTR, monotonic())
 
 
-def _reset_connection(conn: psycopg.Connection) -> None:
-    if tools.config["db_discard_on_return"]:
+def _reset_connection(conn: psycopg.Connection, *, discard: bool | None = None) -> None:
+    if discard is None:
+        discard = current().discard_on_return
+    if discard:
         conn.autocommit = True
         conn.execute("DISCARD ALL", prepare=False)
         clear_prepared_cache(conn)
@@ -80,8 +82,9 @@ def _reset_connection(conn: psycopg.Connection) -> None:
     setattr(conn, _IDLE_SINCE_ATTR, monotonic())
 
 
-def _check_connection(conn: psycopg.Connection) -> None:
-    grace = tools.config["db_healthcheck_grace"]
+def _check_connection(conn: psycopg.Connection, *, grace: float | None = None) -> None:
+    if grace is None:
+        grace = current().healthcheck_grace
     idle_since = getattr(conn, _IDLE_SINCE_ATTR, None)
     if grace and idle_since is not None and monotonic() - idle_since < grace:
         return

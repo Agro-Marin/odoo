@@ -1,7 +1,10 @@
 import unittest
-from unittest.mock import patch
+from dataclasses import replace
+from typing import Any
 
+from odoo.db import settings as pool_settings
 from odoo.db import utils as db_utils
+from odoo.db.settings import PoolSettings
 from odoo.db.utils import (
     _HEALTH_PARAMS,
     get_connection_info_for_database,
@@ -9,54 +12,43 @@ from odoo.db.utils import (
     is_maintenance_db,
 )
 
+_BASE = PoolSettings(
+    app_name="odoo-{pid}",
+    host="primary.example",
+    port=5432,
+    user="odoo",
+    password="secret",
+    sslmode="require",
+    template="template0",
+)
 
-class _Config(dict):
-    pass
 
-
-def _config(**overrides):
-    base = {
-        "db_app_name": "odoo-{pid}",
-        "db_host": "primary.example",
-        "db_port": 5432,
-        "db_user": "odoo",
-        "db_password": "secret",
-        "db_sslmode": "require",
-        "db_template": "template0",
-        "db_replica_host": None,
-        "db_replica_port": None,
-    }
-    base.update(overrides)
-    return _Config(base)
+def _settings(**overrides: Any) -> PoolSettings:
+    return replace(_BASE, **overrides)
 
 
 class TestIsMaintenanceDb(unittest.TestCase):
     def test_system_and_template_databases(self):
-        with patch.object(db_utils, "tools") as tools:
-            tools.config = _config()
-            for name in ("postgres", "template0", "template1"):
-                with self.subTest(name=name):
-                    self.assertTrue(is_maintenance_db(name))
+        for name in ("postgres", "template0", "template1"):
+            with self.subTest(name=name):
+                self.assertTrue(is_maintenance_db(name, _settings()))
 
     def test_the_configured_template_is_included(self):
-        with patch.object(db_utils, "tools") as tools:
-            tools.config = _config(db_template="tpl_custom")
-            self.assertTrue(is_maintenance_db("tpl_custom"))
+        self.assertTrue(
+            is_maintenance_db("tpl_custom", _settings(template="tpl_custom"))
+        )
 
-    def test_read_per_call_not_frozen_at_import(self):
-        with patch.object(db_utils, "tools") as tools:
-            tools.config = _config(db_template="tpl_a")
+    def test_the_default_reads_the_installed_settings_per_call(self):
+        with pool_settings.installed(_settings(template="tpl_a")):
             self.assertTrue(is_maintenance_db("tpl_a"))
-            tools.config = _config(db_template="tpl_b")
+        with pool_settings.installed(_settings(template="tpl_b")):
             self.assertFalse(is_maintenance_db("tpl_a"))
             self.assertTrue(is_maintenance_db("tpl_b"))
 
     def test_ordinary_databases_are_not_maintenance(self):
-        with patch.object(db_utils, "tools") as tools:
-            tools.config = _config()
-            for name in ("prod", "template_of_mine", "postgres_backup"):
-                with self.subTest(name=name):
-                    self.assertFalse(is_maintenance_db(name))
+        for name in ("prod", "template_of_mine", "postgres_backup"):
+            with self.subTest(name=name):
+                self.assertFalse(is_maintenance_db(name, _settings()))
 
     def test_system_dbs_has_one_definition(self):
         self.assertEqual(
@@ -69,9 +61,7 @@ class TestIsMaintenanceDb(unittest.TestCase):
 
 class TestConnectionInfoForKeywords(unittest.TestCase):
     def _info(self, name="mydb", readonly=False, **overrides):
-        with patch.object(db_utils, "tools") as tools:
-            tools.config = _config(**overrides)
-            return get_connection_info_for_database(name, readonly)
+        return get_connection_info_for_database(name, readonly, _settings(**overrides))
 
     def test_returns_the_database_name_unchanged(self):
         db, info = self._info("mydb")
@@ -85,8 +75,8 @@ class TestConnectionInfoForKeywords(unittest.TestCase):
         self.assertEqual(info["password"], "secret")
         self.assertEqual(info["sslmode"], "require")
 
-    def test_falsy_config_values_are_omitted_not_sent_empty(self):
-        _, info = self._info(db_host=False, db_password=False)
+    def test_unset_values_are_omitted_not_sent_empty(self):
+        _, info = self._info(host=None, password=None)
         self.assertNotIn("host", info)
         self.assertNotIn("password", info)
 
@@ -101,37 +91,42 @@ class TestConnectionInfoForKeywords(unittest.TestCase):
 
         _, info = self._info()
         self.assertEqual(info["application_name"], f"odoo-{os.getpid()}")
-        _, long_info = self._info(db_app_name="x" * 200)
+        _, long_info = self._info(app_name="x" * 200)
         self.assertEqual(len(long_info["application_name"]), 63)
+
+    def test_the_default_is_the_installed_settings(self):
+        with pool_settings.installed(_settings(host="installed.example")):
+            _, info = get_connection_info_for_database("mydb")
+        self.assertEqual(info["host"], "installed.example")
 
 
 class TestConnectionInfoForReplica(unittest.TestCase):
     def _info(self, readonly, **overrides):
-        with patch.object(db_utils, "tools") as tools:
-            tools.config = _config(**overrides)
-            return get_connection_info_for_database("mydb", readonly)[1]
+        return get_connection_info_for_database(
+            "mydb", readonly, _settings(**overrides)
+        )
 
     def test_replica_overrides_host_and_port_only(self):
-        info = self._info(True, db_replica_host="replica.example", db_replica_port=5433)
+        _, info = self._info(
+            readonly=True, replica_host="replica.example", replica_port=5433
+        )
         self.assertEqual(info["host"], "replica.example")
         self.assertEqual(info["port"], 5433)
         self.assertEqual(info["user"], "odoo")
         self.assertEqual(info["password"], "secret")
-        self.assertEqual(info["sslmode"], "require")
 
     def test_without_a_replica_host_readonly_targets_the_primary(self):
-        self.assertEqual(self._info(True)["host"], "primary.example")
+        _, info = self._info(readonly=True)
+        self.assertEqual(info["host"], "primary.example")
 
     def test_readonly_false_ignores_replica_settings(self):
-        info = self._info(False, db_replica_host="replica.example")
+        _, info = self._info(readonly=False, replica_host="replica.example")
         self.assertEqual(info["host"], "primary.example")
 
 
 class TestConnectionInfoForUri(unittest.TestCase):
     def _info(self, uri):
-        with patch.object(db_utils, "tools") as tools:
-            tools.config = _config()
-            return get_connection_info_for_database(uri)
+        return get_connection_info_for_database(uri, settings=_settings())
 
     def test_database_is_taken_from_the_uri_path(self):
         db, info = self._info("postgresql://user@host:5432/thedb")

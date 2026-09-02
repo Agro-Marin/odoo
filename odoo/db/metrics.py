@@ -5,7 +5,7 @@ import re
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
-from odoo.tools import SQL
+from odoo.libs.sql import SQL
 
 from .errors import CURSOR_LOGGER_NAME
 

@@ -128,6 +128,20 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
     ),
     Contract(
+        name="db-imports-only-libs",
+        source=("odoo.db",),
+        forbidden=("odoo",),
+        allow=("odoo.libs", "odoo.exceptions", "odoo.release"),
+        rationale=(
+            "db/ is a foundation layer: it imports odoo.libs, odoo.exceptions, "
+            "odoo.release and the standard library, nothing else. Its settings "
+            "arrive as a PoolSettings snapshot (db/settings.py) that odoo.tools.config "
+            "builds and hands in, so the pool never reads the option dict itself; "
+            "eight db modules did until 2026-09, which made `import odoo.db` load "
+            "odoo.tools and let tools/profiler.py's import of odoo.db close a cycle."
+        ),
+    ),
+    Contract(
         name="tools-stays-below-the-serving-tier",
         source=("odoo.tools",),
         forbidden=("odoo.http",),

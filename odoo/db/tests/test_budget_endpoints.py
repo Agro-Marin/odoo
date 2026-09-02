@@ -120,11 +120,13 @@ class TestOneBudgetPerServer(_BudgetCase):
             "os.environ.get",
             reads,
             "db_host/db_port are registered with env_name PGHOST/PGPORT, so "
-            "the config has already folded the environment in; reading it "
-            "again here is a second source of truth that misses a db_host set "
-            "in the conf file",
+            "PoolSettings.from_config has already folded the environment in; "
+            "reading it again here is a second source of truth that misses a "
+            "db_host set in the conf file",
         )
-        self.assertIn("tools.config", ast.unparse(tree))
+        self.assertNotIn("tools", ast.unparse(tree))
+        self.assertIn("settings.host", ast.unparse(tree))
+        self.assertIn("settings.port", ast.unparse(tree))
 
     def test_a_uri_to_another_server_still_gets_its_own_budget(self):
         with self._config(db_host="pg.example", db_port=5432):

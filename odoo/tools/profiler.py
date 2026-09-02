@@ -3,16 +3,15 @@ import logging
 import re
 import sys
 import threading
-import time
 import tracemalloc
 import types
 from contextlib import ExitStack, nullcontext
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, Self
 
 from psycopg import OperationalError
 
 from odoo import tools
+from odoo.libs.datetime import real_cpu_time, real_datetime_now, real_time
 from odoo.libs.gc import disabling_gc
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools import SQL
@@ -22,10 +21,6 @@ if TYPE_CHECKING:
     from types import EllipsisType, FrameType
 
 _logger = logging.getLogger(__name__)
-
-real_datetime_now = datetime.now
-real_time = time.time
-real_cpu_time = time.thread_time
 
 
 def _format_frame(frame: FrameType) -> tuple[str, int, str, str]:

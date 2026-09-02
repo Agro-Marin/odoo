@@ -12,8 +12,8 @@ from psycopg import sql as _sql
 from psycopg.adapt import Transformer as _Transformer
 from psycopg.types.json import Jsonb as _Jsonb
 
-from odoo.tools import SQL
-from odoo.tools.misc import real_time
+from odoo.libs.datetime import real_time
+from odoo.libs.sql import SQL
 
 from .errors import CURSOR_LOGGER_NAME, has_reached_server
 from .utils import get_value_marker_positions

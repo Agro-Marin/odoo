@@ -5531,14 +5531,14 @@ class TestMaintenanceConnectionOptions(BaseCase):
 
     def test_the_maintenance_path_opts_out_in_the_open(self):
         self.assertIn(
-            "session_gucs=False",
+            "session_gucs=None",
             inspect.getsource(ConnectionPool._borrow_directly),
             "the maintenance path must state its exemption at the call site",
         )
-        self.assertNotIn(
-            "session_gucs",
+        self.assertIn(
+            "session_gucs=self._settings.session_gucs",
             inspect.getsource(ConnectionPool._get_or_create_pool),
-            "the pooled path takes the default and should not restate it",
+            "the pooled path applies the pool's configured session policy",
         )
 
     def test_session_gucs_reach_a_pooled_connection(self):

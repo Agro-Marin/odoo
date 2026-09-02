@@ -1,14 +1,16 @@
 import typing
 import unittest
-from unittest import mock
 
 import psycopg
 
 from odoo.db import replica as replica_module
+from odoo.db import settings as pool_settings
 from odoo.db.breaker import CircuitBreaker
 from odoo.db.lag import ReplicaLagGate
 from odoo.db.pool import PoolError
 from odoo.db.replica import REPLICA_RETRY_TIME, ReplicaRouter
+from odoo.db.settings import PoolSettings
+from odoo.tools.config import configmanager
 
 
 class _Conn:
@@ -215,17 +217,13 @@ class TestLagGating(unittest.TestCase):
 
 
 class TestReadonlyCursorEnabled(unittest.TestCase):
-    BASE: typing.ClassVar[dict[str, typing.Any]] = {
-        "db_replica_host": None,
-        "test_enable": False,
-        "dev_mode": [],
-    }
-
-    def _with(self, **overrides):
-        return mock.patch.object(replica_module, "config", self.BASE | overrides)
-
     def test_a_plain_deployment_opens_no_second_connection(self):
-        with self._with():
+        self.assertIs(replica_module.is_readonly_cursor_enabled(PoolSettings()), False)
+
+    def test_the_switch_is_the_snapshot_not_the_option_dict(self):
+        with pool_settings.installed(PoolSettings(readonly_cursors=True)):
+            self.assertIs(replica_module.is_readonly_cursor_enabled(), True)
+        with pool_settings.installed(PoolSettings(readonly_cursors=False)):
             self.assertIs(replica_module.is_readonly_cursor_enabled(), False)
 
     def test_each_of_the_three_switches_enables_it(self):
@@ -234,8 +232,11 @@ class TestReadonlyCursorEnabled(unittest.TestCase):
             ("test_enable", True),
             ("dev_mode", ["replica"]),
         ):
-            with self.subTest(key=key), self._with(**{key: value}):
-                self.assertIs(replica_module.is_readonly_cursor_enabled(), True)
+            with self.subTest(key=key):
+                options = configmanager()
+                options[key] = value
+                self.assertIs(PoolSettings.from_config(options).readonly_cursors, True)
+        self.assertIs(PoolSettings.from_config(configmanager()).readonly_cursors, False)
 
 
 if __name__ == "__main__":

@@ -629,7 +629,7 @@ def test_every_db_and_http_module_is_in_a_tier():
             name.rsplit(".", 1)[1] for name in (*contract.source, *contract.forbidden)
         }
         if pkg == "db":
-            tiered |= {"errors", "dsn", "utils"}
+            tiered |= {"errors", "dsn", "utils", "settings"}
         on_disk = {
             p.stem
             for p in (repo_root / "odoo" / pkg).glob("*.py")
