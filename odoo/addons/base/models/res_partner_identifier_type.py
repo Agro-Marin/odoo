@@ -102,7 +102,7 @@ class ResPartnerIdentifierType(models.Model):
 
         Three stages, cheapest first: the format, then a rule named after the
         code, then whatever a localization adds by overriding `_check_hook`.
-        The code-specific rule is looked up as `_check_<code>` on this model,
+        The code-specific rule is looked up as `_validate_code_<code>` on this model,
         the same dispatch `account_vat` uses for `check_vat_xx`, so a
         localization adds one method instead of editing this one.
 
@@ -124,7 +124,7 @@ class ResPartnerIdentifierType(models.Model):
                     name=self.display_name,
                 )
             )
-        checker = getattr(self, f"_check_{(self.code or '').lower()}", None)
+        checker = getattr(self, f"_validate_code_{(self.code or '').lower()}", None)
         if checker and not checker(normalized):
             raise ValidationError(
                 self.env._(
