@@ -180,12 +180,16 @@ groups=$(grep -c 'model="res.groups"' "$MOD/security/res_groups.xml")
 assert_doc_cites "$groups groups" "the security group count"
 
 # ------------------------------------------------- claims that must stay true --
-# conventions.md and index.md both promise this model is unreachable. It was
-# not, between 2026-08-11 and 2026-08-18, and the documents said otherwise the
-# whole time. Asserted here as well as in tests/test_security.py, because the
-# thing that failed was the DOCUMENT, and only a doc harness can catch that.
+# index.md promises the mixin's concrete test consumer is not shipped from
+# here. It was, until 2026-09-02, and for a week before 2026-08-18 it also
+# carried 1,1,1,1 for every internal user while conventions.md said it carried
+# no ACL row at all. Both halves are asserted here, because the thing that
+# failed was the DOCUMENT, and only a doc harness can catch that.
+if grep -rq '_name = "approval.test.document"' "$MOD/models/"
+then bad "index.md says approval.test.document lives in test_approval; this module declares it"
+else ok; fi
 if grep -q '^access_.*model_approval_test_document' "$MOD/security/ir.model.access.csv"
-then bad "conventions.md says approval.test.document has NO ACL row; it has one"
+then bad "index.md says approval.test.document has NO ACL row here; it has one"
 else ok; fi
 
 # The state machine the docs describe, read off the source rather than retyped.

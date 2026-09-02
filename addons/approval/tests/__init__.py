@@ -1,6 +1,5 @@
 from . import (
     test_analytics_accuracy,
-    test_approval_mixin,
     test_approvals,
     test_approver_computation,
     test_approver_replacement,
@@ -23,7 +22,6 @@ from . import (
     test_lifecycle,
     test_multi_company,
     test_print_button,
-    test_rate_limit,
     test_request_change,
     test_security,
     test_sequential_approval,

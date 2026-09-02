@@ -1,7 +1,7 @@
 from odoo import fields
 from odoo.tests import tagged
 
-from .common import ApprovalCommon
+from odoo.addons.approval.tests.common import ApprovalCommon
 
 
 @tagged("post_install", "-at_install")

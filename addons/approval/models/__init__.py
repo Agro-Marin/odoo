@@ -15,7 +15,6 @@ from . import (
     approval_request_validation,
     approval_rule,
     approval_template,
-    approval_test_document,
     approval_utils,
     ir_attachment,
     mail_activity,

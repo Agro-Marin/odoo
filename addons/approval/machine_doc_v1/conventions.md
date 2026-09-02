@@ -36,7 +36,6 @@ Both sit under the `res_groups_privilege_approvals` privilege
 | `approval.metrics` | **none** (0,0,0,0) | full CRUD |
 | `approver.performance` | **none** (0,0,0,0) | full CRUD |
 | Wizards (decision, delegate) | full CRUD | (inherits from user) |
-| `approval.test.document` | **no ACL row at all** | — (reached via sudo/manager in tests) |
 
 **The three analytics models are manager-only.** Their `base.group_user`
 row exists but grants nothing — it is there to make the intent explicit
@@ -395,7 +394,7 @@ psql -U marin -d postgres -c \
 dropdb -U marin <db>
 ```
 
-Baseline: **506 tests, 0 failed, 0 errors** across the 29 test modules
+Baseline: **506 tests, 0 failed, 0 errors** across the 28 test modules
 (re-measured 2026-08-12 on a fresh install, ~90s).
 
 JS tests use the warm HOOT runner, not `odoo-bin`. Suite ids are

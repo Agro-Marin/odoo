@@ -16,9 +16,6 @@ This addon provides an extensible, maintainable editor.
     "depends": [
         "bus",
     ],
-    "data": [
-        "security/ir.model.access.csv",
-    ],
     "assets": {
         "web._assets_primary_variables": [
             (

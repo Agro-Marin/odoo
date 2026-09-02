@@ -1,19 +1,6 @@
 from odoo import fields, models
 from odoo.libs.sql import SQL
 
-# Concrete models the mixins' own tests run against.
-#
-# They are registered unconditionally, following this fork's convention for
-# test models (`approval.test.document`), because the defects these mixins
-# shipped with were all invisible to a suite that patched the abstract mixins
-# in place: a stand-alone model's own `_table_query` shadows a mixin property,
-# a missing `id` index only exists once a relation is really created, and a
-# rolling window only reaches its column list on the *second* tick. None of
-# that can be reached without real models.
-#
-# The cost is three tiny relations over one small table in every database that
-# installs this module.
-
 
 class ReportTestSource(models.Model):
     _name = "mixin.report.sql.test.source"

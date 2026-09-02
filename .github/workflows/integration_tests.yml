@@ -69,10 +69,15 @@ on:
       # module whose only purpose is to exercise them.
       - 'addons/base_order/**'
       - 'addons/test_base_order/**'
+      # The mixin_report_sql lane below, and both halves of it: the mixins
+      # and the module holding the concrete models they are measured on.
+      - 'addons/mixin_report_sql/**'
+      - 'addons/test_mixin_report_sql/**'
       # The approval lane below. 545 test methods, and `automation` is listed
       # with it because approval builds its workflows on automation's runtime --
       # a change there reaches approval's suite and no other.
       - 'addons/approval/**'
+      - 'addons/test_approval/**'
       - 'addons/automation/**'
       # The api_ai / project_hr / mixin_encryption lane below. `credential` and
       # `api_transport` are listed because api_ai is installed on top of them
@@ -370,8 +375,8 @@ env:
   #
   # Its own database, same reasoning as the suites above. mixin_report_sql
   # depends on base alone, so this is the cheapest lane here.
-  SQL_REPORT_INSTALL: mixin_report_sql
-  SQL_REPORT_TEST_TAGS: /mixin_report_sql
+  SQL_REPORT_INSTALL: mixin_report_sql,test_mixin_report_sql
+  SQL_REPORT_TEST_TAGS: /mixin_report_sql,/test_mixin_report_sql
 
   # `test_read_group` is the only coverage of the five read_group/ units --
   # _empty, fill, format, mixin and sql -- and gates.md has named it as the next
@@ -436,8 +441,8 @@ env:
   # The scope is the module's own machine_doc_v1/conventions.md, which states
   # `-i approval --test-tags '/approval'` and is right: unlike base_order,
   # approval's tests reach nothing past its own depends.
-  APPROVAL_INSTALL: approval
-  APPROVAL_TEST_TAGS: /approval
+  APPROVAL_INSTALL: approval,test_approval
+  APPROVAL_TEST_TAGS: /approval,/test_approval
 
   # The last three fork-native suites that ran nowhere, in one lane because
   # none is large enough to be worth its own database: api_ai (231),

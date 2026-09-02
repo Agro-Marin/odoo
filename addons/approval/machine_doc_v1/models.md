@@ -531,7 +531,7 @@ window before comparing, rather than summing mixed-currency totals. The
 window is scoped to `(company_id, create_uid, create_date >= now - hours,
 state not in excluded_states)` and excludes the record itself. Rate date
 comes from `_approval_rate_limit_rate_date()` (override to pin it).
-Covered by `tests/test_rate_limit.py`.
+Covered by `test_approval/tests/test_rate_limit.py`.
 
 ---
 
@@ -681,32 +681,6 @@ attachments by NAME, so two requirements sharing a name in any installed
 translation made the matching ambiguous. The link is structural now —
 `ir.attachment.approval_requirement_id`, set by the requester — so the name
 is a label and two requirements may share a translation freely.
-
----
-
-## approval.test.document (Test-Only)
-
-| Key | Value |
-|-----|-------|
-| Model | `approval.test.document` |
-| File | `models/approval_test_document.py` |
-| Type | Model |
-| Inherits | `mixin.mail.thread`, `mixin.approval` |
-
-### Fields
-
-| Field | Type | Key Attributes |
-|-------|------|----------------|
-| `name` | Char | required, tracking |
-| `description` | Text | |
-| `amount` | Float | tracking |
-| `amount_total` | Monetary | currency_field="currency_id" |
-| `partner_id` | Many2one(`res.partner`) | tracking |
-| `state` | Selection(draft/confirmed/approved/rejected) | default="draft", tracking |
-| `company_id` | Many2one(`res.company`) | default=env.company |
-| `hook_call_count` | Integer | default=0 |
-| `last_approval_state` | Char | |
-| `test_category_id` | Many2one(`approval.category`) | |
 
 ---
 

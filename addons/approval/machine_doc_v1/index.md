@@ -50,7 +50,6 @@ dashboards.
 | `approval_rule.py` | `approval.rule` | Conditional rules on amount / quantity / date range / priority: add approvers, REPLACE approvers (the former `approval.tier`, as `operator = between` + `action_type = set_approvers`), auto-approve, auto-refuse |
 | `approval_template.py` | `approval.template` | Request templates with smart defaults |
 | `approval_document_requirement.py` | `approval.document.requirement` | Required document types per category. A LABEL model since 19.0.1.0.23: the confirm-time check reads `ir.attachment.approval_requirement_id`, not the file name |
-| `approval_test_document.py` | `approval.test.document` | Test-only model implementing mixin.approval |
 | `approval_utils.py` | — (no model) | Module-level helpers shared across the split files: `is_approval_manager(env)` and `boolean_search_domain()` (the `search=` builder behind `is_overdue`, `is_delegated`, `is_pending_my_review`) |
 | `ir_attachment.py` | extends `ir.attachment` | `approval_requirement_id` — which required document a file IS — and blocks deletion of attachments on finalized requests |
 | `mail_activity.py` | extends `mail.activity` | Adds approval_request_id and approver_id computed fields |
@@ -97,8 +96,6 @@ dashboards.
 | `test_sla_tracking.py` | SLA status computation, compliance tracking |
 | `test_lifecycle.py` | Cancelled state, reset-to-draft, forced-terminal paths, locked fields, delegation fan-in (19.0.1.0.7) |
 | `test_request_change.py` | Approver-requested mid-flow edit (`pending_change_field`), and re-routing at re-submit (`TestRequestChangeReroutes`) |
-| `test_approval_mixin.py` | Mixin integration with test document model |
-| `test_rate_limit.py` | `_approval_rate_limit_exceeded()` across currencies (the multi-currency conversion in the submission throttle) |
 | `test_print_button.py` | Print-button visibility on the request form arch |
 | `test_dashboard.py` | Dashboard singleton, KPIs, bottleneck detection |
 | `test_analytics_accuracy.py` | SQL view accuracy, metric calculations |
@@ -152,7 +149,7 @@ into `test_approvals.py`).
 |------|---------|
 | `res_groups.xml` | 2 groups — `group_approval_approver`, `group_approval_manager` — under one `res.groups.privilege` (`res_groups_privilege_approvals`) |
 | `ir_rule.xml` | Record rules: multi-company, ownership, per-category `privacy_visibility` read audiences |
-| `ir.model.access.csv` | ACL for every shipped model except `approval.test.document`, which has none — the test model is reached through sudo or a manager |
+| `ir.model.access.csv` | ACL for every shipped model. The mixin's concrete test consumer is not one of them: `approval.test.document` lives in `test_approval`, which ships no ACL row for it |
 
 ## Directory Structure
 
@@ -176,7 +173,6 @@ approval/
 |   +-- approval_rule.py              # Conditional rules
 |   +-- approval_template.py          # Request templates
 |   +-- approval_document_requirement.py # Required documents
-|   +-- approval_test_document.py     # Test-only mixin consumer
 |   +-- approval_utils.py             # Module-level helpers (no model)
 |   +-- ir_attachment.py              # Attachment protection
 |   +-- mail_activity.py              # Activity extensions
@@ -192,7 +188,7 @@ approval/
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
 +-- migrations/                       # 18 script directories (19.0.1.0.1 .. .24)
-+-- tests/                            # 30 test modules + common.py
++-- tests/                            # 28 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -204,13 +200,13 @@ approval/
 
 | Metric | Count |
 |--------|-------|
-| Python files (non-test, incl. `__init__`/`__manifest__`) | 32 |
-| Python test files | 30 (+ `common.py`) |
+| Python files (non-test, incl. `__init__`/`__manifest__`) | 31 |
+| Python test files | 28 (+ `common.py`) |
 | XML files (non-static) | 27 |
 | XML files (static templates) | 4 |
 | JS files | 16 |
 | SCSS files | 4 |
-| ORM models (new) | 11 in `models/` + 2 wizards + 3 report models |
+| ORM models (new) | 10 in `models/` + 2 wizards + 3 report models |
 | ORM models (extended) | 5 (ir.attachment, mail.activity, mail.activity.type, res.groups, res.users) |
 | Abstract models | 2 (mixin.approval, mixin.approval.threshold) |
 | SQL view models | 2 |
