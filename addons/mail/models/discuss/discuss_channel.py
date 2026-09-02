@@ -510,17 +510,7 @@ class DiscussChannel(models.Model):
         return res
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_except_all_employee_channel(self) -> None:
-        try:
-            all_emp_group = self.env.ref("mail.channel_all_employees")
-        except ValueError:
-            all_emp_group = None
-        if all_emp_group and all_emp_group in self:
-            raise UserError(
-                self.env._(
-                    "You cannot delete those groups, as the Whole Company group is required by other modules."
-                )
-            )
+    def _notify_clients_of_the_deletion(self) -> None:
         for channel in self:
             channel._bus_send("discuss.channel/delete", {"id": channel.id})
 

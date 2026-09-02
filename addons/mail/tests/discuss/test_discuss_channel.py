@@ -1325,3 +1325,22 @@ class TestChannelInternals(MailCommon, HttpCase):
             self.env.user.partner_id.id,
         ]
         self.assertCountEqual(actual_member_ids, expected_member_ids)
+
+    @mute_logger("odoo.models.unlink")
+    def test_the_general_channel_deletes_like_any_other(self):
+        general = self.env.ref("mail.channel_all_employees")
+        general.unlink()
+        self.assertFalse(general.exists())
+
+    @mute_logger("odoo.models.unlink")
+    def test_the_publisher_warranty_cron_survives_a_deleted_general_channel(self):
+        """The guard in `update.py` is what makes the deletion safe: the cron
+        looks the channel up by xmlid and must tolerate its absence."""
+        self.env.ref("mail.channel_all_employees").unlink()
+        contract = self.env["publisher_warranty.contract"]
+        with patch.object(
+            type(contract),
+            "_get_sys_logs",
+            lambda self: {"messages": ["a message from the publisher"]},
+        ):
+            self.assertTrue(contract.update_notification(cron_mode=True))
