@@ -318,9 +318,11 @@ class DiscussChannelMember(models.Model):
             for channel in self.env["discuss.channel"].browse(set(added_by_channel))
         }
         for channel in name_members_by_channel:
+            limit = channel._channel_type_policy().max_members
             if (
-                channel.channel_type == "chat"
-                and len(channel.channel_member_ids) + added_by_channel[channel.id] > 2
+                limit
+                and len(channel.channel_member_ids) + added_by_channel[channel.id]
+                > limit
             ):
                 raise UserError(
                     _(
@@ -716,7 +718,7 @@ class DiscussChannelMember(models.Model):
             )
             if devices:
                 icon = f"/web/image/discuss.channel/{self.channel_id.id}/avatar_128"
-                if self.channel_id.channel_type == "chat":
+                if self.channel_id._channel_type_policy().push_icon_is_sender:
                     if guest := self.env["mail.guest"]._get_guest_from_context():
                         icon = f"/web/image/mail.guest/{guest.id}/avatar_128"
                     elif partner := self.env.user.partner_id:

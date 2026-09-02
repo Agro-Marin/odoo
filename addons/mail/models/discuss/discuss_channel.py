@@ -1,6 +1,7 @@
 import base64
 import typing
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import timedelta
 from hashlib import sha512
 from secrets import token_urlsafe
@@ -60,12 +61,48 @@ def format_sql_in_literals(values: list[str]) -> str:
     return "(%s)" % ", ".join(f"'{value}'" for value in values)
 
 
-def is_channel(channel: DiscussChannel) -> bool:
-    return channel.channel_type == "channel"
+@dataclass(frozen=True, kw_only=True)
+class ChannelTypePolicy:
+    """Every behaviour that used to be a `channel_type == ...` literal.
+
+    A module adding a channel type adds a row to `_channel_type_policies` and
+    decides each attribute; nothing here has a default, so a new type cannot
+    silently inherit a literal's side.
+    """
+
+    supports_group_authorization: bool
+    narrates_membership_changes: bool
+    auto_invites_members_to_call: bool
+    allows_seen_infos: bool
+    allows_unfollow: bool
+    member_based_naming: bool
+    lazy_loads_members: bool
+    supports_sub_channels: bool
+    has_description: bool
+    default_avatar: str | None
+    max_members: int | None
+    email_invite: Literal["never", "always", "public_only"]
+    push_title: Literal["author", "hashtag", "name"]
+    push_icon_is_sender: bool
+    searchable_by_name: bool
+    describes_as_channel: bool
+    sub_channel_invites_mentioned: bool
 
 
-def is_channel_or_group(channel: DiscussChannel) -> bool:
-    return channel.channel_type in ("channel", "group")
+def supports_group_authorization(channel: DiscussChannel) -> bool:
+    return channel._channel_type_policy().supports_group_authorization
+
+
+def has_description(channel: DiscussChannel) -> bool:
+    return channel._channel_type_policy().has_description
+
+
+def has_generated_avatar(channel: DiscussChannel) -> bool:
+    return channel._channel_type_policy().default_avatar is not None
+
+
+def supports_sub_channels(channel: DiscussChannel) -> bool:
+    return channel._channel_type_policy().supports_sub_channels
 
 
 class DiscussChannel(models.Model):
@@ -303,7 +340,7 @@ class DiscussChannel(models.Model):
                 c.parent_channel_id
                 and (
                     c.parent_channel_id.parent_channel_id
-                    or c.parent_channel_id.channel_type not in ["channel", "group"]
+                    or not supports_sub_channels(c.parent_channel_id)
                     or c.parent_channel_id.channel_type != c.channel_type
                 )
             )
@@ -317,8 +354,9 @@ class DiscussChannel(models.Model):
 
     @api.constrains("channel_member_ids")
     def _constraint_partners_chat(self) -> None:
-        for ch in self.sudo().filtered(lambda ch: ch.channel_type == "chat"):
-            if len(ch.channel_member_ids) > 2:
+        for ch in self.sudo():
+            limit = ch._channel_type_policy().max_members
+            if limit and len(ch.channel_member_ids) > limit:
                 raise ValidationError(
                     self.env._(
                         "A channel of type 'chat' cannot have more than two users."
@@ -495,13 +533,13 @@ class DiscussChannel(models.Model):
     def _sync_field_names(self) -> defaultdict[str | None, list[StoreFieldSpec]]:
         res = defaultdict(list)
         res[None] += [
-            Store.Attr("avatar_cache_key", predicate=is_channel_or_group),
+            Store.Attr("avatar_cache_key", predicate=has_generated_avatar),
             "channel_type",
             "create_uid",
             "default_display_mode",
-            Store.Attr("description", predicate=is_channel_or_group),
-            Store.Many("group_ids", [], predicate=is_channel),
-            Store.One("group_public_id", predicate=is_channel),
+            Store.Attr("description", predicate=has_description),
+            Store.Many("group_ids", [], predicate=supports_group_authorization),
+            Store.One("group_public_id", predicate=supports_group_authorization),
             "last_interest_dt",
             "member_count",
             "name",
@@ -594,9 +632,9 @@ class DiscussChannel(models.Model):
 
     def _generate_avatar(self) -> bytes | Literal[False]:
         self.check_singleton()
-        if not is_channel_or_group(self):
+        avatar = self._channel_type_policy().default_avatar
+        if not avatar:
             return False
-        avatar = GROUP_AVATAR if self.channel_type == "group" else CHANNEL_AVATAR
         bgcolor = get_hsl_from_seed(self.uuid)
         avatar = avatar.replace('fill="#875a7b"', f'fill="{bgcolor}"')
         return base64.b64encode(avatar.encode())
@@ -637,7 +675,7 @@ class DiscussChannel(models.Model):
                     if channel.avatar_128
                     else "no-avatar"
                 )
-            elif is_channel_or_group(channel):
+            elif has_generated_avatar(channel):
                 channel.avatar_cache_key = sha512(
                     f"{channel.channel_type}/{channel.uuid}".encode()
                 ).hexdigest()
@@ -1006,7 +1044,7 @@ class DiscussChannel(models.Model):
     def _get_allowed_message_partner_ids(self, partner_ids: list[int]) -> list[int]:
         self.check_singleton()
         partners = self.env["res.partner"].browse(partner_ids)
-        if is_channel(self):
+        if supports_group_authorization(self):
             if self.group_public_id:
                 allowed = set(
                     self.env["res.partner"]
@@ -1102,7 +1140,7 @@ class DiscussChannel(models.Model):
                     else self._partner_wants_channel_notifications(m.partner_id)
                 )
             ).partner_id
-            if is_channel(self.parent_channel_id):
+            if self.parent_channel_id._channel_type_policy().sub_channel_invites_mentioned:
                 to_invite |= (message.partner_ids - members.partner_id).filtered(
                     self._partner_wants_channel_notifications
                 )
@@ -2049,7 +2087,7 @@ class DiscussChannel(models.Model):
         )
         self._prefetch_store_members(target, channels_with_all_members)
         res = [
-            Store.Attr("avatar_cache_key", predicate=is_channel_or_group),
+            Store.Attr("avatar_cache_key", predicate=has_generated_avatar),
             "channel_type",
             "create_uid",
             Store.Many(
@@ -2059,10 +2097,14 @@ class DiscussChannel(models.Model):
                 predicate=lambda channel: channel in channels_with_all_members,
             ),
             "default_display_mode",
-            Store.Attr("description", predicate=is_channel_or_group),
-            Store.One("from_message_id", predicate=is_channel_or_group),
-            Store.Many("group_ids", [], predicate=is_channel, sudo=True),
-            Store.One("group_public_id", ["full_name"], predicate=is_channel),
+            Store.Attr("description", predicate=has_description),
+            Store.One("from_message_id", predicate=supports_sub_channels),
+            Store.Many(
+                "group_ids", [], predicate=supports_group_authorization, sudo=True
+            ),
+            Store.One(
+                "group_public_id", ["full_name"], predicate=supports_group_authorization
+            ),
             Store.Many(
                 "invited_member_ids",
                 [
@@ -2083,7 +2125,7 @@ class DiscussChannel(models.Model):
                     c.channel_type in self._member_based_naming_channel_types()
                 ),
             ),
-            Store.One("parent_channel_id", predicate=is_channel_or_group),
+            Store.One("parent_channel_id", predicate=supports_sub_channels),
             Store.Many(
                 "rtc_session_ids",
                 mode="ADD",
@@ -2108,7 +2150,7 @@ class DiscussChannel(models.Model):
 
     def execute_command_help(self, **kwargs) -> None:
         self.check_singleton()
-        if is_channel(self):
+        if self._channel_type_policy().describes_as_channel:
             msg = self.env._(
                 "You are in channel %(bold_start)s#%(channel_name)s%(bold_end)s.",
                 bold_start=Markup("<b>"),
@@ -2166,9 +2208,13 @@ class DiscussChannel(models.Model):
 
     def _allow_invite_by_email(self) -> bool:
         self.check_singleton()
-        return self.channel_type == "group" or (
-            is_channel(self) and not self.group_public_id
-        )
+        match self._channel_type_policy().email_invite:
+            case "always":
+                return True
+            case "public_only":
+                return not self.group_public_id
+            case _:
+                return False
 
     def _get_push_notification_title(self, author, record_name: str) -> str:
         """Title of the web-push notification for a message in this channel.
@@ -2178,46 +2224,117 @@ class DiscussChannel(models.Model):
         `#name` form that reads as a public channel.
         """
         self.check_singleton()
-        if self.channel_type == "chat":
-            return author.name
-        if is_channel(self):
-            return f"#{record_name} - {author.name}"
-        if not record_name:
-            record_name = self.display_name
-        return f"{record_name} - {author.name}"
+        match self._channel_type_policy().push_title:
+            case "author":
+                return author.name
+            case "hashtag":
+                return f"#{record_name} - {author.name}"
+            case _:
+                return f"{record_name or self.display_name} - {author.name}"
+
+    @classmethod
+    def _channel_type_policies(cls) -> dict[str, ChannelTypePolicy]:
+        """One row per channel type; a module adding a type adds its row here.
+
+        A classmethod because the SQL CHECK on `group_public_id` is resolved
+        from the registry class, before any cursor or recordset exists.
+        """
+        return {
+            "chat": ChannelTypePolicy(
+                supports_group_authorization=False,
+                narrates_membership_changes=True,
+                auto_invites_members_to_call=True,
+                allows_seen_infos=True,
+                allows_unfollow=False,
+                member_based_naming=False,
+                lazy_loads_members=False,
+                supports_sub_channels=False,
+                has_description=False,
+                default_avatar=None,
+                max_members=2,
+                email_invite="never",
+                push_title="author",
+                push_icon_is_sender=True,
+                searchable_by_name=False,
+                describes_as_channel=False,
+                sub_channel_invites_mentioned=False,
+            ),
+            "channel": ChannelTypePolicy(
+                supports_group_authorization=True,
+                narrates_membership_changes=False,
+                auto_invites_members_to_call=False,
+                allows_seen_infos=False,
+                allows_unfollow=True,
+                member_based_naming=False,
+                lazy_loads_members=True,
+                supports_sub_channels=True,
+                has_description=True,
+                default_avatar=CHANNEL_AVATAR,
+                max_members=None,
+                email_invite="public_only",
+                push_title="hashtag",
+                push_icon_is_sender=False,
+                searchable_by_name=True,
+                describes_as_channel=True,
+                sub_channel_invites_mentioned=True,
+            ),
+            "group": ChannelTypePolicy(
+                supports_group_authorization=False,
+                narrates_membership_changes=True,
+                auto_invites_members_to_call=True,
+                allows_seen_infos=True,
+                allows_unfollow=True,
+                member_based_naming=True,
+                lazy_loads_members=True,
+                supports_sub_channels=True,
+                has_description=True,
+                default_avatar=GROUP_AVATAR,
+                max_members=None,
+                email_invite="always",
+                push_title="name",
+                push_icon_is_sender=False,
+                searchable_by_name=True,
+                describes_as_channel=False,
+                sub_channel_invites_mentioned=False,
+            ),
+        }
+
+    def _channel_type_policy(self) -> ChannelTypePolicy:
+        self.check_singleton()
+        return self._channel_type_policies()[self.channel_type]
+
+    @classmethod
+    def _types_with(cls, attribute: str) -> list[str]:
+        return [
+            channel_type
+            for channel_type, policy in cls._channel_type_policies().items()
+            if getattr(policy, attribute)
+        ]
 
     @classmethod
     def _types_supporting_group_authorization(cls) -> list[str]:
-        """Types that may carry `group_public_id` / `group_ids`.
-
-        Read by the SQL CHECK, by `_constraint_group_id_channel` and by
-        `_compute_group_public_id`, so a new type is admitted in one place.
-        A classmethod because the CHECK definition is resolved from the registry
-        class, before any cursor or recordset exists.
-        """
-        return ["channel"]
+        return cls._types_with("supports_group_authorization")
 
     def _narrates_membership_changes(self) -> bool:
-        """Whether joining or leaving posts a system message in the thread."""
-        self.check_singleton()
-        return not is_channel(self)
+        return self._channel_type_policy().narrates_membership_changes
 
     def _auto_invites_members_to_call(self) -> bool:
-        """Whether adding a member while a call is running rings them in."""
-        self.check_singleton()
-        return not is_channel(self)
+        return self._channel_type_policy().auto_invites_members_to_call
 
     def _types_allowing_seen_infos(self) -> list[str]:
-        return ["chat", "group"]
+        return self._types_with("allows_seen_infos")
 
     def _types_allowing_unfollow(self) -> list[str]:
-        return ["channel", "group"]
+        return self._types_with("allows_unfollow")
 
     def _member_based_naming_channel_types(self) -> list[str]:
-        return ["group"]
+        return self._types_with("member_based_naming")
 
     def _lazy_load_members_channel_types(self) -> list[str]:
-        return ["channel", "group"]
+        return self._types_with("lazy_loads_members")
+
+    def _types_searchable_by_name(self) -> list[str]:
+        return self._types_with("searchable_by_name")
 
     def _get_access_action(
         self, access_uid: int | None = None, force_website: bool = False
