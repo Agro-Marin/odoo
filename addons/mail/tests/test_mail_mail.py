@@ -56,3 +56,38 @@ class MailCase(TransactionCase):
             "Ignoring SMTPServerDisconnected while trying to quit non open session"
         )
         self.assertEqual(mail.state, "outgoing")
+
+    def _mail_with_link_instead_of_attach(self):
+        """A mail whose single attachment is too big to travel as an attachment."""
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base.default_max_email_size", "0.001"
+        )
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": "big.txt",
+                "raw": b"x" * 4096,
+                "res_model": "res.partner",
+                "res_id": self.env.user.partner_id.id,
+            }
+        )
+        return self.env["mail.mail"].create(
+            {
+                "body_html": "<p>ORIGINAL BODY</p>",
+                "email_to": "recipient@example.com",
+                "attachment_ids": [(4, attachment.id)],
+            }
+        )
+
+    def test_attachment_links_come_before_the_body(self):
+        mail = self._mail_with_link_instead_of_attach()
+        body, attachments = mail._prepare_outgoing_attachments(mail.body_html, {})
+        body = str(body)
+        self.assertFalse(
+            attachments, "the oversized attachment must have become a link"
+        )
+        self.assertIn("/web/content/", body)
+        self.assertLess(
+            body.index("/web/content/"),
+            body.index("ORIGINAL BODY"),
+            "attachment links must be prepended, not buried under the message",
+        )

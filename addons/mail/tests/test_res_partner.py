@@ -121,6 +121,30 @@ class TestPartner(MailCommon):
         self.assertEqual(partner.email_normalized or "", expected_email_normalized)
         return partner
 
+    @users("employee")
+    def test_autofollow_on_create(self):
+        """A partner is an internal record: creating one must not subscribe its
+        creator to the partner's own chatter."""
+        partner = self.env["res.partner"].create({"name": "Some Customer"})
+        self.assertFalse(
+            partner.message_follower_ids,
+            "creating a partner must not subscribe the creator to it",
+        )
+
+    @users("employee")
+    def test_autofollow_on_create_explicit_optin(self):
+        """The default is off, not hardcoded: a caller asking to subscribe still gets it."""
+        partner = (
+            self.env["res.partner"]
+            .with_context(mail_create_nosubscribe=False)
+            .create({"name": "Some Customer"})
+        )
+        self.assertEqual(
+            partner.message_follower_ids.partner_id,
+            self.env.user.partner_id,
+            "mail_create_nosubscribe=False must still subscribe the creator",
+        )
+
     def test_address_tracking(self):
         self.env.company.name = "YourCompany"
         company_partner = self.env.company.partner_id
@@ -810,7 +834,8 @@ class TestPartner(MailCommon):
         self.assertEqual(p1.message_follower_ids.partner_id, self.partner_admin + p3)
         self.assertEqual(p1.message_ids, p1_msg_ids_init + p1_msg1)
         self.assertEqual(p2.activity_ids, self.env["mail.activity"])
-        self.assertEqual(p2.message_follower_ids.partner_id, self.partner_admin)
+        # p2 was only created, never posted on: nobody follows it
+        self.assertFalse(p2.message_follower_ids.partner_id)
         self.assertEqual(p2.message_ids, p2_msg_ids_init)
 
         MergeForm = Form(

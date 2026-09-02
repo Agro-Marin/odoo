@@ -159,7 +159,10 @@ test("Hover on chat bubble shows chat name + last message preview", async () => 
     await leave();
     await contains(".o-mail-ChatBubble-preview", { count: 0 });
     await hover(".o-mail-ChatBubble[name='Demo']");
-    await contains(".o-mail-ChatBubble-preview", { text: "Demo" });
+    // no message yet: say so instead of leaving the preview line blank
+    await contains(".o-mail-ChatBubble-preview", {
+        text: "This is the start of your conversation",
+    });
     await leave();
     await rpc("/mail/message/post", {
         post_data: { body: "Hi", message_type: "comment" },

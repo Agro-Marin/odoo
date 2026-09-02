@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import Any, Self
 
 from odoo import api, fields, models, tools
-from odoo.api import DomainType
+from odoo.api import DomainType, ValuesType
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools.misc import limited_field_access_token
@@ -91,6 +91,17 @@ class ResPartner(models.Model):
 
     def _mail_get_partners(self, introspect_fields: bool = False) -> dict:
         return {partner.id: partner for partner in self}
+
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        # A partner is an internal record used all over the place -- addons post
+        # reminders and notifications on it with explicit recipients -- so the
+        # creator has no reason to follow it. Default to not subscribing, while
+        # letting an explicit ``mail_create_nosubscribe=False`` opt back in.
+        nosubscribe = self.env.context.get("mail_create_nosubscribe", True)
+        return super(
+            ResPartner, self.with_context(mail_create_nosubscribe=nosubscribe)
+        ).create(vals_list)
 
     @api.model
     def _get_view_cache_key(

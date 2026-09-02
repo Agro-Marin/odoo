@@ -163,7 +163,12 @@ export class DiscussCommandPalette {
             partners = Object.values(this.store["res.partner"].records).filter(
                 (partner) =>
                     partner.main_user_id?.share === false &&
-                    cleanTerm(partner.displayName).includes(this.cleanedTerm) &&
+                    // the server searches on name OR email
+                    // (res.partner._search_for_channel_invite), so a partner
+                    // matched by email is already in the store: match on both
+                    // here or we pay the fetch and drop the result.
+                    (cleanTerm(partner.displayName).includes(this.cleanedTerm) ||
+                        cleanTerm(partner.email).includes(this.cleanedTerm)) &&
                     (!filtered || !filtered.has(partner)),
             );
             partners = this.suggestion

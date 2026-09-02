@@ -447,7 +447,11 @@ export class ResPartner extends webModels.ResPartner {
                 if (!search_term) {
                     return true;
                 }
+                // mirror the server domain: name ilike OR email ilike
                 if (partner.name && partner.name.toLowerCase().includes(search_term)) {
+                    return true;
+                }
+                if (partner.email && partner.email.toLowerCase().includes(search_term)) {
                     return true;
                 }
                 return false;

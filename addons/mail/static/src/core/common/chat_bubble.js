@@ -4,6 +4,7 @@ import { ImStatus } from "@mail/core/common/im_status";
 import { useHover } from "@mail/utils/common/hooks";
 import { Component, useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { _t } from "@web/core/translation";
 import { useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover";
 class ChatBubblePreview extends Component {
@@ -17,10 +18,9 @@ class ChatBubblePreview extends Component {
 
     get previewText() {
         const lastMessage = this.thread?.newestPersistentOfAllMessage;
-        if (!lastMessage) {
-            return false;
-        }
-        return lastMessage.previewText;
+        return (
+            lastMessage?.previewText || _t("This is the start of your conversation")
+        );
     }
 }
 
