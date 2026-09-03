@@ -1,11 +1,15 @@
 import re
 from pathlib import Path
 
+from odoo import tools
+from odoo.libs.lint.scan import scan_regex_patterns
 from odoo.tests import tagged
 
-from .lint_case import LintCase, _module_roots, framework_paths
+from .lint_case import LintCase, _module_roots
 
 PRIVATE_CALL = re.compile(r"`(_[a-z][a-z0-9_]*)\(\)`")
+
+DEF_PATTERN = r"\bdef [A-Za-z_]\w*"
 
 KNOWN_STALE = frozenset(
     {
@@ -47,20 +51,15 @@ class MachineDocIdentifierLinter(LintCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.defined = set()
         cls.references = []
-        sources = [Path(p) for p in framework_paths()]
         roots = [Path(r) for r in _module_roots()]
-        for root in roots:
-            sources.extend(
-                path for path in root.rglob("*.py") if "__pycache__" not in path.parts
-            )
-        for path in sources:
-            try:
-                text = path.read_text(encoding="utf-8")
-            except OSError, UnicodeDecodeError:
-                continue
-            cls.defined.update(re.findall(r"\bdef ([A-Za-z_]\w*)", text))
+        framework_root = Path(tools.config.root_path)
+        hits = scan_regex_patterns(
+            [str(framework_root)], [".py"], [DEF_PATTERN], ["addons", "__pycache__"]
+        ) + scan_regex_patterns(
+            [str(root) for root in roots], [".py"], [DEF_PATTERN], ["__pycache__"]
+        )
+        cls.defined = {matched.removeprefix("def ") for _, _, _, matched in hits}
 
         for root in roots:
             for doc_dir in root.glob("machine_doc_v*"):

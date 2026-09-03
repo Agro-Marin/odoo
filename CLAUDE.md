@@ -60,7 +60,7 @@ Each crate's `build.rs` stamps a CRC of its sources into the binary (`crates/odo
 | Crate | Role |
 |---|---|
 | `odoo_rust` | The runtime extension above. |
-| `odoo_lint` | Parallel source scanner behind four `test_lint` gates. **Not** a runtime dependency — build only to run those gates: `cd crates/odoo_lint && maturin develop --release`. Separate wheel because it is test-only and dominated the runtime one: 1156 KB / 35 crates with it, 266 KB / 15 without. |
+| `odoo_lint` | Parallel source scanner behind five `test_lint` gates. **Not** a runtime dependency — build only to run those gates: `cd crates/odoo_lint && maturin develop --release`. Separate wheel because it is test-only and dominated the runtime one: 1156 KB / 35 crates with it, 266 KB / 15 without. |
 | `odoo_build` | Shared build-script support, so the fingerprint algorithm that must match `odoo/libs/native.py` exists once. |
 
 Run `cargo fmt --all`, `cargo clippy --workspace`, `cargo test --workspace` from `crates/`, not from a member.
