@@ -28,6 +28,22 @@ class TestPrivateAddressAccess(TransactionCase):
                 "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
             }
         )
+        cls.manager = cls.env["res.users"].create(
+            {
+                "name": "Contact Manager",
+                "login": "private_address_manager",
+                "group_ids": [
+                    (
+                        6,
+                        0,
+                        [
+                            cls.env.ref("base.group_user").id,
+                            cls.env.ref("base.group_partner_manager").id,
+                        ],
+                    )
+                ],
+            }
+        )
         cls.subject = Partner.create({"name": "Subject Person"})
         cls.subject_home = Partner.create(
             {
@@ -89,6 +105,35 @@ class TestPrivateAddressAccess(TransactionCase):
         """
         with self.assertRaises(AccessError):
             self.subject_home.with_user(self.reader).read(["street", "city"])
+
+    def test_a_contact_manager_cannot_delete_another_persons_private_address(self):
+        """Hidden rows were still deletable by id; the rule now covers unlink.
+
+        Write is already refused because the ORM will not write a row the user
+        cannot read, but unlink checked only the ACL, so any partner manager
+        who obtained the id could remove someone else's home address.
+        """
+        with self.assertRaises(AccessError):
+            self.subject_home.with_user(self.manager).unlink()
+        self.assertTrue(self.subject_home.exists())
+
+    def test_the_subject_deletes_their_own_private_address(self):
+        own = self.env["res.partner"].create(
+            {
+                "parent_id": self.manager.partner_id.id,
+                "type": "private",
+                "street": "9 Removable Lane",
+            }
+        )
+        own.with_user(self.manager).unlink()
+        self.assertFalse(own.exists())
+
+    def test_a_contact_manager_still_deletes_an_ordinary_address(self):
+        other = self.env["res.partner"].create(
+            {"parent_id": self.subject.id, "type": "delivery", "street": "Dock 5"}
+        )
+        other.with_user(self.manager).unlink()
+        self.assertFalse(other.exists())
 
     def test_the_rule_is_global_and_must_stay_global(self):
         """A group-scoped rule here would be permissive, not restrictive.
