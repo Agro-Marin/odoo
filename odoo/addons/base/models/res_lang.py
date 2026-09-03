@@ -397,7 +397,8 @@ class ResLang(models.Model):
             ):
                 raise UserError(
                     _(
-                        "You cannot archive the language in which Odoo was setup as it is used by automated processes."
+                        "Cannot deactivate a language that is used by archived users, "
+                        "such as the ones automated processes run as."
                     )
                 )
             if (

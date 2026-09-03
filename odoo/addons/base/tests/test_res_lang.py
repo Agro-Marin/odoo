@@ -191,6 +191,21 @@ class test_res_lang(TransactionCase):
         with self.assertRaises(UserError):
             language.active = False
 
+    def test_archived_user_with_archived_partner_names_the_archived_user(self):
+        language = self.env["res.lang"]._activate_lang("en_GB")
+        user = self.env["res.users"].create(
+            {
+                "name": "Bar",
+                "login": "bar@example.com",
+                "lang": "en_GB",
+                "active": False,
+            }
+        )
+        user.partner_id.active = False
+
+        with self.assertRaisesRegex(UserError, "archived users"):
+            language.active = False
+
     def test_get_data(self):
         ResLang = self.env["res.lang"]
         en_id = ResLang._activate_lang("en_US").id
