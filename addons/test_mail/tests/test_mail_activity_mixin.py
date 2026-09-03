@@ -512,6 +512,108 @@ class TestActivityMixin(TestActivityCommon):
             self.assertEqual(activity_2.state, "overdue")
             self.assertEqual(activity_3.state, "today")
 
+    @freeze_time("2025-09-15 10:00:00")
+    def test_mail_activity_mixin_search_done_and_archived(self):
+        """`action_done` archives the activity, so a filter on its done date
+
+        used to come back empty. Searching `date_done` -- directly or through a
+        record's `activity_ids` -- must reach the archived ones, while a plain
+        search still hides them.
+        """
+        archived_record = self.env["mail.test.activity"].create(
+            {"name": "Archived Test Record", "active": False}
+        )
+        common_values = {
+            "res_model_id": self.env["ir.model"]._get_id("mail.test.activity"),
+            "user_id": self.user_employee.id,
+            "activity_type_id": self.env.ref("mail.mail_activity_data_todo").id,
+            "date_deadline": "2025-09-03",
+        }
+        active_activity, done_activity, done_on_archived = self.env[
+            "mail.activity"
+        ].create(
+            [
+                common_values | {"summary": summary, "res_id": res_id}
+                for summary, res_id in [
+                    ("Active To-Do", self.test_record.id),
+                    ("Done To-Do", self.test_record.id),
+                    ("Done To-Do on Archived Record", archived_record.id),
+                ]
+            ]
+        )
+        (done_activity + done_on_archived).action_done()
+        all_activities = active_activity + done_activity + done_on_archived
+        all_records = self.test_record + archived_record
+
+        for case, domain, expected in [
+            (
+                "a plain search still finds only the active activity",
+                [("id", "in", all_activities.ids)],
+                active_activity,
+            ),
+            (
+                "a search on date_done reaches the archived (done) ones",
+                [("id", "in", all_activities.ids), ("date_done", "=", "2025-09-15")],
+                done_activity + done_on_archived,
+            ),
+            (
+                "a falsy date_done leaf must not un-archive the search",
+                [("id", "in", all_activities.ids), ("date_done", "=", False)],
+                active_activity,
+            ),
+        ]:
+            with self.subTest(model="mail.activity", domain=domain):
+                self.assertEqual(
+                    self.env["mail.activity"].search(domain), expected, case
+                )
+
+        for case, domain, context, expected in [
+            (
+                "a related date_done finds the active parent record",
+                [
+                    ("id", "in", all_records.ids),
+                    ("activity_ids.date_done", "=", "2025-09-15"),
+                ],
+                {},
+                self.test_record,
+            ),
+            (
+                "active_test=False on the parent also brings the archived one",
+                [
+                    ("id", "in", all_records.ids),
+                    ("activity_ids.date_done", "=", "2025-09-15"),
+                ],
+                {"active_test": False},
+                all_records,
+            ),
+            (
+                "date_done nested in an `any` still un-archives the subquery",
+                [
+                    ("id", "in", all_records.ids),
+                    (
+                        "activity_ids",
+                        "any",
+                        [
+                            ("date_done", "=", "2025-09-15"),
+                            ("date_deadline", ">=", "2025-09-01"),
+                            ("date_deadline", "<", "2025-09-05"),
+                        ],
+                    ),
+                ],
+                {},
+                self.test_record,
+            ),
+        ]:
+            with self.subTest(
+                model="mail.test.activity", domain=domain, context=context
+            ):
+                found = (
+                    self.env["mail.test.activity"]
+                    .with_context(**context)
+                    .search(domain)
+                )
+                self.assertEqual(found, expected, case)
+
     @users("employee")
     def test_mail_activity_mixin_search_activity_user_id_false(self):
         """Test the search method on the "activity_user_id" when searching for non-set user"""
