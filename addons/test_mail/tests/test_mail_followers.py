@@ -1054,10 +1054,10 @@ class FollowerAccessTest(MailCommon):
         ORM search and therefore flushed, answered correctly about the same
         record at the same instant.
 
-        Written as "the two readers agree" rather than "the batch reader returns
-        X" because that is the invariant: they are two implementations of one
-        question, and the paged one is only worth having while it answers the
-        same thing.
+        The single-record reader now routes through the paged one, so the two
+        cannot disagree any more; what keeps this test honest is the final
+        assertion that the moved follower is absent, which a raw, unflushed
+        read would fail.
         """
         record = self.env["mail.test.simple"].create({"name": "Two readers"})
         partner = self.env["res.partner"].create(
@@ -1091,6 +1091,56 @@ class FollowerAccessTest(MailCommon):
         )
         self.assertFalse(
             single, "precondition: the follower no longer belongs to this record"
+        )
+
+    def test_message_get_followers_pages_after_the_given_follower(self):
+        """`message_get_followers(after=X)` is the "load more" call: it must
+        return the page after X only, and add it to what the client holds
+        rather than replace it."""
+        record = self.env["mail.test.simple"].create({"name": "Paged"})
+        partners = self.env["res.partner"].create(
+            [{"name": f"Follower {index}"} for index in range(3)]
+        )
+        record.message_subscribe(partner_ids=partners.ids)
+        self.env.flush_all()
+        followers = (
+            self.env["mail.followers"]
+            .sudo()
+            .search(
+                [
+                    ("res_model", "=", record._name),
+                    ("res_id", "=", record.id),
+                    ("partner_id", "in", partners.ids),
+                ],
+                order="id ASC",
+            )
+        )
+        self.assertEqual(len(followers), 3)
+
+        store = Store()
+        page = record._message_followers_to_store(store, after=followers[0].id, limit=1)
+        self.assertEqual(page, followers[1])
+        result = store.get_result()
+        self.assertEqual(
+            [follower["id"] for follower in result["mail.followers"]],
+            [followers[1].id],
+        )
+        [thread] = result["mixin.mail.thread"]
+        [(mode, _ids)] = thread["followers"]
+        self.assertEqual(mode, "ADD", "a continuation page adds to the client's list")
+
+        first_page = Store()
+        record._message_followers_to_store(first_page, limit=2)
+        result = first_page.get_result()
+        self.assertEqual(
+            [follower["id"] for follower in result["mail.followers"]],
+            followers[:2].ids,
+        )
+        [thread] = result["mixin.mail.thread"]
+        self.assertEqual(
+            len(thread["followers"]),
+            2,
+            "a first page replaces the client's list: plain entries, no ADD wrapper",
         )
 
 

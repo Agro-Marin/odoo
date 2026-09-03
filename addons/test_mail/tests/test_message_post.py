@@ -2284,6 +2284,95 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
                 )
 
     @users("employee")
+    def test_message_post_batch_with_an_email_from_and_no_author(self):
+        """`_message_post_batch` resolved the default author on the whole batch;
+        with an `email_from` and no `author_id` that reaches
+        `_partner_find_from_emails_single`, which refuses a non-singleton. The
+        default author is resolved once, as `_message_log_batch` and
+        `_message_notify_batch` already did."""
+        records = self.env["mail.test.simple"].create([{"name": "S1"}, {"name": "S2"}])
+        email_from = '"Unknown Sender" <unknown.sender@test.example.com>'
+
+        messages = records._message_post_batch(
+            {record.id: Markup("<p>Body</p>") for record in records},
+            email_from=email_from,
+            subtype_id=self.env.ref("mail.mt_note").id,
+        )
+
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(messages.mapped("email_from"), [email_from, email_from])
+        self.assertFalse(messages.author_id, "no partner holds that address")
+
+    @users("employee")
+    def test_message_post_values_have_the_same_keys_batched_or_not(self):
+        """Hooks such as `_message_post_after_hook` and `_notify_thread` read
+        the values dict; the single and batched builders must hand them the
+        same keys, so a hook cannot see `partner_ids` from one and a `KeyError`
+        from the other."""
+        record = self.test_record.with_env(self.env)
+        common = {
+            "message_type": "comment",
+            "subject": "Same keys",
+            "subtype_id": self.env.ref("mail.mt_comment").id,
+            "author_id": self.partner_employee.id,
+            "email_from": self.partner_employee.email_formatted,
+        }
+        single = record._message_post_values(
+            Markup("<p>Body</p>"),
+            {},
+            author_guest_id=False,
+            parent_id=False,
+            partner_ids=[],
+            outgoing_email_to=False,
+            incoming_email_to=False,
+            incoming_email_cc=False,
+            attachments=None,
+            attachment_ids=[],
+            **common,
+        )
+        [batched] = record._message_post_batch_values(
+            {record.id: Markup("<p>Body</p>")},
+            {},
+            subtype_ids={},
+            authors={},
+            tracking_values={},
+            **common,
+        )
+        self.assertEqual(set(single), set(batched))
+        self.assertFalse(single["tracking_value_ids"])
+        self.assertFalse(batched["tracking_value_ids"])
+        self.assertEqual(batched["partner_ids"], [])
+        self.assertEqual(batched["attachment_ids"], [])
+
+    @users("employee")
+    def test_attachments_format_is_checked_the_same_for_post_and_notify(self):
+        record = self.test_record.with_env(self.env)
+        mixed = [("first.txt", b"first"), ["second.txt", b"second", {}]]
+        message = record.message_post(body="Mixed", attachments=mixed)
+        self.assertEqual(len(message.attachment_ids), 2)
+        notification = record.message_notify(
+            body="Mixed",
+            partner_ids=self.partner_employee_2.ids,
+            attachments=mixed,
+        )
+        self.assertEqual(len(notification.attachment_ids), 2)
+
+        for post in (
+            lambda attachments: record.message_post(
+                body="Bad", attachments=attachments
+            ),
+            lambda attachments: record.message_notify(
+                body="Bad",
+                partner_ids=self.partner_employee_2.ids,
+                attachments=attachments,
+            ),
+        ):
+            with self.assertRaises(ValueError):
+                post([("name-only.txt",)])
+            with self.assertRaises(ValueError):
+                post(["not-a-pair"])
+
+    @users("employee")
     def test_message_post_batch_can_be_scheduled(self):
         """A scheduled batch post must schedule, not raise.
 
@@ -3397,7 +3486,7 @@ class TestMessageNotifyBatchCost(TestMessagePostCommon):
 
 @tagged("mail_post")
 class TestNotifyBatchEmailPrefetch(TestMessagePostCommon):
-    def _prefetch_calls_posting_to(self, partner):
+    def _prefetch_calls_posting_to(self, partner, **post_kwargs):
         records = self.env["mail.test.simple"].create(
             [{"name": f"Batch {index}"} for index in range(5)]
         )
@@ -3420,9 +3509,21 @@ class TestNotifyBatchEmailPrefetch(TestMessagePostCommon):
                 {record.id: f"<p>body {record.id}</p>" for record in records},
                 subtype_id=self.env.ref("mail.mt_comment").id,
                 message_type="comment",
+                **post_kwargs,
             )
         self.env.flush_all()
         return calls
+
+    def test_a_scheduled_batch_does_not_prefetch_email_data(self):
+        when = (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+        self.assertEqual(
+            self._prefetch_calls_posting_to(
+                self.partner_employee_2, scheduled_date=when
+            ),
+            [],
+            "a deferred notification sends no email now, so ancestors and "
+            "tracking values are fetched when it is replayed, not here",
+        )
 
     def test_an_inbox_only_batch_does_not_prefetch_email_data(self):
         self.assertEqual(

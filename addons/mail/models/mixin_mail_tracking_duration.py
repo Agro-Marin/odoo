@@ -1,7 +1,9 @@
 import logging
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
+
+from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
@@ -76,6 +78,9 @@ class MixinMailTrackingDuration(models.AbstractModel):
             ROTTING_WINDOW_LEGACY_PARAM, ROTTING_WINDOW_DEFAULT_MONTHS
         )
 
+    def _get_rotting_window_start(self, now: datetime) -> datetime:
+        return now - relativedelta(months=self._get_rotting_window_months())
+
     @api.depends(lambda self: self._get_duration_tracking_depends_fields())
     def _compute_duration_tracking(self) -> None:
         fname = self._track_duration_field
@@ -137,13 +142,14 @@ class MixinMailTrackingDuration(models.AbstractModel):
             return
 
         now = self.env.cr.now()
+        window_start = self._get_rotting_window_start(now)
         last_update_field = self._track_duration_last_update_field
         candidates = self.filtered_domain(self._get_rotting_domain())
         for stage, records in candidates.grouped(self._track_duration_field).items():
             threshold = timedelta(days=stage.rotting_threshold_days)
             for record in records:
                 since = record[last_update_field] or record.create_date
-                if since and since + threshold < now:
+                if since and window_start < since and since + threshold < now:
                     record.is_rotting = True
                     record.rotting_days = (now - since).days
 
@@ -203,14 +209,7 @@ class MixinMailTrackingDuration(models.AbstractModel):
             SQL.identifier(self._table, last_update_field),
             SQL.identifier(self._table, "create_date"),
         )
-        query.add_where(
-            SQL(
-                "%s > %s - make_interval(months => %s)",
-                sql_since,
-                now,
-                self._get_rotting_window_months(),
-            )
-        )
+        query.add_where(SQL("%s > %s", sql_since, self._get_rotting_window_start(now)))
         query.add_where(
             SQL(
                 "%s + %s * interval '1 day' < %s",

@@ -106,8 +106,8 @@ class MixinMailThreadBlacklist(models.AbstractModel):
 
     def _message_receive_bounce(self, email: str, partner: ResPartner) -> None:
         super()._message_receive_bounce(email, partner)
-        for record in self:
-            record.message_bounce += 1
+        for bounce, records in self.grouped("message_bounce").items():
+            records.write({"message_bounce": bounce + 1})
 
     def _message_reset_bounce(self, email: str) -> None:
         super()._message_reset_bounce(email)
