@@ -20782,3 +20782,15 @@ msgstr ""
 #: model:ir.model.constraint,message:website.constraint_website_controller_page_unique_name_slugified
 msgid "url should be unique per website"
 msgstr ""
+
+#. module: website
+#. odoo-python
+#: code:addons/website/controllers/main.py:0
+msgid "File '%s' is corrupted"
+msgstr ""
+
+#. module: website
+#. odoo-python
+#: code:addons/website/models/website_rewrite.py:0
+msgid "This redirect creates a cycle with another active redirect."
+msgstr ""
