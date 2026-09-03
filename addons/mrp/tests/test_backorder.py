@@ -754,6 +754,34 @@ class TestMrpProductionBackorder(TestMrpCommon):
         self.assertEqual(mo.origin, expected_origin)
         self.assertEqual(mo.product_qty, 10)
 
+    def test_merge_keeps_earliest_scheduled_date(self):
+        """Merging keeps the earliest start of the merged orders, not `now`.
+
+        The merged order's `date_start` is also written onto the deadline of
+        every upstream supply, so taking the default would pull the whole
+        component chain forward to an hour from now.
+        """
+        mo, bom, _product, _p1, _p2 = self.generate_mo(qty_final=2)
+        action = mo.action_split()
+        wizard = Form.from_action(self.env, action)
+        wizard.max_batch_size = 1
+        wizard.save().action_split()
+        mo_1, mo_2 = mo.production_group_id.production_ids
+
+        near = datetime(2026, 10, 12, 8, 0, 0)
+        far = datetime(2026, 10, 22, 8, 0, 0)
+        mo_1.date_start = far
+        mo_2.date_start = near
+        mo_1.date_deadline = far
+        mo_2.date_deadline = near
+
+        action = (mo_1 + mo_2).action_merge()
+        merged = self.env[action["res_model"]].browse(action["res_id"])
+
+        self.assertEqual(merged.date_start, near)
+        self.assertEqual(merged.date_deadline, near)
+        self.assertEqual(merged.bom_id, bom)
+
     def test_reservation_method_w_mo(self):
         def create_mo(date_start=False):
             mo_form = Form(self.env["mrp.production"])
