@@ -14,7 +14,12 @@ from odoo.tests import Form, HttpCase, TransactionCase, tagged
 from odoo.tests.common import new_test_user
 from odoo.tools import SQL, escape_psql, mute_logger
 
-from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
+from odoo.addons.base.models import (
+    ir_model,
+    ir_model_fields,
+    ir_model_fields_selection,
+)
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG, upsert_en
 
 
 class TestXMLID(TransactionCase):
@@ -365,6 +370,13 @@ class TestIrModelEdition(TransactionCase):
         self.env["ir.model"].browse(model.ids + model2.ids).unlink()
         self.assertFalse(model.exists())
         self.assertFalse(model2.exists())
+
+    def test_base_model_unlink_raises_the_model_level_message(self):
+        model = self.env["ir.model"]._get("res.country")
+        field_names = set(self.env.registry["res.country"]._fields)
+        with self.assertRaisesRegex(UserError, "Model .* contains module data"):
+            model.unlink()
+        self.assertEqual(set(self.env.registry["res.country"]._fields), field_names)
 
     @mute_logger("odoo.db")
     def test_ir_model_fields_name_create(self):
@@ -1527,6 +1539,29 @@ class TestIrModelInherit(TransactionCase):
         self.assertEqual(imi.parent_id.model, "res.partner")
         self.assertEqual(imi.parent_field_id.name, "partner_id")
 
+    def test_prepare_inherit_mapping_prewarms_ids_and_asks_field_ids_only_for_inherits(
+        self,
+    ):
+        IrModelInherit = self.env["ir.model.inherit"]
+        cls = type(self.env["ir.model.fields"])
+        original = cls._get_ids_by_name
+        asked = []
+
+        def spy(records, model_name):
+            asked.append(model_name)
+            return original(records, model_name)
+
+        self.env.flush_all()
+        self.env.registry.clear_cache("stable")
+        count0 = self.env.cr.sql_log_count
+        with patch.object(cls, "_get_ids_by_name", spy):
+            mapping = IrModelInherit._prepare_inherit_mapping(
+                ["res.partner", "res.users", "res.country"]
+            )
+        self.assertEqual(asked, ["res.users"])
+        self.assertEqual(self.env.cr.sql_log_count - count0, 2)
+        self.assertTrue(mapping)
+
     def test_inherit_and_inherits_same_parent_is_rejected_clearly(self):
         IrModelInherit = self.env["ir.model.inherit"]
         definition = next(
@@ -1542,6 +1577,42 @@ class TestIrModelInherit(TransactionCase):
             IrModelInherit._reflect_inherits(["res.users"])
         self.assertIn("res.users", str(cm.exception))
         self.assertIn("res.partner", str(cm.exception))
+
+
+class TestIrModelReflectionIdempotence(TransactionCase):
+    MODELS = ["res.partner", "res.users", "res.country", "ir.model.fields"]
+
+    def _reflect(self):
+        env = self.env
+        env["ir.model"]._reflect_models(self.MODELS)
+        env["ir.model.fields"]._reflect_fields(self.MODELS)
+        env["ir.model.fields.selection"]._reflect_selections(self.MODELS)
+
+    def test_second_reflection_writes_nothing(self):
+        with patch.object(type(self.env.registry), "post_init", lambda *args: None):
+            self._reflect()
+        tz_id = self.env["ir.model.fields"]._get("res.partner", "tz").id
+        upserts = []
+
+        def spy(records, cols, rows, conflict):
+            upserts.append((records._name, cols, rows))
+            return upsert_en(records, cols, rows, conflict)
+
+        with (
+            patch.object(type(self.env.registry), "post_init", lambda *args: None),
+            patch.object(ir_model, "upsert_en", spy),
+            patch.object(ir_model_fields, "upsert_en", spy),
+            patch.object(ir_model_fields_selection, "upsert_en", spy),
+        ):
+            self._reflect()
+
+        unexpected = [
+            (name, cols, [row for row in rows if row[0] != tz_id])
+            for name, cols, rows in upserts
+            if name != "ir.model.fields.selection"
+            or any(row[0] != tz_id for row in rows)
+        ]
+        self.assertEqual(unexpected, [])
 
 
 class TestIrModelRelationReflection(TransactionCase):

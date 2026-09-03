@@ -290,6 +290,8 @@ class IrModel(models.Model):
 
     @override
     def unlink(self) -> bool:
+        if not self.env.context.get(MODULE_UNINSTALL_FLAG):
+            self._unlink_except_module_data()
         manual_models = self.filtered(lambda model: model.state == "manual")
         manual_models.field_id.filtered(lambda f: f.state == "manual")._prepare_update()
         (self - manual_models).field_id._prepare_update()
@@ -387,9 +389,9 @@ class IrModel(models.Model):
         }
 
     @api.model
-    def _prewarm_names(self, model_names: list[str]) -> None:
+    def _prewarm_ids(self, model_names: list[str]) -> list[int]:
         if not model_names:
-            return
+            return []
         add_value = self._get_id.__cache__.add_value
         model_ids = []
         for name, id_ in self.env.execute_query(
@@ -397,6 +399,11 @@ class IrModel(models.Model):
         ):
             add_value(self, name, cache_value=id_)
             model_ids.append(id_)
+        return model_ids
+
+    @api.model
+    def _prewarm_names(self, model_names: list[str]) -> None:
+        model_ids = self._prewarm_ids(model_names)
         self.sudo().browse(model_ids).fetch(["name"])
 
     def _reflect_models(self, model_names: list[str]) -> None:
@@ -510,17 +517,36 @@ class IrModelInherit(models.Model):
     def _prepare_inherit_mapping(
         self, model_names: list[str]
     ) -> dict[tuple[int, int, int | None], OrderedSet]:
-        get_model_id = self.env["ir.model"]._get_id
+        IrModel = self.env["ir.model"]
+        definitions = {
+            model_name: [
+                cls
+                for cls in reversed(type(self.env[model_name]).mro())
+                if models.is_model_definition(cls)
+            ]
+            for model_name in model_names
+        }
+        IrModel._prewarm_ids(
+            list(
+                unique(
+                    name
+                    for model_name, classes in definitions.items()
+                    for cls in classes
+                    for name in (model_name, *cls._inherit, *cls._inherits)
+                )
+            )
+        )
+        get_model_id = IrModel._get_id
 
         module_mapping = defaultdict(OrderedSet)
-        for model_name in model_names:
-            get_field_id = self.env["ir.model.fields"]._get_ids_by_name(model_name).get
+        for model_name, classes in definitions.items():
             model_id = get_model_id(model_name)
-            model = self.env[model_name]
-
-            for cls in reversed(type(model).mro()):
-                if not models.is_model_definition(cls):
-                    continue
+            get_field_id = (
+                self.env["ir.model.fields"]._get_ids_by_name(model_name).get
+                if any(cls._inherits for cls in classes)
+                else {}.get
+            )
+            for cls in classes:
                 items = self._inherit_items(
                     cls, model_name, model_id, get_model_id, get_field_id
                 )
