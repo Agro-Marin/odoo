@@ -126,8 +126,6 @@ class TestPartnerIdentifier(TransactionCase):
         )
         person._update_identifier("TEST_CURP", "OKON850101HDFXYZ01")
 
-        person._commercial_sync_identifiers()
-
         self.assertEqual(person._get_identifier("TEST_RFC"), "VAN850101QW1")
         self.assertEqual(person._get_identifier("TEST_CURP"), "OKON850101HDFXYZ01")
         self.assertFalse(

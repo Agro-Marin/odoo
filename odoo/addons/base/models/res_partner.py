@@ -870,17 +870,6 @@ class ResPartner(models.Model):
                 }
             )
 
-    def _commercial_sync_identifiers(self) -> None:
-        for partner in self:
-            commercial = partner.commercial_partner_id
-            if commercial == partner:
-                continue
-            for source in commercial.identifier_ids.filtered(
-                lambda i: i.type_id.synced_with_commercial
-            ):
-                if partner._get_identifier(source.type_id.code) != source.value:
-                    partner._update_identifier(source.type_id.code, source.value)
-
     @api.depends_context("company")
     def _compute_vat_label(self) -> None:
         self.vat_label = self.env.company.country_id.vat_label or _("Tax ID")
