@@ -1338,6 +1338,74 @@ class TestAPI(ThreadRecipients):
                 for sugg, expected_sugg in zip(suggested, expected, strict=True):
                     self.assertDictEqual(sugg, expected_sugg)
 
+    @users("employee")
+    def test_thread_to_store_suggested_recipients_match_the_singleton_api(self):
+        """`_thread_to_store` computed suggested recipients one thread at a
+        time; it now asks the batch API once and must hand each thread the
+        same answer the singleton API gives."""
+        records = self.env["mail.test.ticket"].create(
+            [
+                {
+                    "name": "With customer",
+                    "customer_id": self.test_partner.id,
+                    "email_from": "someone.else@example.com",
+                },
+                {"name": "Email only", "email_from": "only.email@example.com"},
+            ]
+        )
+        store = Store()
+        records._thread_to_store(store, [], request_list=["suggestedRecipients"])
+        by_id = {
+            thread["id"]: thread["suggestedRecipients"]
+            for thread in store.get_result()["mixin.mail.thread"]
+        }
+        self.assertEqual(set(by_id), set(records.ids))
+        for record in records:
+            self.assertEqual(
+                by_id[record.id],
+                record._message_get_suggested_recipients(
+                    reply_discussion=True, no_create=True
+                ),
+            )
+        self.assertTrue(
+            all(by_id.values()), "precondition: every thread has a suggestion"
+        )
+
+    def test_message_receive_bounce_writes_once_per_counter_value(self):
+        records = self.env["mail.test.access"].create(
+            [
+                {"name": "Zero A", "email_from": "bounce@example.com"},
+                {"name": "Zero B", "email_from": "bounce@example.com"},
+                {
+                    "name": "Two",
+                    "email_from": "bounce@example.com",
+                    "message_bounce": 2,
+                },
+            ]
+        )
+        Model = self.registry["mail.test.access"]
+        original_write = Model.write
+        writes = []
+
+        def counting_write(records_self, vals):
+            writes.append((records_self.ids, vals))
+            return original_write(records_self, vals)
+
+        self.patch(Model, "write", counting_write)
+        records._message_receive_bounce("bounce@example.com", self.env["res.partner"])
+
+        self.assertEqual(records.mapped("message_bounce"), [1, 1, 3])
+        self.assertEqual(
+            sorted(writes),
+            sorted(
+                [
+                    (records[:2].ids, {"message_bounce": 1}),
+                    (records[2].ids, {"message_bounce": 3}),
+                ]
+            ),
+            "one write per distinct counter value, not one per record",
+        )
+
     @mute_logger("odoo.addons.mail.models.mail_mail")
     @users("employee")
     def test_message_update_content(self):
@@ -1641,6 +1709,40 @@ class TestChatterTweaks(ThreadRecipients):
                         "headers": headers,
                     },
                 )
+
+    @users("employee")
+    def test_post_headers_x_msg_to_add_keeps_the_incoming_order(self):
+        """The header was assembled from a set, so the extra addresses came
+        out in hash order and two identical posts could produce two different
+        headers. `assertMailMail` compares that header sorted, which is why it
+        never noticed; this reads the raw value."""
+        test_record = self.test_record.with_env(self.env)
+        incoming_to = (
+            '"Zed" <zed@example.com>, "Alpha" <alpha@example.com>, '
+            '"Mike" <mike@example.com>'
+        )
+        with self.mock_mail_gateway(mail_unlink_sent=False), self.mock_mail_app():
+            message = test_record.message_post(
+                body="Ordered To Header",
+                partner_ids=self.test_partner.ids,
+                incoming_email_to=incoming_to,
+            )
+
+        mail = self._find_mail_mail_wpartners(
+            self.test_partner,
+            "sent",
+            mail_message=message,
+            author=self.partner_employee,
+        )
+        self.assertEqual(
+            mail.headers["X-Msg-To-Add"],
+            ",".join(
+                [
+                    self.test_partner.email_formatted,
+                    *tools.mail.email_split_and_format_normalize(incoming_to),
+                ]
+            ),
+        )
 
     def test_post_no_subscribe_author(self):
         original = self.test_record.message_follower_ids

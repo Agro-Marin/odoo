@@ -196,6 +196,38 @@ class TestMailThreadRottingMixin(MailTrackingDurationMixinCase):
                     "Items that are not done, won, or in a disabled rotting stage are not rotting",
                 )
 
+    def test_resource_rotting_window_applies_to_compute_and_search(self):
+        """Search and compute must agree on the rotting window.
+
+        Regression: `_search_is_rotting` excluded records untouched for longer
+        than `_get_rotting_window_months`, `_compute_rotting` did not, so a record
+        idle for thirteen months showed the rotting badge while every "Rotting"
+        filter left it out.
+        """
+        Resource = self.env["mail.test.rotting.resource"]
+        record = Resource.create({"name": "forgotten", "stage_id": self.stage_new.id})
+        record.flush_recordset(["date_last_stage_update"])
+        self.env.cr.execute(
+            "UPDATE mail_test_rotting_resource "
+            "SET date_last_stage_update = %s WHERE id = %s",
+            (datetime(2024, 1, 1), record.id),
+        )
+        record.invalidate_recordset()
+
+        with self.mock_datetime_and_now(datetime(2024, 7, 1)):
+            self.assertTrue(record.is_rotting, "six months idle is within the window")
+            self.assertIn(record, Resource.search([("is_rotting", "=", True)]))
+            self.assertNotIn(record, Resource.search([("is_rotting", "=", False)]))
+
+        record.invalidate_recordset(["is_rotting", "rotting_days"])
+        with self.mock_datetime_and_now(datetime(2025, 2, 1)):
+            self.assertFalse(
+                record.is_rotting, "thirteen months idle is outside the window"
+            )
+            self.assertEqual(record.rotting_days, 0)
+            self.assertNotIn(record, Resource.search([("is_rotting", "=", True)]))
+            self.assertIn(record, Resource.search([("is_rotting", "=", False)]))
+
     def test_resource_rotting_negative_threshold_never_rots(self):
         """A negative ``rotting_threshold_days`` disables rotting, like 0 does.
 
@@ -375,11 +407,14 @@ class TestMailThreadRottingMixin(MailTrackingDurationMixinCase):
                 "a 4-month-old rotting record is inside the 6-month window and must be found",
             )
 
-        # 8 months later: still rotting by compute, but 8 > 6 => excluded by the
-        # window (confirms the cutoff is a real, honored bound, not a no-op).
+        # 8 months later: 8 > 6 => outside the window, for the compute as for
+        # the search (confirms the cutoff is a real, honored bound, not a no-op).
         with self.mock_datetime_and_now(base + relativedelta(months=8)):
             rec.invalidate_recordset(["is_rotting"])
-            self.assertTrue(rec.is_rotting)
+            self.assertFalse(
+                rec.is_rotting,
+                "the badge must agree with the filter: outside the window is not rotting",
+            )
             found = self.env["mail.test.rotting.resource"].search(
                 [("is_rotting", "=", True)]
             )

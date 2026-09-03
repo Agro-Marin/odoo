@@ -263,6 +263,51 @@ class TestTracking(MailCommon):
         )
         self.assertEqual(second_message.message_type, "notification")
 
+    def test_message_track_keeps_a_field_whose_old_value_was_unlinked(self):
+        """Unlinking the record a tracked many2one pointed to must not erase
+        the tracking of the whole record.
+
+        The initial value kept for the precommit is the old related record; its
+        `display_name` raises `MissingError` once it is gone, and `_message_track`
+        caught that at record level -- so one stale many2one dropped every other
+        tracked change of the record silently. The old value is kept by id, with
+        an empty name, and the other fields keep tracking.
+        """
+        container_a, container_b = (
+            self.env["mail.test.container"]
+            .with_context(mail_create_nosubscribe=True)
+            .create([{"name": "Container A"}, {"name": "Container B"}])
+        )
+        self.record.container_id = container_a
+        self.flush_tracking()
+        self.record.message_ids.unlink()
+        container_a_id = container_a.id
+
+        with self.assertLogs(
+            "odoo.addons.mail.models.mail_tracking_value", level="WARNING"
+        ) as logs:
+            self.record.write(
+                {"container_id": container_b.id, "email_from": "new@example.com"}
+            )
+            container_a.unlink()
+            self.env.invalidate_all()
+            self.flush_tracking()
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn(str(container_a_id), logs.output[0])
+
+        self.assertEqual(len(self.record.message_ids), 1, "one tracking message")
+        tracking = self.record.message_ids.sudo().tracking_value_ids
+        self.assertEqual(
+            set(tracking.field_id.mapped("name")), {"container_id", "email_from"}
+        )
+        container_tracking = tracking.filtered(
+            lambda track: track.field_id.name == "container_id"
+        )
+        self.assertEqual(container_tracking.old_value_integer, container_a_id)
+        self.assertEqual(container_tracking.old_value_char, "")
+        self.assertEqual(container_tracking.new_value_integer, container_b.id)
+        self.assertEqual(container_tracking.new_value_char, "Container B")
+
     def test_message_track_multiple(self):
         """check that multiple updates generate a single tracking message"""
         container = (
@@ -1966,3 +2011,86 @@ class TestTrackingBatchCost(MailCommon):
             ],
             [self.customers[index % 2] for index in range(4)],
         )
+
+    def _batch_template_tracking(self, count, patched_track_template=None):
+        template = self.env.ref("test_mail.mail_test_ticket_tracking_tpl")
+        records = (
+            self.env["mail.test.ticket"]
+            .with_user(self.user_employee)
+            .create(
+                [
+                    {"name": f"Ticket {index}", "mail_template": template.id}
+                    for index in range(count)
+                ]
+            )
+        )
+        self.flush_tracking()
+        if patched_track_template:
+            self.patch(
+                self.registry["mail.test.ticket"],
+                "_track_template",
+                patched_track_template,
+            )
+        Thread = self.registry["mixin.mail.thread"]
+        calls = {"mass_mail": [], "comment": []}
+        original_mail = Thread.message_mail_with_source
+        original_post = Thread.message_post_with_source
+
+        def traced_mail(records_self, *args, **kwargs):
+            calls["mass_mail"].append(records_self.ids)
+            return original_mail(records_self, *args, **kwargs)
+
+        def traced_post(records_self, *args, **kwargs):
+            calls["comment"].append(records_self.ids)
+            return original_post(records_self, *args, **kwargs)
+
+        with (
+            patch.object(Thread, "message_mail_with_source", traced_mail),
+            patch.object(Thread, "message_post_with_source", traced_post),
+            self.mock_mail_gateway(),
+        ):
+            records.write({"customer_id": self.customers[0].id})
+            self.flush_tracking()
+        return records, calls
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_tracking_templates_mass_mail_once_per_template_for_a_batch(self):
+        """A batch whose tracking resolves to one template renders it once.
+
+        `_track_finalize` handed `_message_track_post_template` one record at a
+        time, so its `mass_mail` branch built one composer per record and the
+        batch branch was unreachable. Records sharing a change set and a
+        template now post as one group; each still gets its own mail.
+        """
+        records, calls = self._batch_template_tracking(5)
+        self.assertEqual(
+            calls["mass_mail"],
+            [records.ids],
+            "one mass mailing for the five records, not one per record",
+        )
+        self.assertEqual(calls["comment"], [])
+        self.assertEqual(len(self._new_mails), 5, "still one mail per record")
+        self.assertEqual(
+            set(self._new_mails.mapped("res_id")),
+            set(records.ids),
+        )
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_tracking_templates_post_once_per_template_for_a_batch(self):
+        """Without an explicit composition mode a template posts as a comment,
+        for a batch as for a single record, and the group posts once."""
+        template = self.env.ref("test_mail.mail_test_ticket_tracking_tpl")
+
+        def _track_template(self, changes):
+            return {"customer_id": (template, {})} if "customer_id" in changes else {}
+
+        records, calls = self._batch_template_tracking(5, _track_template)
+        self.assertEqual(calls["comment"], [records.ids])
+        self.assertEqual(calls["mass_mail"], [])
+        for record in records:
+            template_messages = record.message_ids.filtered(
+                lambda message: message.subject == "Test Template"
+            )
+            self.assertEqual(len(template_messages), 1)
+            self.assertEqual(template_messages.message_type, "auto_comment")
+            self.assertEqual(template_messages.body, f"<p>Hello {record.name}</p>")

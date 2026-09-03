@@ -1,9 +1,11 @@
+import logging
 import typing
 from collections import defaultdict
 from datetime import datetime
 from typing import Any, Literal, Self
 
 from odoo import api, fields, models
+from odoo.exceptions import MissingError
 
 if typing.TYPE_CHECKING:
     from odoo.api import Environment
@@ -11,6 +13,9 @@ if typing.TYPE_CHECKING:
     from .mail_message import MailMessage
     from odoo.addons.base.models.ir_model_fields import IrModelFields
     from odoo.addons.base.models.res_currency import ResCurrency
+
+
+_logger = logging.getLogger(__name__)
 
 
 def _tracking_sort_key(
@@ -170,7 +175,7 @@ class MailTrackingValue(models.Model):
             if not value:
                 return (0, "")
             if isinstance(value, models.BaseModel):
-                return (value.id, value.display_name)
+                return (value.id, self._tracked_display_name(value))
             return value
 
         old_id, old_name = as_id_and_name(initial_value)
@@ -192,7 +197,7 @@ class MailTrackingValue(models.Model):
                 return ""
             if isinstance(value, models.BaseModel):
                 return ", ".join(
-                    record.display_name
+                    self._tracked_display_name(record)
                     or self.env._(
                         "Unnamed %(record_model_name)s (%(record_id)s)",
                         record_model_name=model_name,
@@ -206,6 +211,17 @@ class MailTrackingValue(models.Model):
             "old_value_char": as_names(initial_value),
             "new_value_char": as_names(new_value),
         }
+
+    def _tracked_display_name(self, record: models.BaseModel) -> str:
+        try:
+            return record.display_name
+        except MissingError:
+            _logger.warning(
+                "Tracked %s record %s no longer exists, tracking it without a name",
+                record._name,
+                record.id,
+            )
+            return ""
 
     def _create_tracking_values_property(
         self,
