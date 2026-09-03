@@ -260,7 +260,7 @@ class IrAsset(models.Model):
         )
 
     @api.model
-    @tools.ormcache("addons")
+    @tools.conditional("xml" not in tools.config["dev_mode"], tools.ormcache("addons"))
     def _get_manifest_assets(
         self, addons: tuple[str, ...]
     ) -> Mapping[str, tuple[tuple[str, Any], ...]]:
@@ -381,7 +381,9 @@ class IrAsset(models.Model):
         return self._get_addons_installed()
 
     @api.model
-    @tools.ormcache("addons_tuple")
+    @tools.conditional(
+        "xml" not in tools.config["dev_mode"], tools.ormcache("addons_tuple")
+    )
     def _get_addons_sorted_topologically(
         self, addons_tuple: tuple[str, ...]
     ) -> tuple[str, ...]:
