@@ -37,6 +37,31 @@ class TestFetchmailOutlook(EncryptionKeyCase, TransactionCase):
 
         mock_connection.select.assert_not_called()
 
+    def test_outgoing_server_defaults_to_verified_starttls(self):
+        server = self.env["ir.mail_server"].new({"smtp_authentication": "outlook"})
+        server._onchange_smtp_authentication_outlook()
+        self.assertEqual(server.smtp_encryption, "starttls_strict")
+        for encryption in ("starttls_strict", "starttls"):
+            self.env["ir.mail_server"].create(
+                {
+                    "name": f"outlook-{encryption}",
+                    "smtp_host": "smtp.outlook.com",
+                    "smtp_authentication": "outlook",
+                    "smtp_user": "me@outlook.com",
+                    "smtp_encryption": encryption,
+                }
+            )
+        with self.assertRaises(UserError):
+            self.env["ir.mail_server"].create(
+                {
+                    "name": "outlook-ssl",
+                    "smtp_host": "smtp.outlook.com",
+                    "smtp_authentication": "outlook",
+                    "smtp_user": "me@outlook.com",
+                    "smtp_encryption": "ssl_strict",
+                }
+            )
+
     def test_constraints(self):
         """Test the constraints related to the Outlook mail server."""
         with self.assertRaises(UserError, msg='Should ensure that the password is empty'):

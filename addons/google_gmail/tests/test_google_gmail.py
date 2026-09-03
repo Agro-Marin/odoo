@@ -3,6 +3,7 @@ from unittest import mock
 
 from freezegun import freeze_time
 
+from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
@@ -20,6 +21,31 @@ class TestIrMailServer(EncryptionKeyCase, TransactionCase):
                 "google_gmail_access_token": "fake_access_token",
             }
         )
+
+    def test_gmail_server_defaults_to_verified_starttls(self):
+        server = self.env["ir.mail_server"].new({"smtp_authentication": "gmail"})
+        server._onchange_smtp_authentication_gmail()
+        self.assertEqual(server.smtp_encryption, "starttls_strict")
+        for encryption in ("starttls_strict", "starttls"):
+            self.env["ir.mail_server"].create(
+                {
+                    "name": f"gmail-{encryption}",
+                    "smtp_host": "smtp.gmail.com",
+                    "smtp_authentication": "gmail",
+                    "smtp_user": "me@gmail.com",
+                    "smtp_encryption": encryption,
+                }
+            )
+        with self.assertRaises(UserError):
+            self.env["ir.mail_server"].create(
+                {
+                    "name": "gmail-ssl",
+                    "smtp_host": "smtp.gmail.com",
+                    "smtp_authentication": "gmail",
+                    "smtp_user": "me@gmail.com",
+                    "smtp_encryption": "ssl_strict",
+                }
+            )
 
     def test_generate_oauth2_string_token(self):
         """Testing the generation of the oauth2 token
