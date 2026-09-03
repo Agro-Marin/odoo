@@ -28,6 +28,7 @@ from . import test_res_partner
 from . import test_res_role
 from . import test_res_users
 from . import test_service_worker
+from . import test_ui_alias
 from . import test_uninstall
 from . import test_update_notification
 from . import test_webmanifest
