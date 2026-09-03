@@ -374,7 +374,7 @@ test("'New Meeting' in mobile", async () => {
     await click("button", { text: "Chats" });
     await click("button[title='New Meeting']");
     await click(".o-discuss-ChannelInvitation-selectable", { text: "Partner 2" });
-    await click("button:not([disabled])", { text: "Invite to Group Chat" });
+    await click("button:not([disabled])", { text: "Invite to Meeting" });
     await contains(".o-discuss-Call");
     await click("[title='Exit Fullscreen']");
     await contains("[title='Open Actions Menu']");
@@ -780,6 +780,30 @@ test("automatically cancel incoming call after some time", async () => {
     await start();
     await openDiscuss(channelId);
     await contains(".o-discuss-CallInvitation");
+    await advanceTime(30_000);
+    await contains(".o-discuss-CallInvitation", { count: 0 });
+});
+
+test("incoming call is not cancelled while its camera preview is open", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    const [memberId] = pyEnv["discuss.channel.member"].search([
+        ["channel_id", "=", channelId],
+    ]);
+    const rtcSessionId = pyEnv["discuss.channel.rtc.session"].create({
+        channel_member_id: memberId,
+        channel_id: channelId,
+    });
+    pyEnv["discuss.channel.member"].write([memberId], {
+        rtc_inviting_session_id: rtcSessionId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-discuss-CallInvitation");
+    await click(".o-discuss-CallInvitation [title='Show camera preview']");
+    await advanceTime(30_000);
+    await contains(".o-discuss-CallInvitation");
+    await click(".o-discuss-CallInvitation [title='Hide camera preview']");
     await advanceTime(30_000);
     await contains(".o-discuss-CallInvitation", { count: 0 });
 });

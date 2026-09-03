@@ -66,6 +66,7 @@ export class ResUsers extends webModels.ResUsers {
                             "name",
                             "notification_type",
                             "signature",
+                            "tz",
                             "user",
                         ],
                     }),

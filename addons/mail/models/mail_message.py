@@ -808,6 +808,37 @@ class MailMessage(models.Model):
             ]
         )
 
+    def mark_as_unread(self) -> list[int]:
+        """Put back in the inbox the messages the current partner had marked as
+        read. Only inbox notifications can come back: an email notification was
+        never in the inbox to begin with.
+        """
+        notifications = (
+            self.env["mail.notification"]
+            .sudo()
+            .search_fetch(
+                [
+                    ("mail_message_id", "in", self.ids),
+                    ("res_partner_id", "=", self.env.user.partner_id.id),
+                    ("notification_type", "=", "inbox"),
+                    ("is_read", "=", True),
+                ],
+                ["mail_message_id"],
+            )
+        )
+        if not notifications:
+            return []
+        notifications.write({"is_read": False, "read_date": False})
+        message_ids = notifications.mail_message_id.ids
+        self.env.user._bus_send(
+            "mail.message/mark_as_unread",
+            {
+                "message_ids": message_ids,
+                "needaction_inbox_counter": self.env.user.partner_id._get_needaction_count(),
+            },
+        )
+        return message_ids
+
     def _mark_notifications_read(self, domain) -> list[int]:
         notifications = (
             self.env["mail.notification"]

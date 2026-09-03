@@ -940,3 +940,29 @@ test("saving a record still refreshes its chatter data", async () => {
     await advanceTime(1000);
     expect(fetchedThreadIds).toEqual([partnerId, partnerId]);
 });
+
+test("can mark message as unread from chatter", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    const messageId = pyEnv["mail.message"].create({
+        author_id: partnerId,
+        body: "lorem ipsum",
+        model: "res.partner",
+        needaction: false,
+        res_id: partnerId,
+    });
+    pyEnv["mail.notification"].create({
+        is_read: true,
+        mail_message_id: messageId,
+        notification_status: "sent",
+        notification_type: "inbox",
+        res_partner_id: serverState.partnerId,
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await contains(".o-mail-Message-body", { text: "lorem ipsum" });
+    await click("[title='Mark as Unread']");
+    await contains(".o_notification", { text: "Marked as unread" });
+    await click(".o-mail-MessagingMenu-counter", { text: "1" });
+    await contains(".o-mail-NotificationItem-text", { text: "John Doe: lorem ipsum" });
+});

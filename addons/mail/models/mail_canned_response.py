@@ -3,9 +3,11 @@ from typing import Literal, Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
-from odoo.tools import SQL
+from odoo.tools import SQL, LazyTranslate
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
+
+_lt = LazyTranslate(__name__)
 
 if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_groups import ResGroups
@@ -36,6 +38,7 @@ class MailCannedResponse(models.Model):
         "res.groups",
         string="Authorized Groups",
         domain=lambda self: [("id", "in", self.env.user.all_group_ids.ids)],
+        falsy_value_label=_lt("🔒 Private"),
     )
     is_shared = fields.Boolean(
         string="Determines if the canned_response is currently shared with other users",

@@ -136,6 +136,15 @@ registerMessageAction("toggle-star", {
     onSelected: ({ message }) => message.toggleStar(),
     sequence: 30,
 });
+registerMessageAction("mark-as-unread", {
+    /** @param {ActionParams} params */
+    condition: ({ message, thread }) => message.canMarkAsUnread(thread),
+    icon: "fa-solid fa-eye-slash",
+    name: _t("Mark as Unread"),
+    /** @param {ActionParams} params */
+    onSelected: ({ message, thread }) => message.markAsUnread(thread),
+    sequence: 40,
+});
 registerMessageAction("mark-as-read", {
     /** @param {ActionParams} params */
     condition: ({ store, thread }) => thread?.eq(store.inbox),

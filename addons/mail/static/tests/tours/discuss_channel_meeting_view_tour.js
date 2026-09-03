@@ -28,11 +28,11 @@ function getMeetingViewTourSteps({ inWelcomePage = false } = {}) {
         },
         {
             trigger:
-                ".o-mail-Meeting .o-mail-ActionPanel .o-mail-Thread:contains('john (base.group_user) and bob (base.group_user)')",
+                ".o-mail-Meeting .o-mail-ActionPanel .o-mail-Thread:contains('john (base.group_user), bob (base.group_user), and Guest')",
         },
         {
             trigger: ".o-mail-Message[data-persistent]:contains('Hello everyone!')",
-            run: "hover && click .o-mail-Message-actions button[title='Expand']",
+            run: "hover && click .o-mail-Meeting .o-mail-Message-actions button[title='Expand']",
         },
         {
             trigger: ".o-dropdown-item:contains('Mark as Unread')",

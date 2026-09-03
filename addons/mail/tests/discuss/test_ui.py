@@ -39,6 +39,8 @@ class TestUi(HttpCaseWithUserDemo):
                 default_display_mode="video_full_screen",
             )
         )
+        guest = self.env["mail.guest"].create({"name": "Guest"})
+        group_chat._add_members(guests=guest)
         self.authenticate("bob", "bob")
         self.call_jsonrpc("/mail/rtc/channel/join_call", {"channel_id": group_chat.id})
         self.start_tour(
@@ -46,8 +48,12 @@ class TestUi(HttpCaseWithUserDemo):
             "discuss.meeting_view_tour",
             login="john",
         )
+        # An internal user is redirected to Discuss by the invitation link, so
+        # the welcome page this tour walks through is a guest-only path now.
         self.start_tour(
-            group_chat.invitation_url, "discuss.meeting_view_public_tour", login="john"
+            group_chat.invitation_url,
+            "discuss.meeting_view_public_tour",
+            cookies={guest._cookie_name: guest._format_auth_cookie()},
         )
 
     def test_05_can_create_channel_tour(self):

@@ -376,6 +376,7 @@ export class ResPartner extends webModels.ResPartner {
             "active",
             "im_status",
             "is_company",
+            "tz",
             mailDataHelpers.Store.one("main_user_id", ["share"]),
         ];
     }
@@ -504,6 +505,6 @@ export class ResPartner extends webModels.ResPartner {
     }
 
     _get_fields_store_avatar_card() {
-        return ["email", "partner_share", "name", "phone"];
+        return ["email", "partner_share", "name", "phone", "tz"];
     }
 }

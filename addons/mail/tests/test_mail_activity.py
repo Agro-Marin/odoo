@@ -46,6 +46,24 @@ class TestMailActivityChatter(HttpCase):
 
 @tagged("-at_install", "post_install", "mail_activity")
 class TestMailActivityIntegrity(ActivityScheduleCase):
+    def test_my_activities_offers_aggregation_views(self):
+        """Activities can be aggregated by assignee and by type, not only listed."""
+        action = self.env.ref("mail.mail_activity_action_my")
+        self.assertLessEqual(
+            {"pivot", "graph"},
+            {view_mode for __, view_mode in action.views},
+            "My Activities should offer pivot and graph",
+        )
+        for xml_id, view_type in (
+            ("mail.mail_activity_view_pivot", "pivot"),
+            ("mail.mail_activity_view_graph", "graph"),
+        ):
+            with self.subTest(view_type=view_type):
+                view = self.env.ref(xml_id)
+                self.assertTrue(
+                    self.env["mail.activity"].get_view(view.id, view_type)["arch"]
+                )
+
     def test_mail_activity_type_master_data(self):
         call = self.env.ref("mail.mail_activity_data_call")
         meeting = self.env.ref("mail.mail_activity_data_meeting")

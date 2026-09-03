@@ -184,6 +184,14 @@ export class Message extends Record {
         sort: (r1, r2) => r1.sequence - r2.sequence,
     });
     notification_ids = fields.Many("mail.notification", { inverse: "mail_message_id" });
+    selfNotification = fields.One("mail.notification", {
+        /** @this {import("models").Message} */
+        compute() {
+            return this.notification_ids.find((notification) =>
+                notification.res_partner_id?.eq(this.store.self_partner),
+            );
+        },
+    });
     partner_ids = fields.Many("res.partner");
     subtype_id = fields.One("mail.message.subtype");
     thread = fields.One("Thread");
@@ -776,6 +784,41 @@ export class Message extends Record {
             subject: "",
             partner_ids: [],
         };
+    }
+
+    /**
+     * Only an inbox notification can come back to the inbox, and only from
+     * outside a channel: in a channel "unread" means the separator line.
+     *
+     * @param {import("models").Thread} thread
+     */
+    canMarkAsUnread(thread) {
+        return (
+            !this.needaction &&
+            thread?.model !== "discuss.channel" &&
+            this.selfNotification?.notification_type === "inbox"
+        );
+    }
+
+    /**
+     * @param {import("models").Thread} [thread] the thread where the message is
+     *  shown, to know whether the move to Inbox is visible from here
+     */
+    async markAsUnread(thread) {
+        // The counters and the inbox list are applied by the bus notification
+        // the server sends back, like every other mark_as_* here.
+        await this.store.env.services.orm.silent.call(
+            "mail.message",
+            "mark_as_unread",
+            [[this.id]],
+        );
+        if (thread?.model !== "mail.box") {
+            // Outside a mailbox the message does not move, so without this the
+            // click would look like it did nothing.
+            this.store.env.services.notification.add(_t("Marked as unread"), {
+                type: "info",
+            });
+        }
     }
 
     async setDone() {

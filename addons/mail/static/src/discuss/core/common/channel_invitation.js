@@ -246,6 +246,9 @@ export class ChannelInvitation extends Component {
         if (!this.props.thread) {
             return "";
         }
+        if (this.props.thread.default_display_mode === "video_full_screen") {
+            return _t("Invite to Meeting");
+        }
         if (this.props.thread.channel_type === "channel") {
             return _t("Invite");
         } else if (this.props.thread.channel_type === "group") {

@@ -161,6 +161,36 @@ test('"reply to" composer should send message if message replied to is not a not
     await waitForSteps(["/mail/message/post"]);
 });
 
+test("a message marked as read can be sent back to Inbox", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Demo" });
+    const messageId = pyEnv["mail.message"].create({
+        author_id: partnerId,
+        body: "come back to me",
+        model: "res.partner",
+        needaction: true,
+        res_id: partnerId,
+    });
+    pyEnv["mail.notification"].create({
+        mail_message_id: messageId,
+        notification_status: "sent",
+        notification_type: "inbox",
+        res_partner_id: serverState.partnerId,
+    });
+    await start();
+    await openDiscuss("mail.box_inbox");
+    await contains(".o-mail-Message", { text: "come back to me" });
+    await click("[title='Mark as Read']");
+    await contains(".o-mail-Message", { count: 0 });
+    await openDiscuss("mail.box_history");
+    await contains(".o-mail-Message", { text: "come back to me" });
+    await click(".o-mail-Message [title='Expand']");
+    await click(".o-dropdown-item", { text: "Mark as Unread" });
+    await contains(".o-mail-Message", { count: 0 });
+    await openDiscuss("mail.box_inbox");
+    await contains(".o-mail-Message", { text: "come back to me" });
+});
+
 test("show subject of message in Inbox", async () => {
     const pyEnv = await startServer();
     const [messageId1, messageId2] = pyEnv["mail.message"].create([

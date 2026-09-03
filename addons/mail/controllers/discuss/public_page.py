@@ -151,6 +151,12 @@ class PublicPageController(http.Controller):
         if guest and not guest_already_known:
             store.add_global_values(is_welcome_page_displayed=True)
             channel = channel.with_context(guest=guest)
+        if request.env.user._is_internal():
+            # The persona step above already added them as a member, so send
+            # them to their own Discuss instead of the guest page.
+            return request.redirect(
+                f"/odoo/action-mail.action_discuss?active_id={channel.id}"
+            )
         return self._response_discuss_public_template(store, channel)
 
     def _response_discuss_public_template(

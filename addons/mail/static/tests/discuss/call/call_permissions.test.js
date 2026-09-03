@@ -13,6 +13,26 @@ import { describe, test } from "@odoo/hoot";
 describe.current.tags("desktop");
 defineMailModels();
 
+test("blocked media opens a dialog with instructions instead of a fading toast", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    const env = await start();
+    await openDiscuss(channelId);
+    env.services["discuss.rtc"].showMediaUnavailableWarning({ microphone: true });
+    await contains(".o-discuss-CallPermissionDeniedDialog");
+    await contains(".o_notification", { count: 0 });
+});
+
+test("blocked screen sharing keeps its notification", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    const env = await start();
+    await openDiscuss(channelId);
+    env.services["discuss.rtc"].showMediaUnavailableWarning({ screen: true });
+    await contains(".o_notification");
+    await contains(".o-discuss-CallPermissionDeniedDialog", { count: 0 });
+});
+
 test("Starting a video call asks for permissions", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });

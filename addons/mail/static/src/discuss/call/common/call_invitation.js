@@ -100,6 +100,12 @@ export class CallInvitation extends Component {
                         if (this.state.hasMicrophone) {
                             this.state.activateMicrophone++;
                         }
+                        // Reviewing your camera should not run the call out.
+                        if (this.state.showCameraPreview) {
+                            this.props.thread.self_member_id?.cancelInvitationTimeout();
+                        } else {
+                            this.props.thread.self_member_id?.startInvitationTimeout();
+                        }
                     },
                     tags: () => [ACTION_TAGS.CALL_LAYOUT],
                 },
