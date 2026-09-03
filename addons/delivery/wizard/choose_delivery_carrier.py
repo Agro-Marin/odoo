@@ -3,6 +3,8 @@ from odoo.exceptions import UserError
 
 
 class ChooseDeliveryCarrier(models.TransientModel):
+    """Wizard to select a delivery method and its computed price for a sales order."""
+
     _name = "choose.delivery.carrier"
     _description = "Delivery Carrier Selection Wizard"
 
