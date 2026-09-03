@@ -37,4 +37,5 @@ from . import test_mail_message_invariants
 from . import test_mail_render_equivalence
 from . import test_mail_render_compile_errors
 from . import test_mail_render_contracts
+from . import test_mail_template_unknown_attribute
 from . import test_res_users

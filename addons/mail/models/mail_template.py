@@ -129,6 +129,39 @@ def _iter_qweb_expressions(node: etree._Element) -> Iterator[str]:
                 yield from _iter_inline_expressions(value)
 
 
+def _parse_expression(expression: str) -> ast.AST | None:
+    try:
+        return ast.parse(expression.strip(), mode="eval")
+    except SyntaxError, ValueError:
+        return None
+
+
+def _hasattr_guarded_chains(tree: ast.AST) -> list[list[str]]:
+    # `hasattr(object, 'x') and object.x` is how a template names a field an
+    # optional module adds; the guard makes the attribute legitimate on a
+    # model that lacks it, so the check must not report it.
+    chains = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "hasattr"
+            and len(node.args) == 2
+            and isinstance(node.args[1], ast.Constant)
+            and isinstance(node.args[1].value, str)
+        ):
+            target = node.args[0]
+            if isinstance(target, ast.Name):
+                base = [target.id]
+            elif isinstance(target, ast.Attribute):
+                base = _attribute_chain(target)
+            else:
+                continue
+            if base:
+                chains.append([*base, node.args[1].value])
+    return chains
+
+
 def _attribute_chain(node: ast.Attribute) -> list[str] | None:
     names = []
     while isinstance(node, ast.Attribute):
@@ -483,9 +516,19 @@ class MailTemplate(models.Model):
             try:
                 expressions = self._compile_field_expressions(fname)
                 if model is not None:
+                    # A guard and the attribute it guards are usually two
+                    # QWeb attributes (`t-if` and `t-out`), so guards are
+                    # gathered over the whole field before any expression
+                    # is judged.
+                    guarded = [
+                        chain
+                        for expression in expressions
+                        if (tree := _parse_expression(expression)) is not None
+                        for chain in _hasattr_guarded_chains(tree)
+                    ]
                     for expression in expressions:
                         if message := self._find_unknown_object_attribute(
-                            expression, model
+                            expression, model, guarded
                         ):
                             raise AttributeError(message)
             except PG_RECOVERABLE_EXCEPTIONS:
@@ -511,19 +554,24 @@ class MailTemplate(models.Model):
         return []
 
     def _find_unknown_object_attribute(
-        self, expression: str, model: models.BaseModel
+        self,
+        expression: str,
+        model: models.BaseModel,
+        guarded: Collection[list[str]] = (),
     ) -> str | None:
-        try:
-            tree = ast.parse(expression.strip(), mode="eval")
-        except SyntaxError, ValueError:
+        tree = _parse_expression(expression)
+        if tree is None:
             return None
         for node in ast.walk(tree):
             if not isinstance(node, ast.Attribute):
                 continue
             chain = _attribute_chain(node)
-            if chain and chain[0] == "object":
-                if message := self._find_unknown_model_attribute(chain[1:], model):
-                    return message
+            if not chain or chain[0] != "object":
+                continue
+            if any(chain[: len(guard)] == guard for guard in guarded):
+                continue
+            if message := self._find_unknown_model_attribute(chain[1:], model):
+                return message
         return None
 
     def _find_unknown_model_attribute(
