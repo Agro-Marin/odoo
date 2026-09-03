@@ -1,6 +1,7 @@
 import logging
 import typing
 from collections import defaultdict
+from typing import Literal
 
 from markupsafe import Markup
 
@@ -276,26 +277,17 @@ class MailActivitySchedule(models.TransientModel):
         self.plan_schedule_line_ids = False
         for scheduler in self:
             schedule_line_values_list = []
-            for template in scheduler.plan_id.template_ids:
+            templates = scheduler.plan_id.template_ids
+            applied_on = scheduler._plan_preview_record() if templates else None
+            for template in templates:
                 schedule_line_values = {
                     "line_description": template.summary
                     or template.activity_type_id.name,
                 }
 
-                responsible_user = False
-                res_ids = scheduler._evaluate_res_ids()
-                if template.responsible_id:
-                    responsible_user = template.responsible_id
-                elif template.responsible_type == "on_demand":
-                    responsible_user = scheduler.plan_on_demand_user_id
-                elif scheduler.res_model and res_ids and len(res_ids) == 1:
-                    record = self.env[scheduler.res_model].browse(res_ids)
-                    if record.exists():
-                        responsible_user = template._determine_responsible(
-                            scheduler.plan_on_demand_user_id,
-                            record,
-                        )["responsible"]
-
+                responsible_user = scheduler._plan_preview_responsible(
+                    template, applied_on
+                )
                 if responsible_user:
                     schedule_line_values["responsible_user_id"] = responsible_user.id
 
@@ -344,6 +336,25 @@ class MailActivitySchedule(models.TransientModel):
                 (0, 0, values) for values in schedule_line_values_list
             ]
 
+    def _plan_preview_record(self) -> models.BaseModel:
+        self.check_singleton()
+        model = self.env[self.plan_id.res_model or self.res_model]
+        res_ids = self._evaluate_res_ids()
+        return model.browse(res_ids).exists() if len(res_ids) == 1 else model
+
+    def _plan_preview_responsible(
+        self, template: MailActivityPlanTemplate, applied_on: models.BaseModel
+    ) -> ResUsers | Literal[False]:
+        # The preview stands for one record. With several (or none) the rule is
+        # asked against an empty one, and a complaint -- error or warning -- is
+        # how it says the answer depends on the record it was not given.
+        result = template._determine_responsible(
+            self.plan_on_demand_user_id, applied_on
+        )
+        if not applied_on and (result["error"] or result["warning"]):
+            return False
+        return result["responsible"]
+
     @api.depends("res_model")
     def _compute_activity_type_id(self) -> None:
         for scheduler in self:
@@ -369,8 +380,8 @@ class MailActivitySchedule(models.TransientModel):
                     scheduler.activity_user_id
                 )
             elif not scheduler.date_deadline:
-                scheduler.date_deadline = self.env["mail.activity"]._today_in_tz(
-                    scheduler.activity_user_id.sudo().tz
+                scheduler.date_deadline = self.env["mail.activity"]._today_for(
+                    scheduler.activity_user_id
                 )
 
     @api.depends("activity_type_id")
@@ -440,12 +451,9 @@ class MailActivitySchedule(models.TransientModel):
         for template in templates:
             date_deadline = template._get_date_deadline(self.plan_date)
             for record in applied_on:
-                if template.responsible_type == "on_demand":
-                    responsible = self.plan_on_demand_user_id
-                else:
-                    responsible = template._determine_responsible(
-                        self.plan_on_demand_user_id, record
-                    )["responsible"]
+                responsible = template._determine_responsible(
+                    self.plan_on_demand_user_id, record
+                )["responsible"]
                 record_ids_by_group[(template, responsible, date_deadline)].append(
                     record.id
                 )
@@ -520,6 +528,7 @@ class MailActivitySchedule(models.TransientModel):
     def _action_schedule_activities(self) -> MailActivity:
         if not self.res_model:
             return self._action_schedule_activities_personal()
+        self._check_assignee_can_upload()
         return self._get_applied_on_records().activity_schedule(
             activity_type_id=self.activity_type_id.id,
             automated=False,
@@ -575,27 +584,30 @@ class MailActivitySchedule(models.TransientModel):
 
     @api.onchange("activity_user_id", "activity_type_id")
     def _onchange_activity_user_id(self) -> None:
-        if self.activity_category != "upload_file":
-            return
+        self._check_assignee_can_upload()
+
+    def _check_assignee_can_upload(self) -> None:
+        self.check_singleton()
         activity_user = self.activity_user_id
         model = self.res_model
-        if model and activity_user:
-            try:
-                thread = (
-                    self.with_user(activity_user)
-                    .env[model]
-                    .browse(self._evaluate_res_ids())
+        if self.activity_category != "upload_file" or not (model and activity_user):
+            return
+        try:
+            thread = (
+                self.with_user(activity_user)
+                .env[model]
+                .browse(self._evaluate_res_ids())
+            )
+            operations = thread._mail_group_by_operation_for_mail_message_operation(
+                "create"
+            )
+            for operation, records in operations.items():
+                records.check_access(operation)
+        except AccessError as err:
+            raise UserError(
+                _(
+                    "Selected user '%(user)s' cannot upload documents on model '%(model)s'",
+                    model=model,
+                    user=activity_user.display_name,
                 )
-                operations = thread._mail_group_by_operation_for_mail_message_operation(
-                    "create"
-                )
-                for operation, records in operations.items():
-                    records.check_access(operation)
-            except AccessError as err:
-                raise UserError(
-                    _(
-                        "Selected user '%(user)s' cannot upload documents on model '%(model)s'",
-                        model=model,
-                        user=activity_user.display_name,
-                    )
-                ) from err
+            ) from err

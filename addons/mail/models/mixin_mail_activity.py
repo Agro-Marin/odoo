@@ -418,13 +418,9 @@ class MixinMailActivity(models.AbstractModel):
         return result
 
     def _activity_aggregate_join(
-        self,
-        alias: str,
-        query: Query,
-        value: SQL,
-        link: str,
-        user_id: int | None = None,
+        self, alias: str, query: Query, user_id: int | None = None
     ) -> str:
+        link = "next_activity" if user_id is None else "my_next_activity"
         join_alias = Query.get_table_alias(alias, link)
         if join_alias in query._joins:
             return join_alias
@@ -436,20 +432,15 @@ class MixinMailActivity(models.AbstractModel):
         if user_id is not None:
             condition = SQL("%s AND user_id = %s", condition, user_id)
         sql_join = SQL(
-            "(SELECT res_id, %s AS value FROM mail_activity WHERE %s GROUP BY res_id)",
-            value,
+            "(SELECT res_id, MIN(%s) AS state, MIN(date_deadline) AS date_deadline"
+            " FROM mail_activity WHERE %s GROUP BY res_id)",
+            Activity._sql_state(),
             condition,
         )
         return query.left_join(alias, "id", sql_join, "res_id", link)
 
     def _activity_state_join(self, alias: str, query: Query) -> SQL:
-        join_alias = self._activity_aggregate_join(
-            alias,
-            query,
-            SQL("MIN(%s)", self.env["mail.activity"]._sql_state()),
-            "next_activity_state",
-        )
-        return SQL.identifier(join_alias, "value")
+        return SQL.identifier(self._activity_aggregate_join(alias, query), "state")
 
     def _read_group_groupby(self, alias: str, groupby_spec: str, query: Query) -> SQL:
         if groupby_spec != "activity_state":
@@ -485,11 +476,9 @@ class MixinMailActivity(models.AbstractModel):
             join_alias = self._activity_aggregate_join(
                 alias,
                 query,
-                SQL("MIN(date_deadline)"),
-                f"{field_name}_order",
                 user_id=self.env.uid if field_name.startswith("my_") else None,
             )
-            sql_value = SQL.identifier(join_alias, "value")
+            sql_value = SQL.identifier(join_alias, "date_deadline")
 
         if query._any_value_orderby:
             sql_value = SQL("ANY_VALUE(%s)", sql_value)

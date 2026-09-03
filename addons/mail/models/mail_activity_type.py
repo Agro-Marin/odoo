@@ -18,14 +18,6 @@ class MailActivityType(models.Model):
     _order = "sequence, id"
     _rec_name = "name"
 
-    def _get_model_selection(self) -> list:
-        return [
-            (model.model, model.name)
-            for model in self.env["ir.model"]
-            .sudo()
-            .search(["&", ("is_mail_thread", "=", True), ("transient", "=", False)])
-        ]
-
     name = fields.Char("Name", required=True, translate=True)
     summary = fields.Char("Default Summary", translate=True)
     sequence = fields.Integer("Sequence", default=10)
@@ -53,7 +45,7 @@ class MailActivityType(models.Model):
         help="Change the background color of the related activities of this type.",
     )
     res_model = fields.Selection(
-        selection=_get_model_selection,
+        selection=lambda self: self.env["mail.activity"]._get_model_selection(),
         string="Model",
         help="Specify a model if the activity should be specific to a model"
         " and not available when managing activities for other models.",
@@ -112,17 +104,6 @@ class MailActivityType(models.Model):
     default_user_id: ResUsers = fields.Many2one("res.users", string="Default User")
     default_note = fields.Html(string="Default Note", translate=True)
 
-    initial_res_model = fields.Selection(
-        selection=_get_model_selection,
-        string="Initial model",
-        compute="_compute_initial_res_model",
-        store=False,
-        help="Technical field to keep track of the model at the start of editing to support UX related behaviour",
-    )
-    res_model_change = fields.Boolean(
-        string="Model has change", default=False, store=False
-    )
-
     @api.constrains("res_model")
     def _check_activity_type_res_model(self) -> None:
         self.env["mail.activity.plan.template"].search(
@@ -134,13 +115,6 @@ class MailActivityType(models.Model):
         self.mail_template_ids = self.sudo().mail_template_ids.filtered(
             lambda template: template.model_id.model == self.res_model
         )
-        self.res_model_change = (
-            self.initial_res_model and self.initial_res_model != self.res_model
-        )
-
-    def _compute_initial_res_model(self) -> None:
-        for activity_type in self:
-            activity_type.initial_res_model = activity_type.res_model
 
     @api.depends_context("lang")
     @api.depends("delay_unit", "delay_count")

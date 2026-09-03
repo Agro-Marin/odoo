@@ -3977,6 +3977,45 @@ class TestActivityStateSearch(TestActivityCommon):
 
 
 @tests.tagged("mail_activity")
+class TestActivitySearchOrderIsStable(TestActivityCommon):
+    """Every branch of `_search` breaks ties the same way.
+
+    The access scan and the "mine" shortcut appended `id` to the order; the
+    superuser branch did not, so two admins paging the same list could see a
+    row twice and another not at all whenever deadlines tied.
+    """
+
+    def test_every_branch_breaks_ties_by_id(self):
+        Activity = self.env["mail.activity"]
+        mine = [("user_id", "=", self.user_employee.id)]
+        for label, model, domain in (
+            ("superuser", Activity.sudo(), []),
+            ("bypass", Activity.with_user(self.user_employee), []),
+            ("mine", Activity.with_user(self.user_employee), mine),
+        ):
+            with self.subTest(branch=label):
+                query = model._search(
+                    domain, order="date_deadline", bypass_access=label == "bypass"
+                )
+                self.assertIn('"id"', query.order.code)
+
+
+@tests.tagged("mail_activity")
+class TestActivityModelSelection(TestActivityCommon):
+    def test_type_and_plan_offer_the_same_models(self):
+        """A type pinned to a thread model without activities is unreachable:
+        no document of that model can ever carry it. Both selections read one
+        helper, so they cannot drift apart again."""
+        env = self.env
+        type_models = env["mail.activity.type"]._fields["res_model"].get_values(env)
+        plan_models = env["mail.activity.plan"]._fields["res_model"].get_values(env)
+        self.assertEqual(type_models, plan_models)
+        self.assertIn("mail.test.activity", type_models)
+        self.assertNotIn("mail.test.simple", type_models, "a thread, no activities")
+        self.assertNotIn("mail.activity.schedule", type_models, "transient")
+
+
+@tests.tagged("mail_activity")
 class TestActivityOneTodayPerAnswer(TestActivityCommon):
     """Every batch classification reads the clock once, not once per record.
 
@@ -5126,6 +5165,45 @@ class TestActivityClockIsReproducible(ActivityScheduleCase):
             sorted(model for model in models if repr(model) in rendered),
             "the per-model branches must appear in sorted order, not the set's",
         )
+
+    def test_the_bookkeeping_search_leaves_the_deadline_to_sql(self):
+        """`_todo_keys_elsewhere` used to fetch every open assigned activity on
+        the touched documents and drop the not-yet-due ones in Python. The
+        deadline is half of `_domain_todo`, so it belongs in the query."""
+        Activity = self.env["mail.activity"]
+        record = self.env["mail.test.activity"].create({"name": "Doc"})
+        model_id = self.env["ir.model"]._get_id("mail.test.activity")
+        today = Activity._today_for(self.user_employee)
+        due, __planned = Activity.create(
+            [
+                {
+                    "res_model_id": model_id,
+                    "res_id": record.id,
+                    "user_id": self.user_employee.id,
+                    "date_deadline": today,
+                },
+                {
+                    "res_model_id": model_id,
+                    "res_id": record.id,
+                    "user_id": self.user_admin.id,
+                    "date_deadline": today + timedelta(days=3),
+                },
+            ]
+        )
+        fetched = []
+        origin = type(Activity).search
+
+        def spy(records, domain, **kwargs):
+            result = origin(records, domain, **kwargs)
+            fetched.append(result)
+            return result
+
+        key = ("mail.test.activity", record.id)
+        with patch.object(type(Activity), "search", spy):
+            keys = Activity._todo_keys_elsewhere({key})
+        self.assertEqual(len(fetched), 1, "one search for the bookkeeping")
+        self.assertEqual(fetched[0], due, "the planned one never left PostgreSQL")
+        self.assertEqual(keys, {self.user_employee: {key}})
 
     def test_the_state_domain_ors_its_branches_in_a_fixed_order(self):
         """`_search_state` intersects with a set; iterating it directly made

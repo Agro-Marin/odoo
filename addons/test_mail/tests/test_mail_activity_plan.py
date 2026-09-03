@@ -251,6 +251,40 @@ class TestActivitySchedule(ActivityScheduleCase):
             form.activity_user_id = user
         form.save()
 
+    @users("admin")
+    def test_activity_schedule_rights_upload_without_the_form(self):
+        """The onchange is UX. A wizard built by RPC never runs it, so the
+        action itself has to refuse an assignee who cannot upload."""
+        user = mail_new_test_user(
+            self.env,
+            groups="base.group_public",
+            login="bert_rpc",
+            name="Bert Tartignole",
+        )
+        demo_record = self.env["mail.test.access"].create(
+            {"access": "admin", "name": "Record"}
+        )
+        wizard = (
+            self.env["mail.activity.schedule"]
+            .with_context(active_model=demo_record._name, active_ids=demo_record.ids)
+            .create({})
+        )
+        wizard.write(
+            {
+                "activity_type_id": self.env.ref(
+                    "test_mail.mail_act_test_upload_document"
+                ).id,
+                "activity_user_id": user.id,
+            }
+        )
+        with self.assertRaises(UserError):
+            wizard.action_schedule_activities()
+        self.assertFalse(
+            self.env["mail.activity"].search(
+                [("res_model", "=", demo_record._name), ("res_id", "=", demo_record.id)]
+            )
+        )
+
     @users("employee")
     def test_activity_schedule_norecord(self):
         """Test scheduling free activities, supported if assigned user."""
@@ -586,12 +620,12 @@ class TestPlanScheduleShape(ActivityScheduleCase):
             [{"name": f"rec_{index}"} for index in range(4)]
         )
 
-    def _wizard(self):
+    def _wizard(self, records=None):
         return self.env["mail.activity.schedule"].create(
             {
                 "plan_id": self.plan.id,
                 "plan_on_demand_user_id": self.env.user.id,
-                "res_ids": str(self.records.ids),
+                "res_ids": str((records or self.records).ids),
                 "res_model": "mail.test.activity",
             }
         )
@@ -648,6 +682,95 @@ class TestPlanScheduleShape(ActivityScheduleCase):
         self.assertEqual(
             determine.call_count, len(self.plan.template_ids) * len(self.records)
         )
+
+    def test_the_preview_asks_the_template_who_is_responsible(self):
+        """Even when the template names one outright: hr and hr_fleet answer
+        through `_determine_responsible`, and the preview read `responsible_id`
+        past them."""
+        wizard = self._wizard(self.records[:1])
+        Template = type(self.env["mail.activity.plan.template"])
+        with patch.object(
+            Template,
+            "_determine_responsible",
+            autospec=True,
+            side_effect=lambda template, on_demand, record: {
+                "responsible": self.user_employee,
+                "error": False,
+                "warning": False,
+            },
+        ):
+            wizard.invalidate_recordset(["plan_schedule_line_ids"])
+            lines = wizard.plan_schedule_line_ids
+        self.assertEqual(len(lines), len(self.plan.template_ids))
+        self.assertEqual(lines.responsible_user_id, self.user_employee)
+
+    def test_a_batch_preview_shows_only_what_needs_no_record(self):
+        """With several records the preview has no record to ask about, so a
+        rule that needs one -- and says so with an error -- shows nobody, while
+        a fixed responsible still shows."""
+        wizard = self._wizard()
+        self.assertGreater(len(self.records), 1)
+        self.assertEqual(
+            wizard.plan_schedule_line_ids.responsible_user_id, self.user_admin
+        )
+        Template = type(self.env["mail.activity.plan.template"])
+        with patch.object(
+            Template,
+            "_determine_responsible",
+            autospec=True,
+            side_effect=lambda template, on_demand, record: {
+                "responsible": self.env.user,
+                "error": False if record else "needs the record",
+                "warning": False,
+            },
+        ):
+            wizard.invalidate_recordset(["plan_schedule_line_ids"])
+            lines = wizard.plan_schedule_line_ids
+        self.assertEqual(len(lines), len(self.plan.template_ids))
+        self.assertFalse(lines.responsible_user_id)
+
+    def test_the_preview_parses_the_record_ids_once(self):
+        wizard = self._wizard()
+        Schedule = type(wizard)
+        with patch.object(
+            Schedule,
+            "_evaluate_res_ids",
+            autospec=True,
+            side_effect=Schedule._evaluate_res_ids,
+        ) as evaluate:
+            wizard.invalidate_recordset(["plan_schedule_line_ids"])
+            wizard.plan_schedule_line_ids
+        self.assertEqual(evaluate.call_count, 1)
+
+    def test_launching_asks_the_template_for_an_on_demand_responsible_too(self):
+        """`action_schedule_plan` short-circuited on_demand templates to the
+        wizard's user; an override answering for them was never consulted."""
+        self.plan.template_ids.write(
+            {"responsible_type": "on_demand", "responsible_id": False}
+        )
+        wizard = self._wizard()
+        Template = type(self.env["mail.activity.plan.template"])
+        with patch.object(
+            Template,
+            "_determine_responsible",
+            autospec=True,
+            side_effect=lambda template, on_demand, record: {
+                "responsible": self.user_employee,
+                "error": False,
+                "warning": False,
+            },
+        ):
+            wizard.action_schedule_plan()
+        activities = self.env["mail.activity"].search(
+            [
+                ("res_model", "=", "mail.test.activity"),
+                ("res_id", "in", self.records.ids),
+            ]
+        )
+        self.assertEqual(
+            len(activities), len(self.plan.template_ids) * len(self.records)
+        )
+        self.assertEqual(activities.user_id, self.user_employee)
 
     def test_a_plan_without_a_document_is_a_user_error(self):
         wizard = self._wizard()

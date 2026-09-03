@@ -466,9 +466,7 @@ class MailActivity(models.Model):
             documents |= Domain("id", "in", modelless_ids) & Domain(
                 "res_model", "=", False
             )
-        domain = (
-            Domain("active", "=", True) & Domain("user_id", "!=", False) & documents
-        )
+        domain = self._domain_todo() & documents
         if self.ids:
             domain &= Domain("id", "not in", self.ids)
         return self.sudo().search(domain)._todo_keys(within=keys)
@@ -816,7 +814,7 @@ class MailActivity(models.Model):
             kwargs["active_test"] = False
         if self.env.is_superuser() or bypass_access:
             return super()._search(
-                domain, offset, limit, order, bypass_access=True, **kwargs
+                domain, offset, limit, stable_order(order), bypass_access=True, **kwargs
             )
         if self._domain_is_mine(domain):
             return super()._search(domain, offset, limit, stable_order(order), **kwargs)
@@ -1297,6 +1295,15 @@ class MailActivity(models.Model):
             ],
             "grouped_activities": grouped_activities,
         }
+
+    @api.model
+    def _get_model_selection(self) -> list[tuple[str, str]]:
+        return [
+            (model.model, model.name)
+            for model in self.env["ir.model"]
+            .sudo()
+            .search([("is_mail_activity", "=", True), ("transient", "=", False)])
+        ]
 
     @api.model
     def _check_activity_view_model(self, res_model: str) -> None:

@@ -1,3 +1,5 @@
+from datetime import date
+
 from freezegun import freeze_time
 
 from odoo.exceptions import ValidationError
@@ -1526,6 +1528,54 @@ class TestServerActionsMailActivityDeadline(MailCommon):
         )
         self.assertEqual(activity.user_id, assignee)
         self.assertEqual(str(activity.date_deadline), "2026-08-20")
+
+    @freeze_time("2026-08-18 12:00:00")
+    def test_a_negative_due_date_in_counts_backwards(self):
+        """ "-2 days" is two days before today. It used to be warned about and
+        then scheduled for today, with the sign quietly dropped."""
+        action = self.env["ir.actions.server"].create(
+            {
+                "name": "Schedule",
+                "model_id": self.env["ir.model"]._get("mail.test.lead").id,
+                "state": "next_activity",
+                "activity_type_id": self.env.ref("mail.mail_activity_data_todo").id,
+                "activity_user_type": "specific",
+                "activity_user_id": self.env.uid,
+                "activity_date_deadline_range": -2,
+                "activity_date_deadline_range_type": "days",
+            }
+        )
+        self.assertFalse(action.warning)
+        lead = self.env["mail.test.lead"].create({"name": "Lead"})
+        action.with_context(
+            active_model="mail.test.lead", active_ids=lead.ids, active_id=lead.id
+        ).run()
+        activity = self.env["mail.activity"].search(
+            [("res_model", "=", "mail.test.lead"), ("res_id", "=", lead.id)]
+        )
+        self.assertEqual(str(activity.date_deadline), "2026-08-16")
+
+    def test_the_step_is_the_delay_mixin_s(self):
+        """One arithmetic for "N units". A Jan-31 base is what tells a month
+        step apart from thirty days."""
+        base = date(2026, 1, 31)
+        for unit in ("days", "weeks", "months", False):
+            for count in (-3, 0, 1, 13):
+                with self.subTest(unit=unit, count=count):
+                    action = self.env["ir.actions.server"].new(
+                        {
+                            "activity_date_deadline_range": count,
+                            "activity_date_deadline_range_type": unit,
+                        }
+                    )
+                    step = (
+                        self.env["mail.activity.type"]
+                        .new({"delay_count": count, "delay_unit": unit or "days"})
+                        ._get_delay_delta()
+                    )
+                    self.assertEqual(
+                        base + action._get_activity_deadline_delta(), base + step
+                    )
 
 
 @tagged("ir_actions")

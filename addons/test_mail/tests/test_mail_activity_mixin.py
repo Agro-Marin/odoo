@@ -1,4 +1,5 @@
 import random
+import re
 from datetime import UTC, date, datetime, timedelta
 from unittest.mock import patch
 
@@ -581,7 +582,7 @@ class TestActivityMixin(TestActivityCommon):
         )
         self.assertEqual(records, record_warning)
 
-    @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.tests")
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_mail_activity_mixin_search_state_basic(self):
         """Test the search method on the "activity_state".
 
@@ -761,7 +762,7 @@ class TestActivityMixin(TestActivityCommon):
                 {("today", 2)},
             )
 
-    @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.tests")
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_mail_activity_mixin_search_state_different_day_but_close_time(self):
         """Test the case where there's less than 24 hours between the deadline and now_tz,
         but one day of difference (e.g. 23h 01/01/2020 & 1h 02/02/2020). So the state
@@ -2537,6 +2538,31 @@ class TestNextActivityInvariants(TestActivityCommon):
             )
         # one "today" for the whole query, so the two uses cannot disagree
         self.assertEqual(sum(sum(v.values()) for v in counts.values()), 1)
+
+        # ordering by state and by deadline in one query is the same shape:
+        # both columns come off the one aggregate, built with one "today"
+        with patch.object(type(Activity), "_today_in_tz", rolling):
+            ordered = self.env["mail.test.activity"].search(
+                [("id", "=", record.id)],
+                order="activity_state, activity_date_deadline",
+            )
+        self.assertEqual(ordered, record)
+
+    def test_state_and_deadline_share_one_aggregate_join(self):
+        """State and deadline used to each build their own GROUP BY over the
+        same activity rows. One join carries both; only the assignee's own
+        deadline, keyed on the user, is a second one."""
+        Model = self.env["mail.test.activity"]
+        query = Model._search([], order="activity_state, activity_date_deadline")
+        self.assertEqual(query.from_clause.code.count("GROUP BY res_id"), 1)
+        state_alias, deadline_alias = (
+            re.search(rf'"([^"]+)"\."{column}"', query.order.code)[1]
+            for column in ("state", "date_deadline")
+        )
+        self.assertEqual(state_alias, deadline_alias)
+
+        query = Model._search([], order="activity_state, my_activity_date_deadline")
+        self.assertEqual(query.from_clause.code.count("GROUP BY res_id"), 2)
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_next_activity_search_does_not_widen_access(self):

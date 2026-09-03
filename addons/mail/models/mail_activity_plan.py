@@ -14,14 +14,6 @@ class MailActivityPlan(models.Model):
     _description = "Activity Plan"
     _order = "id DESC"
 
-    def _get_model_selection(self) -> list:
-        return [
-            (model.model, model.name)
-            for model in self.env["ir.model"]
-            .sudo()
-            .search(["&", ("is_mail_activity", "=", True), ("transient", "=", False)])
-        ]
-
     name = fields.Char("Name", required=True)
     company_id: ResCompany = fields.Many2one(
         "res.company", default=lambda self: self.env.company
@@ -42,7 +34,7 @@ class MailActivityPlan(models.Model):
         store=True,
     )
     res_model = fields.Selection(
-        selection=_get_model_selection,
+        selection=lambda self: self.env["mail.activity"]._get_model_selection(),
         string="Model",
         required=True,
         help="Specify a model if the activity should be specific to a model"
