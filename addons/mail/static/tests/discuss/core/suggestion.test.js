@@ -311,11 +311,11 @@ test("mention suggestion displays OdooBot before archived partners", async () =>
     await insertText(".o-mail-Composer-input", "@");
     await contains(".o-mail-Composer-suggestion", { count: 3 });
     await contains(".o-mail-Composer-suggestion", {
-        text: "Mitchell Admin",
+        text: "OdooBot",
         before: [
             ".o-mail-Composer-suggestion",
             {
-                text: "OdooBot",
+                text: "Mitchell Admin",
                 before: [".o-mail-Composer-suggestion", { text: "Jane" }],
             },
         ],
