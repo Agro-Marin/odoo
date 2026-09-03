@@ -569,8 +569,8 @@ assert_eq "channel.py's two auth=user routes (update_avatar + sub_channel/delete
 
 # XML totals. ARCHITECTURE.md claimed "~380"; the real module-wide total is 232 and its own
 # breakdown only ever summed to 224 (it omitted wizard/security/test XML).
-assert_eq "module-wide XML file count" "$(find "$MAIL" -name '*.xml' | wc -l)" "232"
-assert_eq "static OWL template XML" "$(find "$MAIL/static/src" -name '*.xml' | wc -l)" "164"
+assert_eq "module-wide XML file count" "$(find "$MAIL" -name '*.xml' | wc -l)" "233"
+assert_eq "static OWL template XML" "$(find "$MAIL/static/src" -name '*.xml' | wc -l)" "165"
 assert_eq "views/ XML"   "$(find "$MAIL/views"  -name '*.xml' | wc -l)" "41"
 assert_eq "data/ XML"    "$(find "$MAIL/data"   -name '*.xml' | wc -l)" "15"
 assert_eq "wizard/ XML"  "$(find "$MAIL/wizard" -name '*.xml' | wc -l)" "6"
@@ -609,7 +609,7 @@ assert_eq "TEST_TAGS.md no stale ~52 cite" \
 
 # JS test directory table. core/ was cited as 15 (really 16) and widgets/ as 2 (really 1);
 # the two errors cancelled, so the table summed correctly while both rows were wrong.
-assert_eq "static/tests/core/ test files"    "$(find "$MAIL/static/tests/core"    -name '*.test.js' | wc -l)" "23"
+assert_eq "static/tests/core/ test files"    "$(find "$MAIL/static/tests/core"    -name '*.test.js' | wc -l)" "27"
 assert_eq "static/tests/widgets/ test files" "$(find "$MAIL/static/tests/widgets" -name '*.test.js' | wc -l)" "1"
 assert_doc_cites "TEST_TAGS.md cites the discuss/ test-file count" \
     "$(find "$MAIL/static/tests/discuss" -name '*.test.js' | wc -l)" \
@@ -656,7 +656,7 @@ tag_count_drift=$(
 assert_eq "every TEST_TAGS.md row that states a class count states the tree's" \
     "$tag_count_drift" "0"
 assert_eq "mail_controller classes (7 across 6 discuss files + mock_server_contract)" \
-    "$(grep -rhE '^@(odoo\.tests\.)?tagged\(' "$MAIL/tests" | grep -c 'mail_controller')" "9"
+    "$(grep -rhE '^@(odoo\.tests\.)?tagged\(' "$MAIL/tests" | grep -c 'mail_controller')" "10"
 
 # Controller file count: 19, not 21 — the docs were counting the two __init__.py, which is
 # inconsistent with the models row (76, which excludes it).

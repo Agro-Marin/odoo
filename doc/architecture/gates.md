@@ -480,7 +480,7 @@ expected set from the gates the workflows actually drive rather than from a list
 beside it, so the next retirement fails instead of lingering.
 
 **DB-backed integration gate** (`.github/workflows/integration_tests.yml`)
-— boots PostgreSQL 18 and runs twenty-five suites, **each against its own
+— boots PostgreSQL 18 and runs twenty-six suites, **each against its own
 database**:
 
 | Suite | Database | Notes |
@@ -510,6 +510,7 @@ database**:
 | `date_range` | `ci_date_range` | installs `test_date_range`, whose closure is `date_range`; runs both tags, 37 tests |
 | `account_coa` | `ci_account_coa` | 30 tests |
 | `test_performance_compare` | `ci_perf_compare` | 1 test, and it is the cheapest lane here |
+| `mail`, `test_mail`, `mail_group` | `ci_mail` | added 2026-09-02, with the HTTP server up: mail's own suite, `test_mail` (the suite written for it, which carries the query floors) and `mail_group` (the one alias owner outside the mixin, whose gateway had been broken for weeks with nobody running it) had been run by no lane. Tour classes and the HOOT suites are excluded by tag; the `url_open` HttpCase classes run. |
 
 Adding `test_orm` paid for itself on the first run:
 `TestBackendDifferential.test_divergence_ilike_unaccent` asserted PostgreSQL's

@@ -95,6 +95,12 @@ on:
       - 'addons/test_date_range/**'
       - 'addons/account_coa/**'
       - 'odoo/addons/test_performance_compare/**'
+      # The mail lane below. mail is the dependency of most of the tree and
+      # test_mail is the module written to test it; neither was named by any
+      # lane, nor was mail_group.
+      - 'addons/mail/**'
+      - 'addons/test_mail/**'
+      - 'addons/mail_group/**'
       - 'crates/**'
       - 'requirements*.txt'
       - '.github/workflows/integration_tests.yml'
@@ -472,6 +478,38 @@ env:
   ACCOUNT_COA_TEST_TAGS: /account_coa
   PERF_COMPARE_INSTALL: test_performance_compare
   PERF_COMPARE_TEST_TAGS: /test_performance_compare
+
+  # mail + test_mail + mail_group, added 2026-09-02. `mail` is installed by
+  # eleven lanes above as a dependency and selected by none of them; `test_mail`
+  # is `category: Hidden/Tests`, the module written to exercise mail's thread,
+  # gateway, activity, tracking and push machinery, and `mail_group` sits on the
+  # gateway. `grep -rln 'test_mail\|mail_group' .github/workflows/` returned
+  # nothing, so the largest suite in addons/ ran nowhere.
+  #
+  # One database for the three: test_mail depends on mail and mail_group
+  # depends on mail, and none of them mutates a shared core view the way base's
+  # TestViewArchRecovery does, so the interference that split the lanes above
+  # does not arise here. Measured together at 0 errors of the same count as
+  # three separate runs.
+  #
+  # Runs WITH the HTTP server, the test_http form rather than the --no-http
+  # one: mail carries 25 HttpCase classes that drive its controllers through
+  # `url_open` (attachments, threads, reactions, binary, websocket, presence,
+  # service worker), and --no-http would report each as a success that never
+  # started. What needs Chrome is excluded: the five tour classes by name, the
+  # same deferral as stock's two tour classes, and the HOOT suites by the tags
+  # their two test_js.py files declare (`mail_js`, `test_mail_js`) -- those
+  # run the whole JS test tree through a browser and belong to the HOOT lane,
+  # not here. Re-include the tours once the runner has a confirmed headless
+  # Chrome.
+  MAIL_INSTALL: mail,test_mail,mail_group
+  MAIL_TEST_TAGS: /mail,/test_mail,/mail_group,-mail_js,-test_mail_js,-:TestMailActivityChatter,-:TestMailTemplateUI,-:TestMailComposerUI,-:TestUserTours,-:TestTours
+  # Measured 2026-09-02 at CI scope with the server up, twice, twenty minutes
+  # apart on a tree several sessions were committing to: 1788 and 1884 tests
+  # (the first read 1802 before the 14 HOOT methods were excluded). The floor
+  # sits under both, so a dropped tag or a re-added --no-http fails loudly
+  # rather than by one test.
+  MAIL_TEST_COUNT_FLOOR: 1700
 
 jobs:
   base-smoke:
@@ -1402,3 +1440,36 @@ jobs:
             exit 1
           fi
 
+      - name: Run mail, test_mail and mail_group suites
+        # Their own database (ci_mail), same reasoning as the suites above. No
+        # `--no-http`: see the MAIL_* env block for why this lane differs.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_mail \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${MAIL_INSTALL}" \
+            --test-enable --test-tags "${MAIL_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/mail-suite.log
+
+      - name: Assert the mail suites actually ran
+        # Same guard as the suites above. The floor sits under the measured
+        # count; a drop of hundreds means the HttpCase classes found no server.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/mail-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — the mail suites did not report a count"
+            exit 1
+          fi
+          echo "mail tests run: $RAN (floor: ${MAIL_TEST_COUNT_FLOOR})"
+          if [ "$RAN" -lt "${MAIL_TEST_COUNT_FLOOR}" ]; then
+            echo "::error::only $RAN mail tests ran, below the floor of ${MAIL_TEST_COUNT_FLOOR} —"
+            echo "::error::one of the three suites was skipped rather than failed,"
+            echo "::error::or the HttpCase classes found no server."
+            exit 1
+          fi
