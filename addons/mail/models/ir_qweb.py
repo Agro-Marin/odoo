@@ -111,6 +111,8 @@ class IrQweb(models.AbstractModel):
 
     @staticmethod
     def _check_restricted_attributes(el: etree._Element, allowed: set[str]) -> None:
+        # Static attributes carry no expression and are emitted verbatim, so
+        # only directives are policed; every dynamic attribute is a `t-` one.
         if forbidden := {
             name for name in el.attrib if name.startswith("t-") and name not in allowed
         }:

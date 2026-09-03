@@ -7,6 +7,8 @@ from odoo.api import ValuesType
 
 _logger = logging.getLogger(__name__)
 
+RESTRICT_TEMPLATE_RENDERING_KEY = "mail.restrict.template.rendering"
+
 
 class IrConfig_Parameter(models.Model):
     _inherit = "ir.config_parameter"
@@ -35,16 +37,24 @@ class IrConfig_Parameter(models.Model):
         return self.sudo().get_param_bool(key, default)
 
     @api.model
+    def _sync_template_editor_group(self, restrict: bool) -> None:
+        group_user = self.env.ref("base.group_user")
+        group_mail_template_editor = self.env.ref("mail.group_mail_template_editor")
+        if not restrict and group_mail_template_editor not in group_user.implied_ids:
+            group_user._apply_group(group_mail_template_editor)
+        elif restrict and group_mail_template_editor in group_user.implied_ids:
+            group_user._remove_group(group_mail_template_editor)
+
+    @api.model
+    def _restricts_template_rendering(self, value: Any) -> bool:
+        if value is False or value is None:
+            return False
+        return str(value).strip().lower() not in self._FALSY_PARAM_VALUES
+
+    @api.model
     def set_param(self, key: str, value: Any) -> Literal[True]:
-        if key == "mail.restrict.template.rendering":
-            group_user = self.env.ref("base.group_user")
-            group_mail_template_editor = self.env.ref("mail.group_mail_template_editor")
-
-            if not value and group_mail_template_editor not in group_user.implied_ids:
-                group_user._apply_group(group_mail_template_editor)
-
-            elif value and group_mail_template_editor in group_user.implied_ids:
-                group_user._remove_group(group_mail_template_editor)
+        if key == RESTRICT_TEMPLATE_RENDERING_KEY:
+            self._sync_template_editor_group(self._restricts_template_rendering(value))
         elif key == "mail.catchall.domain.allowed":
             value = (
                 self.env["mail.alias.domain"]._sanitize_allowed_domains(value)
@@ -64,9 +74,13 @@ class IrConfig_Parameter(models.Model):
         for vals in vals_list:
             if vals.get("key") and "value" in vals:
                 vals["value"] = self._sanitize_param_value(vals["key"], vals["value"])
-        return super().create(vals_list)
+        params = super().create(vals_list)
+        params._sync_template_editor_group_from_rows()
+        return params
 
     def write(self, vals: ValuesType) -> Literal[True]:
+        watched = "key" in vals or "value" in vals
+        had_restrict_row = watched and self._has_restrict_template_rendering_row()
         if "value" in vals:
             records_by_value = defaultdict(self.browse)
             for record in self:
@@ -80,5 +94,30 @@ class IrConfig_Parameter(models.Model):
                     super(IrConfig_Parameter, records).write({**vals, "value": value})
                     and result
                 )
-            return result
-        return super().write(vals)
+        else:
+            result = super().write(vals)
+        if watched:
+            self._sync_template_editor_group_from_rows(
+                row_removed=had_restrict_row
+                and not self._has_restrict_template_rendering_row()
+            )
+        return result
+
+    def unlink(self) -> Literal[True]:
+        had_restrict_row = self._has_restrict_template_rendering_row()
+        result = super().unlink()
+        if had_restrict_row:
+            self._sync_template_editor_group(False)
+        return result
+
+    def _has_restrict_template_rendering_row(self) -> bool:
+        return any(p.key == RESTRICT_TEMPLATE_RENDERING_KEY for p in self)
+
+    def _sync_template_editor_group_from_rows(self, row_removed: bool = False) -> None:
+        rows = self.filtered(lambda p: p.key == RESTRICT_TEMPLATE_RENDERING_KEY)
+        if rows:
+            self._sync_template_editor_group(
+                self._restricts_template_rendering(rows[-1].value)
+            )
+        elif row_removed:
+            self._sync_template_editor_group(False)

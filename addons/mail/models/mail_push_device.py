@@ -1,10 +1,14 @@
 import json
 import logging as logger
 import typing
+from datetime import UTC, datetime
+from typing import Literal
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 from ..tools.jwt import InvalidVapidError, generate_vapid_keys
+from ..tools.web_push import decode_browser_keys
 
 if typing.TYPE_CHECKING:
     from .res_partner import ResPartner
@@ -68,6 +72,15 @@ class MailPushDevice(models.Model):
         browser_keys = kw.get("keys")
         if not endpoint or not browser_keys:
             return
+        try:
+            decode_browser_keys(browser_keys)
+        except ValueError as error:
+            raise UserError(
+                _("Invalid push subscription keys: %(reason)s", reason=error)
+            ) from error
+        expiration_time = self._parse_expiration_time(
+            kw.get("expirationTime", kw.get("expiration_time"))
+        )
         search_endpoint = (
             kw.get("previousEndpoint") or kw.get("previous_endpoint") or endpoint
         )
@@ -84,7 +97,7 @@ class MailPushDevice(models.Model):
             mail_push_device.write(
                 {
                     "endpoint": endpoint,
-                    "expiration_time": kw.get("expirationTime"),
+                    "expiration_time": expiration_time,
                     "keys": json.dumps(browser_keys),
                 }
             )
@@ -93,7 +106,7 @@ class MailPushDevice(models.Model):
                 [
                     {
                         "endpoint": endpoint,
-                        "expiration_time": kw.get("expirationTime"),
+                        "expiration_time": expiration_time,
                         "keys": json.dumps(browser_keys),
                         "partner_id": partner.id,
                     }
@@ -118,6 +131,22 @@ class MailPushDevice(models.Model):
         )
         if mail_push_device:
             mail_push_device.unlink()
+
+    @api.model
+    def _parse_expiration_time(self, value: typing.Any) -> datetime | Literal[False]:
+        if value in (None, False, ""):
+            return False
+        if isinstance(value, int | float):
+            try:
+                return datetime.fromtimestamp(value / 1000, tz=UTC).replace(tzinfo=None)
+            except (OverflowError, OSError, ValueError) as error:
+                raise UserError(
+                    _(
+                        "Invalid push subscription expiration time %(value)s",
+                        value=value,
+                    )
+                ) from error
+        return fields.Datetime.to_datetime(value)
 
     def _is_vapid_public_key_current(self, sw_public_key: str) -> bool:
         ir_params_sudo = self.env["ir.config_parameter"].sudo()

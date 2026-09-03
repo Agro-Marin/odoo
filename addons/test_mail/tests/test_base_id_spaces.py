@@ -36,6 +36,21 @@ class TestBaseIdSpaces(MailCommon):
         )
 
     @users("employee")
+    def test_a_name_only_input_still_receives_the_record_values(self):
+        record = self.env["mail.test.ticket.mc"].create(
+            {"name": "Company Bound", "email_from": "bound@test.example.com"}
+        )
+        self.assertTrue(record.company_id)
+        for name in ("Name Only Person", '"Bad Address" <not-an-email>'):
+            with self.subTest(name=name):
+                partner = record._partner_find_from_emails_single(
+                    [name], customer_information={name: {"phone": "+32 470 12 34 56"}}
+                )
+                self.assertTrue(partner)
+                self.assertEqual(partner.company_id, record.company_id)
+                self.assertEqual(partner.phone, "+32 470 12 34 56")
+
+    @users("employee")
     def test_suggested_recipients_on_a_draft_of_a_stored_record(self):
         record = self.env["mail.test.ticket"].browse(self.record.id)
         draft = self.env["mail.test.ticket"].new(origin=record)

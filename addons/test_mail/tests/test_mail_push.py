@@ -7,10 +7,15 @@ from unittest.mock import patch
 from markupsafe import Markup
 
 import odoo
+from odoo.exceptions import UserError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools.misc import mute_logger
 
+from odoo.addons.mail.models.mail_push import (
+    PUSH_ENDPOINT_RETRY_DAYS,
+    PUSH_ENDPOINT_RETRY_DELAY,
+)
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.mail.tools.jwt import InvalidVapidError
 from odoo.addons.mail.tools.web_push import (
@@ -424,7 +429,6 @@ class TestWebPushNotification(SMSCommon):
         self.assertEqual(notification_count, number_of_notification)
 
     @patch.object(odoo.addons.mail.models.mixin_mail_thread, "push_to_end_point")
-    @mute_logger("odoo.tests")
     def test_notify_by_push(self, push_to_end_point):
         """When posting a comment, notify both inbox and people outside of Odoo
         aka email"""
@@ -823,7 +827,6 @@ class TestWebPushNotification(SMSCommon):
             else:
                 self.assertNoPushNotification()
 
-    @mute_logger("odoo.tests")
     def test_notify_by_push_message_notify(self):
         """In case of notification, only inbox users are notified"""
         for recipient, has_notification in [
@@ -857,7 +860,6 @@ class TestWebPushNotification(SMSCommon):
                     self.assertNoPushNotification()
 
     @patch.object(odoo.addons.mail.models.mixin_mail_thread, "push_to_end_point")
-    @mute_logger("odoo.tests")
     def test_notify_call_invitation(self, push_to_end_point):
         inviting_user = (
             self.env["res.users"].sudo().create({"name": "Test User", "login": "test"})
@@ -1021,6 +1023,30 @@ class TestWebPushNotification(SMSCommon):
         # Force the execution of the cron
         self._trigger_cron_job()
         self.assertEqual(push_to_end_point.call_count, 5)
+
+    def test_push_notifications_cron_under_mock_mail_gateway(self):
+        with (
+            patch.object(
+                odoo.addons.mail.models.mixin_mail_thread, "MAX_DIRECT_PUSH", 1
+            ),
+            patch.object(odoo.addons.mail.models.mail_push.Session, "post") as post,
+            self.mock_mail_gateway(),
+        ):
+            self.record_simple.with_user(self.user_email).message_notify(
+                partner_ids=self.user_inbox.partner_id.ids,
+                body="Test message send via Web Push",
+                subject="Test Activity",
+            )
+            self._assert_notification_count_for_cron(1)
+            self.push_to_end_point_mocked.assert_not_called()
+            self._trigger_cron_job()
+            self.push_to_end_point_mocked.assert_called_once()
+            self.assertEqual(
+                self.push_to_end_point_mocked.call_args.kwargs["device"]["endpoint"],
+                "https://test.odoo.com/webpush/user2",
+            )
+        post.assert_not_called()
+        self._assert_notification_count_for_cron(0)
 
     @patch.object(
         odoo.addons.mail.models.mixin_mail_thread.Session,
@@ -1229,6 +1255,190 @@ class TestWebPushNotification(SMSCommon):
                 self.assertEqual(
                     rotated, original, "same row, endpoint rotated in place"
                 )
+
+    def test_register_devices_coerces_the_expiration_and_validates_the_keys(self):
+        Device = self.env["mail.push.device"].with_user(self.user_email)
+        endpoint = "https://test.odoo.com/webpush/expiring"
+        Device.register_devices(
+            endpoint=endpoint,
+            expirationTime=1_700_000_000_000,
+            keys=self._valid_browser_keys(),
+            vapid_public_key=self.vapid_public_key,
+        )
+        device = Device.sudo().search([("endpoint", "=", endpoint)])
+        self.assertEqual(
+            device.expiration_time,
+            datetime(2023, 11, 14, 22, 13, 20),
+            "the Push API sends milliseconds since the epoch",
+        )
+        Device.register_devices(
+            endpoint=endpoint,
+            expirationTime=None,
+            keys=self._valid_browser_keys(),
+            vapid_public_key=self.vapid_public_key,
+        )
+        self.assertFalse(device.expiration_time)
+
+        bad_endpoint = "https://test.odoo.com/webpush/bad-keys"
+        for bad_keys in (
+            "not a mapping",
+            {"p256dh": "AAAA", "auth": "DJFdtAgZwrT6yYkUMgUqow"},
+            {**self._valid_browser_keys(), "auth": "short"},
+            {"p256dh": None, "auth": None},
+            {"auth": "DJFdtAgZwrT6yYkUMgUqow"},
+        ):
+            with self.subTest(keys=bad_keys), self.assertRaises(UserError):
+                Device.register_devices(
+                    endpoint=bad_endpoint,
+                    expirationTime=None,
+                    keys=bad_keys,
+                    vapid_public_key=self.vapid_public_key,
+                )
+        self.assertFalse(Device.sudo().search([("endpoint", "=", bad_endpoint)]))
+
+    @patch.object(
+        odoo.addons.mail.models.mixin_mail_thread.Session,
+        "post",
+        return_value=SimpleNamespace(status_code=201, text="Ok"),
+    )
+    def test_cron_unlinks_a_device_whose_keys_cannot_be_used(self, post):
+        device = (
+            self.env["mail.push.device"]
+            .sudo()
+            .create(
+                {
+                    "endpoint": "https://test.odoo.com/webpush/undecodable",
+                    "keys": json.dumps(
+                        {"p256dh": "AAAA", "auth": "DJFdtAgZwrT6yYkUMgUqow"}
+                    ),
+                    "partner_id": self.user_inbox.partner_id.id,
+                }
+            )
+        )
+        notification = (
+            self.env["mail.push"]
+            .sudo()
+            .create(
+                {
+                    "mail_push_device_id": device.id,
+                    "payload": json.dumps({"title": "t"}),
+                }
+            )
+        )
+        self._trigger_cron_job()
+        self.assertFalse(device.exists(), "keys that never decrypt are a dead device")
+        self.assertFalse(notification.exists())
+        post.assert_not_called()
+
+    def test_cron_retries_a_notification_the_endpoint_could_not_take(self):
+        device = (
+            self.env["mail.push.device"]
+            .sudo()
+            .search([("partner_id", "=", self.user_inbox.partner_id.id)], limit=1)
+        )
+        notification = (
+            self.env["mail.push"]
+            .sudo()
+            .create(
+                {
+                    "mail_push_device_id": device.id,
+                    "payload": json.dumps({"title": "t"}),
+                }
+            )
+        )
+        for status_code, headers, expected_delay in (
+            (429, {"Retry-After": "120"}, timedelta(seconds=120)),
+            (503, {}, PUSH_ENDPOINT_RETRY_DELAY),
+            (500, {"Retry-After": "not a date"}, PUSH_ENDPOINT_RETRY_DELAY),
+            (
+                429,
+                {"Retry-After": "99999999"},
+                timedelta(days=PUSH_ENDPOINT_RETRY_DAYS),
+            ),
+        ):
+            with (
+                self.subTest(status_code=status_code, headers=headers),
+                patch.object(
+                    odoo.addons.mail.models.mixin_mail_thread.Session,
+                    "post",
+                    return_value=SimpleNamespace(
+                        status_code=status_code, text="later", headers=headers
+                    ),
+                ) as post,
+                mute_logger("odoo.addons.mail.tools.web_push"),
+            ):
+                notification.retry_after = False
+                before = datetime.now()
+                self._trigger_cron_job()
+                post.assert_called_once()
+                self.assertTrue(notification.exists(), "kept for a later attempt")
+                self.assertTrue(device.exists(), "the device is not at fault")
+                self.assertAlmostEqual(
+                    notification.retry_after,
+                    before + expected_delay,
+                    delta=timedelta(seconds=10),
+                )
+
+        with patch.object(
+            odoo.addons.mail.models.mixin_mail_thread.Session, "post"
+        ) as post:
+            self._trigger_cron_job()
+        post.assert_not_called()
+
+    @patch.object(
+        odoo.addons.mail.models.mixin_mail_thread.Session,
+        "post",
+        return_value=SimpleNamespace(status_code=201, text="Ok"),
+    )
+    def test_cron_classifies_an_endpoint_host_once_per_batch(self, post):
+        from odoo.addons.mail.tools import link_preview, web_push
+        from odoo.addons.mail.tools.link_preview import UrlSafety
+
+        devices = (
+            self.env["mail.push.device"]
+            .sudo()
+            .create(
+                [
+                    {
+                        "endpoint": f"https://{host}/webpush/{index}",
+                        "keys": json.dumps(self._valid_browser_keys()),
+                        "partner_id": self.user_inbox.partner_id.id,
+                    }
+                    for host in ("one.test.odoo.com", "two.test.odoo.com")
+                    for index in range(3)
+                ]
+            )
+        )
+        self.env["mail.push"].sudo().create(
+            [
+                {
+                    "mail_push_device_id": device.id,
+                    "payload": json.dumps({"title": "t"}),
+                }
+                for device in devices
+            ]
+        )
+        with (
+            patch.object(
+                web_push, "_classify_url_safety", link_preview._classify_url_safety
+            ),
+            patch.object(
+                link_preview, "_classify_host_safety", return_value=UrlSafety.SAFE
+            ) as resolve,
+        ):
+            self._trigger_cron_job()
+        self.assertEqual(post.call_count, 6)
+        self.assertEqual(
+            sorted(call.args[0] for call in resolve.call_args_list),
+            ["one.test.odoo.com", "two.test.odoo.com"],
+        )
+
+    @staticmethod
+    def _valid_browser_keys():
+        return {
+            "p256dh": "BGbhnoP_91U7oR59BaaSx0JnDv2oEooYnJRV2AbY5TBeKGCRCf0HcIJ9bOKchUCDH4cHYWo9SYDz3U-8vSxPL_A",
+            "auth": "DJFdtAgZwrT6yYkUMgUqow",
+        }
 
     def test_classify_url_safety(self):
         """A non-global address is BLOCKED (permanently bad); a resolution

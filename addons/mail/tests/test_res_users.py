@@ -518,6 +518,33 @@ class TestUser(MailCommon):
                 self.assertEqual(user.im_status, expected)
                 self.assertEqual(user.partner_id.im_status, expected)
 
+    def test_partner_presence_folds_its_users_by_priority(self):
+        partner = self.env["res.partner"].create({"name": "Shared Persona"})
+        user_a, user_b = self.env["res.users"].create(
+            [
+                {"partner_id": partner.id, "login": "fold_a"},
+                {"partner_id": partner.id, "login": "fold_b"},
+            ]
+        )
+        presence_a, presence_b = self.env["mail.presence"].create(
+            [{"user_id": user_a.id}, {"user_id": user_b.id}]
+        )
+        for status_a, manual_a, status_b, manual_b, expected in (
+            ("offline", False, "offline", False, "offline"),
+            ("away", False, "offline", False, "away"),
+            ("away", False, "online", False, "online"),
+            ("online", "busy", "offline", False, "busy"),
+            ("online", "busy", "away", False, "away"),
+            ("online", "busy", "online", False, "online"),
+        ):
+            with self.subTest(a=(status_a, manual_a), b=(status_b, manual_b)):
+                presence_a.status = status_a
+                presence_b.status = status_b
+                user_a.manual_im_status = manual_a
+                user_b.manual_im_status = manual_b
+                partner.invalidate_recordset(["im_status"])
+                self.assertEqual(partner.im_status, expected)
+
     def test_deactivating_a_user_removes_their_activities(self):
         for archive in (
             lambda user: user.write({"active": False}),

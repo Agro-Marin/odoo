@@ -76,20 +76,20 @@ class IrModel(models.Model):
         query = """
             SELECT DISTINCT store_fname
             FROM ir_attachment
-            WHERE res_model = ANY(%s)
+            WHERE res_model = ANY(%s) AND store_fname IS NOT NULL
             EXCEPT
             SELECT store_fname
             FROM ir_attachment
             WHERE res_model != ALL(%s);
         """
         self.env.cr.execute(query, [models, models])
-        fnames = self.env.cr.fetchall()
+        fnames = [fname for (fname,) in self.env.cr.fetchall()]
 
         query = """DELETE FROM ir_attachment WHERE res_model = ANY(%s)"""
         self.env.cr.execute(query, [models])
 
-        for (fname,) in fnames:
-            self.env["ir.attachment"]._remove_stored_file(fname)
+        if fnames:
+            self.env["ir.attachment"]._remove_stored_file_multi(fnames)
 
         return super().unlink()
 
@@ -166,37 +166,21 @@ class IrModel(models.Model):
         return attrs
 
     def _get_definitions(self, model_names: list[str]) -> dict:
-        model_definitions = super()._get_definitions(model_names)
-        for model_name, model_definition in model_definitions.items():
-            model = self.env[model_name]
-            tracked_field_names = (
-                model._track_get_fields()
-                if "mixin.mail.thread" in model._inherit
-                else []
-            )
-            for fname in tracked_field_names:
-                if fname in model_definition["fields"]:
-                    model_definition["fields"][fname]["tracking"] = True
-            if isinstance(
-                self.env[model_name], self.env.registry["mixin.mail.activity"]
-            ):
-                model_definition["has_activities"] = True
-        return model_definitions
+        return self._mail_annotate_definitions(super()._get_definitions(model_names))
 
     def _get_model_definitions(self, model_names_to_fetch: list[str]) -> dict:
-        model_definitions = super()._get_model_definitions(model_names_to_fetch)
+        return self._mail_annotate_definitions(
+            super()._get_model_definitions(model_names_to_fetch)
+        )
+
+    def _mail_annotate_definitions(self, model_definitions: dict) -> dict:
         for model_name, model_definition in model_definitions.items():
             model = self.env[model_name]
-            tracked_field_names = (
-                model._track_get_fields()
-                if "mixin.mail.thread" in model._inherit
-                else []
-            )
-            for fname, field in model_definition["fields"].items():
-                if fname in tracked_field_names:
-                    field["tracking"] = True
-            if isinstance(
-                self.env[model_name], self.env.registry["mixin.mail.activity"]
-            ):
+            if isinstance(model, self.env.registry["mixin.mail.thread"]):
+                fields = model_definition["fields"]
+                for fname in model._track_get_fields():
+                    if fname in fields:
+                        fields[fname]["tracking"] = True
+            if isinstance(model, self.env.registry["mixin.mail.activity"]):
                 model_definition["has_activities"] = True
         return model_definitions

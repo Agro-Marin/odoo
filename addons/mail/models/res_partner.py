@@ -1,10 +1,10 @@
 import re
 import typing
 from collections.abc import Callable
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from odoo import api, fields, models, tools
-from odoo.api import DomainType
+from odoo.api import DomainType, ValuesType
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools.misc import limited_field_access_token
@@ -13,6 +13,8 @@ from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSp
 
 if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_users import ResUsers
+
+ROOT_EMAIL_UNIQUENESS_FIELDS = frozenset({"email", "active"})
 
 
 class ResPartner(models.Model):
@@ -52,18 +54,8 @@ class ResPartner(models.Model):
     @api.depends("user_ids.manual_im_status", "user_ids.presence_ids.status")
     def _compute_presence(self) -> None:
         for partner in self:
-            all_status = [
-                presence._get_im_status(presence.user_id.manual_im_status)
-                for presence in partner.user_ids.presence_ids
-            ]
             partner.im_status = (
-                "online"
-                if "online" in all_status
-                else "away"
-                if "away" in all_status
-                else "busy"
-                if "busy" in all_status
-                else "offline"
+                partner.user_ids.presence_ids._fold_im_status()
                 if partner.user_ids
                 else "im_partner"
             )
@@ -76,6 +68,66 @@ class ResPartner(models.Model):
         odoobot = self.env["res.partner"].browse(odoobot_id)
         if odoobot in self:
             odoobot.im_status = "bot"
+
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        partners = super().create(vals_list)
+        if partners._mail_shares_root_email():
+            self._mail_invalidate_root_email_uniqueness()
+        return partners
+
+    def write(self, vals: ValuesType) -> Literal[True]:
+        watched = bool(vals.keys() & ROOT_EMAIL_UNIQUENESS_FIELDS)
+        shared_before = watched and self._mail_shares_root_email()
+        result = super().write(vals)
+        if (
+            shared_before
+            or (watched and self._mail_shares_root_email())
+            or ("email" in vals and self._mail_get_root_partner_id() in self._ids)
+        ):
+            self._mail_invalidate_root_email_uniqueness()
+        return result
+
+    def unlink(self) -> Literal[True]:
+        shared_before = self._mail_shares_root_email()
+        result = super().unlink()
+        if shared_before:
+            self._mail_invalidate_root_email_uniqueness()
+        return result
+
+    @api.model
+    def _mail_get_root_partner_id(self) -> int:
+        return self.env["ir.model.data"]._xmlid_to_res_id("base.partner_root")
+
+    @api.model
+    @tools.ormcache(cache="stable")
+    def _mail_get_root_email(self) -> str | Literal[False]:
+        return self.browse(self._mail_get_root_partner_id()).sudo().email_normalized
+
+    def _mail_shares_root_email(self) -> bool:
+        root_email = self._mail_get_root_email()
+        return bool(root_email) and any(
+            partner.email_normalized == root_email for partner in self.sudo()
+        )
+
+    @api.model
+    @tools.ormcache("root_email", cache="stable")
+    def _mail_root_email_is_unique(self, root_email: str) -> bool:
+        return not (
+            self.sudo()
+            .with_context(active_test=True)
+            .search_count(
+                [
+                    ("email_normalized", "=", root_email),
+                    ("id", "!=", self._mail_get_root_partner_id()),
+                ],
+                limit=1,
+            )
+        )
+
+    @api.model
+    def _mail_invalidate_root_email_uniqueness(self) -> None:
+        self.env.registry.clear_cache("stable")
 
     def _get_needaction_count(self) -> int:
         self.check_singleton()
@@ -112,8 +164,10 @@ class ResPartner(models.Model):
                 f"to create a new customer."
             )
         if parsed_email_normalized:
-            partners = self.search(
-                [("email_normalized", "=", parsed_email_normalized)], limit=1
+            partners = self.with_context(active_test=False).search(
+                [("email_normalized", "=", parsed_email_normalized)],
+                order=f"active DESC, {self._order}",
+                limit=1,
             )
             if partners:
                 return partners
@@ -160,9 +214,13 @@ class ResPartner(models.Model):
                 domains.append([("email_normalized", "in", list(emails_normalized))])
             if names:
                 domains.append([("email", "in", list(names))])
-            partners += self.search(Domain.OR(domains), order="id ASC")
+            partners += self.with_context(active_test=False).search(
+                Domain.OR(domains), order="active DESC, id ASC"
+            )
             if filter_found:
                 partners = partners.filtered(filter_found)
+            if no_create:
+                partners = partners.filtered("active")
 
         if not no_create:
             notfound_emails = emails_normalized - set(
@@ -199,6 +257,11 @@ class ResPartner(models.Model):
             partners = partners.sorted(key=sort_key, reverse=sort_reverse)
 
         return self._get_partner_per_email(name_emails, emails, partners)
+
+    @api.model
+    def _get_or_create_from_emails_key(self, email: str) -> str:
+        name, email_normalized = tools.parse_contact_from_email(email)
+        return email_normalized or name.strip()
 
     def _get_partner_per_email(
         self,

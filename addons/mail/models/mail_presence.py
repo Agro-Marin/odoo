@@ -10,6 +10,7 @@ if typing.TYPE_CHECKING:
     from .discuss.mail_guest import MailGuest
     from odoo.addons.bus.models.res_users import ResUsers
 
+IM_STATUS_PRIORITY = ("online", "away", "busy")
 UPDATE_PRESENCE_DELAY = 60
 DISCONNECTION_TIMER = UPDATE_PRESENCE_DELAY + 5
 AWAY_TIMER = 1800
@@ -69,6 +70,21 @@ class MailPresence(models.Model):
         if self.status == "offline" or not self.status:
             return "offline"
         return manual_im_status or self.status
+
+    def _fold_im_status(
+        self, manual_im_status: str | Literal[False] | None = None
+    ) -> str:
+        statuses = {
+            presence._get_im_status(
+                presence.user_id.manual_im_status
+                if manual_im_status is None
+                else manual_im_status
+            )
+            for presence in self
+        }
+        return next(
+            (status for status in IM_STATUS_PRIORITY if status in statuses), "offline"
+        )
 
     @api.model
     def _try_update_presence(

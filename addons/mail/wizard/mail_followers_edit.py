@@ -35,7 +35,7 @@ class MailFollowersEdit(models.TransientModel):
     def edit_followers(self) -> dict:
         for wizard in self:
             res_ids = parse_res_ids(wizard.res_ids, self.env)
-            documents = self.env[wizard.res_model].browse(res_ids)
+            documents = self.env[wizard.res_model].browse(res_ids).exists()
             if not documents:
                 raise UserError(
                     self.env._("No documents found for the selected records.")
@@ -58,23 +58,27 @@ class MailFollowersEdit(models.TransientModel):
                         documents, model_name
                     )
                     message_values["partner_ids"] = wizard.partner_ids.ids
+                    # One invitation for the whole selection: the body lists
+                    # every document and the multi-invite layout is built for
+                    # it, so the first document only lends the message a thread.
                     documents[0].message_notify(**message_values)
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
             "params": {
                 "type": "success",
-                "message": self.env._("Followers updated")
-                if len(wizard) > 1
-                else (
-                    self.env._("Followers added")
-                    if wizard.operation == "add"
-                    else self.env._("Followers removed")
-                ),
+                "message": self._get_notification_message(),
                 "sticky": False,
                 "next": {"type": "ir.actions.act_window_close"},
             },
         }
+
+    def _get_notification_message(self) -> str:
+        if len(self) != 1:
+            return self.env._("Followers updated")
+        if self.operation == "add":
+            return self.env._("Followers added")
+        return self.env._("Followers removed")
 
     def _prepare_message_values(
         self, documents: models.BaseModel, model_name: str
