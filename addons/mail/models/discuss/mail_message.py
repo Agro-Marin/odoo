@@ -47,8 +47,11 @@ class MailMessage(models.Model):
                     "parent_id",
                     format_reply=False,
                     predicate=lambda message: (
-                        message.parent_id.model == message.model
-                        and message.parent_id.res_id == message.res_id
+                        not message.parent_id
+                        or (
+                            message.parent_id.model == message.model
+                            and message.parent_id.res_id == message.res_id
+                        )
                     ),
                 ),
             )

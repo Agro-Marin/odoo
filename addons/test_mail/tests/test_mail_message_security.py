@@ -1090,6 +1090,32 @@ class TestMailMessageAccess(MessageAccessCommon):
         with self.assertRaises(AccessError):
             message.with_user(self.user_portal_2).read(["subject"])
 
+    @mute_logger("odoo.addons.base.models.ir_rule")
+    def test_access_write_portal_envelope(self):
+        """A portal author edits the content of its message, never its envelope"""
+        message = self.record_portal.with_user(self.user_portal).message_post(
+            body="Portal Comment",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        guest = self.env["mail.guest"].create({"name": "Guest"})
+        envelope = {
+            "author_guest_id": guest.id,
+            "author_id": self.user_employee.partner_id.id,
+            "date": "2020-01-01 00:00:00",
+            "email_from": "spoofed@example.com",
+            "is_internal": True,
+            "message_type": "notification",
+            "pinned_at": "2020-01-01 00:00:00",
+            "subtype_id": self.env.ref("mail.mt_note").id,
+        }
+        before = message.sudo().read(list(envelope))[0]
+        message.with_user(self.user_portal).write({"body": "Edited", **envelope})
+        message_su = message.sudo()
+        self.assertIn("Edited", message_su.body)
+        self.assertEqual(message_su.read(list(envelope))[0], before)
+        self.assertEqual(message_su.author_id, self.user_portal.partner_id)
+
     # ------------------------------------------------------------
     # SEARCH
     # ------------------------------------------------------------

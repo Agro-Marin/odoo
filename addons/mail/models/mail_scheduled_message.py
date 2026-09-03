@@ -2,6 +2,7 @@ import json
 import logging
 import typing
 from collections import defaultdict
+from collections.abc import Collection
 from typing import Literal, Self
 
 from markupsafe import Markup
@@ -12,7 +13,10 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.tools import Query
 from odoo.tools.misc import clean_context
 
-from odoo.addons.mail.tools.access_scan import scan_accessible_query
+from odoo.addons.mail.tools.access_scan import (
+    make_document_access_error,
+    scan_accessible_query,
+)
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
 if typing.TYPE_CHECKING:
@@ -84,7 +88,7 @@ class MailScheduledMessage(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         for vals in vals_list:
-            self._check(vals)
+            self._check_create_values(vals)
 
         scheduled_messages = super(
             MailScheduledMessage, self.with_context(clean_context(self.env.context))
@@ -136,17 +140,15 @@ class MailScheduledMessage(models.Model):
         def allowed(rows: list[tuple]) -> list[int]:
             model_ids = defaultdict(set)
             for __, model, res_id in rows:
-                if model in self.env:
-                    model_ids[model].add(res_id)
-            allowed_ids = {}
-            for model, res_ids in model_ids.items():
-                records = self.env[model].browse(res_ids)
-                operation = getattr(records, "_mail_post_access", "write")
-                allowed_ids[model] = set(records._filtered_access(operation)._ids)
+                model_ids[model].add(res_id)
+            postable_ids = {
+                model: self._get_postable_ids(model, res_ids)
+                for model, res_ids in model_ids.items()
+            }
             return [
                 msg_id
                 for msg_id, res_model, res_id in rows
-                if res_id in allowed_ids.get(res_model, ())
+                if res_id in postable_ids[res_model]
             ]
 
         return scan_accessible_query(
@@ -163,9 +165,41 @@ class MailScheduledMessage(models.Model):
             **kwargs,
         )
 
-    def unlink(self) -> Literal[True]:
-        self._check()
-        return super().unlink()
+    @api.model
+    def _get_postable_ids(self, model: str, res_ids: Collection[int]) -> set[int]:
+        if model not in self.env:
+            return set()
+        return set(
+            self.env["mail.message"]
+            ._filter_records_for_message_operation(model, list(res_ids), "create")
+            ._ids
+        )
+
+    def _get_forbidden_documents(self) -> Self:
+        model_ids = defaultdict(set)
+        for scheduled_message in self.sudo():
+            model_ids[scheduled_message.model].add(scheduled_message.res_id)
+        postable_ids = {
+            model: self._get_postable_ids(model, res_ids)
+            for model, res_ids in model_ids.items()
+        }
+        return self.browse(
+            scheduled_message.id
+            for scheduled_message in self.sudo()
+            if scheduled_message.res_id not in postable_ids[scheduled_message.model]
+        )
+
+    def _check_access(self, operation: str) -> tuple | None:
+        result = super()._check_access(operation)
+        if not self:
+            return result
+        remaining = self - result[0] if result else self
+        forbidden = remaining._get_forbidden_documents()
+        if not forbidden:
+            return result
+        if result:
+            return result[0] + forbidden, result[1]
+        return forbidden, lambda: make_document_access_error(forbidden, operation)
 
     def write(self, vals: ValuesType) -> Literal[True]:
         if vals.get("model") or vals.get("res_id"):
@@ -174,7 +208,6 @@ class MailScheduledMessage(models.Model):
                     "You are not allowed to change the target record of a scheduled message."
                 )
             )
-        self._check()
         res = super().write(vals)
         if new_scheduled_date := vals.get("scheduled_date"):
             self.env.ref("mail.ir_cron_post_scheduled_message")._trigger(
@@ -215,7 +248,10 @@ class MailScheduledMessage(models.Model):
         for scheduled_message in self:
             message_creator = scheduled_message.create_uid
             try:
-                scheduled_message.with_user(message_creator)._check()
+                if forbidden := scheduled_message.with_user(
+                    message_creator
+                )._get_forbidden_documents():
+                    raise make_document_access_error(forbidden, "create")
                 message = (
                     self.env[scheduled_message.model]
                     .browse(scheduled_message.res_id)
@@ -276,34 +312,20 @@ class MailScheduledMessage(models.Model):
                     self.env.cr.commit()
 
     @api.model
-    def _check(self, values: dict | None = None) -> bool | None:
-        if self.env.is_superuser():
-            return True
-
-        model_ids = defaultdict(set)
-        for scheduled_message in self.sudo():
-            model_ids[scheduled_message.model].add(scheduled_message.res_id)
-        if values:
-            missing = {"model", "res_id"} - values.keys()
-            if missing:
-                raise ValidationError(
-                    self.env._(
-                        "A scheduled message needs %(field_names)s to know what it "
-                        "is scheduled on.",
-                        field_names=", ".join(sorted(missing)),
-                    )
+    def _check_create_values(self, values: ValuesType) -> None:
+        missing = {"model", "res_id"} - values.keys()
+        if missing:
+            raise ValidationError(
+                self.env._(
+                    "A scheduled message needs %(field_names)s to know what it "
+                    "is scheduled on.",
+                    field_names=", ".join(sorted(missing)),
                 )
-            model_ids[values["model"]].add(values["res_id"])
-
-        for model, res_ids in model_ids.items():
-            if model not in self.env:
-                raise ValidationError(
-                    self.env._("Unknown model %(model_name)s", model_name=model)
-                )
-            records = self.env[model].browse(res_ids)
-            operation = getattr(records, "_mail_post_access", "write")
-            records.check_access(operation)
-        return None
+            )
+        if values["model"] not in self.env:
+            raise ValidationError(
+                self.env._("Unknown model %(model_name)s", model_name=values["model"])
+            )
 
     @api.model
     def _notification_parameters_whitelist(self) -> set:

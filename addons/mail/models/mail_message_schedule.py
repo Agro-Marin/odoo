@@ -21,7 +21,7 @@ class MailMessageSchedule(models.Model):
     _rec_name = "mail_message_id"
 
     mail_message_id: MailMessage = fields.Many2one(
-        "mail.message", string="Message", ondelete="cascade", required=True
+        "mail.message", string="Message", ondelete="cascade", required=True, index=True
     )
     notification_parameters = fields.Text("Notification Parameter")
     scheduled_datetime = fields.Datetime(

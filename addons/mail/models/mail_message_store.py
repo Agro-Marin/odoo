@@ -137,6 +137,11 @@ class MailMessage(models.Model):
             store.add(record, record_fields, as_thread=True)
         if store.target.is_current_user(self.env):
             fields.append("starred")
+            fields.append(
+                Store.Attr("needaction", False)
+                if self.env.user._is_public()
+                else Store.Attr("needaction", lambda m: m.needaction)
+            )
         store.add(self, fields)
         for message in self:
             store.add(
@@ -267,15 +272,6 @@ class MailMessage(models.Model):
                 displayed_tracking_ids = record._track_filter_for_display(
                     displayed_tracking_ids
                 )
-            notifications_partners = (
-                self.sudo()
-                .notification_ids.filtered(lambda n: not n.is_read)
-                .res_partner_id
-            )
-            data["needaction"] = (
-                not self.env.user._is_public()
-                and self.env.user.partner_id in notifications_partners
-            )
             data["trackingValues"] = displayed_tracking_ids._tracking_value_format()
         return data
 

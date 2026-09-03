@@ -104,7 +104,7 @@ class MailMessageSubtype(models.Model):
             self.browse(external_ids),
         )
 
-    @tools.ormcache("self.env.uid", "self.env.su", "model_name")
+    @tools.ormcache("self.env.su", "self.env.user.share", "model_name")
     def _default_subtypes(self, model_name: str) -> tuple:
         domain = [
             ("default", "=", True),
@@ -112,8 +112,8 @@ class MailMessageSubtype(models.Model):
             ("res_model", "=", model_name),
             ("res_model", "=", False),
         ]
-        subtypes = self.search(domain)
-        if not self.env.su and self.env.user.share:
-            subtypes = self.sudo().search(domain)
+        subtypes = (
+            self.sudo() if not self.env.su and self.env.user.share else self
+        ).search(domain)
         internal = subtypes.filtered("internal")
         return subtypes.ids, internal.ids, (subtypes - internal).ids

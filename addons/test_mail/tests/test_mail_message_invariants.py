@@ -237,6 +237,56 @@ class TestMailMessageInvariants(MailCommon):
         self.assertEqual(len(message.sudo().reaction_ids), 1)
 
     @users("employee")
+    def test_reaction_refuses_an_empty_or_oversized_content(self):
+        message = self._post()
+        self.env.flush_all()
+        broadcasts = []
+        self.patch(
+            type(message),
+            "_bus_send_reaction_group",
+            lambda m, content, group=None: broadcasts.append(content),
+        )
+        for content in ("", "   ", "\U0001f44d" * 33):
+            with self.subTest(content=content), self.assertRaises(ValueError):
+                message._message_reaction(
+                    content,
+                    "add",
+                    self.env.user.partner_id,
+                    self.env["mail.guest"],
+                    Store(),
+                )
+        self.assertFalse(broadcasts)
+        self.assertFalse(message.sudo().reaction_ids)
+
+    def test_needaction_search_needs_no_notification_acl(self):
+        public_user = self.env.ref("base.public_user")
+        self.assertFalse(
+            self.env["mail.message"]
+            .with_user(public_user)
+            .search([("needaction", "=", True)])
+        )
+
+    @users("employee")
+    def test_unlink_scans_access_once(self):
+        message = self.record.with_env(self.env).message_post(
+            body="<p>b</p>", message_type="comment", subtype_xmlid="mail.mt_comment"
+        )
+        self.assertFalse(message.env.su)
+        self.env.flush_all()
+        self.env.invalidate_all()
+        operations = []
+        original = type(message)._get_forbidden_access
+
+        def spy(records, operation):
+            operations.append(operation)
+            return original(records, operation)
+
+        self.patch(type(message), "_get_forbidden_access", spy)
+        message.unlink()
+        self.assertEqual(operations.count("unlink"), 1)
+        self.assertFalse(message.exists())
+
+    @users("employee")
     def test_store_adds_each_thread_once_not_once_per_message(self):
         messages = self.env["mail.message"]
         for index in range(10):

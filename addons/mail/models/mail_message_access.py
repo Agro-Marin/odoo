@@ -257,7 +257,7 @@ class MailMessage(models.Model):
         )
         self.env["mail.notification"].flush_model(["mail_message_id", "res_partner_id"])
 
-        if operation in ("read", "write"):
+        if operation == "read":
             query = SQL(
                 """ SELECT m.id, m.model, m.res_id, m.author_id, m.create_uid, m.parent_id,
                         bool_or(partner_rel.res_partner_id IS NOT NULL OR needaction_rel.res_partner_id IS NOT NULL) AS notified,
@@ -273,7 +273,7 @@ class MailMessage(models.Model):
                 pid=self.env.user.partner_id.id,
                 ids=self.ids,
             )
-        elif operation in ("create", "unlink"):
+        elif operation in ("write", "create", "unlink"):
             query = SQL(
                 """ SELECT id, model, res_id, author_id, parent_id, message_type
                     FROM "mail_message"
