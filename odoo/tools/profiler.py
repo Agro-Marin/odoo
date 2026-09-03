@@ -295,10 +295,14 @@ class MemoryCollector(_BasePeriodicCollector):
                 "already active in this process"
             )
             return
+        started_tracing = False
         try:
             tracemalloc.start()
+            started_tracing = True
             super().start()
         except BaseException:
+            if started_tracing:
+                tracemalloc.stop()
             _lock.release()
             self._lock_acquired = False
             raise
@@ -316,8 +320,8 @@ class MemoryCollector(_BasePeriodicCollector):
             return
         try:
             super().stop()
-            tracemalloc.stop()
         finally:
+            tracemalloc.stop()
             _lock.release()
             self._lock_acquired = False
 
