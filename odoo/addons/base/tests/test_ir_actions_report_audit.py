@@ -1077,3 +1077,255 @@ class TestReportPaperformatFallback(TransactionCase):
             empty_css,
             "an empty paperformat is exactly the 0mm case the fallback avoids",
         )
+
+
+ARTICLE_ARCH = """<t t-name="base.audit_multi_article"><html><head></head><body><main>
+    <t t-foreach="docs" t-as="doc">
+        <div class="article" data-oe-model="res.partner" t-att-data-oe-id="doc.id">
+            <span t-field="doc.display_name" />
+        </div>
+    </t>
+</main></body></html></t>"""
+
+
+class MultiArticleReportCase(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["ir.ui.view"].create(
+            {
+                "name": "audit multi article",
+                "type": "qweb",
+                "key": "base.audit_multi_article",
+                "arch_db": ARTICLE_ARCH,
+            }
+        )
+        cls.report = cls.env["ir.actions.report"].create(
+            {
+                "name": "Audit multi article",
+                "model": "res.partner",
+                "report_name": "base.audit_multi_article",
+                "report_type": "qweb-pdf",
+            }
+        )
+        cls.partners = cls.env["res.partner"].create(
+            [{"name": "Audit Alpha"}, {"name": "Audit Beta"}]
+        )
+
+    def _render_pdf(self, pdf_options):
+        Report = self.env["ir.actions.report"].with_context(force_report_rendering=True)
+        pdf, _content_type = Report._render_qweb_pdf(
+            self.report, self.partners.ids, data={PDF_OPTIONS_DATA_KEY: pdf_options}
+        )
+        return pdf
+
+
+@tagged("post_install", "-at_install")
+class TestReportGroupAccess(MultiArticleReportCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.report.group_ids = cls.env.ref("base.group_system")
+        cls.plain_user = cls.env["res.users"].create(
+            {
+                "name": "Audit Plain",
+                "login": "audit_plain_report",
+                "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
+            }
+        )
+
+    def _report_as_plain_user(self):
+        return self.env["ir.actions.report"].with_user(self.plain_user)
+
+    def test_a_user_outside_the_groups_cannot_render_the_report(self):
+        Report = self._report_as_plain_user()
+        for report_ref in (self.report.id, self.report.report_name, self.report):
+            with self.subTest(report_ref=report_ref), self.assertRaises(AccessError):
+                Report._render_qweb_html(report_ref, self.partners.ids)
+        with self.assertRaises(AccessError):
+            Report._render_qweb_pdf(self.report.id, self.partners.ids)
+
+    def test_a_user_inside_one_of_the_groups_renders(self):
+        self.report.group_ids |= self.env.ref("base.group_user")
+        content, _type = self._report_as_plain_user()._render_qweb_html(
+            self.report.id, self.partners.ids
+        )
+        self.assertTrue(content)
+
+    def test_sudo_and_ungated_reports_keep_rendering(self):
+        content, _type = (
+            self._report_as_plain_user()
+            .sudo()
+            ._render_qweb_html(self.report.id, self.partners.ids)
+        )
+        self.assertTrue(content)
+        self.report.group_ids = False
+        content, _type = self._report_as_plain_user()._render_qweb_html(
+            self.report.id, self.partners.ids
+        )
+        self.assertTrue(content)
+
+    def test_the_toolbar_keeps_filtering_by_group(self):
+        bindings = (
+            self.env["ir.actions.actions"]
+            .with_user(self.plain_user)
+            .get_bindings("res.partner")
+        )
+        self.assertNotIn(
+            self.report.id, [action["id"] for action in bindings.get("report", [])]
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestGetReportFromName(TransactionCase):
+    def test_keeps_the_caller_context_and_returns_the_sudo_report(self):
+        report = (
+            self.env["ir.actions.report"]
+            .with_context(audit_marker=1)
+            ._get_report_from_name("base.report_irmodulereference")
+        )
+        self.assertEqual(report, self.env.ref("base.ir_module_reference_print"))
+        self.assertTrue(report.env.su)
+        self.assertEqual(report.env.context.get("audit_marker"), 1)
+
+    def test_a_missing_or_empty_name_is_an_empty_recordset(self):
+        Report = self.env["ir.actions.report"]
+        self.assertFalse(Report._get_report_from_name("base.__no_such_report__"))
+        self.assertFalse(Report._get_report_from_name("no_dot_no_report"))
+        self.assertFalse(Report._get_report_from_name(None))
+
+
+@tagged("post_install", "-at_install")
+class TestMultiRecordDocumentOptions(MultiArticleReportCase):
+    def test_pdfa_survives_a_two_record_render(self):
+        pdf = self._render_pdf({"pdf_variant": "pdf/a-3b"})
+        with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+            self.assertEqual(doc.page_count, 2)
+            kind, _value = doc.xref_get_key(doc.pdf_catalog(), "OutputIntents")
+            self.assertEqual(
+                kind,
+                "array",
+                "merging per-record PDFs with pypdf drops the PDF/A output intent",
+            )
+            self.assertIn("pdfaid", doc.get_xml_metadata())
+
+    def test_attachments_survive_a_two_record_render(self):
+        pdf = self._render_pdf(
+            {"attachments": [{"content": b"audit-payload", "name": "audit.txt"}]}
+        )
+        with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+            self.assertEqual(doc.page_count, 2)
+            self.assertEqual(doc.embfile_names(), ["audit.txt"])
+
+    def test_engine_split_render_keeps_only_per_body_options(self):
+        import weasyprint
+
+        engine = (
+            self.env["ir.actions.report"]
+            .with_context(force_report_rendering=True)
+            ._prepare_weasyprint_engine()
+        )
+        body = "<html><body><main>audit</main></body></html>"
+        pdfs = engine.render(
+            [body, body],
+            "",
+            split=True,
+            pdf_options={
+                "attachments": [weasyprint.Attachment(string=b"x", name="x.txt")],
+                "dpi": 72,
+            },
+        )
+        self.assertEqual(len(pdfs), 2)
+        for pdf in pdfs:
+            self.assertTrue(pdf.startswith(b"%PDF"))
+
+
+@tagged("post_install", "-at_install")
+class TestLayoutCssMargins(MultiArticleReportCase):
+    def _bodies(self):
+        html = self.env["ir.actions.report"]._render_qweb_html(
+            self.report, self.partners.ids
+        )[0]
+        bodies, _res_ids, _args = self.report._prepare_weasyprint_html(
+            html, report_model="res.partner"
+        )
+        return [str(body) for body in bodies]
+
+    def test_a_report_without_xmlid_gets_its_own_paperformat_margins(self):
+        Paperformat = self.env["report.paperformat"]
+        self.env.company.paperformat_id = Paperformat.create(
+            {"name": "audit company", "css_margins": False}
+        )
+        self.report.paperformat_id = Paperformat.create(
+            {"name": "audit report", "css_margins": True}
+        )
+        self.assertFalse(self.report.xml_id)
+        for body in self._bodies():
+            self.assertIn(
+                "o_css_margins",
+                body,
+                "the layout resolved the paperformat by xmlid, which a "
+                "UI-created report does not have, so it fell back to the company's",
+            )
+        self.report.paperformat_id.css_margins = False
+        for body in self._bodies():
+            self.assertNotIn("o_css_margins", body)
+
+    def test_a_direct_layout_render_still_falls_back_to_the_company(self):
+        self.env.company.paperformat_id = self.env["report.paperformat"].create(
+            {"name": "audit company", "css_margins": True}
+        )
+        html = self.env["ir.actions.report"]._render_template(
+            "web.minimal_layout", {"subst": True, "body": "audit"}
+        )
+        self.assertIn(b"o_css_margins", html)
+
+
+@tagged("post_install", "-at_install")
+class TestLayoutRenderedOncePerLanguage(MultiArticleReportCase):
+    def test_three_articles_render_the_layout_once(self):
+        self.partners |= self.env["res.partner"].create({"name": "Audit Gamma"})
+        html = self.env["ir.actions.report"]._render_qweb_html(
+            self.report, self.partners.ids
+        )[0]
+        layout_id = self.env.ref("web.minimal_layout").id
+        registry_cls = type(self.env["ir.qweb"])
+        original_render = registry_cls._render
+        layout_renders = []
+
+        def counting_render(model, template, values=None, **options):
+            if template == layout_id:
+                layout_renders.append(values)
+            return original_render(model, template, values, **options)
+
+        with patch.object(registry_cls, "_render", counting_render):
+            bodies, res_ids, _args = self.report._prepare_weasyprint_html(
+                html, report_model="res.partner"
+            )
+        self.assertEqual(res_ids, self.partners.ids)
+        self.assertEqual(len(layout_renders), 1)
+        for body, partner in zip(bodies, self.partners, strict=True):
+            self.assertIn(partner.name, str(body))
+            self.assertEqual(str(body).count("<html"), 1)
+        self.assertNotIn("odoo-report-body", str(bodies[0]))
+
+
+@tagged("post_install", "-at_install")
+class TestHtmlToImageUsesTheEngine(TransactionCase):
+    def test_bodies_are_rendered_by_the_shared_engine(self):
+        registry_cls = type(self.env["ir.actions.report"])
+        engine = MagicMock()
+        engine.render_each_tolerant.return_value = [None, None]
+        with patch.object(
+            registry_cls, "_prepare_weasyprint_engine", return_value=engine
+        ):
+            result = (
+                self.env["ir.actions.report"]
+                .with_context(force_report_rendering=True)
+                ._render_html_to_image(["<div>a</div>", "<div>b</div>"], 10, 10)
+            )
+        self.assertEqual(result, [None, None])
+        engine.render_each_tolerant.assert_called_once()
+        bodies, page_css = engine.render_each_tolerant.call_args.args
+        self.assertEqual(len(bodies), 2)
+        self.assertIn("size: 10px 10px", page_css)

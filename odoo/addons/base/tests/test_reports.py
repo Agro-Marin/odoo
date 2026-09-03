@@ -120,6 +120,9 @@ class TestReports(odoo.tests.TransactionCase):
             def __init__(self, **kwargs):
                 pass
 
+            def render(self, **kwargs):
+                return self
+
             def write_pdf(self, **kwargs):
                 with counter_lock:
                     state["cur"] += 1
@@ -171,6 +174,9 @@ class TestReports(odoo.tests.TransactionCase):
         class _FakeHTML:
             def __init__(self, **kwargs):
                 pass
+
+            def render(self, **kwargs):
+                return self
 
             def write_pdf(self, **kwargs):
                 sanitized = table_O_S_2f_2()

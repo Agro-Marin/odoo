@@ -171,6 +171,8 @@ _NATIVE_MERGE_MAX = 50
 
 PDF_OPTIONS_DATA_KEY = "__pdf_options__"
 _PER_BODY_PDF_OPTION_KEYS = frozenset(("dpi", "jpeg_quality"))
+_DOCUMENT_PDF_OPTION_KEYS = frozenset(("pdf_variant", "attachments", "xmp_metadata"))
+_LAYOUT_BODY_TOKEN = "<!--odoo-report-body-->"
 _PDF_OPTION_KEYS = (
     "pdf_variant",
     "attachments",
@@ -270,6 +272,33 @@ def _install_tolerant_font_guard() -> None:
     table_O_S_2f_2.setUnicodeRanges = set_unicode_ranges
 
 
+@contextmanager
+def _tolerant_fonts_enabled() -> Iterator[None]:
+    was_active = getattr(_tolerant_fonts, "active", False)
+    _tolerant_fonts.active = True
+    try:
+        yield
+    finally:
+        _tolerant_fonts.active = was_active
+
+
+def _render_html_document(
+    html_string: str,
+    url_fetcher: Any,
+    stylesheets: list | None,
+    font_config: Any,
+    image_cache: dict[str, Any] | None,
+) -> WeasyDocument:
+    return weasyprint.HTML(string=html_string, url_fetcher=url_fetcher).render(
+        font_config=font_config,
+        counter_style=CounterStyle(),
+        stylesheets=stylesheets or None,
+        presentational_hints=True,
+        optimize_images=True,
+        cache={} if image_cache is None else image_cache,
+    )
+
+
 def _write_pdf_tolerant_fonts(
     html_string,
     url_fetcher,
@@ -279,23 +308,14 @@ def _write_pdf_tolerant_fonts(
     image_cache=None,
 ):
     _weasy_state.setup_process()
-    was_active = getattr(_tolerant_fonts, "active", False)
-    _tolerant_fonts.active = True
-    try:
-        return weasyprint.HTML(
-            string=html_string,
-            url_fetcher=url_fetcher,
-        ).write_pdf(
-            font_config=font_config if font_config is not None else FontConfiguration(),
-            counter_style=CounterStyle(),
-            stylesheets=stylesheets or None,
-            presentational_hints=True,
-            optimize_images=True,
-            cache={} if image_cache is None else image_cache,
-            **(pdf_options or {}),
-        )
-    finally:
-        _tolerant_fonts.active = was_active
+    with _tolerant_fonts_enabled():
+        return _render_html_document(
+            html_string,
+            url_fetcher,
+            stylesheets,
+            font_config if font_config is not None else FontConfiguration(),
+            image_cache,
+        ).write_pdf(**(pdf_options or {}))
 
 
 _RE_CSS_LINK = re.compile(
@@ -741,9 +761,7 @@ class WeasyPrintEngine:
         image_cache: dict[str, Any] = {}
         opts = pdf_options or {}
         wants_pdfa = bool(opts.get("pdf_variant"))
-        wants_single_document = wants_pdfa or bool(
-            opts.get("attachments") or opts.get("xmp_metadata")
-        )
+        wants_single_document = any(opts.get(key) for key in _DOCUMENT_PDF_OPTION_KEYS)
         if wants_pdfa:
             page_css = f"{page_css}\nhtml {{ image-rendering: crisp-edges; }}\n"
 
@@ -761,9 +779,10 @@ class WeasyPrintEngine:
             ]
 
             if split:
+                body_options = self._prepare_body_pdf_options(pdf_options)
                 return [
                     self._render_and_serialize_body(
-                        html_str, fetcher, body_css, pdf_options, db_state, image_cache
+                        html_str, fetcher, body_css, body_options, db_state, image_cache
                     )
                     for html_str, body_css in processed
                 ]
@@ -803,6 +822,45 @@ class WeasyPrintEngine:
                 _logger.exception("WeasyPrint PDF serialization failed")
                 raise self._prepare_pdf_render_error(str(e)) from None
 
+    def render_each_tolerant(
+        self, bodies: list[str], page_css: str
+    ) -> list[bytes | None]:
+        db_state = self._database_state()
+        image_cache: dict[str, Any] = {}
+        results: list[bytes | None] = []
+        with (
+            _capture_weasy_warnings() as sink,
+            self._fetcher_factory() as fetcher,
+        ):
+            self.warnings = sink
+            parsed_css_by_url: dict[str, Any] = {}
+            for body in bodies:
+                sink.clear()
+                try:
+                    html_str, body_css = self._prepare_body_and_stylesheets(
+                        body, page_css, parsed_css_by_url, fetcher, db_state
+                    )
+                    results.append(
+                        self._render_and_serialize_body(
+                            html_str, fetcher, body_css, None, db_state, image_cache
+                        )
+                    )
+                except Exception as e:
+                    _logger.warning("HTML-to-PDF rendering failed for one body: %s", e)
+                    results.append(None)
+        return results
+
+    @staticmethod
+    def _prepare_body_pdf_options(
+        pdf_options: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        body_options = {
+            key: value
+            for key, value in (pdf_options or {}).items()
+            if key in _PER_BODY_PDF_OPTION_KEYS
+        }
+        return body_options or None
+
     def _render_and_merge_incrementally(
         self,
         processed: list[tuple[str, Any]],
@@ -811,11 +869,7 @@ class WeasyPrintEngine:
         image_cache: dict[str, Any],
         pdf_options: dict[str, Any] | None = None,
     ) -> bytes:
-        body_options = {
-            key: value
-            for key, value in (pdf_options or {}).items()
-            if key in _PER_BODY_PDF_OPTION_KEYS
-        }
+        body_options = self._prepare_body_pdf_options(pdf_options)
         _logger.info(
             "WeasyPrint: %d bodies exceeds the native-merge threshold "
             "(%d); serializing incrementally and merging with pypdf to "
@@ -829,7 +883,7 @@ class WeasyPrintEngine:
                     html_str,
                     fetcher,
                     body_css,
-                    body_options or None,
+                    body_options,
                     db_state,
                     image_cache,
                 )
@@ -935,16 +989,14 @@ class WeasyPrintEngine:
     ) -> WeasyDocument:
         state = db_state or self._database_state()
         try:
-            return weasyprint.HTML(string=html_str, url_fetcher=fetcher).render(
-                font_config=state.font_config,
-                counter_style=CounterStyle(),
-                stylesheets=body_css or None,
-                presentational_hints=True,
-                optimize_images=True,
-                cache={} if image_cache is None else image_cache,
+            return _render_html_document(
+                html_str, fetcher, body_css, state.font_config, image_cache
             )
         except Exception as e:
-            _logger.exception("WeasyPrint layout failed")
+            _logger.exception(
+                "WeasyPrint layout failed; renderer said: %s",
+                "; ".join(self.warnings) or "nothing",
+            )
             raise self._prepare_pdf_render_error(str(e)) from None
 
     @staticmethod
@@ -1375,16 +1427,22 @@ class IrActionsReport(models.Model):
         )
         return self.env["ir.qweb"]._render(
             layout.id,
-            {
-                "subst": False,
-                "body": Markup(body_html),
-                "base_url": base_url,
-                "report_xml_id": self.xml_id,
-                "title": self.name or "",
-                "debug": self.env.context.get("debug"),
-            },
+            {**self._prepare_layout_values(base_url), "body": Markup(body_html)},
             raise_if_not_found=False,
         )
+
+    def _prepare_layout_values(
+        self, base_url: str, title: str | None = None
+    ) -> dict[str, Any]:
+        return {
+            "subst": False,
+            "base_url": base_url,
+            "report_xml_id": self.xml_id,
+            "css_margins": bool(self.get_paperformat().css_margins),
+            "title": title or self.name or "",
+            "subject": self.name or "",
+            "debug": self.env.context.get("debug"),
+        }
 
     def _render_article_bodies(
         self, layout: Any, articles: list, base_url: str, report_model: str | bool
@@ -1393,6 +1451,7 @@ class IrActionsReport(models.Model):
 
         bodies = []
         res_ids = []
+        layouts_by_key: dict[tuple[str | None, str], str] = {}
         for article_node in articles:
             header_node, footer_node = self._get_article_header_footer(article_node)
 
@@ -1409,24 +1468,26 @@ class IrActionsReport(models.Model):
 
             combined_html = "".join(parts)
 
-            IrQweb = self.env["ir.qweb"]
-            if article_node.get("data-oe-lang"):
-                IrQweb = IrQweb.with_context(lang=article_node.get("data-oe-lang"))
-
-            body = IrQweb._render(
-                layout.id,
-                {
-                    "subst": False,
-                    "body": Markup(combined_html),
-                    "base_url": base_url,
-                    "report_xml_id": self.xml_id,
-                    "title": titles_by_res_id.get(article_res_id) or self.name or "",
-                    "subject": self.name or "",
-                    "debug": self.env.context.get("debug"),
-                },
-                raise_if_not_found=False,
+            lang = article_node.get("data-oe-lang") or None
+            title = titles_by_res_id.get(article_res_id) or self.name or ""
+            key = (lang, title)
+            if key not in layouts_by_key:
+                IrQweb = self.env["ir.qweb"]
+                if lang:
+                    IrQweb = IrQweb.with_context(lang=lang)
+                layouts_by_key[key] = str(
+                    IrQweb._render(
+                        layout.id,
+                        {
+                            **self._prepare_layout_values(base_url, title),
+                            "body": Markup(_LAYOUT_BODY_TOKEN),
+                        },
+                        raise_if_not_found=False,
+                    )
+                )
+            bodies.append(
+                Markup(layouts_by_key[key].replace(_LAYOUT_BODY_TOKEN, combined_html))
             )
-            bodies.append(body)
             res_ids.append(article_res_id)
 
         return bodies, res_ids
@@ -1590,53 +1651,44 @@ class IrActionsReport(models.Model):
         if not self._is_pdf_rendering_enabled():
             return [None] * len(bodies)
 
-        page_css = f"@page {{ size: {width}px {height}px; margin: 0; }}"
-
         try:
             import pymupdf
         except ImportError as e:
             _logger.warning("HTML-to-image rendering unavailable (PyMuPDF): %s", e)
             return [None] * len(bodies)
 
-        _weasy_state.setup_process()
-        db_state = _weasy_state.for_database(self.env.cr.dbname)
-        image_cache: dict[str, Any] = {}
-
-        output_images = []
-        with (
-            _capture_weasy_warnings() as sink,
-            self._prepare_url_fetcher() as fetcher,
-        ):
-            for body in bodies:
-                sink.clear()
-                try:
-                    pdf_bytes = weasyprint.HTML(
-                        string=_add_page_css(body, page_css),
-                        url_fetcher=fetcher,
-                    ).write_pdf(
-                        font_config=db_state.font_config,
-                        cache=image_cache,
+        page_css = f"@page {{ size: {width}px {height}px; margin: 0; }}"
+        engine = self._prepare_weasyprint_engine()
+        output_images: list[bytes | None] = []
+        for pdf_bytes in engine.render_each_tolerant(bodies, page_css):
+            if pdf_bytes is None:
+                output_images.append(None)
+                continue
+            try:
+                output_images.append(
+                    self._convert_pdf_page_to_image(
+                        pymupdf, pdf_bytes, width, height, image_format
                     )
-                    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
-                        png_bytes = doc[0].get_pixmap(dpi=96, alpha=True).tobytes("png")
-
-                    with Image.open(io.BytesIO(png_bytes)) as src:
-                        img = src.resize((width, height), Image.Resampling.LANCZOS)
-
-                    buf = io.BytesIO()
-                    if image_format == "png":
-                        img.save(buf, format="PNG")
-                    else:
-                        img.convert("RGB").save(buf, format="JPEG")
-                    output_images.append(buf.getvalue())
-                except Exception as e:
-                    _logger.warning(
-                        "HTML-to-image rendering failed: %s%s",
-                        e,
-                        f" Renderer said: {'; '.join(sink)}" if sink else "",
-                    )
-                    output_images.append(None)
+                )
+            except Exception as e:
+                _logger.warning("HTML-to-image conversion failed: %s", e)
+                output_images.append(None)
         return output_images
+
+    @staticmethod
+    def _convert_pdf_page_to_image(
+        pymupdf: Any, pdf_bytes: bytes, width: int, height: int, image_format: str
+    ) -> bytes:
+        with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+            png_bytes = doc[0].get_pixmap(dpi=96, alpha=True).tobytes("png")
+        with Image.open(io.BytesIO(png_bytes)) as src:
+            img = src.resize((width, height), Image.Resampling.LANCZOS)
+        buf = io.BytesIO()
+        if image_format == "png":
+            img.save(buf, format="PNG")
+        else:
+            img.convert("RGB").save(buf, format="JPEG")
+        return buf.getvalue()
 
     @staticmethod
     def _add_html_header_footer(
@@ -1667,10 +1719,12 @@ class IrActionsReport(models.Model):
 
     @api.model
     def _get_report_from_name(self, report_name: str) -> Self:
-        report_obj = self.env["ir.actions.report"]
-        conditions = [("report_name", "=", report_name)]
-        context = self.env["res.users"].context_get()
-        return report_obj.with_context(context).sudo().search(conditions, limit=1)
+        if not report_name:
+            return self.env["ir.actions.report"]
+        try:
+            return self._get_report(report_name)
+        except ValueError:
+            return self.env["ir.actions.report"]
 
     @api.model
     def _get_report(self, report_ref: int | str | Any) -> Self:
@@ -1680,23 +1734,39 @@ class IrActionsReport(models.Model):
                 f"Fetching report {report_ref!r}: invalid report reference"
             )
         if isinstance(report_ref, int):
-            return ReportSudo.browse(report_ref)
-        if isinstance(report_ref, models.Model):
+            report = ReportSudo.browse(report_ref)
+        elif isinstance(report_ref, models.Model):
             if report_ref._name != self._name:
                 msg = f"Expected report of type {self._name}, got {report_ref._name}"
                 raise ValueError(msg)
-            return report_ref.sudo()
-        report = ReportSudo.search([("report_name", "=", report_ref)], limit=1)
-        if report:
-            return report
-        report = self.env.ref(report_ref, raise_if_not_found=False)
-        if report:
-            if report._name != "ir.actions.report":
-                raise ValueError(
-                    f"Fetching report {report_ref!r}: type {report._name}, expected ir.actions.report"
+            report = report_ref.sudo()
+        else:
+            report = ReportSudo.search([("report_name", "=", report_ref)], limit=1)
+            if not report:
+                report = self.env.ref(report_ref, raise_if_not_found=False)
+                if not report:
+                    raise ValueError(
+                        f"Fetching report {report_ref!r}: report not found"
+                    )
+                if report._name != "ir.actions.report":
+                    raise ValueError(
+                        f"Fetching report {report_ref!r}: type {report._name}, expected ir.actions.report"
+                    )
+                report = report.sudo()
+        self._check_report_access(report)
+        return report
+
+    def _check_report_access(self, report: Self) -> None:
+        if self.env.su or not report.exists():
+            return
+        groups = report.group_ids
+        if groups and not (groups & self.env.user.all_group_ids):
+            raise AccessError(
+                _(
+                    "You are not allowed to print the report \u201c%s\u201d.",
+                    report.name,
                 )
-            return report.sudo()
-        raise ValueError(f"Fetching report {report_ref!r}: report not found")
+            )
 
     @api.model
     def prepare_barcode(self, barcode_type: str, value: str, **kwargs: Any) -> bytes:
@@ -1960,7 +2030,10 @@ class IrActionsReport(models.Model):
                 **render_pdf_kwargs,
             }
 
-            if self._can_split_pdf(
+            wants_single_document = any(
+                render_pdf_kwargs.get(key) for key in _DOCUMENT_PDF_OPTION_KEYS
+            )
+            if not wants_single_document and self._can_split_pdf(
                 has_duplicated_ids, res_ids, html_ids, res_ids_wo_stream
             ):
                 self._collect_split_pdf_streams(

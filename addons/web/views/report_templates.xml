@@ -270,7 +270,7 @@
                     t-att-content="datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')" />
             </head>
             <body
-                t-attf-class="o_body_pdf {{env['ir.actions.report'].get_paperformat_by_xmlid(report_xml_id).css_margins and 'o_css_margins'}} container"
+                t-attf-class="o_body_pdf {{(css_margins if css_margins is not None else env['ir.actions.report'].get_paperformat_by_xmlid(report_xml_id).css_margins) and 'o_css_margins'}} container"
                 t-att-data-report-id="report_xml_id"
                 t-att-dir="env['res.lang']._get_data(code=lang or env.user.lang).direction or 'ltr'">
                 <t t-out="body" />
