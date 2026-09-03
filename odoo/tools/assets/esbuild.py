@@ -594,6 +594,7 @@ class EsbuildCompiler:
         for spec in sorted(stubs):
             rel = spec.lstrip("@")
             stub_path = stub_root / rel
+            cls._check_inside_mirror(stub_path, stub_root)
             stub_path.parent.mkdir(parents=True, exist_ok=True)
             real_dir = cls._stub_sibling_dir(spec, addon_roots)
             if real_dir is not None and not stub_path.exists():

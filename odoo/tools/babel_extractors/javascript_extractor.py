@@ -157,6 +157,7 @@ def _is_bare_template_string(
     last_token: Token | None,
     keywords: Mapping[str, _Keyword],
     options: _JSOptions,
+    function_stack: list[Frame],
 ) -> bool:
     return bool(
         options.get("parse_template_string", True)
@@ -165,6 +166,7 @@ def _is_bare_template_string(
             or last_token.type != "name"
             or last_token.value not in keywords
         )
+        and (not function_stack or function_stack[-1]["function_name"] not in keywords)
         and token.type == "template_string"
     )
 
@@ -206,7 +208,9 @@ def extract_javascript(
             last_token = token
             token = Token("operator", ")", token.lineno)
 
-        if _is_bare_template_string(token, last_token, keywords, options):
+        if _is_bare_template_string(
+            token, last_token, keywords, options, function_stack
+        ):
             yield from parse_template_string(
                 token.value,
                 keywords,

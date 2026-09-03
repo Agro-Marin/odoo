@@ -374,7 +374,9 @@ def xml_term_adapter(term_en: str) -> Callable[[str], str | None]:
                 ]
                 for k in removed_attrs:
                     del new_n.attrib[k]
-                keep_attrs = dict(orig_n.attrib.items())
+                keep_attrs = {
+                    k: v for k, v in orig_n.attrib.items() if k in MODIFIER_ATTRS
+                }
                 new_n.attrib.update(keep_attrs)
         except ValueError:
             return None
@@ -561,6 +563,11 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
         else:
             args = tuple(translate_arg(v) for v in args)
     try:
+        if isinstance(args, dict) and "%(" not in translation:
+            # a bare "%s"-style placeholder silently formats the dict's repr
+            # instead of raising, so the mismatch must be detected explicitly
+            msg = "translation uses positional placeholders but args is a mapping"
+            raise TypeError(msg)
         return translation % args
     except TypeError, ValueError, KeyError:
         bad = translation
@@ -846,7 +853,15 @@ class CSVFileReader:
             if entry["res_id"] and entry["res_id"].isnumeric():
                 entry["res_id"] = int(entry["res_id"])
             elif not entry.get("imd_name"):
-                entry["module"], entry["imd_name"] = entry["res_id"].split(".", 1)
+                res_id = entry["res_id"]
+                if "." not in res_id:
+                    msg = (
+                        f"Malformed translation row: res_id {res_id!r} is "
+                        "neither numeric nor a fully qualified external id "
+                        "(module.name)"
+                    )
+                    raise ValueError(msg)
+                entry["module"], entry["imd_name"] = res_id.split(".", 1)
                 entry["res_id"] = None
             if entry["type"] == "model" or entry["type"] == "model_terms":
                 entry["imd_model"] = entry["name"].partition(",")[0]
