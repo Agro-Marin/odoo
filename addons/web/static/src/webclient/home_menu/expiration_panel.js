@@ -20,6 +20,13 @@ export class ExpirationPanel extends Component {
     static props = {};
     static components = { Transition };
 
+    /** @type {import("services").ServiceFactories["enterprise_subscription"]} */
+    subscription;
+    /** @type {{ displayRegisterForm: boolean }} */
+    state;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    inputRef;
+
     setup() {
         this.subscription = useService("enterprise_subscription");
 

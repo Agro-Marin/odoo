@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { click, queryFirst } from "@odoo/hoot-dom";
+import { click, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, mockMatchMedia } from "@odoo/hoot-mock";
 import {
     defineActions,
@@ -90,7 +90,7 @@ test("scroll position is kept", async () => {
     await getService("action").doAction(3);
     expect(".o_kanban_view").toHaveCount(1);
 
-    queryFirst(".o_kanban_view").scrollTo(0, 123);
+    queryOne(".o_kanban_view").scrollTo(0, 123);
     await click(".o_kanban_record:eq(20)");
     await animationFrame();
     expect(".o_form_view").toHaveCount(1);
@@ -108,7 +108,7 @@ test("Share URL item is not present in the user menu when screen is small", asyn
     await mountWithCleanup(UserMenu);
 
     expect(".o_user_menu").toHaveCount(1);
-    queryFirst(".o_user_menu").classList.remove("d-none");
+    queryOne(".o_user_menu").classList.remove("d-none");
 
     await click(".o_user_menu button");
     await animationFrame();

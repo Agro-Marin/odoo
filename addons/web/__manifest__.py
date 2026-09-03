@@ -175,6 +175,10 @@ This module provides the core of the Odoo Web Client.
             ),
             "web/static/src/components/**/*",
             "web/static/src/core/**/*",
+            (
+                "remove",
+                "web/static/src/core/flow_editor/**/*",
+            ),
             "web/static/src/webclient/debug/debug_menu_basic.js",
             "web/static/src/webclient/debug/debug_affordances.js",
             "web/static/src/webclient/debug/debug_menu_items.js",

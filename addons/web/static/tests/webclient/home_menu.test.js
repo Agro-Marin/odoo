@@ -9,7 +9,7 @@ import {
     mockTouch,
     pointerDown,
     press,
-    queryFirst,
+    queryOne,
     test,
 } from "@odoo/hoot";
 import {
@@ -76,7 +76,10 @@ const getDefaultHomeMenuProps = () => {
             xmlid: "app.3",
         },
     ];
-    return { apps, reorderApps: (order) => reorderApps(apps, order) };
+    return {
+        apps,
+        reorderApps: (/** @type {string[]} */ order) => reorderApps(apps, order),
+    };
 };
 
 describe.current.tags("desktop");
@@ -100,7 +103,11 @@ test("Click on an app", async () => {
     });
     mockService("menu", {
         async selectMenu(menu) {
-            expect.step(`selectMenu ${menu.id}`);
+            // The service takes a menu or a bare id; the tests always pass the
+            // menu, and saying so keeps the step readable either way.
+            expect.step(
+                `selectMenu ${typeof menu === "number" ? menu : /** @type {any} */ (menu).id}`,
+            );
         },
     });
     await click(".o_menuitem:eq(0)");
@@ -138,7 +145,7 @@ test("Navigation (only apps, only one line)", async () => {
     expect.assertions(8);
 
     const homeMenuProps = {
-        apps: new Array(3).fill().map((x, i) => ({
+        apps: Array.from({ length: 3 }, (_, i) => ({
             actionID: 120 + i,
             href: "/odoo/act" + (120 + i),
             appID: i + 1,
@@ -148,7 +155,8 @@ test("Navigation (only apps, only one line)", async () => {
             webIcon: false,
             xmlid: `app.${i}`,
         })),
-        reorderApps: (order) => reorderApps(homeMenuProps.apps, order),
+        reorderApps: (/** @type {string[]} */ order) =>
+            reorderApps(homeMenuProps.apps, order),
     };
     await mountWithCleanup(HomeMenu, {
         props: homeMenuProps,
@@ -170,7 +178,7 @@ test("Navigation (only apps, two lines, one incomplete)", async () => {
     expect.assertions(19);
 
     const homeMenuProps = {
-        apps: new Array(8).fill().map((x, i) => ({
+        apps: Array.from({ length: 8 }, (_, i) => ({
             actionID: 121,
             href: "/odoo/action-121",
             appID: i + 1,
@@ -180,7 +188,8 @@ test("Navigation (only apps, two lines, one incomplete)", async () => {
             webIcon: false,
             xmlid: `app.${i}`,
         })),
-        reorderApps: (order) => reorderApps(homeMenuProps.apps, order),
+        reorderApps: (/** @type {string[]} */ order) =>
+            reorderApps(homeMenuProps.apps, order),
     };
     await mountWithCleanup(HomeMenu, {
         props: homeMenuProps,
@@ -217,7 +226,11 @@ test("Navigation and open an app in the home menu", async () => {
     });
     mockService("menu", {
         async selectMenu(menu) {
-            expect.step(`selectMenu ${menu.id}`);
+            // The service takes a menu or a bare id; the tests always pass the
+            // menu, and saying so keeps the step readable either way.
+            expect.step(
+                `selectMenu ${typeof menu === "number" ? menu : /** @type {any} */ (menu).id}`,
+            );
         },
     });
     // No app selected so nothing to open
@@ -238,15 +251,14 @@ test("Navigation and open an app in the home menu", async () => {
 });
 
 test("Reorder apps in home menu using drag and drop", async () => {
+    /** @type {import("@web/../tests/_framework/mock_server/mock_server").MenuDefinition[]} */
     const apps = [];
     for (let i = 0; i < 8; i++) {
         apps.push({
             actionID: 121,
-            href: "/odoo/action-121",
             appID: i + 1,
             id: i + 1,
-            label: `0${i}`,
-            parents: "",
+            name: `0${i}`,
             webIcon: false,
             xmlid: `app.${i}`,
         });
@@ -295,7 +307,7 @@ test("The HomeMenu input takes the focus when you press a key only if no other e
     getService("ui").activateElement(activeElement);
     // remove the focus from the input
     const otherInput = document.createElement("input");
-    queryFirst(".o_home_menu").appendChild(otherInput);
+    queryOne(".o_home_menu").appendChild(otherInput);
     await pointerDown(otherInput);
     await pointerDown(document.body);
     expect(document.body).toBeFocused();
@@ -319,7 +331,7 @@ test("The HomeMenu input does not take the focus if it is already on another inp
     expect(".o_search_hidden").toBeFocused();
 
     const otherInput = document.createElement("input");
-    queryFirst(".o_home_menu").appendChild(otherInput);
+    queryOne(".o_home_menu").appendChild(otherInput);
     await pointerDown(otherInput);
     await press("a");
     await animationFrame();
@@ -339,7 +351,7 @@ test("The HomeMenu input does not take the focus if it is already on a textarea"
     expect(".o_search_hidden").toBeFocused();
 
     const textarea = document.createElement("textarea");
-    queryFirst(".o_home_menu").appendChild(textarea);
+    queryOne(".o_home_menu").appendChild(textarea);
     await pointerDown(textarea);
     await press("a");
     await animationFrame();
@@ -363,15 +375,14 @@ test("home search input shouldn't be focused on touch devices", async () => {
 });
 
 test("home keynav not triggering when navigating a dropdown", async () => {
+    /** @type {import("@web/../tests/_framework/mock_server/mock_server").MenuDefinition[]} */
     const apps = [];
     for (let i = 0; i < 8; i++) {
         apps.push({
             actionID: 121,
-            href: "/odoo/action-121",
             appID: i + 1,
             id: i + 1,
-            label: `0${i}`,
-            parents: "",
+            name: `0${i}`,
             webIcon: false,
             xmlid: `app.${i}`,
         });

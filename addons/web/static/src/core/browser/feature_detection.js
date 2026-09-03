@@ -158,3 +158,13 @@ export function maxTouchPoints() {
 export function isVirtualKeyboardSupported() {
     return "virtualKeyboard" in browser.navigator;
 }
+
+/**
+ * The Web Share API, which the DOM types declare unconditionally and desktop
+ * browsers do not all implement.
+ *
+ * @returns {boolean}
+ */
+export function isWebShareSupported() {
+    return "share" in browser.navigator;
+}

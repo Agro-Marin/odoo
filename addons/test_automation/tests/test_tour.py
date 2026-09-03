@@ -307,13 +307,12 @@ class AutomationRuleTestUi(HttpCase):
         )
 
     def test_workflow_canvas(self):
-        """Drive the JointJS canvas in a real browser.
+        """Drive the flow-editor canvas in a real browser.
 
-        This is the only end-to-end exercise of the vendored bundle: that
-        `import("joint")` resolves through the import map, that
-        `get_workflow_graph` feeds it, that the auto-layout runs, and that the
-        classes the stylesheet declares are the ones the nodes carry. A HOOT
-        test can reach none of that.
+        This is the only end-to-end exercise of the drawing path: that
+        `get_workflow_graph` feeds the editor, that the auto-layout runs, and
+        that the classes the stylesheet declares are the ones the steps carry.
+        A HOOT test can reach none of that.
         """
         model = self.env["ir.model"]._get("res.partner")
         rule = self.env["automation.rule"].create(
@@ -416,8 +415,8 @@ class AutomationRuleTestUi(HttpCase):
     def test_workflow_canvas_drag(self):
         """Drag a step and check the move reached the database.
 
-        Auto-layout already proves the *write* works; this proves the
-        `element:pointerup` handler behind a user's drag fires at all.
+        Auto-layout already proves the *write* works; this proves the editor's
+        drag-end callback behind a user's drag fires at all.
         """
         model = self.env["ir.model"]._get("res.partner")
         rule = self.env["automation.rule"].create(
@@ -456,12 +455,68 @@ class AutomationRuleTestUi(HttpCase):
             "dragging a step must persist its new position",
         )
 
+    def test_workflow_canvas_resize(self):
+        """Resize a step, and check the new rect reached the database.
+
+        The size write is the only canvas write with no debounce in front of
+        it, so it is the one a tour can assert on without waiting: the viewport
+        is covered by `automation`'s own tests instead.
+        """
+        model = self.env["ir.model"]._get("res.partner")
+        rule = self.env["automation.rule"].create(
+            {"name": "Canvas Resize", "model_id": model.id, "trigger": "on_hand"}
+        )
+        first, second = self.env["ir.actions.server"].create(
+            [
+                {
+                    "name": name,
+                    "model_id": model.id,
+                    "state": "code",
+                    "code": "pass",
+                    "automation_rule_id": rule.id,
+                    "usage": "automation",
+                    "pos_x": pos_x,
+                    "pos_y": pos_y,
+                }
+                for name, pos_x, pos_y in (("first", 40, 40), ("second", 400, 300))
+            ]
+        )
+        self.env["workflow.edge"].create(
+            {"source_node_id": first.id, "target_node_id": second.id}
+        )
+        self.assertFalse(first.pos_width or first.pos_height)
+
+        self.start_tour(
+            f"/odoo/action-automation.automation_act/{rule.id}",
+            "test_workflow_canvas_resize",
+            login="admin",
+        )
+
+        first.invalidate_recordset(["pos_width", "pos_height"])
+        bounds = rule.get_workflow_graph()["node_size"]
+        self.assertGreater(first.pos_width, bounds["default"]["width"])
+        self.assertGreater(first.pos_height, bounds["default"]["height"])
+        self.assertLess(first.pos_width, bounds["max"]["width"])
+        self.assertLess(first.pos_height, bounds["max"]["height"])
+        self.assertTrue(
+            self.env["automation.canvas.viewport"].search(
+                [
+                    ("automation_rule_id", "=", rule.id),
+                    ("user_id", "=", self.env.ref("base.user_admin").id),
+                ]
+            ),
+            "the canvas must store the viewport it framed the graph with",
+        )
+
     def test_workflow_canvas_connect(self):
         """Create a connection by dragging between two steps.
 
         The last untested interaction, and the one with the most moving parts:
-        a JointJS magnet, `validateConnection`, an ORM create the server may
-        refuse, and a reload.
+        a port-to-port drag resolved with `elementFromPoint`, the editor's own
+        connection validation, and an ORM create the server may refuse.
+
+        The port dragged from is what carries the condition, so this also
+        proves the port-per-condition mapping reaches `workflow.edge`.
         """
         model = self.env["ir.model"]._get("res.partner")
         rule = self.env["automation.rule"].create(
@@ -506,7 +561,7 @@ class AutomationRuleTestUi(HttpCase):
                 )
             ).condition,
             "on_success",
-            "a dragged edge defaults to on_success like a typed one",
+            "the port dragged from is the condition the edge carries",
         )
 
     def test_form_view_model_id(self):

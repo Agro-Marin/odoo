@@ -25,6 +25,8 @@
                 <field name="name" />
                 <field name="trigger" />
                 <field name="model_id" />
+                <field name="step_count" optional="show" />
+                <field name="edge_count" optional="hide" />
             </list>
         </field>
     </record>

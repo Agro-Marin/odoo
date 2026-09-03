@@ -95,6 +95,21 @@ export class HomeMenu extends Component {
     /** @type {boolean} */
     compositionStart = false;
 
+    /** @type {import("services").ServiceFactories["command"]} */
+    command;
+    /** @type {import("services").ServiceFactories["menu"]} */
+    menus;
+    /** @type {import("services").ServiceFactories["home_menu"]} */
+    homeMenuService;
+    /** @type {import("services").ServiceFactories["enterprise_subscription"]} */
+    subscription;
+    /** @type {import("services").ServiceFactories["ui"]} */
+    ui;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    inputRef;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    rootRef;
+
     setup() {
         this.command = useService("command");
         this.menus = useService("menu");
@@ -186,10 +201,7 @@ export class HomeMenu extends Component {
     // Private
     //--------------------------------------------------------------------------
 
-    /**
-     * @param {HomeMenuApp} menu
-     * @returns {Promise}
-     */
+    /** @param {HomeMenuApp} menu */
     _openMenu(menu) {
         return this.menus.selectMenu(menu);
     }
@@ -261,6 +273,8 @@ export class HomeMenu extends Component {
                         Math.min(this.maxIconNumber, lastIndex - focusedIndex);
                 }
                 break;
+            default:
+                return;
         }
         // if newIndex is out of bounds -> normalize it
         if (newIndex < 0) {
@@ -285,24 +299,31 @@ export class HomeMenu extends Component {
     // Handlers
     //--------------------------------------------------------------------------
 
-    /**
-     * @param {Object} params
-     * @param {HTMLElement} params.element
-     * @param {HTMLElement} params.previous
-     */
+    /** @param {import("@web/core/utils/dnd/sortable").DropParams} params */
     _sortAppDrop({ element, previous }) {
-        const order = this.props.apps.map((app) => app.xmlid);
         const elementId = /** @type {HTMLElement} */ (element.children[0]).dataset
             .menuXmlid;
+        if (elementId === undefined) {
+            // An app the DOM cannot name cannot be placed in a stored order,
+            // and splicing at indexOf's -1 would move the last app instead.
+            return;
+        }
+        /** @type {string[]} */
+        const order = [];
+        for (const app of this.displayedApps) {
+            if (app.xmlid !== undefined) {
+                order.push(app.xmlid);
+            }
+        }
         const elementIndex = order.indexOf(elementId);
         // first remove dragged element
         order.splice(elementIndex, 1);
-        if (previous) {
-            const prevIndex = order.indexOf(
-                /** @type {HTMLElement} */ (previous.children[0]).dataset.menuXmlid,
-            );
+        const previousId =
+            previous &&
+            /** @type {HTMLElement} */ (previous.children[0]).dataset.menuXmlid;
+        if (previousId) {
             // insert dragged element after previous element
-            order.splice(prevIndex + 1, 0, elementId);
+            order.splice(order.indexOf(previousId) + 1, 0, elementId);
         } else {
             // insert dragged element at beginning if no previous element
             order.splice(0, 0, elementId);
@@ -334,7 +355,11 @@ export class HomeMenu extends Component {
             [
                 "Enter",
                 () => {
-                    const menu = this.displayedApps[this.state.focusedIndex];
+                    const focusedIndex = this.state.focusedIndex;
+                    const menu =
+                        focusedIndex === null
+                            ? undefined
+                            : this.displayedApps[focusedIndex];
                     if (menu) {
                         this._openMenu(menu);
                     }
@@ -352,7 +377,7 @@ export class HomeMenu extends Component {
         if (
             document.activeElement !== this.inputRef.el &&
             this.ui.activeElement === document &&
-            !["TEXTAREA", "INPUT"].includes(document.activeElement.tagName)
+            !["TEXTAREA", "INPUT"].includes(document.activeElement?.tagName ?? "")
         ) {
             this._focusInput();
         }
@@ -367,7 +392,7 @@ export class HomeMenu extends Component {
         };
         const searchValue = this.compositionStart
             ? "/"
-            : `/${this.inputEl.value.trim()}`;
+            : `/${this.inputEl?.value.trim() ?? ""}`;
         this.compositionStart = false;
         this.command.openMainPalette(
             /** @type {any} */ ({ searchValue, FooterComponent }),

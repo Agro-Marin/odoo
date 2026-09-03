@@ -1,115 +1,102 @@
+// The step body is HTML now, not an SVG cell, so a step's type and run state
+// paint a background and a border; only the connections are still SVG.
 .o_workflow_canvas {
     .o_workflow_canvas_paper {
-        overflow: auto;
+        height: 32rem;
+        overflow: hidden;
         border: 1px solid var(--border-color);
         border-radius: var(--border-radius);
         background-color: var(--body-bg);
     }
 
-    .o_workflow_canvas_node {
-        fill: var(--tertiary-bg);
-        stroke: var(--border-color);
-        stroke-width: 1;
-        cursor: move;
+    .o_workflow_canvas_step {
+        border-radius: inherit;
+        background-color: var(--tertiary-bg);
+        color: var(--body-color);
+    }
+
+    .o_workflow_canvas_step_header {
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .o_workflow_canvas_step_state {
+        background-color: var(--secondary-bg);
+        color: var(--body-color);
     }
 
     .o_workflow_canvas_type_wait {
-        fill: var(--warning-bg-subtle);
-        stroke: var(--warning);
-        stroke-dasharray: 6 3;
+        background-color: var(--warning-bg-subtle);
+        box-shadow: inset 0 0 0 2px var(--warning);
     }
 
     .o_workflow_canvas_type_approval {
-        fill: var(--info-bg-subtle);
-        stroke: var(--info);
-        stroke-dasharray: 2 3;
+        background-color: var(--info-bg-subtle);
+        box-shadow: inset 0 0 0 2px var(--info);
     }
 
     .o_workflow_canvas_type_subflow {
-        fill: var(--secondary-bg);
-        stroke: var(--secondary-color);
-        stroke-width: 2;
+        background-color: var(--secondary-bg);
+        box-shadow: inset 0 0 0 2px var(--secondary-color);
     }
 
-    .o_workflow_canvas_label {
-        fill: var(--body-color);
-        font-size: 12px;
-        pointer-events: none;
-    }
-
-    .o_workflow_canvas_link {
+    .o_workflow_canvas_link .o_flow_editor_connection_path {
         stroke: var(--secondary-color);
         stroke-width: 1.5;
     }
 
-    .o_workflow_canvas_on_success {
+    .o_workflow_canvas_on_success .o_flow_editor_connection_path {
         stroke: var(--success);
     }
 
-    .o_workflow_canvas_on_error {
+    .o_workflow_canvas_on_error .o_flow_editor_connection_path {
         stroke: var(--danger);
         stroke-dasharray: 5 3;
     }
 
-    .o_workflow_canvas_always {
+    .o_workflow_canvas_always .o_flow_editor_connection_path {
         stroke: var(--secondary-color);
     }
 
-    .o_workflow_canvas_expression {
+    .o_workflow_canvas_expression .o_flow_editor_connection_path {
         stroke: var(--info);
         stroke-dasharray: 2 2;
     }
 
-    .o_workflow_canvas_selected .o_workflow_canvas_link {
+    .o_flow_editor_connection_selected .o_flow_editor_connection_path {
         stroke: var(--primary);
         stroke-width: 3;
     }
 
     .o_workflow_canvas_run_waiting {
-        fill: var(--body-bg);
-        stroke: var(--border-color);
-        stroke-dasharray: 3 3;
+        background-color: var(--body-bg);
+        box-shadow: inset 0 0 0 2px var(--border-color);
     }
 
     .o_workflow_canvas_run_ready {
-        stroke: var(--primary);
-        stroke-width: 2;
+        box-shadow: inset 0 0 0 2px var(--primary);
     }
 
     .o_workflow_canvas_run_in_progress {
-        fill: var(--primary-bg-subtle);
-        stroke: var(--primary);
-        stroke-width: 2;
+        background-color: var(--primary-bg-subtle);
+        box-shadow: inset 0 0 0 2px var(--primary);
     }
 
     .o_workflow_canvas_run_paused {
-        fill: var(--warning-bg-subtle);
-        stroke: var(--warning);
-        stroke-width: 2;
+        background-color: var(--warning-bg-subtle);
+        box-shadow: inset 0 0 0 2px var(--warning);
     }
 
     .o_workflow_canvas_run_done {
-        fill: var(--success-bg-subtle);
-        stroke: var(--success);
+        background-color: var(--success-bg-subtle);
+        box-shadow: inset 0 0 0 2px var(--success);
     }
 
     .o_workflow_canvas_run_error {
-        fill: var(--danger-bg-subtle);
-        stroke: var(--danger);
-        stroke-width: 2;
+        background-color: var(--danger-bg-subtle);
+        box-shadow: inset 0 0 0 2px var(--danger);
     }
 
     .o_workflow_canvas_run_cancel {
         opacity: 0.55;
-    }
-
-    .o_workflow_canvas_edge_label {
-        fill: var(--secondary-color);
-        font-size: 10px;
-    }
-
-    .o_workflow_canvas_edge_label_bg {
-        fill: var(--body-bg);
-        stroke: none;
     }
 }

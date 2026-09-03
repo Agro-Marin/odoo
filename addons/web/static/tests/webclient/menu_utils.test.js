@@ -98,8 +98,10 @@ test("computeAppsAndMenuItems records the ancestor path and the owning app", () 
     ]);
     const { menuItems } = computeAppsAndMenuItems(tree);
     const tags = menuItems.find((m) => m.label === "Tags");
-    expect(tags.parents).toBe("Sales / Configuration");
-    expect(tags.appID).toBe(1);
+    // `find` may come back empty; saying so keeps a missing item an assertion
+    // failure instead of a TypeError.
+    expect(tags?.parents).toBe("Sales / Configuration");
+    expect(tags?.appID).toBe(1);
 });
 
 test("computeAppsAndMenuItems skips nodes without an action", () => {

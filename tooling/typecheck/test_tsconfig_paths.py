@@ -91,6 +91,23 @@ def test_the_generator_never_drops_an_absent_checkouts_aliases():
     assert kept[foreign] == existing[foreign]
 
 
+def test_the_generator_drops_a_target_naming_no_checkout():
+    import tsconfig_paths
+
+    # The branch above this one keeps any prefix it does not recognise, so an
+    # absent sibling does not lose its aliases. A target with no checkout
+    # prefix at all reaches that same branch and would be kept forever.
+    existing = {
+        "@malformed/*": "malformed/static/src/*",
+        "@web/*": "addons/web/static/src/*",
+    }
+
+    kept = tsconfig_paths.desired_entries(existing)
+
+    assert "@malformed/*" not in kept
+    assert kept["@web/*"] == "addons/web/static/src/*"
+
+
 def test_the_generator_drops_an_alias_whose_addon_is_gone():
     import tsconfig_paths
 
@@ -132,7 +149,14 @@ def test_no_mapped_alias_is_dead():
             prefix = target.split("/")[0]
             if prefix == "..":
                 prefix = "/".join(target.split("/")[:2])
-            if prefix not in present:
+            if prefix in tsconfig_paths.KNOWN_PREFIXES and prefix not in present:
+                # A checkout that is not here cannot be checked.
+                continue
+            if prefix not in tsconfig_paths.KNOWN_PREFIXES:
+                # Names no checkout at all, so it resolves nowhere from any
+                # working copy. Skipping it, which is what testing only against
+                # `present` did, hid every prefix-less entry from this gate.
+                stale.append(f"{alias} -> {target}")
                 continue
             if target.endswith("/*"):
                 ok = (ROOT / target.removesuffix("/*")).resolve().is_dir()

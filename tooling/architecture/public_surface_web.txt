@@ -45,6 +45,7 @@
 @web/core/errors/error_service  odoo
 @web/core/events  odoo enterprise
 @web/core/file_upload  odoo enterprise agromarin
+@web/core/flow_editor/flow_editor  odoo
 @web/core/formatters  odoo enterprise
 @web/core/hotkeys/hotkey_hook  odoo enterprise
 @web/core/l10n/dates  odoo enterprise

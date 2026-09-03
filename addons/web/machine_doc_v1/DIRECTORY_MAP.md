@@ -1,6 +1,6 @@
 # Directory Map
 
-> **244 entries** (238 subdirectories + `(root)`) | Maps directory → layer + responsibility
+> **246 entries** (240 subdirectories + `(root)`) | Maps directory → layer + responsibility
 >
 > Layers (Feature-Sliced Design): shared → entities → features → widgets → pages
 >
@@ -60,6 +60,8 @@
 | `core/debug/` | shared | 2 | Debug context manager merging `debug` registry items by category, plus its utilities |
 | `core/errors/` | shared | 6 | The `error` service, uncaught-error handlers, traceback formatting, native stack-frame parsing, and the `/web/observability/js_error` beacon |
 | `core/file_upload/` | shared | 2 | `FileHandler` component and the `file_upload` service (XHR upload with progress) |
+| `core/flow_editor/` | shared | 7 | The node-graph editor: store, canvas, node/port/connection components and the structural connection validator |
+| `core/flow_editor/geometry/` | shared | 6 | Its geometry: coordinate transforms, node rects, port anchors and the orthogonal router that avoids other nodes |
 | `core/hotkeys/` | shared | 2 | The `hotkey` service and the `useHotkey` registration hook |
 | `core/l10n/` | shared | 8 | Luxon-based date/datetime parsing, formatting, serialization, and the `localization` service |
 | `core/l10n/utils/` | shared | 5 | Locale helpers: `Intl.ListFormat` list formatting, locale codes, normalisation, unaccent + its table |

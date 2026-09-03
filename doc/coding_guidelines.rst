@@ -1139,13 +1139,13 @@ Section  Population                                                  Count
 §2.4.2   … spelled ``_onchange_<field>``                               275
 §2.4.2   ``@api.ondelete`` hooks                                       165
 §2.4.2   … spelled ``_unlink_except_*``                                108
-§2.4.2   ``@api.constrains`` hooks                                     639
-§2.4.2   … spelled ``_check_*``                                        588
+§2.4.2   ``@api.constrains`` hooks                                     641
+§2.4.2   … spelled ``_check_*``                                        590
 §2.4.2   … with a first token carrying no rule                          46
-§2.4.2   … binding exactly one field                                   303
-§2.4.2   … of those, spelled ``_check_<field>``                        135
+§2.4.2   … binding exactly one field                                   304
+§2.4.2   … of those, spelled ``_check_<field>``                        136
 §2.4.2   Multi-field constraints named for one trigger                  57
-§2.4.3   Non-test methods declared on a model class                 25,425
+§2.4.3   Non-test methods declared on a model class                 25,374
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               101
 §2.4.4   Model methods with an abolished verb behind a noun            137
@@ -1157,14 +1157,14 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   153
 §2.4.5   ``X_to_Y`` converter definitions                               98
 §2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      5,812
+§2.4.7   ``_get_*`` definitions                                      5,805
 §2.4.7   Abolished payload verbs, the four between them                 16
 §2.4.7   ``_generate_*`` definitions                                   130
 §2.4.7   ``_calculate_*`` model methods                                  7
 §2.4.7   ``_prepare_*`` definitions                                    833
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            39
-§2.4.8   ``_check_*`` definitions                                    1,145
-§2.4.8   ``_validate_*`` definitions                                     2
+§2.4.8   ``_check_*`` definitions                                    1,140
+§2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     177
 §2.4.10  ``_raise_*`` model methods                                     15
@@ -1173,10 +1173,10 @@ Section  Population                                                  Count
 §2.4.11  … performing an ORM read                                        4
 §2.4.11  … doing something else entirely                                22
 §2.4.11  ``_find_or_create_*`` methods                                   1
-§2.4.11  ``_get_or_create_*`` methods                                   29
-§2.4.11  ``_resolve_*`` definitions                                     40
-§2.4.12  ``_set_*`` definitions                                        123
-§2.4.12  ``_update_*`` definitions                                     346
+§2.4.11  ``_get_or_create_*`` methods                                   28
+§2.4.11  ``_resolve_*`` definitions                                     39
+§2.4.12  ``_set_*`` definitions                                        125
+§2.4.12  ``_update_*`` definitions                                     347
 §2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             253
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
 §2.4.12  ``_sync_*`` definitions                                        67
@@ -4496,7 +4496,7 @@ user sees. No linter reads it -- ``test_translated_unique`` checks the *column* 
 so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
-tail -- the tree spells that tail ``_uniq`` **85** times against ``_unique``'s
+tail -- the tree spells that tail ``_uniq`` **86** times against ``_unique``'s
 **51**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**

@@ -3,6 +3,7 @@ from . import ir_cron
 from . import mail_activity
 from . import ir_websocket
 from . import automation_rule
+from . import automation_canvas_viewport
 from . import automation_runtime
 from . import automation_runtime_line
 from . import automation_runtime_edge

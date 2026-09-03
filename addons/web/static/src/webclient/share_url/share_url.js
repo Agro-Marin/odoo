@@ -3,12 +3,15 @@
 
 import { markup } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { isDisplayStandalone } from "@web/core/browser/feature_detection";
+import {
+    isDisplayStandalone,
+    isWebShareSupported,
+} from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
 export async function shareUrl() {
-    await navigator
+    await browser.navigator
         .share({
             url: browser.location.href,
             title: document.title,
@@ -20,6 +23,7 @@ export async function shareUrl() {
         });
 }
 
+/** @param {import("@web/env").OdooEnv} env */
 export function shareUrlMenuItem(env) {
     return {
         type: "item",
@@ -37,6 +41,6 @@ export function shareUrlMenuItem(env) {
     };
 }
 
-if (navigator.share) {
+if (isWebShareSupported()) {
     registry.category("user_menuitems").add("share_url", shareUrlMenuItem);
 }

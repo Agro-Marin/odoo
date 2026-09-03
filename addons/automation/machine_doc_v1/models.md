@@ -61,6 +61,18 @@ so a value added to the Selection without a line here fails the gate.
 | `MIN_CRON_INTERVAL_MINUTES` | 1 | Floor |
 | `MAX_CRON_INTERVAL_MINUTES` | 240 | Ceiling |
 | `MONTH_APPROXIMATION_DAYS` | 30 | Used for `timedelta` month conversion |
+| `RUNTIME_HISTORY_LIMIT` | 10 | Recent runs the canvas offers in its run selector |
+
+`models/_canvas.py` holds the geometry contract the canvas persists, read by
+both `ir.actions.server` and `automation.canvas.viewport`:
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `NODE_SIZE_DEFAULT` | 200 x 140 | A step nobody has resized |
+| `NODE_SIZE_MIN` | 160 x 72 | Floor a stored rect is checked against |
+| `NODE_SIZE_MAX` | 480 x 320 | Ceiling a stored rect is checked against |
+| `NODE_HEADER_HEIGHT` | 34 | Where a step's body, and so its ports, start |
+| `SCALE_MIN` / `SCALE_MAX` | 0.2 / 2.0 | Zoom the editor can draw, mirrored server-side |
 
 ---
 
@@ -85,6 +97,7 @@ server action model AND the workflow node definition.
 | `wait_delay` / `wait_unit` | Integer / Selection | How long a `wait` node pauses the run; a non-positive delay is refused |
 | `pos_x` | Integer | Node's horizontal position on the workflow canvas |
 | `pos_y` | Integer | Node's vertical position on the workflow canvas |
+| `pos_width` / `pos_height` | Integer | Node's rect on the canvas; 0 means the default, and any other value is checked against `NODE_SIZE_MIN` / `NODE_SIZE_MAX` |
 | ~~`action_state`~~ | ~~Selection~~ | **REMOVED in Phase 1** — was broken (global state, not per-execution) |
 | ~~`is_ready`~~ | ~~Boolean~~ | **REMOVED in Phase 1** — use `automation.runtime.line.is_ready` |
 | ~~`error_message`~~ | ~~Text~~ | **REMOVED in Phase 1** — use `automation.runtime.line.error_message` |
@@ -249,6 +262,31 @@ This is the correct per-instance DAG propagation pattern. (An earlier
 was removed in Phase 1 along with `action_state`/`is_ready`/`error_message` —
 see the "What NOT to Add" section in `conventions.md`; this doc previously
 still referenced it.)
+
+---
+
+## automation.canvas.viewport (Per-Reader Canvas State)
+
+Defined by `models/automation_canvas_viewport.py`. Where one reader last left
+the workflow canvas of one automation: personal, so two people looking at the
+same automation pan and zoom independently, and scoped to its owner by a global
+record rule rather than left readable by anyone who may configure automations.
+
+### Key Fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `user_id` | Many2one `res.users` | The reader the viewport belongs to |
+| `automation_rule_id` | Many2one `automation.rule` | The automation it frames |
+| `pos_x` / `pos_y` | Float | Canvas translation, in screen pixels |
+| `scale` | Float | Zoom, checked against `SCALE_MIN` / `SCALE_MAX` |
+
+`_viewport_uniq` keeps one row per reader per automation, and `_update_viewport`
+recovers from the race two of a reader's own tabs create through
+`odoo.db.get_or_create_row` rather than a hand-rolled savepoint. The canvas
+reads it from `get_workflow_graph`'s payload and writes it back through
+`automation.rule.set_workflow_viewport`, debounced, so a pan costs one row and
+not one row per frame.
 
 ---
 

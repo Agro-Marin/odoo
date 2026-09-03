@@ -8,3 +8,4 @@ access_workflow_edge_user,workflow.edge.user,model_workflow_edge,base.group_user
 access_workflow_edge_system,workflow.edge.system,model_workflow_edge,base.group_system,1,1,1,1
 access_automation_runtime_edge_user,automation.runtime.edge.user,model_automation_runtime_edge,base.group_user,1,0,0,0
 access_automation_runtime_edge_system,automation.runtime.edge.system,model_automation_runtime_edge,base.group_system,1,1,1,1
+access_automation_canvas_viewport_user,automation.canvas.viewport.user,model_automation_canvas_viewport,base.group_user,1,1,1,1

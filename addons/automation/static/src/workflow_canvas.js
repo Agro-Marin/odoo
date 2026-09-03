@@ -5,65 +5,40 @@ import {
     onWillStart,
     onWillUnmount,
     onWillUpdateProps,
-    useEffect,
-    useRef,
     useState,
 } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
+import { FlowEditor } from "@web/core/flow_editor/flow_editor";
 import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+import { useDebounced } from "@web/core/utils/timing";
 
 import {
     canConnect,
-    conditionLabel,
+    layoutWorkflow,
     linkClasses,
-    NODE_HEIGHT,
-    NODE_WIDTH,
-    nodeClasses,
-    shortName,
+    toFlowGraph,
 } from "./workflow_graph.js";
+import { WorkflowNode } from "./workflow_node.js";
 
-const PADDING = 32;
 const CHANNEL_PREFIX = "automation.workflow/";
 const UPDATE_TYPE = "automation.workflow/update";
 
-function log(...parts) {
-    browser.console.debug("[workflow-canvas]", ...parts);
-}
-
-function gridColor(element) {
-    const view = element.ownerDocument.defaultView;
-    const themed = view
-        .getComputedStyle(element)
-        .getPropertyValue("--border-color")
-        .trim();
-    return themed || "#d8d8d8";
-}
-
-let jointPromise = null;
-
-function loadJoint() {
-    jointPromise ??= import("joint").catch((error) => {
-        jointPromise = null;
-        throw error;
-    });
-    return jointPromise;
-}
-
 export class WorkflowCanvas extends Component {
     static template = "automation.WorkflowCanvas";
+    static components = { FlowEditor };
     static props = {
         record: Object,
         readonly: { type: Boolean, optional: true },
     };
+
+    NodeComponent = WorkflowNode;
 
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
         this.notification = useService("notification");
         this.bus = useService("bus_service");
-        this.canvas = useRef("canvas");
         this.state = useState({
             status: "idle",
             error: "",
@@ -73,22 +48,26 @@ export class WorkflowCanvas extends Component {
             runs: [],
             runtimeId: null,
             runtimeState: null,
+            nodes: [],
+            connections: [],
         });
         // null asks the server to choose (a live run, else the definition);
         // false pins the definition; an id pins that run.
         this.requestedRuntimeId = null;
-        this.paper = null;
-        this.graph = null;
-        this.drawToken = 0;
+        this.payload = null;
         this.listening = null;
+        // Handed to the editor as a prop, so it is replaced only by a load: a
+        // fresh object on every pan frame would reset the editor's own viewport
+        // mid-gesture.
+        this.viewport = null;
+        this.pendingViewport = null;
+        // Panning and wheel-zooming both report continuously; the reader's
+        // resting position is what is worth a row, not every frame of getting
+        // there. execBeforeUnmount flushes the last one if they navigate away.
+        this.saveViewport = useDebounced(() => this.persistViewport(), 400, {
+            execBeforeUnmount: true,
+        });
         this.onWorkflowUpdate = ({ automation_id, runtime_id }) => {
-            log(
-                "bus",
-                automation_id,
-                runtime_id,
-                "mine:",
-                automation_id === this.resId,
-            );
             if (automation_id !== this.resId) {
                 return;
             }
@@ -99,14 +78,6 @@ export class WorkflowCanvas extends Component {
             }
             this.load();
         };
-        useEffect(
-            () => {
-                if (this.state.status === "ready") {
-                    this.draw();
-                }
-            },
-            () => [this.state.status, this.drawToken],
-        );
         onWillStart(async () => {
             await this.load();
             this.listen();
@@ -118,10 +89,7 @@ export class WorkflowCanvas extends Component {
                 this.listen(nextProps.record.resId);
             }
         });
-        onWillUnmount(() => {
-            this.stopListening();
-            this.teardown();
-        });
+        onWillUnmount(() => this.stopListening());
     }
 
     get resId() {
@@ -132,34 +100,61 @@ export class WorkflowCanvas extends Component {
         return !this.props.readonly && !this.props.record.isNew;
     }
 
-    async load() {
-        this.teardown();
-        if (!this.resId) {
+    get edges() {
+        return this.payload?.edges || [];
+    }
+
+    async load(resId = this.resId) {
+        if (!resId) {
             this.state.status = "unsaved";
             return;
         }
         this.state.status = "loading";
+        let payload;
         try {
-            const [payload, joint] = await Promise.all([
-                this.orm.call("automation.rule", "get_workflow_graph", [[this.resId]], {
+            payload = await this.orm.call(
+                "automation.rule",
+                "get_workflow_graph",
+                [[resId]],
+                {
                     runtime_id: this.requestedRuntimeId,
-                }),
-                loadJoint(),
-            ]);
-            this.payload = payload;
-            this.joint = joint;
-            this.state.countNode = payload.nodes.length;
-            this.state.countEdge = payload.edges.length;
-            this.state.runs = payload.runs || [];
-            this.state.runtimeId = payload.runtime_id;
-            this.state.runtimeState = payload.runtime_state;
-            this.state.status = payload.nodes.length ? "ready" : "empty";
+                },
+            );
         } catch (error) {
             this.state.status = "error";
             this.state.error = error.message || String(error);
             return;
         }
-        this.drawToken = (this.drawToken || 0) + 1;
+        this.payload = payload;
+        const graph = toFlowGraph(payload);
+        this.state.nodes = graph.nodes;
+        this.state.connections = graph.connections;
+        this.state.countNode = payload.nodes.length;
+        this.state.countEdge = payload.edges.length;
+        this.state.runs = payload.runs || [];
+        this.state.runtimeId = payload.runtime_id;
+        this.state.runtimeState = payload.runtime_state;
+        this.state.selectedEdgeId = null;
+        this.viewport = payload.viewport;
+        this.pendingViewport = null;
+        this.state.status = payload.nodes.length ? "ready" : "empty";
+        // A graph nobody has placed is laid out here rather than server-side,
+        // and banking it is what keeps the reader's own arrangement from being
+        // recomputed on the next read.
+        if (!payload.is_positioned && this.isEditable && this.state.nodes.length) {
+            await this.persistPositions(this.state.nodes);
+        }
+    }
+
+    async persistPositions(nodes) {
+        await Promise.all(
+            nodes.map((node) =>
+                this.orm.write("ir.actions.server", [node.id], {
+                    pos_x: Math.round(node.position.x),
+                    pos_y: Math.round(node.position.y),
+                }),
+            ),
+        );
     }
 
     listen(resId = this.resId) {
@@ -180,229 +175,152 @@ export class WorkflowCanvas extends Component {
         this.listening = null;
     }
 
-    teardown() {
-        if (this.paper) {
-            log("teardown");
-        }
-        this.paper?.remove();
-        this.paper = null;
-        this.graph = null;
-        this.state.selectedEdgeId = null;
+    get minNodeSize() {
+        return this.payload.node_size.min;
     }
 
-    async draw() {
-        const element = this.canvas.el;
-        if (!element) {
-            this.state.status = "error";
-            this.state.error = _t("The canvas element was not mounted.");
-            log("draw aborted: no element");
-            return;
-        }
-        log("draw", {
-            nodes: this.payload.nodes.length,
-            edges: this.payload.edges.length,
-            positioned: this.payload.is_positioned,
-            runtime: this.payload.runtime_id,
-        });
-        const { dia, shapes } = this.joint;
-        const host = element.ownerDocument.createElement("div");
-        element.replaceChildren(host);
-        this.graph = new dia.Graph({}, { cellNamespace: shapes });
-        this.cellPerNode = new Map();
-
-        for (const node of this.payload.nodes) {
-            const cell = new shapes.standard.Rectangle({
-                position: { x: node.pos_x, y: node.pos_y },
-                size: { width: NODE_WIDTH, height: NODE_HEIGHT },
-                attrs: {
-                    body: { rx: 6, ry: 6, class: nodeClasses(node), magnet: "passive" },
-                    label: {
-                        text: shortName(node.name),
-                        class: "o_workflow_canvas_label",
-                    },
-                },
-            });
-            cell.set("nodeId", node.id);
-            this.cellPerNode.set(node.id, cell);
-            this.graph.addCell(cell);
-        }
-        for (const edge of this.payload.edges) {
-            this.graph.addCell(this.buildLink(edge));
-        }
-
-        this.paper = new dia.Paper({
-            el: host,
-            model: this.graph,
-            width: "100%",
-            height: 520,
-            gridSize: 10,
-            drawGrid: { name: "dot", args: { color: gridColor(element) } },
-            background: { color: "transparent" },
-            cellViewNamespace: shapes,
-            linkPinning: false,
-            defaultLink: () => new shapes.standard.Link(),
-            defaultRouter: { name: "manhattan" },
-            defaultConnector: { name: "rounded" },
-            interactive: this.isEditable ? { linkMove: false } : false,
-            validateConnection: (sourceView, _sm, targetView, _tm, end) =>
-                this.isValidConnection(sourceView, targetView, end),
-        });
-
-        if (!this.payload.is_positioned) {
-            await this.autoLayout({ persist: this.isEditable });
-        } else {
-            this.fit();
-        }
-        this.bind();
+    get maxNodeSize() {
+        return this.payload.node_size.max;
     }
 
-    bind() {
-        if (this.isEditable) {
-            const { dia, elementTools } = this.joint;
-            for (const cell of this.cellPerNode.values()) {
-                this.paper.findViewByModel(cell).addTools(
-                    new dia.ToolsView({
-                        tools: [new elementTools.HoverConnect()],
-                    }),
-                );
-            }
-            log("connect handles attached", this.cellPerNode.size);
-        }
-        this.paper.on("element:pointerup", (view) => this.saveNodePosition(view));
-        this.paper.on("element:pointerdblclick", (view) =>
-            this.openAction(view.model.get("nodeId")),
-        );
-        this.paper.on("link:pointerclick", (view) => this.selectEdge(view.model));
-        this.paper.on("link:connect", (view) => this.createEdge(view.model));
-        this.paper.on("blank:pointerclick", () => this.selectEdge(null));
+    onViewportChange(viewport) {
+        this.pendingViewport = viewport;
+        this.saveViewport();
     }
 
-    buildLink(edge) {
-        const link = new this.joint.shapes.standard.Link({
-            source: { id: this.cellPerNode.get(edge.source).id },
-            target: { id: this.cellPerNode.get(edge.target).id },
-            attrs: {
-                line: {
-                    class: linkClasses(edge),
-                },
-            },
-            labels: [
-                {
-                    position: 0.5,
-                    attrs: {
-                        text: {
-                            text: edge.label || conditionLabel(edge.condition),
-                            class: "o_workflow_canvas_edge_label",
-                        },
-                        rect: { class: "o_workflow_canvas_edge_label_bg" },
-                    },
-                },
-            ],
-        });
-        link.set("edgeId", edge.id);
-        return link;
-    }
-
-    isValidConnection(sourceView, targetView, end) {
-        if (!this.isEditable || end === "source" || !targetView) {
-            return false;
-        }
-        return canConnect(
-            this.payload.edges,
-            sourceView.model.get("nodeId"),
-            targetView.model.get("nodeId"),
-        );
-    }
-
-    async createEdge(link) {
-        const source = link.getSourceCell()?.get("nodeId");
-        const target = link.getTargetCell()?.get("nodeId");
-        log("connect", { source, target });
-        if (!source || !target) {
-            log("connect abandoned: an end was not a node");
+    async persistViewport() {
+        const viewport = this.pendingViewport;
+        if (!viewport || !this.resId) {
             return;
         }
         try {
-            await this.orm.create("workflow.edge", [
-                { source_node_id: source, target_node_id: target },
+            await this.orm.call("automation.rule", "set_workflow_viewport", [
+                [this.resId],
+                viewport.x,
+                viewport.y,
+                viewport.scale,
             ]);
-        } catch (error) {
-            log("connect refused", error.data?.message || error.message);
-            this.notification.add(error.data?.message || error.message, {
-                type: "danger",
-                title: _t("That connection was refused"),
+        } catch {
+            // Losing a viewport costs the reader one pan, so it is not worth a
+            // dialog; the graph itself is unaffected.
+        }
+    }
+
+    async onResize({ phase, node, size }) {
+        if (phase !== "end" || !this.isEditable || !node) {
+            return;
+        }
+        await this.orm.write("ir.actions.server", [node.id], {
+            pos_width: Math.round(size.width),
+            pos_height: Math.round(size.height),
+        });
+    }
+
+    getConnectionClass(connection) {
+        return linkClasses(connection.data || {});
+    }
+
+    /**
+     * The editor's own rules already refuse a self-connection and a repeat of
+     * the same two ports; this adds the one the model enforces on top of them,
+     * `workflow.edge._edge_uniq`, which is per PAIR of steps whatever
+     * condition each connection carries.
+     */
+    canConnect(connection) {
+        return canConnect(this.edges, connection.sourceNodeId, connection.targetNodeId);
+    }
+
+    async onConnect(connection) {
+        try {
+            const [edgeId] = await this.orm.create("workflow.edge", [
+                {
+                    source_node_id: connection.sourceNodeId,
+                    target_node_id: connection.targetNodeId,
+                    condition: connection.sourcePortId,
+                },
+            ]);
+            this.edges.push({
+                id: edgeId,
+                source: connection.sourceNodeId,
+                target: connection.targetNodeId,
+                condition: connection.sourcePortId,
             });
-        }
-        await this.load();
-    }
-
-    selectEdge(link) {
-        this.state.selectedEdgeId = link ? link.get("edgeId") : null;
-        for (const cell of this.graph.getLinks()) {
-            const view = this.paper.findViewByModel(cell);
-            view?.el?.classList?.toggle(
-                "o_workflow_canvas_selected",
-                cell.get("edgeId") === this.state.selectedEdgeId,
-            );
+            this.state.countEdge++;
+            return { ...connection, id: edgeId, data: this.edges.at(-1) };
+        } catch (error) {
+            this.notify(error, _t("That connection was refused"));
+            return false;
         }
     }
 
-    async removeSelectedEdge() {
-        if (!this.state.selectedEdgeId) {
+    async onDisconnect({ connection }) {
+        try {
+            await this.orm.unlink("workflow.edge", [connection.id]);
+        } catch (error) {
+            this.notify(error, _t("That connection could not be removed"));
+            return false;
+        }
+        this.payload.edges = this.edges.filter((edge) => edge.id !== connection.id);
+        this.state.countEdge = this.edges.length;
+        return true;
+    }
+
+    async onDrag({ phase, node, position }) {
+        if (phase !== "end" || !this.isEditable || !node) {
             return;
         }
-        await this.orm.unlink("workflow.edge", [this.state.selectedEdgeId]);
-        await this.load();
-    }
-
-    async saveNodePosition(view) {
-        if (!this.isEditable) {
-            return;
-        }
-        const position = view.model.position();
-        log("move", view.model.get("nodeId"), position);
-        await this.orm.write("ir.actions.server", [view.model.get("nodeId")], {
+        await this.orm.write("ir.actions.server", [node.id], {
             pos_x: Math.round(position.x),
             pos_y: Math.round(position.y),
         });
     }
 
-    async autoLayout({ persist } = {}) {
-        this.joint.DirectedGraph.layout(this.graph, {
-            rankDir: "LR",
-            nodeSep: 40,
-            edgeSep: 20,
-            rankSep: 90,
-            marginX: PADDING,
-            marginY: PADDING,
-        });
-        this.fit();
-        if (!persist) {
+    onNodeClick({ node, originalEvent }) {
+        // A second click of a double-click: the editor selects on the first,
+        // and opening on every selection would fight the reader's own drag.
+        if (originalEvent.detail >= 2) {
+            this.openAction(node.id);
+        }
+    }
+
+    onSelectionChange({ connectionIds }) {
+        this.state.selectedEdgeId = connectionIds[0] ?? null;
+    }
+
+    onConnectionRejected({ validation }) {
+        if (
+            validation.reason === "duplicate" ||
+            validation.reason === "consumer_rejected"
+        ) {
+            this.notification.add(_t("These two steps are already connected."), {
+                type: "warning",
+            });
+        }
+    }
+
+    async removeSelectedEdge() {
+        const connection = this.state.connections.find(
+            (candidate) => candidate.id === this.state.selectedEdgeId,
+        );
+        if (!connection || !(await this.onDisconnect({ connection }))) {
             return;
         }
-        await Promise.all(
-            [...this.cellPerNode.entries()].map(([nodeId, cell]) => {
-                const position = cell.position();
-                return this.orm.write("ir.actions.server", [nodeId], {
-                    pos_x: Math.round(position.x),
-                    pos_y: Math.round(position.y),
-                });
-            }),
-        );
+        await this.load();
     }
 
     async relayout() {
-        await this.autoLayout({ persist: this.isEditable });
-    }
-
-    fit() {
-        this.paper.transformToFitContent({
-            padding: PADDING,
-            maxScale: 1,
-            minScale: 0.3,
-            verticalAlign: "middle",
-            horizontalAlign: "middle",
-        });
+        const positions = layoutWorkflow(
+            this.payload.nodes,
+            this.edges,
+            this.payload.node_size.default,
+        );
+        this.state.nodes = this.state.nodes.map((node) => ({
+            ...node,
+            position: positions.get(node.id) || node.position,
+        }));
+        if (this.isEditable) {
+            await this.persistPositions(this.state.nodes);
+        }
     }
 
     async selectRun(value) {
@@ -411,11 +329,17 @@ export class WorkflowCanvas extends Component {
     }
 
     get runLabel() {
-        const run = this.state.runs.find((r) => r.id === this.state.runtimeId);
-        if (!run) {
-            return "";
-        }
-        return `${run.name} — ${run.progress}`;
+        const run = this.state.runs.find(
+            (candidate) => candidate.id === this.state.runtimeId,
+        );
+        return run ? `${run.name} — ${run.progress}` : "";
+    }
+
+    notify(error, title) {
+        this.notification.add(error.data?.message || error.message, {
+            type: "danger",
+            title,
+        });
     }
 
     openAction(nodeId) {

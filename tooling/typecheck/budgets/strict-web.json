@@ -1,8 +1,8 @@
 {
   "gate": "strict",
   "module": "web",
-  "total": 4552,
-  "note": "overlay_container.js, column_width_hook.js and report_hook.test.js left the strict exception list; the other twelve moves are the same fixes reaching neighbouring files.",
+  "total": 4534,
+  "note": "",
   "budgets": {
     "addons/web/static/src/components/action_swiper/action_swiper.js": 43,
     "addons/web/static/src/components/autocomplete/autocomplete.js": 34,
@@ -77,10 +77,9 @@
     "addons/web/static/src/views/settings/settings/settings_app.js": 7,
     "addons/web/static/src/views/settings/settings_form_controller.js": 10,
     "addons/web/static/src/views/view_dialogs/export_data_dialog.js": 86,
-    "addons/web/static/src/webclient/clickbot/clickbot.js": 6,
+    "addons/web/static/src/webclient/clickbot/clickbot.js": 5,
     "addons/web/static/src/webclient/debug/profiling/profiling_qweb.js": 19,
     "addons/web/static/src/webclient/loading_indicator/loading_indicator.js": 3,
-    "addons/web/static/src/webclient/navbar/navbar.js": 17,
     "addons/web/static/src/webclient/switch_company_menu/switch_company_menu.js": 16,
     "addons/web/static/tests/_framework/component_test_helpers.js": 10,
     "addons/web/static/tests/_framework/env_test_helpers.js": 4,

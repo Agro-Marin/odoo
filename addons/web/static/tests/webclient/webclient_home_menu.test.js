@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
-import { click, keyDown, queryAll, queryFirst } from "@odoo/hoot-dom";
+import { click, keyDown, queryAll, queryFirst, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, mockMatchMedia } from "@odoo/hoot-mock";
 import { Component, onMounted, xml } from "@odoo/owl";
 import {
@@ -711,7 +711,11 @@ test("go back to home menu using browser back button", async () => {
 test("initial action crashes", async () => {
     expect.errors(1);
     redirect("/odoo/action-__test__client__action__?menu_id=1");
-    const ClientAction = registry.category("actions").get("__test__client__action__");
+    // The registry holds either a component class or a plain function; this
+    // entry is the component the test suite registered.
+    const ClientAction = /** @type {any} */ (
+        registry.category("actions").get("__test__client__action__")
+    );
     class Override extends ClientAction {
         setup() {
             super.setup();
@@ -721,7 +725,9 @@ test("initial action crashes", async () => {
     }
     registry
         .category("actions")
-        .add("__test__client__action__", Override, { force: true });
+        .add("__test__client__action__", /** @type {any} */ (Override), {
+            force: true,
+        });
 
     await mountWebClient({ WebClient: WebClient });
     expect.verifySteps(["clientAction setup"]);
@@ -796,7 +802,8 @@ test("Navigate to an application from the HomeMenu should generate only one push
     patchWithCleanup(history, {
         pushState(state, title, url) {
             super.pushState(...arguments);
-            const parsedUrl = new URL(url);
+            // pushState may carry no url at all, which means "the current one".
+            const parsedUrl = new URL(url ?? browser.location.href);
             expect.step(parsedUrl.pathname + parsedUrl.search);
         },
     });
@@ -833,7 +840,7 @@ test("display studio icon when studio module is not installed", async () => {
     expect(`.o_menu_systray .o_nav_entry i`).toHaveClass("oi oi-studio");
     await contains(".o_menu_systray .o_nav_entry").click();
     expect(`.modal-content`).toHaveCount(1);
-    expect(queryFirst(".modal-header").textContent).toBe(
+    expect(queryOne(".modal-header").textContent).toBe(
         "Odoo Studio - Add new fields to any view",
     );
 });

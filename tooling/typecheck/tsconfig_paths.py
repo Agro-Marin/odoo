@@ -26,6 +26,11 @@ CHECKOUTS = (
     *((ROOT.parent / name, f"../{name}") for name in SIBLING_REPOS),
 )
 
+# Every prefix a target may legally carry, whether or not that checkout is on
+# disk. Read from the layout rather than from CHECKOUTS, which a caller may
+# narrow to simulate an absent sibling.
+KNOWN_PREFIXES = {"addons", *(f"../{name}" for name in SIBLING_REPOS)}
+
 
 def addons_on_disk() -> dict[str, str]:
     found: dict[str, str] = {}
@@ -33,7 +38,15 @@ def addons_on_disk() -> dict[str, str]:
         if not base.is_dir():
             continue
         for entry in sorted(base.iterdir()):
-            if (entry / "static" / "src").is_dir():
+            # A manifest as well as a static/src: this walks the filesystem, and
+            # a deleted module leaves its directory behind in any long-lived
+            # checkout that still holds gitignored bytecode under it. Three such
+            # husks minted `@web_enterprise/*`, `@approvals/*` and
+            # `@approvals_purchase/*` into the committed tsconfig on 2026-09-03,
+            # a day after `09bc9e3e2de` removed the modules from git.
+            if (entry / "static" / "src").is_dir() and (
+                entry / "__manifest__.py"
+            ).is_file():
                 found.setdefault(entry.name, f"{prefix}/{entry.name}/static/src/*")
     return found
 
@@ -71,7 +84,14 @@ def desired_entries(existing: dict[str, str]) -> dict[str, str]:
     kept: dict[str, str] = {}
     for alias, target in existing.items():
         addon = alias.removeprefix("@").removesuffix("/*")
-        if _checkout_prefix(target) not in present:
+        prefix = _checkout_prefix(target)
+        if prefix not in KNOWN_PREFIXES:
+            # An entry naming no checkout at all is malformed, not a sibling
+            # that happens to be absent. Keeping it, which is what the next
+            # branch does for every prefix it does not recognise, would
+            # preserve it through every regeneration that could correct it.
+            continue
+        if prefix not in present:
             kept[alias] = target
         elif addon in on_disk:
             kept[alias] = on_disk[addon]

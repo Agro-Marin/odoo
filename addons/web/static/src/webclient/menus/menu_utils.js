@@ -23,11 +23,29 @@ export function menuHref(menu) {
 }
 
 /**
+ * One entry of the app grid or of the command palette's menu list, as built
+ * from a menu tree node.
+ *
+ * @typedef MenuEntry
+ * @property {string} parents the names of its ancestors, " / " joined
+ * @property {string} label
+ * @property {number} id
+ * @property {string} [xmlid]
+ * @property {number|string} [actionID]
+ * @property {string} href
+ * @property {number} [appID]
+ * @property {string} [webIconData]
+ * @property {{ iconClass: string, color: string, backgroundColor: string }} [webIcon]
+ */
+
+/**
  * @param {Object} menuTree
- * @returns {Object}
+ * @returns {{ apps: MenuEntry[], menuItems: MenuEntry[] }}
  */
 export function computeAppsAndMenuItems(menuTree) {
+    /** @type {MenuEntry[]} */
     const apps = [];
+    /** @type {MenuEntry[]} */
     const menuItems = [];
     traverseMenuTree(menuTree, (menuItem, parents) => {
         if (!menuItem.id || !menuItem.actionID) {
@@ -68,13 +86,18 @@ export function computeAppsAndMenuItems(menuTree) {
 }
 
 /**
- * @param {Object[]} apps
+ * Sorts in place, by the stored order of the xmlids. Anything carrying an
+ * xmlid will do: this reads nothing else off an app.
+ *
+ * @param {{ xmlid?: string }[]} apps
  * @param {string[]} order
  */
 export function reorderApps(apps, order) {
     apps.sort((a, b) => {
-        const aIndex = order.indexOf(a.xmlid);
-        const bIndex = order.indexOf(b.xmlid);
+        // An entry with no xmlid is not in a stored order and sorts as such,
+        // which is what indexOf already returned for it.
+        const aIndex = a.xmlid === undefined ? -1 : order.indexOf(a.xmlid);
+        const bIndex = b.xmlid === undefined ? -1 : order.indexOf(b.xmlid);
         if (aIndex === -1 && bIndex === -1) {
             return 0;
         }

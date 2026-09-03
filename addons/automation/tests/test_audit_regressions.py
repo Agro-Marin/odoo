@@ -6,6 +6,8 @@ from unittest.mock import patch
 from odoo import Command
 from odoo.tests import HttpCase, TransactionCase, tagged
 
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
+
 
 class AutomationAuditCommon(TransactionCase):
     @classmethod
@@ -553,7 +555,7 @@ class TestConstraintMessages(AutomationAuditCommon):
 
 
 @tagged("post_install", "-at_install")
-class TestWebhookOverHttp(HttpCase):
+class TestWebhookOverHttp(EncryptionKeyCase, HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

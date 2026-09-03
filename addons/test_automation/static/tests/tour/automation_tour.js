@@ -1,3 +1,4 @@
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
 
@@ -521,6 +522,13 @@ registry.category("web_tour.tours").add("test_form_view_model_id", {
             run: "click",
         },
         {
+            // The widget reads the model's fields over RPC and offers nothing
+            // until they land, so wait for a trigger only this model has before
+            // reading the whole list.
+            content: "wait for the menu to reflect the new model",
+            trigger: ".o_select_menu_item:contains(Stage is set to)",
+        },
+        {
             trigger: ".o_select_menu_menu",
             run() {
                 assertEqual(
@@ -679,6 +687,11 @@ registry.category("web_tour.tours").add("test_form_view_mail_triggers", {
             run: "click",
         },
         {
+            // Wait for the group this model adds, for the same reason.
+            content: "wait for the menu to reflect the threaded model",
+            trigger: ".o_select_menu_group:contains(Email Events)",
+        },
+        {
             trigger: ".o_select_menu_menu",
             run() {
                 assertEqual(
@@ -739,16 +752,34 @@ registry.category("web_tour.tours").add("automation.on_change_rule_creation", {
     ],
 });
 
-registry.category("web_tour.tours").add("test_workflow_canvas", {
-    steps: () => [
+function openWorkflowTab() {
+    return [
         {
             content: "open the Workflow tab",
             trigger: ".o_notebook .nav-link:contains(Workflow)",
             run: "click",
         },
         {
-            content: "the vendored JointJS bundle resolved and drew the graph",
-            trigger: ".o_workflow_canvas_paper svg",
+            // The canvas is tall and sits low in the form, so on a short window
+            // its lower half is out of view and a pointer aimed at a port there
+            // lands on nothing at all. A reader scrolls to it; so does this.
+            content: "bring the canvas into view",
+            trigger: ".o_workflow_canvas_paper",
+            run() {
+                document
+                    .querySelector(".o_workflow_canvas_paper")
+                    .scrollIntoView({ block: "center" });
+            },
+        },
+    ];
+}
+
+registry.category("web_tour.tours").add("test_workflow_canvas", {
+    steps: () => [
+        ...openWorkflowTab(),
+        {
+            content: "the flow editor drew the graph",
+            trigger: ".o_workflow_canvas_paper .o_flow_editor_connections",
             run() {
                 const paper = document.querySelector(".o_workflow_canvas_paper");
                 assertEqual(
@@ -778,20 +809,30 @@ registry.category("web_tour.tours").add("test_workflow_canvas", {
         },
         {
             content: "auto-layout placed the nodes apart rather than stacking them",
-            trigger: ".o_workflow_canvas_paper .joint-element",
+            trigger: ".o_workflow_canvas_paper .o_flow_editor_node",
             run() {
                 const positions = Array.from(
                     document.querySelectorAll(
-                        ".o_workflow_canvas_paper .joint-element",
+                        ".o_workflow_canvas_paper .o_flow_editor_node",
                     ),
-                ).map((el) => el.getAttribute("transform"));
+                ).map((el) => el.getAttribute("style"));
                 assertEqual(positions.length, 3);
                 assertEqual(new Set(positions).size, 3);
             },
         },
         {
             content: "the step names reached the canvas",
-            trigger: ".o_workflow_canvas_paper text:contains(first)",
+            trigger: ".o_workflow_canvas_step_header:contains(first)",
+            run() {
+                // Every step accepts an input, so the editor finds no source node
+                // and would call all three unreachable if the flag were left on.
+                assertEqual(
+                    document.querySelectorAll(".o_flow_editor_node_disconnected")
+                        .length,
+                    0,
+                );
+                assertEqual(document.querySelectorAll(".o_flow_editor_node").length, 3);
+            },
         },
         {
             content: "tidy up re-runs the layout without losing the graph",
@@ -799,7 +840,7 @@ registry.category("web_tour.tours").add("test_workflow_canvas", {
             run: "click",
         },
         {
-            trigger: ".o_workflow_canvas_paper svg",
+            trigger: ".o_workflow_canvas_paper .o_flow_editor_connections",
             run() {
                 const paper = document.querySelector(".o_workflow_canvas_paper");
                 assertEqual(
@@ -817,14 +858,10 @@ registry.category("web_tour.tours").add("test_workflow_canvas", {
 
 registry.category("web_tour.tours").add("test_workflow_canvas_edit", {
     steps: () => [
-        {
-            content: "open the Workflow tab",
-            trigger: ".o_notebook .nav-link:contains(Workflow)",
-            run: "click",
-        },
+        ...openWorkflowTab(),
         {
             content: "wait for the graph",
-            trigger: ".o_workflow_canvas_paper .joint-type-standard-link",
+            trigger: ".o_workflow_canvas_paper .o_workflow_canvas_link",
         },
         {
             content: "nothing is selected, so removal is unavailable",
@@ -832,8 +869,11 @@ registry.category("web_tour.tours").add("test_workflow_canvas_edit", {
                 ".o_workflow_canvas_toolbar button:contains(Remove connection)[disabled]",
         },
         {
+            // The hitbox path, not the group: it carries a 12px transparent
+            // stroke, so it has a box a tour can call visible where a straight
+            // horizontal edge's own 1.5px path does not.
             content: "select a connection",
-            trigger: ".o_workflow_canvas_paper .joint-type-standard-link",
+            trigger: ".o_workflow_canvas_link .o_flow_editor_connection_hitbox",
             run: "click",
         },
         {
@@ -849,13 +889,11 @@ registry.category("web_tour.tours").add("test_workflow_canvas_edit", {
         {
             content: "and the canvas redrew itself with exactly that one",
             // Triggering on the host, not on the link: a tour trigger requires a
-            // *visible* element, and a horizontal edge's <line> has zero height,
-            // so it never qualifies. querySelectorAll inside run() does not care.
+            // *visible* element, and a horizontal edge is only as tall as its
+            // stroke. querySelectorAll inside run() does not care.
             trigger: ".o_workflow_canvas_paper > div",
             run() {
-                // The widget's own classes, one per cell. JointJS repeats a
-                // link's group class in the labels layer, so counting
-                // .joint-type-standard-link double-counts every labelled edge.
+                // The widget's own classes: one per connection, one per step.
                 assertEqual(
                     document.querySelectorAll(
                         ".o_workflow_canvas_paper .o_workflow_canvas_link",
@@ -880,11 +918,7 @@ registry.category("web_tour.tours").add("test_workflow_canvas_edit", {
 
 registry.category("web_tour.tours").add("test_workflow_canvas_drag", {
     steps: () => [
-        {
-            content: "open the Workflow tab",
-            trigger: ".o_notebook .nav-link:contains(Workflow)",
-            run: "click",
-        },
+        ...openWorkflowTab(),
         {
             content: "wait for the graph",
             trigger: ".o_workflow_canvas_paper > div",
@@ -902,15 +936,13 @@ registry.category("web_tour.tours").add("test_workflow_canvas_drag", {
             trigger: ".o_workflow_canvas_paper .o_workflow_canvas_node",
             run() {
                 window.__wfBefore = document
-                    .querySelectorAll(
-                        ".o_workflow_canvas_paper .joint-type-standard-rectangle",
-                    )[0]
-                    .getAttribute("transform");
+                    .querySelectorAll(".o_workflow_canvas_paper .o_flow_editor_node")[0]
+                    .getAttribute("style");
             },
         },
         {
-            // The BODY, not the group: a real pointer always lands on the body,
-            // so this is the drag a user actually performs.
+            // The step's own body, which is what a real pointer lands on; the
+            // editor's drag handler sits on the article above it.
             content: "drag it onto the second one",
             trigger: ".o_workflow_canvas_paper .o_workflow_canvas_node:first",
             async run(helpers) {
@@ -924,10 +956,8 @@ registry.category("web_tour.tours").add("test_workflow_canvas_drag", {
             trigger: ".o_workflow_canvas_paper > div",
             run() {
                 const after = document
-                    .querySelectorAll(
-                        ".o_workflow_canvas_paper .joint-type-standard-rectangle",
-                    )[0]
-                    .getAttribute("transform");
+                    .querySelectorAll(".o_workflow_canvas_paper .o_flow_editor_node")[0]
+                    .getAttribute("style");
                 if (after === window.__wfBefore) {
                     throw new Error(`the drag did not move the step: still ${after}`);
                 }
@@ -936,13 +966,112 @@ registry.category("web_tour.tours").add("test_workflow_canvas_drag", {
     ],
 });
 
+registry.category("web_tour.tours").add("test_workflow_canvas_resize", {
+    steps: () => [
+        ...openWorkflowTab(),
+        {
+            content: "wait for the graph",
+            trigger: ".o_workflow_canvas_paper .o_flow_editor_node",
+            run() {
+                window.__wfSize = document
+                    .querySelectorAll(".o_workflow_canvas_paper .o_flow_editor_node")[0]
+                    .getAttribute("style");
+                // The lowest output port's hit area reaches into this corner,
+                // so whichever of the two wins here decides whether a pointer
+                // resizes the step or starts drawing a connection from it.
+                const handle = document.querySelector(
+                    ".o_flow_editor_node .o_flow_editor_node_resize_handle",
+                );
+                const box = handle.getBoundingClientRect();
+                const atCorner = document.elementFromPoint(
+                    box.left + box.width / 2,
+                    box.top + box.height / 2,
+                );
+                if (
+                    !atCorner ||
+                    !atCorner.closest(".o_flow_editor_node_resize_handle")
+                ) {
+                    throw new Error(
+                        `the resize corner is covered by ${atCorner && atCorner.className}`,
+                    );
+                }
+            },
+        },
+        {
+            // Onto the second step, which the fixture placed down and to the
+            // right: the resize reads the pointer rather than what sits under
+            // it, so the far step is just a coordinate to aim at.
+            content: "drag the first step's resize handle away from itself",
+            trigger: ".o_flow_editor_node:first .o_flow_editor_node_resize_handle",
+            async run(helpers) {
+                // Hover first: drag_and_drop presses at the pointer's CURRENT
+                // position and only then travels to the trigger, so without
+                // this the gesture starts wherever the last step left the
+                // pointer -- which was below the handle, making the drag read
+                // as a shrink and pinning the step to its minimum height.
+                await helpers.hover(
+                    ".o_flow_editor_node:first .o_flow_editor_node_resize_handle",
+                );
+                // And an explicit drop point inside the far step: the bare form
+                // drops one pixel ABOVE its top edge, which is also upward.
+                await helpers.drag_and_drop(".o_flow_editor_node:last", {
+                    position: { top: 40, left: 60 },
+                    relative: true,
+                });
+            },
+        },
+        {
+            content: "the step grew",
+            trigger: ".o_workflow_canvas_paper .o_flow_editor_node",
+            run() {
+                const after = document
+                    .querySelectorAll(".o_workflow_canvas_paper .o_flow_editor_node")[0]
+                    .getAttribute("style");
+                if (after === window.__wfSize) {
+                    throw new Error(`the drag did not resize the step: still ${after}`);
+                }
+            },
+        },
+        {
+            content: "pan the canvas, which is what a viewport is saved from",
+            trigger: ".o_workflow_canvas_paper .o_flow_editor",
+            async run(helpers) {
+                await helpers.drag_and_drop(".o_workflow_canvas_toolbar");
+            },
+        },
+        {
+            content: "the graph survived both gestures",
+            trigger: ".o_workflow_canvas_toolbar:contains(2 steps)",
+        },
+        {
+            // The viewport is saved behind a debounce, and a tour finishes far
+            // inside that window, so waiting for the ROW is the only thing that
+            // makes this deterministic: a fixed sleep would race the timer and
+            // ending here without waiting would race the request.
+            content: "the viewport the canvas framed reaches the database",
+            trigger: ".o_workflow_canvas_toolbar",
+            async run() {
+                for (let attempt = 0; attempt < 40; attempt++) {
+                    const stored = await rpc("/web/dataset/call_kw", {
+                        model: "automation.canvas.viewport",
+                        method: "search_count",
+                        args: [[]],
+                        kwargs: {},
+                    });
+                    if (stored) {
+                        return;
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+                throw new Error("the canvas never stored a viewport");
+            },
+        },
+    ],
+});
+
 registry.category("web_tour.tours").add("test_workflow_canvas_connect", {
     steps: () => [
-        {
-            content: "open the Workflow tab",
-            trigger: ".o_notebook .nav-link:contains(Workflow)",
-            run: "click",
-        },
+        ...openWorkflowTab(),
         {
             content: "three steps, one connection",
             trigger: ".o_workflow_canvas_toolbar:contains(3 steps, 1 connections)",
@@ -950,16 +1079,16 @@ registry.category("web_tour.tours").add("test_workflow_canvas_connect", {
         {
             // drag_and_drop always starts from the trigger element -- the helper
             // reads `this.anchor` and ignores any source passed in options -- so
-            // the trigger must be the step we are dragging FROM.
-            // From the last step's connect handle onto the first step's body.
-            // The handle is what a user drags: the body itself is a passive
-            // magnet, so dragging it moves the step instead.
+            // the trigger must be the port we are dragging FROM.
+            // Port to port: the editor resolves the drop with elementFromPoint
+            // and accepts it only over an input port, so dropping on the step's
+            // body would connect nothing.
             content: "drag a connection from the last step to the first",
             trigger:
-                ".joint-tool[data-tool-name='hover-connect']:last [joint-selector='track']",
+                ".o_flow_editor_node:last .o_flow_editor_port_output[data-port-id='on_success']",
             async run(helpers) {
                 await helpers.drag_and_drop(
-                    ".o_workflow_canvas_paper .o_workflow_canvas_node:first",
+                    ".o_flow_editor_node:first .o_flow_editor_port_input",
                 );
             },
         },

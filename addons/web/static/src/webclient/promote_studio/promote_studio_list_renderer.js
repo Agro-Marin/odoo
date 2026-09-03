@@ -10,7 +10,20 @@ import { ListRenderer } from "@web/views/list";
 
 import { PromoteStudioDialog } from "./promote_studio_dialog.js";
 
+/**
+ * What this patch adds to a list renderer, so each method can say what its
+ * `this` is: an object literal's methods otherwise take the literal itself as
+ * `this`, which knows nothing of the class being patched.
+ *
+ * @typedef {ListRenderer & {
+ *     actionService: import("services").ServiceFactories["action"],
+ *     dialogService: import("services").ServiceFactories["dialog"],
+ *     studioEditable: boolean,
+ * }} PromoteStudioListRenderer
+ */
+
 export const patchListRendererDesktop = () => ({
+    /** @this {PromoteStudioListRenderer} */
     setup() {
         super.setup(...arguments);
         this.actionService = useService("action");
@@ -61,10 +74,18 @@ export const patchListRendererDesktop = () => ({
         this.studioEditable = isPotentiallyEditable && computeStudioEditable();
     },
 
+    /**
+     * @this {PromoteStudioListRenderer}
+     * @returns {boolean}
+     */
     isStudioEditable() {
         return this.studioEditable;
     },
 
+    /**
+     * @this {PromoteStudioListRenderer}
+     * @returns {boolean}
+     */
     get displayOptionalFields() {
         return this.isStudioEditable() || super.displayOptionalFields;
     },
@@ -73,6 +94,7 @@ export const patchListRendererDesktop = () => ({
      * This function opens promote studio dialog
      *
      * @private
+     * @this {PromoteStudioListRenderer}
      */
     onSelectedAddCustomField() {
         this.dialogService.add(PromoteStudioDialog, {

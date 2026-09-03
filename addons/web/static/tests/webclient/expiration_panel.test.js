@@ -94,6 +94,9 @@ test("Expiration Panel one app installed, try several times to register subscrip
     mockService("notification", {
         add: (message, options) => {
             expect.step({ message, options });
+            // The real service hands back a closer; a mock returning nothing
+            // breaks any caller that closes the notification it opened.
+            return () => {};
         },
     });
     onRpc("get_param", ({ args }) => {

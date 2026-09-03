@@ -56,6 +56,28 @@ export class NavBar extends Component {
     currentAppSectionsExtra;
     /** @type {import("services").ServiceFactories["home_menu"]} */
     hm;
+    /** @type {import("services").ServiceFactories["action"]} */
+    actionService;
+    /** @type {import("services").ServiceFactories["menu"]} */
+    menuService;
+    /** @type {any} */
+    pwa;
+    /** @type {Set<string>} */
+    failedSystrayKeys;
+    /** @type {{ isAllAppsMenuOpened: boolean, isAppMenuSidebarOpened: boolean }} */
+    state;
+    /** @type {SwipeTracker} */
+    swipe;
+    /** @type {() => void} */
+    _busToggledCallback;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    root;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    navRef;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    menuAppsRef;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    appSubMenus;
 
     setup() {
         this.currentAppSectionsExtra = [];
@@ -150,7 +172,10 @@ export class NavBar extends Component {
             .filter(([key]) => !this.failedSystrayKeys.has(key))
             .map(([key, value]) => ({ key, ...value }))
             .filter((item) => {
-                if (!("isDisplayed" in item)) {
+                // Callable, not merely present: an entry carrying a
+                // non-function `isDisplayed` would throw here rather than be
+                // treated as always displayed.
+                if (typeof item.isDisplayed !== "function") {
                     return true;
                 }
                 try {

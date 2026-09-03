@@ -5,6 +5,7 @@ from odoo import _, api, exceptions, fields, models
 from odoo.fields import Domain
 from odoo.tools.json import scriptsafe as json_scriptsafe
 
+from ._canvas import NODE_SIZE_MAX, NODE_SIZE_MIN
 from .automation_rule import get_webhook_request_payload
 
 _logger = logging.getLogger(__name__)
@@ -74,6 +75,14 @@ class IrActionsServer(models.Model):
         string="Canvas Y",
         help="Vertical position of this node on the workflow canvas",
     )
+    pos_width = fields.Integer(
+        string="Canvas Width",
+        help="Width of this node on the workflow canvas; 0 means the default",
+    )
+    pos_height = fields.Integer(
+        string="Canvas Height",
+        help="Height of this node on the workflow canvas; 0 means the default",
+    )
 
     approval_user_ids = fields.Many2many(
         comodel_name="res.users",
@@ -134,6 +143,27 @@ class IrActionsServer(models.Model):
                         action=action.name,
                     )
                 )
+
+    @api.constrains("pos_width", "pos_height")
+    def _check_canvas_size(self):
+        for action in self:
+            sizes = (("width", action.pos_width), ("height", action.pos_height))
+            for axis, value in sizes:
+                if not value:
+                    continue
+                if not NODE_SIZE_MIN[axis] <= value <= NODE_SIZE_MAX[axis]:
+                    raise exceptions.ValidationError(
+                        _(
+                            "The canvas %(axis)s of step '%(step)s' is %(value)s, "
+                            "outside the %(minimum)s-%(maximum)s the canvas draws.\n\n"
+                            "Use 0 to leave the step at the default size.",
+                            axis=axis,
+                            step=action.name or "?",
+                            value=value,
+                            minimum=NODE_SIZE_MIN[axis],
+                            maximum=NODE_SIZE_MAX[axis],
+                        )
+                    )
 
     @api.constrains("node_type", "wait_delay")
     def _check_wait_delay(self):

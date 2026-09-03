@@ -29,6 +29,8 @@ channel and an open canvas reloads.
 | `models/ir_cron.py` | Thin bridge: cron → `action_view_automation()` |
 | `models/mail_activity.py` | The Approval node's back-link: an activity finishing releases its step |
 | `models/ir_websocket.py` | Turns the canvas's requested string channel into a record channel the user may read |
+| `models/automation_canvas_viewport.py` | Where each reader last left the canvas of each automation |
+| `models/_canvas.py` | The canvas geometry contract both of those read; not a model |
 | `controllers/main.py` | Webhook HTTP endpoint (`/web/hook/<uuid>`) |
 | `static/src/workflow_canvas.js` | The Workflow page's canvas: draws the DAG, drags nodes, draws edges |
 | `static/src/workflow_graph.js` | Its pure parts — the connection guard and the class/label maps |
@@ -40,6 +42,7 @@ channel and an open canvas reloads.
 | `tests/test_webhook_decrypt_budget.py` | Webhook payload decryption budget |
 | `tests/test_inbound_access_log.py` | Inbound access logging |
 | `tests/test_audit_regressions.py` | Regressions from the audit, webhook cases as `HttpCase` (`@tagged post_install`) |
+| `tests/test_workflow_canvas.py` | Canvas state: node size bounds, per-reader viewport, stored counts |
 
 ## Related Modules
 

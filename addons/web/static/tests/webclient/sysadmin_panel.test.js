@@ -19,6 +19,12 @@ import { SysAdminPanel } from "@web/webclient/home_menu/sysadmin_panel";
  * `warningType` is the reader's own level, from `session.warning`, while
  * `sysadmin.warning_type` is who the message is aimed at.
  */
+/**
+ * @param {Object} params
+ * @param {string|false} [params.warning]
+ * @param {string} [params.warningType]
+ * @param {string} [params.message]
+ */
 function withSession({ warning, warningType, message }) {
     patchWithCleanup(session, {
         warning,

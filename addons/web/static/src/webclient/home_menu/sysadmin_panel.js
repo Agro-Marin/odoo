@@ -8,6 +8,9 @@ export class SysAdminPanel extends Component {
     static props = {};
     static template = "web.SysAdminPanel";
 
+    /** @type {import("services").ServiceFactories["enterprise_subscription"]} */
+    subscription;
+
     setup() {
         this.subscription = useService("enterprise_subscription");
     }

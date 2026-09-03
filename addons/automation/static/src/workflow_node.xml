@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="automation.WorkflowNode">
+        <div class="o_workflow_canvas_step d-flex flex-column h-100"
+            t-att-class="classNames"
+            t-att-title="step.name">
+            <header class="o_workflow_canvas_step_header text-truncate fw-semibold px-2 py-1">
+                <t t-esc="step.label"/>
+            </header>
+            <div class="o_workflow_canvas_step_body flex-grow-1 px-2 py-1 small">
+                <div t-if="typeLabel" class="text-muted text-capitalize">
+                    <t t-esc="typeLabel"/>
+                </div>
+                <span t-if="stateLabel" class="o_workflow_canvas_step_state badge">
+                    <t t-esc="stateLabel"/>
+                </span>
+            </div>
+        </div>
+    </t>
+
+</templates>

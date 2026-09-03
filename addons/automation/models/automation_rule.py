@@ -14,6 +14,13 @@ from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import safe_eval
 
+from ._canvas import (
+    NODE_HEADER_HEIGHT,
+    NODE_SIZE_DEFAULT,
+    NODE_SIZE_MAX,
+    NODE_SIZE_MIN,
+)
+
 _logger = logging.getLogger(__name__)
 
 CRON_INTERVAL_TOLERANCE_PERCENT = 0.10
@@ -223,6 +230,18 @@ class AutomationRule(models.Model):
         string="Workflow Edges",
         copy=False,
         help="Typed dependencies between this automation's steps",
+    )
+    step_count = fields.Integer(
+        string="Steps",
+        compute="_compute_workflow_counts",
+        store=True,
+        help="How many steps this automation runs",
+    )
+    edge_count = fields.Integer(
+        string="Connections",
+        compute="_compute_workflow_counts",
+        store=True,
+        help="How many typed dependencies order this automation's steps",
     )
     create_runtime_instance = fields.Boolean(
         string="Record Every Run",
@@ -622,7 +641,15 @@ class AutomationRule(models.Model):
             "runtime_id": runtime.id or None,
             "runtime_state": runtime.state or None,
             "runs": self._recent_runtime_vals(),
+            "runtime_backed": self._is_runtime_backed(),
             "is_positioned": any(node.pos_x or node.pos_y for node in nodes),
+            "node_size": {
+                "default": NODE_SIZE_DEFAULT,
+                "min": NODE_SIZE_MIN,
+                "max": NODE_SIZE_MAX,
+                "header_height": NODE_HEADER_HEIGHT,
+            },
+            "viewport": self.env["automation.canvas.viewport"]._get_viewport(self),
             "nodes": [
                 {
                     "id": node.id,
@@ -632,6 +659,8 @@ class AutomationRule(models.Model):
                     "sequence": node.sequence,
                     "pos_x": node.pos_x,
                     "pos_y": node.pos_y,
+                    "width": node.pos_width or NODE_SIZE_DEFAULT["width"],
+                    "height": node.pos_height or NODE_SIZE_DEFAULT["height"],
                     "runtime_state": state_per_action.get(node.id),
                 }
                 for node in nodes
@@ -648,6 +677,18 @@ class AutomationRule(models.Model):
                 for edge in self.edge_ids
             ],
         }
+
+    def set_workflow_viewport(self, x, y, scale):
+        """Remember where this reader left the canvas of this automation.
+
+        Separate from `write` on purpose: the viewport is the reader's own
+        state, so storing it needs read access to the automation and nothing
+        more, and it never marks the automation itself as modified.
+        """
+        self.check_singleton()
+        self.check_access("read")
+        self.env["automation.canvas.viewport"]._update_viewport(self, x, y, scale)
+        return True
 
     def _copy_actions_to(self, target):
         self.check_singleton()
@@ -670,6 +711,18 @@ class AutomationRule(models.Model):
                 and edge.target_node_id.id in new_by_old
             ]
         )
+
+    @api.depends("action_server_ids", "edge_ids")
+    def _compute_workflow_counts(self):
+        """Counted off the one2many, not with a grouped query.
+
+        A stored compute also runs on an unsaved automation, whose steps exist
+        only in the cache; a query grouped on `automation_rule_id` would report
+        zero for exactly the record the form is showing.
+        """
+        for automation in self:
+            automation.step_count = len(automation.action_server_ids)
+            automation.edge_count = len(automation.edge_ids)
 
     @api.depends("trigger", "webhook_uuid")
     def _compute_url(self):

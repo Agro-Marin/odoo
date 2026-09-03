@@ -76,7 +76,6 @@ addons/web/static/src/views/view_dialogs/export_data_dialog.js
 addons/web/static/src/webclient/clickbot/clickbot.js
 addons/web/static/src/webclient/debug/profiling/profiling_qweb.js
 addons/web/static/src/webclient/loading_indicator/loading_indicator.js
-addons/web/static/src/webclient/navbar/navbar.js
 addons/web/static/src/webclient/switch_company_menu/switch_company_menu.js
 addons/web/static/tests/_framework/component_test_helpers.js
 addons/web/static/tests/_framework/env_test_helpers.js

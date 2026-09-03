@@ -25,14 +25,6 @@
             "@odoo/hoot-dom-utils": ["addons/web/static/lib/hoot-dom/hoot_dom_utils.js"],
 
 
-            "@l10n_in_reports_gstr_pos/*": ["l10n_in_reports_gstr_pos/static/src/*"],
-            "@l10n_pl_reports_pos_jpk/*": ["l10n_pl_reports_pos_jpk/static/src/*"],
-            "@pos_account_reports/*": ["pos_account_reports/static/src/*"],
-            "@pos_online_payment_self_order_preparation_display/*": [
-                "pos_online_payment_self_order_preparation_display/static/src/*"
-            ],
-            "@pos_sale_stock_renting/*": ["pos_sale_stock_renting/static/src/*"],
-
             "@test_mail/*": ["addons/test_mail/static/src/*"],
 
             // >>> derived: addon aliases -- do not hand-edit.

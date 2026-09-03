@@ -1065,7 +1065,7 @@ assert_eq "DIRECTORY_MAP.md lists no directory that does not exist" "${map_only:
 assert_eq "DIRECTORY_MAP.md omits no directory that does exist" "${disk_only:-none}" "none"
 # Cite-fingerprint: confirm the underlying count.
 assert_eq "static/src directory entries incl. root (excl. gitignored .claude cruft)" \
-    "$((SRC_DIRS + 1))" "244"
+    "$((SRC_DIRS + 1))" "246"
 assert_eq "polyfills/ directory deleted" \
     "$([ -d "$WEB/static/src/polyfills" ] && echo 1 || echo 0)" "0"
 assert_eq "DIRECTORY_MAP.md dropped the polyfills row" \

@@ -101,13 +101,13 @@ test("act_window write with no act_window controller is a no-op", async () => {
     await mountWebClient();
     const am = getService("action");
     expect(am.controllerStack.length).toBe(1);
-    expect(am.currentController.action.tag).toBe("menu");
+    expect(am.currentController?.action.tag).toBe("menu");
 
     fireActWindowWrite();
     await animationFrame();
 
     expect(am.controllerStack.length).toBe(1);
-    expect(am.currentController.action.tag).toBe("menu");
+    expect(am.currentController?.action.tag).toBe("menu");
 });
 
 test("any ir.actions.* write clears the /web/action/load cache", async () => {

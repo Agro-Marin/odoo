@@ -2340,12 +2340,16 @@ class TestHttp(common.HttpCase):
                 self.cr.postcommit.run()  # webhooks run in postcommit
         self.cr.clear()
         self._wait_remaining_requests()  # just in case the request timeouts
+        # `id` alongside `_id`: `_get_webhook_payload` sends both, so a receiver
+        # written against the vanilla payload shape can still find the record
+        # even though this fork ships no default record_getter.
         self.assertEqual(
             json.loads(obj.another_field),
             {
                 "_action": f"Send Webhook Notification(#{automation_sender.action_server_ids[0].id})",
                 "_id": obj.id,
                 "_model": obj._name,
+                "id": obj.id,
             },
         )
 

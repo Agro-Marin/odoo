@@ -128,7 +128,7 @@ export class PivotRenderer extends Component {
         }
     }
     /**
-     * @param {Object} cell
+     * @param {{ indent: number }} cell
      * @returns {number}
      */
     getPadding(cell) {

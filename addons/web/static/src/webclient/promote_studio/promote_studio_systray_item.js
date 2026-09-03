@@ -13,6 +13,9 @@ export class PromoteStudioSystrayItem extends Component {
     static template = "web.PromoteStudioSystrayItem";
     static props = {};
 
+    /** @type {import("services").ServiceFactories["dialog"]} */
+    dialog;
+
     setup() {
         this.dialog = useService("dialog");
     }

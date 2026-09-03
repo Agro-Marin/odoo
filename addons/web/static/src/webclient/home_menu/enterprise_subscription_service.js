@@ -15,9 +15,13 @@ import { ExpirationPanel } from "./expiration_panel.js";
 import { SysAdminPanel } from "./sysadmin_panel.js";
 
 import { DateTime } from "luxon";
+/**
+ * @param {DateTime} datetime
+ * @returns {number}
+ */
 function daysUntil(datetime) {
     const duration = datetime.diff(DateTime.utc(), "days");
-    return Math.round(duration.values.days);
+    return Math.round(duration.as("days"));
 }
 
 export class SubscriptionManager {
@@ -94,6 +98,8 @@ export class SubscriptionManager {
     }
     /**
      * Save the registration code then triggers a ping to submit it.
+     *
+     * @param {string} enterpriseCode
      */
     async submitCode(enterpriseCode) {
         const [oldDate] = await Promise.all([

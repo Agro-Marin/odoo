@@ -36,12 +36,15 @@ export async function mountActionHost(options = {}) {
 }
 
 /**
- * @param {Parameters<typeof mountWithCleanup>[1]} [options]
+ * `WebClient` swaps in a subclass; everything else is passed through to
+ * `mountWithCleanup`. It is destructured rather than deleted so the caller's
+ * own options object comes back unmodified.
+ *
+ * @param {Parameters<typeof mountWithCleanup>[1] & { WebClient?: typeof WebClient }} [options]
  */
 export async function mountWebClient(options = {}) {
-    const WebClientComponent = /** @type {any} */ (options).WebClient || WebClient;
-    delete (/** @type {any} */ (options).WebClient);
-    const webClient = await mountWithCleanup(WebClientComponent, options);
+    const { WebClient: WebClientComponent = WebClient, ...mountOptions } = options;
+    const webClient = await mountWithCleanup(WebClientComponent, mountOptions);
     await animationFrame();
     await animationFrame();
     await animationFrame();

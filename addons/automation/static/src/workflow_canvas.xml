@@ -51,13 +51,40 @@
                 <strong>The workflow could not be drawn.</strong>
                 <div class="small mt-1" t-esc="state.error"/>
             </div>
-            <div t-else="" class="o_workflow_canvas_paper" t-ref="canvas"/>
+            <div t-else="" class="o_workflow_canvas_paper">
+                <!-- flagUnreachableNodes is off because a step with no predecessor is an
+                     ENTRY step here, not an orphan: automation.runtime.line's
+                     _predecessors_satisfied is vacuously true for it. With cycles refused
+                     by workflow.edge._check_no_cycle, every step is reachable by
+                     construction, so the marker could only ever be a false alarm. -->
+                <FlowEditor nodes="state.nodes"
+                            connections="state.connections"
+                            NodeComponent="NodeComponent"
+                            readonly="!isEditable"
+                            ariaLabel.translate="Workflow"
+                            flagUnreachableNodes="false"
+                            viewport="viewport"
+                            minNodeSize="minNodeSize"
+                            maxNodeSize="maxNodeSize"
+                            canConnect.bind="canConnect"
+                            getConnectionClass.bind="getConnectionClass"
+                            onConnect.bind="onConnect"
+                            onConnectionRejected.bind="onConnectionRejected"
+                            onDisconnect.bind="onDisconnect"
+                            onDrag.bind="onDrag"
+                            onNodeClick.bind="onNodeClick"
+                            onResize.bind="onResize"
+                            onSelectionChange.bind="onSelectionChange"
+                            onViewportChange.bind="onViewportChange"/>
+            </div>
 
             <div t-if="state.status === 'ready' and isEditable" class="text-muted small mt-2">
                 <i class="fa-solid fa-info-circle me-1"/>
-                Drag from a step's edge onto another to connect them; drag a step to move it;
-                double-click one to open it. A connection the engine refuses — a cycle, or a
-                step from another automation — is reported rather than drawn.
+                Drag from a step's right-edge port onto another step's left edge to connect
+                them; the port you leave from is the condition the connection carries. Drag a
+                step to move it; double-click one to open it; select a connection and press
+                Delete to remove it. A connection the engine refuses — a cycle, or a step from
+                another automation — is reported rather than drawn.
             </div>
         </div>
     </t>

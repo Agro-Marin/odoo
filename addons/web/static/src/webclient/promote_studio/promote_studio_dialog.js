@@ -17,6 +17,13 @@ export class PromoteStudioDialog extends Component {
     /** @type {boolean} */
     disableClick = false;
 
+    /** @type {import("services").ServiceFactories["orm"]} */
+    ormService;
+    /** @type {import("services").ServiceFactories["ui"]} */
+    uiService;
+    /** @type {ReturnType<typeof useChildRef>} */
+    modalRef;
+
     setup() {
         this.ormService = useService("orm");
         this.uiService = useService("ui");
@@ -29,13 +36,21 @@ export class PromoteStudioDialog extends Component {
     async onClickInstallStudio() {
         this.disableClick = true;
         this.uiService.block();
-        const modules = await this.ormService.searchRead(
+        const [module] = await this.ormService.searchRead(
             "ir.module.module",
             [["name", "=", "web_studio"]],
             ["id"],
         );
+        if (!module) {
+            // Nothing to install, and the page is blocked: unblocking and
+            // raising says so, where reading through the empty result left a
+            // TypeError behind a blocked screen.
+            this.uiService.unblock();
+            this.disableClick = false;
+            throw new Error("web_studio is not available in this database");
+        }
         await this.ormService.call("ir.module.module", "button_immediate_install", [
-            [modules[0].id],
+            [module.id],
         ]);
         // on rpc call return, the framework unblocks the page
         // make sure to keep the page blocked until the reload ends.
@@ -49,7 +64,10 @@ export class PromoteStudioDialog extends Component {
      */
     /** @param {MouseEvent} ev */
     onWindowMouseDown(ev) {
-        const dialogContent = this.modalRef.el.querySelector(".modal-content");
+        const dialogContent = this.modalRef.el?.querySelector(".modal-content");
+        if (!dialogContent) {
+            return;
+        }
         if (
             !this.disableClick &&
             !dialogContent.contains(/** @type {Node} */ (ev.target))
