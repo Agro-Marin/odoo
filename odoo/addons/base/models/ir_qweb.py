@@ -34,6 +34,7 @@ from psycopg.errors import (
 from odoo import api, models, tools
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.libs.func import lazy
 from odoo.libs.lru import LRU
 from odoo.libs.text import VOID_ELEMENTS
 from odoo.modules import Manifest
@@ -366,7 +367,7 @@ class CompileContext:
 
     ref: str | int | None
     ref_name: str | None
-    ref_xml: str | None
+    ref_xml: str | lazy | None
     template: int | str | etree._Element | None
     root: etree._ElementTree
     make_name: Callable[[str], str]
@@ -935,7 +936,8 @@ class IrQweb(models.AbstractModel):
         )
 
         if options.get("profile"):
-            options["ref_xml"] = compile_context.ref_xml
+            ref_xml = compile_context.ref_xml
+            options["ref_xml"] = str(ref_xml) if ref_xml is not None else None
 
         return (
             self._assemble_module_source(compile_context.template_functions, options),
@@ -969,7 +971,7 @@ class IrQweb(models.AbstractModel):
             context=context,
             ref=ref,
             ref_name=ref_name,
-            ref_xml=str(document) if document else None,
+            ref_xml=document,
             template=template,
             root=element.getroottree(),
             make_name=None,
@@ -1046,7 +1048,7 @@ class IrQweb(models.AbstractModel):
             raise ValueError("template is required")
 
         if isinstance(template, etree._Element):
-            document = etree.tostring(template, encoding="unicode")
+            document = lazy(etree.tostring, template, encoding="unicode")
             element = deepcopy(template)
 
             for node in element.iter():
@@ -1097,7 +1099,7 @@ class IrQweb(models.AbstractModel):
         data_by_view_id = {
             view.id: {
                 "tree": tree,
-                "template": etree.tostring(tree, encoding="unicode"),
+                "template": lazy(etree.tostring, tree, encoding="unicode"),
             }
             for view, tree in zip(views, trees, strict=True)
         }
@@ -1622,13 +1624,7 @@ class IrQweb(models.AbstractModel):
 
         compile_context.directives = iter(self._directives_eval_order())
 
-        if not el.nsmap:
-            unqualified_el_tag = el_tag = el.tag
-        else:
-            unqualified_el_tag = etree.QName(el.tag).localname
-            el_tag = unqualified_el_tag
-            if el.prefix:
-                el_tag = f"{el.prefix}:{el_tag}"
+        unqualified_el_tag, el_tag = self._tag_names(el)
 
         if unqualified_el_tag != "t":
             el.set("t-tag-open", el_tag)
@@ -1652,11 +1648,20 @@ class IrQweb(models.AbstractModel):
             )
             el.attrib["t-options"] = el.attrib.pop("t-call-options")
 
+    @staticmethod
+    def _tag_names(el: etree._Element) -> tuple[str, str]:
+        if not el.nsmap:
+            return el.tag, el.tag
+        unqualified_el_tag = etree.QName(el.tag).localname
+        if el.prefix:
+            return unqualified_el_tag, f"{el.prefix}:{unqualified_el_tag}"
+        return unqualified_el_tag, unqualified_el_tag
+
     def _compile_static_node(
         self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
+        unqualified_el_tag, el_tag = self._tag_names(el)
         if not el.nsmap:
-            unqualified_el_tag = el_tag = el.tag
             attrib = self._post_processing_att(
                 el.tag,
                 {
@@ -1666,11 +1671,6 @@ class IrQweb(models.AbstractModel):
                 is_static=True,
             )
         else:
-            unqualified_el_tag = etree.QName(el.tag).localname
-            el_tag = unqualified_el_tag
-            if el.prefix:
-                el_tag = f"{el.prefix}:{el_tag}"
-
             attrib = {}
             for ns_prefix, ns_definition in self._new_namespaces(el, compile_context):
                 if ns_prefix is None:
@@ -1683,8 +1683,6 @@ class IrQweb(models.AbstractModel):
                 attrib[self._qualified_attribute_name(key, nsprefixmap)] = value
 
             attrib = self._post_processing_att(el.tag, attrib, is_static=True)
-
-            original_nsmap = dict(compile_context.nsmap)
 
         if unqualified_el_tag != "t":
             attributes = "".join(
@@ -1701,7 +1699,8 @@ class IrQweb(models.AbstractModel):
         el.attrib.clear()
 
         if el.nsmap:
-            compile_context.nsmap.update(el.nsmap)
+            original_nsmap = compile_context.nsmap
+            compile_context.nsmap = {**original_nsmap, **el.nsmap}
             body = self._compile_directive(el, compile_context, "inner-content", level)
             compile_context.nsmap = original_nsmap
         else:
@@ -2534,7 +2533,7 @@ class IrQweb(models.AbstractModel):
     ) -> list[str]:
         expr = el.attrib.pop("t-call")
 
-        el_tag = etree.QName(el.tag).localname if el.nsmap else el.tag
+        el_tag, _prefixed = self._tag_names(el)
         if el_tag != "t":
             raise SyntaxError(
                 f"t-call must be on a <t> element (actually on <{el_tag}>)."
@@ -2936,7 +2935,7 @@ class _StandaloneQweb(IrQweb):
             tree, vid = self.env.context["load"](ref)
             values[ref] = values[vid] = {
                 "tree": tree,
-                "template": etree.tostring(tree, encoding="unicode"),
+                "template": lazy(etree.tostring, tree, encoding="unicode"),
                 "xmlid": vid,
                 "ref": vid,
             }
