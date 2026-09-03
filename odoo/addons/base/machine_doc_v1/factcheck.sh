@@ -196,6 +196,88 @@ while IFS='|' read -r verdict detail; do
     [ "$verdict" = "OK" ] && ok || bad "$detail"
 done <<< "$path_report"
 
+# ------------------------------------------------- ARCHITECTURE.md tree ------
+# The directory tree names every model and wizard file, so a renamed file
+# must leave the tree with it; and the per-directory counts on the tree and in
+# the File Counts table are re-measured, never read.
+tree_report=$(python3 - "$MOD" "$SCRIPT_DIR/ARCHITECTURE.md" "$SCRIPT_DIR/CONVENTIONS.md" <<'PY'
+import pathlib, re, sys
+
+mod, arch_path, conv_path = (pathlib.Path(p) for p in sys.argv[1:4])
+arch = arch_path.read_text()
+conv = conv_path.read_text()
+sys.path.insert(0, str(arch_path.parent))
+import _test_inventory as inv
+
+def files(sub, pattern="*"):
+    return sorted(p.name for p in (mod / sub).glob(pattern)
+                  if p.is_file() and p.name != "__init__.py")
+
+named = set(re.findall(r"^│   [├└]── ([a-z_0-9]+\.py)", arch, re.M))
+for sub in ("models", "wizard"):
+    for name in files(sub, "*.py"):
+        print(f"OK|tree names {name}" if name in named
+              else f"BAD|ARCHITECTURE.md tree omits {sub}/{name}")
+known = set(files("models", "*.py")) | set(files("wizard", "*.py")) | set(files("tests", "*.py"))
+for name in sorted(named):
+    print(f"OK|tree entry {name} exists" if name in known
+          else f"BAD|ARCHITECTURE.md tree names {name}, which no source directory holds")
+
+counts = {
+    "models": len(files("models", "*.py")),
+    "wizard": len(files("wizard", "*.py")),
+    "tests": len(files("tests", "test_*.py")),
+    "views": len(files("views", "*.xml")),
+    "data": len(files("data")),
+}
+tree_lines = {
+    "models": rf"^├── models/\s+# {counts['models']} Python model files",
+    "wizard": rf"^├── wizard/\s+# {counts['wizard']} transient model files",
+    "tests": rf"^├── tests/\s+# {counts['tests']} Python test files",
+    "views": rf"^├── views/\s+# {counts['views']} XML view definition files",
+    "data": rf"^├── data/\s+# {counts['data']} data files",
+}
+for key, pattern in tree_lines.items():
+    print(f"OK|tree count {key}" if re.search(pattern, arch, re.M)
+          else f"BAD|ARCHITECTURE.md tree line for {key}/ does not read {counts[key]}")
+
+table = {
+    "Python (models)": counts["models"],
+    "Python (wizards)": counts["wizard"],
+    "Python (tests)": counts["tests"],
+    "XML (views)": counts["views"],
+    "Data files": counts["data"],
+    "XML (reports)": len(files("report", "*.xml")),
+    "XML (wizard views)": len(files("wizard", "*.xml")),
+    "Security files": len(files("security")),
+    "RNG (schemas)": len(files("rng")),
+    "i18n (translations)": len(files("i18n")),
+    "Static assets": sum(1 for p in (mod / "static").rglob("*") if p.is_file()),
+}
+for label, expected in table.items():
+    row = re.search(rf"^\| {re.escape(label)} \| (\d+) \|$", arch, re.M)
+    if row and int(row.group(1)) == expected:
+        print(f"OK|File Counts {label}")
+    else:
+        print(f"BAD|ARCHITECTURE.md File Counts row '{label}' should read {expected}, "
+              f"reads {row.group(1) if row else 'nothing'}")
+
+t = inv.totals(inv.scan(mod / "tests"))
+pct = round(100 * t["tagged"] / t["files"]) if t["files"] else 0
+for claim, pattern in (
+    ("untagged share", rf"^- \*\*{100 - pct}% of test files have no `@tagged` decorator\*\*"),
+    ("tagged share", rf"^- \*\*{pct}% use `@tagged`\*\*"),
+    ("post_install classes", rf"; {t['post_install']} classes carry it$"),
+):
+    print(f"OK|CONVENTIONS.md {claim}" if re.search(pattern, conv, re.M)
+          else f"BAD|CONVENTIONS.md Tag Strategy: {claim} disagrees with _test_inventory.py")
+PY
+)
+while IFS='|' read -r verdict detail; do
+    [ -z "$verdict" ] && continue
+    [ "$verdict" = "OK" ] && ok || bad "$detail"
+done <<< "$tree_report"
+
 # ------------------------------------------------------------------ summary --
 printf '\n%d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 [ "$fail" -eq 0 ] || exit 1

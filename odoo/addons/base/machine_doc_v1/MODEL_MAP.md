@@ -374,6 +374,17 @@ XML ID registry — maps external identifiers to database records.
 - `_update_xmlids(data_list, update)` — Batch create/update XML IDs
 - `_module_data_uninstall(modules_to_remove)` — Delete records by module on uninstall
 
+### models/ir_model_common.py
+
+#### Module-level helpers (non-ORM)
+
+Shared by the `ir.model` family: `ACCESS_MODES` and the access-error message
+table, the xmlid builders (`model_xmlid`, `field_xmlid`, `selection_xmlid`,
+`inherit_xmlid`), the reflection upsert queries (`query_insert`,
+`query_update`, `select_en`, `upsert_en`) and the registry helpers
+(`prepare_compute`, `mark_modified`, `reload_schema`). Re-exports
+`MODULE_UNINSTALL_FLAG` for downstream modules.
+
 ---
 
 ## Access Control
@@ -509,6 +520,24 @@ Asset bundle management — controls JS/CSS/SCSS file inclusion.
 
 ---
 
+### models/ir_asset_paths.py
+
+#### AssetPaths, BundleWalk (non-ORM)
+
+The directive walk behind `ir.asset`: `BundleWalk` expands one bundle's
+`append` / `prepend` / `after` / `before` / `remove` / `replace` / `include`
+directives into an ordered `AssetPaths` list, keeping anchors so a later
+directive can insert relative to an earlier one. `ResolvedPath` and
+`AssetEntry` are the value types; `AssetDirectiveError` is what a directive
+that points at nothing raises.
+
+**Key Methods:**
+- `AssetPaths.get_index(path, bundle)` / `get_index_of_first(paths, bundle)` — Position lookup for relative directives
+- `AssetPaths.append_paths` / `insert_paths` / `remove_paths` — The three primitive edits
+- `BundleWalk.walk(bundle)` — Recursive expansion, cycle-guarded by `seen`
+
+---
+
 ### models/assetsbundle/bundle.py
 
 #### AssetsBundle (non-ORM class)
@@ -577,6 +606,25 @@ so a template can address the converter directly (`t-options-widget`):
 | IrQwebFieldBarcode | `ir.qweb.field.barcode` |
 | IrQwebFieldContact | `ir.qweb.field.contact` |
 | IrQwebFieldQweb | `ir.qweb.field.qweb` |
+
+---
+
+### models/ir_qweb_assets.py
+
+#### IrQweb — `ir.qweb` (`_inherit`)
+
+The asset half of the template engine: `t-call-assets` resolution into
+`<script>` / `<link>` nodes, ESM bundle payloads and standalone bundles,
+the import-map and loader-shim nodes for HOOT, and the esbuild circuit
+breaker (`_open_esbuild_circuit` / `_close_esbuild_circuit`, a per-bundle
+cooldown key and a forced-fallback set) that keeps a failing build from
+being retried on every request.
+
+**Key Methods:**
+- `_get_asset_nodes(bundle, ...)` / `_get_asset_links(...)` — Entry points from `t-call-assets`
+- `_get_asset_bundle(bundle, ...)` — Builds the `AssetsBundle`
+- `_get_esm_bundle_payload(...)` / `_get_standalone_bundle(bundle)` — ESM outputs
+- `_is_esbuild_fail_closed()` / `_get_esbuild_circuit_state(bundle)` — Breaker policy
 
 ---
 
@@ -733,6 +781,37 @@ no filestore rewrite. `_gc_rehash_legacy_keys` converges old keys only if
 - `_get_serve_attachment(url, extra_domain, order)` — Find attachment by URL
 - `_from_request_file(file, mimetype, ...)` — Create from HTTP upload
 - `_to_http_stream()` — Convert to Stream for download
+
+### models/ir_attachment_assets.py
+
+#### IrAttachment — `ir.attachment` (`_inherit`)
+
+Generated-asset bookkeeping split out of `ir_attachment.py`: the domains
+that identify compiled bundles and ESM outputs, their garbage collection with
+a grace period, and `regenerate_assets_bundles()`.
+
+**Key Methods:**
+- `_generated_asset_domain(...)` / `_esm_generated_asset_domain()` — What counts as a generated asset
+- `_gc_esm_assets()` — Sweep, returns `(removed, remaining)`
+- `regenerate_assets_bundles()` — Drop and rebuild
+
+### models/ir_attachment_storage.py
+
+#### AttachmentStorage, DbStorage, FileStorage (non-ORM)
+
+The storage backends `ir.attachment` writes through. `register_storage`
+adds a backend under its `location` name (`db`, `file`; other modules add
+schemes such as `s3://`), and `backend_for_key(env, key)` picks one for a
+stored key, falling back to `UnknownSchemeStorage` with a once-per-scheme
+warning when nothing claims the scheme.
+
+**Key Methods:**
+- `write(data, checksum)` / `write_stream(fileobj)` — Store and return the column values
+- `read(key, size)` / `delete(key)` / `to_stream(attachment, stream)` — Retrieval
+- `migration_domain()` — Rows to move when `ir_attachment.location` changes
+- `autovacuum()` — Backend-specific GC hook
+
+---
 
 ### models/ir_binary.py
 
@@ -1613,13 +1692,28 @@ integrations can point at a tag without depending on its display name.
 - `_default_color()` — Deterministic colour from the name
 - `_name_to_code(name)` — Slugified stable code
 
+### models/mixin_hierarchy.py
+
+#### MixinHierarchy — `mixin.hierarchy` (AbstractModel)
+
+Owns `_parent_store` and the `parent_path` column for every tree model in the
+module, plus the one recursion constraint they used to each spell
+themselves; a model overrides `_hierarchy_cycle_message` when a
+domain-specific sentence reads better.
+
+**Fields:** `parent_path` (Char, index)
+
+**Key Methods:**
+- `_check_parent_id()` — Raises `ValidationError` on a cycle
+
 ### models/mixin_tag_nested.py
 
-#### MixinTagNested — `mixin.tag.nested` (AbstractModel, inherits `mixin.tag`)
+#### MixinTagNested — `mixin.tag.nested` (AbstractModel, inherits `mixin.tag`, `mixin.hierarchy`)
 
-A tag with a parent/child hierarchy, `_parent_store`d.
+A tag with a parent/child hierarchy; `parent_path` and `_parent_store` come
+from `mixin.hierarchy`, this mixin adds the path-aware display name.
 
-**Fields:** `parent_path` (Char, index), plus `parent_id` / `child_ids`
+**Fields:** `parent_id` / `child_ids`, `parent_path` (via `mixin.hierarchy`)
 
 **Key Methods:**
 - `_check_parent_id()` — Reject recursion
@@ -1824,7 +1918,10 @@ Quick lookup — file → model → primary role:
 | `ir_actions_report.py` | ir.actions.report | PDF/HTML report rendering (WeasyPrint) |
 | `ir_actions_server.py` | ir.actions.server, .server.history, server.action.history.wizard | Automated actions (code/CRUD/webhook) |
 | `ir_asset.py` | ir.asset | Asset bundle management |
+| `ir_asset_paths.py` | AssetPaths, BundleWalk (non-ORM) | Asset directive walk |
 | `ir_attachment.py` | ir.attachment | File storage (DB/filestore) |
+| `ir_attachment_assets.py` | ir.attachment (extension) | Generated-asset GC and regeneration |
+| `ir_attachment_storage.py` | AttachmentStorage, DbStorage, FileStorage (non-ORM) | Storage backends |
 | `ir_autovacuum.py` | ir.autovacuum | GC framework (@api.autovacuum) |
 | `ir_binary.py` | ir.binary | File/image streaming helpers |
 | `ir_config_parameter.py` | ir.config_parameter | System key-value parameters |
@@ -1844,6 +1941,7 @@ Quick lookup — file → model → primary role:
 | `ir_model_access.py` | ir.model.access | Model-level ACL |
 | `ir_model_reflection.py` | ir.model.constraint, ir.model.relation | DB constraint/relation tracking for uninstall |
 | `ir_model_data.py` | ir.model.data | XML ID registry |
+| `ir_model_common.py` | helpers (non-ORM) | xmlid builders, reflection upserts, access errors |
 | `ir_model_fields.py` | ir.model.fields | Field metadata registry |
 | `ir_model_fields_selection.py` | ir.model.fields.selection | Selection options |
 | `ir_module.py` | ir.module.module, .category | Module lifecycle |
@@ -1854,6 +1952,7 @@ Quick lookup — file → model → primary role:
 | `ir_profile.py` | ir.profile | Code profiling |
 | `ir_qweb.py` | ir.qweb | Template engine |
 | `ir_qweb_fields.py` | ir.qweb.field (+ 21 subclasses) | Template field formatters |
+| `ir_qweb_assets.py` | ir.qweb (extension) | Asset nodes, ESM bundles, esbuild circuit |
 | `ir_rule.py` | ir.rule | Record-level access rules |
 | `ir_sequence.py` | ir.sequence, .date_range | Auto-incrementing sequences |
 | `ir_ui_menu.py` | ir.ui.menu | Menu hierarchy |
@@ -1870,6 +1969,7 @@ Quick lookup — file → model → primary role:
 | `mixin_merge.py` | mixin.merge | Record merge engine |
 | `mixin_tag.py` | mixin.tag | Coloured label with a stable code |
 | `mixin_tag_nested.py` | mixin.tag.nested | Tag with a parent/child hierarchy |
+| `mixin_hierarchy.py` | mixin.hierarchy | `_parent_store` tree on a materialized path |
 | `tag_tag.py` | tag.tag | Generic tag records |
 | `decimal_precision.py` | decimal.precision | Decimal precision config |
 | `mixin_image.py` | mixin.image | Multi-resolution images |

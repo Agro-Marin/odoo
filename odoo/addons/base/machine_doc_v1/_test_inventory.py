@@ -159,7 +159,7 @@ def render_statistics(facts: list[FileFacts]) -> str:
     lines += [
         "",
         "Counted as unittest collects them: a method whose name starts with `test`, not",
-        "`test_` — `testDefaultViewBase` and `testbypass_search_access` do run. A class with",
+        "`test_` — a `testCamelCase` method would run too, so it is counted. A class with",
         "no test method is a shared base and is not counted. `factcheck.sh --update`",
         "regenerates every figure above and the header line under Quick Reference.",
     ]

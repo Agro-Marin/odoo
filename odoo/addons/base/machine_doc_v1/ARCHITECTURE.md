@@ -70,92 +70,121 @@ access control, and ORM extensions that those controllers depend on.
 odoo/addons/base/
 ├── __manifest__.py              # Module metadata + asset/data file declarations
 ├── __init__.py                  # Imports models, report, wizard + post_init hook
-├── models/                      # 63 Python model files (core ORM infrastructure)
-│   ├── ir_actions.py            #   7 action classes: window, url, client, todo, close + views
-│   ├── ir_actions_report.py     #   Report actions (WeasyPrint PDF/HTML/image rendering)
-│   ├── ir_actions_server.py     #   Server actions (code, CRUD, webhook) + history
-│   ├── ir_asset.py              #   Asset bundle management (directives, paths, sorting)
-│   ├── ir_attachment.py         #   File storage (DB or filestore), GC, MIME detection
-│   ├── ir_autovacuum.py         #   Garbage collection framework (@api.autovacuum)
-│   ├── ir_binary.py             #   File streaming helpers (images, downloads)
-│   ├── ir_config_parameter.py   #   System parameters (key-value config store)
-│   ├── ir_cron.py               #   Scheduled jobs + triggers + progress tracking
-│   ├── ir_default.py            #   Default field values (per-user, per-company)
-│   ├── ir_demo.py               #   Demo data installation
-│   ├── ir_demo_failure.py       #   Demo data failure tracking
-│   ├── ir_embedded_actions.py   #   Embedded actions in views
-│   ├── ir_exports.py            #   Export presets (saved field lists)
-│   ├── ir_fields.py             #   Import field type converters
-│   ├── ir_filters.py            #   Saved search filters
-│   ├── ir_http.py               #   HTTP routing, auth, dispatch, translations
-│   ├── ir_logging.py            #   Server/client log storage
-│   ├── ir_mail_server.py        #   SMTP mail server configuration and sending
-│   ├── ir_model.py              #   Model registry + ir.model.inherit
-│   ├── ir_model_access.py       #   ir.model.access (model-level ACL)
-│   ├── ir_model_reflection.py   #   ir.model.constraint + ir.model.relation (uninstall bookkeeping)
-│   ├── ir_model_data.py         #   XML ID registry (external identifiers)
-│   ├── ir_model_fields.py       #   Field metadata registry
-│   ├── ir_model_fields_selection.py # Selection option management
-│   ├── ir_module.py             #   Module system (install, upgrade, dependencies)
-│   ├── ir_profile.py            #   Code profiling (speedscope output)
-│   ├── ir_qweb.py               #   QWeb template engine (compile + render)
-│   ├── ir_qweb_fields.py        #   QWeb field widgets (~20 type formatters)
-│   ├── ir_rule.py               #   Record-level access rules (domain-based)
-│   ├── ir_sequence.py           #   Auto-incrementing sequences (standard/no-gap)
-│   ├── ir_ui_menu.py            #   Menu tree (hierarchy, visibility, icons)
-│   ├── ir_ui_view.py            #   View definitions (arch, inheritance, validation)
-│   ├── ir_ui_view_base.py       #   Default view generators (form/list/kanban/etc.)
-│   ├── ir_ui_view_custom.py     #   User-specific view customizations (COW)
-│   ├── ir_ui_view_name_manager.py # View XML structure validator
-│   ├── assetsbundle.py          #   Asset compilation (JS/CSS/SCSS minification)
-│   ├── avatar_mixin.py          #   SVG avatar generation from initials
-│   ├── decimal_precision.py     #   Configurable decimal precision
-│   ├── image_mixin.py           #   Multi-resolution image fields
-│   ├── properties_base_definition.py      # Properties field definitions
-│   ├── properties_base_definition_mixin.py # Properties support mixin
-│   ├── report_layout.py         #   Report layout templates
-│   ├── report_paperformat.py    #   Paper format configuration
-│   ├── res_bank.py              #   Banks + partner bank accounts
-│   ├── res_company.py           #   Company hierarchy (parent_store)
-│   ├── res_config.py            #   Settings wizard framework
-│   ├── res_country.py           #   Countries, states, country groups
-│   ├── res_currency.py          #   Currencies + exchange rates
-│   ├── res_device.py            #   Device/session tracking + revocation
-│   ├── res_groups.py            #   Security groups + implications + privileges
-│   ├── res_groups_privilege.py  #   Group privilege categories
-│   ├── res_lang.py              #   Language management + formatting
-│   ├── res_partner.py           #   Contacts/companies (core business entity)
-│   ├── res_partner_tag.py       #   Partner tags (hierarchical)
-│   ├── res_partner_format_address_mixin.py # Address form customization
-│   ├── res_partner_format_vat_mixin.py     # VAT label customization
-│   ├── res_partner_industry.py  #   Industry classification
-│   ├── res_users.py             #   Users (inherits res.partner)
-│   ├── res_users_apikeys.py     #   API key management
-│   ├── res_users_deletion.py    #   User deletion queue
-│   ├── res_users_identitycheck.py # Password verification wizard
-│   ├── res_users_log.py         #   Login tracking
-│   └── res_users_settings.py    #   Per-user settings
-├── wizard/                      # 10 transient model files
-│   ├── base_export_language.py  #   Export translations (PO/CSV/TGZ)
-│   ├── base_import_language.py  #   Import translation files
-│   ├── base_language_install.py #   Install/activate languages
-│   ├── base_module_uninstall.py #   Module uninstall with dependency analysis
-│   ├── base_module_update.py    #   Scan for new/updated modules
-│   ├── base_module_upgrade.py   #   Upgrade module with dependency validation
-│   ├── base_partner_merge.py    #   Deduplicate partners (manual/automatic)
-│   ├── change_password.py       #   Password change (admin + self-service)
-│   ├── reset_view_arch.py       #   Reset view to original arch (soft/hard)
-│   └── wizard_ir_model_menu_create.py # Create menu item for custom model
-├── tests/                       # 85 Python test files + test assets
+├── models/                      # 91 Python model files (core ORM infrastructure)
+│   ├── assetsbundle/            #   Asset compilation package (bundle, JS/CSS/XML pipelines, store)
+│   ├── decimal_precision.py         #   Configurable decimal precision
+│   ├── ir_actions_act_url.py        #   URL action
+│   ├── ir_actions_act_window.py     #   Window actions (open views on a model)
+│   ├── ir_actions_act_window_close.py #   Close-window action
+│   ├── ir_actions_act_window_view.py #   View ordering inside a window action
+│   ├── ir_actions_actions.py        #   Base action model: bindings, path, type dispatch
+│   ├── ir_actions_client.py         #   Client-side (JS component) action
+│   ├── ir_actions_embedded.py       #   Actions embedded inside views
+│   ├── ir_actions_path.py           #   Side table keeping an action path unique
+│   ├── ir_actions_report.py         #   Report actions (WeasyPrint PDF/HTML/image rendering)
+│   ├── ir_actions_server.py         #   Server actions (code, CRUD, webhook) + history
+│   ├── ir_actions_todo.py           #   Configuration wizard queue
+│   ├── ir_asset.py                  #   Asset bundle management (directives, paths, sorting)
+│   ├── ir_asset_paths.py            #   Asset directive walk: paths, anchors, insert/remove/replace
+│   ├── ir_attachment.py             #   File storage (DB or filestore), GC, MIME detection
+│   ├── ir_attachment_assets.py      #   ir.attachment extension: generated-asset GC and regeneration
+│   ├── ir_attachment_storage.py     #   Storage backends (DB, filestore, registry of schemes)
+│   ├── ir_autovacuum.py             #   Garbage collection framework (@api.autovacuum)
+│   ├── ir_binary.py                 #   File streaming helpers (images, downloads)
+│   ├── ir_config_parameter.py       #   System parameters (key-value config store)
+│   ├── ir_cron.py                   #   Scheduled jobs + triggers + progress tracking
+│   ├── ir_default.py                #   Default field values (per-user, per-company)
+│   ├── ir_demo.py                   #   Demo data installation
+│   ├── ir_demo_failure.py           #   Demo data failure tracking
+│   ├── ir_exports.py                #   Export presets (saved field lists)
+│   ├── ir_fields.py                 #   Import field type converters
+│   ├── ir_filters.py                #   Saved search filters
+│   ├── ir_http.py                   #   HTTP routing, auth, dispatch, translations
+│   ├── ir_job.py                    #   Background job queue + channels
+│   ├── ir_logging.py                #   Server/client log storage
+│   ├── ir_mail_server.py            #   SMTP mail server configuration and sending
+│   ├── ir_model.py                  #   Model registry + ir.model.inherit
+│   ├── ir_model_access.py           #   ir.model.access (model-level ACL)
+│   ├── ir_model_common.py           #   Shared helpers for the ir.model family (xmlids, upserts, access errors)
+│   ├── ir_model_data.py             #   XML ID registry (external identifiers)
+│   ├── ir_model_fields.py           #   Field metadata registry
+│   ├── ir_model_fields_selection.py #   Selection option management
+│   ├── ir_model_reflection.py       #   ir.model.constraint + ir.model.relation (uninstall bookkeeping)
+│   ├── ir_module.py                 #   Module system (install, upgrade, dependencies)
+│   ├── ir_module_module_dependency.py #   Manifest `depends` entries
+│   ├── ir_module_module_exclusion.py #   Manifest `excludes` entries
+│   ├── ir_profile.py                #   Code profiling (speedscope output)
+│   ├── ir_qweb.py                   #   QWeb template engine (compile + render)
+│   ├── ir_qweb_assets.py            #   ir.qweb extension: asset nodes, ESM bundles, esbuild circuit
+│   ├── ir_qweb_fields.py            #   QWeb field widgets (~20 type formatters)
+│   ├── ir_rule.py                   #   Record-level access rules (domain-based)
+│   ├── ir_sequence.py               #   Auto-incrementing sequences (standard/no-gap)
+│   ├── ir_ui_menu.py                #   Menu tree (hierarchy, visibility, icons)
+│   ├── ir_ui_view.py                #   View definitions (arch, inheritance, validation)
+│   ├── ir_ui_view_base.py           #   Default view generators (form/list/kanban/etc.)
+│   ├── ir_ui_view_custom.py         #   User-specific view customizations (COW)
+│   ├── ir_ui_view_name_manager.py   #   View XML structure validator
+│   ├── kpi_provider.py              #   KPI aggregation hook (abstract)
+│   ├── mixin_avatar.py              #   SVG avatar generation from initials
+│   ├── mixin_band.py                #   Numeric band / range mixin
+│   ├── mixin_catalog.py             #   Unique translated name, archivable
+│   ├── mixin_favorite.py            #   Per-record favourite flag
+│   ├── mixin_format_address.py      #   Address form customization
+│   ├── mixin_format_vat_label.py    #   VAT label customization
+│   ├── mixin_hierarchy.py           #   Parent/child tree on a materialized path (`parent_path`)
+│   ├── mixin_image.py               #   Multi-resolution image fields
+│   ├── mixin_merge.py               #   Record merge engine (reference repointing)
+│   ├── mixin_module_link.py         #   Manifest-named module link (abstract)
+│   ├── mixin_properties_base_definition.py #   Properties support mixin
+│   ├── mixin_tag.py                 #   Coloured label with a stable code
+│   ├── mixin_tag_nested.py          #   Tag with a parent/child hierarchy
+│   ├── mixin_user_favorite.py       #   Per-user favourite flag
+│   ├── properties_base_definition.py #   Properties field definitions
+│   ├── report_layout.py             #   Report layout templates
+│   ├── report_paperformat.py        #   Paper format configuration
+│   ├── res_bank.py                  #   Banks + partner bank accounts
+│   ├── res_company.py               #   Company hierarchy (parent_store)
+│   ├── res_config.py                #   Settings wizard framework
+│   ├── res_country.py               #   Countries, states, country groups
+│   ├── res_currency.py              #   Currencies + exchange rates
+│   ├── res_device.py                #   Device/session tracking + revocation
+│   ├── res_groups.py                #   Security groups + implications + privileges
+│   ├── res_groups_privilege.py      #   Group privilege categories
+│   ├── res_lang.py                  #   Language management + formatting
+│   ├── res_partner.py               #   Contacts/companies (core business entity)
+│   ├── res_partner_identifier.py    #   One contact's identifier value
+│   ├── res_partner_identifier_type.py #   Identifier kinds (RFC, CURP, SIREN...)
+│   ├── res_partner_industry.py      #   Industry classification
+│   ├── res_partner_tag.py           #   Partner tags (hierarchical)
+│   ├── res_users.py                 #   Users (inherits res.partner)
+│   ├── res_users_apikeys.py         #   API key management
+│   ├── res_users_deletion.py        #   User deletion queue
+│   ├── res_users_identitycheck.py   #   Password verification wizard
+│   ├── res_users_log.py             #   Login tracking
+│   ├── res_users_settings.py        #   Per-user settings
+│   └── tag_tag.py                   #   Generic tag records
+├── wizard/                      # 11 transient model files
+│   ├── base_export_language.py      #   Export translations (PO/CSV/TGZ)
+│   ├── base_import_language.py      #   Import translation files
+│   ├── base_language_install.py     #   Install/activate languages
+│   ├── base_module_uninstall.py     #   Module uninstall with dependency analysis
+│   ├── base_module_update.py        #   Scan for new/updated modules
+│   ├── base_module_upgrade.py       #   Upgrade module with dependency validation
+│   ├── base_partner_merge.py        #   Deduplicate partners (manual/automatic)
+│   ├── change_password.py           #   Password change (admin + self-service)
+│   ├── reset_view_arch.py           #   Reset view to original arch (soft/hard)
+│   ├── server_action_history.py     #   Server-action run history (diff + restore)
+│   └── wizard_ir_model_menu_create.py #   Create menu item for custom model
+├── tests/                       # 134 Python test files + test assets
 │   ├── common.py                #   Base test classes (demo user, portal user)
-│   └── test_*.py                #   ~195 test classes, ~1347 test methods
-├── views/                       # 34 XML view definition files
-├── data/                        # 21 XML/CSV data files (countries, currencies, params)
-├── report/                      # 4 report template files
-├── security/                    # 2 files (ir.model.access.csv + security groups XML)
-├── rng/                         # 7 RelaxNG schema files (view validation)
-├── static/                      # CSS, JS, images, test assets (~348 files)
-├── i18n/                        # 63 translation files (.po)
+│   └── test_*.py                #   Test modules -- counts in TEST_TAGS.md, derived by factcheck.sh
+├── views/                       # 38 XML view definition files
+├── data/                        # 20 data files (XML, CSV, SQL, JSON)
+├── report/                      # Report templates + the module-reference report model
+├── security/                    # ir.model.access.csv + groups and record-rule XML
+├── rng/                         # RelaxNG schemas (view validation)
+├── static/                      # CSS, JS, images, test assets
+├── i18n/                        # Translations (.po)
 └── machine_doc_v1/              # Machine-consumable documentation (this directory)
 ```
 
@@ -232,17 +261,18 @@ every Odoo module depends on.
 
 ## File Counts
 
+Derived by `factcheck.sh`, which re-measures every row against the tree.
+
 | Category | Count |
 |----------|-------|
-| Python (models) | 63 |
-| Python (wizards) | 10 |
-| Python (tests) | 85 |
-| XML (views) | 34 |
-| XML (data) | 21 |
+| Python (models) | 91 |
+| Python (wizards) | 11 |
+| Python (tests) | 134 |
+| XML (views) | 38 |
+| Data files | 20 |
 | XML (reports) | 4 |
 | XML (wizard views) | 8 |
-| CSV (data + security) | 3 |
+| Security files | 3 |
 | RNG (schemas) | 7 |
-| i18n (translations) | 63 |
-| Static assets | ~348 |
-| **Total** | **~650+** |
+| i18n (translations) | 64 |
+| Static assets | 348 |
