@@ -189,6 +189,8 @@ const threadPatch = {
         this.markingAsRead = false;
         /** @type {number|undefined} */
         this.member_count = undefined;
+        /** @type {number|undefined} */
+        this.message_count = undefined;
         /** @type {string} */
         this.name = undefined;
         this.channel_name_member_ids = fields.Many("discuss.channel.member");

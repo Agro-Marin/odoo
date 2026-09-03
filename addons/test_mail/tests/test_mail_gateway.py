@@ -5049,11 +5049,15 @@ class TestMailGatewayRegressions(MailGatewayCommon):
             .search([("mail_message_id", "=", bounced.id)])
         )
         self.assertEqual(len(notification), 1, "one notification names the victim")
-        self.assertFalse(
+        self.assertEqual(
             notification.mail_email_address,
-            "the address used is not recorded on the notification either, so the "
-            "partner is the only handle the bounce has",
+            "victim@remote.example.com",
+            "the notification records the address the mail actually went to",
         )
+        # ...which the bounce below cannot use: its DSN carries no
+        # Final-Recipient, so `bounced_email` is empty and the email half of
+        # `_routing_bounce_mark_notifications`' domain never fires. The
+        # partner is still the only handle the bounce has.
         # the address is cleaned off the partner between the send and the bounce:
         # a merge, an erasure request, a corrected typo
         victim.email = False

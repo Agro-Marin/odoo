@@ -25,7 +25,7 @@ runtime** despite never declaring it — verified against the live routing map, 
 report `readonly=True`. Every other mail route's runtime `readonly` matches its source
 declaration exactly.
 
-**Total: 64 `@http.route` handlers** — 31 in `controllers/`, 33 in `controllers/discuss/` —
+**Total: 63 `@http.route` handlers** — 31 in `controllers/`, 32 in `controllers/discuss/` —
 across **84 URL strings** (20 of them `export_icon_to_png`'s font_to_img variants).
 
 ## The two central data endpoints
@@ -138,7 +138,6 @@ service worker for internal users.
 |-------|------|------|---------|---------|
 | `/discuss/channel/members` | jsonrpc | public +guest (readonly) | `discuss_channel_members` | Fetch unknown members + count |
 | `/discuss/channel/messages` | jsonrpc | public +guest | `discuss_channel_messages` | Fetch channel messages |
-| `/discuss/channel/pinned_messages` | jsonrpc | public +guest (readonly) | `discuss_channel_pins` | Fetch pinned messages |
 | `/discuss/channel/mark_as_read` | jsonrpc | public +guest | `discuss_channel_mark_as_read` | Mark read up to a message |
 | `/discuss/channel/set_new_message_separator` | jsonrpc | public +guest | `discuss_channel_set_new_message_separator` | Set the "new messages" separator |
 | `/discuss/channel/notify_typing` | jsonrpc | public +guest | `discuss_channel_notify_typing` | Broadcast typing state |
@@ -234,8 +233,8 @@ injects guest data into `user_context` when there is no `request.session.uid` bu
 | Group | Handlers | Files |
 |-------|----------|-------|
 | `controllers/` | 31 | thread (9), attachment (5), mail (4), mailbox (3), webclient (2), websocket (2), link_preview (2), message_reaction (1), google_translate (1), im_status (1), guest (1) — webmanifest = 0 |
-| `controllers/discuss/` | 33 | channel (12), rtc (8), gif (5), public_page (4), settings (2), search (1), voice (1) |
-| **Total** | **64** | **20** controller files (excluding the two `__init__.py`). One file contributes 0 routes — `webmanifest.py`; separately, the *class* `DiscussChannelWebclientController` in `channel.py` also declares none |
+| `controllers/discuss/` | 32 | channel (11), rtc (8), gif (5), public_page (4), settings (2), search (1), voice (1) |
+| **Total** | **63** | **20** controller files (excluding the two `__init__.py`). One file contributes 0 routes — `webmanifest.py`; separately, the *class* `DiscussChannelWebclientController` in `channel.py` also declares none |
 
 > **`thread.py` was 10 until `3d39ae624a0`**, which removed
 > `/mail/thread/recipients/fields` (`mail_thread_recipients_fields`) — the route existed to

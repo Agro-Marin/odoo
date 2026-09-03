@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { CallPreview } from "@mail/discuss/call/common/call_preview";
-import { Component, useState, useSubEnv } from "@odoo/owl";
+import { Component, useEffect, useState, useSubEnv } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -9,6 +9,8 @@ export class WelcomePage extends Component {
     static template = "mail.WelcomePage";
     static components = { CallPreview };
 
+    cameraPermissionOnMountChecked = false;
+
     setup() {
         super.setup();
         this.store = useService("mail.store");
@@ -16,15 +18,57 @@ export class WelcomePage extends Component {
         this.rtc = useService("discuss.rtc");
         useSubEnv({ inWelcomePage: true });
         this.state = useState({
-            userName: this.store.self.name || _t("Guest"),
+            userName: this.store.self_partner?.name || "",
+            activateCamera: 0,
+            activateMicrophone: 0,
             hasMicrophone: undefined,
             hasCamera: undefined,
         });
+        useEffect(
+            /**
+             * @param {boolean} showCallPreview
+             * @param {string} cameraPermission
+             * @param {string} microphonePermission
+             */
+            (showCallPreview, cameraPermission, microphonePermission) => {
+                if (!showCallPreview) {
+                    return;
+                }
+                if (cameraPermission === "prompt" && !this.cameraPermissionOnMountChecked) {
+                    this.rtc.showMediaPermissionDialog("camera");
+                }
+                // already allowed: light the devices up rather than making the
+                // guest ask for them a second time on the preview
+                if (cameraPermission === "granted") {
+                    this.state.activateCamera++;
+                }
+                if (microphonePermission === "granted") {
+                    this.state.activateMicrophone++;
+                }
+                this.cameraPermissionOnMountChecked = Boolean(cameraPermission);
+            },
+            () => [
+                this.showCallPreview,
+                this.rtc.cameraPermission,
+                this.rtc.microphonePermission,
+            ],
+        );
+    }
+
+    get canJoin() {
+        return Boolean(
+            this.store.self_partner ||
+                (this.state.userName.trim() && this.state.userName.length <= 60),
+        );
+    }
+
+    get showCallPreview() {
+        return this.store.discuss.thread.default_display_mode === "video_full_screen";
     }
 
     /** @param {KeyboardEvent} ev */
     onKeydownInput(ev) {
-        if (ev.key === "Enter") {
+        if (ev.key === "Enter" && this.canJoin) {
             this.joinChannel();
         }
     }

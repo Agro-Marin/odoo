@@ -11,7 +11,7 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { Composer } from "@mail/core/common/composer";
+import { Composer, MENTION_AMOUNT_WARNING } from "@mail/core/common/composer";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, press } from "@odoo/hoot-dom";
 import { Deferred, tick } from "@odoo/hoot-mock";
@@ -22,9 +22,11 @@ import {
     onRpc,
     patchWithCleanup,
     serverState,
+    waitForSteps,
     withUser,
 } from "@web/../tests/web_test_helpers";
 import { rpc } from "@web/core/network";
+import { range } from "@web/core/utils/format/numbers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -1485,4 +1487,63 @@ test("keyboard selection in suggestion list survives an unrelated re-render", as
     await contains(".o-mail-Message-content", { text: "hello" });
     await animationFrame();
     await contains(".o-mail-NavigableList-active", { text: "TestPartner2" });
+});
+
+const bigChannelWithEveryone = async (pyEnv) => {
+    const partnerIds = pyEnv["res.partner"].create(
+        range(0, MENTION_AMOUNT_WARNING + 1).map((i) => ({ name: `Member ${i}` })),
+    );
+    return pyEnv["discuss.channel"].create({
+        name: "General",
+        channel_type: "channel",
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            ...partnerIds.map((id) => Command.create({ partner_id: id })),
+        ],
+    });
+};
+
+test("mentioning @everyone in a large channel asks before sending", async () => {
+    const pyEnv = await startServer();
+    const channelId = await bigChannelWithEveryone(pyEnv);
+    onRpcBefore("/mail/message/post", () => asyncStep("/mail/message/post"));
+    await start();
+    await openDiscuss(channelId);
+    await insertText(".o-mail-Composer-input", "@everyone");
+    await click(".o-mail-Composer-suggestion:contains(Everyone)");
+    await click(".o-mail-Composer button[title='Send']:enabled");
+    await contains(".modal-body", {
+        text: "You're about to notify 52 people with @everyone. Do you want to continue?",
+    });
+    await click(".modal-footer button", { text: "Discard" });
+    await waitForSteps([]);
+});
+
+test("confirming the large-mention warning lets the message through", async () => {
+    const pyEnv = await startServer();
+    const channelId = await bigChannelWithEveryone(pyEnv);
+    onRpcBefore("/mail/message/post", () => asyncStep("/mail/message/post"));
+    await start();
+    await openDiscuss(channelId);
+    await insertText(".o-mail-Composer-input", "@everyone");
+    await click(".o-mail-Composer-suggestion:contains(Everyone)");
+    await click(".o-mail-Composer button[title='Send']:enabled");
+    await click(".modal-footer button", { text: "Send Message" });
+    await waitForSteps(["/mail/message/post"]);
+});
+
+test("discarding the warning leaves the message ready to send again", async () => {
+    const pyEnv = await startServer();
+    const channelId = await bigChannelWithEveryone(pyEnv);
+    onRpcBefore("/mail/message/post", () => asyncStep("/mail/message/post"));
+    await start();
+    await openDiscuss(channelId);
+    await insertText(".o-mail-Composer-input", "@everyone");
+    await click(".o-mail-Composer-suggestion:contains(Everyone)");
+    await click(".o-mail-Composer button[title='Send']:enabled");
+    await click(".modal-footer button", { text: "Discard" });
+    await contains(".modal", { count: 0 });
+    await click(".o-mail-Composer button[title='Send']:enabled");
+    await click(".modal-footer button", { text: "Send Message" });
+    await waitForSteps(["/mail/message/post"]);
 });

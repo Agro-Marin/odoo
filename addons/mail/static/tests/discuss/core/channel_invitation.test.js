@@ -270,3 +270,26 @@ test("Active dialog retains focus over invite input", async () => {
     await contains(".o-discuss-ChannelInvitation");
     await contains("button:focus", { text: "Use Camera" });
 });
+
+test("empty search in a channel does not claim membership is the only reason", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "TestPartner" });
+    pyEnv["res.users"].create({ partner_id: partnerId });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "TestChannel",
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: partnerId }),
+        ],
+        channel_type: "channel",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-discuss-ChannelMemberList");
+    await click(".o-mail-DiscussContent-header button[title='Invite People']");
+    await contains(".o-discuss-ChannelInvitation");
+    await insertText(".o-discuss-ChannelInvitation-search", "NobodyMatchesThis");
+    await contains(".o-discuss-ChannelInvitation div.opacity-50", {
+        text: "No people found to invite.",
+    });
+});

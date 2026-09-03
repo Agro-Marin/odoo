@@ -2695,7 +2695,20 @@ class MixinMailThread(models.AbstractModel):
         base_mail_values: dict,
         mail_body: Markup,
         batch_size: int,
-    ) -> Iterator[tuple[dict, tuple]]:
+    ) -> Iterator[tuple[dict, list[dict]]]:
+        """Yield ``(mail_values, recipients_values)``, where each entry of
+        ``recipients_values`` is the recipient-specific part of one
+        ``mail.notification``.
+
+        A partner notification carries ``mail_email_address`` too: the contact
+        may be re-addressed later, and the chatter must keep reporting the
+        address this mail actually went to.
+        """
+        email_by_pid = {
+            r["id"]: r["email_normalized"]
+            for r in recipients_group["recipients_data"]
+            if r["id"]
+        }
         for recipient_ids_chunk in batched(
             recipients_group["recipients_ids"], batch_size, strict=False
         ):
@@ -2705,14 +2718,23 @@ class MixinMailThread(models.AbstractModel):
                     base_mail_values,
                     additional_values={"body_html": mail_body},
                 ),
-                ("res_partner_id", recipient_ids_chunk),
+                [
+                    {
+                        "res_partner_id": pid,
+                        "mail_email_address": email_by_pid.get(pid),
+                    }
+                    for pid in recipient_ids_chunk
+                ],
             )
         if recipients_emails := recipients_group["recipients_emails"]:
             mail_values = self._notify_by_email_get_final_mail_values(
                 [], base_mail_values, additional_values={"body_html": mail_body}
             )
             mail_values["email_to"] = ",".join(recipients_emails)
-            yield mail_values, ("mail_email_address", recipients_emails)
+            yield (
+                mail_values,
+                [{"mail_email_address": email} for email in recipients_emails],
+            )
 
     def _notify_by_email_prepare(
         self,
@@ -2751,7 +2773,7 @@ class MixinMailThread(models.AbstractModel):
             self.env["ir.config_parameter"]._get_int_param("mail.batch_size", 50) or 50
         )
         mail_values_list = []
-        notif_targets = []
+        notif_recipients_values = []
         for (
             _lang,
             render_values,
@@ -2773,21 +2795,20 @@ class MixinMailThread(models.AbstractModel):
                 msg_vals=msg_vals,
                 render_values=render_values,
             )
-            for mail_values, target in self._notify_by_email_split_group(
+            for mail_values, recipients_values in self._notify_by_email_split_group(
                 recipients_group, base_mail_values, mail_body, gen_batch_size
             ):
                 mail_values_list.append(mail_values)
-                notif_targets.append(target)
+                notif_recipients_values.append(recipients_values)
 
         return [
             {
                 "mail_values": mail_values,
-                "target_field": target_field,
-                "targets": targets,
+                "recipients_values": recipients_values,
                 "notification_values": base_notification_values,
             }
-            for mail_values, (target_field, targets) in zip(
-                mail_values_list, notif_targets, strict=True
+            for mail_values, recipients_values in zip(
+                mail_values_list, notif_recipients_values, strict=True
             )
         ]
 
@@ -2811,11 +2832,11 @@ class MixinMailThread(models.AbstractModel):
         notif_create_values = [
             {
                 "mail_mail_id": mail.id,
-                entry["target_field"]: target,
+                **recipient_values,
                 **entry["notification_values"],
             }
             for mail, entry in zip(emails, prepared, strict=True)
-            for target in entry["targets"]
+            for recipient_values in entry["recipients_values"]
         ]
         if notif_create_values:
             SafeNotification.create(notif_create_values)
@@ -4666,6 +4687,38 @@ class MixinMailThread(models.AbstractModel):
     def _get_fields_store_message_update_extra(self) -> list[StoreFieldSpec]:
         return []
 
+    def set_message_pin(self, message_id: int, pinned: bool) -> bool:
+        """(Un)pin one of this thread's own messages.
+
+        Pinning is not a channel privilege: any thread with a chatter can
+        single out the message that matters so it stays reachable without
+        scrolling the whole history.
+
+        :return: whether the message changed state -- False when the message
+            does not belong here, or was already in the requested state.
+        """
+        self.check_singleton()
+        message = self.env["mail.message"].search(
+            [
+                ["id", "=", message_id],
+                ["model", "=", self._name],
+                ["res_id", "=", self.id],
+                ["pinned_at", "=" if pinned else "!=", False],
+            ]
+        )
+        if not message:
+            return False
+        message.flush_recordset(["pinned_at"])
+        # raw UPDATE because write() would bump write_date, and pinning is not
+        # an edit of the message
+        self.env.cr.execute(
+            "UPDATE mail_message SET pinned_at=%s WHERE id=%s",
+            (fields.Datetime.now() if pinned else None, message.id),
+        )
+        message.invalidate_recordset(["pinned_at"])
+        Store(bus_channel=message._bus_channel()).add(message, "pinned_at").bus_send()
+        return True
+
     def _thread_to_store_batch_data(
         self, store: Store, request_list: list[str]
     ) -> dict:
@@ -4677,7 +4730,34 @@ class MixinMailThread(models.AbstractModel):
             "recipients_total": {},
             "attachments": {},
             "scheduled": defaultdict(lambda: self.env["mail.scheduled.message"]),
+            "pinned_count": defaultdict(int),
+            "pinned": defaultdict(lambda: self.env["mail.message"]),
         }
+        # not gated on internal users the way upstream gates it: the channel
+        # pin panel is served to guests today (the route it replaces was
+        # auth="public"), and read access on the thread is already enforced
+        if {"has_pinned_messages", "pinned_messages"} & set(request_list):
+            pinned_domain = Domain(
+                [
+                    ("model", "=", self._name),
+                    ("res_id", "in", self.ids),
+                    ("pinned_at", "!=", False),
+                ]
+            )
+            if "pinned_messages" in request_list:
+                for message in self.env["mail.message"].search_fetch(
+                    pinned_domain, ["res_id"]
+                ):
+                    res["pinned"][message.res_id] |= message
+                    res["pinned_count"][message.res_id] += 1
+            else:
+                res["pinned_count"].update(
+                    dict(
+                        self.env["mail.message"]._read_group(
+                            pinned_domain, ["res_id"], ["__count"]
+                        )
+                    )
+                )
         if "followers" in request_list:
             for follower in self.env["mail.followers"].search_fetch(
                 [
@@ -4736,6 +4816,8 @@ class MixinMailThread(models.AbstractModel):
         recipients_total = batch["recipients_total"]
         attachments_by_res_id = batch["attachments"]
         scheduled_by_res_id = batch["scheduled"]
+        pinned_by_res_id = batch["pinned"]
+        pinned_count_by_res_id = batch["pinned_count"]
         for thread in self:
             res = {}
             if is_own_target:
@@ -4771,6 +4853,12 @@ class MixinMailThread(models.AbstractModel):
                 )
             if "display_name" in request_list:
                 res["display_name"] = thread.display_name
+            if "has_pinned_messages" in request_list:
+                res["has_pinned_messages"] = pinned_count_by_res_id[thread.id] > 0
+            if "pinned_messages" in request_list:
+                # no field spec: `mail.message._to_store` supplies the same
+                # defaults the deleted /discuss/channel/pinned_messages used
+                res["pinnedMessages"] = Store.Many(pinned_by_res_id[thread.id])
             if "scheduledMessages" in request_list:
                 res["scheduledMessages"] = Store.Many(scheduled_by_res_id[thread.id])
             if "suggestedRecipients" in request_list:

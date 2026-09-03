@@ -60,6 +60,7 @@ test("Renders the call settings", async () => {
     await contains("span", { text: "Voice detection sensitivity" });
     await contains("button", { text: "Test" });
     await contains("label", { text: "Show video participants only" });
+    await contains("label", { text: "Auto-focus speaker" });
     await contains("label", { text: "Blur video background" });
 });
 
@@ -125,4 +126,17 @@ test("local storage for call settings", async () => {
     await editInput(document.body, ".o-Discuss-CallSettings-thresholdInput", 0.3);
     await advanceTime(2000);
     await waitForSteps(["mail_user_setting_voice_threshold: 0.3"]);
+});
+
+test("quick voice settings show which key is push-to-talk", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "test" });
+    const env = await start();
+    env.services["mail.store"].settings.push_to_talk_key = "true.true.true.b";
+    await openDiscuss(channelId);
+    await click("[title='Start Call']");
+    await click("button[title='Voice Settings']");
+    await contains(".o-discuss-QuickVoiceSettings span", {
+        text: "Press [Ctrl + Alt + Shift + b]",
+    });
 });

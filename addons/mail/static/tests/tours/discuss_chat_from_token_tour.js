@@ -8,8 +8,13 @@ registry.category("web_tour.tours").add("discuss_chat_from_token_tour", {
             trigger: ".o-mail-WelcomePage h1:contains(invited to a chat)",
         },
         {
+            content: "A guest has to say who they are before joining",
+            trigger: ".o-mail-WelcomePage input[name='guest_name']",
+            run: "edit Guest",
+        },
+        {
             content: "Joining reaches the channel",
-            trigger: ".o-mail-WelcomePage button[title='Join Channel']",
+            trigger: ".o-mail-WelcomePage button[title='Join Channel']:enabled",
             run: "click",
         },
         {

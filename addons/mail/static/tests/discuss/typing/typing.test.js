@@ -751,7 +751,7 @@ test("[text composer] chat: correspondent is typing in chat window", async () =>
             is_typing: true,
         }),
     );
-    await contains("[title='Demo is typing...']", { count: 2 });
+    await contains("[title='Demo is typing...']"); // only above the composer
     withUser(userId, () =>
         rpc("/discuss/channel/notify_typing", {
             channel_id: channelId,
@@ -789,7 +789,7 @@ test("chat: correspondent is typing in chat window", async () => {
             is_typing: true,
         }),
     );
-    await contains("[title='Demo is typing...']", { count: 2 });
+    await contains("[title='Demo is typing...']"); // only above the composer
     withUser(userId, () =>
         rpc("/discuss/channel/notify_typing", {
             channel_id: channelId,
@@ -989,4 +989,38 @@ test("switching to another channel triggers notify_typing to stop", async () => 
     await click(".o-mail-DiscussSidebar-item", { text: "general" });
     await advanceTime(SHORT_TYPING / 2);
     await waitForSteps(["notify_typing:false"]);
+});
+
+test("group: the sidebar shows the typing icon", async () => {
+    const pyEnv = await startServer();
+    const userId = pyEnv["res.users"].create({ name: "Demo" });
+    const partnerId = pyEnv["res.partner"].create({
+        im_status: "online",
+        name: "Demo",
+        user_ids: [userId],
+    });
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: partnerId }),
+        ],
+        channel_type: "group",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-DiscussSidebarChannel-threadIcon", { count: 0 });
+    withUser(userId, () =>
+        rpc("/discuss/channel/notify_typing", {
+            channel_id: channelId,
+            is_typing: true,
+        }),
+    );
+    await contains(".o-mail-DiscussSidebarChannel-threadIcon .o-discuss-Typing");
+    withUser(userId, () =>
+        rpc("/discuss/channel/notify_typing", {
+            channel_id: channelId,
+            is_typing: false,
+        }),
+    );
+    await contains(".o-mail-DiscussSidebarChannel-threadIcon", { count: 0 });
 });

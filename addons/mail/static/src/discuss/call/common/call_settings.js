@@ -65,23 +65,6 @@ export class CallSettings extends Component {
         return _t("Test");
     }
 
-    get pushToTalkKeyText() {
-        const { shiftKey, ctrlKey, altKey, key } =
-            this.store.settings.pushToTalkKeyFormat();
-        /**
-         * @param {boolean} k
-         * @param {string} name
-         */
-        const f = (k, name) => (k ? name : "");
-        const keys = [
-            f(ctrlKey, "Ctrl"),
-            f(altKey, "Alt"),
-            f(shiftKey, "Shift"),
-            key,
-        ].filter(Boolean);
-        return keys.join(" + ");
-    }
-
     get isMobileOS() {
         return isMobileOS();
     }
@@ -132,6 +115,10 @@ export class CallSettings extends Component {
     /** @param {Event} ev */
     onChangeBlur(ev) {
         this.store.settings.setUseBlur(ev.target.checked);
+    }
+
+    onChangeCallAutoFocus() {
+        this.store.settings.useCallAutoFocus = !this.store.settings.useCallAutoFocus;
     }
 
     /** @param {Event} ev */

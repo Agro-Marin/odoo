@@ -40,7 +40,11 @@ class MailNotification(models.Model):
     res_partner_id: ResPartner = fields.Many2one(
         "res.partner", "Recipient", index=True, ondelete="cascade"
     )
-    mail_email_address = fields.Char(help="Recipient email address")
+    # the address the mail actually went to, for a partner recipient as well:
+    # the contact may be re-addressed later and the history must not follow
+    mail_email_address = fields.Char(
+        help="Recipient email address", groups="base.group_user"
+    )
     notification_type = fields.Selection(
         [("inbox", "Inbox"), ("email", "Email")],
         string="Notification Type",
@@ -144,7 +148,9 @@ class MailNotification(models.Model):
             if (
                 notif.notification_status in ["bounce", "exception", "canceled"]
                 or notif.res_partner_id.partner_share
-                or notif.mail_email_address
+                # an address with no partner behind it is a recipient the
+                # reader cannot see anywhere else, so it is always worth showing
+                or (not notif.res_partner_id and notif.mail_email_address)
             ):
                 return True
             subtype = notif.mail_message_id.subtype_id
@@ -154,7 +160,7 @@ class MailNotification(models.Model):
 
     def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         return [
-            "mail_email_address",
+            *(["mail_email_address"] if target.is_internal(self.env) else []),
             "failure_type",
             "mail_message_id",
             "notification_status",

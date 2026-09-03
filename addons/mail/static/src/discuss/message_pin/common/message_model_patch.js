@@ -9,11 +9,21 @@ patch(Message.prototype, {
     setup() {
         super.setup();
         this.pinned_at = fields.Datetime();
+        this.threadAsPinned = fields.One("Thread", {
+            /** @this {import("models").Message} */
+            compute() {
+                return this.pinned_at ? this.thread : undefined;
+            },
+            inverse: "pinnedMessages",
+        });
     },
     /** @returns {Deferred<boolean>} */
     pin() {
         if (this.pinned_at) {
             return this.unpin();
+        }
+        if (this.thread?.model !== "discuss.channel") {
+            return this._setPin(true, _t("Message pinned"), () => this.unpin());
         }
         const def = new Deferred();
         this.store.env.services.dialog.add(
@@ -31,12 +41,7 @@ patch(Message.prototype, {
                 title: _t("Pin It"),
                 onConfirm: () => {
                     def.resolve(true);
-                    this.store.env.services.orm.call(
-                        "discuss.channel",
-                        "set_message_pin",
-                        [this.thread.id],
-                        { message_id: this.id, pinned: true },
-                    );
+                    this.thread.setMessagePin(this, true);
                 },
             },
             { onClose: () => def.resolve(false) },
@@ -45,6 +50,9 @@ patch(Message.prototype, {
     },
     /** @returns {Deferred<boolean>} */
     unpin() {
+        if (this.thread?.model !== "discuss.channel") {
+            return this._setPin(false, _t("Message unpinned"), () => this.pin());
+        }
         const def = new Deferred();
         this.store.env.services.dialog.add(
             MessageConfirmDialog,
@@ -59,16 +67,37 @@ patch(Message.prototype, {
                 title: _t("Unpin Message"),
                 onConfirm: () => {
                     def.resolve(true);
-                    this.store.env.services.orm.call(
-                        "discuss.channel",
-                        "set_message_pin",
-                        [this.thread.id],
-                        { message_id: this.id, pinned: false },
-                    );
+                    this.thread.setMessagePin(this, false);
                 },
             },
             { onClose: () => def.resolve(false) },
         );
+        return def;
+    },
+    /**
+     * Outside a channel nobody else is watching, so the toggle is immediate
+     * and the way back is an Undo on the confirmation instead of a prompt.
+     *
+     * @returns {Deferred<boolean>}
+     */
+    _setPin(pinned, notificationText, undo) {
+        const def = new Deferred();
+        const thread = this.thread;
+        thread.setMessagePin(this, pinned).then(() => {
+            def.resolve(true);
+            const closeFn = this.store.env.services.notification.add(notificationText, {
+                buttons: [
+                    {
+                        name: _t("Undo"),
+                        onClick: () => {
+                            undo();
+                            closeFn();
+                        },
+                    },
+                ],
+                type: "success",
+            });
+        });
         return def;
     },
 });

@@ -403,6 +403,15 @@ async function discuss_channel_sub_channel_fetch(request) {
         }
     }
     store.add(MailMessage.browse(lastMessageIds));
+    /** @type {import("mock_models").DiscussChannelMember} */
+    const DiscussChannelMember = this.env["discuss.channel.member"];
+    const memberIds = [];
+    for (const channelId of subChannels) {
+        memberIds.push(
+            ...DiscussChannelMember.search([["channel_id", "=", channelId]]).slice(0, 4),
+        );
+    }
+    store.add(DiscussChannelMember.browse(memberIds));
     return {
         store_data: store.get_result(),
         sub_channel_ids: subChannels,
@@ -489,24 +498,6 @@ async function discuss_channel_notify_typing(request) {
 registerRoute("/discuss/channel/ping", channel_ping);
 /** @type {RouteCallback} */
 async function channel_ping(request) {}
-
-registerRoute("/discuss/channel/pinned_messages", discuss_channel_pins);
-/** @type {RouteCallback} */
-async function discuss_channel_pins(request) {
-    /** @type {import("mock_models").MailMessage} */
-    const MailMessage = this.env["mail.message"];
-
-    const { channel_id } = await parseRequestParams(request);
-    const messageIds = MailMessage.search([
-        ["model", "=", "discuss.channel"],
-        ["res_id", "=", channel_id],
-        ["pinned_at", "!=", false],
-    ]);
-    return new mailDataHelpers.Store(
-        MailMessage.browse(messageIds),
-        makeKwArgs({ for_current_user: true }),
-    ).get_result();
-}
 
 registerRoute("/discuss/channel/mark_as_read", discuss_channel_mark_as_read);
 /** @type {RouteCallback} */

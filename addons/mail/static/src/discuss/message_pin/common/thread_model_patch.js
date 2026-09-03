@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
-import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 patch(Thread.prototype, {
     setup() {
@@ -9,11 +8,16 @@ patch(Thread.prototype, {
 
         /** @type {'loaded'|'loading'|'error'|undefined} */
         this.pinnedMessagesState = undefined;
+        /**
+         * Told by the server so the chatter can offer the panel without
+         * fetching every pinned message first. Once the panel is open,
+         * `pinnedMessages.length` is the live count.
+         *
+         * @type {boolean|undefined}
+         */
+        this.has_pinned_messages = undefined;
         this.pinnedMessages = fields.Many("mail.message", {
-            /** @this {import("models").Thread} */
-            compute() {
-                return this.allMessages.filter((m) => m.pinned_at);
-            },
+            inverse: "threadAsPinned",
             sort: (m1, m2) => {
                 if (m1.pinned_at.equals(m2.pinned_at)) {
                     return m1.id - m2.id;
@@ -24,23 +28,33 @@ patch(Thread.prototype, {
     },
 
     async fetchPinnedMessages() {
-        if (
-            this.model !== "discuss.channel" ||
-            ["loaded", "loading"].includes(this.pinnedMessagesState)
-        ) {
+        if (["loaded", "loading"].includes(this.pinnedMessagesState)) {
             return;
         }
         this.pinnedMessagesState = "loading";
-        let data;
         try {
-            data = await rpc("/discuss/channel/pinned_messages", {
-                channel_id: this.id,
+            await this.store.fetchStoreData("mixin.mail.thread", {
+                thread_model: this.model,
+                thread_id: this.id,
+                request_list: ["pinned_messages"],
             });
         } catch {
             this.pinnedMessagesState = "error";
             return;
         }
-        this.store.insert(data);
         this.pinnedMessagesState = "loaded";
+    },
+
+    /**
+     * Pinning is a plain toggle everywhere except a channel, where every
+     * member sees the pin and a notification is posted: that one asks first.
+     *
+     * @param {import("models").Message} message
+     */
+    async setMessagePin(message, pinned) {
+        await this.store.env.services.orm.call(this.model, "set_message_pin", [this.id], {
+            message_id: message.id,
+            pinned,
+        });
     },
 });

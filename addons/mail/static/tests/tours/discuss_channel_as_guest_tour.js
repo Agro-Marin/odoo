@@ -13,8 +13,17 @@ registry.category("web_tour.tours").add("discuss_channel_as_guest_tour.js", {
             },
         },
         {
+            content: "A guest cannot join before saying who they are",
+            trigger: "button[title='Join Channel']:disabled",
+        },
+        {
+            content: "Fill in guest name",
+            trigger: "input[name='guest_name']",
+            run: "edit Guest",
+        },
+        {
             content: "Click join",
-            trigger: "button[title='Join Channel']",
+            trigger: "button[title='Join Channel']:enabled",
             run: "click",
         },
         {
