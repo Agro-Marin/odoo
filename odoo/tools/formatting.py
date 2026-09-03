@@ -128,7 +128,10 @@ def format_date(
     if isinstance(value, str):
         if len(value) < DATE_LENGTH:
             return ""
-        parsed = Datetime.from_string(value)
+        try:
+            parsed = Datetime.from_string(value)
+        except ValueError:
+            return ""
         if parsed is None:
             return ""
         value = (
@@ -172,7 +175,10 @@ def format_datetime(
     if isinstance(value, str):
         from odoo.fields import Datetime
 
-        timestamp = Datetime.from_string(value)
+        try:
+            timestamp = Datetime.from_string(value)
+        except ValueError:
+            return ""
         if timestamp is None:
             return ""
     else:
@@ -213,7 +219,10 @@ def format_time(
         if isinstance(value, str):
             from odoo.fields import Datetime
 
-            value = Datetime.from_string(value)  # type: ignore[assignment]
+            try:
+                value = Datetime.from_string(value)  # type: ignore[assignment]
+            except ValueError:
+                return ""
         if not isinstance(value, datetime.datetime):
             raise TypeError(
                 f"format_time() expects a datetime, got {type(value).__name__}"
