@@ -47,10 +47,15 @@ export class SearchMessageInput extends Component {
     }
 
     clear() {
+        this.onClickClearSearch();
+        this.props.closeSearch?.();
+    }
+
+    /** Drop the term and its results, but keep the panel open to search again. */
+    onClickClearSearch() {
         this.state.searchTerm = "";
         this.state.searchedTerm = this.state.searchTerm;
         this.props.messageSearch.clear();
-        this.props.closeSearch?.();
     }
 
     /** @param {KeyboardEvent} ev */
