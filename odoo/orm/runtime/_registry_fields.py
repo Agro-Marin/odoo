@@ -178,8 +178,6 @@ class _RegistryFieldsMixin(_RegistryStubs):
         finally:
             self.model_graph.end_invalidation()
 
-        self.__dict__.pop("_field_triggers", None)
-
     def get_field_trigger_tree(self, field: Field) -> TriggerTree:
         self._get_field_triggers()
         return self.model_graph.get_field_trigger_tree(field)
