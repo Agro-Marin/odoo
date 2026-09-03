@@ -329,6 +329,23 @@ class TestIrSequenceSwitchImplementation(common.TransactionCase):
         self.assertEqual(seq.next_by_id(), "4")
         self.assertEqual(seq.next_by_id(), "5")
 
+    def test_switch_to_no_gap_with_explicit_number_still_seeds_the_ranges(self):
+        seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-switch-impl-ranges-explicit",
+                "implementation": "standard",
+                "use_date_range": True,
+            }
+        )
+        for i in range(1, 4):
+            self.assertEqual(seq.next_by_id(), str(i))
+        sub_seq = seq.date_range_ids
+        seq.write({"implementation": "no_gap", "number_next": 50})
+        self.assertEqual(seq.number_next, 50, "the explicit parent number is kept")
+        self.assertEqual(sub_seq.number_next, 4, "the range carries on from pg")
+        self.assertEqual(seq.next_by_id(), "4")
+        self.assertEqual(seq.next_by_id(), "5")
+
 
 class TestIrSequenceInterpolationLazy(common.TransactionCase):
     LEGACY_KEYS = [
@@ -421,7 +438,6 @@ class TestIrSequencePredictNextval(common.TransactionCase):
         )
         self.assertEqual(seq.number_next_actual, 1)
         seq.next_by_id()
-        seq.invalidate_recordset(["number_next_actual"])
         self.assertEqual(seq.number_next_actual, 1 + 5)
 
     def test_number_next_actual_after_restart(self):
@@ -435,8 +451,27 @@ class TestIrSequencePredictNextval(common.TransactionCase):
         )
         seq.next_by_id()
         seq.write({"number_next": 10})
-        seq.invalidate_recordset(["number_next_actual"])
         self.assertEqual(seq.number_next_actual, 10)
+
+    def test_every_draw_refreshes_number_next_actual(self):
+        Sequence = self.env["ir.sequence"]
+        for implementation in ("standard", "no_gap"):
+            for use_date_range in (False, True):
+                with self.subTest(
+                    implementation=implementation, use_date_range=use_date_range
+                ):
+                    seq = Sequence.create(
+                        {
+                            "name": f"test-predict-{implementation}-{use_date_range}",
+                            "implementation": implementation,
+                            "use_date_range": use_date_range,
+                        }
+                    )
+                    self.assertEqual(seq.next_by_id(), "1")
+                    target = seq.date_range_ids if use_date_range else seq
+                    self.assertEqual(target.number_next_actual, 2)
+                    self.assertEqual(seq._next_batch(3), ["2", "3", "4"])
+                    self.assertEqual(target.number_next_actual, 5)
 
 
 class TestIrSequenceDateRangeConcurrency(BaseCase):

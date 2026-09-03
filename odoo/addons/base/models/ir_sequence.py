@@ -4,10 +4,11 @@ from collections.abc import Collection
 from datetime import datetime, timedelta
 from typing import Any, Literal, Self
 
+import psycopg.errors
+
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
-from odoo.db import get_or_create_row
-from odoo.exceptions import UserError
+from odoo.exceptions import ConcurrencyError, UserError, ValidationError
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
@@ -337,7 +338,8 @@ class IrSequence(models.Model):
                     )
             elif was_standard:
                 if "number_next" not in vals and "number_next_actual" not in vals:
-                    seq._carry_over_pg_counters()
+                    seq._carry_over_pg_counter()
+                seq._carry_over_pg_range_counters()
                 _drop_sequences(
                     self.env.cr,
                     [
@@ -361,16 +363,9 @@ class IrSequence(models.Model):
                     )
         return res
 
-    def _carry_over_pg_counters(self) -> None:
+    def _carry_over_pg_counter(self) -> None:
         self.check_singleton()
-        sub_seqs = self.date_range_ids
-        predicted = _predict_nextvals(
-            self.env,
-            [
-                self._pg_sequence_name(),
-                *(sub_seq._pg_sequence_name() for sub_seq in sub_seqs),
-            ],
-        )
+        predicted = _predict_nextvals(self.env, [self._pg_sequence_name()])
         self.flush_recordset(["number_next"])
         self.env.cr.execute(
             SQL(
@@ -381,8 +376,15 @@ class IrSequence(models.Model):
             )
         )
         self.invalidate_recordset(["number_next", "number_next_actual"])
+
+    def _carry_over_pg_range_counters(self) -> None:
+        self.check_singleton()
+        sub_seqs = self.date_range_ids
         if not sub_seqs:
             return
+        predicted = _predict_nextvals(
+            self.env, [sub_seq._pg_sequence_name() for sub_seq in sub_seqs]
+        )
         sub_seqs.flush_recordset(["number_next"])
         self.env.cr.execute(
             SQL(
@@ -405,6 +407,7 @@ class IrSequence(models.Model):
             number_next = _select_nextval(self.env.cr, self._pg_sequence_name())
         else:
             number_next = _update_nogap(self, self.number_increment)
+        self.invalidate_recordset(["number_next_actual"])
         return self.get_next_char(number_next)
 
     def _next_do_batch(self, count: int) -> list[str]:
@@ -412,6 +415,7 @@ class IrSequence(models.Model):
             numbers = _select_nextvals(self.env.cr, self._pg_sequence_name(), count)
         else:
             numbers = _update_nogap_batch(self, self.number_increment, count)
+        self.invalidate_recordset(["number_next_actual"])
         return [self.get_next_char(number) for number in numbers]
 
     def _get_prefix_suffix(
@@ -486,11 +490,31 @@ class IrSequence(models.Model):
         parts.append("$")
         return "".join(parts)
 
+    def _date_range_bounds(self, date: Any) -> tuple[Any, Any]:
+        year = fields.Date.from_string(date).year
+        return fields.Date.to_date(f"{year}-01-01"), fields.Date.to_date(
+            f"{year}-12-31"
+        )
+
+    def _get_domain_covering_date_range(self, date: Any) -> list[tuple]:
+        return [
+            ("sequence_id", "=", self.id),
+            ("date_from", "<=", date),
+            ("date_to", ">=", date),
+        ]
+
+    def _get_covering_date_range(self, date: Any) -> Any:
+        return self.env["ir.sequence.date_range"].search(
+            self._get_domain_covering_date_range(date),
+            order="date_from desc, id",
+            limit=1,
+        )
+
     def _create_date_range_seq(self, date: Any) -> Any:
-        year = fields.Date.from_string(date).strftime("%Y")
-        date_from = f"{year}-01-01"
-        date_to = f"{year}-12-31"
-        date_range = self.env["ir.sequence.date_range"].search(
+        date = fields.Date.to_date(date)
+        date_from, date_to = self._date_range_bounds(date)
+        DateRange = self.env["ir.sequence.date_range"]
+        date_range = DateRange.search(
             [
                 ("sequence_id", "=", self.id),
                 ("date_from", ">=", date),
@@ -501,7 +525,7 @@ class IrSequence(models.Model):
         )
         if date_range:
             date_to = date_range.date_from + timedelta(days=-1)
-        date_range = self.env["ir.sequence.date_range"].search(
+        date_range = DateRange.search(
             [
                 ("sequence_id", "=", self.id),
                 ("date_to", ">=", date_from),
@@ -512,27 +536,30 @@ class IrSequence(models.Model):
         )
         if date_range:
             date_from = date_range.date_to + timedelta(days=1)
-        seq_date_range = self.env["ir.sequence.date_range"].sudo()
-        date_range, _created = get_or_create_row(
-            self.env.cr,
-            lambda: seq_date_range.create(
-                {
-                    "date_from": date_from,
-                    "date_to": date_to,
-                    "sequence_id": self.id,
-                }
-            ),
-            lambda: seq_date_range.search(
-                [
-                    ("sequence_id", "=", self.id),
-                    ("date_from", "<=", date),
-                    ("date_to", ">=", date),
-                ],
-                limit=1,
-            ),
-            conflict=f"ir.sequence {self.id} date range {date_from}..{date_to}",
-        )
-        return date_range
+        if date_from > date_to:
+            raise UserError(
+                _(
+                    "Cannot create a sequence date range for %(date)s on "
+                    "sequence '%(seq)s': the neighbouring ranges leave no room "
+                    "between %(date_from)s and %(date_to)s.",
+                    date=date,
+                    seq=self.display_name,
+                    date_from=date_from,
+                    date_to=date_to,
+                )
+            )
+        vals = {"date_from": date_from, "date_to": date_to, "sequence_id": self.id}
+        try:
+            with self.env.cr.savepoint(flush=False):
+                return DateRange.sudo().create(vals)
+        except psycopg.errors.UniqueViolation:
+            DateRange.invalidate_model()
+            if existing := self._get_covering_date_range(date):
+                return existing
+            raise ConcurrencyError(
+                f"ir.sequence {self.id} date range {date_from}..{date_to} "
+                "was created by a concurrent transaction"
+            ) from None
 
     def _resolve_sequence_date(self, sequence_date: Any = None) -> Any:
         return (
@@ -546,15 +573,7 @@ class IrSequence(models.Model):
         if not self.use_date_range:
             return self
         dt = self._resolve_sequence_date(sequence_date)
-        seq_date = self.env["ir.sequence.date_range"].search(
-            [
-                ("sequence_id", "=", self.id),
-                ("date_from", "<=", dt),
-                ("date_to", ">=", dt),
-            ],
-            limit=1,
-        )
-        return seq_date or self._create_date_range_seq(dt)
+        return self._get_covering_date_range(dt) or self._create_date_range_seq(dt)
 
     def _next(self, sequence_date: Any = None) -> str:
         if not self.use_date_range:
@@ -616,22 +635,16 @@ class IrSequence(models.Model):
                 self.number_next_actual
             )
         dt = self._resolve_sequence_date(sequence_date)
-        date_range = self.env["ir.sequence.date_range"].search(
-            [
-                ("sequence_id", "=", self.id),
-                ("date_from", "<=", dt),
-                ("date_to", ">=", dt),
-            ],
-            limit=1,
-        )
+        date_range = self._get_covering_date_range(dt)
         number_next = date_range.number_next_actual if date_range else 1
         ir_sequence_date = dt.replace(tzinfo=None) if isinstance(dt, datetime) else dt
+        range_date = (
+            date_range.date_from
+            if date_range
+            else self._date_range_bounds(fields.Date.to_date(dt))[0]
+        )
         return self.with_context(
-            ir_sequence_date_range=(
-                date_range.date_from
-                if date_range
-                else fields.Date.to_date(f"{fields.Date.to_date(dt).year}-01-01")
-            ),
+            ir_sequence_date_range=range_date,
             ir_sequence_date=ir_sequence_date,
         ).get_next_char(number_next)
 
@@ -735,11 +748,47 @@ class IrSequenceDate_Range(models.Model):
         "frequently so the displayed value might already be obsolete",
     )
 
+    @api.constrains("sequence_id", "date_from", "date_to")
+    def _check_ranges_do_not_overlap(self) -> None:
+        for rng in self:
+            if rng.date_from > rng.date_to:
+                raise ValidationError(
+                    _(
+                        "The date range %(date_from)s - %(date_to)s of sequence "
+                        "'%(seq)s' ends before it starts.",
+                        date_from=rng.date_from,
+                        date_to=rng.date_to,
+                        seq=rng.sequence_id.display_name,
+                    )
+                )
+            overlapping = self.search(
+                [
+                    ("sequence_id", "=", rng.sequence_id.id),
+                    ("id", "!=", rng.id),
+                    ("date_from", "<=", rng.date_to),
+                    ("date_to", ">=", rng.date_from),
+                ],
+                limit=1,
+            )
+            if overlapping:
+                raise ValidationError(
+                    _(
+                        "The date range %(date_from)s - %(date_to)s of sequence "
+                        "'%(seq)s' overlaps %(other_from)s - %(other_to)s.",
+                        date_from=rng.date_from,
+                        date_to=rng.date_to,
+                        seq=rng.sequence_id.display_name,
+                        other_from=overlapping.date_from,
+                        other_to=overlapping.date_to,
+                    )
+                )
+
     def _next(self) -> str:
         if self.sequence_id.implementation == "standard":
             number_next = _select_nextval(self.env.cr, self._pg_sequence_name())
         else:
             number_next = _update_nogap(self, self.sequence_id.number_increment)
+        self.invalidate_recordset(["number_next_actual"])
         return self.sequence_id.get_next_char(number_next)
 
     def _next_batch(self, count: int) -> list[str]:
@@ -751,6 +800,7 @@ class IrSequenceDate_Range(models.Model):
             numbers = _update_nogap_batch(
                 self, self.sequence_id.number_increment, count
             )
+        self.invalidate_recordset(["number_next_actual"])
         return [self.sequence_id.get_next_char(number) for number in numbers]
 
     def _alter_sequence(

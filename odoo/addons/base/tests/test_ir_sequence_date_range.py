@@ -1,5 +1,7 @@
 from datetime import date
+from unittest.mock import patch
 
+from odoo.exceptions import ValidationError
 from odoo.tests.common import SingleTransactionCase, TransactionCase
 from odoo.tools.misc import mute_logger
 
@@ -231,6 +233,79 @@ class TestIrSequenceDateRangeConcurrentCreate(TransactionCase):
         first = seq._create_date_range_seq(dt)
         second = seq._create_date_range_seq(dt)
         self.assertEqual(first.id, second.id)
+
+
+class TestIrSequenceDateRangeOverlap(TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-date-range-overlap",
+                "use_date_range": True,
+                "prefix": "%(range_month)s/",
+                "padding": 3,
+            }
+        )
+        self.DateRange = self.env["ir.sequence.date_range"]
+
+    def _make_range(self, date_from, date_to):
+        return self.DateRange.create(
+            {"sequence_id": self.seq.id, "date_from": date_from, "date_to": date_to}
+        )
+
+    def test_an_overlapping_range_is_refused(self):
+        self._make_range(date(2040, 1, 1), date(2040, 6, 30))
+        with self.assertRaises(ValidationError):
+            self._make_range(date(2040, 6, 30), date(2040, 12, 31))
+        self._make_range(date(2040, 7, 1), date(2040, 12, 31))
+
+    def test_a_reversed_range_is_refused(self):
+        with self.assertRaises(ValidationError):
+            self._make_range(date(2041, 12, 31), date(2041, 1, 1))
+
+    def test_widening_a_range_onto_its_neighbour_is_refused(self):
+        first = self._make_range(date(2042, 1, 1), date(2042, 6, 30))
+        self._make_range(date(2042, 7, 1), date(2042, 12, 31))
+        with self.assertRaises(ValidationError):
+            first.write({"date_to": date(2042, 7, 1)})
+
+    def test_a_covering_lookup_prefers_the_latest_start(self):
+        older = self._make_range(date(2043, 1, 1), date(2043, 12, 31))
+        self.env.cr.execute(
+            "INSERT INTO ir_sequence_date_range"
+            " (sequence_id, date_from, date_to, number_next)"
+            " VALUES (%s, %s, %s, 7) RETURNING id",
+            [self.seq.id, date(2043, 6, 1), date(2043, 6, 30)],
+        )
+        [newer_id] = self.env.cr.fetchone()
+        self.DateRange.invalidate_model()
+        newer = self.DateRange.browse(newer_id)
+        self.assertEqual(self.seq._get_covering_date_range(date(2043, 6, 15)), newer)
+        self.assertEqual(self.seq._get_covering_date_range(date(2043, 3, 15)), older)
+        self.assertEqual(self.seq.preview_next(date(2043, 6, 15)), "06/007")
+
+    def test_preview_uses_the_bounds_hook_for_a_missing_range(self):
+        self.assertEqual(self.seq.preview_next(date(2044, 5, 15)), "01/001")
+
+        def month_bounds(seq, day):
+            return day.replace(day=1), day.replace(day=28)
+
+        with patch.object(type(self.seq), "_date_range_bounds", month_bounds):
+            self.assertEqual(self.seq.preview_next(date(2044, 5, 15)), "05/001")
+            self.assertEqual(self.seq.next_by_id(date(2044, 5, 15)), "05/001")
+        created = self.seq.date_range_ids
+        self.assertEqual(
+            (created.date_from, created.date_to), (date(2044, 5, 1), date(2044, 5, 28))
+        )
+
+    def test_creation_squeezes_into_the_gap_the_neighbours_leave(self):
+        self._make_range(date(2045, 1, 1), date(2045, 6, 14))
+        self._make_range(date(2045, 6, 16), date(2045, 12, 31))
+        self.assertEqual(self.seq.next_by_id(date(2045, 6, 15)), "06/001")
+        created = self.seq._get_covering_date_range(date(2045, 6, 15))
+        self.assertEqual(
+            (created.date_from, created.date_to), (date(2045, 6, 15), date(2045, 6, 15))
+        )
 
 
 class TestIrSequenceDateRangeSwitchToStandard(TransactionCase):
