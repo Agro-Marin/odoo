@@ -55,6 +55,16 @@ def prepare_default_session() -> dict[str, object]:
 
 DEFAULT_MAX_CONTENT_LENGTH = 128 * 1024 * 1024
 
+WILDCARD_CORS_CREDENTIALS_WARNING = """\
+Refusing to send credentials to the wildcard origin for path %r
+
+The route declares cors_credentials and its cors resolver returned '*' for
+this request. The CORS specification forbids combining
+Access-Control-Allow-Origin: * with Access-Control-Allow-Credentials: true,
+so no CORS headers were sent at all. Return the caller's own origin from the
+resolver instead of '*', for instance with odoo.http.resolve_cors_same_host.
+"""
+
 MISSING_CSRF_WARNING = """\
 No CSRF validation token provided for path %r
 
