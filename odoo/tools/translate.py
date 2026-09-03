@@ -563,6 +563,11 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
         else:
             args = tuple(translate_arg(v) for v in args)
     try:
+        if isinstance(args, dict) and "%(" not in translation:
+            # a bare "%s"-style placeholder silently formats the dict's repr
+            # instead of raising, so the mismatch must be detected explicitly
+            msg = "translation uses positional placeholders but args is a mapping"
+            raise TypeError(msg)
         return translation % args
     except TypeError, ValueError, KeyError:
         bad = translation
