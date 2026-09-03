@@ -422,3 +422,53 @@ class TestWorkorderPlanningIssues(TestWorkorderAudit):
 
         self.assertIn(second, found)
         self.assertNotIn(first, found)
+
+
+@tagged("post_install", "-at_install")
+class TestWorkorderComponentCatalog(TestWorkorderAudit):
+    """Adding a missing component meant leaving the operation for the order.
+
+    The manufacturing order carries the product catalog
+    (models/mrp_production.py); the work order did not, so a missing component
+    had to be added on the order form and then assigned back to the operation.
+    """
+
+    def test_catalog_adds_the_component_to_both_the_order_and_the_operation(self):
+        mo = self._mo(tag="CAT")
+        wo = mo.workorder_ids
+        extra = self.env["product.product"].create(
+            {"name": "CAT extra", "is_storable": True, "standard_price": 7.0}
+        )
+
+        price = wo._update_order_line_info(extra.id, 3.0, child_field="move_raw_ids")
+
+        self.assertEqual(price, 7.0)
+        move = mo.move_raw_ids.filtered(lambda m: m.product_id == extra)
+        self.assertEqual(len(move), 1)
+        self.assertEqual(move.product_uom_qty, 3.0)
+        # Both keys, or the move falls outside the o2m's own domain
+        # (`raw_material_production_id != False`) and shows up nowhere.
+        self.assertEqual(move.workorder_id, wo)
+        self.assertEqual(move.raw_material_production_id, mo)
+        self.assertIn(move, wo.move_raw_ids)
+
+    def test_catalog_lists_only_this_operation_s_components(self):
+        """The dialog reads back what this operation holds, not the order's.
+
+        A component only reaches an operation when something puts it there --
+        a BoM line naming the operation, or the catalog itself -- so the order's
+        own unassigned component must not be listed here.
+        """
+        mo = self._mo(tag="CAT2")
+        wo = mo.workorder_ids
+        unassigned = mo.move_raw_ids.product_id
+        extra = self.env["product.product"].create(
+            {"name": "CAT2 extra", "is_storable": True, "standard_price": 2.0}
+        )
+        wo._update_order_line_info(extra.id, 2.0, child_field="move_raw_ids")
+
+        lines = wo._get_product_catalog_record_lines(
+            (extra + unassigned).ids, child_field="move_raw_ids"
+        )
+
+        self.assertEqual(set(lines), {extra})

@@ -18,6 +18,8 @@ class MrpWorkorder(models.Model):
     _inherit = [
         "mixin.mail.thread",
         "mixin.mail.activity",
+        "mixin.catalog.child.lines",
+        "mixin.product.catalog",
         "mixin.resource.scheduling",
     ]
     _order = "sequence, date_start, id"
@@ -1442,6 +1444,50 @@ class MrpWorkorder(models.Model):
         for wo1, wo2 in self.env.cr.fetchall():
             res[wo1].append(wo2)
         return res
+
+    # -------------------------------------------------------------------------
+    # CATALOG
+    # -------------------------------------------------------------------------
+
+    def _default_order_line_values(self, child_field=False):
+        default_data = super()._default_order_line_values(child_field)
+        return {
+            **default_data,
+            **self.env["stock.move"]._get_product_catalog_lines_data(
+                parent_record=self
+            ),
+        }
+
+    def _get_product_catalog_order_data(self, products, **kwargs):
+        product_catalog = super()._get_product_catalog_order_data(products, **kwargs)
+        for product in products:
+            product_catalog[product.id] |= {"price": product.standard_price}
+        return product_catalog
+
+    def _get_product_catalog_domain(self):
+        return super()._get_product_catalog_domain() & Domain("type", "=", "consu")
+
+    def _update_catalog_line_quantity(self, line, quantity, **kwargs):
+        line.product_uom_qty = quantity
+
+    def _get_new_catalog_line_values(self, product_id, quantity, **kwargs):
+        values = self.production_id._get_new_catalog_line_values(
+            product_id, quantity, **kwargs
+        )
+        # `move_raw_ids` on this model is the inverse of `workorder_id` and its
+        # domain also demands `raw_material_production_id`. Stamping only the
+        # first would create a move that falls outside the very field it was
+        # added through, and so appears nowhere.
+        values.update(
+            {
+                "workorder_id": self.id,
+                "raw_material_production_id": self.production_id.id,
+            }
+        )
+        return values
+
+    def _is_display_stock_in_catalog(self):
+        return True
 
     def _get_operation_values(self):
         self.check_singleton()
