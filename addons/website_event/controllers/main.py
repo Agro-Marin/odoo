@@ -310,7 +310,7 @@ class WebsiteEventController(http.Controller):
         for event without tickets (generic registration).
 
         :return: list of order per ticket: [{
-            'id': if of ticket if any (0 if no ticket),
+            'id': id of ticket if any (0 if no ticket),
             'ticket': browse record of ticket if any (None if no ticket),
             'name': ticket name (or generic 'Registration' name if no ticket),
             'quantity': number of registrations for that ticket,
