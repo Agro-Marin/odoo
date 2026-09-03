@@ -210,21 +210,21 @@ class TestPartnerIdentifier(TransactionCase):
                 )
 
     def test_a_code_specific_rule_runs_after_the_format(self):
-        """`_validate_code_<code>` is the extension point a localization adds.
+        """`_check_code_<code>` is the extension point a localization adds.
 
         Patched onto the registry class, not the recordset: recordsets carry
         `__slots__`, so an instance attribute raises rather than shadowing.
         """
         checked = []
 
-        def _validate_code_test_rfc(self, value):
+        def _check_code_test_rfc(self, value):
             checked.append(value)
             return value.startswith("VAN")
 
         with patch.object(
             type(self.rfc),
-            "_validate_code_test_rfc",
-            _validate_code_test_rfc,
+            "_check_code_test_rfc",
+            _check_code_test_rfc,
             create=True,
         ):
             self.company._update_identifier("TEST_RFC", "VAN850101QW1")

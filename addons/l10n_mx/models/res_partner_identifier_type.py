@@ -15,7 +15,7 @@ _GENERIC_RFC = frozenset({"XAXX010101000", "XEXX010101000"})
 class ResPartnerIdentifierType(models.Model):
     _inherit = "res.partner.identifier.type"
 
-    def _validate_code_mx_rfc(self, value):
+    def _check_code_mx_rfc(self, value):
         """The RFC's embedded birth or incorporation date must be a real one.
 
         Structure is already settled by the type's own format. What a regular
@@ -31,7 +31,7 @@ class ResPartnerIdentifierType(models.Model):
         offset = 3 if len(value) == 12 else 4
         return self._is_real_date(value[offset : offset + 6])
 
-    def _validate_code_mx_curp(self, value):
+    def _check_code_mx_curp(self, value):
         """The CURP's date must be real and its check digit must agree.
 
         Unlike the RFC, every CURP has been issued by one authority under one
