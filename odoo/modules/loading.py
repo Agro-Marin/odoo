@@ -851,7 +851,7 @@ class _ModuleLoader:
             self.graph.extend(module_list)
             _logger.debug("Updating graph with %d more modules", len(module_list))
             updated_modules_count = len(self.registry.updated_modules)
-            self.migrations = MigrationManager(self.cr, self.graph)
+            self.migrations.update()
             load_module_graph(
                 env,
                 self.graph,
