@@ -317,7 +317,7 @@ class TestPaymentTransaction(PaymentCommon):
         extracted.
 
         Providers that opt out of the amount check return `None`, and the base implementation used
-        when no provider claims the payment data returns `None` too. `_check_amount` must treat
+        when no provider claims the payment data returns `{}` too. `_check_amount` must treat
         both as "skip" rather than raising a `KeyError` while indexing the missing data.
         """
         tx = self._create_transaction("direct")  # Uses the base `_extract_amount_data`.
