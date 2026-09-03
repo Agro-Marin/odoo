@@ -68,6 +68,67 @@ class TestDumpSqlMetaCommandScanner:
             pathlib.Path(path).unlink()
 
 
+class TestDumpSqlScannerStandardConformingStrings:
+    def test_flags_the_guc_turned_off(self, db_mod):
+        assert (
+            db_mod._get_disallowed_psql_meta_command(
+                "SET standard_conforming_strings = off;\nSELECT 1;\n"
+            )
+            is not None
+        )
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SET standard_conforming_strings TO off;\nSELECT 1;\n",
+            "SET standard_conforming_strings='off';\nSELECT 1;\n",
+            "SET STANDARD_CONFORMING_STRINGS = OFF;\nSELECT 1;\n",
+        ],
+    )
+    def test_flags_every_common_spelling(self, db_mod, sql):
+        assert db_mod._get_disallowed_psql_meta_command(sql) is not None
+
+    def test_allows_the_guc_turned_on(self, db_mod):
+        assert (
+            db_mod._get_disallowed_psql_meta_command(
+                "SET standard_conforming_strings = on;\nSELECT 1;\n"
+            )
+            is None
+        )
+
+    def test_allows_the_phrase_without_off(self, db_mod):
+        assert (
+            db_mod._get_disallowed_psql_meta_command(
+                "SELECT 'standard_conforming_strings is unrelated here';\n"
+            )
+            is None
+        )
+
+    def test_would_otherwise_hide_a_meta_command_behind_a_desynced_string(self, db_mod):
+        # Under `off`, an unprefixed backslash escapes the closing quote of a
+        # plain string the same way `E'...'` always does, so this whole
+        # payload is one string followed by an inert `\!` to real psql. The
+        # scanner does not model `off`, so without the guard above it reads
+        # the escaped quote as closing the string early and the real closing
+        # quote as opening a second, unterminated one -- going blind to the
+        # `\!` that follows. The GUC guard must catch this before that
+        # divergence ever comes into play.
+        payload = "SET standard_conforming_strings = off;\nSELECT 'a\\'b';\n\\! touch /tmp/pwn\n"
+        assert db_mod._get_disallowed_psql_meta_command(payload) is not None
+
+    def test_assert_dump_sql_safe_raises_with_its_own_message(self, db_mod):
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".sql", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("SET standard_conforming_strings = off;\nSELECT 1;\n")
+            path = f.name
+        try:
+            with pytest.raises(RuntimeError, match="standard_conforming_strings"):
+                db_mod._check_dump_sql_safe(path)
+        finally:
+            pathlib.Path(path).unlink()
+
+
 class TestDumpSqlMetaCommandArguments:
     @pytest.mark.parametrize(
         "sql",
