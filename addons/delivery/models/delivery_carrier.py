@@ -739,21 +739,28 @@ class DeliveryCarrier(models.Model):
                     # A placeholder unique name: the carrier has no id yet, and
                     # the UNIQUE index on (company_id, name) does not wait. It is
                     # replaced with the real one below, once the carrier exists.
-                    vals["carrier_credential_id"] = self.env[
-                        "credential.credential"
-                    ].sudo().create({
-                        "name": f"{vals.get('name') or _('Carrier')} "
+                    vals["carrier_credential_id"] = (
+                        self.env["credential.credential"]
+                        .sudo()
+                        .create(
+                            {
+                                "name": f"{vals.get('name') or _('Carrier')} "
                                 f"[{uuid4().hex[:12]}]",
-                        "category_id": self.env.ref(
-                            "credential.credential_category_custom"
-                        ).id,
-                        "company_id": vals.get("company_id")
-                        or self.env.company.id,
-                        **native,
-                        **(
-                            {"credential_data": json.dumps(extra)} if extra else {}
-                        ),
-                    }).id
+                                "category_id": self.env.ref(
+                                    "credential.credential_category_custom"
+                                ).id,
+                                "company_id": vals.get("company_id")
+                                or self.env.company.id,
+                                **native,
+                                **(
+                                    {"credential_data": json.dumps(extra)}
+                                    if extra
+                                    else {}
+                                ),
+                            }
+                        )
+                        .id
+                    )
         records = super().create(vals_list)
         for record in records:
             if record.carrier_credential_id:
@@ -810,15 +817,23 @@ class DeliveryCarrier(models.Model):
             # placeholder readable as the key. `custom` names no required field,
             # which is the honest shape for a record whose contents differ per
             # carrier.
-            credential = self.env["credential.credential"].sudo().create({
-                # The carrier id is part of the name because `credential.credential`
-                # holds a UNIQUE index on (company_id, name), and two carriers may
-                # legitimately share a name -- a production and a test Sendcloud,
-                # say. Without it the second one's first secret fails to store.
-                "name": self._carrier_credential_name(),
-                "category_id": self.env.ref("credential.credential_category_custom").id,
-                "company_id": self.company_id.id,
-            })
+            credential = (
+                self.env["credential.credential"]
+                .sudo()
+                .create(
+                    {
+                        # The carrier id is part of the name because `credential.credential`
+                        # holds a UNIQUE index on (company_id, name), and two carriers may
+                        # legitimately share a name -- a production and a test Sendcloud,
+                        # say. Without it the second one's first secret fails to store.
+                        "name": self._carrier_credential_name(),
+                        "category_id": self.env.ref(
+                            "credential.credential_category_custom"
+                        ).id,
+                        "company_id": self.company_id.id,
+                    }
+                )
+            )
             self.carrier_credential_id = credential.id
 
         if native:
