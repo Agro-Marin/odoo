@@ -290,7 +290,7 @@
                         data-hotkey="q" />
                     <button
                         name="button_plan"
-                        invisible="state not in ('confirmed', 'progress', 'to_close') or not workorder_ids or is_planned"
+                        invisible="state in ('cancel', 'done') or not workorder_ids or is_planned"
                         type="object"
                         string="Plan"
                         class="oe_highlight"

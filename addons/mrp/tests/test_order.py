@@ -2768,6 +2768,31 @@ class TestMrpOrder(TestMrpCommon):
             ],
         )
 
+    def test_plan_leaves_a_draft_order_in_draft(self):
+        self.bom_2.type = "normal"
+
+        mo_form = Form(self.env["mrp.production"])
+        mo_form.bom_id = self.bom_3
+        mo = mo_form.save()
+
+        self.assertEqual(mo.state, "draft")
+        self.assertEqual(len(mo.workorder_ids), 2)
+
+        mo.button_plan()
+
+        self.assertEqual(
+            mo.state,
+            "draft",
+            "planning an order must not commit it: action_confirm reserves "
+            "components, adjusts procure methods and confirms the pickings",
+        )
+        self.assertTrue(mo.is_planned)
+        self.assertTrue(
+            all(wo.date_start and wo.date_end for wo in mo.workorder_ids),
+            "every work order must be scheduled",
+        )
+        self.assertEqual(set(mo.move_raw_ids.mapped("state")), {"draft"})
+
     def test_a_multi_button_plan(self):
         self.bom_2.type = "normal"
 
@@ -2778,7 +2803,7 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(len(mo_3.workorder_ids), 2)
 
         mo_3.button_plan()
-        self.assertEqual(mo_3.state, "confirmed")
+        self.assertEqual(mo_3.state, "draft")
         self.assertEqual(mo_3.workorder_ids[0].state, "ready")
 
         mo_1 = Form(self.env["mrp.production"])
@@ -2795,6 +2820,7 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(len(mo_1.workorder_ids), 2)
         self.assertEqual(len(mo_2.workorder_ids), 2)
 
+        (mo_1 | mo_2).action_confirm()
         (mo_1 | mo_2).button_plan()
         self.assertEqual(mo_1.state, "confirmed")
         self.assertEqual(mo_2.state, "confirmed")

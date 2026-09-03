@@ -2709,10 +2709,7 @@ class MrpProduction(models.Model):
         return True
 
     def button_plan(self):
-        orders_to_plan = self.filtered(lambda order: not order.is_planned)
-        orders_to_confirm = orders_to_plan.filtered(lambda mo: mo.state == "draft")
-        orders_to_confirm.action_confirm()
-        for order in orders_to_plan:
+        for order in self.filtered(lambda order: not order.is_planned):
             order._plan_workorders()
         return True
 
