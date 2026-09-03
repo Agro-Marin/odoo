@@ -703,50 +703,34 @@ class ResPartner(models.Model):
         named = self.filtered(lambda partner: partner.complete_name)
         if not named or not self.env.registry.has_trigram:
             return {}
+        recalled_by_index = self._get_similar_name_recall(named)
+        if not recalled_by_index:
+            return {}
 
-        self.flush_model(["active", "complete_name"])
-        self.env.cr.execute(
-            SQL(
-                "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
-                str(self._similar_name_recall_threshold()),
-            )
-        )
-        stored = SQL('candidate."complete_name"')
-        if self.env.registry.has_unaccent == FunctionStatus.INDEXABLE:
-            stored = self.env.registry.unaccent(stored)
+        readable = self.browse(
+            [
+                candidate_id
+                for recalled in recalled_by_index.values()
+                for candidate_id in recalled
+            ]
+        )._filtered_access("read")
+        readable.fetch(["complete_name", "parent_id", "company_id", "country_id"])
+        readable_ids = set(readable._ids)
 
         threshold = self._similar_name_threshold()
         matches: dict[int, ResPartner] = {}
-        for partner in named:
-            partner_id = partner._origin.id
-            source_name = partner.complete_name
-            searched_expr = SQL("%s", source_name)
-            if self.env.registry.has_unaccent == FunctionStatus.INDEXABLE:
-                searched_expr = self.env.registry.unaccent(searched_expr)
-            self.env.cr.execute(  # noqa: E8501  built via SQL(), no user input
-                SQL(
-                    """
-                    SELECT candidate.id
-                      FROM res_partner AS candidate
-                     WHERE %s %% %s
-                       AND candidate.active
-                       AND candidate.complete_name IS NOT NULL
-                       AND candidate.id != %s
-                     LIMIT %s
-                    """,
-                    stored,
-                    searched_expr,
-                    partner_id or 0,
-                    SIMILAR_NAME_RECALL_LIMIT,
-                )
+        for index, partner in enumerate(named):
+            candidates = self.browse(
+                [
+                    candidate_id
+                    for candidate_id in recalled_by_index.get(index, ())
+                    if candidate_id in readable_ids
+                ]
             )
-            recalled = [row[0] for row in self.env.cr.fetchall()]
-            if not recalled:
+            if not candidates:
                 continue
-
-            candidates = self.browse(recalled)
-            candidates.fetch(["complete_name", "parent_id", "company_id", "country_id"])
-            lowered = source_name.lower()
+            partner_id = partner._origin.id
+            lowered = partner.complete_name.lower()
             shortest, longest = name_length_band(len(lowered), threshold)
             country_id = partner.country_id.id if partner.country_id else None
             company_id = partner.company_id.id if partner.company_id else None
@@ -762,6 +746,53 @@ class ResPartner(models.Model):
             if kept:
                 matches[partner.id] = kept
         return matches
+
+    def _get_similar_name_recall(self, named: ResPartner) -> dict[int, list[int]]:
+        self.flush_model(["active", "complete_name"])
+        self.env.cr.execute(
+            SQL(
+                "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
+                str(self._similar_name_recall_threshold()),
+            )
+        )
+        stored = SQL('candidate."complete_name"')
+        if self.env.registry.has_unaccent == FunctionStatus.INDEXABLE:
+            stored = self.env.registry.unaccent(stored)
+
+        searched = SQL("source.name")
+        if self.env.registry.has_unaccent == FunctionStatus.INDEXABLE:
+            searched = self.env.registry.unaccent(searched)
+        sources = SQL(", ").join(
+            SQL("(%s::integer, %s::integer, %s::varchar)", index, id_ or 0, name)
+            for index, (id_, name) in enumerate(
+                (partner._origin.id, partner.complete_name) for partner in named
+            )
+        )
+        self.env.cr.execute(  # noqa: E8501  built via SQL(), no user input
+            SQL(
+                """
+                SELECT source.index, candidate.id
+                  FROM (VALUES %s) AS source(index, id, name)
+                 CROSS JOIN LATERAL (
+                       SELECT candidate.id
+                         FROM res_partner AS candidate
+                        WHERE %s %% %s
+                          AND candidate.active
+                          AND candidate.complete_name IS NOT NULL
+                          AND candidate.id != source.id
+                        LIMIT %s
+                       ) AS candidate
+                """,
+                sources,
+                stored,
+                searched,
+                SIMILAR_NAME_RECALL_LIMIT,
+            )
+        )
+        recalled_by_index: dict[int, list[int]] = defaultdict(list)
+        for index, candidate_id in self.env.cr.fetchall():
+            recalled_by_index[index].append(candidate_id)
+        return recalled_by_index
 
     @api.model
     def _similar_name_threshold(self) -> float:

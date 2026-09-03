@@ -1075,6 +1075,51 @@ class TestPartnerSimilarNameDuplicates(TransactionCase):
             "the wizard must not carry a second copy of the threshold",
         )
 
+    def test_a_similar_name_the_user_cannot_read_is_neither_offered_nor_fatal(self):
+        company_a, company_b = self.env["res.company"].create(
+            [{"name": "Similar Co A"}, {"name": "Similar Co B"}]
+        )
+        user = new_test_user(
+            self.env,
+            login="similar_name_reader",
+            groups="base.group_user",
+            company_id=company_a.id,
+            company_ids=[Command.set(company_a.ids)],
+        )
+        mine = self.Partner.create(
+            {"name": "Tullamore Distillery", "company_id": company_a.id}
+        )
+        twin = self.Partner.create(
+            {"name": "Tullamore Distillerie", "company_id": company_a.id}
+        )
+        hidden = self.Partner.create(
+            {"name": "Tullamore Distillers", "company_id": company_b.id}
+        )
+        self.assertFalse(hidden.with_user(user).has_access("read"))
+
+        offered = mine.with_user(user).duplicate_ids
+
+        self.assertIn(twin, offered)
+        self.assertNotIn(hidden, offered)
+
+    def test_the_recall_does_not_grow_with_the_batch(self):
+        def queries_for(size):
+            batch = self.Partner.create(
+                [{"name": f"Ardmore Foundry {index}"} for index in range(size)]
+            )
+            batch.invalidate_recordset(["duplicate_ids", "duplicate_count"])
+            self.env.flush_all()
+            before = self.cr.sql_log_count
+            batch.mapped("duplicate_ids")
+            return self.cr.sql_log_count - before
+
+        queries_for(2)
+        self.assertEqual(
+            queries_for(2),
+            queries_for(12),
+            "recall and fetch must be one query each for the whole batch",
+        )
+
 
 @tagged("res_partner", "res_partner_address")
 class TestPartnerAddressCompany(TransactionCase):
