@@ -170,13 +170,6 @@ class DiscussChannel(models.Model):
         copy=False,
     )
 
-    pinned_message_ids: MailMessage = fields.One2many(
-        "mail.message",
-        "res_id",
-        domain=[("model", "=", "discuss.channel"), ("pinned_at", "!=", False)],
-        string="Pinned Messages",
-    )
-
     sfu_channel_uuid = fields.Char(groups="base.group_system")
 
     sfu_server_url = fields.Char(groups="base.group_system")
@@ -1188,7 +1181,7 @@ class DiscussChannel(models.Model):
             [mid for (mid,) in self.env.cr.fetchall() if mid]
         )
 
-    def set_message_pin(self, message_id: int, pinned: bool) -> None:
+    def set_message_pin(self, message_id: int, pinned: bool) -> bool:
         self.check_singleton()
         if not self.env.is_admin() and not self.self_member_id:
             raise AccessError(
@@ -1196,25 +1189,8 @@ class DiscussChannel(models.Model):
                     "You must be a member of this channel to pin or unpin messages."
                 )
             )
-        message_to_update = self.env["mail.message"].search(
-            [
-                ["id", "=", message_id],
-                ["model", "=", "discuss.channel"],
-                ["res_id", "=", self.id],
-                ["pinned_at", "=" if pinned else "!=", False],
-            ]
-        )
-        if not message_to_update:
-            return
-        message_to_update.flush_recordset(["pinned_at"])
-        self.env.cr.execute(
-            "UPDATE mail_message SET pinned_at=%s WHERE id=%s",
-            (fields.Datetime.now() if pinned else None, message_to_update.id),
-        )
-        message_to_update.invalidate_recordset(["pinned_at"])
-
-        Store(bus_channel=self).add(message_to_update, "pinned_at").bus_send()
-        if pinned:
+        changed = super().set_message_pin(message_id, pinned)
+        if pinned and changed:
             notification_text = """
                 <div data-oe-type="pin" class="o_mail_notification">
                     %(user_pinned_a_message_to_this_channel)s
@@ -1242,6 +1218,7 @@ class DiscussChannel(models.Model):
                 message_type="notification",
                 subtype_xmlid="mail.mt_comment",
             )
+        return changed
 
     def _action_unfollow(
         self,

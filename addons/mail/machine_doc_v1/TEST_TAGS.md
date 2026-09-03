@@ -10,7 +10,7 @@ Reference for running targeted subsets of the `mail` module's tests — Python
 
 Almost every mail test class is decorated `@tagged("post_install", "-at_install", …)` — the
 suites need a fully-installed database (mail wires into `res.partner`, `res.users`, the bus,
-etc.). Of **93** tagged classes, **72** carry `post_install`/`-at_install`. Note both
+etc.). Of **95** tagged classes, **73** carry `post_install`/`-at_install`. Note both
 decorator spellings are in use (`@tagged(...)` and `@odoo.tests.tagged(...)`, the latter in
 e.g. `test_js.py` and `discuss/test_discuss_attachment_controller.py`) — grep for both or you
 will undercount. Topic tags on top of that are
@@ -355,7 +355,7 @@ Rows below sum to 145.
 
 Other helper files: `mail_test_helpers_contains.js` (DOM `contains`-style assertions),
 `mail_shared_tests.js` (reusable test bodies),
-`mock_server/mail_mock_server.js` (41 mocked RPC routes, all via `registerRoute("<path>", …)`),
+`mock_server/mail_mock_server.js` (40 mocked RPC routes, all via `registerRoute("<path>", …)`),
 `mock_server/mock_models/` (35 mock model files: `mail_thread.js`, `mail_message.js`,
 `discuss_channel.js`, `discuss_channel_member.js`, `discuss_channel_rtc_session.js`,
 `mail_activity.js`, `res_partner.js`, `mail_guest.js`, `mail_notification.js`,

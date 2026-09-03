@@ -175,15 +175,15 @@ every one as a literal, so re-run it rather than trusting this table.
 | Category | Count |
 |----------|------:|
 | Python models (`models/`, incl. `discuss/`) | 82 (63 + 14 in `discuss/`) |
-| Python controllers | 20 files · **64** routes across **84** URL strings |
+| Python controllers | 20 files · **63** routes across **83** URL strings |
 | Python wizards | 9 |
 | Python tests | 55 `test_*.py` |
-| JavaScript (`static/src/`) | 398 |
+| JavaScript (`static/src/`) | 399 |
 | JS model classes (registered with `.register()`) | 39 (+ the base `Record` itself → 40 calls) |
 | JS OWL services | 23 |
 | JS tests (`static/tests/`, `*.test.js`) | 143 |
 | SCSS (`static/src/`) | 101 |
-| XML (module-wide) | 232 = 164 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test |
+| XML (module-wide) | 233 = 165 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test |
 | i18n (.po/.pot) | 64 |
 
 > **Counting the JS models:** grep for `extends Record` and you get the wrong set, twice over

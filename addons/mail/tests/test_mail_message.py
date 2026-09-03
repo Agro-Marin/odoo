@@ -11,6 +11,7 @@ from odoo.tests import new_test_user, tagged, users
 
 from odoo.addons.mail.models import mail_message as mail_message_module
 from odoo.addons.mail.tests import common
+from odoo.addons.mail.tools.discuss import Store
 
 
 @tagged("-at_install", "post_install", "mail_message")
@@ -454,4 +455,79 @@ class TestMailMessageLinkedScan(common.MailCommon):
         self.assertEqual(found, {linking.id: [target.id]})
         self.assertEqual(
             len(parsed), 1, "only the body that can carry a redirect anchor is parsed"
+        )
+
+
+@tagged("-at_install", "post_install", "mail_message")
+class TestMessagePinOnAnyThread(common.MailCommon):
+    """`set_message_pin` used to live on `discuss.channel` only. It is a
+    `mixin.mail.thread` capability now, so a record's chatter can single out
+    the message that matters."""
+
+    @users("employee")
+    def test_a_record_can_pin_one_of_its_own_messages(self):
+        record = self.env["res.partner"].create({"name": "Pinnable"})
+        message = record.message_post(body="<p>the one that matters</p>")
+        self.assertFalse(message.pinned_at)
+
+        self.assertTrue(record.set_message_pin(message.id, True))
+        self.assertTrue(message.pinned_at, "the message is pinned on the record")
+
+        self.assertFalse(
+            record.set_message_pin(message.id, True),
+            "pinning an already-pinned message changes nothing",
+        )
+        self.assertTrue(record.set_message_pin(message.id, False))
+        self.assertFalse(message.pinned_at)
+
+    @users("employee")
+    def test_pinning_does_not_count_as_editing_the_message(self):
+        record = self.env["res.partner"].create({"name": "Pinnable"})
+        message = record.message_post(body="<p>body</p>")
+        self.env.flush_all()
+        write_date = message.write_date
+
+        record.set_message_pin(message.id, True)
+        message.invalidate_recordset()
+        self.assertEqual(
+            message.write_date,
+            write_date,
+            "pinning is not an edit, so it must not move write_date",
+        )
+
+    @users("employee")
+    def test_a_record_cannot_pin_a_message_that_is_not_its_own(self):
+        record = self.env["res.partner"].create({"name": "Owner"})
+        other = self.env["res.partner"].create({"name": "Bystander"})
+        message = record.message_post(body="<p>body</p>")
+
+        self.assertFalse(
+            other.set_message_pin(message.id, True),
+            "a thread only pins the messages posted on it",
+        )
+        self.assertFalse(message.pinned_at)
+
+    @users("employee")
+    def test_the_chatter_asks_the_server_for_its_pinned_messages(self):
+        record = self.env["res.partner"].create({"name": "Pinnable"})
+        unpinned = record.message_post(body="<p>noise</p>")
+        pinned = record.message_post(body="<p>signal</p>")
+        record.set_message_pin(pinned.id, True)
+
+        store = Store()
+        record._thread_to_store(store, [], request_list=["has_pinned_messages"])
+        thread_data = store.get_result()["mixin.mail.thread"][0]
+        self.assertTrue(thread_data["has_pinned_messages"])
+
+        store = Store()
+        record._thread_to_store(store, [], request_list=["pinned_messages"])
+        result = store.get_result()
+        served = result["mixin.mail.thread"][0]["pinnedMessages"]
+        self.assertEqual(
+            served,
+            [pinned.id],
+            "only the pinned message is served, not the whole history",
+        )
+        self.assertNotIn(
+            unpinned.id, [message["id"] for message in result["mail.message"]]
         )

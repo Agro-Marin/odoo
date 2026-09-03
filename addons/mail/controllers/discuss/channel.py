@@ -122,19 +122,6 @@ class ChannelController(http.Controller):
         )
 
     @http.route(
-        "/discuss/channel/pinned_messages",
-        methods=["POST"],
-        type="jsonrpc",
-        auth="public",
-        readonly=True,
-    )
-    @add_guest_to_context
-    def discuss_channel_pins(self, channel_id: int) -> dict:
-        channel = get_channel_or_404(channel_id)
-        messages = channel.pinned_message_ids.sorted(key="pinned_at", reverse=True)
-        return Store().add(messages).get_result()
-
-    @http.route(
         "/discuss/channel/mark_as_read", methods=["POST"], type="jsonrpc", auth="public"
     )
     @add_guest_to_context

@@ -65,6 +65,7 @@ test("simple chatter on a record", async () => {
                         "attachments",
                         "contact_fields",
                         "followers",
+                        "has_pinned_messages",
                         "scheduledMessages",
                         "suggestedRecipients",
                     ],
@@ -959,4 +960,41 @@ test("files section comes before the activity list", async () => {
     await contains(".o-mail-ActivityList");
     await click("button[aria-label='Attach files']");
     await contains(".o-mail-AttachmentBox + .o-mail-ActivityList");
+});
+
+test("a message can be pinned from the chatter of any record", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: "Hello world!",
+        message_type: "comment",
+        model: "res.partner",
+        res_id: partnerId,
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await contains(".o-mail-Message");
+    await contains(".o-mail-Chatter-topbar button[title='Pinned Messages']", { count: 0 });
+    await click(".o-mail-Message [title='Expand']");
+    await click(".dropdown-item", { text: "Pin" });
+    await click(".o-mail-Chatter-topbar button[title='Pinned Messages']");
+    await contains(".o-mail-Chatter-pinnedMessages .o-mail-Message", { text: "Hello world!" });
+});
+
+test("a pinned message of a record survives reopening the chatter", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: "Hello world!",
+        message_type: "comment",
+        model: "res.partner",
+        pinned_at: "2026-03-30 11:27:11",
+        res_id: partnerId,
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click(".o-mail-Chatter-topbar button[title='Pinned Messages']");
+    await contains(".o-mail-Chatter-pinnedMessages .o-mail-Message", { text: "Hello world!" });
 });

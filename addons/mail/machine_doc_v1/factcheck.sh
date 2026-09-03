@@ -205,10 +205,15 @@ PYEOF
 # and say which in the message -- a bumped digest with no such sentence is the one
 # way this assertion can be defeated. This pin moved once, from
 # e556cf5066...f66363: `3d39ae624a0` dropped `/mail/thread/recipients/fields`,
-# taking the URL set from 85 to 84 without re-deriving the digest.
+# taking the URL set from 85 to 84 without re-deriving the digest. It moved again,
+# 6e12c092...ff8fe003, when pinning messages became a `mail.thread` capability and
+# dropped `/discuss/channel/pinned_messages`: the URL set went from 84 to 83.
+# NOTE the extractor needs Python >= 3.14 to parse this tree (PEP 758 `except A, B:`
+# appears in five mail controllers); under an older `python3` it yields no URLs and
+# this assertion fails with an empty digest rather than a wrong one.
 assert_eq "route URL set is exactly the documented one (sha256)" \
     "$(echo "$route_urls" | cut -d' ' -f3)" \
-    "6e12c092cec25fc865dfa2a892d7f4789901f41eb648a29626b43c8555c86a8f"
+    "c1ec3ed3711b2f18737efbdd4e088d8464dfd8cb05366137e5c6c456ff8fe003"
 assert_doc_cites "ARCHITECTURE.md cites the route count" "$route_handlers" \
     'files · \*\*%s\*\* routes' ARCHITECTURE.md
 # The two central data endpoints exist.
@@ -569,14 +574,14 @@ assert_eq "channel.py's two auth=user routes (update_avatar + sub_channel/delete
 
 # XML totals. ARCHITECTURE.md claimed "~380"; the real module-wide total is 232 and its own
 # breakdown only ever summed to 224 (it omitted wizard/security/test XML).
-assert_eq "module-wide XML file count" "$(find "$MAIL" -name '*.xml' | wc -l)" "232"
-assert_eq "static OWL template XML" "$(find "$MAIL/static/src" -name '*.xml' | wc -l)" "164"
+assert_eq "module-wide XML file count" "$(find "$MAIL" -name '*.xml' | wc -l)" "233"
+assert_eq "static OWL template XML" "$(find "$MAIL/static/src" -name '*.xml' | wc -l)" "165"
 assert_eq "views/ XML"   "$(find "$MAIL/views"  -name '*.xml' | wc -l)" "41"
 assert_eq "data/ XML"    "$(find "$MAIL/data"   -name '*.xml' | wc -l)" "15"
 assert_eq "wizard/ XML"  "$(find "$MAIL/wizard" -name '*.xml' | wc -l)" "6"
 assert_eq "demo/ XML"    "$(find "$MAIL/demo"   -name '*.xml' | wc -l)" "4"
-assert_eq "ARCHITECTURE.md cites the 232 XML total with its breakdown" \
-    "$(grep -c '232 = 164 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test' "$DOC/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md cites the 233 XML total with its breakdown" \
+    "$(grep -c '233 = 165 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test' "$DOC/ARCHITECTURE.md")" "1"
 assert_eq "ARCHITECTURE.md no stale ~380 XML cite" \
     "$(grep -c '~380' "$DOC/ARCHITECTURE.md")" "0"
 

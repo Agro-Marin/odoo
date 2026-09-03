@@ -5,6 +5,7 @@ import { AttachmentList } from "@mail/core/common/attachment_list";
 import { useAttachmentUploader } from "@mail/core/common/attachment_uploader_hook";
 import { usePopoutAttachment } from "@mail/core/common/attachment_view";
 import { MailAttachmentDropzone } from "@mail/core/common/mail_attachment_dropzone";
+import { MessageCardList } from "@mail/core/common/message_card_list";
 import { useMessageSearch } from "@mail/core/common/message_search_hook";
 import { SearchMessageInput } from "@mail/core/common/search_message_input";
 import { SearchMessageResult } from "@mail/core/common/search_message_result";
@@ -43,6 +44,7 @@ export class WebChatter extends Chatter {
         Dropdown,
         FileUploader,
         FollowerList,
+        MessageCardList,
         RecipientsInput,
         ScheduledMessage,
         SearchMessageInput,
@@ -96,6 +98,7 @@ export class WebChatter extends Chatter {
                 browser.localStorage.getItem("chatter_aside_collapsed") === "true",
             isSearchOpen: false,
             showActivities: true,
+            showPinnedMessages: false,
             showAttachmentLoading: false,
             showScheduledMessages: true,
         });
@@ -331,9 +334,28 @@ export class WebChatter extends Chatter {
             "attachments",
             "contact_fields",
             "followers",
+            "has_pinned_messages",
             "scheduledMessages",
             "suggestedRecipients",
         ];
+    }
+
+    /**
+     * The server tells us whether there is anything pinned so the topbar can
+     * offer the panel without fetching the messages first.
+     */
+    get hasPinnedMessages() {
+        return Boolean(
+            this.state.thread?.has_pinned_messages ||
+                this.state.thread?.pinnedMessages?.length,
+        );
+    }
+
+    onClickPinnedMessages() {
+        this.state.showPinnedMessages = !this.state.showPinnedMessages;
+        if (this.state.showPinnedMessages) {
+            this.state.thread?.fetchPinnedMessages();
+        }
     }
 
     get scheduledMessages() {
