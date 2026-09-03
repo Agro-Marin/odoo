@@ -1145,7 +1145,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   303
 §2.4.2   … of those, spelled ``_check_<field>``                        135
 §2.4.2   Multi-field constraints named for one trigger                  57
-§2.4.3   Non-test methods declared on a model class                 25,423
+§2.4.3   Non-test methods declared on a model class                 25,425
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               101
 §2.4.4   Model methods with an abolished verb behind a noun            137
@@ -1163,7 +1163,7 @@ Section  Population                                                  Count
 §2.4.7   ``_calculate_*`` model methods                                  7
 §2.4.7   ``_prepare_*`` definitions                                    833
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            39
-§2.4.8   ``_check_*`` definitions                                    1,144
+§2.4.8   ``_check_*`` definitions                                    1,145
 §2.4.8   ``_validate_*`` definitions                                     2
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     177
