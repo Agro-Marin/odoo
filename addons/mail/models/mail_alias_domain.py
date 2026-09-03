@@ -103,43 +103,8 @@ class MailAliasDomain(models.Model):
             else:
                 domain.default_from_email = f"{domain.default_from}@{domain.name}"
 
-    @api.constrains("bounce_alias", "catchall_alias")
-    def _check_bounce_catchall_uniqueness(self) -> None:
-        names = self.filtered("bounce_alias").mapped("bounce_alias") + self.filtered(
-            "catchall_alias"
-        ).mapped("catchall_alias")
-        if not names:
-            return
-
-        similar_domains = self.env["mail.alias.domain"].search(
-            [("name", "in", self.mapped("name"))]
-        )
-        for tocheck in self:
-            if any(
-                similar.bounce_alias == tocheck.bounce_alias
-                for similar in similar_domains
-                if similar != tocheck and similar.name == tocheck.name
-            ):
-                raise exceptions.ValidationError(
-                    _(
-                        "Bounce alias %(bounce)s is already used for another domain with same name. "
-                        "Use another bounce or simply use the other alias domain.",
-                        bounce=tocheck.bounce_email,
-                    )
-                )
-            if any(
-                similar.catchall_alias == tocheck.catchall_alias
-                for similar in similar_domains
-                if similar != tocheck and similar.name == tocheck.name
-            ):
-                raise exceptions.ValidationError(
-                    _(
-                        "Catchall alias %(catchall)s is already used for another domain with same name. "
-                        "Use another catchall or simply use the other alias domain.",
-                        catchall=tocheck.catchall_email,
-                    )
-                )
-
+    @api.constrains("bounce_alias", "catchall_alias", "name")
+    def _check_reserved_addresses_are_not_aliases(self) -> None:
         reserved = [
             email
             for email in self.mapped("bounce_email") + self.mapped("catchall_email")

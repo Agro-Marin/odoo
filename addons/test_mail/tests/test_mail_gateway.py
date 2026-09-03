@@ -5472,3 +5472,354 @@ class TestMailGatewayNonThreadTarget(MailGatewayCommon):
                 target_model=owner._name,
             )
         self.assertEqual(owner.received_subjects, "To the list")
+
+
+@tagged("mail_gateway")
+class TestMailGatewayParsedMessageContract(MailGatewayCommon):
+    """The parsed message is a contract: what `message_parse` promises, every
+    route check downstream may index without a `.get`."""
+
+    def _mails_on(self, record, count, email_from=False):
+        self.env["mail.message"].sudo().create(
+            [
+                {
+                    "author_id": False,
+                    "email_from": email_from,
+                    "message_type": "email",
+                    "model": record._name,
+                    "res_id": record.id,
+                    "subtype_id": self.env.ref("mail.mt_comment").id,
+                }
+                for _ in range(count)
+            ]
+        )
+
+    def test_stripped_attachments_leave_the_key_in_place(self):
+        """`account.move._routing_check_route` indexes `message_dict["attachments"]`;
+        stripping used to pop the key and the invoice guard died on a KeyError."""
+        seen = {}
+
+        def message_route(gateway, message, message_dict, *args, **kwargs):
+            seen.update(message_dict)
+            return []
+
+        with patch.object(
+            self.registry["mixin.mail.thread"],
+            "message_route",
+            autospec=True,
+            side_effect=message_route,
+        ):
+            self.env["mixin.mail.thread"].message_process(
+                "mail.test.gateway",
+                test_mail_data.MAIL_MULTIPART_MIXED,
+                strip_attachments=True,
+            )
+        self.assertIn("attachments", seen)
+        self.assertEqual(seen["attachments"], [])
+
+    def test_recipients_are_normalised_once_by_the_parser(self):
+        message = self.from_string(
+            self.format(
+                MAIL_TEMPLATE,
+                to='"Groups" <GROUPS@Test.MyCompany.com>, Other@Example.COM',
+                cc="Copied <CC@Example.com>",
+                email_from=self.email_from,
+            )
+        )
+        message_dict = self.env["mixin.mail.thread"].message_parse(message)
+        self.assertEqual(
+            message_dict["to_normalized"],
+            ["groups@test.mycompany.com", "other@example.com"],
+        )
+        self.assertEqual(
+            message_dict["recipients_normalized"],
+            ["groups@test.mycompany.com", "other@example.com", "cc@example.com"],
+        )
+        self.assertTrue(
+            self.env["mixin.mail.thread"]._detect_write_to_catchall(
+                {"to_normalized": [f"{self.alias_catchall}@{self.alias_domain}"]}
+            )
+        )
+
+    def test_in_reply_to_is_one_unfolded_message_id(self):
+        """A folded `In-Reply-To` carrying a comment is still the parent's id, so
+        the reply lands on the thread instead of creating a new document."""
+        message = self.from_string(
+            self.format(
+                MAIL_TEMPLATE,
+                to="somewhere-else@test.mycompany.com",
+                email_from=self.partner_1.email_formatted,
+                extra=f"In-Reply-To: (their client)\r\n\t{self.fake_email.message_id}\r\n",
+            )
+        )
+        message_dict = self.env["mixin.mail.thread"].message_parse(message)
+        self.assertEqual(message_dict["in_reply_to"], self.fake_email.message_id)
+
+        with self.mock_mail_gateway():
+            self.format_and_process(
+                MAIL_TEMPLATE,
+                self.partner_1.email_formatted,
+                "somewhere-else@test.mycompany.com",
+                extra=f"In-Reply-To: (their client)\r\n\t{self.fake_email.message_id}\r\n",
+                subject="Re: folded reply",
+            )
+        reply = self.test_record.message_ids.filtered(
+            lambda message: message.subject == "Re: folded reply"
+        )
+        self.assertEqual(len(reply), 1, "the reply reached the thread it names")
+        self.assertEqual(reply.parent_id, self.fake_email)
+
+    def test_a_null_return_path_is_not_bounced_to(self):
+        """RFC 5321: `Return-Path: <>` asks for no delivery status notification.
+        A bounce to it used to be created and stick in exception."""
+        self.alias.write({"alias_contact": "partners"})
+        with self.mock_mail_gateway():
+            record = self.format_and_process(
+                MAIL_TEMPLATE,
+                '"Nobody Known" <nobody@remote.example.com>',
+                f"groups@{self.alias_domain}",
+                return_path="<>",
+                subject="Null reverse path",
+            )
+        self.assertFalse(record, "the partners-only alias still refuses the mail")
+        self.assertNotSentEmail()
+
+        with self.mock_mail_gateway():
+            record = self.format_and_process(
+                MAIL_TEMPLATE,
+                '"Nobody Known" <nobody@remote.example.com>',
+                f"groups@{self.alias_domain}",
+                return_path="<bounces+tag@remote.example.com>",
+                subject="Real reverse path",
+            )
+        self.assertFalse(record)
+        self.assertSentEmail(
+            f'"MAILER-DAEMON" <{self.alias_bounce}@{self.alias_domain}>',
+            ["bounces+tag@remote.example.com"],
+            subject="Re: Real reverse path",
+        )
+
+    def test_loop_replies_never_count_author_less_messages_for_an_unparsable_from(self):
+        """`email_from in [raw, False]` became `IS NULL` and counted every message
+        posted without a sender as if this sender had posted it."""
+        record = self.env["mail.test.gateway"].create({"name": "Quiet"})
+        self._mails_on(record, 6, email_from=False)
+        limit = self.env.cr.now() - timedelta(minutes=120)
+        self.assertFalse(
+            record._detect_loop_sender_replied_too_often(
+                record.ids, "not an address", False, False, limit, 5
+            )
+        )
+        self._mails_on(record, 6, email_from="not an address")
+        self.assertTrue(
+            record._detect_loop_sender_replied_too_often(
+                record.ids, "not an address", False, False, limit, 5
+            ),
+            "the raw address alone still identifies the sender",
+        )
+
+
+@tagged("mail_gateway", "multi_company")
+class TestMailGatewayBounceCompany(MailGatewayCommon):
+    """A bounce answers for the company that was written to, not for whoever
+    happens to be `env.company` when the gateway runs."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["ir.config_parameter"].sudo().set_param("mail.gateway.loop.minutes", 30)
+        cls.env["ir.config_parameter"].sudo().set_param(
+            "mail.gateway.loop.threshold", 1
+        )
+
+    def test_the_alias_policy_bounce_is_sent_from_the_alias_company(self):
+        self.alias_c2.write({"alias_contact": "partners"})
+        self.assertNotEqual(self.env.company, self.company_2)
+        self.assertNotEqual(
+            self.mail_alias_domain.bounce_email, self.mail_alias_domain_c2.bounce_email
+        )
+        with self.mock_mail_gateway():
+            record = self.format_and_process(
+                MAIL_TEMPLATE,
+                '"Nobody Known" <nobody@remote.example.com>',
+                f"groups@{self.mail_alias_domain_c2.name}",
+                subject="Company two policy",
+                target_model="mail.test.gateway.company",
+            )
+        self.assertFalse(record)
+        self.assertSentEmail(
+            f'"MAILER-DAEMON" <{self.mail_alias_domain_c2.bounce_email}>',
+            ["whatever-2a840@postmaster.twitter.com"],
+            subject="Re: Company two policy",
+        )
+
+    @mute_logger("odoo.addons.mail.models.mixin_mail_gateway")
+    def test_the_loop_bounce_is_sent_from_the_alias_company(self):
+        sender = '"Chatty" <chatty@remote.example.com>'
+        with self.mock_mail_gateway():
+            first = self.format_and_process(
+                MAIL_TEMPLATE,
+                sender,
+                f"groups@{self.mail_alias_domain_c2.name}",
+                subject="Loop one",
+                target_model="mail.test.gateway.company",
+            )
+        self.assertTrue(first)
+        self.assertEqual(first.company_id, self.company_2)
+        with self.mock_mail_gateway():
+            second = self.format_and_process(
+                MAIL_TEMPLATE,
+                sender,
+                f"groups@{self.mail_alias_domain_c2.name}",
+                subject="Loop two",
+                target_model="mail.test.gateway.company",
+            )
+        self.assertFalse(second, "the threshold of one refuses the second mail")
+        self.assertSentEmail(
+            f'"MAILER-DAEMON" <{self.mail_alias_domain_c2.bounce_email}>',
+            ["whatever-2a840@postmaster.twitter.com"],
+            subject="Re: Loop two",
+        )
+
+
+@tagged("mail_gateway")
+class TestMailGatewayRouteVerdicts(MailGatewayCommon):
+    @mute_logger("odoo.addons.mail.models.mixin_mail_gateway")
+    def test_unparsable_alias_defaults_are_a_configuration_error(self):
+        """`_get_alias_defaults` ran outside the per-alias `try`, so a stored
+        value the constraint never saw crashed routing for every addressee
+        instead of bouncing the one broken alias."""
+        self.env.cr.execute(
+            "UPDATE mail_alias SET alias_defaults = %s WHERE id = %s",
+            ["{'custom_field': ", self.alias.id],
+        )
+        self.alias.invalidate_recordset()
+        self.assertEqual(self.alias.alias_status, "not_tested")
+        with self.mock_mail_gateway():
+            record = self.format_and_process(
+                MAIL_TEMPLATE,
+                self.email_from,
+                f"groups@{self.alias_domain}",
+                subject="Broken defaults",
+            )
+        self.assertFalse(record)
+        self.assertEqual(self.alias.alias_status, "invalid")
+        self.assertSentEmail(
+            f'"MAILER-DAEMON" <{self.alias_bounce}@{self.alias_domain}>',
+            ["whatever-2a840@postmaster.twitter.com"],
+            subject="Re: Broken defaults",
+        )
+
+    @mute_logger("odoo.addons.mail.models.mixin_mail_gateway")
+    def test_a_refusing_fallback_model_is_consulted_and_obeyed(self):
+        """A fetchmail server with `object_id` set routes through the fallback,
+        which used to call the mixin's check and skip the target model's own
+        (`account.move`'s attachment guard among them)."""
+        with (
+            patch.object(
+                self.registry["mail.test.gateway"],
+                "_routing_check_route",
+                autospec=True,
+                return_value=RouteVerdict.REFUSED,
+            ) as check,
+            self.mock_mail_gateway(),
+        ):
+            record = self.format_and_process(
+                MAIL_TEMPLATE,
+                self.email_from,
+                "nobody-owns-this@remote.example.com",
+                model="mail.test.gateway",
+                subject="Refused fallback",
+            )
+        check.assert_called_once()
+        self.assertFalse(record, "a refusal is obeyed, not turned into a crash")
+
+    @mute_logger("odoo.addons.mail.models.mixin_mail_gateway")
+    def test_a_check_route_answering_off_contract_is_a_type_error(self):
+        with (
+            patch.object(
+                self.registry["mail.test.gateway"],
+                "_routing_check_route",
+                autospec=True,
+                return_value=(),
+            ),
+            self.assertRaises(TypeError),
+        ):
+            self.format_and_process(
+                MAIL_TEMPLATE,
+                self.email_from,
+                f"groups@{self.alias_domain}",
+                subject="Off contract",
+            )
+
+    @mute_logger("odoo.addons.mail.models.mixin_mail_gateway")
+    def test_bounce_counters_reset_only_once_a_route_has_posted(self):
+        """The reset ran before any route was accepted, so an unroutable mail
+        with a spoofed From cleared the counters of the address it borrowed."""
+        self.test_record.write({"message_bounce": 3})
+        with self.mock_mail_gateway(), self.assertRaises(ValueError):
+            self.format_and_process(
+                MAIL_TEMPLATE,
+                self.test_record.email_from,
+                "nobody-owns-this@test.mycompany.com",
+                subject="Unroutable",
+            )
+        self.assertEqual(self.test_record.message_bounce, 3)
+
+        with self.mock_mail_gateway():
+            record = self.format_and_process(
+                MAIL_TEMPLATE,
+                self.test_record.email_from,
+                f"groups@{self.alias_domain}",
+                subject="Delivered",
+            )
+        self.assertTrue(record)
+        self.assertEqual(self.test_record.message_bounce, 0)
+
+    def test_a_reply_to_a_child_document_is_judged_by_its_parent_s_alias(self):
+        """Tasks and tickets own no alias; their project or team does. A reply
+        routed by References alone used to bypass that alias' contact policy."""
+        container = self.env["mail.test.container.mc"].create(
+            {"alias_contact": "followers", "alias_name": "governing", "name": "Gov"}
+        )
+        ticket = self.env["mail.test.ticket.mc"].create(
+            {"container_id": container.id, "name": "Governed"}
+        )
+        self.assertEqual(ticket._mail_get_governing_alias(), container.alias_id)
+        seed = ticket.message_post(
+            body="seed",
+            message_type="comment",
+            subtype_id=self.env.ref("mail.mt_comment").id,
+        )
+        outsider = self.env["res.partner"].create(
+            {"name": "Outsider", "email": "outsider@remote.example.com"}
+        )
+
+        def reply(msg_id):
+            before = len(ticket.message_ids)
+            with self.mock_mail_gateway():
+                self.format_and_process(
+                    MAIL_TEMPLATE,
+                    outsider.email_formatted,
+                    "somewhere-else@test.mycompany.com",
+                    extra=f"In-Reply-To:\r\n\t{seed.message_id}\r\n",
+                    msg_id=msg_id,
+                    subject=f"Re: seed {msg_id}",
+                    target_model="mail.test.ticket.mc",
+                )
+            ticket.invalidate_recordset()
+            return len(ticket.message_ids) > before
+
+        self.assertFalse(
+            reply("<parent-alias-refuses@test.example.com>"),
+            "the parent's followers-only alias refuses a stranger's reply",
+        )
+        self.assertSentEmail(
+            f'"MAILER-DAEMON" <{self.alias_bounce}@{self.alias_domain}>',
+            ["whatever-2a840@postmaster.twitter.com"],
+        )
+        ticket.message_subscribe(partner_ids=outsider.ids)
+        self.assertTrue(
+            reply("<parent-alias-accepts@test.example.com>"),
+            "and accepts the same reply once they follow the document",
+        )

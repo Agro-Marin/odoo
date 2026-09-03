@@ -9,7 +9,7 @@ from odoo.tests.common import users
 from odoo.tools import SQL, formataddr, mute_logger
 
 from odoo.addons.mail.models.mail_alias import dot_atom_text
-from odoo.addons.mail.tests.common import MailCommon
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 
 
 class TestMailAliasCommon(MailCommon):
@@ -1489,6 +1489,26 @@ class TestMailAliasMixin(TestMailAliasCommon):
             "Should use the provided alias domain in priority",
         )
 
+    def test_alias_only_writes_need_write_access(self):
+        """An alias-only write by a reader used to be dropped without a word."""
+        record = self.env["mail.test.alias.optional"].create(
+            {"alias_name": "readers.cannot", "name": "Guarded"}
+        )
+        reader = mail_new_test_user(
+            self.env,
+            email="alias.reader@test.example.com",
+            groups="base.group_portal",
+            login="alias_reader",
+            name="Alias Reader",
+        )
+        self.assertTrue(record.with_user(reader).has_access("read"))
+        self.assertFalse(record.with_user(reader).has_access("write"))
+        with self.assertRaises(exceptions.AccessError):
+            record.with_user(reader).write({"alias_name": "renamed"})
+        self.assertEqual(record.alias_id.alias_name, "readers.cannot")
+        record.with_user(self.user_employee).write({"alias_name": "renamed"})
+        self.assertEqual(record.alias_id.alias_name, "renamed")
+
     @users("erp_manager")
     def test_alias_mixin_alias_email(self):
         """Test 'alias_email' mixin field computation and search capability"""
@@ -2242,10 +2262,14 @@ class TestMailAliasDomainConfigCache(TestMailAliasCommon):
         domain = self.mail_alias_domain.with_env(self.env)
         domain.write({"catchall_alias": "catchall.rerouted"})
         self.assertTrue(
-            Thread._detect_write_to_catchall({"to": f"catchall.rerouted@{domain.name}"})
+            Thread._detect_write_to_catchall(
+                {"to_normalized": [f"catchall.rerouted@{domain.name}"]}
+            )
         )
         self.assertFalse(
-            Thread._detect_write_to_catchall({"to": f"catchall.test@{domain.name}"}),
+            Thread._detect_write_to_catchall(
+                {"to_normalized": [f"catchall.test@{domain.name}"]}
+            ),
             "the pre-rename address must stop being the catchall",
         )
 
@@ -2285,7 +2309,7 @@ class TestMailAliasDomainName(TestMailAliasCommon):
         )
         self.assertTrue(
             self.env["mixin.mail.thread"]._detect_write_to_catchall(
-                {"to": "catchall@mixed.example.com"}
+                {"to_normalized": ["catchall@mixed.example.com"]}
             )
         )
         self.assertEqual(

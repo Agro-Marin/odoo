@@ -10,7 +10,10 @@ from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, mute_logger
 
 from .incoming_mail_servers import FakeMailServer
-from odoo.addons.mail.models.fetchmail_server import MAIL_SERVER_DEACTIVATE_TIME
+from odoo.addons.mail.models.fetchmail_server import (
+    MAIL_SERVER_DEACTIVATE_TIME,
+    SERVER_TEARDOWN_BUDGET,
+)
 from odoo.addons.mail.tools import incoming_mail
 
 RAW_MESSAGE = (
@@ -723,6 +726,33 @@ class TestFetchmailPolling(FetchmailCommon):
         ):
             Server.with_context(cron_id=cron.id, cron_end_time=0)._poll_due_mailboxes()
         self.assertEqual(captured, [["p1", "p2", "p3"]])
+
+    def test_teardown_time_is_reserved_from_the_cron_budget_not_added_to_it(self):
+        """The deadline handed to the servers used to be the cron's plus one
+        teardown budget per server, so the poll overran the cron by exactly the
+        time it was meant to keep in hand."""
+        Server = self.env["fetchmail.server"]
+        Server.create(
+            [
+                {"name": "one", "state": "done"},
+                {"name": "two", "state": "done"},
+                {"name": "three", "state": "done"},
+            ]
+        )
+        deadlines = []
+
+        def _poll_mailboxes(records, **kw):
+            deadlines.append(records.env.context["cron_end_time"])
+
+        cron = self.env.ref("mail.ir_cron_mail_gateway_action")
+        with patch.object(
+            self.registry["fetchmail.server"], "_poll_mailboxes", _poll_mailboxes
+        ):
+            Server.with_context(
+                cron_id=cron.id, cron_end_time=1000.0
+            )._poll_due_mailboxes()
+        self.assertEqual(deadlines, [1000.0 - 3 * SERVER_TEARDOWN_BUDGET])
+        self.assertLess(deadlines[0], 1000.0)
 
     def test_an_archived_server_is_not_pollable(self):
         server = self._server(name="archived poll")

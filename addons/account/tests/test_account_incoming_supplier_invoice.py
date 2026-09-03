@@ -11,6 +11,7 @@ from odoo.tests import RecordCapturer, tagged
 from odoo.tools.misc import mute_logger
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from odoo.addons.mail.models.mixin_mail_gateway import RouteVerdict
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.test_mimetypes.tests.test_guess_mimetypes import contents
 
@@ -410,7 +411,7 @@ class TestAccountIncomingSupplierInvoice(
             result = self.env["account.move"]._routing_check_route(
                 message, message_dict, route
             )
-        self.assertEqual(result, ())
+        self.assertIs(result, RouteVerdict.REFUSED)
 
         bounce = capture.records
         self.assertEqual(len(bounce), 1, "exactly one bounce should be produced")
