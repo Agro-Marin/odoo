@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="mail.ChatBubblePreview" t-inherit-mode="extension">
+        <xpath expr="//t[@t-call='mail.message_preview_prefix']" position="after">
+            <MessageSeenIndicator t-if="message.showSeenIndicator(thread)" message="message" thread="thread"/>
+        </xpath>
+    </t>
+</templates>

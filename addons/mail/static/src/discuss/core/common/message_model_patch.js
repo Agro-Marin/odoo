@@ -84,5 +84,12 @@ const messagePatch = {
             mentionedRoles,
         });
     },
+    /**
+     * @param {import("models").Thread} thread the thread being viewed
+     * @returns {boolean}
+     */
+    showSeenIndicator(thread) {
+        return this.isSelfAuthored && Boolean(thread?.hasSeenFeature);
+    },
 };
 patch(Message.prototype, messagePatch);
