@@ -3758,7 +3758,7 @@ class MrpProduction(models.Model):
             "type": "ir.actions.act_window",
             "context": {
                 "default_product_id": self.product_id.id,
-                "default_lot_id": self.lot_producing_ids[:1].id,
+                "default_lot_ids": self.lot_producing_ids.ids,
                 "default_mo_id": self.id,
                 "default_company_id": self.company_id.id,
                 "default_location_id": self.location_dest_id.id,

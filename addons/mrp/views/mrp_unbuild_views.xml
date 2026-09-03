@@ -180,7 +180,8 @@
                                 readonly="state == 'done'" />
                             <field name="has_tracking" invisible="1" />
                             <field
-                                name="lot_id"
+                                name="lot_ids"
+                                widget="many2many_tags"
                                 invisible="has_tracking == 'none'"
                                 readonly="state == 'done'"
                                 required="has_tracking != 'none'"
@@ -254,7 +255,8 @@
                                 readonly="state == 'done'" />
                             <field name="has_tracking" invisible="1" />
                             <field
-                                name="lot_id"
+                                name="lot_ids"
+                                widget="many2many_tags"
                                 invisible="has_tracking == 'none'"
                                 required="has_tracking != 'none'"
                                 groups="stock.group_production_lot" />
@@ -288,7 +290,10 @@
                 <field name="product_id" readonly="state == 'done'" />
                 <field name="bom_id" readonly="state == 'done'" />
                 <field name="mo_id" readonly="state == 'done'" />
-                <field name="lot_id" groups="stock.group_production_lot" />
+                <field
+                    name="lot_ids"
+                    widget="many2many_tags"
+                    groups="stock.group_production_lot" />
                 <field name="product_qty" readonly="state == 'done'" />
                 <field
                     name="product_uom_id"

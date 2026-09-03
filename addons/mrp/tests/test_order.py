@@ -1790,13 +1790,13 @@ class TestMrpOrder(TestMrpCommon):
 
         finished_good_ub_form = Form(self.env["mrp.unbuild"])
         finished_good_ub_form.mo_id = finished_good_mo
-        finished_good_ub_form.lot_id = finished_good_mo.lot_producing_ids[:1]
+        finished_good_ub_form.lot_ids.add(finished_good_mo.lot_producing_ids[:1])
         finished_good_ub = finished_good_ub_form.save()
         finished_good_ub.action_unbuild()
 
         subassembly_ub_form = Form(self.env["mrp.unbuild"])
         subassembly_ub_form.mo_id = subassembly_mo1
-        subassembly_ub_form.lot_id = subassembly_mo1.lot_producing_ids[:1]
+        subassembly_ub_form.lot_ids.add(subassembly_mo1.lot_producing_ids[:1])
         subassembly_ub = subassembly_ub_form.save()
         subassembly_ub.action_unbuild()
 
@@ -1832,7 +1832,7 @@ class TestMrpOrder(TestMrpCommon):
 
         ub_form = Form(self.env["mrp.unbuild"])
         ub_form.mo_id = mo1
-        ub_form.lot_id = sn
+        ub_form.lot_ids.add(sn)
         ub = ub_form.save()
         ub.action_unbuild()
 
