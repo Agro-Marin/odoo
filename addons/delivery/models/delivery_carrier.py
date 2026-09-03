@@ -656,7 +656,11 @@ class DeliveryCarrier(models.Model):
 
     def _get_price_dict(self, total, weight, volume, quantity, wv=0.0):
         """Hook allowing to retrieve dict to be used in _get_price_from_picking() function.
-        Hook to be overridden when we need to add some field to product and use it in variable factor from price rules."""
+        Hook to be overridden when we need to add some field to product and use it in variable factor from price rules.
+
+        :return: The price factors used to evaluate the price rules.
+        :rtype: dict
+        """
         return {
             "price": total,
             "volume": volume,
