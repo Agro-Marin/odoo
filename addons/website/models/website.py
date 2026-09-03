@@ -805,6 +805,38 @@ class Website(models.Model):
             },
         )
 
+    def _configurator_write_footer_links(self, website):
+        footer_links = website.configurator_get_footer_links()
+        footer_ids = [
+            "website.template_footer_contact",
+            "website.footer_custom",
+            "website.template_footer_links",
+            "website.template_footer_minimalist",
+            "website.template_footer_mega",
+            "website.template_footer_mega_columns",
+            "website.template_footer_mega_links",
+        ]
+        for footer_id in footer_ids:
+            view_id = self.env["website"].viewref(footer_id)
+            if view_id:
+                try:
+                    arch_string = etree.fromstring(view_id.arch_db)
+                except etree.XMLSyntaxError as e:
+                    logger.warning(
+                        "Failed to update footer links in view %s: %s", footer_id, e
+                    )
+                else:
+                    el = arch_string.xpath("//t[@t-set='configurator_footer_links']")
+                    if not el:
+                        logger.warning(
+                            "No 'configurator_footer_links' found in view %s", footer_id
+                        )
+                        continue
+                    el[0].attrib["t-value"] = json.dumps(footer_links)
+                    view_id.with_context(website_id=website.id).write(
+                        {"arch_db": etree.tostring(arch_string)}
+                    )
+
     @api.model
     def configurator_apply(self, **kwargs):
         website = self.get_current_website()
@@ -963,36 +995,7 @@ class Website(models.Model):
 
         website = self.env["website"].browse(website.id)
 
-        footer_links = website.configurator_get_footer_links()
-        footer_ids = [
-            "website.template_footer_contact",
-            "website.footer_custom",
-            "website.template_footer_links",
-            "website.template_footer_minimalist",
-            "website.template_footer_mega",
-            "website.template_footer_mega_columns",
-            "website.template_footer_mega_links",
-        ]
-        for footer_id in footer_ids:
-            view_id = self.env["website"].viewref(footer_id)
-            if view_id:
-                try:
-                    arch_string = etree.fromstring(view_id.arch_db)
-                except etree.XMLSyntaxError as e:
-                    logger.warning(
-                        "Failed to update footer links in view %s: %s", footer_id, e
-                    )
-                else:
-                    el = arch_string.xpath("//t[@t-set='configurator_footer_links']")
-                    if not el:
-                        logger.warning(
-                            "No 'configurator_footer_links' found in view %s", footer_id
-                        )
-                        continue
-                    el[0].attrib["t-value"] = json.dumps(footer_links)
-                    view_id.with_context(website_id=website.id).write(
-                        {"arch_db": etree.tostring(arch_string)}
-                    )
+        self._configurator_write_footer_links(website)
 
         industry_id = kwargs["industry_id"]
         custom_resources = self._website_api_rpc(
