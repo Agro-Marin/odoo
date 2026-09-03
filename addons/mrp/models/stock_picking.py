@@ -37,6 +37,12 @@ class StockPickingType(models.Model):
         help="Allow to create new lot/serial numbers for the components",
         default=False,
     )
+    auto_confirm_production = fields.Boolean(
+        string="Auto Confirm Production",
+        default=True,
+        help="Uncheck this option to have replenishment create a draft"
+        " manufacturing order instead of a confirmed one.",
+    )
 
     auto_print_done_production_order = fields.Boolean(
         "Auto Print Done Production Order",

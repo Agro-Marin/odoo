@@ -366,6 +366,7 @@ class StockWarehouseOrderpoint(models.Model):
             [
                 ("orderpoint_id", "in", self.ids),
                 ("move_raw_ids", "!=", False),
+                ("picking_type_id.auto_confirm_production", "=", True),
                 ("state", "=", "draft"),
             ]
         ).action_confirm()
