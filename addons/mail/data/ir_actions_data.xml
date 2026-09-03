@@ -15,4 +15,10 @@
         <field name="context">{'dialog_size': 'medium', 'footer': false}</field>
     </record>
 
+    <record id="mail.action_open_discuss_settings" model="ir.actions.act_url">
+        <field name="name">Settings</field>
+        <field name="url">/odoo/settings#discuss_setting</field>
+        <field name="target">self</field>
+    </record>
+
 </odoo>

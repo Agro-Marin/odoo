@@ -30,11 +30,18 @@
         sequence="3" />
 
     <menuitem
+        id="mail.menu_settings"
+        name="Settings"
+        parent="mail.menu_configuration"
+        action="mail.action_open_discuss_settings"
+        sequence="1" />
+
+    <menuitem
         id="mail.menu_notification_settings"
         name="Notifications"
         parent="mail.menu_configuration"
         action="mail.discuss_notification_settings_action"
-        sequence="1" />
+        sequence="2" />
 
     <menuitem
         id="mail.menu_call_settings"
