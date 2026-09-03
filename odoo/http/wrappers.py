@@ -38,6 +38,7 @@ def _prepare_set_cookie_args(
         and not ir_http(request.env)._is_allowed_cookie(cookie_type)
     ):
         max_age = 0
+        expires = None
 
     if secure is None:
         secure = bool(request and request.httprequest.is_secure)
