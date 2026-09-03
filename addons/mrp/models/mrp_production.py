@@ -2709,10 +2709,7 @@ class MrpProduction(models.Model):
         return True
 
     def button_plan(self):
-        orders_to_plan = self.filtered(lambda order: not order.is_planned)
-        orders_to_confirm = orders_to_plan.filtered(lambda mo: mo.state == "draft")
-        orders_to_confirm.action_confirm()
-        for order in orders_to_plan:
+        for order in self.filtered(lambda order: not order.is_planned):
             order._plan_workorders()
         return True
 
@@ -3761,7 +3758,7 @@ class MrpProduction(models.Model):
             "type": "ir.actions.act_window",
             "context": {
                 "default_product_id": self.product_id.id,
-                "default_lot_id": self.lot_producing_ids[:1].id,
+                "default_lot_ids": self.lot_producing_ids.ids,
                 "default_mo_id": self.id,
                 "default_company_id": self.company_id.id,
                 "default_location_id": self.location_dest_id.id,

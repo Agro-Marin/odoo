@@ -84,9 +84,9 @@ class MrpUnbuild(models.Model):
     lot_producing_ids = fields.Many2many(
         "stock.lot", string="Lot/Serial Numbers", related="mo_id.lot_producing_ids"
     )
-    lot_id = fields.Many2one(
+    lot_ids = fields.Many2many(
         "stock.lot",
-        "Lot/Serial Number",
+        string="Lot/Serial Numbers",
         domain="[('product_id', '=', product_id),('id', 'in', lot_producing_ids)]",
         check_company=True,
     )
@@ -178,13 +178,17 @@ class MrpUnbuild(models.Model):
             if order.mo_id and order.mo_id.product_id:
                 order.product_id = order.mo_id.product_id
 
-    @api.depends("mo_id", "mo_id.qty_produced", "has_tracking")
+    @api.depends("mo_id", "mo_id.qty_produced", "has_tracking", "lot_ids")
     def _compute_product_qty(self):
         for order in self:
-            if not order.mo_id or order.has_tracking == "serial":
-                order.product_qty = 1.0
-            else:
+            if order.has_tracking == "serial":
+                order.product_qty = len(order.lot_ids) or 1.0
+            elif order.mo_id:
                 order.product_qty = order.mo_id.qty_produced
+            elif not order.product_qty:
+                # nothing to derive it from, and `lot_ids` is a dependency now:
+                # only fill a quantity that has none, never overwrite a typed one
+                order.product_qty = 1.0
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -203,15 +207,22 @@ class MrpUnbuild(models.Model):
             )
 
     def _prepare_finished_move_line_vals(self, finished_move):
-        return {
+        vals = {
             "move_id": finished_move.id,
-            "lot_id": self.lot_id.id,
-            "quantity": finished_move.product_uom_qty - finished_move.quantity,
             "product_id": finished_move.product_id.id,
             "product_uom_id": finished_move.product_uom_id.id,
             "location_id": finished_move.location_id.id,
             "location_dest_id": finished_move.location_dest_id.id,
         }
+        if len(self.lot_ids) > 1:
+            return [dict(vals, lot_id=lot.id, quantity=1) for lot in self.lot_ids]
+        return [
+            dict(
+                vals,
+                lot_id=self.lot_ids.id,
+                quantity=finished_move.product_uom_qty - finished_move.quantity,
+            )
+        ]
 
     def _prepare_move_line_vals(self, move, origin_move_line, taken_quantity):
         return {
@@ -228,7 +239,7 @@ class MrpUnbuild(models.Model):
         self.check_singleton()
         self._check_company()
         self = self.with_env(self.env(context=clean_context(self.env.context)))
-        if self.product_id.tracking != "none" and not self.lot_id.id:
+        if self.product_id.tracking != "none" and not self.lot_ids:
             raise UserError(_("You should provide a lot number for the final product."))
 
         if self.mo_id and self.mo_id.state != "done":
@@ -288,7 +299,7 @@ class MrpUnbuild(models.Model):
             raise UserError(error_message)
 
         finished_line_vals = [
-            self._prepare_finished_move_line_vals(finished_move)
+            line_vals
             for finished_move in finished_moves
             if float_compare(
                 finished_move.product_uom_qty,
@@ -296,6 +307,7 @@ class MrpUnbuild(models.Model):
                 precision_rounding=finished_move.product_uom_id.rounding,
             )
             > 0
+            for line_vals in self._prepare_finished_move_line_vals(finished_move)
         ]
         if finished_line_vals:
             self.env["stock.move.line"].create(finished_line_vals)
@@ -325,10 +337,10 @@ class MrpUnbuild(models.Model):
             needed_quantity = move.product_uom_qty
             move_line_vals_list = []
             moves_lines = original_move.mapped("move_line_ids")
-            if move in produce_moves and self.lot_id:
+            if move in produce_moves and self.lot_ids:
                 moves_lines = moves_lines.filtered(
                     lambda ml: (
-                        self.lot_id in ml.produce_line_ids.lot_id
+                        ml.produce_line_ids.lot_id & self.lot_ids
                         and ml.lot_id not in previously_unbuilt_lots
                     )
                 )
@@ -506,9 +518,18 @@ class MrpUnbuild(models.Model):
     def action_validate(self):
         self.check_singleton()
         precision = self.env["decimal.precision"].get_precision("Product Unit")
-        available_qty = self.env["stock.quant"]._get_available_quantity(
-            self.product_id, self.location_id, self.lot_id, strict=True
-        )
+        Quant = self.env["stock.quant"]
+        if len(self.lot_ids) > 1:
+            available_qty = sum(
+                Quant._get_available_quantity(
+                    self.product_id, self.location_id, lot, strict=True
+                )
+                for lot in self.lot_ids
+            )
+        else:
+            available_qty = Quant._get_available_quantity(
+                self.product_id, self.location_id, self.lot_ids, strict=True
+            )
         unbuild_qty = self.product_uom_id._compute_quantity(
             self.product_qty, self.product_id.uom_id
         )

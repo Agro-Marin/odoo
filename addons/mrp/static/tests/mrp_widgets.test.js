@@ -1,12 +1,18 @@
 import { openFormView, start, startServer } from "@mail/../tests/mail_test_helpers";
 import { defineMrpModels } from "@mrp/../tests/mrp_test_helpers";
 import { getStateDecorator } from "@mrp/components/mo_overview_line/mo_overview_colors";
+import { MoOverviewLine } from "@mrp/components/mo_overview_line/mrp_mo_overview_line";
 import { getColorClass, getForecastAction } from "@mrp/components/mrp_overview_utils";
 import { MrpTimer } from "@mrp/widgets/timer";
 import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    mockService,
+    mountWithCleanup,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 
 describe.current.tags("desktop");
@@ -128,4 +134,52 @@ test("MrpTimer stays frozen when not ongoing", async () => {
     expect(".test-timer").toHaveText("05:00");
     await advanceTime(30000);
     expect(".test-timer").toHaveText("05:00");
+});
+
+test("the work order link does not filter out the finished work orders", async () => {
+    const actions = [];
+    mockService("action", { doAction: (action) => void actions.push(action) });
+
+    class Parent extends Component {
+        static components = { MoOverviewLine };
+        static props = {};
+        static template = xml`
+            <table><tbody>
+                <MoOverviewLine data="data" showOptions="showOptions"/>
+            </tbody></table>`;
+        setup() {
+            this.data = {
+                level: 1,
+                name: "Assemble",
+                model: "mrp.workorder",
+                id: 42,
+                production_id: 7,
+                quantity: 1,
+                currency_id: 1,
+            };
+            this.showOptions = {
+                uom: false,
+                replenishments: false,
+                availabilities: false,
+                receipts: false,
+                unitCosts: false,
+                moCosts: false,
+                bomCosts: false,
+                realCosts: false,
+            };
+        }
+    }
+    await mountWithCleanup(Parent);
+    await contains("a").click();
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0].res_model).toBe("mrp.workorder");
+    expect(actions[0].context).toEqual(
+        { search_default_name: "Assemble", search_default_production_id: 7 },
+        {
+            message:
+                "no state filter may be pre-applied: they share an OR group with" +
+                " 'done', so a finished operation would open an empty list",
+        },
+    );
 });

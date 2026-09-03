@@ -355,7 +355,7 @@
                         </div>
                 </page>
                 <page string="Components" name="components">
-                    <field name="move_raw_ids" readonly="1">
+                    <field name="move_raw_ids" mode="list,kanban" readonly="1">
                         <list>
                             <field name="state" column_invisible="True" />
                             <field name="product_id" readonly="state == 'done'" />
