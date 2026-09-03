@@ -49,7 +49,7 @@ test("Renders the call settings", async () => {
     await contains(".o-discuss-CallSettings");
     await contains("label[aria-label='Camera']");
     await contains("label[aria-label='Microphone']");
-    await contains("label[aria-label='Audio Output']");
+    await contains("label[aria-label='Speakers']");
     await contains("option", { textContent: "Permission Needed", count: 3 });
     rtc.microphonePermission = "granted";
     await contains("option[value=mockAudioDeviceId]");
