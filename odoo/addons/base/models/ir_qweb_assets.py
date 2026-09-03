@@ -1,5 +1,4 @@
 import contextlib
-import json as json_mod
 import logging
 import time
 from collections.abc import Iterable, Sequence
@@ -44,6 +43,7 @@ from odoo.tools.assets.nodes import (
     link_to_node,
     prepare_register_native_modules_js,
 )
+from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_path, str2bool
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle, BundleFileSpec
@@ -1352,7 +1352,7 @@ class IrQweb(models.AbstractModel):
                 {
                     "type": "importmap",
                     "data-bundle": bundle,
-                    "text": json_mod.dumps(
+                    "text": json.dumps(
                         {"imports": prod_import_map},
                     ),
                 },
@@ -1484,10 +1484,10 @@ class IrQweb(models.AbstractModel):
         start_hoot = [s for s in hoot_specs if s.endswith("/start.hoot")]
         other_tests = [s for s in hoot_specs if s not in start_hoot]
         if start_hoot and any(".test" in spec for spec in other_tests):
-            specifier_list = ",\n".join(f"  {json_mod.dumps(s)}" for s in other_tests)
+            specifier_list = ",\n".join(f"  {json.dumps(s)}" for s in other_tests)
             bridge_code += (
                 f"const {{loadAndStart}} = await import("
-                f"{json_mod.dumps(start_hoot[0])});\n"
+                f"{json.dumps(start_hoot[0])});\n"
                 f"loadAndStart([\n{specifier_list}\n]);\n"
             )
         return bridge_code
@@ -1525,7 +1525,7 @@ class IrQweb(models.AbstractModel):
                 {
                     "type": "importmap",
                     "data-bundle": bundle,
-                    "text": json_mod.dumps({"imports": import_map}, indent=2),
+                    "text": json.dumps({"imports": import_map}, indent=2),
                 },
             )
         )
