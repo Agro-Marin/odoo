@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import importlib
 import sys
 from pathlib import Path
 
@@ -137,3 +138,61 @@ def test_a_gate_declares_no_pattern_it_never_uses(gate):
         f"{gate} compiles {unused} and never reads it. Delete the pattern, or "
         f"wire it to the rule it was written for."
     )
+
+
+class _Found:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __str__(self) -> str:
+        return self.name
+
+
+def _run_count_gate(argv: list[str]) -> tuple[int, str]:
+    import contextlib
+    import io
+
+    import _count_gate
+
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        rc = _count_gate.run(
+            argv,
+            script="probe.py",
+            gate="probe",
+            headline="probe over {where}",
+            unit="thing(s)",
+            default_addon="core",
+            everything="addons",
+            siblings=(),
+            governed=("core", "addons"),
+            addon_src=lambda addon: HERE,
+            measure=lambda src: [_Found("a"), _Found("b"), _Found("c")],
+            root_name="odoo",
+        )
+    return rc, out.getvalue()
+
+
+def test_count_file_writes_the_count_beside_the_report(tmp_path):
+    target = tmp_path / "probe.count"
+    rc, report = _run_count_gate(["--count-file", str(target)])
+    assert rc == 0
+    assert target.read_text(encoding="utf-8") == "3\n"
+    assert "3 thing(s)   <- the ratcheted number" in report
+    _, counted = _run_count_gate(["--count"])
+    assert counted.strip() == target.read_text(encoding="utf-8").strip()
+
+
+@pytest.mark.parametrize("script", ["py_function_length", "py_class_length"])
+def test_the_own_cli_gates_write_the_same_count_file(script, tmp_path):
+    import contextlib
+    import io
+
+    module = importlib.import_module(script)
+    target = tmp_path / f"{script}.count"
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert module.main(["--addon", "tooling", "--count-file", str(target)]) == 0
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert module.main(["--addon", "tooling", "--count"]) == 0
+    assert target.read_text(encoding="utf-8") == out.getvalue()

@@ -150,8 +150,8 @@ py_function_length.py --addon mail --count|pyfunclen_mail --count
 py_function_length.py --addon survey --count|pyfunclen_survey --count
 py_function_length.py --addon tests --count|pyfunclen_tests --count
 py_function_length.py --addon tooling --count|pyfunclen_tooling --count
-py_function_length.py --count --addon addons|pyfunclen_addons --mode no-increase --count
-py_class_length.py --count --addon addons|pyclasslen_addons --mode no-increase --count
+py_function_length.py --addon addons --count|pyfunclen_addons --mode no-increase --count
+py_class_length.py --addon addons --count|pyclasslen_addons --mode no-increase --count
 py_shadowed_member.py --addon addons --count|py_shadowed_member_addons --count
 py_x2many_count.py --addon account --count|py_x2many_count_account --count
 py_x2many_count.py --addon addons --count|py_x2many_count_addons --count

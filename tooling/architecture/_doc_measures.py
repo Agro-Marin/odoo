@@ -172,6 +172,14 @@ _PIPE = re.compile(
 )
 
 
+_SINGLE_RUN = re.compile(
+    r"python tooling/architecture/([\w.]+\.py)([^|\n]*?)--count-file\s+(\S+)\s*\|\s*tee"
+)
+_RATCHET_FROM_FILE = re.compile(
+    r"xargs python tooling/ratchet/ratchet\.py([^<\n]*)<\s*(\S+)"
+)
+
+
 def scoped_reproduce_rows() -> list[tuple[str, str]]:
     rows: list[tuple[str, str]] = []
     for body in workflow_steps():
@@ -186,6 +194,13 @@ def scoped_reproduce_rows() -> list[tuple[str, str]]:
                 continue
             ratchet = " ".join((match.group(3) or "").split())
             rows.append((f"{match.group(1)} {gate_args}".strip(), ratchet))
+        ratchet_by_file = {
+            file: " ".join(args.split())
+            for args, file in _RATCHET_FROM_FILE.findall(run)
+        }
+        for gate, args, count_file in _SINGLE_RUN.findall(run):
+            gate_args = " ".join((*args.split(), "--count"))
+            rows.append((f"{gate} {gate_args}", ratchet_by_file.get(count_file, "")))
     return sorted(set(rows))
 
 

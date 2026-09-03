@@ -802,9 +802,8 @@ jobs:
         # docstring.
         run: |
           set +e
-          python tooling/architecture/py_function_length.py | tee /tmp/py_funclen.log
-          python tooling/architecture/py_function_length.py --count \
-            | xargs python tooling/ratchet/ratchet.py pyfunclen --count
+          python tooling/architecture/py_function_length.py --count-file /tmp/py_funclen.log.count | tee /tmp/py_funclen.log
+          xargs python tooling/ratchet/ratchet.py pyfunclen --count < /tmp/py_funclen.log.count
           rc=$?
           set -e
           exit $rc
@@ -833,10 +832,8 @@ jobs:
         id: py_funclen_addons
         run: |
           set +e
-          python tooling/architecture/py_function_length.py --addon addons \
-            | tee /tmp/py_funclen_addons.log
-          python tooling/architecture/py_function_length.py --count --addon addons \
-            | xargs python tooling/ratchet/ratchet.py pyfunclen_addons --mode no-increase --count
+          python tooling/architecture/py_function_length.py --addon addons --count-file /tmp/py_funclen_addons.log.count | tee /tmp/py_funclen_addons.log
+          xargs python tooling/ratchet/ratchet.py pyfunclen_addons --mode no-increase --count < /tmp/py_funclen_addons.log.count
           rc=$?
           set -e
           exit $rc
@@ -849,9 +846,8 @@ jobs:
         # improvement the gate accepts. See the module docstring.
         run: |
           set +e
-          python tooling/architecture/py_class_length.py | tee /tmp/py_classlen.log
-          python tooling/architecture/py_class_length.py --count \
-            | xargs python tooling/ratchet/ratchet.py pyclasslen --count
+          python tooling/architecture/py_class_length.py --count-file /tmp/py_classlen.log.count | tee /tmp/py_classlen.log
+          xargs python tooling/ratchet/ratchet.py pyclasslen --count < /tmp/py_classlen.log.count
           rc=$?
           set -e
           exit $rc
@@ -862,10 +858,8 @@ jobs:
         # pyfunclen_addons is: it moves both ways constantly.
         run: |
           set +e
-          python tooling/architecture/py_class_length.py --addon addons \
-            | tee /tmp/py_classlen_addons.log
-          python tooling/architecture/py_class_length.py --count --addon addons \
-            | xargs python tooling/ratchet/ratchet.py pyclasslen_addons --mode no-increase --count
+          python tooling/architecture/py_class_length.py --addon addons --count-file /tmp/py_classlen_addons.log.count | tee /tmp/py_classlen_addons.log
+          xargs python tooling/ratchet/ratchet.py pyclasslen_addons --mode no-increase --count < /tmp/py_classlen_addons.log.count
           rc=$?
           set -e
           exit $rc
@@ -879,9 +873,8 @@ jobs:
         # like `pyfunclen`, not the count of offenders.
         run: |
           set +e
-          python tooling/architecture/py_function_length.py --addon mail | tee /tmp/py_funclen_mail.log
-          python tooling/architecture/py_function_length.py --addon mail --count \
-            | xargs python tooling/ratchet/ratchet.py pyfunclen_mail --count
+          python tooling/architecture/py_function_length.py --addon mail --count-file /tmp/py_funclen_mail.log.count | tee /tmp/py_funclen_mail.log
+          xargs python tooling/ratchet/ratchet.py pyfunclen_mail --count < /tmp/py_funclen_mail.log.count
           rc=$?
           set -e
           exit $rc
@@ -894,9 +887,8 @@ jobs:
         # budget, not the count of offenders.
         run: |
           set +e
-          python tooling/architecture/py_function_length.py --addon loyalty | tee /tmp/py_funclen_loyalty.log
-          python tooling/architecture/py_function_length.py --addon loyalty --count \
-            | xargs python tooling/ratchet/ratchet.py pyfunclen_loyalty --count
+          python tooling/architecture/py_function_length.py --addon loyalty --count-file /tmp/py_funclen_loyalty.log.count | tee /tmp/py_funclen_loyalty.log
+          xargs python tooling/ratchet/ratchet.py pyfunclen_loyalty --count < /tmp/py_funclen_loyalty.log.count
           rc=$?
           set -e
           exit $rc
@@ -921,9 +913,8 @@ jobs:
         # the shared CLI boilerplate rather than anything a gate needs.
         run: |
           set +e
-          python tooling/architecture/py_function_length.py --addon tooling | tee /tmp/py_funclen_tooling.log
-          python tooling/architecture/py_function_length.py --addon tooling --count \
-            | xargs python tooling/ratchet/ratchet.py pyfunclen_tooling --count
+          python tooling/architecture/py_function_length.py --addon tooling --count-file /tmp/py_funclen_tooling.log.count | tee /tmp/py_funclen_tooling.log
+          xargs python tooling/ratchet/ratchet.py pyfunclen_tooling --count < /tmp/py_funclen_tooling.log.count
           rc=$?
           set -e
           exit $rc
@@ -947,9 +938,8 @@ jobs:
         # floors cannot start counting the same lines.
         run: |
           set +e
-          python tooling/architecture/py_function_length.py --addon tests | tee /tmp/py_funclen_tests.log
-          python tooling/architecture/py_function_length.py --addon tests --count \
-            | xargs python tooling/ratchet/ratchet.py pyfunclen_tests --count
+          python tooling/architecture/py_function_length.py --addon tests --count-file /tmp/py_funclen_tests.log.count | tee /tmp/py_funclen_tests.log
+          xargs python tooling/ratchet/ratchet.py pyfunclen_tests --count < /tmp/py_funclen_tests.log.count
           rc=$?
           set -e
           exit $rc
@@ -962,9 +952,8 @@ jobs:
         # Excess lines above the budget, not the count of offenders.
         run: |
           set +e
-          python tooling/architecture/py_function_length.py --addon survey | tee /tmp/py_funclen_survey.log
-          python tooling/architecture/py_function_length.py --addon survey --count \
-            | xargs python tooling/ratchet/ratchet.py pyfunclen_survey --count
+          python tooling/architecture/py_function_length.py --addon survey --count-file /tmp/py_funclen_survey.log.count | tee /tmp/py_funclen_survey.log
+          xargs python tooling/ratchet/ratchet.py pyfunclen_survey --count < /tmp/py_funclen_survey.log.count
           rc=$?
           set -e
           exit $rc
@@ -980,9 +969,8 @@ jobs:
         # Excess lines above the budget, not the count of offenders.
         run: |
           set +e
-          python tooling/architecture/py_function_length.py --addon crm | tee /tmp/py_funclen_crm.log
-          python tooling/architecture/py_function_length.py --addon crm --count \
-            | xargs python tooling/ratchet/ratchet.py pyfunclen_crm --count
+          python tooling/architecture/py_function_length.py --addon crm --count-file /tmp/py_funclen_crm.log.count | tee /tmp/py_funclen_crm.log
+          xargs python tooling/ratchet/ratchet.py pyfunclen_crm --count < /tmp/py_funclen_crm.log.count
           rc=$?
           set -e
           exit $rc
@@ -997,9 +985,8 @@ jobs:
         # counted here too because the fix for both is the same field.
         run: |
           set +e
-          python tooling/architecture/py_x2many_count.py | tee /tmp/py_x2many_count_core.log
-          python tooling/architecture/py_x2many_count.py --count \
-            | xargs python tooling/ratchet/ratchet.py py_x2many_count --count
+          python tooling/architecture/py_x2many_count.py --count-file /tmp/py_x2many_count_core.log.count | tee /tmp/py_x2many_count_core.log
+          xargs python tooling/ratchet/ratchet.py py_x2many_count --count < /tmp/py_x2many_count_core.log.count
           rc=$?
           set -e
           exit $rc
@@ -1008,9 +995,8 @@ jobs:
         id: py_x2many_count_addons
         run: |
           set +e
-          python tooling/architecture/py_x2many_count.py --addon addons | tee /tmp/py_x2many_count_addons.log
-          python tooling/architecture/py_x2many_count.py --addon addons --count \
-            | xargs python tooling/ratchet/ratchet.py py_x2many_count_addons --count
+          python tooling/architecture/py_x2many_count.py --addon addons --count-file /tmp/py_x2many_count_addons.log.count | tee /tmp/py_x2many_count_addons.log
+          xargs python tooling/ratchet/ratchet.py py_x2many_count_addons --count < /tmp/py_x2many_count_addons.log.count
           rc=$?
           set -e
           exit $rc
@@ -1029,9 +1015,8 @@ jobs:
         # new site fails on its own.
         run: |
           set +e
-          python tooling/architecture/py_x2many_count.py --addon tests | tee /tmp/py_x2many_count_tests.log
-          python tooling/architecture/py_x2many_count.py --addon tests --count \
-            | xargs python tooling/ratchet/ratchet.py py_x2many_count_tests --count
+          python tooling/architecture/py_x2many_count.py --addon tests --count-file /tmp/py_x2many_count_tests.log.count | tee /tmp/py_x2many_count_tests.log
+          xargs python tooling/ratchet/ratchet.py py_x2many_count_tests --count < /tmp/py_x2many_count_tests.log.count
           rc=$?
           set -e
           exit $rc
@@ -1040,9 +1025,8 @@ jobs:
         id: py_x2many_count_mail
         run: |
           set +e
-          python tooling/architecture/py_x2many_count.py --addon mail | tee /tmp/py_x2many_count_mail.log
-          python tooling/architecture/py_x2many_count.py --addon mail --count \
-            | xargs python tooling/ratchet/ratchet.py py_x2many_count_mail --count
+          python tooling/architecture/py_x2many_count.py --addon mail --count-file /tmp/py_x2many_count_mail.log.count | tee /tmp/py_x2many_count_mail.log
+          xargs python tooling/ratchet/ratchet.py py_x2many_count_mail --count < /tmp/py_x2many_count_mail.log.count
           rc=$?
           set -e
           exit $rc
@@ -1051,9 +1035,8 @@ jobs:
         id: py_x2many_count_account
         run: |
           set +e
-          python tooling/architecture/py_x2many_count.py --addon account | tee /tmp/py_x2many_count_account.log
-          python tooling/architecture/py_x2many_count.py --addon account --count \
-            | xargs python tooling/ratchet/ratchet.py py_x2many_count_account --count
+          python tooling/architecture/py_x2many_count.py --addon account --count-file /tmp/py_x2many_count_account.log.count | tee /tmp/py_x2many_count_account.log
+          xargs python tooling/ratchet/ratchet.py py_x2many_count_account --count < /tmp/py_x2many_count_account.log.count
           rc=$?
           set -e
           exit $rc
@@ -1062,9 +1045,8 @@ jobs:
         id: py_x2many_count_stock
         run: |
           set +e
-          python tooling/architecture/py_x2many_count.py --addon stock | tee /tmp/py_x2many_count_stock.log
-          python tooling/architecture/py_x2many_count.py --addon stock --count \
-            | xargs python tooling/ratchet/ratchet.py py_x2many_count_stock --count
+          python tooling/architecture/py_x2many_count.py --addon stock --count-file /tmp/py_x2many_count_stock.log.count | tee /tmp/py_x2many_count_stock.log
+          xargs python tooling/ratchet/ratchet.py py_x2many_count_stock --count < /tmp/py_x2many_count_stock.log.count
           rc=$?
           set -e
           exit $rc
@@ -1073,9 +1055,8 @@ jobs:
         id: py_x2many_count_project
         run: |
           set +e
-          python tooling/architecture/py_x2many_count.py --addon project | tee /tmp/py_x2many_count_project.log
-          python tooling/architecture/py_x2many_count.py --addon project --count \
-            | xargs python tooling/ratchet/ratchet.py py_x2many_count_project --count
+          python tooling/architecture/py_x2many_count.py --addon project --count-file /tmp/py_x2many_count_project.log.count | tee /tmp/py_x2many_count_project.log
+          xargs python tooling/ratchet/ratchet.py py_x2many_count_project --count < /tmp/py_x2many_count_project.log.count
           rc=$?
           set -e
           exit $rc
@@ -1091,9 +1072,8 @@ jobs:
         # werkzeug.routing legitimately.
         run: |
           set +e
-          python tooling/architecture/werkzeug_in_addons.py | tee /tmp/werkzeug_in_addons.log
-          python tooling/architecture/werkzeug_in_addons.py --count \
-            | xargs python tooling/ratchet/ratchet.py werkzeug_in_addons --count
+          python tooling/architecture/werkzeug_in_addons.py --count-file /tmp/werkzeug_in_addons.log.count | tee /tmp/werkzeug_in_addons.log
+          xargs python tooling/ratchet/ratchet.py werkzeug_in_addons --count < /tmp/werkzeug_in_addons.log.count
           rc=$?
           set -e
           exit $rc
@@ -1110,9 +1090,8 @@ jobs:
         # The unit is REFERENCES: nine reads in one file are nine couplings.
         run: |
           set +e
-          python tooling/architecture/config_in_addons.py | tee /tmp/config_in_addons.log
-          python tooling/architecture/config_in_addons.py --count \
-            | xargs python tooling/ratchet/ratchet.py config_in_addons --count
+          python tooling/architecture/config_in_addons.py --count-file /tmp/config_in_addons.log.count | tee /tmp/config_in_addons.log
+          xargs python tooling/ratchet/ratchet.py config_in_addons --count < /tmp/config_in_addons.log.count
           rc=$?
           set -e
           exit $rc
@@ -1126,9 +1105,8 @@ jobs:
         # gate are fixed, and zero is what refuses the first one back.
         run: |
           set +e
-          python tooling/architecture/sql_in_placeholder.py | tee /tmp/sql_in_placeholder_core.log
-          python tooling/architecture/sql_in_placeholder.py --count \
-            | xargs python tooling/ratchet/ratchet.py sql_in_placeholder --count
+          python tooling/architecture/sql_in_placeholder.py --count-file /tmp/sql_in_placeholder_core.log.count | tee /tmp/sql_in_placeholder_core.log
+          xargs python tooling/ratchet/ratchet.py sql_in_placeholder --count < /tmp/sql_in_placeholder_core.log.count
           rc=$?
           set -e
           exit $rc
@@ -1137,9 +1115,8 @@ jobs:
         id: sql_in_placeholder_addons
         run: |
           set +e
-          python tooling/architecture/sql_in_placeholder.py --addon addons | tee /tmp/sql_in_placeholder_addons.log
-          python tooling/architecture/sql_in_placeholder.py --addon addons --count \
-            | xargs python tooling/ratchet/ratchet.py sql_in_placeholder_addons --count
+          python tooling/architecture/sql_in_placeholder.py --addon addons --count-file /tmp/sql_in_placeholder_addons.log.count | tee /tmp/sql_in_placeholder_addons.log
+          xargs python tooling/ratchet/ratchet.py sql_in_placeholder_addons --count < /tmp/sql_in_placeholder_addons.log.count
           rc=$?
           set -e
           exit $rc
@@ -1158,9 +1135,8 @@ jobs:
         # new site fails on its own.
         run: |
           set +e
-          python tooling/architecture/sql_in_placeholder.py --addon tests | tee /tmp/sql_in_placeholder_tests.log
-          python tooling/architecture/sql_in_placeholder.py --addon tests --count \
-            | xargs python tooling/ratchet/ratchet.py sql_in_placeholder_tests --count
+          python tooling/architecture/sql_in_placeholder.py --addon tests --count-file /tmp/sql_in_placeholder_tests.log.count | tee /tmp/sql_in_placeholder_tests.log
+          xargs python tooling/ratchet/ratchet.py sql_in_placeholder_tests --count < /tmp/sql_in_placeholder_tests.log.count
           rc=$?
           set -e
           exit $rc
@@ -1194,9 +1170,8 @@ jobs:
         # each is a hard zero.
         run: |
           set +e
-          python tooling/architecture/py_count_as_boolean.py | tee /tmp/py_count_as_boolean_core.log
-          python tooling/architecture/py_count_as_boolean.py --count \
-            | xargs python tooling/ratchet/ratchet.py py_count_as_boolean --count
+          python tooling/architecture/py_count_as_boolean.py --count-file /tmp/py_count_as_boolean_core.log.count | tee /tmp/py_count_as_boolean_core.log
+          xargs python tooling/ratchet/ratchet.py py_count_as_boolean --count < /tmp/py_count_as_boolean_core.log.count
           rc=$?
           set -e
           exit $rc
@@ -1205,9 +1180,8 @@ jobs:
         id: py_count_as_boolean_addons
         run: |
           set +e
-          python tooling/architecture/py_count_as_boolean.py --addon addons | tee /tmp/py_count_as_boolean_addons.log
-          python tooling/architecture/py_count_as_boolean.py --addon addons --count \
-            | xargs python tooling/ratchet/ratchet.py py_count_as_boolean_addons --count
+          python tooling/architecture/py_count_as_boolean.py --addon addons --count-file /tmp/py_count_as_boolean_addons.log.count | tee /tmp/py_count_as_boolean_addons.log
+          xargs python tooling/ratchet/ratchet.py py_count_as_boolean_addons --count < /tmp/py_count_as_boolean_addons.log.count
           rc=$?
           set -e
           exit $rc
@@ -1226,9 +1200,8 @@ jobs:
         # new site fails on its own.
         run: |
           set +e
-          python tooling/architecture/py_count_as_boolean.py --addon tests | tee /tmp/py_count_as_boolean_tests.log
-          python tooling/architecture/py_count_as_boolean.py --addon tests --count \
-            | xargs python tooling/ratchet/ratchet.py py_count_as_boolean_tests --count
+          python tooling/architecture/py_count_as_boolean.py --addon tests --count-file /tmp/py_count_as_boolean_tests.log.count | tee /tmp/py_count_as_boolean_tests.log
+          xargs python tooling/ratchet/ratchet.py py_count_as_boolean_tests --count < /tmp/py_count_as_boolean_tests.log.count
           rc=$?
           set -e
           exit $rc
@@ -1244,9 +1217,8 @@ jobs:
         # no baseline file, because the tree is at zero: a contract, not debt.
         run: |
           set +e
-          python tooling/architecture/py_hook_arity.py | tee /tmp/py_hook_arity_core.log
-          python tooling/architecture/py_hook_arity.py --count \
-            | xargs python tooling/ratchet/ratchet.py py_hook_arity --count
+          python tooling/architecture/py_hook_arity.py --count-file /tmp/py_hook_arity_core.log.count | tee /tmp/py_hook_arity_core.log
+          xargs python tooling/ratchet/ratchet.py py_hook_arity --count < /tmp/py_hook_arity_core.log.count
           rc=$?
           set -e
           exit $rc
@@ -1255,9 +1227,8 @@ jobs:
         id: py_hook_arity_addons
         run: |
           set +e
-          python tooling/architecture/py_hook_arity.py --addon addons | tee /tmp/py_hook_arity_addons.log
-          python tooling/architecture/py_hook_arity.py --addon addons --count \
-            | xargs python tooling/ratchet/ratchet.py py_hook_arity_addons --count
+          python tooling/architecture/py_hook_arity.py --addon addons --count-file /tmp/py_hook_arity_addons.log.count | tee /tmp/py_hook_arity_addons.log
+          xargs python tooling/ratchet/ratchet.py py_hook_arity_addons --count < /tmp/py_hook_arity_addons.log.count
           rc=$?
           set -e
           exit $rc
@@ -1276,9 +1247,8 @@ jobs:
         # new site fails on its own.
         run: |
           set +e
-          python tooling/architecture/py_hook_arity.py --addon tests | tee /tmp/py_hook_arity_tests.log
-          python tooling/architecture/py_hook_arity.py --addon tests --count \
-            | xargs python tooling/ratchet/ratchet.py py_hook_arity_tests --count
+          python tooling/architecture/py_hook_arity.py --addon tests --count-file /tmp/py_hook_arity_tests.log.count | tee /tmp/py_hook_arity_tests.log
+          xargs python tooling/ratchet/ratchet.py py_hook_arity_tests --count < /tmp/py_hook_arity_tests.log.count
           rc=$?
           set -e
           exit $rc
@@ -1293,9 +1263,8 @@ jobs:
         # offender went in the commit that added this.
         run: |
           set +e
-          python tooling/architecture/py_shadowed_member.py | tee /tmp/py_shadowed_member_core.log
-          python tooling/architecture/py_shadowed_member.py --count \
-            | xargs python tooling/ratchet/ratchet.py py_shadowed_member --count
+          python tooling/architecture/py_shadowed_member.py --count-file /tmp/py_shadowed_member_core.log.count | tee /tmp/py_shadowed_member_core.log
+          xargs python tooling/ratchet/ratchet.py py_shadowed_member --count < /tmp/py_shadowed_member_core.log.count
           rc=$?
           set -e
           exit $rc
@@ -1308,9 +1277,8 @@ jobs:
         # carries standing failures.
         run: |
           set +e
-          python tooling/architecture/py_shadowed_member.py --addon addons | tee /tmp/py_shadowed_member_addons.log
-          python tooling/architecture/py_shadowed_member.py --addon addons --count \
-            | xargs python tooling/ratchet/ratchet.py py_shadowed_member_addons --count
+          python tooling/architecture/py_shadowed_member.py --addon addons --count-file /tmp/py_shadowed_member_addons.log.count | tee /tmp/py_shadowed_member_addons.log
+          xargs python tooling/ratchet/ratchet.py py_shadowed_member_addons --count < /tmp/py_shadowed_member_addons.log.count
           rc=$?
           set -e
           exit $rc
@@ -1327,9 +1295,8 @@ jobs:
         # so the decision is read off it, never off the count.
         run: |
           set +e
-          python tooling/architecture/bridge_budget.py | tee /tmp/bridge_budget.log
-          python tooling/architecture/bridge_budget.py --count \
-            | xargs python tooling/ratchet/ratchet.py bridge_budget --count
+          python tooling/architecture/bridge_budget.py --count-file /tmp/bridge_budget.log.count | tee /tmp/bridge_budget.log
+          xargs python tooling/ratchet/ratchet.py bridge_budget --count < /tmp/bridge_budget.log.count
           rc=$?
           set -e
           exit $rc

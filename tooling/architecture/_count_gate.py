@@ -38,6 +38,12 @@ def build_parser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--count", action="store_true", help="print the count only")
+    parser.add_argument(
+        "--count-file",
+        type=Path,
+        help="also write the count to this file, so one run feeds both the log "
+        "and the ratchet",
+    )
     parser.add_argument("--json", action="store_true", help="machine-readable")
     parser.add_argument("--top", type=int, default=25, help="0 for all")
     parser.add_argument(
@@ -99,6 +105,8 @@ def run(
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    if args.count_file is not None:
+        args.count_file.write_text(f"{len(found)}\n", encoding="utf-8")
     if args.count:
         print(len(found))
         return 0
