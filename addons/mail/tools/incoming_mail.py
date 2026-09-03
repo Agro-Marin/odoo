@@ -91,12 +91,11 @@ class OdooIMAP4(IMAP4):
             raise NotSelectedError("count_unread_messages() must run first")
         while self._unread_messages:
             num = self._unread_messages.pop()
-            typ, data = self.uid("FETCH", num, "(RFC822)")
+            typ, data = self.uid("FETCH", num, "(BODY.PEEK[])")
             self._check(typ, data, "UID FETCH")
             if not data or not isinstance(data[0], tuple | list) or len(data[0]) < 2:
                 _logger.debug("IMAP message uid %r vanished before FETCH.", num)
                 continue
-            self.uid("STORE", num, "-FLAGS", "(\\Seen)")
             yield num, data[0][1]
 
     def handled_message(self, num: bytes) -> None:

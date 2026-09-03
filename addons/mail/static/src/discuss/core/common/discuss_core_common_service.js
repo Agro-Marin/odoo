@@ -70,7 +70,7 @@ export class DiscussCoreCommon {
                     id,
                     fetched_message_id: { id: last_message_id },
                     partner_id: { id: partner_id },
-                    thread: { id: channel_id, model: "discuss.channel" },
+                    channel_id: { id: channel_id, model: "discuss.channel" },
                 });
             },
         );

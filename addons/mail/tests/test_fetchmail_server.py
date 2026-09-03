@@ -302,6 +302,26 @@ class TestIncomingMailTransport(TransactionCase):
             "peeking must leave every flag exactly as it found it",
         )
 
+    def test_get_unread_uses_peek_and_never_toggles_seen(self):
+        messages = [(101, _message(1), [])]
+        with FakeMailServer("imap", messages) as server:
+            connection = incoming_mail.connect("imap", "127.0.0.1", server.port, "none")
+            connection.login("u", "p")
+            self.assertEqual(connection.count_unread_messages(), 1)
+            fetched = list(connection.get_unread_messages())
+            log = " ".join(server.mailbox.log)
+            connection.disconnect()
+        self.assertEqual(fetched, [(b"101", _message(1))])
+        self.assertIn(
+            "BODY.PEEK", log, "the unread fetch must peek, not implicitly mark \\Seen"
+        )
+        self.assertNotIn(
+            "-FLAGS",
+            log,
+            "peeking needs no flag to be toggled back off, so no window can leave "
+            "the mail seen-but-unhandled",
+        )
+
     def test_get_unread_before_select_is_named(self):
         for protocol in ("imap", "pop"):
             with self.subTest(protocol=protocol), FakeMailServer(protocol) as server:
