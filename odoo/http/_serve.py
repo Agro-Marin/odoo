@@ -127,7 +127,8 @@ class _RequestServeMixin(RequestState):
 
     def _acquire_registry_cursor(self) -> Any:
         db = self.db
-        assert db, "a database-bound request needs a database name"
+        if not db:
+            raise RuntimeError("a database-bound request needs a database name")
         cr = None
         try:
             with borrow_request():
@@ -183,7 +184,8 @@ class _RequestServeMixin(RequestState):
         self, serve_func: Any, participant: RequestRetryParticipant
     ) -> Response:
         env = self.env
-        assert env is not None, "a database-bound request has an environment"
+        if env is None:
+            raise RuntimeError("a database-bound request has an environment")
         try:
             return retrying(serve_func, env=env, participant=participant)
         except Exception as exc:
@@ -195,7 +197,8 @@ class _RequestServeMixin(RequestState):
     ) -> Any:
         current_worker_thread().cursor_mode = "ro"
         env = self.env
-        assert env is not None, "a database-bound request has an environment"
+        if env is None:
+            raise RuntimeError("a database-bound request has an environment")
         try:
             return retrying(serve_func, env=env, participant=participant)
         except psycopg.errors.ReadOnlySqlTransaction as exc:
@@ -219,7 +222,8 @@ class _RequestServeMixin(RequestState):
 
     def _open_read_write_cursor(self, cr: Any) -> Any:
         env = self.env
-        assert env is not None
+        if env is None:
+            raise RuntimeError("a database-bound request has an environment")
         if cr.readonly:
             cr.close()
             cr = env.registry.cursor()
@@ -239,7 +243,8 @@ class _RequestServeMixin(RequestState):
         try:
             cr = self._acquire_registry_cursor()
             registry = self.registry
-            assert registry is not None
+            if registry is None:
+                raise RuntimeError("ir.http is only reachable with a registry")
             current_worker_thread().dbname = registry.db_name
 
             self.env = odoo.api.Environment(
@@ -258,7 +263,8 @@ class _RequestServeMixin(RequestState):
                 current_worker_thread().cursor_mode = "rw"
 
             env = self.env
-            assert env is not None
+            if env is None:
+                raise RuntimeError("a database-bound request has an environment")
             cr = self._open_read_write_cursor(cr)
             if promoted:
                 self._reset_for_replay(cr)
@@ -290,7 +296,8 @@ class _RequestServeMixin(RequestState):
 
     def _get_bound_registry(self) -> Registry:
         registry = self.registry
-        assert registry is not None, "ir.http is only reachable with a registry"
+        if registry is None:
+            raise RuntimeError("ir.http is only reachable with a registry")
         return registry
 
     def _check_body_size(self) -> None:
