@@ -1026,21 +1026,14 @@ class WeasyPrintEngine:
         *,
         pdf_options: dict[str, Any] | None = None,
     ) -> bytes:
-        tolerant_pdfs = [
-            _write_pdf_tolerant_fonts(
-                html_str,
-                fetcher,
-                body_css,
-                pdf_options,
-                db_state.font_config,
-                image_cache,
-            )
-            for html_str, body_css in processed
-        ]
-        if len(tolerant_pdfs) == 1:
-            return tolerant_pdfs[0]
-        streams = [io.BytesIO(pdf) for pdf in tolerant_pdfs]
-        return self._merge_pdfs(streams).getvalue()
+        with _tolerant_fonts_enabled():
+            documents = [
+                self._render_body_document(
+                    html_str, fetcher, body_css, db_state, image_cache
+                )
+                for html_str, body_css in processed
+            ]
+            return self._serialize_documents(documents, pdf_options=pdf_options)
 
     def _prepare_pdf_render_error(self, detail: str) -> UserError:
         message = _(

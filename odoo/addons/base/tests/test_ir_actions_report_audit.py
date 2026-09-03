@@ -1209,6 +1209,48 @@ class TestMultiRecordDocumentOptions(MultiArticleReportCase):
             )
             self.assertIn("pdfaid", doc.get_xml_metadata())
 
+    def test_pdfa_survives_the_tolerant_font_retry(self):
+        from odoo.addons.base.models import ir_actions_report as mod
+
+        render_document = mod._render_html_document
+        failures = {"left": 1}
+
+        class _FailingOnceDocument:
+            def __init__(self, document):
+                self._document = document
+
+            def __getattr__(self, name):
+                return getattr(self._document, name)
+
+            def copy(self, *args, **kwargs):
+                return _FailingOnceDocument(self._document.copy(*args, **kwargs))
+
+            def write_pdf(self, *args, **kwargs):
+                if failures["left"]:
+                    failures["left"] -= 1
+                    raise ValueError("expected 0 <= int <= 122, got 200")
+                return self._document.write_pdf(*args, **kwargs)
+
+        def render_failing_once(*args, **kwargs):
+            return _FailingOnceDocument(render_document(*args, **kwargs))
+
+        with (
+            patch.object(mod, "_render_html_document", render_failing_once),
+            mute_logger("odoo.addons.base.models.ir_actions_report"),
+        ):
+            pdf = self._render_pdf({"pdf_variant": "pdf/a-3b"})
+        self.assertEqual(failures["left"], 0, "the tolerant-font retry did not run")
+        with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+            self.assertEqual(doc.page_count, 2)
+            kind, _value = doc.xref_get_key(doc.pdf_catalog(), "OutputIntents")
+            self.assertEqual(
+                kind,
+                "array",
+                "the tolerant-font retry merged per-record PDFs with pypdf and "
+                "dropped the PDF/A output intent",
+            )
+            self.assertIn("pdfaid", doc.get_xml_metadata())
+
     def test_attachments_survive_a_two_record_render(self):
         pdf = self._render_pdf(
             {"attachments": [{"content": b"audit-payload", "name": "audit.txt"}]}
