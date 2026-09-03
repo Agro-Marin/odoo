@@ -398,14 +398,14 @@ class TestSalePurchase(TestSalePurchaseCommon):
         )
 
     def test_update_ordered_sale_quantity(self):
-        """Test the purchase order behovior when changing the ordered quantity on the sale order line.
+        """Test the purchase order behavior when changing the ordered quantity on the sale order line.
         Increase of qty on the SO
-        - If PO is draft ['draft', 'sent', 'to approve'] : increase the quantity on the PO
-        - If PO is confirmed ['done', 'cancel'] : create a new PO
+        - If PO is draft ['draft'] : increase the quantity on the PO
+        - If PO is confirmed/cancelled ['done', 'cancel'] : create a new PO
 
         Decrease of qty on the SO
-        - If PO is draft  ['draft', 'sent', 'to approve'] : next activity on the PO
-        - If PO is confirmed ['done', 'cancel'] : next activity on the PO
+        - If PO is draft  ['draft'] : next activity on the PO
+        - If PO is confirmed/cancelled ['done', 'cancel'] : next activity on the PO
         """
         self.sale_order_1.action_confirm()
 
