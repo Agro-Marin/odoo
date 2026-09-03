@@ -320,3 +320,54 @@ class TestWorkorderAudit(TransactionCase):
             "the planner refuses the slot but the popover reports nothing",
         )
         self.assertIn("already booked", b.json_popover)
+
+
+@tagged("post_install", "-at_install")
+class TestWorkorderChatter(TestWorkorderAudit):
+    """The work order is the unit the shop floor actually touches.
+
+    Its work center and its BoM operation both carry a chatter
+    (models/mrp_workcenter.py, models/mrp_routing.py); the order itself kept no
+    trace of who moved it to another work center or stretched its expected
+    duration.
+    """
+
+    def _flush_tracking(self):
+        self.env.flush_all()
+        self.env.cr.flush()
+
+    def _tracked_fields(self, wo):
+        return wo.message_ids.sudo().tracking_value_ids.field_id.mapped("name")
+
+    def test_workorder_tracks_its_work_center(self):
+        mo = self._mo(tag="CHAT")
+        wo = mo.workorder_ids
+        self._flush_tracking()
+        before = len(wo.message_ids)
+
+        wo.workcenter_id = self.wc2
+        self._flush_tracking()
+
+        self.assertIn("workcenter_id", self._tracked_fields(wo))
+        self.assertGreater(len(wo.message_ids), before)
+
+    def test_workorder_tracks_its_expected_duration(self):
+        mo = self._mo(tag="CHAT2")
+        wo = mo.workorder_ids
+        self._flush_tracking()
+
+        wo.duration_expected = 123.0
+        self._flush_tracking()
+
+        self.assertIn("duration_expected", self._tracked_fields(wo))
+
+    def test_workorder_accepts_an_activity(self):
+        """`mixin.mail.activity` is what puts the order on someone's list."""
+        mo = self._mo(tag="CHAT3")
+        wo = mo.workorder_ids
+
+        wo.activity_schedule(
+            "mail.mail_activity_data_todo", summary="Check the fixture"
+        )
+
+        self.assertEqual(len(wo.activity_ids), 1)

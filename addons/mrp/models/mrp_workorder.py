@@ -15,7 +15,11 @@ from odoo.tools.date_utils import sum_intervals
 class MrpWorkorder(models.Model):
     _name = "mrp.workorder"
     _description = "Work Order"
-    _inherit = ["mixin.resource.scheduling"]
+    _inherit = [
+        "mixin.mail.thread",
+        "mixin.mail.activity",
+        "mixin.resource.scheduling",
+    ]
     _order = "sequence, date_start, id"
 
     OPEN_STATES = ("blocked", "ready", "progress")
@@ -70,6 +74,7 @@ class MrpWorkorder(models.Model):
         "Work Center",
         required=True,
         index=True,
+        tracking=True,
         group_expand="_read_group_workcenter_id",
         check_company=True,
     )
@@ -142,6 +147,7 @@ class MrpWorkorder(models.Model):
         string="Status",
         compute="_compute_state",
         store=True,
+        tracking=True,
         default="ready",
         copy=False,
         index=True,
@@ -161,6 +167,7 @@ class MrpWorkorder(models.Model):
         compute="_compute_duration_expected",
         readonly=False,
         store=True,
+        tracking=True,
     )
     duration = fields.Float(
         "Real Duration",
