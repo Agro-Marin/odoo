@@ -20,11 +20,24 @@ _RX_ACTION_PATH = re.compile(r"[a-z][a-z0-9_-]*")
 _BINDING_ACCESS_MODEL = "__opens_model"
 
 
+def _eval_with_missing_names_false(expr: str, eval_ctx: dict[str, Any]) -> Any:
+    eval_ctx = dict(eval_ctx)
+    while True:
+        try:
+            return safe_eval(expr, eval_ctx)
+        except Exception as exc:
+            cause = exc.__cause__
+            name = getattr(cause, "name", None)
+            if not (isinstance(cause, NameError) and name and name not in eval_ctx):
+                raise
+            eval_ctx[name] = False
+
+
 def _eval_dict_or_default(
     expr: str | None, eval_ctx: dict[str, Any], default: Any
 ) -> Any:
     try:
-        result = safe_eval(expr or "{}", eval_ctx)
+        result = _eval_with_missing_names_false(expr or "{}", eval_ctx)
     except Exception as exc:
         if not isinstance(exc.__cause__, NameError):
             _logger.warning("Malformed action expression %r: %s", expr, exc)

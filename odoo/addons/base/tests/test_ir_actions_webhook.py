@@ -221,3 +221,14 @@ class TestWebhookNeverLogsItsSecret(WebhookCase):
         self.assertNotIn(_SECRET, output)
         self.assertIn("rolled back", output)
         post.assert_not_called()
+
+
+@tagged("post_install", "-at_install")
+class TestWebhookPayloadBytes(WebhookCase):
+    def test_bytes_are_sent_as_text_not_as_their_repr(self):
+        action = self._action()
+        dumped = action._dump_webhook_payload(
+            {"text": b"ab", "array": bytearray(b"c"), "raw": b"\xff\xfe"}
+        )
+        self.assertEqual(dumped, '{"array":"c","raw":"//4=","text":"ab"}')
+        self.assertNotIn("b'", dumped)

@@ -116,6 +116,30 @@ class TestSafeEvalDict(TransactionCase):
         self.assertIs(_eval_dict_or_default("[1, 2]", {}, sentinel), sentinel)
         self.assertEqual(_eval_dict_or_default("{'u': uid}", {"uid": 7}, {}), {"u": 7})
 
+    def test_a_missing_name_reads_as_false_and_keeps_the_rest(self):
+        self.assertEqual(
+            _eval_dict_or_default(
+                "{'search_default_x': 1, 'default_p': active_id, 'q': other}", {}, {}
+            ),
+            {"search_default_x": 1, "default_p": False, "q": False},
+        )
+        given = {"uid": 7}
+        _eval_dict_or_default("{'a': missing}", given, {})
+        self.assertEqual(given, {"uid": 7}, "the caller's context is not mutated")
+
+    def test_an_act_window_context_survives_a_missing_active_id(self):
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-ctx",
+                "res_model": "res.partner",
+                "context": "{'search_default_x': 1, 'default_parent_id': active_id}",
+            }
+        )
+        self.assertEqual(
+            action._eval_action_context(action.context),
+            {"search_default_x": 1, "default_parent_id": False},
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestIrActionsUnlinkCascadesEmbedded(TransactionCase):
@@ -1863,7 +1887,8 @@ class TestIrActionsStoredContextIsData(TransactionCase):
     def test_a_missing_runtime_name_stays_quiet(self):
         with self.assertNoLogs(_ACTIONS_LOGGER):
             self.assertEqual(
-                _eval_dict_or_default("{'default_x': active_id}", {}, {}), {}
+                _eval_dict_or_default("{'default_x': active_id}", {}, {}),
+                {"default_x": False},
             )
 
 

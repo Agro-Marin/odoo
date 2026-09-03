@@ -1,3 +1,4 @@
+import base64
 import contextlib
 import ipaddress
 import logging
@@ -26,6 +27,15 @@ _logger = logging.getLogger(__name__)
 _server_action_logger = logging.getLogger(
     "odoo.addons.base.models.ir_actions.server_action_safe_eval"
 )
+
+
+def _webhook_json_default(value: Any) -> str:
+    if isinstance(value, bytes | bytearray):
+        try:
+            return bytes(value).decode()
+        except UnicodeDecodeError:
+            return base64.b64encode(value).decode()
+    return str(value)
 
 
 def _get_webhook_blocked_reason(url: str) -> str | None:
@@ -538,7 +548,8 @@ class IrActionsServer(models.Model):
         return actions
 
     def write(self, vals: dict[str, Any]) -> bool:
-        if "name" in vals and "name_is_custom" not in vals:
+        name_decides_custom = "name" in vals and "name_is_custom" not in vals
+        if name_decides_custom:
             vals = {**vals, "name_is_custom": bool(vals["name"])}
         if "code" in vals:
             new_code = vals.get("code")
@@ -549,7 +560,19 @@ class IrActionsServer(models.Model):
             ]
             if history_vals:
                 self.env["ir.actions.server.history"].create(history_vals)
-        return super().write(vals)
+        res = super().write(vals)
+        if name_decides_custom:
+            self._release_automated_names()
+        return res
+
+    def _release_automated_names(self) -> None:
+        self._prefetch_automated_name_sources()
+        for action in self:
+            if (
+                action.name_is_custom
+                and action.name == action._prepare_automated_name()
+            ):
+                action.name_is_custom = False
 
     @api.depends("state", "code")
     def _compute_show_code_history(self) -> None:
@@ -633,7 +656,9 @@ class IrActionsServer(models.Model):
 
     @api.onchange("name")
     def _onchange_name(self) -> None:
-        self.name_is_custom = bool(self.name)
+        self.name_is_custom = bool(self.name) and (
+            self.name != self._prepare_automated_name()
+        )
         if not self.name:
             self.automated_name = self._prepare_automated_name()
             self.name = self.automated_name
@@ -881,7 +906,7 @@ class IrActionsServer(models.Model):
         self, payload: dict[str, Any], indent: bool = False
     ) -> str:
         option = OPT_SORT_KEYS | (OPT_INDENT_2 if indent else 0)
-        return json_dumps(payload, default=str, option=option)
+        return json_dumps(payload, default=_webhook_json_default, option=option)
 
     @api.depends("state", "model_id.model", "webhook_field_ids", "name")
     def _compute_webhook_sample_payload(self) -> None:
@@ -1296,8 +1321,11 @@ class IrActionsServer(models.Model):
         res = False
         for record in records:
             run_self = self.with_context(active_ids=record.ids, active_id=record.id)
-            eval_context["env"] = eval_context["env"](context=run_self.env.context)
-            eval_context["records"] = eval_context["record"] = record
+            env = eval_context["env"](context=run_self.env.context)
+            eval_context["env"] = env
+            if (model := eval_context.get("model")) is not None:
+                eval_context["model"] = model.with_env(env)
+            eval_context["records"] = eval_context["record"] = record.with_env(env)
             res = runner(run_self, eval_context=eval_context)
         return res or False
 

@@ -581,3 +581,61 @@ class TestTheOverridesStayInTheirChain(ServerActionCase):
             inspect.Parameter.empty,
             "the registry class, not just the base one, must require the action",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestNameIsCustomFollowsTheAutomatedName(ServerActionCase):
+    def test_saving_the_automated_name_back_does_not_pin_it(self):
+        action = self._action(state="code", code="pass", name=False)
+        self.assertEqual(action.name, "Execute Code")
+        action.write({"name": "Execute Code"})
+        self.assertFalse(action.name_is_custom)
+        action.write({"state": "object_write", "update_path": "name"})
+        self.assertEqual(action.name, "Update Contact")
+
+    def test_a_form_round_trip_through_a_type_change_still_follows_the_type(self):
+        action = self._action(state="code", code="pass", name=False)
+        action.write(
+            {"state": "object_write", "update_path": "name", "name": "Update Contact"}
+        )
+        self.assertFalse(action.name_is_custom)
+        action.write({"state": "code", "code": "pass"})
+        self.assertEqual(action.name, "Execute Code")
+
+    def test_a_typed_name_is_still_custom(self):
+        action = self._action(state="code", code="pass", name=False)
+        action.write({"name": "Mine"})
+        self.assertTrue(action.name_is_custom)
+        action.write({"state": "object_write", "update_path": "name"})
+        self.assertEqual(action.name, "Mine")
+
+    def test_the_onchange_does_not_pin_the_name_it_was_handed(self):
+        action = self._action(state="code", code="pass", name=False)
+        form = action.new(origin=action)
+        form.name = "Execute Code"
+        form._onchange_name()
+        self.assertFalse(form.name_is_custom)
+        form.name = "Mine"
+        form._onchange_name()
+        self.assertTrue(form.name_is_custom)
+
+
+@tagged("post_install", "-at_install")
+class TestPerRecordLoopRebindsEverything(ServerActionCase):
+    def test_record_records_and_model_carry_the_record_context(self):
+        field = self.env["ir.model.fields"]._get("res.partner", "ref")
+        action = self._action(
+            state="object_write",
+            update_path="ref",
+            evaluation_type="equation",
+            value=(
+                "'%s/%s/%s' % (record.env.context.get('active_id'),"
+                " records.env.context.get('active_id'),"
+                " model.env.context.get('active_id'))"
+            ),
+        )
+        self.assertEqual(action.update_field_id, field)
+        partners = self._partners(3)
+        action.with_context(**self._ctx(partners)).run()
+        for partner in partners:
+            self.assertEqual(partner.ref, "/".join([str(partner.id)] * 3))
