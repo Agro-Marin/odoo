@@ -351,13 +351,13 @@ class ProductTemplate(models.Model):
         )
 
     def _has_is_custom_values(self):
-        self.check_singleton()
         """Return whether this `product.template` has at least one is_custom
         attribute value.
 
         :return: True if at least one is_custom attribute value, False otherwise
         :rtype: bool
         """
+        self.check_singleton()
         return any(
             v.is_custom
             for v in self.valid_product_template_attribute_line_ids.product_template_value_ids._only_active()
