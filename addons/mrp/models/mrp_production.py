@@ -110,6 +110,7 @@ class MrpProduction(models.Model):
         precompute=True,
         readonly=False,
         required=True,
+        index=True,
         check_company=True,
     )
     production_group_id = fields.Many2one(
@@ -218,6 +219,7 @@ class MrpProduction(models.Model):
         readonly=False,
         required=True,
         precompute=True,
+        index=True,
         domain="[('usage','=','internal')]",
         help="Location where the system will look for components.",
     )
@@ -293,6 +295,9 @@ class MrpProduction(models.Model):
         compute="_compute_bom_id",
         store=True,
         precompute=True,
+        # Sparse on purpose: a manual order has no bill of materials, so a
+        # partial index stays small and still serves the join.
+        index="btree_not_null",
         help="Bills of Materials, also called recipes, are used to autocomplete components and work order instructions.",
     )
 
