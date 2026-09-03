@@ -9,7 +9,7 @@ _logger = logging.getLogger(__name__)
 
 
 class AccountMoveSend(models.AbstractModel):
-    _inherit = 'account.move.send'
+    _inherit = 'mixin.account.move.send'
 
     def _get_all_extra_edis(self):
         res = super()._get_all_extra_edis()

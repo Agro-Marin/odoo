@@ -43,7 +43,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
     def _create_payment(self, payment_type='outbound', partner=None, amount=15000, journal=False, payment_method=False, partner_bank=False, post=True):
         partner = partner or self.pl_supplier
         journal = journal or self.company_data['default_journal_bank']
-        payment_method = journal.outbound_payment_method_line_ids[0]
+        payment_method = journal.outbound_payment_channel_ids[0]
         partner_bank = partner_bank or partner.bank_ids[0]
 
         payment = self.env['account.payment'].with_company(self.company_data['company']).create({
@@ -51,7 +51,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
             'partner_id': partner.id,
             'amount': amount,
             'journal_id': journal.id,
-            'payment_method_line_id': payment_method.id,
+            'payment_channel_id': payment_method.id,
             'partner_bank_id': partner_bank.id,
         })
 

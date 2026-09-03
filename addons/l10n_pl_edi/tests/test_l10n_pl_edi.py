@@ -60,7 +60,7 @@ class TestL10nPlEdi(AccountTestInvoicingCommon, CronMixinCase):
         })
         cls.product_a.taxes_id = cls.tax_23
         cls.cash_journal = cls.company_data['default_journal_cash']
-        cls.cash_journal.inbound_payment_method_line_ids.payment_account_id = cls.cash_journal.default_account_id.id
+        cls.cash_journal.inbound_payment_channel_ids.payment_account_id = cls.cash_journal.default_account_id.id
 
         cls.env['ir.config_parameter'].sudo().set_param('l10n_pl_edi_ksef.mode', 'test')
 

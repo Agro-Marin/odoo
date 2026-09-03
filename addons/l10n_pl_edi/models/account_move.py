@@ -313,7 +313,7 @@ class AccountMove(models.Model):
     def _l10n_pl_edi_generate_qr(self):
         self.check_singleton()
         return base64.b64encode(
-            self.env['ir.actions.report'].barcode(
+            self.env['ir.actions.report'].prepare_barcode(
                 barcode_type='QR',
                 value=self._l10n_pl_edi_generate_qr_link(),
                 width=180,
