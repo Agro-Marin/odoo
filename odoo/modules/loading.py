@@ -938,21 +938,64 @@ class _ModuleLoader:
     def finalize_constraints(self) -> None:
         self.registry.finalize_constraints(self.cr)
 
+    def _check_removed_columns(self, models: list[str]) -> None:
+        env = self.env
+        cr = self.cr
+        tables = {env[model]._table for model in models if not env[model]._abstract}
+        if not tables:
+            return
+        cr.execute(
+            """
+            SELECT c.relname AS table_name,
+                   a.attname AS column_name,
+                   CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable
+              FROM pg_attribute a
+              JOIN pg_class c ON a.attrelid = c.oid
+             WHERE c.relname = ANY(%s)
+               AND c.relnamespace = current_schema::regnamespace
+               AND a.attnum > 0
+               AND NOT a.attisdropped
+            """,
+            [list(tables)],
+        )
+        columns_by_table: dict[str, dict[str, str]] = {}
+        for table_name, column_name, is_nullable in cr.fetchall():
+            columns_by_table.setdefault(table_name, {})[column_name] = is_nullable
+
+        for model in models:
+            Model = env[model]
+            if Model._abstract:
+                continue
+            cols = {name for name, field in Model._fields.items() if field.is_column}
+            for col_name, is_nullable in columns_by_table.get(Model._table, {}).items():
+                if col_name in cols:
+                    continue
+                _logger.debug(
+                    "column %s is in the table %s but not in the corresponding object %s",
+                    col_name,
+                    Model._table,
+                    model,
+                )
+                if is_nullable == "NO":
+                    schema.drop_not_null(cr, Model._table, col_name)
+
     def run_post_update_model_checks(self) -> None:
         if not self.registry.updated_modules:
             return
         env = self.env
         cr = self.cr
         cr.execute("SELECT model from ir_model")
+        checked_models = []
         for (model,) in cr.fetchall():
             if model in self.registry:
-                env[model]._check_removed_columns()
+                checked_models.append(model)
             elif _logger.isEnabledFor(logging.INFO):
                 _logger.log(
                     RUNBOT,
                     "Model %s is declared but cannot be loaded! (Perhaps a module was partially removed or renamed)",
                     model,
                 )
+        self._check_removed_columns(checked_models)
 
         self._reflect_inherits_across_the_whole_registry()
 
