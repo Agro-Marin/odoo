@@ -1597,6 +1597,18 @@ class TestClientActionParams(common.TransactionCase):
         )
         self.assertFalse(action.params)
 
+    def test_params_arriving_as_text_or_bytes_are_evaluated(self):
+        for source in (
+            "{'default_active_id': 'mail.box_inbox'}",
+            b"{'default_active_id': 'mail.box_inbox'}",
+        ):
+            with self.subTest(source=source):
+                action = self.env["ir.actions.client"].create(
+                    {"name": "ClientAction5", "tag": "some_tag", "params": source}
+                )
+                action.invalidate_recordset(["params"])
+                self.assertEqual(action.params, {"default_active_id": "mail.box_inbox"})
+
     def test_params_that_are_not_a_dict_are_refused(self):
         for params in ([1, 2], "x", b"env"):
             with self.subTest(params=params), self.assertRaises(ValidationError):
