@@ -397,7 +397,6 @@ class ResPartner(models.Model):
         "access or with a limited access created for sharing data.",
     )
 
-
     application_statistics = fields.Json(
         string="Stats",
         compute="_compute_application_statistics",

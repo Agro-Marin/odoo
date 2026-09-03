@@ -119,9 +119,7 @@ class ResPartnerIdentifierType(models.Model):
         normalized = self._normalize(value)
         if not normalized:
             raise ValidationError(
-                self.env._(
-                    "%(name)s cannot be empty.", name=self.display_name
-                )
+                self.env._("%(name)s cannot be empty.", name=self.display_name)
             )
         if self.pattern and not re.fullmatch(self.pattern, normalized):
             raise ValidationError(

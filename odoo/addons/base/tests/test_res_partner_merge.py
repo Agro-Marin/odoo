@@ -429,9 +429,7 @@ class TestMergePartnerAbsorbSourceValues(TransactionCase):
         self.assertFalse(dst.vat, "a plain field must not be absorbed")
         self.assertFalse(dst.street, "a plain field must not be absorbed")
         self.assertFalse(dst.barcode, "a company-dependent field must not be absorbed")
-        self.assertEqual(
-            dst.tag_ids, self.tag_dst, "a many2many must not be absorbed"
-        )
+        self.assertEqual(dst.tag_ids, self.tag_dst, "a many2many must not be absorbed")
         self.assertFalse(dst.bank_ids, "a bank account must not be absorbed")
 
     def test_absorbing_a_uniqueness_constrained_value(self):
