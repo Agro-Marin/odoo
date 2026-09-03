@@ -190,7 +190,11 @@ class SaleOrderLine(models.Model):
         )
 
     def _purchase_service_get_date_order(self, supplierinfo):
-        """return the ordered date for the purchase order, computed as : SO commitment date - supplier delay"""
+        """Return the date to order on, computed as the SO commitment date minus the supplier delay.
+
+        :param supplierinfo: record of product.supplierinfo
+        :rtype: datetime
+        """
         date_commitment = fields.Datetime.from_string(
             self.order_id.date_commitment or fields.Datetime.now()
         )
@@ -200,7 +204,7 @@ class SaleOrderLine(models.Model):
         return self.company_id
 
     def _purchase_service_prepare_order_values(self, supplierinfo):
-        """Returns the values to create the purchase order from the current SO line.
+        """Return the values to create the purchase order from the current SO line.
         :param supplierinfo: record of product.supplierinfo
         :rtype: dict
         """
@@ -229,7 +233,7 @@ class SaleOrderLine(models.Model):
     def _purchase_service_prepare_line_values(
         self, purchase_order, quantity=False, supplierinfo=None
     ):
-        """Returns the values to create the purchase order line from the current SO line.
+        """Return the values to create the purchase order line from the current SO line.
         :param purchase_order: record of purchase.order
         :param quantity: the quantity to force on the PO line, expressed in SO line UoM
         :param supplierinfo: the vendor pricelist line the purchase order was chosen

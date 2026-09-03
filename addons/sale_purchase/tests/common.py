@@ -11,7 +11,6 @@ class TestSalePurchaseCommon(TestSaleCommon):
         uom_unit = cls.env.ref("uom.product_uom_unit")
         uom_dozen = cls.env.ref("uom.product_uom_dozen")
 
-        # Create category
         cls.product_category_purchase = cls.env["product.category"].create(
             {
                 "name": "Product Category with Expense account",
@@ -28,7 +27,6 @@ class TestSalePurchaseCommon(TestSaleCommon):
             }
         )
 
-        # Create product
         # When service_to_purchase is True add the supplier i.e 'seller_ids' on the product to void the Validation error at product creation time
         cls.service_purchase_1 = cls.env["product.product"].create(
             {
@@ -63,7 +61,7 @@ class TestSalePurchaseCommon(TestSaleCommon):
                 "standard_price": 20.0,
                 "list_price": 15.0,
                 "type": "service",
-                "uom_id": uom_dozen.id,  # different UoM
+                "uom_id": uom_dozen.id,
                 "invoice_policy": "ordered",
                 "expense_policy": "no",
                 "default_code": "SERV_ORD",
