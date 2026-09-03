@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
@@ -320,3 +320,155 @@ class TestWorkorderAudit(TransactionCase):
             "the planner refuses the slot but the popover reports nothing",
         )
         self.assertIn("already booked", b.json_popover)
+
+
+@tagged("post_install", "-at_install")
+class TestWorkorderChatter(TestWorkorderAudit):
+    """The work order is the unit the shop floor actually touches.
+
+    Its work center and its BoM operation both carry a chatter
+    (models/mrp_workcenter.py, models/mrp_routing.py); the order itself kept no
+    trace of who moved it to another work center or stretched its expected
+    duration.
+    """
+
+    def _flush_tracking(self):
+        self.env.flush_all()
+        self.env.cr.flush()
+
+    def _tracked_fields(self, wo):
+        return wo.message_ids.sudo().tracking_value_ids.field_id.mapped("name")
+
+    def test_workorder_tracks_its_work_center(self):
+        mo = self._mo(tag="CHAT")
+        wo = mo.workorder_ids
+        self._flush_tracking()
+        before = len(wo.message_ids)
+
+        wo.workcenter_id = self.wc2
+        self._flush_tracking()
+
+        self.assertIn("workcenter_id", self._tracked_fields(wo))
+        self.assertGreater(len(wo.message_ids), before)
+
+    def test_workorder_tracks_its_expected_duration(self):
+        mo = self._mo(tag="CHAT2")
+        wo = mo.workorder_ids
+        self._flush_tracking()
+
+        wo.duration_expected = 123.0
+        self._flush_tracking()
+
+        self.assertIn("duration_expected", self._tracked_fields(wo))
+
+    def test_workorder_accepts_an_activity(self):
+        """`mixin.mail.activity` is what puts the order on someone's list."""
+        mo = self._mo(tag="CHAT3")
+        wo = mo.workorder_ids
+
+        wo.activity_schedule(
+            "mail.mail_activity_data_todo", summary="Check the fixture"
+        )
+
+        self.assertEqual(len(wo.activity_ids), 1)
+
+
+@tagged("post_install", "-at_install")
+class TestWorkorderPlanningIssues(TestWorkorderAudit):
+    """Planning trouble was readable only by hovering over one row at a time.
+
+    `json_popover` renders the reason on the record it belongs to, so there was
+    no way to ask for every work order in conflict, or to group a planning board
+    by that.
+    """
+
+    def _plan_two_overlapping(self):
+        mo_a = self._mo(tag="CONF_A")
+        mo_b = self._mo(tag="CONF_B")
+        mo_a.button_plan()
+        mo_b.button_plan()
+        wo_a, wo_b = mo_a.workorder_ids, mo_b.workorder_ids
+        # Same work center, same slot: that is what `_get_conflicted_workorder_ids`
+        # detects, and what the popover already reports one row at a time.
+        wo_b.write({"date_start": wo_a.date_start, "date_end": wo_a.date_end})
+        self.env.flush_all()
+        return wo_a, wo_b
+
+    def test_conflicting_workorders_are_searchable(self):
+        wo_a, wo_b = self._plan_two_overlapping()
+        self.assertTrue(wo_a.has_conflicts)
+        self.assertTrue(wo_b.has_conflicts)
+
+        found = self.env["mrp.workorder"].search([("has_conflicts", "=", True)])
+
+        self.assertIn(wo_a, found)
+        self.assertIn(wo_b, found)
+
+    def test_workorder_planned_before_its_predecessor_is_searchable(self):
+        mo = self._mo(n_ops=2, tag="SEQ")
+        mo.bom_id.allow_operation_dependencies = True
+        mo.button_plan()
+        first, second = mo.workorder_ids.sorted("sequence")
+        # Push the second operation to start before the one it waits on.
+        second.write(
+            {
+                "date_start": first.date_start - timedelta(hours=4),
+                "date_end": first.date_start - timedelta(hours=3),
+            }
+        )
+        self.env.flush_all()
+
+        found = self.env["mrp.workorder"].search([("has_planning_issues", "=", True)])
+
+        self.assertIn(second, found)
+        self.assertNotIn(first, found)
+
+
+@tagged("post_install", "-at_install")
+class TestWorkorderComponentCatalog(TestWorkorderAudit):
+    """Adding a missing component meant leaving the operation for the order.
+
+    The manufacturing order carries the product catalog
+    (models/mrp_production.py); the work order did not, so a missing component
+    had to be added on the order form and then assigned back to the operation.
+    """
+
+    def test_catalog_adds_the_component_to_both_the_order_and_the_operation(self):
+        mo = self._mo(tag="CAT")
+        wo = mo.workorder_ids
+        extra = self.env["product.product"].create(
+            {"name": "CAT extra", "is_storable": True, "standard_price": 7.0}
+        )
+
+        price = wo._update_order_line_info(extra.id, 3.0, child_field="move_raw_ids")
+
+        self.assertEqual(price, 7.0)
+        move = mo.move_raw_ids.filtered(lambda m: m.product_id == extra)
+        self.assertEqual(len(move), 1)
+        self.assertEqual(move.product_uom_qty, 3.0)
+        # Both keys, or the move falls outside the o2m's own domain
+        # (`raw_material_production_id != False`) and shows up nowhere.
+        self.assertEqual(move.workorder_id, wo)
+        self.assertEqual(move.raw_material_production_id, mo)
+        self.assertIn(move, wo.move_raw_ids)
+
+    def test_catalog_lists_only_this_operation_s_components(self):
+        """The dialog reads back what this operation holds, not the order's.
+
+        A component only reaches an operation when something puts it there --
+        a BoM line naming the operation, or the catalog itself -- so the order's
+        own unassigned component must not be listed here.
+        """
+        mo = self._mo(tag="CAT2")
+        wo = mo.workorder_ids
+        unassigned = mo.move_raw_ids.product_id
+        extra = self.env["product.product"].create(
+            {"name": "CAT2 extra", "is_storable": True, "standard_price": 2.0}
+        )
+        wo._update_order_line_info(extra.id, 2.0, child_field="move_raw_ids")
+
+        lines = wo._get_product_catalog_record_lines(
+            (extra + unassigned).ids, child_field="move_raw_ids"
+        )
+
+        self.assertEqual(set(lines), {extra})

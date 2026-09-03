@@ -46,6 +46,8 @@ class StockRule(models.Model):
         return codes
 
     def _should_auto_confirm_procurement_mo(self, p):
+        if not p.picking_type_id.auto_confirm_production:
+            return False
         if not p.move_raw_ids:
             return not p.workorder_ids and (
                 p.orderpoint_id

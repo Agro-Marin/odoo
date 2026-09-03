@@ -327,10 +327,9 @@
                                             name="allow_operation_dependencies"
                                             groups="mrp.group_mrp_workorder_dependencies" />
                                     </group>
-                                    <group>
+                                    <group invisible="type == 'phantom'">
                                         <field
                                             name="picking_type_id"
-                                            invisible="type == 'phantom'"
                                             groups="stock.group_adv_location" />
                                         <label
                                             for="produce_delay"

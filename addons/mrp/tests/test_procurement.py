@@ -943,6 +943,58 @@ class TestProcurement(TestMrpCommon):
         self.assertEqual(mo1.product_qty, 20)
         self.assertEqual(mo3.product_qty, 50)
 
+    def test_orderpoint_can_leave_the_production_in_draft(self):
+        """An operation type may hand replenishment a draft order to review.
+
+        With several bills of materials for one product, or a plant that would
+        rather confirm close to the start date, the scheduler confirming every
+        order it creates leaves no room to choose.
+        """
+        route_manufacture = self.warehouse_1.manufacture_pull_id.route_id
+        product = self.env["product.product"].create(
+            {
+                "name": "Draftable Product",
+                "is_storable": True,
+                "route_ids": [Command.set([route_manufacture.id])],
+            }
+        )
+        component = self.env["product.product"].create(
+            {"name": "Draftable Component", "type": "consu"}
+        )
+        self.env["mrp.bom"].create(
+            {
+                "product_id": product.id,
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "product_uom_id": self.uom_unit.id,
+                "product_qty": 1,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1})
+                ],
+            }
+        )
+        orderpoint = self.env["stock.warehouse.orderpoint"].create(
+            {
+                "name": "Draftable Product",
+                "location_id": self.stock_location.id,
+                "product_id": product.id,
+                "product_min_qty": 1,
+                "product_max_qty": 10,
+            }
+        )
+        picking_type = self.warehouse_1.manu_type_id
+        self.assertTrue(
+            picking_type.auto_confirm_production,
+            "the flag must default to today's behaviour",
+        )
+        picking_type.auto_confirm_production = False
+
+        orderpoint._procure_orderpoint_confirm()
+
+        mo = self.env["mrp.production"].search([("product_id", "=", product.id)])
+        self.assertEqual(len(mo), 1)
+        self.assertEqual(mo.state, "draft")
+
     def test_several_boms_same_finished_product(self):
         self.env.user.group_ids += self.env.ref("stock.group_adv_location")
 

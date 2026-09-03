@@ -1226,7 +1226,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     resupply_data["cost"],
                     currency,
                     (production.company_id or self.env.company),
-                    fields.Date.today(),
+                    fields.Date.context_today(self),
                 )
                 to_order_line["summary"]["mo_cost"] = mo_cost
                 to_order_line["summary"]["bom_cost"] = currency.round(

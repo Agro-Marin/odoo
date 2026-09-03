@@ -665,17 +665,18 @@ class StockMove(models.Model):
             action["context"]["show_reserved_quantity"] = False
         return action
 
-    def _action_add_from_catalog(self, child_field):
-        production = self.env["mrp.production"].browse(self.env.context.get("order_id"))
-        return production.with_context(
-            child_field=child_field
-        ).action_add_from_catalog()
+    def _action_add_from_catalog(self, child_field, order_model="mrp.production"):
+        order = self.env[order_model].browse(self.env.context.get("order_id"))
+        return order.with_context(child_field=child_field).action_add_from_catalog()
 
     def action_add_from_catalog_raw(self):
         return self._action_add_from_catalog("move_raw_ids")
 
     def action_add_from_catalog_byproduct(self):
         return self._action_add_from_catalog("move_byproduct_ids")
+
+    def action_add_from_catalog_workorder(self):
+        return self._action_add_from_catalog("move_raw_ids", "mrp.workorder")
 
     def _action_cancel(self):
         res = super()._action_cancel()

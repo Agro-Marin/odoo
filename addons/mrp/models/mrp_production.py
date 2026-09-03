@@ -110,6 +110,7 @@ class MrpProduction(models.Model):
         precompute=True,
         readonly=False,
         required=True,
+        index=True,
         check_company=True,
     )
     production_group_id = fields.Many2one(
@@ -218,6 +219,7 @@ class MrpProduction(models.Model):
         readonly=False,
         required=True,
         precompute=True,
+        index=True,
         domain="[('usage','=','internal')]",
         help="Location where the system will look for components.",
     )
@@ -293,6 +295,9 @@ class MrpProduction(models.Model):
         compute="_compute_bom_id",
         store=True,
         precompute=True,
+        # Sparse on purpose: a manual order has no bill of materials, so a
+        # partial index stays small and still serves the join.
+        index="btree_not_null",
         help="Bills of Materials, also called recipes, are used to autocomplete components and work order instructions.",
     )
 
@@ -3826,6 +3831,13 @@ class MrpProduction(models.Model):
                     and len(self.location_final_id) == 1
                     and self.location_final_id.id,
                     "user_id": user_id.id,
+                    # The merged order inherits the earliest schedule of the
+                    # orders it replaces; `date_start` is then propagated onto
+                    # the deadline of every upstream supply, below.
+                    "date_start": min(self.mapped("date_start")),
+                    "date_deadline": min(
+                        filter(None, self.mapped("date_deadline")), default=False
+                    ),
                     "reference_ids": [Command.link(r.id) for r in self.reference_ids],
                     "origin": ",".join(
                         sorted([production.name for production in self])

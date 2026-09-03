@@ -15,7 +15,13 @@ from odoo.tools.date_utils import sum_intervals
 class MrpWorkorder(models.Model):
     _name = "mrp.workorder"
     _description = "Work Order"
-    _inherit = ["mixin.resource.scheduling"]
+    _inherit = [
+        "mixin.mail.thread",
+        "mixin.mail.activity",
+        "mixin.catalog.child.lines",
+        "mixin.product.catalog",
+        "mixin.resource.scheduling",
+    ]
     _order = "sequence, date_start, id"
 
     OPEN_STATES = ("blocked", "ready", "progress")
@@ -42,6 +48,59 @@ class MrpWorkorder(models.Model):
                 and workorder.date_start < now
             )
 
+    def _search_planned(self):
+        """The work orders a planning warning can apply to at all."""
+        return self.search(
+            Domain("date_start", "!=", False) & Domain("date_end", "!=", False)
+        )
+
+    def _search_has_conflicts(self, operator, value):
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        # Same helper the popover uses, so the filter can never disagree with
+        # the warning the record shows.
+        conflicted = self._search_planned()._get_conflicted_workorder_ids()
+        return [("id", operator, list(conflicted))]
+
+    @api.depends("state", "workcenter_id", "date_start", "date_end")
+    def _compute_has_conflicts(self):
+        self.has_conflicts = False
+        planned = self.filtered(lambda wo: wo.date_start and wo.date_end)
+        if not planned.ids:
+            return
+        conflicted = planned._get_conflicted_workorder_ids()
+        for workorder in planned:
+            workorder.has_conflicts = bool(conflicted.get(workorder.id))
+
+    def _is_planned_before_its_blockers(self):
+        """True when this order starts before something it waits on."""
+        self.check_singleton()
+        if self.state not in self.LATE_STATES or not self.date_start:
+            return False
+        blocker_starts = self.blocked_by_workorder_ids.filtered("date_start").mapped(
+            "date_start"
+        )
+        return bool(blocker_starts) and min(blocker_starts) > self.date_start
+
+    def _search_has_planning_issues(self, operator, value):
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        candidates = self.search(
+            Domain("state", "in", self.LATE_STATES)
+            & Domain("blocked_by_workorder_ids", "!=", False)
+        )
+        issue_ids = [
+            workorder.id
+            for workorder in candidates
+            if workorder._is_planned_before_its_blockers()
+        ]
+        return [("id", operator, issue_ids)]
+
+    @api.depends("state", "date_start", "blocked_by_workorder_ids.date_start")
+    def _compute_has_planning_issues(self):
+        for workorder in self:
+            workorder.has_planning_issues = workorder._is_planned_before_its_blockers()
+
     def _default_sequence(self):
         return self.operation_id.sequence or 100
 
@@ -62,6 +121,18 @@ class MrpWorkorder(models.Model):
         search="_search_is_late",
         help="Should have started already.",
     )
+    has_conflicts = fields.Boolean(
+        "Has Conflicts",
+        compute="_compute_has_conflicts",
+        search="_search_has_conflicts",
+        help="Planned at the same time as another work order on the same work center.",
+    )
+    has_planning_issues = fields.Boolean(
+        "Has Planning Issues",
+        compute="_compute_has_planning_issues",
+        search="_search_has_planning_issues",
+        help="Planned to start before a work order it waits on.",
+    )
     name = fields.Char("Work Order", required=True)
     sequence = fields.Integer("Sequence", default=_default_sequence)
     barcode = fields.Char(compute="_compute_barcode", store=True)
@@ -70,6 +141,7 @@ class MrpWorkorder(models.Model):
         "Work Center",
         required=True,
         index=True,
+        tracking=True,
         group_expand="_read_group_workcenter_id",
         check_company=True,
     )
@@ -142,6 +214,7 @@ class MrpWorkorder(models.Model):
         string="Status",
         compute="_compute_state",
         store=True,
+        tracking=True,
         default="ready",
         copy=False,
         index=True,
@@ -161,6 +234,7 @@ class MrpWorkorder(models.Model):
         compute="_compute_duration_expected",
         readonly=False,
         store=True,
+        tracking=True,
     )
     duration = fields.Float(
         "Real Duration",
@@ -1370,6 +1444,50 @@ class MrpWorkorder(models.Model):
         for wo1, wo2 in self.env.cr.fetchall():
             res[wo1].append(wo2)
         return res
+
+    # -------------------------------------------------------------------------
+    # CATALOG
+    # -------------------------------------------------------------------------
+
+    def _default_order_line_values(self, child_field=False):
+        default_data = super()._default_order_line_values(child_field)
+        return {
+            **default_data,
+            **self.env["stock.move"]._get_product_catalog_lines_data(
+                parent_record=self
+            ),
+        }
+
+    def _get_product_catalog_order_data(self, products, **kwargs):
+        product_catalog = super()._get_product_catalog_order_data(products, **kwargs)
+        for product in products:
+            product_catalog[product.id] |= {"price": product.standard_price}
+        return product_catalog
+
+    def _get_product_catalog_domain(self):
+        return super()._get_product_catalog_domain() & Domain("type", "=", "consu")
+
+    def _update_catalog_line_quantity(self, line, quantity, **kwargs):
+        line.product_uom_qty = quantity
+
+    def _get_new_catalog_line_values(self, product_id, quantity, **kwargs):
+        values = self.production_id._get_new_catalog_line_values(
+            product_id, quantity, **kwargs
+        )
+        # `move_raw_ids` on this model is the inverse of `workorder_id` and its
+        # domain also demands `raw_material_production_id`. Stamping only the
+        # first would create a move that falls outside the very field it was
+        # added through, and so appears nowhere.
+        values.update(
+            {
+                "workorder_id": self.id,
+                "raw_material_production_id": self.production_id.id,
+            }
+        )
+        return values
+
+    def _is_display_stock_in_catalog(self):
+        return True
 
     def _get_operation_values(self):
         self.check_singleton()

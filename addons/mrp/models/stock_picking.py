@@ -37,6 +37,12 @@ class StockPickingType(models.Model):
         help="Allow to create new lot/serial numbers for the components",
         default=False,
     )
+    auto_confirm_production = fields.Boolean(
+        string="Auto Confirm Production",
+        default=True,
+        help="Uncheck this option to have replenishment create a draft"
+        " manufacturing order instead of a confirmed one.",
+    )
 
     auto_print_done_production_order = fields.Boolean(
         "Auto Print Done Production Order",
@@ -139,7 +145,7 @@ class StockPickingType(models.Model):
             for picking_type, count in self.env["mrp.production"]._read_group(
                 [
                     ("state", "=", "confirmed"),
-                    ("date_start", "<", fields.Date.today()),
+                    ("date_start", "<", "today"),
                     ("picking_type_id", "in", mrp_picking_types.ids),
                 ],
                 ["picking_type_id"],
