@@ -486,6 +486,7 @@ class IrModuleModule(models.Model):
         article_record.write({"body": body})
 
     def _import_module(self, module, path, force=False, with_demo=False):
+        """Import module at path into the database, installing it if needed."""
         # Do not create a bridge module for these neutralizations.
         self = self.with_context(website_id=None)
         with self._neutralized_website():
@@ -641,6 +642,7 @@ class IrModuleModule(models.Model):
 
     @api.model
     def _import_zipfile(self, module_file, force=False, with_demo=False):
+        """Extract and import every module found in the uploaded zip archive."""
         self._check_zip_upload(module_file)
 
         with zipfile.ZipFile(module_file, "r") as z:
@@ -1128,12 +1130,11 @@ def _domain_asks_for_industries(domain):
 
 
 def _is_studio_custom(path):
-    """
-    Checks the to-be-imported records to see if there are any references to
-    studio, which would mean that the module was created using studio
+    """Check whether path's records reference Studio.
 
-    Returns True if any of the records contains a context with the key
-    studio in it, False if none of the records do
+    :param str path: directory to scan for XML data files
+    :return: whether any record's context carries a ``studio`` key
+    :rtype: bool
     """
     xml_files = [
         dirpath / fn
