@@ -914,7 +914,7 @@
                                     name="formula">2550Q_37.balance - 2550Q_60.balance</field>
                             </record>
                             <!-- The following expressions are only there to generate the tax tags, as asked to avoid conflicts with the tax tags sign removal -->
-                            <!-- note that the sign in the formula is specifically chosen to give correct values in the exported data. -->
+                            <!-- The sign in the formula is specifically chosen to give correct values in the exported data. -->
                             <record
                                 id="l10n_ph_2550Q_2550q_1601_1604a_balance"
                                 model="account.report.expression">
