@@ -69,8 +69,8 @@ def fast_clone_python[T](obj: T) -> T:
     return obj
 
 
-def origin_ids_python(ids: Iterable) -> list[int]:
-    return [oid for id_ in ids if (oid := id_ or getattr(id_, "origin", None))]
+def origin_ids_python(ids: Iterable) -> tuple[int, ...]:
+    return tuple(oid for id_ in ids if (oid := id_ or getattr(id_, "origin", None)))
 
 
 def _pick[F](name: str, python: F) -> F:

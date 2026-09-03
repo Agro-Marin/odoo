@@ -2,6 +2,7 @@
 name = "odoo_build"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Build-script support shared by the workspace's native extensions"
 publish = false
 

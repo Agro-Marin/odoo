@@ -13,13 +13,13 @@ from odoo.libs._field_access._fallback import (
     sort_ids_by_values,
     to_prefetch_ids,
 )
+from odoo.libs.accel import origin_ids_python as _origin_ids_python
 from odoo.libs.tests._native_references import (
     NewId,
     clone_ref,
     csv_export_ref,
     rows_to_dicts_ref,
 )
-from odoo.orm.helpers import _origin_ids_python
 
 fast = pytest.importorskip(
     "odoo_rust", exc_type=ImportError

@@ -1,5 +1,6 @@
 import importlib
 import sys
+from collections.abc import Sequence
 from unittest import mock
 
 import pytest
@@ -52,11 +53,9 @@ class TestTheSeamFallsBack:
 
     def test_the_four_pure_twins_agree_with_the_extension(self):
         pytest.importorskip("odoo_rust")
-        headers = ["a", "b"]  # the native csv_export takes a list of headers
-        rows: list[list[object]] = [["=x", None], [b"y", False]]
-        assert accel.csv_export_python(headers, rows) == accel.csv_export(
-            headers, [list(r) for r in rows]
-        )
+        headers = ["a", None, 3]  # the native csv_export takes a list of headers
+        rows: list[Sequence[object]] = [["=x", None, 1.5], (b"y", False, True)]
+        assert accel.csv_export_python(headers, rows) == accel.csv_export(headers, rows)
         names = ("a", "b")  # the native rows_to_dicts takes a tuple of names
         assert accel.rows_to_dicts_python(names, [(1, 2)]) == accel.rows_to_dicts(
             names, [(1, 2)]

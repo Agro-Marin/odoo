@@ -2,12 +2,13 @@ import typing
 import warnings
 from typing import Self
 
+from odoo.libs.accel import origin_ids as _origin_ids
+
 from ... import decorators as api
 from ..._typing import (
     IdType,
     ValuesType,
 )
-from ...helpers import _origin_ids
 from ...primitives import NewId
 from ._model_stubs import _ModelStubs
 
@@ -178,10 +179,10 @@ class EnvironmentMixin(_ModelStubs):
         record_ids = self._ids
         if all(record_ids):
             return self
-        ids = tuple(_origin_ids(record_ids))
+        ids = _origin_ids(record_ids)
         prefetch_ids = self._prefetch_ids
         return self._spawn(
             self.env,
             ids,
-            ids if prefetch_ids is record_ids else tuple(_origin_ids(prefetch_ids)),
+            ids if prefetch_ids is record_ids else _origin_ids(prefetch_ids),
         )

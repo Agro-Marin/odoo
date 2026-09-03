@@ -1,59 +1,3 @@
-//! Sort and group operations on (ids, values) pairs.
-//!
-//! Two entry points:
-//! - [`sort_ids_by_values`]: stable sort of a record ID tuple by cached values,
-//!   with optional null-aware (None/False) handling.
-//! - [`batch_group_ids`]: group record IDs by corresponding values, returning
-//!   a plain Python dict.
-//!
-//! Both operate on (`ids: tuple`, `values: list`) pairs that are produced by
-//! [`crate::cache::batch_cache_get`], replacing the Python-level loops in
-//! `sorted()` and `grouped()`.
-//!
-//! # Performance notes
-//!
-//! `sort_ids_by_values` avoids the Python pattern:
-//!   `list(zip(ids, values)) + sort(key=itemgetter(1)) + tuple(pair[0] for ...)`
-//! which creates N two-element Python tuples before sorting and N key-function
-//! calls during the sort.
-//!
-//! The fast path is **decorate-sort-undecorate done in Rust**: each value is
-//! extracted *once* into a native Rust key ([`Key`] — `i64` / `f64` / borrowed
-//! `str` / packed datetime), then sorted with a pure-Rust comparator.  This is
-//! the crucial difference from a naive port: comparing Python objects directly
-//! would call `PyObject_RichCompareBool` (up to twice) on every one of the
-//! `~n·log n` comparison nodes, and those FFI boundary crossings cost *more*
-//! than the N temporary tuples the Python version allocates — so a naive port
-//! is actually slower than CPython's Timsort.  Extracting native keys up front
-//! turns `2·n·log n` boundary crossings into `n` extractions, after which the
-//! sort itself touches no Python objects at all.
-//!
-//! **Decorating faster than CPython is not enough on its own.** Measured at
-//! n=4000 against the pure-Python reference, decoration was already 2.5x
-//! faster while *comparison* was 2-3x slower, for every column type — and on a
-//! column of short distinct strings the two cancelled out and the accelerated
-//! call came in 9-13% SLOWER than the Python it exists to replace. The cost was
-//! a comparator that dispatched on a two-variant `Entry` and then a
-//! four-variant `Key`, on every comparison node, for a column whose type was
-//! settled before the sort began. [`Column`] moves that decision to decode
-//! time, so each sort monomorphises to one `K::cmp`; see its docs for the
-//! numbers.
-//!
-//! Anything the native path cannot represent (heterogeneous columns, huge ints
-//! that overflow `i64`, exotic types, non-UTF-8 strings) makes [`decode_column`]
-//! return `None`, and we fall back to [`sort_objects_to_tuple`] — the
-//! object-comparison implementation — which preserves exact Python ordering
-//! semantics (including raising the same `TypeError` on incomparable values).
-//!
-//! [`sort_ids_by_cache`] fuses the cache read into the sort: it reads each value
-//! straight from the field-cache dict, so the single-field `sorted()` fast path
-//! never materializes an intermediate Python values list.
-//!
-//! `batch_group_ids` replaces the `defaultdict(list)` loop in `grouped()`:
-//!   `for i, rec_id in enumerate(ids): collator[results[i]].append(rec_id)`
-//! with a tight C loop using `PyDict_GetItem` + `PyList_Append`, eliminating
-//! Python loop overhead and `defaultdict.__missing__` dispatch.
-
 use std::cmp::Ordering;
 
 use pyo3::exceptions::PyValueError;
@@ -64,105 +8,8 @@ use pyo3::types::{
     PyTimeAccess, PyTuple, PyTzInfoAccess,
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+type Values<'a, 'py> = [Borrowed<'a, 'py, PyAny>];
 
-/// Compare two Python objects the way `list.sort` does: with `<`, and nothing
-/// else.
-///
-/// `Ordering::Greater` is decided by asking `b < a` rather than `a > b`.
-/// CPython's sort never invokes `__gt__` — a key type only has to implement
-/// `__lt__` to be sortable — so probing it reads a second protocol the
-/// reference implementation never touches. Measured consequences of the `a > b`
-/// probe this replaced, both against the pure-Python path:
-///
-/// - a key type that implements `__lt__` and whose `__gt__` *raises* sorted
-///   fine in CPython and failed here;
-/// - a key type whose `__gt__` contradicts its `__lt__` diverged on 2494 of
-///   6000 randomized sorts (only with `reverse=True`, where a comparator that
-///   can never say `Greater` becomes one that can never say `Less`).
-///
-/// Neither is reachable from a well-behaved key, and every value that gets
-/// this far has already failed to be representable natively, so this is the
-/// contract being honest rather than a bug being fixed. What it is NOT is a
-/// re-ordering risk for ordinary types: a stable sort only ever acts on
-/// `Less`, which both spellings compute with the same `__lt__` call.
-///
-/// `Ordering::Equal` for "neither is less" is required as well as correct:
-/// `sort_by` needs a real total order, and reporting a tie as `Greater` would
-/// break stability. It does cost a second `__lt__` call where CPython makes
-/// one; a comparator that returned only `Less`/`Greater` would match CPython's
-/// call count but hand `sort_by` an order it documents as unspecified.
-///
-/// Returns `Ordering::Equal` and sets `*sort_err` on any comparison error.
-///
-/// SAFETY: `va` and `vb` must be valid, non-null Python object pointers.
-#[inline]
-unsafe fn compare_py(
-    py: Python<'_>,
-    va: *mut ffi::PyObject,
-    vb: *mut ffi::PyObject,
-    sort_err: &mut Option<PyErr>,
-) -> std::cmp::Ordering {
-    unsafe {
-        let lt = ffi::PyObject_RichCompareBool(va, vb, ffi::Py_LT);
-        if lt < 0 {
-            *sort_err = Some(PyErr::fetch(py));
-            return std::cmp::Ordering::Equal;
-        }
-        if lt != 0 {
-            return std::cmp::Ordering::Less;
-        }
-        let gt = ffi::PyObject_RichCompareBool(vb, va, ffi::Py_LT);
-        if gt < 0 {
-            *sort_err = Some(PyErr::fetch(py));
-            return std::cmp::Ordering::Equal;
-        }
-        if gt != 0 {
-            std::cmp::Ordering::Greater
-        } else {
-            std::cmp::Ordering::Equal
-        }
-    }
-}
-
-// ── Public functions ──────────────────────────────────────────────────────────
-
-/// Sort record IDs by corresponding cached values.
-///
-/// `sort_ids_by_values(ids, values, reverse, null_high=None) -> tuple`
-///
-/// - `ids`: tuple of record IDs (the `self._ids` tuple)
-/// - `values`: list of cached values, one per id (same length as ids)
-/// - `reverse`: if True, sort descending
-/// - `null_high`: `None` = no null handling (treat None/False as regular values);
-///                `True` = None/False sort last in ASC (high/after non-nulls);
-///                `False` = None/False sort first in ASC (low/before non-nulls)
-///
-/// Returns a new tuple of IDs in sorted order.
-///
-/// Replaces the Python pattern used in `_sorted_by_ids`:
-/// ```text
-/// # no-null path:
-/// pairs = list(zip(ids, values))
-/// pairs.sort(key=itemgetter(1), reverse=reverse_param)
-/// return tuple(pair[0] for pair in pairs)
-///
-/// # null-aware path:
-/// keys = [(_null_rank, "") if v is None or v is False else (_val_rank, v) ...]
-/// ... same sort + extract ...
-/// ```
-///
-/// The Rust version uses a `Vec<usize>` index array sorted in-place (stable
-/// Timsort equivalent), then builds the output tuple from the original `ids`.
-/// Zero new Python objects are created during the sort itself.
-///
-/// **No production caller.** `sorted()` reaches [`sort_ids_by_cache`], which
-/// fuses the cache read in and always passes a *bool* `null_high`
-/// (`traversal.py` computes `nulls_first == desc`). This export survives as the
-/// only seam that drives [`decode_column`] from an explicit values list, which
-/// is what makes `test_sort_parity_fuzz` and `test_sorted_multi_key`
-/// expressible — and it is why the four non-`Opt` [`Column`] arms exist at all.
-/// Treat it as a test seam, not as an ORM accelerator.
 #[pyfunction]
 #[pyo3(signature = (ids, values, reverse, null_high = None))]
 pub fn sort_ids_by_values<'py>(
@@ -172,19 +19,6 @@ pub fn sort_ids_by_values<'py>(
     reverse: bool,
     null_high: Option<bool>,
 ) -> PyResult<Py<PyTuple>> {
-    // Bounds contract, matching `batch_group_ids` and `batch_cache_fill`.
-    // Without it the two lengths disagreed silently in one direction and
-    // obscurely in the other: a longer `values` dropped its tail, and a
-    // shorter one surfaced as `IndexError: list index out of range` from
-    // `get_item` — while the pure-Python reference zipped non-strictly and
-    // returned a tuple with fewer ids than it was given, which a caller would
-    // read as records vanishing from a `sorted()`. Checked ahead of the n<=1
-    // shortcut so a one-record sort is held to the same contract.
-    //
-    // Nothing in the ORM passes a mismatched pair — `sorted()` reaches
-    // `sort_ids_by_cache`, which reads its values out of the cache keyed by
-    // the very ids it is sorting. This is a contract the two implementations
-    // now state identically instead of two different accidents.
     if values.len() != ids.len() {
         return Err(PyValueError::new_err(
             "sort_ids_by_values: `values` must have the same length as `ids`",
@@ -196,24 +30,22 @@ pub fn sort_ids_by_values<'py>(
         return Ok(ids.clone().unbind());
     }
 
-    // Materialize owned refs to the values so `Key::Str` can borrow into each
-    // PyUnicode buffer (no copy); they stay alive for the whole sort.
-    let holder: Vec<Bound<'py, PyAny>> = (0..n)
+    let holder: Vec<Borrowed<'_, 'py, PyAny>> = unsafe {
+        let values_ptr = values.as_ptr();
+        (0..n)
+            .map(|i| Borrowed::from_ptr(py, ffi::PyList_GET_ITEM(values_ptr, i as ffi::Py_ssize_t)))
+            .collect()
+    };
+    if let Some(order) = sort_native(&holder, reverse, null_high) {
+        return build_sorted_tuple(py, ids, &order);
+    }
+    drop(holder);
+    let strong: Vec<Bound<'py, PyAny>> = (0..n)
         .map(|i| values.get_item(i))
-        .collect::<PyResult<Vec<_>>>()?;
-    sort_holder(py, ids, &holder, reverse, null_high)
+        .collect::<PyResult<_>>()?;
+    sort_objects_to_tuple(py, ids, &strong, reverse, null_high)
 }
 
-/// Fused cache-read + sort — the single-field `sorted()` fast path.
-///
-/// Reads each `field_cache[id]` directly instead of having Python first build an
-/// intermediate values list and hand it back in a second call. That two-call
-/// shape had its own export, `batch_cache_values`; this superseded it, and it
-/// was deleted once nothing called it. Returns:
-/// - `Ok(None)` if any id is a cache miss or holds `pending` — the caller then
-///   abandons the fast path;
-/// - `Ok(Some(tuple))` with the sorted ids otherwise (native fast path, or the
-///   object-comparison fallback for exotic / heterogeneous columns).
 #[pyfunction]
 #[pyo3(signature = (field_cache, ids, pending, reverse, null_high = None))]
 pub fn sort_ids_by_cache<'py>(
@@ -226,26 +58,18 @@ pub fn sort_ids_by_cache<'py>(
 ) -> PyResult<Option<Py<PyTuple>>> {
     let n = ids.len();
 
-    // Read all cached values as owned refs; bail (None) on the first miss/pending
-    // so the caller falls back to the general record-based sort.
-    //
-    // SAFETY: cache_ptr/ids_ptr borrowed from live objects with 'py lifetime.
-    // `cache_probe` hands back a borrowed ref or None (a clean miss raises
-    // nothing — ids are always hashable ints). PyTuple_GET_ITEM skips bounds
-    // checks (i in 0..n). from_borrowed_ptr INCREFs the value into the holder.
-    let holder: Vec<Bound<'py, PyAny>> = unsafe {
+    let holder: Vec<Borrowed<'_, 'py, PyAny>> = unsafe {
         let cache_ptr = field_cache.as_ptr();
         let ids_ptr = ids.as_ptr();
         let pending_ptr = pending.as_ptr();
         let mut holder = Vec::with_capacity(n);
         for i in 0..n {
             let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i as ffi::Py_ssize_t);
-            // `cache_probe`, not a fifth copy of its two tests: absent-or-
-            // PENDING is one rule and `cache.rs` owns it.
+
             let Some(v) = crate::cache::cache_probe(cache_ptr, id_obj, pending_ptr) else {
                 return Ok(None);
             };
-            holder.push(Bound::from_borrowed_ptr(py, v.as_ptr()));
+            holder.push(Borrowed::from_ptr(py, v.as_ptr()));
         }
         holder
     };
@@ -253,57 +77,37 @@ pub fn sort_ids_by_cache<'py>(
     if n <= 1 {
         return Ok(Some(ids.clone().unbind()));
     }
-    sort_holder(py, ids, &holder, reverse, null_high).map(Some)
+    if let Some(order) = sort_native(&holder, reverse, null_high) {
+        return build_sorted_tuple(py, ids, &order).map(Some);
+    }
+    drop(holder);
+
+    let strong: Vec<Bound<'py, PyAny>> = unsafe {
+        let cache_ptr = field_cache.as_ptr();
+        let ids_ptr = ids.as_ptr();
+        let pending_ptr = pending.as_ptr();
+        let mut strong = Vec::with_capacity(n);
+        for i in 0..n {
+            let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i as ffi::Py_ssize_t);
+            let Some(v) = crate::cache::cache_probe(cache_ptr, id_obj, pending_ptr) else {
+                return Ok(None);
+            };
+            strong.push(Bound::from_borrowed_ptr(py, v.as_ptr()));
+        }
+        strong
+    };
+    sort_objects_to_tuple(py, ids, &strong, reverse, null_high).map(Some)
 }
 
-/// Shared core: decorate the holder values into native keys and sort, falling
-/// back to object comparison when a column isn't natively representable.
-fn sort_holder<'py>(
-    py: Python<'py>,
-    ids: &Bound<'py, PyTuple>,
-    holder: &[Bound<'py, PyAny>],
+fn sort_native(
+    holder: &Values<'_, '_>,
     reverse: bool,
     null_high: Option<bool>,
-) -> PyResult<Py<PyTuple>> {
-    let false_ptr = unsafe { ffi::Py_False() };
-    match decode_column(holder, null_high.is_some(), false_ptr) {
-        Some(mut column) => {
-            let order = sort_column(&mut column, reverse, null_high);
-            build_sorted_tuple(py, ids, &order)
-        }
-        None => sort_objects_to_tuple(py, ids, holder, reverse, null_high),
-    }
+) -> Option<Vec<usize>> {
+    let mut column = decode_column(holder, null_high.is_some())?;
+    Some(sort_column(&mut column, reverse, null_high))
 }
 
-// ── Native fast path (decorate-sort-undecorate) ────────────────────────────────
-
-/// A native comparison key extracted from a Python cache value.
-///
-/// `Str` borrows directly into the live `PyUnicode` UTF-8 buffer (no copy) — the
-/// borrowed values are kept alive for the whole sort. `Date` carries a *packed*
-/// `i64` rather than the `[i32; 7]` component array it used to: see
-/// [`pack_datetime`].
-///
-/// This enum decides the column's type ONCE, before sorting. It is deliberately
-/// not what the comparator sees — see [`Column`].
-enum Key<'a> {
-    Int(i64),
-    Float(f64),
-    Str(&'a str),
-    Date(i64),
-}
-
-/// `f64` under a total order, so it can be a plain `Ord` sort key.
-///
-/// `total_cmp` is NaN-safe, which `sort_by` requires; a NaN in the column never
-/// reaches here anyway (`decode_column` sends it to the object-comparison
-/// fallback, because Python's `<`/`>` are both false for NaN and give
-/// order-dependent results this cannot reproduce).
-/// All four traits are written in terms of `total_cmp`, never derived: on
-/// `f64` the derived `PartialEq` and `PartialOrd` disagree with it (NaN equals
-/// nothing and orders against nothing, while `total_cmp` gives it a place), and
-/// a type whose `Ord` and `PartialOrd` disagree is one `sort_by` is entitled to
-/// misbehave on.
 #[derive(Clone, Copy)]
 struct Total(f64);
 
@@ -330,45 +134,6 @@ impl PartialEq for Total {
 
 impl Eq for Total {}
 
-/// A `&str` sort key carrying its first 8 bytes packed big-endian.
-///
-/// Most comparisons resolve on the packed prefix — one `u64` compare, with no
-/// pointer chase and no `memcmp` call. Big-endian zero-padding is
-/// order-consistent with byte comparison (a shorter string pads with `0x00`,
-/// which is below any byte), so a differing prefix decides the pair outright and
-/// only a tie falls through to the full slice.
-///
-/// The length guard on that fall-through is not an optimisation detail, it is
-/// the difference between a win and a loss. Two strings that both fit inside the
-/// prefix and tie on it are *equal*, and the `memcmp` could only say so again. A
-/// low-cardinality column — `state`, `ttype`, a module name — is almost all
-/// ties, and paying twice for each of them measured **+16.7% on
-/// `ir.model.data.module`**, a regression the guard turns into +0.4%.
-///
-/// Measured on the path production actually takes (`sort_ids_by_cache`, so
-/// `StrOpt`), against columns read out of a real database, interleaved, 3
-/// rounds, min of 15:
-///
-/// | column | before | after |
-/// |---|---|---|
-/// | `res.country.code` | 10.79 us | **-29.9%** |
-/// | `res.country.name` | 11.12 us | **-28.3%** |
-/// | `ir.ui.view.name` | 11.89 us | **-19.8%** |
-/// | `ir.ui.view.model` | 8.92 us | **-17.4%** |
-/// | `ir.model.fields.ttype` | 12.44 us | **-13.7%** |
-/// | `ir.model.fields.name` | 13.77 us | **-12.4%** |
-/// | `ir.model.data.name` | 17.16 us | **-11.0%** |
-/// | `ir.ui.view.type` | 7.79 us | **-7.6%** |
-/// | `ir.ui.view.arch_db` | 12.61 us | **-6.7%** |
-/// | `ir.model.data.complete_name` | 17.11 us | **-3.3%** |
-/// | `ir.model.data.module` | 8.97 us | +0.4% |
-/// | n=5000, XML-ID-shaped, 8-byte shared prefix | 371.9 us | **+12.6%** |
-///
-/// The last row is the shape this cannot help and does not pretend to: every
-/// pair ties on the prefix, pays for it, and then pays for a 32-byte sort entry
-/// where the bare `&str` needed 24. It is a real column shape, it is the one
-/// loser, and it is the reason this documents a *median* of about -12% rather
-/// than the -40% a synthetic short-distinct-string column reports.
 #[derive(Clone, Copy)]
 struct StrKey<'a> {
     prefix: u64,
@@ -395,18 +160,6 @@ impl Ord for StrKey<'_> {
         match self.prefix.cmp(&other.prefix) {
             Ordering::Equal => {
                 if self.text.len() <= 8 && other.text.len() <= 8 {
-                    // Both fit in the prefix, so the padded bytes agreeing
-                    // means the shorter string's bytes are a prefix of the
-                    // longer's and the remainder is NUL. Length decides it,
-                    // and for equal lengths that is `Equal` — the answer this
-                    // arm used to give unconditionally, which was wrong for
-                    // the one case where the padding is ambiguous: a trailing
-                    // NUL is indistinguishable from the zero padding, so
-                    // `"abc"` and `"abc\0"` tied and `sorted()` left them in
-                    // input order where Python orders the shorter first.
-                    // Still no `memcmp` — both lengths are already loaded for
-                    // the test above, so the low-cardinality column this arm
-                    // exists for is unaffected.
                     self.text.len().cmp(&other.text.len())
                 } else {
                     self.text.cmp(other.text)
@@ -433,19 +186,6 @@ impl PartialEq for StrKey<'_> {
 
 impl Eq for StrKey<'_> {}
 
-/// Pack a date or datetime into one `i64` whose numeric order is chronological.
-///
-/// Each component gets a power-of-two field wider than its range — month < 16,
-/// day < 32, hour < 32, minute < 64, second < 64 (leap seconds included),
-/// microsecond < 2^20 — so the packing is strictly monotone and a comparison is
-/// one integer compare. A plain `date` leaves the four time fields at zero,
-/// which is midnight, which is where a date sorts against a datetime on the
-/// same day.
-///
-/// Year 9999 needs 14 bits and the rest 46, so the result is under 2^60 and
-/// cannot overflow. The `[i32; 7]` array this replaced compared lexicographically
-/// — also correct, but 28 bytes wide, which forced every `Key` in the column to
-/// 32 bytes whatever its type.
 #[inline]
 fn pack_datetime(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32, us: u32) -> i64 {
     let mut packed = i64::from(year);
@@ -457,49 +197,17 @@ fn pack_datetime(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32,
     packed * 1_048_576 + i64::from(us)
 }
 
-/// A decoded column: every value as one native key type, paired with the index
-/// it came from.
-///
-/// The point is that the comparator sees a **concrete** key type. The previous
-/// shape sorted an index array with a comparator that matched a two-variant
-/// `Entry` and then a four-variant `Key` — a 2x4x4 dispatch on every one of the
-/// `n log n` comparison nodes, for a column whose type was already known before
-/// the sort began. Decomposed at n=4000 (permuted input, against the
-/// pure-Python reference this exists to beat):
-///
-/// | column | decorate | compare, before | compare, after |
-/// |---|---|---|---|
-/// | short str | 58 us | 220 us | see the suite in `test_sort_parity_fuzz` |
-/// | int | 67 us | 69 us | |
-///
-/// Decorating was already 2.5x faster than CPython; comparing was 2-3x SLOWER,
-/// for every type, and on a column of short distinct strings that made the
-/// whole call **13% slower than the Python it replaces**. Monomorphising is
-/// what closes it: each arm below sorts a `Vec<(K, u32)>` whose comparator is
-/// one `K::cmp` with nothing to dispatch on.
-///
-/// `u32` for the index, not `usize`: it halves the pair and no recordset has
-/// 4 billion records.
 enum Column<'a> {
     Int(Vec<(i64, u32)>),
     Float(Vec<(Total, u32)>),
     Str(Vec<(StrKey<'a>, u32)>),
     Date(Vec<(i64, u32)>),
-    /// Null-aware columns keep the same key types under an `Option`, whose
-    /// `None` is the null. Separate from the arms above so the common
-    /// (`null_high is None`) path never pays for a null test it cannot need.
     IntOpt(Vec<(Option<i64>, u32)>),
     FloatOpt(Vec<(Option<Total>, u32)>),
     StrOpt(Vec<(Option<StrKey<'a>>, u32)>),
     DateOpt(Vec<(Option<i64>, u32)>),
 }
 
-/// Sort a decoded column with no nulls in it.
-///
-/// Generic, so the comparator monomorphises to a single `K::cmp`. `sort_by` is
-/// stable, so equal keys keep their original id order — matching CPython's
-/// stable sort, including under `reverse`, where comparing `b` against `a`
-/// still reports a tie as `Equal` and leaves the pair alone.
 fn sort_plain<K: Ord>(rows: &mut [(K, u32)], reverse: bool) {
     if reverse {
         rows.sort_by(|a, b| b.0.cmp(&a.0));
@@ -508,11 +216,6 @@ fn sort_plain<K: Ord>(rows: &mut [(K, u32)], reverse: bool) {
     }
 }
 
-/// Sort a decoded column whose `None`s are nulls, placed per `null_high`.
-///
-/// `null_high == true` puts them after the values in ascending order, `false`
-/// before — mirroring [`sort_objects_to_tuple`] and the pure-Python reference's
-/// `(rank, value)` key tuples.
 fn sort_nullable<K: Ord>(rows: &mut [(Option<K>, u32)], reverse: bool, null_high: bool) {
     rows.sort_by(|a, b| {
         let ord = match (&a.0, &b.0) {
@@ -537,10 +240,7 @@ fn sort_nullable<K: Ord>(rows: &mut [(Option<K>, u32)], reverse: bool, null_high
     });
 }
 
-/// Sort a decoded column and hand back the original indices in sorted order.
 fn sort_column(column: &mut Column<'_>, reverse: bool, null_high: Option<bool>) -> Vec<usize> {
-    /// Sort one arm and project out the indices. A macro rather than a generic
-    /// function because each arm has a different `K` *and* a different variant.
     macro_rules! run {
         ($rows:expr, $sorter:expr) => {{
             $sorter;
@@ -560,10 +260,6 @@ fn sort_column(column: &mut Column<'_>, reverse: bool, null_high: Option<bool>) 
     }
 }
 
-/// Build the result tuple by copying IDs from `ids` in `order`.
-///
-/// SAFETY: every index in `order` is in `0..ids.len()`.  `PyTuple_GET_ITEM`
-/// skips bounds checks; `PyTuple_SET_ITEM` steals the reference we INCREF.
 fn build_sorted_tuple<'py>(
     py: Python<'py>,
     ids: &Bound<'py, PyTuple>,
@@ -586,203 +282,145 @@ fn build_sorted_tuple<'py>(
     }
 }
 
-/// Decode a column of Python values into one native key type.
-///
-/// Returns `None` to signal the column can't be represented natively (mixed
-/// types, `i64` overflow, non-UTF-8 string, NaN float, aware datetime, or an
-/// unknown type) — the caller then uses the object-comparison fallback, which
-/// has Python's exact semantics including the `TypeError`s. `Column::Str`
-/// borrows into the holder's live `PyUnicode` buffers, so the result borrows
-/// `holder`.
-///
-/// The type is decided here, once, and the sort is chosen from it — which is
-/// the whole point of [`Column`].
-fn decode_column<'a>(
-    holder: &'a [Bound<'_, PyAny>],
-    null_aware: bool,
-    false_ptr: *mut ffi::PyObject,
-) -> Option<Column<'a>> {
-    /// The four key types, before we know which one the column is.
-    enum Slot<'a> {
-        Null,
-        Val(Key<'a>),
-    }
+#[derive(Clone, Copy)]
+enum Kind {
+    Int,
+    Float,
+    Str,
+    DateTime,
+    Date,
+}
 
-    let mut slots: Vec<Slot<'a>> = Vec::with_capacity(holder.len());
-    // Column kind tag: 1=int, 2=float, 3=str, 4=datetime, 5=date. `date` and
-    // `datetime` are tagged SEPARATELY even though both decode into a packed
-    // i64. They shared a tag, so a column holding both stayed on the native
-    // path and sorted chronologically — while Python REFUSES to compare them
-    // (`datetime.date(2021, 1, 1) < datetime.datetime(2021, 1, 1)` raises
-    // TypeError, because `datetime` is a `date` subclass that declines the
-    // mixed comparison). That is the same divergence the aware-datetime branch
-    // below rejects the native path to avoid, in the same function, a few lines
-    // apart. Splitting the tag sends a mixed column to the FFI fallback, which
-    // raises exactly what Python does.
-    let mut kind: u8 = 0;
-
-    for v in holder {
-        // In null-aware mode None/False are nulls, never compared as values.
-        // (When null_high is None the caller guarantees no None/False present.)
-        if null_aware && (v.is_none() || v.as_ptr() == false_ptr) {
-            slots.push(Slot::Null);
-            continue;
-        }
-
-        // EXACT type checks, not the subclass-permissive `cast`. A subclass may
-        // override `__lt__`, and a native key sorts by the BASE type's ordering
-        // whatever the subclass says. Measured against the pure-Python
-        // reference, all three diverged:
-        //
-        //   str subclass with a reversed `__lt__`  -> rust (1, 3, 2), py (2, 3, 1)
-        //   int subclass with a reversed `__lt__`  -> rust (1, 3, 2), py (2, 3, 1)
-        //   date subclass with a reversed `__lt__` -> rust (1, 2),    py (2, 1)
-        //
-        // This is the same divergence the `date`/`datetime` tag split below and
-        // the aware-datetime bail-out reject the native path to avoid, and the
-        // same one `compare_py` refuses to introduce by probing `__gt__`.
-        //
-        // It costs nothing that a real cache pays. Probed against a live
-        // database, the field cache holds exact builtins and nothing else:
-        // `char` and `text` hold `str` and `bool`, `html` holds `bool`,
-        // `selection` holds `str`. There is no `markupsafe.Markup` in it and no
-        // subclass of anything, so no production column leaves the native path
-        // for this. A `datetime` subclass does appear under `freezegun`, which
-        // patches `datetime.datetime` during tests; those columns take the FFI
-        // fallback, which is correct and slower, in tests only.
-        let (k, key) = if let Ok(st) = v.cast_exact::<PyString>() {
-            match st.to_str() {
-                Ok(text) => (3, Key::Str(text)),
-                Err(_) => return None, // non-UTF-8 (lone surrogate) → FFI
-            }
-        } else if let Ok(f) = v.cast_exact::<PyFloat>() {
-            let fv = f.value();
-            // NaN: Python's `<`/`>` are both false, giving order-dependent
-            // results that `total_cmp` can't reproduce — defer to FFI.
-            if fv.is_nan() {
-                return None;
-            }
-            // Normalize -0.0 → 0.0: Python treats them as equal (a tie), but
-            // `total_cmp` would order -0.0 before +0.0 and reshuffle the tie.
-            (2, Key::Float(if fv == 0.0 { 0.0 } else { fv }))
-        } else if let Ok(iobj) = v.cast_exact::<PyInt>() {
-            match iobj.extract::<i64>() {
-                Ok(iv) => (1, Key::Int(iv)),
-                Err(_) => return None, // > i64 → FFI
-            }
-        } else if let Ok(b) = v.cast_exact::<PyBool>() {
-            // Its own arm now that `PyInt` is exact, and tagged as an int
-            // rather than separately: Python compares `bool` and `int` freely
-            // and `True == 1`, so one kind is both correct and what keeps a
-            // mixed column native. Without this arm a Boolean field's column —
-            // `True` here, since `False` was consumed as a null above — would
-            // match nothing and send every `sorted('active')` to the FFI
-            // fallback.
-            (1, Key::Int(i64::from(b.is_true())))
-        } else if let Ok(dt) = v.cast_exact::<PyDateTime>() {
-            // Check datetime before date: datetime is a subclass of date, so a
-            // `PyDate` cast would also succeed and drop the time components.
-            //
-            // Aware datetimes leave the native path: Python compares them by
-            // UTC instant, and refuses to compare an aware one against a naive
-            // one at all (TypeError). The packing below reproduces neither --
-            // it would order by wall clock, and would silently sort a mixed
-            // column instead of raising. The FFI fallback has the exact
-            // semantics, so defer to it.
-            if dt.get_tzinfo().is_some() {
-                return None;
-            }
-            (
-                4,
-                Key::Date(pack_datetime(
-                    dt.get_year(),
-                    dt.get_month().into(),
-                    dt.get_day().into(),
-                    dt.get_hour().into(),
-                    dt.get_minute().into(),
-                    dt.get_second().into(),
-                    dt.get_microsecond(),
-                )),
-            )
-        } else if let Ok(d) = v.cast_exact::<PyDate>() {
-            (
-                5,
-                Key::Date(pack_datetime(
-                    d.get_year(),
-                    d.get_month().into(),
-                    d.get_day().into(),
-                    0,
-                    0,
-                    0,
-                    0,
-                )),
-            )
+impl Kind {
+    fn of(value: &Bound<'_, PyAny>) -> Option<Self> {
+        if value.is_exact_instance_of::<PyString>() {
+            Some(Self::Str)
+        } else if value.is_exact_instance_of::<PyFloat>() {
+            Some(Self::Float)
+        } else if value.is_exact_instance_of::<PyInt>() || value.is_exact_instance_of::<PyBool>() {
+            Some(Self::Int)
+        } else if value.is_exact_instance_of::<PyDateTime>() {
+            Some(Self::DateTime)
+        } else if value.is_exact_instance_of::<PyDate>() {
+            Some(Self::Date)
         } else {
-            return None; // unknown type → FFI (preserves Python semantics)
-        };
-
-        if kind == 0 {
-            kind = k;
-        } else if kind != k {
-            return None; // mixed types in one column → FFI (matches Python)
+            None
         }
-        slots.push(Slot::Val(key));
     }
+}
 
-    // Project the slots into the one typed vector the column turned out to be.
-    // `kind == 0` means every slot is a null (or the column is empty), which
-    // any arm sorts identically; int is as good as another.
-    macro_rules! project {
-        ($variant:ident, $pat:pat => $extract:expr) => {{
-            let mut rows = Vec::with_capacity(slots.len());
-            for (index, slot) in slots.iter().enumerate() {
-                let index = index as u32;
-                match slot {
-                    Slot::Val($pat) => rows.push(($extract, index)),
-                    // Unreachable: a null in a non-null-aware column was never
-                    // pushed, and the null-aware arms are handled above.
-                    _ => return None,
-                }
-            }
-            Column::$variant(rows)
-        }};
-        ($variant:ident, opt $pat:pat => $extract:expr) => {{
-            let mut rows = Vec::with_capacity(slots.len());
-            for (index, slot) in slots.iter().enumerate() {
-                let index = index as u32;
-                rows.push(match slot {
-                    Slot::Null => (None, index),
-                    Slot::Val($pat) => (Some($extract), index),
-                    Slot::Val(_) => return None,
-                });
-            }
-            Column::$variant(rows)
-        }};
-    }
+#[inline]
+fn int_key(value: &Bound<'_, PyAny>) -> Option<i64> {
+    if value.is_exact_instance_of::<PyInt>() {
+        let mut overflow = 0;
 
-    Some(if null_aware {
-        match kind {
-            2 => project!(FloatOpt, opt Key::Float(x) => Total(*x)),
-            3 => project!(StrOpt, opt Key::Str(x) => StrKey::new(x)),
-            4 | 5 => project!(DateOpt, opt Key::Date(x) => *x),
-            _ => project!(IntOpt, opt Key::Int(x) => *x),
-        }
+        let int = unsafe { ffi::PyLong_AsLongLongAndOverflow(value.as_ptr(), &raw mut overflow) };
+        (overflow == 0).then_some(int)
+    } else if let Ok(flag) = value.cast_exact::<PyBool>() {
+        Some(i64::from(flag.is_true()))
     } else {
-        match kind {
-            2 => project!(Float, Key::Float(x) => Total(*x)),
-            3 => project!(Str, Key::Str(x) => StrKey::new(x)),
-            4 | 5 => project!(Date, Key::Date(x) => *x),
-            _ => project!(Int, Key::Int(x) => *x),
+        None
+    }
+}
+
+#[inline]
+fn float_key(value: &Bound<'_, PyAny>) -> Option<Total> {
+    let float = value.cast_exact::<PyFloat>().ok()?.value();
+    if float.is_nan() {
+        return None;
+    }
+    Some(Total(if float == 0.0 { 0.0 } else { float }))
+}
+
+#[inline]
+fn str_key<'a>(value: &'a Bound<'_, PyAny>) -> Option<StrKey<'a>> {
+    Some(StrKey::new(
+        value.cast_exact::<PyString>().ok()?.to_str().ok()?,
+    ))
+}
+
+#[inline]
+fn datetime_key(value: &Bound<'_, PyAny>) -> Option<i64> {
+    let dt = value.cast_exact::<PyDateTime>().ok()?;
+    if dt.get_tzinfo().is_some() {
+        return None;
+    }
+    Some(pack_datetime(
+        dt.get_year(),
+        dt.get_month().into(),
+        dt.get_day().into(),
+        dt.get_hour().into(),
+        dt.get_minute().into(),
+        dt.get_second().into(),
+        dt.get_microsecond(),
+    ))
+}
+
+#[inline]
+fn date_key(value: &Bound<'_, PyAny>) -> Option<i64> {
+    let date = value.cast_exact::<PyDate>().ok()?;
+    Some(pack_datetime(
+        date.get_year(),
+        date.get_month().into(),
+        date.get_day().into(),
+        0,
+        0,
+        0,
+        0,
+    ))
+}
+
+fn decode<'a, 'py, K>(
+    holder: &'a Values<'a, 'py>,
+    key: impl Fn(&'a Bound<'py, PyAny>) -> Option<K>,
+) -> Option<Vec<(K, u32)>> {
+    let mut rows = Vec::with_capacity(holder.len());
+    for (index, value) in holder.iter().enumerate() {
+        rows.push((key(value)?, index as u32));
+    }
+    Some(rows)
+}
+
+fn decode_nullable<'a, 'py, K>(
+    holder: &'a Values<'a, 'py>,
+    is_null: impl Fn(&Bound<'py, PyAny>) -> bool,
+    key: impl Fn(&'a Bound<'py, PyAny>) -> Option<K>,
+) -> Option<Vec<(Option<K>, u32)>> {
+    let mut rows = Vec::with_capacity(holder.len());
+    for (index, value) in holder.iter().enumerate() {
+        let index = index as u32;
+        if is_null(value) {
+            rows.push((None, index));
+        } else {
+            rows.push((Some(key(value)?), index));
         }
+    }
+    Some(rows)
+}
+
+fn decode_column<'a, 'py>(holder: &'a Values<'a, 'py>, null_aware: bool) -> Option<Column<'a>> {
+    let false_ptr = unsafe { ffi::Py_False() };
+    let is_null =
+        |value: &Bound<'py, PyAny>| null_aware && (value.is_none() || value.as_ptr() == false_ptr);
+
+    let kind = match holder.iter().find(|value| !is_null(value)) {
+        Some(first) => Kind::of(first)?,
+        None => Kind::Int,
+    };
+    Some(match (kind, null_aware) {
+        (Kind::Int, false) => Column::Int(decode(holder, int_key)?),
+        (Kind::Float, false) => Column::Float(decode(holder, float_key)?),
+        (Kind::Str, false) => Column::Str(decode(holder, str_key)?),
+        (Kind::DateTime, false) => Column::Date(decode(holder, datetime_key)?),
+        (Kind::Date, false) => Column::Date(decode(holder, date_key)?),
+        (Kind::Int, true) => Column::IntOpt(decode_nullable(holder, is_null, int_key)?),
+        (Kind::Float, true) => Column::FloatOpt(decode_nullable(holder, is_null, float_key)?),
+        (Kind::Str, true) => Column::StrOpt(decode_nullable(holder, is_null, str_key)?),
+        (Kind::DateTime, true) => Column::DateOpt(decode_nullable(holder, is_null, datetime_key)?),
+        (Kind::Date, true) => Column::DateOpt(decode_nullable(holder, is_null, date_key)?),
     })
 }
 
-// ── Object-comparison fallback ─────────────────────────────────────────────────
-
-/// Sort by comparing the Python objects directly (one `PyObject_RichCompareBool`
-/// per node).  Used when [`decode_column`] cannot extract native keys; it
-/// preserves exact Python ordering, including raising `TypeError` on values that
-/// are not mutually comparable.
 fn sort_objects_to_tuple<'py>(
     py: Python<'py>,
     ids: &Bound<'py, PyTuple>,
@@ -790,95 +428,41 @@ fn sort_objects_to_tuple<'py>(
     reverse: bool,
     null_high: Option<bool>,
 ) -> PyResult<Py<PyTuple>> {
-    // Build index array [0, 1, ..., n-1] and sort it by holder[i].
-    // `sort_by` is a stable sort (like Python's Timsort), so equal values
-    // preserve the original relative order of their IDs.
-    let mut indices: Vec<usize> = (0..holder.len()).collect();
-    let mut sort_err: Option<PyErr> = None;
-
-    // SAFETY: each holder[i] is a live Bound; as_ptr() is a valid borrowed
-    // pointer. PyObject_RichCompareBool is safe to call with the GIL held.
-    unsafe {
-        let none_ptr = ffi::Py_None();
-        let false_ptr = ffi::Py_False();
-
-        indices.sort_by(|&a, &b| {
-            if sort_err.is_some() {
-                return Ordering::Equal;
-            }
-
-            let va = holder[a].as_ptr();
-            let vb = holder[b].as_ptr();
-
-            let ord = match null_high {
-                None => compare_py(py, va, vb, &mut sort_err),
-                Some(nh) => {
-                    let a_null = va == none_ptr || va == false_ptr;
-                    let b_null = vb == none_ptr || vb == false_ptr;
-                    match (a_null, b_null) {
-                        (true, true) => Ordering::Equal,
-                        // null_high=true  → nulls are "high" (sort after non-nulls in ASC)
-                        // null_high=false → nulls are "low"  (sort before non-nulls in ASC)
-                        (true, false) => {
-                            if nh {
-                                Ordering::Greater
-                            } else {
-                                Ordering::Less
-                            }
-                        }
-                        (false, true) => {
-                            if nh {
-                                Ordering::Less
-                            } else {
-                                Ordering::Greater
-                            }
-                        }
-                        (false, false) => compare_py(py, va, vb, &mut sort_err),
+    let keys = match null_high {
+        None => PyList::new(py, holder)?,
+        Some(high) => {
+            let (null_rank, val_rank): (u8, u8) = if high { (1, 0) } else { (0, 1) };
+            let false_ptr = unsafe { ffi::Py_False() };
+            let empty = PyString::new(py, "").into_any();
+            PyList::new(
+                py,
+                holder.iter().map(|value| {
+                    if value.is_none() || value.as_ptr() == false_ptr {
+                        (null_rank, &empty)
+                    } else {
+                        (val_rank, value)
                     }
-                }
-            };
-
-            if reverse { ord.reverse() } else { ord }
-        });
-    }
-
-    if let Some(err) = sort_err {
-        return Err(err);
-    }
-
-    build_sorted_tuple(py, ids, &indices)
+                }),
+            )?
+        }
+    };
+    let order = PyList::new(py, 0..holder.len())?;
+    let kwargs = PyDict::new(py);
+    kwargs.set_item(
+        pyo3::intern!(py, "key"),
+        keys.getattr(pyo3::intern!(py, "__getitem__"))?,
+    )?;
+    kwargs.set_item(pyo3::intern!(py, "reverse"), reverse)?;
+    order.call_method(pyo3::intern!(py, "sort"), (), Some(&kwargs))?;
+    build_sorted_tuple(py, ids, &order.extract::<Vec<usize>>()?)
 }
 
-/// Group record IDs by their corresponding values.
-///
-/// `batch_group_ids(ids, values) -> dict[value, list[id]]`
-///
-/// - `ids`: tuple of record IDs
-/// - `values`: list of group keys, one per id (same length as ids)
-///
-/// Returns a plain `dict` mapping each distinct value to the list of IDs
-/// that have that value.  Order within each group list is the original
-/// order of `ids`.
-///
-/// Replaces the Python pattern in `grouped()` after `batch_cache_get`:
-/// ```text
-/// collator = defaultdict(list)
-/// for i, rec_id in enumerate(ids):
-///     collator[results[i]].append(rec_id)
-/// ```
-///
-/// Uses `PyDict_GetItem` + `PyList_Append` in a tight C loop, eliminating
-/// Python loop overhead and `defaultdict.__missing__` dispatch.
 #[pyfunction]
 pub fn batch_group_ids<'py>(
     py: Python<'py>,
     ids: &Bound<'py, PyTuple>,
     values: &Bound<'py, PyList>,
 ) -> PyResult<Py<PyDict>> {
-    // Bounds contract: the loop indexes `values[i]` for i in 0..ids.len() with
-    // the unchecked PyList_GET_ITEM.  Validate the lengths match up front — a
-    // shorter `values` would otherwise read out of bounds and segfault the
-    // worker (the Python fallback raises here too).
     if values.len() != ids.len() {
         return Err(PyValueError::new_err(
             "batch_group_ids: `values` must have the same length as `ids`",
@@ -886,18 +470,6 @@ pub fn batch_group_ids<'py>(
     }
     let n = ids.len() as ffi::Py_ssize_t;
 
-    // SAFETY: All pointers are borrowed from live Python objects.
-    // PyDict_GetItemRef reports the three outcomes separately — 1 found (and
-    // hands back a STRONG ref we must release), 0 missing, -1 error — so an
-    // unhashable group key propagates instead of being swallowed. Its
-    // predecessor `PyDict_GetItem` cannot: it restores the pre-call exception
-    // state and drops the new exception, which made the `PyErr_Occurred()`
-    // check that used to stand here dead code, and on 3.14 also printed
-    // "Exception ignored in PyDict_GetItem()" plus a full traceback to stderr
-    // before the eventual TypeError arrived from somewhere else.
-    // PyList_Append INCREFs the appended object internally.
-    // PyDict_SetItem INCREFs both key and value — we DECREF our local ref
-    // to the new list after SetItem so the dict owns the only reference.
     unsafe {
         let ids_ptr = ids.as_ptr();
         let values_ptr = values.as_ptr();
@@ -908,21 +480,6 @@ pub fn batch_group_ids<'py>(
         }
 
         for i in 0..n {
-            // Re-checked every iteration, not hoisted. The group keys here
-            // are arbitrary cached *values*, so `PyDict_GetItemRef` and
-            // `PyDict_SetItem` hash and compare them and `__hash__`/`__eq__`
-            // are Python — which can shorten `values` while this loop is
-            // indexing it with the unchecked `PyList_GET_ITEM`. That read past
-            // the end of the array is a **reproducible segfault**, not a
-            // theoretical one; the length check up front cannot see it because
-            // the list shrinks after that check has passed.
-            //
-            // `batch_cache_fill` already re-checks its list this way and
-            // documents why; this loop has the same shape and had no guard at
-            // all. Nothing in `grouped()` reaches it — every key a field cache
-            // produces is a builtin — so this is the contract holding rather
-            // than a live bug, which is the standard the rest of this crate is
-            // held to.
             if ffi::PyList_GET_SIZE(values_ptr) != n {
                 ffi::Py_DECREF(result);
                 return Err(PyValueError::new_err(
@@ -931,48 +488,16 @@ pub fn batch_group_ids<'py>(
             }
             let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i);
             let val_obj = ffi::PyList_GET_ITEM(values_ptr, i);
-            // The key is held by a strong reference for as long as this
-            // iteration uses it, because `PyDict_GetItemRef` below hashes it
-            // and `__hash__` can drop the last reference to the key itself,
-            // leaving `val_obj` dangling for the `PyDict_SetItem` twenty lines
-            // down. The length check above cannot see that one: it fires on
-            // the NEXT iteration, after the use.
-            //
-            // **The cost is below the noise floor of the machine this was
-            // written on, and no figure for it is recorded here on purpose.**
-            // Alternating rebuilds over a 5000-id low-cardinality column put
-            // guarded-against-unguarded at +21% in one sweep and -7% in
-            // another, with the same binary spreading 15% run to run; a
-            // four-way sweep of the guard variants ranked them differently by
-            // min and by mean. Any single number quoted from that is a
-            // measurement of build layout and machine load. What is known is
-            // the shape: one compare and one refcount pair per element,
-            // against a dict lookup and a list append. Measure it on a quiet
-            // machine before trading any of it away.
-            //
-            // A `Bound` and not the raw `Py_INCREF`/`Py_DECREF` pair the rest
-            // of this function uses, because the raw pair was WRONG here and
-            // the compiler could not say so: four error paths `return` out of
-            // this loop between the two calls, and each one skipped the
-            // release. Measured with `sys.getrefcount` over 1000 calls that
-            // fail on an unhashable group key, that leaked exactly 1000
-            // references to the key. The guard releases on every path,
-            // including the early returns, and its cost is the one this
-            // machine could not measure either way.
             let val_guard = Bound::from_borrowed_ptr(py, val_obj);
             let val_obj = val_guard.as_ptr();
 
-            // Try to find the existing group list.
             let mut existing: *mut ffi::PyObject = std::ptr::null_mut();
             match ffi::PyDict_GetItemRef(result, val_obj, &raw mut existing) {
                 -1 => {
-                    // Unhashable group key — the reference raises here too.
                     ffi::Py_DECREF(result);
                     return Err(PyErr::fetch(py));
                 }
                 1 => {
-                    // Found — append to the existing list, then release the
-                    // strong reference GetItemRef handed us.
                     let appended = ffi::PyList_Append(existing, id_obj);
                     ffi::Py_DECREF(existing);
                     if appended < 0 {
@@ -981,25 +506,19 @@ pub fn batch_group_ids<'py>(
                     }
                 }
                 _ => {
-                    // New key — create a fresh list with this first element.
-                    // Use PyList_New(1) + SET_ITEM to avoid Append's resize path
-                    // for the common case of small singleton groups.
                     let new_list = ffi::PyList_New(1);
                     if new_list.is_null() {
                         ffi::Py_DECREF(result);
                         return Err(PyErr::fetch(py));
                     }
-                    // SET_ITEM steals the reference; INCREF first.
                     ffi::Py_INCREF(id_obj);
                     ffi::PyList_SET_ITEM(new_list, 0, id_obj);
 
-                    // Insert into result dict; dict acquires its own reference.
                     if ffi::PyDict_SetItem(result, val_obj, new_list) < 0 {
                         ffi::Py_DECREF(new_list);
                         ffi::Py_DECREF(result);
                         return Err(PyErr::fetch(py));
                     }
-                    // Release our local reference — dict holds the only one now.
                     ffi::Py_DECREF(new_list);
                 }
             }
@@ -1013,10 +532,6 @@ pub fn batch_group_ids<'py>(
 
 #[cfg(test)]
 mod tests {
-    //! Pure-Rust tests for the native ordering. The full `sort_ids_by_values`
-    //! path takes Python objects and is covered by Python-level tests
-    //! (including a fuzz comparison against the pure-Python fallback); here we
-    //! pin the logic that decides the result.
     use super::{StrKey, Total, pack_datetime, sort_nullable, sort_plain};
     use std::cmp::Ordering;
 
@@ -1044,20 +559,15 @@ mod tests {
 
     #[test]
     fn sort_plain_is_stable_in_both_directions() {
-        // Every key equal: the original order must survive, ascending and
-        // descending alike — CPython's `reverse=True` is stable too.
         let keys = [7i64; 5];
         assert_eq!(order(&keys, false), [0, 1, 2, 3, 4]);
         assert_eq!(order(&keys, true), [0, 1, 2, 3, 4]);
-        // Ties within a mixed column keep their relative order.
         assert_eq!(order(&[1i64, 0, 1, 0], false), [1, 3, 0, 2]);
         assert_eq!(order(&[1i64, 0, 1, 0], true), [0, 2, 1, 3]);
     }
 
     #[test]
     fn total_is_nan_safe_and_treats_signed_zero_as_equal() {
-        // `sort_by` must never panic; NaN never reaches here (decode_column
-        // defers it) but the order must still be total.
         let _ = order(&[Total(f64::NAN), Total(1.0)], false);
         assert_eq!(Total(0.0).cmp(&Total(0.0)), Ordering::Equal);
         assert_eq!(Total(1.0).cmp(&Total(1.0)), Ordering::Equal);
@@ -1066,11 +576,11 @@ mod tests {
     #[test]
     fn sort_nullable_places_nulls_per_null_high() {
         let keys = [Some(5i64), None, Some(1)];
-        // high: nulls after the values, ascending
+
         assert_eq!(order_opt(&keys, false, true), [2, 0, 1]);
-        // low: nulls before them
+
         assert_eq!(order_opt(&keys, false, false), [1, 2, 0]);
-        // reverse flips the whole comparison, nulls included
+
         assert_eq!(order_opt(&keys, true, true), [1, 0, 2]);
     }
 
@@ -1080,10 +590,6 @@ mod tests {
         assert_eq!(order_opt(&keys, false, true), [1, 0, 2, 3]);
     }
 
-    /// `StrKey` must order exactly as `str` does, or a `sorted()` on a `char`
-    /// column diverges from the pure-Python reference. Nothing tested it: the
-    /// suite above sorts bare `&str`, which never constructs a `StrKey` and so
-    /// never reaches the packed prefix or its fall-through.
     #[test]
     fn strkey_orders_exactly_like_str() {
         let corpus = [
@@ -1092,15 +598,10 @@ mod tests {
             "ab",
             "abc",
             "abcdefg",
-            "abcdefgh",  // exactly the prefix width
-            "abcdefghi", // one past it
+            "abcdefgh",
+            "abcdefghi",
             "abcdefghZ",
             "abcdefgh\u{0}",
-            // A trailing NUL is indistinguishable from the prefix's zero
-            // padding, which is what made this arm answer `Equal` for a pair
-            // Python orders. Postgres rejects NUL in a text column, but the
-            // field cache holds the value before the flush that would, and a
-            // non-stored computed `Char` is never flushed at all.
             "abc\u{0}",
             "abc\u{0}\u{0}",
             "\u{0}",
@@ -1122,9 +623,6 @@ mod tests {
         }
     }
 
-    /// The whole point of the packed prefix is that a low-cardinality column
-    /// resolves without a `memcmp`; keep it sorting correctly through
-    /// `sort_plain`, which is how a real column reaches it.
     #[test]
     fn strkey_sorts_a_column_like_python_would() {
         let column = ["abc\u{0}", "abc", "ab", "abcdefghi", "abcdefgh"];
@@ -1163,8 +661,6 @@ mod tests {
 
     #[test]
     fn pack_datetime_puts_a_date_at_midnight_of_its_day() {
-        // A `date` decodes with the four time fields at zero, which has to be
-        // the same instant a midnight `datetime` decodes to.
         assert_eq!(
             pack_datetime(2026, 8, 28, 0, 0, 0, 0),
             pack_datetime(2026, 8, 28, 0, 0, 0, 0)
@@ -1174,7 +670,6 @@ mod tests {
 
     #[test]
     fn pack_datetime_cannot_overflow_at_the_extremes() {
-        // Every component at its maximum, including a leap second.
         let widest = pack_datetime(9999, 12, 31, 23, 59, 60, 999_999);
         assert!(widest > 0, "packing wrapped: {widest}");
         assert!(widest < 1 << 60, "packing is wider than expected: {widest}");

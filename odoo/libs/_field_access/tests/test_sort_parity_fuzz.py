@@ -224,3 +224,78 @@ def test_mixed_naive_aware_datetimes_raise_like_python():
         sorted(values)
     with pytest.raises(TypeError):
         sort_ids_by_values(ids, values, False)
+
+
+class _RandomOrder:
+    """A `__lt__` that is not a total order. `sorted()` returns some
+    permutation; Rust's `sort_by` would panic, and `PanicException` is a
+    `BaseException` that no `except Exception` sees."""
+
+    def __init__(self, rng):
+        self._rng = rng
+
+    def __lt__(self, other):
+        return self._rng.random() < 0.5
+
+
+def test_a_non_total_order_returns_a_permutation_like_python():
+    n = 3000
+    ids = tuple(range(n))
+    for null_high in (None, True):
+        rng = random.Random(f"random-order-{null_high}")
+        values = [_RandomOrder(rng) for _ in range(n)]
+        result = sort_ids_by_values(ids, values, False, null_high)
+        assert sorted(result) == list(ids)
+
+
+class _LateFailure:
+    calls = 0
+
+    def __init__(self, value):
+        self.value = value
+
+    def __lt__(self, other):
+        type(self).calls += 1
+        if type(self).calls > 500:
+            raise ValueError("late")
+        return self.value < other.value
+
+
+def test_a_comparison_error_midway_propagates_like_python():
+    ids = tuple(range(3000))
+    rng = random.Random("late")
+    values = [_LateFailure(rng.random()) for _ in ids]
+    _LateFailure.calls = 0
+    with pytest.raises(ValueError, match="late"):
+        sort_ids_by_values(ids, values, False)
+    _LateFailure.calls = 0
+    with pytest.raises(ValueError, match="late"):
+        sort_ids_by_values_py(ids, values, False)
+
+
+class _ContrarianEq:
+    """Null-aware keys are `(rank, value)` tuples, whose comparison asks
+    `__eq__` before `__lt__`; the fallback must go through the same
+    protocol as the reference, which a hand-written `__lt__`-only
+    comparator did not."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __eq__(self, other):
+        return True
+
+    def __hash__(self):
+        return 0
+
+    def __lt__(self, other):
+        return self.value < other.value
+
+
+def test_null_aware_fallback_uses_the_references_tuple_keys():
+    ids = (0, 1, 2, 3)
+    values = [_ContrarianEq(3), None, _ContrarianEq(1), _ContrarianEq(2)]
+    for reverse in (False, True):
+        expected = _reference(ids, values, reverse, True)
+        assert sort_ids_by_values(ids, values, reverse, True) == expected
+        assert sort_ids_by_values_py(ids, values, reverse, True) == expected

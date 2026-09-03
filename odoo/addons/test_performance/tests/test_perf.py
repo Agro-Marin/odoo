@@ -1393,14 +1393,14 @@ class TestAccelPrimitives(PerfTestCase):
         self._log(timer.stats("NewId.__lt__(int)", warmup=0))
 
     def test_10_originids_int(self):
-        from odoo.orm.helpers import _origin_ids
+        from odoo.libs.accel import origin_ids as _origin_ids
 
         ids = tuple(range(1, 1001))
         timer = _bench(lambda: _origin_ids(ids), n=ITERATIONS)
         self._log(timer.stats("origin_ids(1000_int)", warmup=0))
 
     def test_11_originids_mixed(self):
-        from odoo.orm.helpers import _origin_ids
+        from odoo.libs.accel import origin_ids as _origin_ids
         from odoo.orm.primitives import NewId
 
         ids = tuple(NewId(origin=i) if i % 3 == 0 else i for i in range(1, 501))
@@ -1408,7 +1408,7 @@ class TestAccelPrimitives(PerfTestCase):
         self._log(timer.stats("origin_ids(500_mixed)", warmup=0))
 
     def test_12_originids_all_newid(self):
-        from odoo.orm.helpers import _origin_ids
+        from odoo.libs.accel import origin_ids as _origin_ids
         from odoo.orm.primitives import NewId
 
         ids = tuple(NewId(origin=i) for i in range(1, 501))

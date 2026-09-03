@@ -1,27 +1,15 @@
-# One workspace, so the three crates share a lock file and a target directory
-# and `cargo fmt` / `cargo clippy --all-targets` from here cover all of them.
-# Before the split there was one crate, and "the gate runs in crates/odoo_rust"
-# was the same thing as "the gate runs over everything"; a second crate outside
-# a workspace would have been linted by nothing.
 [workspace]
 resolver = "3"
 members = ["odoo_build", "odoo_lint", "odoo_rust"]
 
-# Inherited by the members rather than repeated in each. `pyo3` in particular
-# was spelled twice, so a version bump had to be made twice and could be made
-# once — and the two extensions MUST agree on it: they are loaded into one
-# interpreter, and pyo3 links the same CPython ABI from both.
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 
 [workspace.dependencies]
 pyo3 = { version = "0.29.2" }
 
-# The two extensions are perf work by definition; the default release profile
-# leaves both of these on the table. `panic` is deliberately NOT set to
-# "abort": pyo3 catches a Rust panic at the pyfunction boundary and raises
-# `PanicException`, and aborting would take the whole server process instead.
 [profile.release]
 lto = "fat"
 codegen-units = 1

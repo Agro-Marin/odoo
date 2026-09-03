@@ -1,37 +1,9 @@
-//! Rust/PyO3 accelerator for cursor `dictfetchall()` / `dictfetchmany()`.
-//!
-//! Replaces the Python pattern `[dict(zip(cols, row)) for row in rows]`
-//! with a tight Rust loop that avoids:
-//! - Python-level iteration overhead (for-loop, zip iterator, dict constructor)
-//! - Repeated `cursor.description` property access (which rebuilds Column
-//!   objects each time in psycopg3)
-//!
-//! The caller extracts column names once and passes them as a tuple.
-//!
-//! Benchmark (20 columns, release build):
-//!   10k rows: Python 7.4ms → Rust ~3ms (2.5x speedup)
-//!
-//! SAFETY: Uses `unsafe` for `_PyDict_NewPresized` (pre-allocates the dict
-//! hash table at the right size, avoiding resize during fill) and
-//! `PyTuple_GET_ITEM` (avoids bounds checks in the inner loop).  These are
-//! safe because we validate tuple lengths before entering the inner loop.
-
 use pyo3::ffi;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 
 use crate::ffi_ext::_PyDict_NewPresized;
 
-/// Convert a list of row tuples to a list of dicts.
-///
-/// `rows_to_dicts(names: tuple[str, ...], rows: list[tuple]) -> list[dict]`
-///
-/// Each dict maps `names[j] -> row[j]` for all columns.
-/// Pre-sizes each dict to avoid hash table resizes.
-///
-/// # Panics
-/// None — returns `PyValueError` if row lengths don't match names,
-/// or `PyTypeError` if a row is not a tuple.
 #[pyfunction]
 pub fn rows_to_dicts<'py>(
     py: Python<'py>,
@@ -44,12 +16,6 @@ pub fn rows_to_dicts<'py>(
     let names_ptr = names.as_ptr();
     let rows_ptr = rows.as_ptr();
 
-    // SAFETY: We validate that each row is a tuple and check row lengths
-    // before accessing items.  All PyObject pointers are borrowed from live
-    // Python objects with 'py lifetime.  _PyDict_NewPresized is a stable
-    // CPython API that pre-allocates the hash table.
-    // PyList_SET_ITEM steals one reference to `dict_ptr` which we created
-    // with refcount 1.
     unsafe {
         let result_ptr = ffi::PyList_New(nrows);
         if result_ptr.is_null() {
@@ -59,9 +25,6 @@ pub fn rows_to_dicts<'py>(
         for i in 0..nrows {
             let row_ptr = ffi::PyList_GET_ITEM(rows_ptr, i);
 
-            // Guard: row must be a tuple.  psycopg3 always returns tuples,
-            // but be defensive — PyTuple_GET_SIZE on a non-tuple reads wrong
-            // memory and is undefined behaviour.
             if ffi::PyTuple_Check(row_ptr) == 0 {
                 ffi::Py_DECREF(result_ptr);
                 return Err(pyo3::exceptions::PyTypeError::new_err(format!(
@@ -70,7 +33,6 @@ pub fn rows_to_dicts<'py>(
                 )));
             }
 
-            // Validate row length matches column count
             let row_len = ffi::PyTuple_GET_SIZE(row_ptr);
             if row_len != ncols {
                 ffi::Py_DECREF(result_ptr);

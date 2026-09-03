@@ -1,31 +1,6 @@
-//! Rust-accelerated CSV export for the Odoo web module.
-//!
-//! Replaces Python's `csv.writer` + per-cell sanitization loop with a single
-//! Rust function that produces the complete CSV output directly.
-//!
-//! The Python `CSVExport.from_data()` does:
-//! 1. Create a `csv.writer(fp, quoting=QUOTE_ALL)`
-//! 2. For each cell: `None`/`False` → `""`, `bytes` → decode, formula protect
-//! 3. `writer.writerow(...)` per row
-//!
-//! This module collapses all three into one pass over the data, producing the
-//! final CSV bytes with RFC 4180 QUOTE_ALL formatting.
-
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyList, PyString};
 
-/// Generate a complete CSV byte string with QUOTE_ALL formatting.
-///
-/// Handles the same cell sanitization as Python's `CSVExport.from_data`:
-/// - `None` / `False` → empty string
-/// - `bytes` → UTF-8 decode
-/// - Strings starting with `=`, `-`, `+`, `@`, tab, or CR → prefix with `'` (formula protection)
-/// - All other types → `str()` conversion
-/// - Every cell is double-quoted with embedded `"` doubled (RFC 4180 / QUOTE_ALL)
-///
-/// Returns the complete CSV as `bytes` (UTF-8) with `\r\n` line terminators.
-/// Returning `bytes` rather than `str` matches the `-> bytes` annotation on the
-/// Python caller and avoids an extra encode step in Werkzeug's response layer.
 #[pyfunction]
 pub fn csv_export(
     py: Python<'_>,
@@ -35,60 +10,46 @@ pub fn csv_export(
     let n_rows = rows.len();
     let n_cols = headers.len();
 
-    // Python's False singleton for identity comparison (matches `d is False`)
     let py_false = PyBool::new(py, false).to_owned().into_any();
 
-    // Reserve for the header only. The data reservation is taken from the FIRST
-    // ROW once it has been written, because the width of a cell is a property of
-    // the data and not a constant anyone can name.
-    //
-    // The constant that stood here — `(n_rows + 1) * n_cols * 30` — was a guess
-    // with no ceiling, and `/web/export/csv` runs `Model.search(domain)` with no
-    // limit, so it scaled with the export. Measured on 20 000 rows x 30
-    // one-character cells:
-    //
-    //   actual output       2,420,171 bytes
-    //   reserved            18,000,900 bytes   (7.4x, and `String::into_bytes`
-    //                                           keeps the capacity)
-    //   Python peak         ~8,000,000 bytes
-    //
-    // i.e. the accelerated path asked for more than twice the memory of the
-    // `csv.writer` + `BytesIO` it replaced, on the narrow cells that are the
-    // common shape.
     let mut buf = String::with_capacity(n_cols.max(1) * 16);
 
-    // ── Header row ──────────────────────────────────────────────────────
     for i in 0..n_cols {
         if i > 0 {
             buf.push(',');
         }
         let header = headers.get_item(i)?;
-        write_quoted(&mut buf, header.cast::<PyString>()?.to_str()?);
+        if header.is_none() {
+            write_quoted(&mut buf, "");
+        } else if let Ok(text) = header.cast::<PyString>() {
+            write_quoted(&mut buf, text.to_str()?);
+        } else {
+            write_quoted(&mut buf, header.str()?.to_str()?);
+        }
     }
     buf.push_str("\r\n");
 
-    // ── Data rows ───────────────────────────────────────────────────────
     for row_idx in 0..n_rows {
         let row = rows.get_item(row_idx)?;
-        let row_list = row.cast::<PyList>()?;
-        let row_len = row_list.len();
-
         let row_start = buf.len();
-        for col_idx in 0..row_len {
-            if col_idx > 0 {
-                buf.push(',');
+        if let Ok(row_list) = row.cast::<PyList>() {
+            for col_idx in 0..row_list.len() {
+                if col_idx > 0 {
+                    buf.push(',');
+                }
+                write_cell(&mut buf, &row_list.get_item(col_idx)?, &py_false)?;
             }
-            let cell = row_list.get_item(col_idx)?;
-            write_cell(&mut buf, &cell, &py_false)?;
+        } else {
+            for (col_idx, cell) in row.try_iter()?.enumerate() {
+                if col_idx > 0 {
+                    buf.push(',');
+                }
+                write_cell(&mut buf, &cell?, &py_false)?;
+            }
         }
         buf.push_str("\r\n");
 
         if row_idx == 0 {
-            // One measured row, extrapolated with an eighth of slack. Rows that
-            // are wider than the first still only cost `String`'s geometric
-            // growth, which is amortised O(1) and overshoots by at most 2x --
-            // the same guarantee the unreserved case would have had, now
-            // starting from a figure taken off the data.
             let per_row = buf.len() - row_start;
             buf.reserve(per_row.saturating_mul(n_rows - 1) / 8 * 9);
         }
@@ -97,53 +58,22 @@ pub fn csv_export(
     Ok(buf.into_bytes())
 }
 
-/// Serialize a single cell value into the CSV buffer.
-///
-/// Matches the exact semantics of the Python sanitization loop:
-/// ```python
-/// if d is None or d is False:
-///     d = ''
-/// elif isinstance(d, bytes):
-///     d = d.decode()
-/// if isinstance(d, str) and d.startswith(('=', '-', '+')):
-///     d = "'" + d
-/// ```
-///
-/// The Rust port hardens this beyond the original Python set to also guard `@`
-/// and leading tab/CR — the remaining OWASP CSV-injection prefixes.
 fn write_cell(
     buf: &mut String,
     cell: &Bound<'_, PyAny>,
     py_false: &Bound<'_, PyAny>,
 ) -> PyResult<()> {
-    // None or False → empty quoted cell
-    // Uses identity comparison (`is`), not equality — 0 and "" pass through
     if cell.is_none() || cell.is(py_false) {
         buf.push_str("\"\"");
         return Ok(());
     }
 
-    // String: apply formula protection, then quote
     if let Ok(s) = cell.cast::<PyString>() {
         let val = s.to_str()?;
         write_string_cell(buf, val);
         return Ok(());
     }
 
-    // Bytes: decode UTF-8, then treat as string (with formula protection).
-    //
-    // A non-decodable cell must raise what the Python original's `d.decode()`
-    // raises. `PyUnicodeDecodeError::new_err(msg)` did not: `UnicodeDecodeError`
-    // takes five arguments (encoding, object, start, end, reason), so passing
-    // one message string produced `TypeError: function takes exactly 5
-    // arguments (1 given)` at raise time — an error naming no encoding, no
-    // position and no reason.
-    //
-    // `bytes` cells are real: `ir.attachment.datas` exports one. Undecodable
-    // ones are not reachable through any core field, because `Binary` exports
-    // base64, which is always ASCII. This is the quality of an error nobody
-    // has hit yet, on the branch that exists precisely for the field that
-    // eventually does.
     if let Ok(b) = cell.cast::<PyBytes>() {
         let raw = b.as_bytes();
         let val = match std::str::from_utf8(raw) {
@@ -158,18 +88,11 @@ fn write_cell(
         return Ok(());
     }
 
-    // All other types (int, float, bool True, datetime, date, list, etc.)
-    // → str() conversion, NO formula protection (original only checks isinstance(d, str))
     let s = cell.str()?;
     write_quoted(buf, s.to_str()?);
     Ok(())
 }
 
-/// Write a string cell with formula protection.
-///
-/// Spreadsheet apps interpret cells starting with `=`, `-`, `+`, `@`, tab, or CR
-/// as formulas/commands. Prefixing with `'` prevents this (CSV injection /
-/// formula injection defense — OWASP guards `= + - @ \t \r`).
 #[inline]
 fn write_string_cell(buf: &mut String, val: &str) {
     if !val.is_empty() && matches!(val.as_bytes()[0], b'=' | b'-' | b'+' | b'@' | b'\t' | b'\r') {
@@ -182,7 +105,6 @@ fn write_string_cell(buf: &mut String, val: &str) {
     }
 }
 
-/// Write a double-quoted CSV field (RFC 4180 QUOTE_ALL).
 #[inline]
 fn write_quoted(buf: &mut String, s: &str) {
     buf.push('"');
@@ -190,10 +112,6 @@ fn write_quoted(buf: &mut String, s: &str) {
     buf.push('"');
 }
 
-/// Write field content, doubling any embedded double quotes per RFC 4180.
-///
-/// Fast path: if no `"` present, append the string directly (most common case).
-/// Slow path: replace `"` with `""` (allocates, but rare in practice).
 #[inline]
 fn write_escaped(buf: &mut String, s: &str) {
     if s.contains('"') {
@@ -205,10 +123,6 @@ fn write_escaped(buf: &mut String, s: &str) {
 
 #[cfg(test)]
 mod tests {
-    //! Pure-Rust unit tests for the CSV-serialization helpers. The full
-    //! `csv_export` / `write_cell` paths take Python objects and are covered by
-    //! Python-level tests; here we pin the RFC 4180 QUOTE_ALL quoting and the
-    //! OWASP formula-injection guard, which are pure `&str` logic.
     use super::{write_escaped, write_quoted, write_string_cell};
 
     fn quoted(s: &str) -> String {
@@ -247,7 +161,7 @@ mod tests {
     #[test]
     fn string_cell_plain_is_quoted_only() {
         assert_eq!(string_cell("safe"), r#""safe""#);
-        // a formula char that is not the FIRST byte must not trigger the guard
+
         assert_eq!(string_cell("a=b"), r#""a=b""#);
     }
 
@@ -266,7 +180,6 @@ mod tests {
 
     #[test]
     fn string_cell_combines_guard_and_quote_escaping() {
-        // leading '=' triggers the guard AND the embedded quote is doubled
         assert_eq!(string_cell(r#"=a"b"#), r#""'=a""b""#);
     }
 }

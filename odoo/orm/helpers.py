@@ -1,9 +1,6 @@
 import typing
 from operator import itemgetter
 
-from odoo.libs.accel import origin_ids as _origin_ids_rust
-from odoo.libs.accel import origin_ids_python as _origin_ids_python
-
 from .domain import Domain
 
 if typing.TYPE_CHECKING:
@@ -12,12 +9,6 @@ if typing.TYPE_CHECKING:
     from ._typing import ModelLike
     from .fields.base import Field
     from .models.base import BaseModel
-
-
-def _origin_ids(ids: Iterable) -> list[int]:
-    if isinstance(ids, tuple):
-        return _origin_ids_rust(ids)
-    return _origin_ids_python(ids)
 
 
 def get_fields_by_name(model: ModelLike, fnames: Iterable[str]) -> list[Field]:
