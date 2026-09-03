@@ -374,7 +374,7 @@ test("'New Meeting' in mobile", async () => {
     await click("button", { text: "Chats" });
     await click("button[title='New Meeting']");
     await click(".o-discuss-ChannelInvitation-selectable", { text: "Partner 2" });
-    await click("button:not([disabled])", { text: "Invite to Group Chat" });
+    await click("button:not([disabled])", { text: "Invite to Meeting" });
     await contains(".o-discuss-Call");
     await click("[title='Exit Fullscreen']");
     await contains("[title='Open Actions Menu']");
