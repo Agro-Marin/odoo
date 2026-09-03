@@ -309,6 +309,19 @@ class TestManifestVersionResilience(_ManifestCase):
         )
         self.assertFalse(manifest["installable"])
 
+    def test_non_string_version_is_normalised_to_str(self):
+        with self.assertLogs("odoo.modules.module", "WARNING"):
+            manifest = _normalise_manifest("m", {**self.BASE, "version": 19})
+        self.assertFalse(manifest["installable"])
+        self.assertIsInstance(manifest["version"], str)
+
+    def test_non_string_version_on_uninstallable_module_is_normalised_to_str(self):
+        manifest = _normalise_manifest(
+            "m", {**self.BASE, "version": 19, "installable": False}
+        )
+        self.assertFalse(manifest["installable"])
+        self.assertIsInstance(manifest["version"], str)
+
     def test_string_depends_rejected(self):
         with self.assertRaisesRegex(TypeError, "forget.*brackets"):
             _normalise_manifest("m", {**self.BASE, "depends": "base"})
