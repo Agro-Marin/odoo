@@ -298,7 +298,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             else:
                 remaining_products.append(product.id)
                 closest_forecasted[product.id][line.id] = None
-        date_today = self.env.context.get("from_date", fields.Date.today())
+        date_today = self.env.context.get("from_date", "today")
         domain = [
             ("state", "=", "forecast"),
             ("date", ">=", date_today),
@@ -801,7 +801,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     line_delay = component.get("availability_delay", 0)
                     max_component_delay = max(max_component_delay, line_delay)
                 date_today = self.env.context.get(
-                    "from_date", fields.Date.today()
+                    "from_date", fields.Date.context_today(self)
                 ) + timedelta(days=max_component_delay)
                 operations_planning = self._simulate_bom_planning(
                     bom,
@@ -1138,7 +1138,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             return ("available", 0)
         if closest_forecasted == date.max:
             return ("unavailable", False)
-        date_today = self.env.context.get("from_date", fields.Date.today())
+        date_today = self.env.context.get("from_date", fields.Date.context_today(self))
         if product and not product.is_storable:
             return ("available", 0)
 
@@ -1201,7 +1201,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
 
     @api.model
     def _format_date_display(self, state, delay):
-        date_today = self.env.context.get("from_date", fields.Date.today())
+        date_today = self.env.context.get("from_date", fields.Date.context_today(self))
         if state == "available":
             return _("Available")
         if state == "unavailable":

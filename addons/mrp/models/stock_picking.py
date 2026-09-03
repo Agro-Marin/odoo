@@ -139,7 +139,7 @@ class StockPickingType(models.Model):
             for picking_type, count in self.env["mrp.production"]._read_group(
                 [
                     ("state", "=", "confirmed"),
-                    ("date_start", "<", fields.Date.today()),
+                    ("date_start", "<", "today"),
                     ("picking_type_id", "in", mrp_picking_types.ids),
                 ],
                 ["picking_type_id"],
