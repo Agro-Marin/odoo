@@ -3,7 +3,7 @@ from typing import Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 class IrEmbeddedActions(models.Model):
@@ -98,6 +98,17 @@ class IrEmbeddedActions(models.Model):
                 vals["name"] = action_names.get(vals.get("action_id"), "")
             if "python_method" in vals and "action_id" in vals:
                 vals.pop("action_id" if vals.get("python_method") else "python_method")
+            if not (vals.get("python_method") or vals.get("action_id")):
+                raise ValidationError(
+                    self.env._(
+                        "An embedded action needs either an action or a python "
+                        "method to open."
+                    )
+                )
+            if not vals.get("parent_res_model"):
+                raise ValidationError(
+                    self.env._("An embedded action needs the model it is shown on.")
+                )
             return vals
 
         return super().create([normalised(vals) for vals in vals_list])

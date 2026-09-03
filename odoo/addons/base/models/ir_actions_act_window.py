@@ -211,7 +211,9 @@ class IrActionsAct_Window(models.Model):
     def _get_action_dict(self) -> dict[str, Any]:
         result = super()._get_action_dict()
         if embedded_action_ids := result["embedded_action_ids"]:
-            embedded = self.env["ir.embedded.actions"].browse(embedded_action_ids)
+            embedded = (
+                self.env["ir.embedded.actions"].sudo().browse(embedded_action_ids)
+            )
             result["embedded_action_ids"] = embedded.read(
                 sorted(embedded._get_fields_readable())
             )

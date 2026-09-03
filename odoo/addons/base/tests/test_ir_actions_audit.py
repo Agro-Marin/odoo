@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from psycopg.errors import IntegrityError
 
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
 from odoo.tools.safe_eval import safe_eval
@@ -2058,3 +2058,78 @@ class TestIrActionsPathReservationIsTotal(TransactionCase):
                     ]
                 )
                 self.env.flush_all()
+
+
+@tagged("post_install", "-at_install")
+class TestEmbeddedActionsCreateValidation(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.parent_action = cls.env["ir.actions.act_window"].create(
+            {"name": "audit-embedded-parent", "res_model": "res.partner"}
+        )
+
+    def test_neither_an_action_nor_a_method_is_a_validation_error(self):
+        for vals in (
+            {},
+            {"python_method": False, "action_id": False},
+        ):
+            with self.subTest(vals=vals), self.assertRaises(ValidationError):
+                self.env["ir.embedded.actions"].create(
+                    {
+                        "name": "orphan",
+                        "parent_action_id": self.parent_action.id,
+                        "parent_res_model": "res.partner",
+                        **vals,
+                    }
+                )
+
+    def test_a_missing_parent_model_is_a_validation_error(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.embedded.actions"].create(
+                {
+                    "name": "no model",
+                    "parent_action_id": self.parent_action.id,
+                    "python_method": "action_archive",
+                }
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestEmbeddedActionsLoadForPortal(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.parent_action = cls.env["ir.actions.act_window"].create(
+            {"name": "audit-embedded-parent", "res_model": "res.partner"}
+        )
+        cls.target_action = cls.env["ir.actions.act_window"].create(
+            {"name": "audit-embedded-target", "res_model": "res.partner"}
+        )
+        cls.embedded = cls.env["ir.embedded.actions"].create(
+            {
+                "name": "E",
+                "parent_action_id": cls.parent_action.id,
+                "parent_res_model": "res.partner",
+                "action_id": cls.target_action.id,
+            }
+        )
+        cls.portal = cls.env["res.users"].create(
+            {
+                "name": "audit portal",
+                "login": "audit_portal",
+                "group_ids": [(6, 0, cls.env.ref("base.group_portal").ids)],
+            }
+        )
+
+    def test_a_portal_user_loads_the_action_with_its_embedded_actions(self):
+        with self.assertRaises(AccessError):
+            self.embedded.with_user(self.portal).read(["name"])
+        result = (
+            self.parent_action.with_user(self.portal)
+            .with_context(
+                active_id=self.portal.partner_id.id, active_model="res.partner"
+            )
+            ._get_action_dict()
+        )
+        self.assertEqual([e["name"] for e in result["embedded_action_ids"]], ["E"])

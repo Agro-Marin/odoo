@@ -73,9 +73,7 @@ class TestServerActionsBase(TransactionCaseWithUserDemo):
         self.res_country_name_position_field = Fields.search(
             [("model", "=", "res.country"), ("name", "=", "name_position")]
         )
-        self.res_partner_tag_model = Model.search(
-            [("model", "=", "res.partner.tag")]
-        )
+        self.res_partner_tag_model = Model.search([("model", "=", "res.partner.tag")])
         self.res_partner_tag_name_field = Fields.search(
             [("model", "=", "res.partner.tag"), ("name", "=", "name")]
         )
@@ -316,9 +314,7 @@ ZeroDivisionError: division by zero"""
         self.assertIn(dupe, self.test_partner.child_ids)
 
     def test_25_crud_copy_link_many2many(self):
-        tag_id = self.env["res.partner.tag"].name_create(
-            "CategoryToDuplicate"
-        )[0]
+        tag_id = self.env["res.partner.tag"].name_create("CategoryToDuplicate")[0]
         self.action.write(
             {
                 "state": "object_copy",
@@ -1600,6 +1596,13 @@ class TestClientActionParams(common.TransactionCase):
             {"name": "ClientAction2", "tag": "some_tag"}
         )
         self.assertFalse(action.params)
+
+    def test_params_that_are_not_a_dict_are_refused(self):
+        for params in ([1, 2], "x", b"env"):
+            with self.subTest(params=params), self.assertRaises(ValidationError):
+                self.env["ir.actions.client"].create(
+                    {"name": "ClientAction4", "tag": "some_tag", "params": params}
+                )
 
     def test_params_corrupt_store_degrades(self):
         action = self.env["ir.actions.client"].create(

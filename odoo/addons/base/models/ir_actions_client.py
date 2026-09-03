@@ -1,4 +1,7 @@
+from typing import Any
+
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.tools.safe_eval import safe_eval
 
 
@@ -67,7 +70,30 @@ class IrActionsClient(models.Model):
     def _inverse_params(self) -> None:
         for record in self:
             params = record.params
-            record.params_store = repr(params) if isinstance(params, dict) else params
+            if isinstance(params, bytes | str):
+                params = self._parse_params(params)
+            if not params:
+                record.params_store = False
+            elif isinstance(params, dict):
+                record.params_store = repr(params)
+            else:
+                raise ValidationError(
+                    self.env._(
+                        "The parameters of client action '%(name)s' must be a "
+                        "dictionary, not %(type)s.",
+                        name=record.name,
+                        type=type(params).__name__,
+                    )
+                )
+
+    @api.model
+    def _parse_params(self, source: bytes | str) -> Any:
+        if isinstance(source, bytes):
+            source = source.decode()
+        try:
+            return safe_eval(source, {"uid": self.env.uid})
+        except Exception:
+            return source
 
     def _get_field_target_model(self) -> str:
         return "res_model"
