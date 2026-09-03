@@ -13,7 +13,7 @@ from itertools import batched
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
-from odoo import _, api, fields, models, modules
+from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import (
     AccessError,
@@ -477,10 +477,6 @@ class IrAttachment(models.Model):
         return content_hash(bin_data or b"")
 
     @api.model
-    def _is_current_digest(self, checksum: str | bool) -> bool:
-        return bool(checksum) and len(checksum) == CONTENT_DIGEST_LEN
-
-    @api.model
     def _get_filestore(self) -> str:
         return config.filestore(self.env.cr.dbname)
 
@@ -522,7 +518,7 @@ class IrAttachment(models.Model):
     def _write_file(self, bin_value: bytes, checksum: str) -> str:
         fname, full_path = self._prepare_file_destination(bin_value, checksum)
         self._mark_for_gc(fname)
-        if not Path(full_path).exists():
+        if not self._is_stored_file_complete(full_path, len(bin_value)):
             with self._stage_temp_file("write") as tmp_path:
                 with tmp_path.open("wb") as fp:
                     fp.write(bin_value)
@@ -552,25 +548,23 @@ class IrAttachment(models.Model):
                 None, checksum, source_path=str(tmp_path)
             )
             self._mark_for_gc(fname)
-            full_path = Path(full_path_str)
-            if full_path.is_file():
+            if self._is_stored_file_complete(full_path_str, size):
                 tmp_path.unlink(missing_ok=True)
             else:
-                tmp_path.replace(full_path)
+                tmp_path.replace(full_path_str)
         return fname, size, checksum
+
+    @api.model
+    def _is_stored_file_complete(self, full_path: str, size: int) -> bool:
+        try:
+            return Path(full_path).stat().st_size == size
+        except OSError:
+            return False
 
     @api.model
     def _check_admin_access(self) -> None:
         if not self.env.is_admin():
             raise AccessError(_("Only administrators can execute this action."))
-
-    @api.model
-    def force_storage(self) -> None:
-        self._check_admin_access()
-
-        self.sudo()._with_field_rows().search(
-            Domain.AND([self._get_domain_migration(), [("type", "=", "binary")]])
-        )._migrate()
 
     @api.model
     def _get_full_path(self, path: str) -> str:
@@ -611,10 +605,6 @@ class IrAttachment(models.Model):
             .get_param_int("base.image_autoresize_quality", 80)
         )
         return subtypes, max_width, max_height, quality
-
-    @api.model
-    def _get_domain_migration(self) -> list[tuple[str, str, Any]]:
-        return self._get_storage_backend().migration_domain()
 
     @api.model
     def _prepare_file_destination(
@@ -729,30 +719,6 @@ class IrAttachment(models.Model):
                 continue
             yield index, attach, raw
             attach.invalidate_recordset()
-
-    def _migrate(self) -> None:
-        record_count = len(self)
-        backend = self._get_storage_backend()
-        storage = self._get_storage_location().upper()
-        _logger.info("Migrating %d attachments to %s", record_count, storage)
-        can_commit = not (modules.module.current_test or config["test_enable"])
-        for index, attach, raw in self._get_rows_rewritable(self, "migration"):
-            if index % 100 == 0 or index == record_count:
-                _logger.info(
-                    "Migrating attachment %d/%d to %s", index, record_count, storage
-                )
-            if bool(attach.checksum) and attach.file_size == len(raw):
-                checksum = (
-                    attach.checksum
-                    if self._is_current_digest(attach.checksum)
-                    else self._get_content_checksum(raw)
-                )
-                values = {**backend.write(raw, checksum), "checksum": checksum}
-            else:
-                values = self._prepare_content_vals(raw, attach.mimetype, backend)
-            self._rewrite_stored_content(attach, values, attach.store_fname)
-            if can_commit and index % 100 == 0:
-                self.env.cr.commit()
 
     def _get_mimetype_from_values(self, values: dict[str, Any]) -> str:
         mimetype = None
@@ -1240,7 +1206,7 @@ class IrAttachment(models.Model):
                 res_id,
                 att_id,
             ) in self.sudo()._read_group(
-                [("checksum", "in", all_checksums), ("res_field", "=", False)],
+                self._get_domain_dedup(all_checksums),
                 groupby=["checksum", "file_size", "mimetype", "res_model", "res_id"],
                 aggregates=["id:max"],
             ):
@@ -1276,6 +1242,14 @@ class IrAttachment(models.Model):
             )
             for (_vals, key), own_index in zip(entries, own_indexes, strict=True)
         ]
+
+    @api.model
+    def _get_domain_dedup(self, checksums: list[str]) -> Domain:
+        domain = Domain("checksum", "in", checksums) & Domain("res_field", "=", False)
+        if self.env.is_system():
+            return domain
+        attached = Domain("res_model", "!=", False) & Domain("res_id", ">", 0)
+        return domain & (attached | Domain("create_uid", "=", self.env.uid))
 
     def _remove_colliding_dedup_matches(
         self, existing_by_key: dict[tuple, int], raw_by_key: dict[tuple, bytes]
@@ -1446,6 +1420,7 @@ class IrAttachment(models.Model):
     @api.autovacuum
     def _gc_file_store(self) -> tuple[int, int]:
         collected = 0
+        capped = 0
         for backend_cls in tuple(STORAGE_BACKENDS.values()):
             swept = backend_cls(self.env).autovacuum()
             if swept is False:
@@ -1455,9 +1430,12 @@ class IrAttachment(models.Model):
                     "one",
                     backend_cls.__name__,
                 )
+            elif isinstance(swept, tuple):
+                collected += swept[0]
+                capped |= int(bool(swept[1]))
             elif swept:
                 collected += swept
-        return collected, 0
+        return collected, capped
 
     @api.model
     def _get_domain_legacy_keys(self) -> Domain:

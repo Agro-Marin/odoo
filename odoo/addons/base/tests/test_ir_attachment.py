@@ -562,53 +562,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "a file whose marker was refreshed after the scan must be spared",
         )
 
-    def test_force_storage_migrates_rows_its_caller_cannot_read(self):
-        self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
-        readable = self.Attachment.create({"name": "readable.txt", "raw": b"readable"})
-        orphaned = self.Attachment.create(
-            {
-                "name": "orphaned.txt",
-                "raw": b"orphaned",
-                "res_model": "x.module.was.uninstalled",
-                "res_id": 1,
-            }
-        )
-        self.env.flush_all()
-        self.assertFalse(readable.store_fname)
-        self.assertFalse(orphaned.store_fname)
-
-        admin = self.env.ref("base.user_admin")
-        self.assertFalse(
-            self.Attachment.with_user(admin)
-            .with_context(skip_res_field_check=True)
-            .search([("id", "=", orphaned.id)]),
-            "precondition: the row is invisible to the administrator running the sweep",
-        )
-
-        self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
-        self.Attachment.with_user(admin).force_storage()
-        (readable | orphaned).invalidate_recordset()
-        for att in (readable, orphaned):
-            self.addCleanup(
-                Path(self.filestore, att.store_fname).unlink, missing_ok=True
-            )
-
-        self.assertTrue(readable.store_fname)
-        self.assertTrue(
-            orphaned.store_fname, "unreadable row was silently left un-migrated"
-        )
-        self.assertEqual(orphaned.raw, b"orphaned")
-        self.assertFalse(
-            self.Attachment.sudo()
-            .with_context(skip_res_field_check=True)
-            .search_count(
-                Domain.AND(
-                    [self.Attachment._get_domain_migration(), [("type", "=", "binary")]]
-                )
-            ),
-            "force_storage left rows matching its own migration domain behind",
-        )
-
     def test_to_http_stream_ignores_bin_size(self):
         payload = b"X" * 5000
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
@@ -901,9 +854,9 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.Attachment.create_unique([values])
         self.assertIn("datas", values, "the caller's dict must not be mutated")
 
-    def test_create_unique_dedups_against_unreadable_row(self):
+    def _make_other_company_user(self):
         company_b = self.env["res.company"].sudo().create({"name": "IRA-C2 B"})
-        user_b = (
+        return (
             self.env["res.users"]
             .sudo()
             .create(
@@ -916,12 +869,18 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                 }
             )
         )
+
+    def test_create_unique_dedups_an_attached_row_the_caller_cannot_read(self):
+        user_b = self._make_other_company_user()
         payload = b"ira-c2-shared-" + os.urandom(8)
+        parameter = self.env["ir.config_parameter"].search([], limit=1)
         seeded = self.Attachment.sudo().create(
             {
                 "name": "seed",
                 "mimetype": "text/plain",
                 "raw": payload,
+                "res_model": "ir.config_parameter",
+                "res_id": parameter.id,
                 "company_id": self.env.company.id,
             }
         )
@@ -936,7 +895,9 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                     "name": "dup",
                     "mimetype": "text/plain",
                     "raw": payload,
-                    "company_id": company_b.id,
+                    "res_model": "ir.config_parameter",
+                    "res_id": parameter.id,
+                    "company_id": user_b.company_id.id,
                 }
             ]
         )
@@ -945,6 +906,65 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             [seeded.id],
             "sudo dedup reuses the unreadable cross-company row instead of duplicating",
         )
+
+    def test_create_unique_never_returns_another_users_private_row(self):
+        user_b = self._make_other_company_user()
+        payload = b"ira-private-" + os.urandom(8)
+        private = self.Attachment.with_user(self.user_demo).create(
+            {"name": "mine", "mimetype": "text/plain", "raw": payload}
+        )
+        self.env.flush_all()
+        self.assertFalse(private.res_model)
+        self.assertFalse(private.res_id)
+
+        [dedup_id] = self.Attachment.with_user(user_b).create_unique(
+            [{"name": "theirs", "mimetype": "text/plain", "raw": payload}]
+        )
+        self.assertNotEqual(dedup_id, private.id, "a private row of another user")
+        self.assertEqual(
+            self.Attachment.with_user(user_b).browse(dedup_id).raw,
+            payload,
+            "create_unique must hand back a row its caller can read",
+        )
+        [again] = self.Attachment.with_user(user_b).create_unique(
+            [{"name": "theirs", "mimetype": "text/plain", "raw": payload}]
+        )
+        self.assertEqual(again, dedup_id, "the caller's own private row still dedups")
+        [as_system] = self.Attachment.create_unique(
+            [{"name": "sys", "mimetype": "text/plain", "raw": payload}]
+        )
+        self.assertIn(
+            as_system,
+            (private.id, dedup_id),
+            "a system user still dedups across every unattached row",
+        )
+
+    def test_a_short_file_at_the_key_is_replaced_not_adopted(self):
+        self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
+        self.env["ir.config_parameter"].set_param(
+            "ir_attachment.verify_content_collision", "False"
+        )
+        payload = b"full-payload-" + os.urandom(64)
+        fname = self.Attachment._get_store_key(
+            self.Attachment._get_content_checksum(payload)
+        )
+        full_path = Path(self.Attachment._get_full_path(fname))
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_bytes(b"short")
+        self.addCleanup(full_path.unlink, missing_ok=True)
+
+        att = self.Attachment.create({"name": "planted", "raw": payload})
+        self.assertEqual(att.store_fname, fname)
+        self.assertEqual(full_path.stat().st_size, len(payload))
+        self.assertEqual(att.raw, payload)
+
+        full_path.write_bytes(b"short")
+        stream_fname, size, _checksum = self.Attachment._write_file_stream(
+            io.BytesIO(payload)
+        )
+        self.assertEqual(stream_fname, fname)
+        self.assertEqual(size, len(payload))
+        self.assertEqual(full_path.read_bytes(), payload)
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_create_unique_does_not_dedup_across_a_digest_collision(self):
@@ -1107,25 +1127,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "hello world\nshort\nplain ascii text here",
         )
 
-    @mute_logger("odoo.addons.base.models.ir_attachment")
-    def test_migrate_preserves_content_on_empty_read(self):
-        self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
-        att = self.Attachment.create({"name": "precious", "raw": b"precious-bytes"})
-        original_fname = att.store_fname
-        original_size = att.file_size
-        self.assertTrue(original_fname)
-
-        IrAttachment = self.registry["ir.attachment"]
-        with patch.object(IrAttachment, "_read_file", return_value=b""):
-            att._migrate()
-
-        att.invalidate_recordset()
-        self.assertEqual(att.store_fname, original_fname, "store_fname must survive")
-        self.assertEqual(att.file_size, original_size, "file_size must survive")
-        self.assertTrue(
-            Path(self.filestore, original_fname).is_file(), "file must survive"
-        )
-
     def test_create_from_stream_unreadable_readback_skips_index(self):
         payload = b"streamed text payload for indexation"
         ok = self.Attachment._create_from_stream(
@@ -1228,24 +1229,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             atts.write({"res_field": "image_1920"})
         self.assertEqual(spy.call_count, 1, "one ACL check per distinct res_model")
         self.assertEqual(set(atts.mapped("res_field")), {"image_1920"})
-
-    def test_migrate_does_not_resize_images(self):
-        img = Image.new("RGB", (64, 64), color="green")
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG")
-        jpeg_data = buf.getvalue()
-
-        self.env["ir.config_parameter"].set_param("base.image_autoresize_max_px", "0")
-        att = self.Attachment.create(
-            {"name": "big.jpg", "raw": jpeg_data, "mimetype": "image/jpeg"}
-        )
-        stored = att.raw
-        self.env["ir.config_parameter"].set_param(
-            "base.image_autoresize_max_px", "10x10"
-        )
-        att._migrate()
-        att.invalidate_recordset()
-        self.assertEqual(att.raw, stored, "migration must not mutate image bytes")
 
     def test_serving_check_on_content_write(self):
         att = self.Attachment.create(
@@ -1358,11 +1341,12 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertTrue(intruder.is_dir(), "the sweep must not touch a directory")
 
     def test_stale_temp_gc_is_a_noop_without_a_tmp_dir(self):
-        tmp_dir = self.Attachment._get_filestore_dir("tmp")
-        if tmp_dir.is_dir() and not any(tmp_dir.iterdir()):
-            tmp_dir.rmdir()
-        if not tmp_dir.exists():
-            self.Attachment._gc_stale_filestore_temps()
+        absent = Path(self.filestore, f"absent-{uuid.uuid4().hex}")
+        with patch.object(
+            type(self.Attachment), "_get_filestore_dir", return_value=absent
+        ):
+            self.assertEqual(self.Attachment._gc_stale_filestore_temps(), (0, 0))
+        self.assertFalse(absent.exists(), "the sweep must not create the tmp dir")
 
     def test_marking_for_gc_never_aborts_the_operation_it_bookkeeps(self):
         payload = b"gc-mark-failure-" + os.urandom(16)
@@ -1697,91 +1681,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
                 tagged.store_fname,
                 self.Attachment._get_store_key(tagged.checksum),
             )
-
-    def test_migration_never_tags_a_key_with_a_foreign_digest(self):
-        payload = b"pre-rollout-" + os.urandom(16)
-        foreign = (
-            hashlib.sha256(payload).hexdigest()
-            if len(self.Attachment._get_content_checksum(payload)) != 64
-            else hashlib.sha1(payload, usedforsecurity=False).hexdigest()
-        )
-
-        self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
-        att = self.Attachment.create({"name": "vintage.bin", "raw": payload})
-        att.flush_recordset()
-        self.assertFalse(att.store_fname, "precondition: row is stored in db")
-        self.env.cr.execute(
-            "UPDATE ir_attachment SET checksum = %s WHERE id = %s", [foreign, att.id]
-        )
-        att.invalidate_recordset()
-
-        self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
-        self.Attachment.force_storage()
-        att.invalidate_recordset()
-        self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
-
-        expected = self.Attachment._get_store_key(
-            self.Attachment._get_content_checksum(payload)
-        )
-        self.assertEqual(
-            att.store_fname,
-            expected,
-            "migration filed the row under a key holding a foreign digest",
-        )
-        self.assertEqual(att.checksum, self.Attachment._get_content_checksum(payload))
-        self.assertEqual(att.raw, payload)
-
-        twin = self.Attachment.create({"name": "twin.bin", "raw": payload})
-        twin.flush_recordset()
-        self.assertEqual(
-            twin.store_fname,
-            att.store_fname,
-            "identical content stored twice: dedup broken by the mislabeled key",
-        )
-
-    def test_migration_rekeys_without_reindexing(self):
-        payload = b"rekey-" + os.urandom(24)
-        foreign = (
-            hashlib.sha256(payload).hexdigest()
-            if len(self.Attachment._get_content_checksum(payload)) != 64
-            else hashlib.sha1(payload, usedforsecurity=False).hexdigest()
-        )
-        self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
-        att = self.Attachment.create({"name": "doc.bin", "raw": payload})
-        att.flush_recordset()
-        self.env.cr.execute(
-            "UPDATE ir_attachment SET checksum = %s, index_content = %s WHERE id = %s",
-            [foreign, "EXPENSIVE-OVERRIDE-OUTPUT", att.id],
-        )
-        att.invalidate_recordset()
-
-        calls = []
-        real_index = type(self.Attachment)._index
-
-        def spy(model, bin_data, file_type, checksum=None):
-            calls.append(file_type)
-            return real_index(model, bin_data, file_type, checksum)
-
-        self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
-        with patch.object(type(self.Attachment), "_index", spy):
-            self.Attachment.force_storage()
-        att.invalidate_recordset()
-        self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
-
-        self.assertEqual(calls, [], "_index was re-run for unchanged bytes")
-        self.assertEqual(
-            att.index_content,
-            "EXPENSIVE-OVERRIDE-OUTPUT",
-            "the derived index was thrown away while re-keying",
-        )
-        self.assertEqual(att.checksum, self.Attachment._get_content_checksum(payload))
-        self.assertEqual(
-            att.store_fname,
-            self.Attachment._get_store_key(
-                self.Attachment._get_content_checksum(payload)
-            ),
-        )
-        self.assertEqual(att.raw, payload)
 
     def test_checksum_column_fits_the_digest(self):
         att = self.Attachment.create({"name": "len", "raw": b"len-" + os.urandom(8)})
@@ -3070,53 +2969,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         )
         self.assertFalse(self.Attachment._is_same_file(path, other_path))
 
-    def test_migrate_round_trips_without_touching_the_bytes(self):
-        payloads = [b"migrate-a" * 7, b"migrate-b" * 7]
-        attachments = self.Attachment.create(
-            [
-                {"name": f"m{i}.bin", "raw": payload}
-                for i, payload in enumerate(payloads)
-            ]
-        )
-        self.env.flush_all()
-
-        self.env["ir.config_parameter"].sudo().set_param("ir_attachment.location", "db")
-        attachments._migrate()
-        self.env.flush_all()
-        attachments.invalidate_recordset()
-        self.assertFalse(any(attachments.mapped("store_fname")))
-        self.assertEqual(attachments.mapped("raw"), payloads)
-
-        self.env["ir.config_parameter"].sudo().set_param(
-            "ir_attachment.location", "file"
-        )
-        attachments._migrate()
-        self.env.flush_all()
-        attachments.invalidate_recordset()
-        self.assertTrue(all(attachments.mapped("store_fname")))
-        self.assertEqual(attachments.mapped("raw"), payloads)
-
-    @mute_logger("odoo.addons.base.models.ir_attachment")
-    def test_rewrite_skips_a_row_whose_content_vanished(self):
-        attachment = self.Attachment.create(
-            {"name": "lost.bin", "raw": b"about-to-vanish" * 7}
-        )
-        self.env.flush_all()
-        Path(self.Attachment._get_full_path(attachment.store_fname)).unlink()
-        attachment.invalidate_recordset()
-        key_before, size_before = attachment.store_fname, attachment.file_size
-
-        self.env["ir.config_parameter"].sudo().set_param("ir_attachment.location", "db")
-        attachment._migrate()
-        self.env.flush_all()
-        attachment.invalidate_recordset()
-        self.env["ir.config_parameter"].sudo().set_param(
-            "ir_attachment.location", "file"
-        )
-
-        self.assertEqual(attachment.store_fname, key_before, "row was rewritten anyway")
-        self.assertEqual(attachment.file_size, size_before)
-
     def test_all_readers_resolve_the_same_content_location(self):
         payload = b"precedence" * 7
 
@@ -3230,20 +3082,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
                 copied = self._reread(self._sized(origin).copy())
                 self.assertEqual(copied.raw, self.payload)
                 self.assertEqual(copied.file_size, len(self.payload))
-
-    def test_force_storage_under_bin_size_keeps_the_bytes(self):
-        self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
-        attachment = self.Attachment.create({"name": "m.bin", "raw": self.payload})
-        attachment = self._reread(attachment)
-        self.assertFalse(attachment.store_fname)
-
-        self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
-        self.Attachment.with_context(bin_size=True).force_storage()
-
-        attachment = self._reread(attachment)
-        self.assertTrue(attachment.store_fname)
-        self.assertEqual(attachment.raw, self.payload)
-        self.assertEqual(attachment.file_size, len(self.payload))
 
     def test_pdf_raw_under_bin_size_keeps_the_bytes(self):
         pdf = b"%PDF-1.4\n" + b"x" * 3000

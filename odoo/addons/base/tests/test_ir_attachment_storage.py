@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 import psycopg.errors
 
-from odoo.fields import Domain
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
@@ -16,6 +15,7 @@ from odoo.addons.base.models.ir_attachment_storage import (
     AttachmentStorage,
     DbStorage,
     FileStorage,
+    UnknownSchemeStorage,
     register_storage,
 )
 
@@ -42,7 +42,7 @@ class TestIrAttachmentStorage(TransactionCase):
         )
         with mute_logger("odoo.addons.base.models.ir_attachment_storage"):
             unknown = self.Attachment._get_storage_backend_for_key("weird://bucket/key")
-        self.assertIsInstance(unknown, FileStorage)
+        self.assertIsInstance(unknown, UnknownSchemeStorage)
 
         class FakeS3Storage(AttachmentStorage):
             location = "fake_s3"
@@ -68,7 +68,7 @@ class TestIrAttachmentStorage(TransactionCase):
             backend = self.Attachment._get_storage_backend_for_key(
                 "ghost-s3://bucket/key"
             )
-        self.assertIsInstance(backend, FileStorage)
+        self.assertIsInstance(backend, UnknownSchemeStorage)
         self.assertEqual(len(cm.records), 1)
         message = cm.records[0].getMessage()
         self.assertIn("No storage backend registered", message)
@@ -77,7 +77,7 @@ class TestIrAttachmentStorage(TransactionCase):
             again = self.Attachment._get_storage_backend_for_key(
                 "ghost-s3://bucket/other"
             )
-        self.assertIsInstance(again, FileStorage)
+        self.assertIsInstance(again, UnknownSchemeStorage)
         warn.assert_not_called()
 
     def test_unknown_scheme_warns_per_database(self):
@@ -165,6 +165,12 @@ class TestIrAttachmentStorage(TransactionCase):
 
     def test_gc_lock_not_available_is_reported_and_sweeps_nothing(self):
         real_execute = self.env.cr.execute
+        marker = self.Attachment._get_filestore_dir("checklist") / "zz/lock-probe"
+        self.addCleanup(marker.unlink, missing_ok=True)
+        self.Attachment._mark_for_gc("zz/lock-probe")
+        grace = patch.object(type(self.Attachment), "_GC_CHECKLIST_GRACE", 0)
+        grace.start()
+        self.addCleanup(grace.stop)
 
         def fake_execute(query, *args, **kwargs):
             if str(query).startswith("LOCK ir_attachment"):
@@ -198,6 +204,50 @@ class TestIrAttachmentStorage(TransactionCase):
             "progress, so it must not ask to be requeued",
         )
 
+    def test_unknown_scheme_streams_a_missing_error_not_empty_bytes(self):
+        from odoo.exceptions import MissingError
+
+        dbname = self.env.cr.dbname
+        self.addCleanup(
+            ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard, (dbname, "nosuch")
+        )
+        att = self.Attachment.create({"name": "lost.bin", "raw": b"payload"})
+        att.flush_recordset()
+        self.env.cr.execute(
+            "UPDATE ir_attachment SET store_fname = %s, db_datas = NULL WHERE id = %s",
+            ["nosuch://bucket/key", att.id],
+        )
+        att.invalidate_recordset()
+        with mute_logger("odoo.addons.base.models.ir_attachment_storage"):
+            self.assertEqual(att.raw, b"")
+            with self.assertRaises(MissingError):
+                att._to_http_stream()
+
+    def test_gc_reports_a_capped_checklist_as_remaining_work(self):
+        Attachment = self.Attachment
+        markers = [
+            Attachment._get_filestore_dir("checklist") / key
+            for key in ("zz/cap-one", "zz/cap-two")
+        ]
+        for marker in markers:
+            self.addCleanup(marker.unlink, missing_ok=True)
+        Attachment._mark_for_gc_multi(["zz/cap-one", "zz/cap-two"])
+        with (
+            patch.object(type(Attachment), "_GC_MAX_ENTRIES", 1),
+            patch.object(type(Attachment), "_GC_CHECKLIST_GRACE", 0),
+            patch.object(self.env.cr, "commit", lambda: None),
+            patch.object(self.env.cr, "rollback", lambda: None),
+            mute_logger("odoo.addons.base.models.ir_attachment"),
+        ):
+            self.assertEqual(FileStorage(self.env).autovacuum(), (1, True))
+            Attachment._mark_for_gc_multi(["zz/cap-one", "zz/cap-two"])
+            self.assertEqual(Attachment._gc_file_store(), (1, 1))
+            self.assertEqual(
+                Attachment._gc_file_store(),
+                (1, 1),
+                "a run that fills the cap still reports remaining work",
+            )
+
     def test_no_attachment_autovacuum_answers_in_a_dialect_the_runner_drops(self):
         from odoo.addons.base.models.ir_autovacuum import is_autovacuum
 
@@ -219,17 +269,6 @@ class TestIrAttachmentStorage(TransactionCase):
                     f"{attr} is annotated -> {annotation}; an autovacuum either "
                     "reports (done, remaining) or returns None",
                 )
-
-    def test_migration_domain_delegation(self):
-        cases = (
-            ("file", [("db_datas", "!=", False)]),
-            ("db", [("store_fname", "!=", False)]),
-            ("s3", [("db_datas", "!=", False)]),
-        )
-        for location, expected in cases:
-            with self.subTest(location=location):
-                self.icp.set_param("ir_attachment.location", location)
-                self.assertEqual(self.Attachment._get_domain_migration(), expected)
 
 
 class MemoryStorage(AttachmentStorage):
@@ -265,15 +304,6 @@ class MemoryStorage(AttachmentStorage):
         stream.size = len(data)
         stream.last_modified = attachment.write_date
         return stream
-
-    def migration_domain(self):
-        return [
-            "|",
-            ("db_datas", "!=", False),
-            "&",
-            ("store_fname", "!=", False),
-            ("store_fname", "not like", "mem://%"),
-        ]
 
 
 @contextlib.contextmanager
@@ -353,29 +383,6 @@ class TestMemoryStorageCRUD(TransactionCase):
                 empty.store_fname, "empty content is never keyed externally"
             )
             self.assertEqual(empty.file_size, 0)
-
-    def test_force_storage_migrates_into_memory(self):
-        payload = b"fs-to-mem-payload"
-        att = self.env["ir.attachment"].create({"name": "fs.bin", "raw": payload})
-        self.assertNotIn("://", att.store_fname)
-        with activate_memory_storage(self.env):
-            candidates = (
-                self.env["ir.attachment"]
-                .with_context(skip_res_field_check=True)
-                .search(
-                    Domain.AND(
-                        [
-                            self.env["ir.attachment"]._get_domain_migration(),
-                            [("type", "=", "binary"), ("id", "=", att.id)],
-                        ]
-                    )
-                )
-            )
-            self.assertEqual(candidates, att)
-            candidates._migrate()
-            att.invalidate_recordset()
-            self.assertTrue(att.store_fname.startswith("mem://"))
-            self.assertEqual(att.raw, payload)
 
     def test_unreadable_content_copy_preserves_metadata(self):
         payload = b"e1-payload"

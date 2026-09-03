@@ -1,9 +1,12 @@
 import contextlib
 import logging
+from itertools import batched
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import psycopg.errors
+
+from odoo.exceptions import MissingError
 
 if TYPE_CHECKING:
     from odoo.api import Environment
@@ -46,6 +49,7 @@ def backend_for_key(env: Environment, key: str) -> AttachmentStorage:
                 scheme,
                 key,
             )
+        return UnknownSchemeStorage(env)
     return FileStorage(env)
 
 
@@ -79,9 +83,6 @@ class AttachmentStorage:
             **self.write(data, checksum),
         }
 
-    def migration_domain(self) -> list:
-        raise NotImplementedError
-
     def read(self, key: str, size: int | None = None) -> bytes:
         raise NotImplementedError
 
@@ -91,8 +92,32 @@ class AttachmentStorage:
     def to_stream(self, attachment: Any, stream: Stream) -> Stream:
         raise NotImplementedError
 
-    def autovacuum(self) -> int | bool | None:
+    def autovacuum(self) -> tuple[int, bool] | bool | None:
         pass
+
+
+class UnknownSchemeStorage(AttachmentStorage):
+    location = "unknown"
+
+    def write(self, data: bytes, checksum: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def read(self, key: str, size: int | None = None) -> bytes:
+        _logger.warning("No storage backend can read %r; serving no content", key)
+        return b""
+
+    def delete(self, key: str) -> None:
+        _logger.warning("No storage backend can delete %r; leaving it in place", key)
+
+    def to_stream(self, attachment: Any, stream: Stream) -> Stream:
+        raise MissingError(
+            attachment.env._(
+                "The content of attachment %(id)s is held by a storage backend "
+                "that is not installed (%(key)s).",
+                id=attachment.id,
+                key=attachment.store_fname,
+            )
+        )
 
 
 @register_storage
@@ -101,9 +126,6 @@ class DbStorage(AttachmentStorage):
 
     def write(self, data: bytes, checksum: str) -> dict[str, Any]:
         return self._inline_datas_values(data)
-
-    def migration_domain(self) -> list[tuple[str, str, Any]]:
-        return [("store_fname", "!=", False)]
 
 
 @register_storage
@@ -136,39 +158,47 @@ class FileStorage(AttachmentStorage):
             "db_datas": False,
         }
 
-    def migration_domain(self) -> list[tuple[str, str, Any]]:
-        return [("db_datas", "!=", False)]
-
     def read(self, key: str, size: int | None = None) -> bytes:
         return self._model()._read_file(key, size=size)
 
     def delete(self, key: str) -> None:
         self._model()._mark_for_gc(key)
 
-    def autovacuum(self) -> int | bool | None:
+    def autovacuum(self) -> tuple[int, bool] | bool:
         model = self._model()
         cr = self.env.cr
         cr.commit()
 
         checklist = model._get_gc_checklist(limit=model._GC_MAX_ENTRIES)
-        if len(checklist) >= model._GC_MAX_ENTRIES:
+        capped = len(checklist) >= model._GC_MAX_ENTRIES
+        if capped:
             _logger.info(
                 "filestore gc: checklist cap reached (%d entries); the "
                 "remainder will be swept by the next run",
                 len(checklist),
             )
 
-        cr.execute("SET LOCAL lock_timeout TO '10s'")
-        try:
-            cr.execute("LOCK ir_attachment IN SHARE MODE")
-        except psycopg.errors.LockNotAvailable:
-            cr.rollback()
-            return False
-
-        removed = model._gc_file_store_unsafe(checklist)
-
-        cr.commit()
-        return removed
+        removed = 0
+        for names in batched(checklist, cr.BATCH_SIZE, strict=False):
+            cr.execute("SET LOCAL lock_timeout TO '10s'")
+            try:
+                cr.execute("LOCK ir_attachment IN SHARE MODE")
+            except psycopg.errors.LockNotAvailable:
+                cr.rollback()
+                if not removed:
+                    return False
+                _logger.warning(
+                    "filestore gc: lost the lock after %d removal(s); the "
+                    "rest of the checklist waits for the next run",
+                    removed,
+                )
+                return removed, True
+            removed += model._gc_file_store_unsafe(
+                {name: checklist[name] for name in names}
+            )
+            cr.commit()
+        _logger.info("filestore gc %d checked, %d removed", len(checklist), removed)
+        return removed, capped
 
     def to_stream(self, attachment: Any, stream: Stream) -> Stream:
         stream.type = "path"
