@@ -36,6 +36,15 @@ ATTACKS = {
     "bang-after-copy-named-in-a-comment": "-- COPY t FROM stdin;\n\\! touch {C}\n",
     "bang-after-crlf-statement": "SELECT 1;\r\n\\! touch {C}\n",
     "bang-without-trailing-newline": "SELECT 1;\n\\! touch {C}",
+    # `standard_conforming_strings=off` makes the unprefixed backslash escape
+    # the closing quote, so this whole string is one token to real psql and
+    # the `\!` after it is a live command -- but a scanner that always
+    # assumes `on` reads the escaped quote as closing the string early and
+    # the real closing quote as opening a second, never-closed one, going
+    # blind to everything after it.
+    "bang-after-plain-string-desynced-by-conforming-strings-off": (
+        "SET standard_conforming_strings = off;\nSELECT 'a\\'b';\n\\! touch {C}\n"
+    ),
 }
 
 BENIGN = {

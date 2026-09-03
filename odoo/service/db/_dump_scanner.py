@@ -26,6 +26,18 @@ _ALLOWED_PSQL_META_COMMANDS: dict[str, re.Pattern[str]] = {
 _COPY_WORD_MAX_LEN = 5
 _DOLLAR_TAG_RE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
 
+# `standard_conforming_strings=off` makes an unprefixed backslash inside a
+# `'...'` string escape the closing quote, the same way `E'...'` always does.
+# The scanner below only treats a backslash that way when the string is
+# `E`/`e`-prefixed (see `single_quote_escaped`), so a dump that turns this
+# GUC off can make it close a string early and mistake the real closing quote
+# for the start of a second, never-closed one -- going blind to everything
+# after it, including a `\!` meta-command psql executes for real. A backup
+# produced by Odoo's own dump never needs to change this setting.
+_STANDARD_CONFORMING_STRINGS_OFF_RE = re.compile(
+    r"(?i)standard_conforming_strings\s*(?:=|\bto\b)\s*'?off'?\b"
+)
+
 _IDENT_START_ASCII = frozenset(string.ascii_letters + "_")
 _IDENT_CONT_ASCII = frozenset(string.ascii_letters + string.digits + "_$")
 
@@ -125,6 +137,9 @@ class _PsqlSqlScanner:
         if self.in_copy_data:
             self._consume_copy_data(line)
             return None
+
+        if (m := _STANDARD_CONFORMING_STRINGS_OFF_RE.search(line)) is not None:
+            return (self.lineno, m.group(0)[:80])
 
         i = self._resume_carry_over(line, n)
 
@@ -347,6 +362,13 @@ def _check_dump_sql_safe(sql_path: str) -> None:
                 break
     if hit is not None:
         lineno, command = hit
+        if not command.startswith("\\"):
+            raise RuntimeError(
+                f"Refusing to restore: the dump's SQL sets {command!r} (line "
+                f"{lineno}), which changes how a quoted string is escaped and "
+                f"can desynchronize this scanner from what psql actually runs. "
+                f"A backup produced by Odoo's own dump never needs this setting."
+            )
         raise RuntimeError(
             f"Refusing to restore: the dump's SQL contains the psql "
             f"meta-command {command!r} (line {lineno}), which would run with "
