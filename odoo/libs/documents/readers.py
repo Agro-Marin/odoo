@@ -4,11 +4,15 @@ import csv
 import io
 import json
 from collections.abc import Callable
+from operator import attrgetter
 from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
     "BARCODES",
+    "CHEAP",
     "DATA",
+    "EXPENSIVE",
+    "FREE",
     "IMAGES",
     "REPRESENTATIONS",
     "ROWS",
@@ -31,12 +35,17 @@ REPRESENTATIONS = (ROWS, TEXT, TREE, DATA, IMAGES, BARCODES)
 
 ANY = "*"
 
+FREE = 0
+CHEAP = 10
+EXPENSIVE = 20
+
 
 @runtime_checkable
 class Reader(Protocol):
     name: str
     mimetypes: frozenset[str]
     yields: tuple[str, ...]
+    cost: int
 
     def read(self, document: Any) -> Any: ...
 
@@ -45,6 +54,7 @@ class BaseReader:
     name: str = ""
     mimetypes: frozenset[str] = frozenset()
     yields: tuple[str, ...] = ()
+    cost: int = FREE
 
     def read(self, document: Any) -> Any:
         raise NotImplementedError
@@ -77,6 +87,8 @@ def register_reader(reader: BaseReader) -> BaseReader:
         )
     if not reader.mimetypes:
         raise ValueError(f"Reader {reader.name!r} accepts no mimetype")
+    if not isinstance(getattr(reader, "cost", None), int):
+        raise ValueError(f"Reader {reader.name!r} declares no cost")
     for representation in reader.yields:
         _READERS[representation].append(reader)
     return reader
@@ -92,7 +104,8 @@ def get_readers(mimetype: str, representation: str) -> tuple[BaseReader, ...]:
                 fallback.append(reader)
         elif reader.applies_to(mimetype):
             named.append(reader)
-    return (*named, *fallback)
+    key = attrgetter("cost")
+    return (*sorted(named, key=key), *sorted(fallback, key=key))
 
 
 def known_readers() -> tuple[str, ...]:
@@ -109,11 +122,13 @@ def _reader(
     mimetypes: frozenset[str],
     yields: tuple[str, ...],
     read: Callable[..., Any],
+    cost: int = FREE,
 ) -> BaseReader:
     reader = BaseReader()
     reader.name = name
     reader.mimetypes = mimetypes
     reader.yields = yields
+    reader.cost = cost
     reader.read = read  # type: ignore[method-assign]
     return reader
 

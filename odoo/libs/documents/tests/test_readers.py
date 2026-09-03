@@ -1,9 +1,13 @@
 import unittest
 
-from odoo.libs.documents.document import Document
+from odoo.libs.documents.document import DEFAULT_READ_UP_TO, Document
 from odoo.libs.documents.readers import (
     ANY,
+    BARCODES,
+    CHEAP,
     DATA,
+    EXPENSIVE,
+    FREE,
     ROWS,
     TEXT,
     TREE,
@@ -15,10 +19,11 @@ from odoo.libs.documents.readers import (
 
 
 class _Stub(BaseReader):
-    def __init__(self, name, mimetypes, yields, value=None, boom=False):
+    def __init__(self, name, mimetypes, yields, value=None, boom=False, cost=FREE):
         self.name = name
         self.mimetypes = frozenset(mimetypes)
         self.yields = tuple(yields)
+        self.cost = cost
         self._value = value
         self._boom = boom
         self.calls = 0
@@ -48,6 +53,18 @@ class TestRegistry(unittest.TestCase):
         with self.assertRaises(ValueError):
             register_reader(_Stub("x", (), (TEXT,)))
 
+    def test_a_duck_typed_reader_with_no_cost_is_refused(self):
+        class _Costless:
+            name = "costless"
+            mimetypes = frozenset({"a/b"})
+            yields = (TEXT,)
+
+            def read(self, document):
+                return "x"
+
+        with self.assertRaises(ValueError):
+            register_reader(_Costless())
+
     def test_an_unknown_representation_is_refused_at_registration(self):
         with self.assertRaises(ValueError):
             register_reader(_Stub("x", {"a/b"}, ("pixels",)))
@@ -76,6 +93,42 @@ class TestRegistry(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_readers("a/b", "pixels")
 
+    def test_the_cheaper_reader_is_offered_first(self):
+        dear = _Stub("dear", {"a/b"}, (TEXT,), "dear", cost=EXPENSIVE)
+        free = _Stub("free", {"a/b"}, (TEXT,), "free", cost=FREE)
+        register_reader(dear)
+        register_reader(free)
+        try:
+            self.assertEqual(
+                [r.name for r in get_readers("a/b", TEXT)], ["free", "dear"]
+            )
+        finally:
+            _forget(dear, free)
+
+    def test_readers_of_one_cost_keep_the_order_they_registered_in(self):
+        first = _Stub("first", {"a/b"}, (TEXT,), "1", cost=CHEAP)
+        second = _Stub("second", {"a/b"}, (TEXT,), "2", cost=CHEAP)
+        register_reader(first)
+        register_reader(second)
+        try:
+            self.assertEqual(
+                [r.name for r in get_readers("a/b", TEXT)], ["first", "second"]
+            )
+        finally:
+            _forget(first, second)
+
+    def test_a_free_fallback_never_displaces_a_reader_that_named_the_mimetype(self):
+        named = _Stub("named", {"a/b"}, (TEXT,), "named", cost=EXPENSIVE)
+        fallback = _Stub("fallback", {ANY}, (TEXT,), "fallback", cost=FREE)
+        register_reader(fallback)
+        register_reader(named)
+        try:
+            self.assertEqual(
+                [r.name for r in get_readers("a/b", TEXT)], ["named", "fallback"]
+            )
+        finally:
+            _forget(named, fallback)
+
 
 class TestDeriving(unittest.TestCase):
     def test_derived_once_and_kept(self):
@@ -100,6 +153,93 @@ class TestDeriving(unittest.TestCase):
             self.assertEqual(working.calls, 1)
         finally:
             _forget(broken, working)
+
+    def test_an_empty_answer_does_not_end_the_search(self):
+        cheap = _Stub("cheap", {"a/b"}, (TEXT,), "", cost=FREE)
+        dear = _Stub("dear", {"a/b"}, (TEXT,), "read from the pages", cost=EXPENSIVE)
+        register_reader(dear)
+        register_reader(cheap)
+        try:
+            doc = Document(b"...", "a/b", "x", read_up_to=EXPENSIVE)
+            self.assertEqual(doc.text, "read from the pages")
+            self.assertEqual(cheap.calls, 1)
+            self.assertEqual(dear.calls, 1)
+        finally:
+            _forget(cheap, dear)
+
+    def test_an_answer_ends_the_search_before_the_costly_reader_runs(self):
+        cheap = _Stub("cheap", {"a/b"}, (TEXT,), "the text layer", cost=FREE)
+        dear = _Stub("dear", {"a/b"}, (TEXT,), "recognised", cost=EXPENSIVE)
+        register_reader(dear)
+        register_reader(cheap)
+        try:
+            self.assertEqual(Document(b"...", "a/b", "x").text, "the text layer")
+            self.assertEqual(dear.calls, 0)
+        finally:
+            _forget(cheap, dear)
+
+    def test_an_empty_answer_is_kept_when_nothing_better_arrives(self):
+        cheap = _Stub("cheap", {"a/b"}, (BARCODES,), [], cost=FREE)
+        dear = _Stub("dear", {"a/b"}, (BARCODES,), [], cost=EXPENSIVE)
+        register_reader(dear)
+        register_reader(cheap)
+        try:
+            doc = Document(b"...", "a/b", "x")
+            self.assertEqual(doc.barcodes, [])
+            self.assertFalse(doc.provides(BARCODES))
+        finally:
+            _forget(cheap, dear)
+
+    def test_a_childless_root_is_not_passed_over_for_a_costlier_reader(self):
+        from lxml import etree
+
+        root = etree.fromstring(b"<Invoice/>")
+        cheap = _Stub("cheap", {"a/b"}, (TREE,), root, cost=FREE)
+        dear = _Stub(
+            "dear", {"a/b"}, (TREE,), etree.fromstring(b"<Other/>"), cost=EXPENSIVE
+        )
+        register_reader(dear)
+        register_reader(cheap)
+        try:
+            self.assertIs(Document(b"...", "a/b", "x").tree, root)
+            self.assertEqual(dear.calls, 0)
+        finally:
+            _forget(cheap, dear)
+
+    def test_a_reader_answering_none_is_passed_over_for_one_that_answers(self):
+        silent = _Stub("silent", {"a/b"}, (TEXT,), None, cost=FREE)
+        answers = _Stub("answers", {"a/b"}, (TEXT,), "here", cost=EXPENSIVE)
+        register_reader(answers)
+        register_reader(silent)
+        try:
+            doc = Document(b"...", "a/b", "x", read_up_to=EXPENSIVE)
+            self.assertEqual(doc.text, "here")
+        finally:
+            _forget(silent, answers)
+
+    def test_a_reader_above_the_ceiling_is_not_run(self):
+        dear = _Stub("dear", {"a/b"}, (TEXT,), "recognised", cost=EXPENSIVE)
+        register_reader(dear)
+        try:
+            self.assertEqual(Document(b"...", "a/b", "x").text, "")
+            self.assertEqual(dear.calls, 0)
+        finally:
+            _forget(dear)
+
+    def test_the_default_ceiling_admits_cheap_readers_and_no_dearer_ones(self):
+        self.assertEqual(DEFAULT_READ_UP_TO, CHEAP)
+
+    def test_the_ceiling_is_read_from_the_options_each_time_it_is_asked(self):
+        dear = _Stub("dear", {"a/b"}, (TEXT,), "recognised", cost=EXPENSIVE)
+        register_reader(dear)
+        try:
+            doc = Document(b"...", "a/b", "x")
+            self.assertEqual(doc.read_up_to, CHEAP)
+            doc.options["read_up_to"] = EXPENSIVE
+            self.assertEqual(doc.read_up_to, EXPENSIVE)
+            self.assertEqual(doc.text, "recognised")
+        finally:
+            _forget(dear)
 
     def test_nobody_can_read_it(self):
         doc = Document(b"\x00\x01\x02\x03", "application/x-nothing", "x")

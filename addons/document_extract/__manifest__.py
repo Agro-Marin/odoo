@@ -23,12 +23,19 @@ Separating them is the whole module.
 Where formats collapse. It lives in ``odoo.libs.documents``, because deciding
 what bytes are has no business knowledge in it and every framework in this tree
 was answering it separately. This module registers the readers whose
-libraries it owns -- PDF text, page images, barcodes -- and gets the rest.
+libraries it owns -- a PDF's text layer and its pages rendered -- and gets the
+rest. Reading a scan's characters and decoding its codes are two more readers,
+registered by the modules that own those engines.
 
 Holds the bytes and derives ``text``, ``images``,
 ``tree``, ``data``, ``rows`` and ``barcodes`` on first access, each at most once. PDF,
 PNG, JPEG, WebP, GIF, BMP, XML and JSON today; a format is added by teaching
 one class to read it, and every strategy gains it.
+
+A reader declares what it costs, and a document declares the dearest reader it
+may be derived by. So a costly reader runs on two conditions and no flag of its
+own: its caller raised the ceiling, and every cheaper reader answered nothing.
+A scan therefore reaches an OCR engine and a PDF with a text layer does not.
 
 Deriving once is not an optimization. A utility bill in this codebase was
 measured being opened and text-extracted twice in one dispatch, and PDFs were

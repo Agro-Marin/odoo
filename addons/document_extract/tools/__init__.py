@@ -31,10 +31,10 @@ from .schema import (
     sums_to,
 )
 from .readers import (
-    known_barcode_readers,
-    known_text_readers,
+    IMAGE_MIMETYPES,
+    PAGE_BREAK,
+    PAGED,
+    PDF,
     page_count,
-    register_barcode_reader,
-    register_text_reader,
 )
 from .source import document_of

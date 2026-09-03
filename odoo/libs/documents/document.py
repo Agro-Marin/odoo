@@ -9,6 +9,7 @@ from odoo.libs.filesystem import guess_mimetype
 from .guess import decode, looks_like_text
 from .readers import (
     BARCODES,
+    CHEAP,
     DATA,
     IMAGES,
     REPRESENTATIONS,
@@ -20,6 +21,7 @@ from .readers import (
 from .writers import get_writers, known_writers
 
 __all__ = [
+    "DEFAULT_READ_UP_TO",
     "TEXT_MAX_CHARS",
     "Document",
 ]
@@ -30,6 +32,12 @@ _logger = logging.getLogger(__name__)
 # derivations this replaces clamped every branch; the limit is a property of
 # holding a whole document's text at once, not of any one format.
 TEXT_MAX_CHARS = 60_000
+
+# The dearest reader a document is derived by unless its caller says otherwise.
+# Free and cheap readers parse what is already in the bytes; anything above that
+# spends real time or real money on a document nobody has yet decided is worth
+# it, so it waits to be asked for by name.
+DEFAULT_READ_UP_TO = CHEAP
 
 _DEFAULT_MIMETYPES = {
     ROWS: "text/csv",
@@ -69,6 +77,18 @@ class Document:
         self.mimetype: str = guess_mimetype(data, declared=mimetype)
         self.options: dict[str, Any] = options
         self._derived: dict[str, Any] = {}
+
+    @property
+    def read_up_to(self) -> int:
+        """The dearest reader this document may be derived by.
+
+        Read from the options on each access rather than fixed at construction:
+        a caller that decides mid-flight that a document is worth reading
+        properly raises the ceiling on the object it already holds. Named for
+        reading rather than for extraction, because a consumer of both sets two
+        ceilings and they are not the same question.
+        """
+        return self.options.get("read_up_to", DEFAULT_READ_UP_TO)
 
     @classmethod
     def of_bytes(
@@ -200,15 +220,24 @@ class Document:
 
         A reader that raises is not fatal: another may still succeed, and a
         document that cannot be read one way is not a document that cannot be
-        read. The first non-``None`` answer wins.
+        read. The first non-empty answer wins.
+
+        An empty answer is kept but does not end the search, which is what makes
+        `cost` mean anything: a PDF with no text layer costs its free reader
+        nothing and then reaches the one that renders and recognises its pages.
+        A reader that legitimately has nothing to say and a reader that could not
+        read the document are indistinguishable from the outside, so trying the
+        next one is the only reading of an empty answer that cannot lose text.
         """
         if representation in self._derived:
             return self._derived[representation]
         value = None
         clamp = representation == TEXT
         for reader in get_readers(self.mimetype, representation):
+            if reader.cost > self.read_up_to:
+                continue
             try:
-                value = reader.read(self)
+                answer = reader.read(self)
             except Exception as e:
                 _logger.info(
                     "Reader %s could not derive %s from %r: %s",
@@ -218,7 +247,16 @@ class Document:
                     e,
                 )
                 continue
-            if value is not None:
+            if answer is None:
+                continue
+            # Never truth-test the answer itself: an lxml element with no
+            # children is falsy today and lxml warns it will stop being, so a
+            # tree counts as read as soon as it is not None. Every other
+            # representation is a container, where empty means nothing was read.
+            read = True if representation == TREE else bool(answer)
+            if value is None or read:
+                value = answer
+            if read:
                 break
         if clamp and value:
             # Clamped where it is stored, not where it is read: a reader's

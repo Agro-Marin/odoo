@@ -3,8 +3,18 @@ import json
 
 import pymupdf
 
-from odoo.libs.documents import Document
+from odoo.libs.documents import (
+    EXPENSIVE,
+    TEXT,
+    TEXT_MAX_CHARS,
+    BaseReader,
+    Document,
+    register_reader,
+)
+from odoo.libs.documents import readers as libs_readers
 from odoo.tests.common import BaseCase, tagged
+
+from odoo.addons.document_extract.tools import PAGED
 
 _PNG = base64.b64decode(
     b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
@@ -139,105 +149,124 @@ class TestDocumentSource(BaseCase):
         self.assertEqual(source_mod.page_count(source), 0)
 
     def test_a_long_text_layer_is_clamped(self):
-        from odoo.addons.document_extract.tools import readers as source_mod
-
         big = Document(_pdf(pages=40, lines=45), "application/pdf")
 
-        self.assertLessEqual(len(big.text), source_mod.TEXT_MAX_CHARS)
+        self.assertLessEqual(len(big.text), TEXT_MAX_CHARS)
 
 
 @tagged("post_install", "-at_install")
-class TestOcrFallback(BaseCase):
+class TestReadingPagesCostsMore(BaseCase):
+    """What a reader registered above the default ceiling can and cannot do.
+
+    The engine itself ships in `document_extract_ocr`, which is optional and in
+    another repository. What is pinned here is the contract every such reader
+    answers to, with a stub standing in for the engine: it is not run uninvited,
+    it is not run on a document that already has text, and it is what a scan
+    falls through to.
+    """
+
     def setUp(self):
         super().setUp()
-        from odoo.addons.document_extract.tools import readers as source_mod
+        self.pages_read = []
+        test = self
 
-        self._saved = list(source_mod._TEXT_READERS)
-        self._calls = []
+        class _StubEngine(BaseReader):
+            name = "test_page_text"
+            mimetypes = PAGED
+            yields = (TEXT,)
+            cost = EXPENSIVE
 
-    def tearDown(self):
-        from odoo.addons.document_extract.tools import readers as source_mod
+            def __init__(self, text="READ FROM THE PIXELS 139.86", boom=False):
+                self.text = text
+                self.boom = boom
 
-        source_mod._TEXT_READERS[:] = self._saved
-        super().tearDown()
+            def read(self, document):
+                if self.boom:
+                    raise RuntimeError("model file missing")
+                test.pages_read.extend(document.images)
+                return self.text
 
-    def _reader(self, text="READ FROM THE PIXELS 139.86"):
-        def read(page: bytes) -> str:
-            self._calls.append(len(page))
-            return text
+        self.Engine = _StubEngine
 
-        from odoo.addons.document_extract.tools import readers as source_mod
+    def _install(self, *engines):
+        for engine in engines:
+            register_reader(engine)
+        self.addCleanup(self._forget, engines)
+        return engines
 
-        source_mod._TEXT_READERS[:] = [read]
-        return read
+    def _forget(self, engines):
+        for bucket in libs_readers._READERS.values():
+            for engine in engines:
+                while engine in bucket:
+                    bucket.remove(engine)
 
-    def test_a_scan_gets_text_when_the_caller_allows_it(self):
-        self._reader()
+    def test_a_scan_gets_text_when_the_caller_pays_for_it(self):
+        self._install(self.Engine())
 
-        source = Document(_scan_pdf(), "application/pdf", allow_ocr=True)
+        source = Document(_scan_pdf(), "application/pdf", read_up_to=EXPENSIVE)
 
         self.assertIn("139.86", source.text)
         self.assertTrue(source.provides("text"))
-        self.assertEqual(len(self._calls), 1)
+        self.assertEqual(len(self.pages_read), 1)
 
     def test_it_is_not_done_uninvited(self):
-        self._reader()
+        self._install(self.Engine())
 
         source = Document(_scan_pdf(), "application/pdf")
 
         self.assertEqual(source.text, "")
-        self.assertEqual(self._calls, [])
+        self.assertEqual(self.pages_read, [])
 
-    def test_a_document_with_its_own_text_is_not_read_from_pixels(self):
-        self._reader()
+    def test_the_ceiling_can_be_raised_on_a_document_already_held(self):
+        self._install(self.Engine())
+        source = Document(_scan_pdf(), "application/pdf")
 
-        source = Document(_pdf(), "application/pdf", allow_ocr=True)
+        self.assertEqual(source.text, "")
+
+        source.options["read_up_to"] = EXPENSIVE
+        source._derived.pop("text")
 
         self.assertIn("139.86", source.text)
-        self.assertEqual(self._calls, [])
+
+    def test_a_document_with_its_own_text_is_not_read_from_pixels(self):
+        self._install(self.Engine())
+
+        source = Document(_pdf(), "application/pdf", read_up_to=EXPENSIVE)
+
+        self.assertIn("139.86", source.text)
+        self.assertEqual(self.pages_read, [])
 
     def test_an_image_is_read_from_its_pixels(self):
-        self._reader()
+        self._install(self.Engine())
 
-        source = Document(_PNG, "image/png", allow_ocr=True)
+        source = Document(_PNG, "image/png", read_up_to=EXPENSIVE)
 
         self.assertIn("139.86", source.text)
 
     def test_with_no_engine_installed_a_scan_simply_has_no_text(self):
-        from odoo.addons.document_extract.tools import readers as source_mod
-
-        source_mod._TEXT_READERS[:] = []
-
-        source = Document(_scan_pdf(), "application/pdf", allow_ocr=True)
+        source = Document(_scan_pdf(), "application/pdf", read_up_to=EXPENSIVE)
 
         self.assertEqual(source.text, "")
 
     def test_an_engine_that_breaks_does_not_break_the_document(self):
-        from odoo.addons.document_extract.tools import readers as source_mod
+        self._install(self.Engine(boom=True))
 
-        def explode(page):
-            raise RuntimeError("model file missing")
-
-        source_mod._TEXT_READERS[:] = [explode]
-
-        source = Document(_scan_pdf(), "application/pdf", allow_ocr=True)
+        source = Document(_scan_pdf(), "application/pdf", read_up_to=EXPENSIVE)
 
         self.assertEqual(source.text, "")
 
     def test_the_next_engine_is_tried_when_the_first_declines(self):
-        from odoo.addons.document_extract.tools import readers as source_mod
+        self._install(self.Engine(text=""), self.Engine(text="SECOND ENGINE"))
 
-        source_mod._TEXT_READERS[:] = [lambda page: "", lambda page: "SECOND ENGINE"]
-
-        source = Document(_scan_pdf(), "application/pdf", allow_ocr=True)
+        source = Document(_scan_pdf(), "application/pdf", read_up_to=EXPENSIVE)
 
         self.assertEqual(source.text, "SECOND ENGINE")
 
     def test_it_is_read_once_however_often_it_is_asked_for(self):
-        self._reader()
-        source = Document(_scan_pdf(), "application/pdf", allow_ocr=True)
+        self._install(self.Engine())
+        source = Document(_scan_pdf(), "application/pdf", read_up_to=EXPENSIVE)
 
         for _ in range(4):
             source.text
 
-        self.assertEqual(len(self._calls), 1)
+        self.assertEqual(len(self.pages_read), 1)

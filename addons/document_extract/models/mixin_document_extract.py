@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from odoo import api, fields, models
-from odoo.libs.documents import Document
+from odoo.libs.documents import EXPENSIVE, Document
 
 from ..tools import GENERATIVE, cascade
 from ..tools.schema import known_schemas
@@ -149,7 +149,7 @@ class MixinDocumentExtract(models.AbstractModel):
 
         source = self._get_extract_source()
         if source is not None and allow_pending:
-            source.options["allow_ocr"] = True
+            source.options["read_up_to"] = EXPENSIVE
         if source is None:
             self.write(
                 {

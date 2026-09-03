@@ -14,7 +14,7 @@ from .coerce import (
     to_datetime,
     to_float,
 )
-from .document import TEXT_MAX_CHARS, Document
+from .document import DEFAULT_READ_UP_TO, TEXT_MAX_CHARS, Document
 from .format import (
     ABSOLUTE,
     ISO_DATE,
@@ -44,7 +44,10 @@ from .guess import decode, guess_encoding
 from .layout import ALIGNMENTS, LEFT, RIGHT, Field, Layout
 from .readers import (
     BARCODES,
+    CHEAP,
     DATA,
+    EXPENSIVE,
+    FREE,
     IMAGES,
     REPRESENTATIONS,
     ROWS,
@@ -61,7 +64,11 @@ __all__ = [
     "ABSOLUTE",
     "ALIGNMENTS",
     "BARCODES",
+    "CHEAP",
     "DATA",
+    "DEFAULT_READ_UP_TO",
+    "EXPENSIVE",
+    "FREE",
     "IMAGES",
     "ISO_DATE",
     "ISO_DATETIME",
