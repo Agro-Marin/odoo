@@ -25,6 +25,7 @@ REGISTRY_CACHES = {
     "templates.cached_values": 2048,
     "groups": 64,
     "product_variants": 8192,
+    "actions": 256,
 }
 
 CACHES_BY_KEY = {
@@ -40,4 +41,5 @@ CACHES_BY_KEY = {
         "templates.cached_values",
     ),
     "product_variants": ("product_variants",),
+    "actions": ("actions",),
 }

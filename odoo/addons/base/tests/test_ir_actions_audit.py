@@ -1046,10 +1046,61 @@ class TestIrActionsCacheOnEmptyWrite(TransactionCase):
         action = self.env["ir.actions.act_window"].create(
             {"name": "audit-noop-real", "res_model": "res.currency"}
         )
-        self.env.registry.clear_cache()
+        self.env.registry.clear_cache("actions")
         before = Actions._get_bindings("res.partner")
-        action.path = "audit-noop-real-path"
+        action.binding_model_id = self.env["ir.model"]._get("res.currency")
         self.assertIsNot(Actions._get_bindings("res.partner"), before)
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsBindingsCacheBucket(TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.Actions = self.env["ir.actions.actions"]
+        self.Menu = self.env["ir.ui.menu"]
+        self.action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-bucket",
+                "res_model": "res.partner",
+                "binding_model_id": self.env["ir.model"]._get("res.partner").id,
+            }
+        )
+        self.env.flush_all()
+        self.env.registry.clear_cache("actions")
+        self.env.registry.clear_cache()
+        self.bindings = self.Actions._get_bindings("res.partner")
+        self.menus = self.Menu.load_menus_root()
+
+    def test_bindings_live_in_the_actions_bucket(self):
+        self.env.registry.clear_cache()
+        self.assertIs(self.Actions._get_bindings("res.partner"), self.bindings)
+        self.env.registry.clear_cache("actions")
+        self.assertIsNot(self.Actions._get_bindings("res.partner"), self.bindings)
+
+    def test_binding_write_invalidates_bindings_only(self):
+        self.action.write({"name": "audit-bucket-renamed"})
+        self.assertIsNot(self.Actions._get_bindings("res.partner"), self.bindings)
+        self.assertIs(self.Menu.load_menus_root(), self.menus)
+
+    def test_binding_unlink_invalidates_bindings_only(self):
+        self.action.unlink()
+        self.assertIsNot(self.Actions._get_bindings("res.partner"), self.bindings)
+        self.assertIs(self.Menu.load_menus_root(), self.menus)
+
+    def test_bound_create_invalidates_bindings_only(self):
+        self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-bucket-2",
+                "res_model": "res.partner",
+                "binding_model_id": self.env["ir.model"]._get("res.partner").id,
+            }
+        )
+        self.assertIsNot(self.Actions._get_bindings("res.partner"), self.bindings)
+        self.assertIs(self.Menu.load_menus_root(), self.menus)
+
+    def test_path_write_still_invalidates_menus(self):
+        self.action.write({"path": "audit-bucket-path"})
+        self.assertIsNot(self.Menu.load_menus_root(), self.menus)
 
 
 @tagged("post_install", "-at_install")

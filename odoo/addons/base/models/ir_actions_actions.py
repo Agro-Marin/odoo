@@ -147,35 +147,31 @@ class IrActionsActions(models.Model):
         res = super().create(vals_list)
         if any(action.path for action in res):
             res._sync_path_reservations()
-        if any(action._is_cached_registry_wide() for action in res):
-            self.env.registry.clear_cache()
+        if groups := res._get_cache_groups_holding():
+            self.env.registry.clear_cache(*groups)
         return res
 
     def write(self, vals: dict[str, Any]) -> bool:
-        invalidate = bool(self) and (
-            not vals.keys().isdisjoint(self._get_fields_invalidating_always())
-            or (
-                not self._get_fields_invalidating_when_cached().isdisjoint(vals)
-                and any(action._is_cached_registry_wide() for action in self)
-            )
-        )
+        groups = self._get_cache_groups_invalidated_by(vals) if self else ()
         res = super().write(vals)
         if "path" in vals:
             self._sync_path_reservations()
-        if invalidate:
-            self.env.registry.clear_cache()
+        if groups:
+            self.env.registry.clear_cache(*groups)
         return res
 
     def unlink(self) -> bool:
         if self._name == "ir.actions.actions":
             return self._unlink_as_concrete_types()
+        groups = self._get_cache_groups_holding() | {"actions"}
         with self.env.cr.savepoint():
             self._apply_ondelete_unenforced()
             res = super().unlink()
-        self.env.registry.clear_cache()
+        self.env.registry.clear_cache(*groups)
         return res
 
     def _unlink_as_concrete_types(self) -> bool:
+        groups = self._get_cache_groups_holding() | {"actions"}
         by_model = defaultdict(list)
         for action_id, model_name in self._get_model_names_concrete().items():
             by_model[model_name].append(action_id)
@@ -188,7 +184,7 @@ class IrActionsActions(models.Model):
                 records = self.browse(ids)
                 records._apply_ondelete_unenforced()
                 result = super(IrActionsActions, records).unlink() and result
-        self.env.registry.clear_cache()
+        self.env.registry.clear_cache(*groups)
         return result
 
     def _compute_xml_id(self) -> None:
@@ -288,6 +284,10 @@ class IrActionsActions(models.Model):
     def _get_fields_invalidating_always(self) -> frozenset[str]:
         target = self._get_field_target_model()
         return frozenset(("binding_model_id", "path", *filter(None, [target])))
+
+    @api.model
+    def _get_fields_invalidating_menus(self) -> frozenset[str]:
+        return self._get_fields_invalidating_always() - {"binding_model_id"}
 
     @api.model
     @tools.ormcache(cache="stable")
@@ -478,7 +478,7 @@ class IrActionsActions(models.Model):
                 result[binding_type] = actions
         return result
 
-    @tools.ormcache("model_name", "self.env.lang")
+    @tools.ormcache("model_name", "self.env.lang", cache="actions")
     def _get_bindings(self, model_name: str) -> frozendict:
         cr = self.env.cr
         result = defaultdict(list)
@@ -611,4 +611,24 @@ class IrActionsActions(models.Model):
 
     def _is_cached_registry_wide(self) -> bool:
         self.check_singleton()
-        return bool(self.binding_model_id or self.path)
+        return bool(self._get_cache_groups_holding())
+
+    def _get_cache_groups_holding(self) -> set[str]:
+        groups = set()
+        for action in self.exists():
+            if action.binding_model_id:
+                groups.add("actions")
+            if action.path:
+                groups.add("default")
+        return groups
+
+    def _get_cache_groups_invalidated_by(self, vals: dict[str, Any]) -> set[str]:
+        groups = set()
+        if "binding_model_id" in vals or (
+            not self._get_fields_invalidating_when_cached().isdisjoint(vals)
+            and any(action.binding_model_id for action in self)
+        ):
+            groups.add("actions")
+        if not self._get_fields_invalidating_menus().isdisjoint(vals):
+            groups.add("default")
+        return groups

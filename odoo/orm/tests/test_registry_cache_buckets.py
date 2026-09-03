@@ -36,6 +36,12 @@ BUCKET_OWNERS: dict[str, str] = {
         "otherwise evict `default` (record rules, ACLs, xmlids) in every worker "
         "each time a product is touched"
     ),
+    "actions": (
+        "base — ir.actions.actions._get_bindings, the sidebar bindings per "
+        "model. Its own bucket because a binding change is signalled to every "
+        "worker, and from `default` that signal evicted record rules, ACLs, "
+        "menus and every other unnamed ormcache cluster-wide"
+    ),
 }
 
 
