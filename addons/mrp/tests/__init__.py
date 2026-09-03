@@ -25,3 +25,4 @@ from . import test_stock_move_audit
 from . import test_workorder
 from . import test_user_local_dates
 from . import test_schema
+from . import test_view_arch
