@@ -2,6 +2,7 @@ import threading
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
+from odoo.libs.accel import get_trigger_trees as _get_trigger_trees
 from odoo.libs.collections import Collector
 
 if TYPE_CHECKING:
@@ -128,8 +129,61 @@ class TriggerTree(dict):
         return result
 
 
+class _TriggerIndex:
+    __slots__ = ("field_ids", "fields", "meta", "payload")
+
+    def __init__(self, triggers: defaultdict) -> None:
+        self.field_ids: dict[Any, int] = {}
+        self.fields: list[Any] = []
+        self.payload = [
+            (
+                self._id(dep),
+                [
+                    ([self._id(f) for f in path], [self._id(t) for t in targets])
+                    for path, targets in buckets.items()
+                ],
+            )
+            for dep, buckets in triggers.items()
+        ]
+        strings: dict[Any, int] = {}
+        self.meta = [
+            (
+                getattr(field, "is_many2one", False),
+                getattr(field, "is_one2many", False),
+                strings.setdefault(getattr(field, "name", None), len(strings)),
+                strings.setdefault(getattr(field, "inverse_name", None), len(strings)),
+                strings.setdefault(getattr(field, "model_name", None), len(strings)),
+                strings.setdefault(getattr(field, "comodel_name", None), len(strings)),
+            )
+            for field in self.fields
+        ]
+
+    def _id(self, field: Any) -> int:
+        field_id = self.field_ids.get(field)
+        if field_id is None:
+            field_id = self.field_ids[field] = len(self.fields)
+            self.fields.append(field)
+        return field_id
+
+    def get_trees(self, fields: list[Any] | None) -> dict[Any, TriggerTree]:
+        wanted = None if fields is None else [self.field_ids[f] for f in fields]
+        return {
+            self.fields[field_id]: self._wrap(node)
+            for field_id, node in _get_trigger_trees(self.payload, self.meta, wanted)
+        }
+
+    def _wrap(self, node: tuple) -> TriggerTree:
+        root, children = node
+        fields = self.fields
+        tree = TriggerTree([fields[i] for i in root])
+        for label, child in children:
+            tree[fields[label]] = self._wrap(child)
+        return tree
+
+
 class _TriggerState:
     __slots__ = (
+        "index",
         "merged",
         "modifying_relations",
         "recompute_order",
@@ -139,10 +193,17 @@ class _TriggerState:
 
     def __init__(self, triggers: defaultdict) -> None:
         self.triggers = triggers
+        self.index: _TriggerIndex | None = None
         self.trees: dict[Any, TriggerTree] = {}
         self.merged: dict[tuple, TriggerTree] = {}
         self.modifying_relations: dict[Any, bool] = {}
         self.recompute_order: dict[Any, int] | None = None
+
+    def get_index(self) -> _TriggerIndex:
+        index = self.index
+        if index is None:
+            index = self.index = _TriggerIndex(self.triggers)
+        return index
 
 
 _MERGED_CACHE_MAX = 512
@@ -197,6 +258,7 @@ class ModelGraph:
             for target in targets:
                 if target not in bucket:
                     bucket.append(target)
+            state.index = None
             state.trees.pop(dep_field, None)
             state.merged.clear()
             state.modifying_relations.pop(dep_field, None)
@@ -292,65 +354,17 @@ class ModelGraph:
         except KeyError:
             pass
 
-        triggers = state.triggers
-        if field not in triggers:
+        if field not in state.triggers:
             return TriggerTree()
 
-        collected: dict[tuple, tuple[list, set]] = {}
-        seen: set = set()
-        expanded: set[tuple] = set()
-        visited_memo: dict[Any, frozenset] = {}
+        self._prepare_missing_trees(state)
+        return state.trees[field]
 
-        def collect(field: Any, prefix: tuple) -> frozenset | None:
-            if (field, prefix) in expanded:
-                visited = visited_memo[field]
-                if visited.isdisjoint(seen):
-                    return visited
-            seen.add(field)
-            visited = frozenset({field})
-            clean = True
-            for path, targets in triggers[field].items():
-                full_path = _concat_paths(prefix, path)
-                entry = collected.get(full_path)
-                if entry is None:
-                    entry = ([], set())
-                    collected[full_path] = entry
-                root_list, root_set = entry
-                for target in targets:
-                    if target not in root_set:
-                        root_set.add(target)
-                        root_list.append(target)
-                for target in targets:
-                    if target in seen:
-                        if target not in visited:
-                            clean = False
-                        continue
-                    if target not in triggers:
-                        continue
-                    sub_visited = collect(target, full_path)
-                    if sub_visited is None:
-                        clean = False
-                    else:
-                        visited |= sub_visited
-            seen.discard(field)
-            if clean:
-                result = frozenset(visited)
-                visited_memo[field] = result
-                expanded.add((field, prefix))
-                return result
-            return None
-
-        collect(field, ())
-
-        tree = TriggerTree()
-        for full_path, (root_list, _root_set) in collected.items():
-            current = tree
-            for label in full_path:
-                current = current.increase(label)
-            current.root = tuple(root_list)
-
-        state.trees[field] = tree
-        return tree
+    @staticmethod
+    def _prepare_missing_trees(state: _TriggerState) -> None:
+        missing = [field for field in state.triggers if field not in state.trees]
+        if missing:
+            state.trees.update(state.get_index().get_trees(missing))
 
     def get_dependent_fields(self, field: Any) -> Iterator[Any]:
         return self._get_dependent_fields(self._state, field)
@@ -423,8 +437,8 @@ class ModelGraph:
 
     def freeze(self) -> None:
         state = self._state
+        self._prepare_missing_trees(state)
         for field in state.triggers:
-            self._get_field_trigger_tree(state, field)
             self._is_modifying_relations(state, field)
         if state.recompute_order is None:
             state.recompute_order = self._get_recompute_order(state.triggers)
@@ -505,28 +519,6 @@ def _strongly_connected_components(
                 components.append(component)
 
     return components
-
-
-def _concat_paths(seq1: tuple, seq2: tuple) -> tuple:
-    if seq1 and seq2:
-        f1, f2 = seq1[-1], seq2[0]
-        if (
-            _field_type(f1) == "many2one"
-            and _field_type(f2) == "one2many"
-            and _field_attr(f2, "inverse_name") == _field_attr(f1, "name")
-            and _field_attr(f1, "model_name") == _field_attr(f2, "comodel_name")
-            and _field_attr(f1, "comodel_name") == _field_attr(f2, "model_name")
-        ):
-            return _concat_paths(seq1[:-1], seq2[1:])
-    return seq1 + seq2
-
-
-def _field_type(field: FieldLike) -> str:
-    return field.type
-
-
-def _field_attr(field: Any, attr: str) -> Any:
-    return getattr(field, attr, None)
 
 
 def _is_relational(field: FieldLike) -> bool:

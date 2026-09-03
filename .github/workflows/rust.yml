@@ -84,6 +84,7 @@ jobs:
                   "batch_cache_get",       # odoo/libs/accel.py
                   "batch_group_ids",       # odoo/libs/accel.py
                   "sort_ids_by_cache",     # odoo/libs/accel.py, orm/models/mixins/traversal.py
+                  "get_trigger_trees",     # odoo/libs/accel.py, orm/components/model_graph.py
               ],
               odoo_lint: [
                   "scan_byte_patterns",    # odoo/libs/lint/scan.py

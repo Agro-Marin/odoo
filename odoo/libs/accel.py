@@ -12,6 +12,7 @@ import io
 from collections.abc import Iterable, Sequence
 from typing import cast
 
+from . import _trigger_trees
 from ._field_access import _fallback as _field_access
 
 try:
@@ -29,6 +30,7 @@ __all__ = [
     "batch_group_ids",
     "csv_export",
     "fast_clone",
+    "get_trigger_trees",
     "origin_ids",
     "rows_to_dicts",
     "sort_ids_by_cache",
@@ -86,5 +88,6 @@ batch_cache_fill = _pick("batch_cache_fill", _field_access.batch_cache_fill)
 batch_cache_filter = _pick("batch_cache_filter", _field_access.batch_cache_filter)
 batch_cache_get = _pick("batch_cache_get", _field_access.batch_cache_get)
 batch_group_ids = _pick("batch_group_ids", _field_access.batch_group_ids)
+get_trigger_trees = _pick("get_trigger_trees", _trigger_trees.get_trigger_trees)
 sort_ids_by_cache = _pick("sort_ids_by_cache", _field_access.sort_ids_by_cache)
 to_prefetch_ids = _pick("to_prefetch_ids", _field_access.to_prefetch_ids)

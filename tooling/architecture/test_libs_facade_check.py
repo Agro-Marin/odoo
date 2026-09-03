@@ -11,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import _ast_cache
 import libs_facade_check as lfc
 
 
@@ -21,6 +22,9 @@ def _modules(src: str) -> list[str]:
 def _check_source(src: str, name: str = "_probe.py"):
     tmp = lfc.ADDON_TREES[0] / name
     tmp.write_text(src, encoding="utf-8")
+    # The probe path is reused across sources; a sibling gate that enabled the
+    # shared parse cache at import would otherwise serve the previous probe.
+    _ast_cache.clear()
     try:
         return lfc.check(files=[tmp])
     finally:

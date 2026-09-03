@@ -8,6 +8,7 @@ mod prefetch;
 mod pyutil;
 mod rows;
 mod sort;
+mod triggers;
 mod web;
 
 #[pymodule(gil_used = true)]
@@ -24,5 +25,6 @@ fn odoo_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(web::csv_export, m)?)?;
     m.add_function(wrap_pyfunction!(sort::sort_ids_by_cache, m)?)?;
     m.add_function(wrap_pyfunction!(sort::batch_group_ids, m)?)?;
+    m.add_function(wrap_pyfunction!(triggers::get_trigger_trees, m)?)?;
     Ok(())
 }

@@ -5,8 +5,21 @@ from odoo.orm.components.model_graph import (
     ModelGraph,
     TriggerTree,
     _Collector,
-    _concat_paths,
 )
+
+
+def _concat_paths(seq1: tuple, seq2: tuple) -> tuple:
+    if seq1 and seq2:
+        f1, f2 = seq1[-1], seq2[0]
+        if (
+            f1.is_many2one
+            and f2.is_one2many
+            and getattr(f2, "inverse_name", None) == getattr(f1, "name", None)
+            and getattr(f1, "model_name", None) == getattr(f2, "comodel_name", None)
+            and getattr(f1, "comodel_name", None) == getattr(f2, "model_name", None)
+        ):
+            return _concat_paths(seq1[:-1], seq2[1:])
+    return seq1 + seq2
 
 
 class MockField:
@@ -39,6 +52,14 @@ class MockField:
         self.is_stored_computed = kw.get("is_stored_computed", False)
         self.compute = kw.get("compute")
         self.store = kw.get("store", False)
+
+    @property
+    def is_many2one(self) -> bool:
+        return self.type == "many2one"
+
+    @property
+    def is_one2many(self) -> bool:
+        return self.type == "one2many"
 
     def __repr__(self) -> str:
         return f"MockField({self.name!r})"

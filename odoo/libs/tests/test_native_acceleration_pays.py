@@ -12,6 +12,7 @@ from odoo.libs._field_access._fallback import (
     sort_ids_by_cache,
     to_prefetch_ids,
 )
+from odoo.libs._trigger_trees import get_trigger_trees
 from odoo.libs.accel import origin_ids_python as _origin_ids_python
 from odoo.libs.tests._native_references import (
     NewId,
@@ -31,6 +32,7 @@ slow = SimpleNamespace(
     batch_cache_filter=batch_cache_filter,
     batch_cache_get=batch_cache_get,
     batch_group_ids=batch_group_ids,
+    get_trigger_trees=get_trigger_trees,
     sort_ids_by_cache=sort_ids_by_cache,
     to_prefetch_ids=to_prefetch_ids,
     origin_ids=_origin_ids_python,
@@ -62,6 +64,25 @@ _BLOB = {"a": list(range(20)), "b": {"c": [{"d": i} for i in range(20)]}, "e": "
 _ORIGIN_IDS = tuple(i if i % 3 else NewId(i * 10) for i in range(1, N + 1))
 
 
+def _diamond_graph(depth: int):
+    triggers, meta = [], []
+
+    def field(m2o=False, o2m=False, name=0, inverse=0, model=0, comodel=0):
+        meta.append((m2o, o2m, name, inverse, model, comodel))
+        return len(meta) - 1
+
+    top = [field() for _ in range(depth + 1)]
+    for i in range(depth):
+        a, b, label = field(), field(), field()
+        triggers.append((top[i], [([], [a, b])]))
+        triggers.append((a, [([label], [top[i + 1]])]))
+        triggers.append((b, [([label], [top[i + 1]])]))
+    return triggers, meta
+
+
+_TRIGGERS, _TRIGGER_META = _diamond_graph(40)
+
+
 def _results():
     return [{"id": i} for i in _IDS]
 
@@ -82,6 +103,7 @@ CASES = (
     ),
     ("to_prefetch_ids", lambda m: m.to_prefetch_ids(1, _IDS, {}, 1000)),
     ("origin_ids", lambda m: m.origin_ids(_ORIGIN_IDS)),
+    ("get_trigger_trees", lambda m: m.get_trigger_trees(_TRIGGERS, _TRIGGER_META)),
     ("rows_to_dicts", lambda m: m.rows_to_dicts(_COLUMNS, _SQL_ROWS)),
     ("csv_export", lambda m: m.csv_export(_CSV_HEADERS, [list(r) for r in _CSV_ROWS])),
     ("fast_clone", lambda m: m.fast_clone(_BLOB)),

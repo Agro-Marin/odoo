@@ -1182,7 +1182,7 @@ Section  Population                                                  Count
 §2.4.12  ``_sync_*`` definitions                                        67
 §2.4.12  ``_synchronize_*`` definitions                                 13
 §2.4.12  ``_post_*`` definitions                                       136
-§2.4.13  Module-level functions under ``models/`` and ``wizard/``      330
+§2.4.13  Module-level functions under ``models/`` and ``wizard/``      332
 §2.4.13  Methods on plain classes in model files                       390
 §2.4.13  … such classes                                                154
 §2.4.13  Functions nested inside model methods                         571
@@ -1975,7 +1975,7 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **356** functions in
+**A ``bool`` return does not make a predicate** ``[review]``. **357** functions in
 this repository are annotated ``-> bool`` and are not predicates, against **254**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
@@ -3315,7 +3315,7 @@ not a type-checker, not a test tier, not ``grep -r --include=*.py``.
 **``field`` is a ``Field``; a field's name is ``field_name``**
 ``[gate doc_restated_counts]``. A parameter name is the only type statement most
 call sites ever see. **92** parameters annotated ``field_name`` are ``str`` and
-**0** are a ``Field``, against ``field``'s **136** ``Field`` and **17** ``str``.
+**0** are a ``Field``, against ``field``'s **135** ``Field`` and **17** ``str``.
 One direction is clean; the other is the backlog. The ORM breaks the rule in the
 package that states it, and ``lifecycle.py``'s
 ``_get_placeholder_filename(self, field: str)`` is *bound by name*, so its
