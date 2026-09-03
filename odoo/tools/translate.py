@@ -374,7 +374,9 @@ def xml_term_adapter(term_en: str) -> Callable[[str], str | None]:
                 ]
                 for k in removed_attrs:
                     del new_n.attrib[k]
-                keep_attrs = dict(orig_n.attrib.items())
+                keep_attrs = {
+                    k: v for k, v in orig_n.attrib.items() if k in MODIFIER_ATTRS
+                }
                 new_n.attrib.update(keep_attrs)
         except ValueError:
             return None
