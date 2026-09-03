@@ -22,6 +22,13 @@ def get_cookie_name(set_cookie_value: str) -> str:
     return set_cookie_value.partition("=")[0].strip()
 
 
+def _remove_staged_cookie(carrier: Any, key: str) -> None:
+    staged = carrier.headers.getlist("Set-Cookie")
+    kept = [cookie for cookie in staged if get_cookie_name(cookie) != key]
+    if len(kept) != len(staged):
+        carrier.headers.setlist("Set-Cookie", kept)
+
+
 def _prepare_set_cookie_args(
     expires: datetime | int | None,
     max_age: int | None,
@@ -69,6 +76,7 @@ def _set_cookie_on(
         secure,
         samesite,
     )
+    _remove_staged_cookie(carrier, key)
     # unbound call on purpose: the carrier need not be a werkzeug Response,
     # only duck-type .headers and .max_cookie_size (FutureResponse does)
     werkzeug.wrappers.Response.set_cookie(
@@ -511,12 +519,6 @@ class FutureResponse:
     def __init__(self) -> None:
         self.headers = werkzeug.datastructures.Headers()
 
-    def _remove_staged_cookie(self, key: str) -> None:
-        staged = self.headers.getlist("Set-Cookie")
-        kept = [cookie for cookie in staged if get_cookie_name(cookie) != key]
-        if len(kept) != len(staged):
-            self.headers.setlist("Set-Cookie", kept)
-
     def set_cookie(
         self,
         key: str,
@@ -531,7 +533,6 @@ class FutureResponse:
         partitioned: bool = False,
         cookie_type: str = "required",
     ) -> None:
-        self._remove_staged_cookie(key)
         _set_cookie_on(
             self,
             key,
