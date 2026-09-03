@@ -151,6 +151,21 @@ class TestWebhookActionEndpoint(EncryptionKeyCase, TransactionCase):
             )
 
     @mute_logger(_MODULE)
+    def test_the_guard_runs_again_at_delivery(self):
+        action = self._action(webhook_endpoint_id=self.endpoint.id)
+        deliver = action._prepare_webhook_delivery(
+            "https://example.com/hook", 5, "n(#1)", "x"
+        )
+
+        with (
+            patch(f"{_MODULE}.Registry") as registry,
+            patch(f"{_MODULE}._get_webhook_blocked_reason", return_value="moved"),
+            mute_logger(_MODULE),
+        ):
+            deliver('{"a": 1}')
+
+        registry.assert_not_called()
+
     def test_a_failed_delivery_does_not_escape_the_hook(self):
         action = self._action(webhook_endpoint_id=self.endpoint.id)
         deliver = action._prepare_webhook_delivery(

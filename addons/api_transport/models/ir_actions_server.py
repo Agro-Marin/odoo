@@ -7,6 +7,7 @@ from odoo.modules.registry import Registry
 
 from ..tools.api_client import get_api_client
 from ..tools.exceptions import CommError
+from odoo.addons.base.models.ir_actions_server import _get_webhook_blocked_reason
 
 _logger = logging.getLogger(__name__)
 
@@ -96,6 +97,17 @@ class _EndpointDelivery:
             self.target,
             self.endpoint_code,
         )
+        if blocked := _get_webhook_blocked_reason(self.url):
+            _logger.error(
+                "Webhook %s to %s was NOT sent through endpoint %s: %s. The "
+                "address was allowed when the action ran and is not any more -- "
+                "the name resolved differently between the check and the send.",
+                self.action_label,
+                self.target,
+                self.endpoint_code,
+                blocked,
+            )
+            return
         try:
             registry = Registry(self.dbname)
             with registry.cursor() as cr:
