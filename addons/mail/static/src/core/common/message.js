@@ -9,6 +9,8 @@ import { MessageNotificationPopover } from "@mail/core/common/message_notificati
 import { handleValidChannelMention } from "@mail/core/common/message_post";
 import { MessageReactionMenu } from "@mail/core/common/message_reaction_menu";
 import { MessageReactions } from "@mail/core/common/message_reactions";
+import { Poll } from "@mail/core/common/poll";
+import { PollResult } from "@mail/core/common/poll_result";
 import { htmlToTextContentInline } from "@mail/utils/common/format";
 import { useLongPress } from "@mail/utils/common/hooks";
 import { loadCssFromBundle } from "@mail/utils/common/misc";
@@ -82,6 +84,8 @@ export class Message extends Component {
         MessageInReply,
         MessageLinkPreviewList,
         MessageReactions,
+        Poll,
+        PollResult,
         Popover: MessageNotificationPopover,
         NotificationMessage,
     };

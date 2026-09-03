@@ -191,7 +191,7 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
    loaded library — the exact hazard web's `CONVENTIONS.md` warns about. The truly lazy libs
    are `lame.js` and `odoo_sfu.js` (declared as `dynamic_children` for `import()`).
 
-4. **15 of the 40 registered models have no `static _name`** and are keyed by class name:
+4. **15 of the 42 registered models have no `static _name`** and are keyed by class name:
    `ChatHub`, `ChatWindow`, `Composer`, `DataResponse`, `DiscussApp`, `DiscussAppCategory`,
    `Failure`, `MessageReactions`, `MessagingMenu`, `Record`, `Rtc`, `Settings`, `Store`,
    `Thread`, `Volume`. (The other 25 declare one.) Their `getName()` falls back to the class name, so a server

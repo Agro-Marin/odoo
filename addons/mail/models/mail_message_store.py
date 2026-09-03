@@ -92,6 +92,17 @@ class MailMessage(models.Model):
             Store.Attr("reactions", value=lambda m: Store.Many(m.sudo().reaction_ids)),
             "record_name",
             "res_id",
+            # sudo - mail.poll: reading the poll of an accessible message is allowed.
+            Store.Many(
+                "started_poll_ids",
+                predicate=lambda m: m.message_type == "mail_poll",
+                sudo=True,
+            ),
+            Store.Many(
+                "ended_poll_ids",
+                predicate=lambda m: m.message_type == "mail_poll",
+                sudo=True,
+            ),
             "subject",
             Store.One("subtype_id", ["description"], sudo=True),
             "write_date",

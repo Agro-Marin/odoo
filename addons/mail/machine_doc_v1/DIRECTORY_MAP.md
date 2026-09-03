@@ -13,7 +13,7 @@ see `ASSET_LAYERS.md`) + primary responsibility. JS file counts are per-director
 | Subtree | JS files | What |
 |---------|---------:|------|
 | `model/` | 10 | The client-side reactive ORM (`Record`/`Store`) — see `STATE_MANAGEMENT.md` |
-| `core/` | 154 | The messaging framework: store service, models, base UI components |
+| `core/` | 160 | The messaging framework: store service, models, base UI components |
 | `discuss/` | 148 | The Discuss app feature layers (channels, calls, typing, voice, gifs, pinning) |
 | `chatter/` | 13 | Form/portal document chatter |
 | `views/` | 61 | Backend view integrations (activity view, mail field widgets, rotting widgets) |
@@ -22,7 +22,7 @@ see `ASSET_LAYERS.md`) + primary responsibility. JS file counts are per-director
 | `worklets/` | 1 | `audio_processor.js` — the RTC audio worklet, served raw by `/mail/rtc/audio_worklet_processor_v2` (not bundled) |
 | `(root)` | 2 | `service_worker.js` + `service_worker_utils.js` |
 
-The rows above sum to **400**, the module's full `static/src` JS count. (`audio/`, `img/`
+The rows above sum to **406**, the module's full `static/src` JS count. (`audio/`, `img/`
 and `scss/` carry no JS.)
 
 > **`js/` no longer exists.** It was the last unlayered directory in the module — outside the
@@ -120,8 +120,8 @@ there is no unlayered `views/fields/`. Unlike the tables above, these rows are *
 
 | Directory | What |
 |-----------|------|
-| `models/` (+ `models/discuss/`) | 82 Python model files (63 + 14) — see `MODEL_MAP.md` |
-| `controllers/` (+ `controllers/discuss/`) | 20 controller files, 64 routes — see `ROUTE_MAP.md` |
+| `models/` (+ `models/discuss/`) | 85 Python model files (66 + 14) — see `MODEL_MAP.md` |
+| `controllers/` (+ `controllers/discuss/`) | 21 controller files, 69 routes — see `ROUTE_MAP.md` |
 | `wizard/` | 9 wizard `.py` files (composer, activity schedule + summary, blacklist remove, followers edit, template preview/reset, + 2 `_inherit` hooks) |
 | `tools/` | Pure-Python helpers: `discuss.py` (guest context + `Store`), `access_scan.py`, `alias_error.py`, `channel_avatar.py`, `jwt.py`, `link_preview.py`, `mail_validation.py`, `parser.py`, `web_push.py` |
 | `data/` | 15 XML data files (subtypes, activity types, templates, channels, crons) |

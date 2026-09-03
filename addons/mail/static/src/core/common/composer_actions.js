@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
+import { CreatePollDialog } from "@mail/core/common/create_poll_dialog";
 import { toRaw, useComponent, useEffect, useRef, useState } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker";
 import { registry } from "@web/core/registry";
@@ -13,7 +14,7 @@ export const composerActionsRegistry = registry.category("mail.composer/actions"
  * @typedef {{ isOpen?: boolean, open: (options?: {el?: HTMLElement|null}) => void, close: () => void, }} ComposerPicker
  */
 /**
- * @typedef {Component & { voiceRecorder?: {isOpen?: boolean}, sendMessageState?: {active: boolean}, isSendButtonDisabled?: boolean, fullComposer?: {isOpen?: boolean}, fileUploaderRef?: {el?: HTMLElement|null}, allowUpload?: boolean, setActivePicker?: (picker: ComposerPicker|null) => void, getActivePicker?: () => ComposerPicker|null, pickerTargetRef?: {el?: HTMLElement|null}, quickActionsRef?: {el?: HTMLElement|null}, moreActionsRef?: {el?: HTMLElement|null}, extraActionsRef?: {el?: HTMLElement|null}, sendMessage?: () => void|Promise<void>, sendGifMessage?: (gif: any) => void|Promise<void>, addEmoji?: (str: string) => any, onClickInsertCannedResponse?: (ev: Event) => void, onClickFullComposer?: (ev: Event) => void, }} ComposerActionOwner
+ * @typedef {Component & { voiceRecorder?: {isOpen?: boolean}, sendMessageState?: {active: boolean}, isSendButtonDisabled?: boolean, fullComposer?: {isOpen?: boolean}, fileUploaderRef?: {el?: HTMLElement|null}, allowUpload?: boolean, setActivePicker?: (picker: ComposerPicker|null) => void, getActivePicker?: () => ComposerPicker|null, pickerTargetRef?: {el?: HTMLElement|null}, quickActionsRef?: {el?: HTMLElement|null}, moreActionsRef?: {el?: HTMLElement|null}, extraActionsRef?: {el?: HTMLElement|null}, sendMessage?: () => void|Promise<void>, sendGifMessage?: (gif: any) => void|Promise<void>, addEmoji?: (str: string) => any, onClickInsertCannedResponse?: (ev: Event) => void, onClickFullComposer?: (ev: Event) => void, dialogService?: any, }} ComposerActionOwner
  */
 /**
  * @typedef {import("@mail/core/common/action").ActionDefinition<ComposerActionOwner, ActionParams, ComposerAction>} ActionDefinition
@@ -203,6 +204,21 @@ registerComposerAction("add-canned-response", {
      */
     onSelected: ({ owner }, ev) => owner.onClickInsertCannedResponse(ev),
     sequence: 5,
+});
+registerComposerAction("start-poll", {
+    /** @param {ActionParams} params */
+    condition: ({ composer, store }) =>
+        Boolean(store.self_partner?.main_user_id) &&
+        ["channel", "group"].includes(composer.targetThread?.channel_type),
+    icon: "oi oi-view-cohort",
+    name: _t("Start a poll"),
+    /** @param {ActionParams} params */
+    onSelected: ({ composer, owner }) =>
+        owner.dialogService.add(CreatePollDialog, { thread: composer.targetThread }),
+    /** @param {ActionParams} params */
+    setup: ({ owner }) => {
+        owner.dialogService = useService("dialog");
+    },
 });
 
 /** @extends {Action<ComposerActionOwner, ComposerActionDefinition>} */

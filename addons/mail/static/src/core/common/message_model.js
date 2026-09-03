@@ -237,6 +237,14 @@ export class Message extends Record {
     needaction;
     starred = false;
     showTranslation = false;
+    ended_poll_ids = fields.Many("mail.poll", { inverse: "end_message_id" });
+    started_poll_ids = fields.Many("mail.poll", { inverse: "start_message_id" });
+    poll = fields.One("mail.poll", {
+        /** @this {import("models").Message} */
+        compute() {
+            return this.started_poll_ids[0] || this.ended_poll_ids[0];
+        },
+    });
 
     /** @returns {boolean} */
     get allowsEdition() {
@@ -260,10 +268,17 @@ export class Message extends Record {
     }
 
     get editable() {
-        if (this.isEmpty || !this.allowsEdition) {
+        if (this.isEmpty || !this.allowsEdition || this.message_type === "mail_poll") {
             return false;
         }
         return this.message_type === "comment";
+    }
+
+    get deletable() {
+        if (this.isEmpty || !this.allowsEdition) {
+            return false;
+        }
+        return ["comment", "mail_poll"].includes(this.message_type);
     }
 
     get dateDay() {
@@ -411,7 +426,8 @@ export class Message extends Record {
             this.attachment_ids.length === 0 &&
             this.trackingValues.length === 0 &&
             !this.subtype_id?.description &&
-            !this.subject
+            !this.subject &&
+            !this.poll
         );
     }
 
@@ -756,12 +772,18 @@ export class Message extends Record {
      * @param {boolean} [options.removeFromThread=false]
      */
     async remove({ removeFromThread = false } = {}) {
-        const data = await rpc("/mail/message/update_content", {
-            message_id: this.id,
-            update_data: this.removeParams,
-            ...this.thread.rpcParams,
-        });
-        this.store.insert(data);
+        let data;
+        if (this.poll) {
+            // deleting the poll cascades onto its start and end messages
+            await rpc("/mail/poll/delete", { poll_id: this.poll.id });
+        } else {
+            data = await rpc("/mail/message/update_content", {
+                message_id: this.id,
+                update_data: this.removeParams,
+                ...this.thread.rpcParams,
+            });
+            this.store.insert(data);
+        }
         if (this.thread && removeFromThread) {
             this.thread.messages = this.thread.messages.filter((message) =>
                 message.notEq(this),

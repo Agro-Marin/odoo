@@ -5,7 +5,7 @@ import { toRaw, useComponent, useState } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { luxon } from "@web/core/l10n/luxon";
-import { download } from "@web/core/network";
+import { download, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -178,7 +178,7 @@ registerMessageAction("edit", {
 });
 registerMessageAction("delete", {
     /** @param {ActionParams} params */
-    condition: ({ message }) => message.editable,
+    condition: ({ message }) => message.deletable,
     icon: "fa-solid fa-trash-can",
     name: _t("Delete"),
     /** @param {ActionParams} params */
@@ -257,6 +257,18 @@ registerMessageAction("copy-link", {
     /** @param {ActionParams} params */
     onSelected: ({ message }) => message.copyLink(),
     sequence: 110,
+});
+registerMessageAction("end-poll", {
+    /** @param {ActionParams} params */
+    condition: ({ message }) =>
+        Boolean(message.poll) &&
+        !message.poll.end_message_id &&
+        message.poll.createdBySelf,
+    icon: "oi oi-view-cohort",
+    name: _t("End Poll"),
+    /** @param {ActionParams} params */
+    onSelected: ({ message }) => rpc("/mail/poll/end", { poll_id: message.poll.id }),
+    sequence: 115,
 });
 
 /** @extends {Action<MessageActionOwner, MessageActionDefinition>} */

@@ -39,6 +39,9 @@ from . import mail_message_access
 from . import mail_message_store
 from . import mail_message_fetch
 from . import mail_mail
+from . import mail_poll
+from . import mail_poll_option
+from . import mail_poll_vote
 from . import mail_presence
 from . import mail_push
 from . import mail_push_device
