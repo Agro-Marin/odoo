@@ -41,15 +41,49 @@ class TestMailPublicPage(HttpCaseWithUserPortal, HttpCaseWithUserDemo):
         self.group._add_members(guests=guest)
         self.tour = "discuss_channel_public_tour.js"
 
+    def _public_page_url(self, channel, login):
+        """Internal users are redirected away from the invitation link, so reach
+        the public page they are meant to see through its own route. Joining
+        first reproduces the state the invitation link used to leave them in,
+        and is what makes a private group reachable at all."""
+        user = self.env["res.users"].search([("login", "=", login)])
+        if not user._is_internal():
+            return channel.invitation_url
+        channel._add_members(users=user)
+        return f"/discuss/channel/{channel.id}"
+
     def _open_channel_page_as_user(self, login):
-        self.start_tour(self.channel.invitation_url, self.tour, login=login)
+        url = self._public_page_url(self.channel, login)
+        self.start_tour(url, self.tour, login=login)
         self.channel._get_last_messages().body = "a-very-unique-body-in-channel"
-        self.start_tour(self.channel.invitation_url, self.tour, login=login)
+        self.start_tour(url, self.tour, login=login)
 
     def _open_group_page_as_user(self, login):
-        self.start_tour(self.group.invitation_url, self.tour, login=login)
+        url = self._public_page_url(self.group, login)
+        self.start_tour(url, self.tour, login=login)
         self.group._get_last_messages().body = "a-very-unique-body-in-group"
-        self.start_tour(self.group.invitation_url, self.tour, login=login)
+        self.start_tour(url, self.tour, login=login)
+
+    def test_invitation_link_redirects_internal_users_to_discuss(self):
+        """An internal user following an invitation link belongs in Discuss, not
+        on the guest page: they are added as a member and redirected."""
+        bob = mail_new_test_user(self.env, login="bob", groups="base.group_user")
+        self.authenticate(bob.login, bob.login)
+        channel = self.env["discuss.channel"]._create_channel(
+            group_id=None, name="Channel 1"
+        )
+        response = self.url_open(channel.invitation_url)
+        self.assertIn(
+            f"/odoo/action-mail.action_discuss?active_id={channel.id}", response.url
+        )
+        self.assertIn(bob.partner_id, channel.channel_member_ids.partner_id)
+        group = self.env["discuss.channel"]._create_group(
+            name="Group 1", partners_to=bob.partner_id.ids
+        )
+        response = self.url_open(group.invitation_url)
+        self.assertIn(
+            f"/odoo/action-mail.action_discuss?active_id={group.id}", response.url
+        )
 
     def test_discuss_channel_public_page_as_admin(self):
         self._open_channel_page_as_user("admin")
