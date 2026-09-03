@@ -278,7 +278,11 @@ class _XmlNodeTranslator:
             result = content.replace(original, translated)
             result_elem = parse_html(f"<div>{result}</div>")
             result_elem.tag = "span"
-            if self._translatable(result_elem) and self._hastext(result_elem):
+            if (
+                self._translatable(result_elem)
+                and self._hastext(result_elem)
+                and sanitize_translated_fragment(div, result_elem)
+            ):
                 div = result_elem
                 if pos:
                     node[pos - 1].tail = div.text
@@ -349,6 +353,63 @@ MODIFIER_ATTRS = {
     "attrs",
 }
 
+TRANSLATOR_ADDABLE_ATTRS = TRANSLATED_ATTRS | {
+    "class",
+    "id",
+    "style",
+    "href",
+    "target",
+    "rel",
+    "lang",
+    "dir",
+    "colspan",
+    "rowspan",
+}
+TRANSLATOR_ADDABLE_ATTR_PREFIX = "data-oe-"
+
+_TEXT_TAG_PATTERN = re.compile(r"</?([A-Za-z][\w:-]*|!|\?)")
+
+
+def _iter_term_elements(node: etree._Element) -> Iterator[etree._Element]:
+    return (el for el in node.iter() if isinstance(el.tag, str))
+
+
+def _text_tag_names(node: etree._Element) -> set[str]:
+    names = set()
+    for el in _iter_term_elements(node):
+        for text in (el.text, el.tail):
+            if text:
+                names.update(m.lower() for m in _TEXT_TAG_PATTERN.findall(text))
+    return names
+
+
+def _strip_foreign_attributes(
+    orig_node: etree._Element, new_node: etree._Element
+) -> None:
+    orig_pairs = {
+        (key, value)
+        for el in _iter_term_elements(orig_node)
+        for key, value in el.attrib.items()
+    }
+    for el in _iter_term_elements(new_node):
+        for key in list(el.attrib):
+            if (
+                key in TRANSLATOR_ADDABLE_ATTRS
+                or key.startswith(TRANSLATOR_ADDABLE_ATTR_PREFIX)
+                or (key, el.attrib[key]) in orig_pairs
+            ):
+                continue
+            del el.attrib[key]
+
+
+def sanitize_translated_fragment(
+    orig_node: etree._Element, new_node: etree._Element
+) -> bool:
+    if not _text_tag_names(new_node) <= _text_tag_names(orig_node):
+        return False
+    _strip_foreign_attributes(orig_node, new_node)
+    return True
+
 
 def xml_term_adapter(term_en: str) -> Callable[[str], str | None]:
     orig_node = parse_xml(f"<div>{term_en}</div>")
@@ -365,17 +426,13 @@ def xml_term_adapter(term_en: str) -> Callable[[str], str | None]:
 
     def adapter(term):
         new_node = parse_xml(f"<div>{term}</div>")
+        if not sanitize_translated_fragment(orig_node, new_node):
+            return None
         try:
             for orig_n, new_n in same_struct_iter(orig_node, new_node):
-                removed_attrs = [
-                    k
-                    for k in new_n.attrib
-                    if k in MODIFIER_ATTRS and k not in orig_n.attrib
-                ]
-                for k in removed_attrs:
+                for k in [k for k in new_n.attrib if k in MODIFIER_ATTRS]:
                     del new_n.attrib[k]
-                keep_attrs = dict(orig_n.attrib.items())
-                new_n.attrib.update(keep_attrs)
+                new_n.attrib.update(dict(orig_n.attrib.items()))
         except ValueError:
             return None
 

@@ -12,6 +12,7 @@ from odoo.tests.common import TransactionCase, skip_if_dev_mode
 from odoo.tools import file_open, misc, mute_logger
 from odoo.tools.json import scriptsafe as json_scriptsafe
 from odoo.tools.rendering_tools import QWebError
+from odoo.tools.translate import xml_term_adapter
 
 from odoo.addons.base.models.ir_qweb import (
     ELEMENT_MARKER_REGEXP,
@@ -4337,3 +4338,59 @@ class TestQWebWidgetBranding(TransactionCase):
             )
             self.assertEqual(bool(force_display), branding)
             self.assertEqual(bool(attributes), branding)
+
+
+class TestQWebTranslationBoundary(TransactionCase):
+    SOURCE_TERM = "Hello <b>world</b>"
+
+    def setUp(self):
+        super().setUp()
+        self.env["res.lang"]._activate_lang("fr_FR")
+        self.view = self.env["ir.ui.view"].create(
+            {
+                "name": "translation_boundary",
+                "type": "qweb",
+                "key": "base.translation_boundary",
+                "arch": '<t t-name="base.translation_boundary">'
+                f"<p>{self.SOURCE_TERM}</p></t>",
+            }
+        )
+
+    def _render_fr(self, translation):
+        self.view.update_field_translations(
+            "arch_db", {"fr_FR": {self.SOURCE_TERM: translation}}
+        )
+        return str(
+            self.env["ir.qweb"].with_context(lang="fr_FR")._render(self.view.id, {})
+        )
+
+    def test_an_entity_encoded_tag_never_becomes_live_markup(self):
+        rendered = self._render_fr(
+            "&lt;script&gt;alert(1)&lt;/script&gt;Bonjour <b>monde</b>"
+        )
+        self.assertNotIn("<script", rendered)
+        self.assertIn(
+            "Hello", rendered, "a refused translation falls back to the source"
+        )
+
+    def test_an_attribute_the_translator_adds_is_stripped(self):
+        rendered = self._render_fr('Bonjour <b onclick="alert(2)" class="x">monde</b>')
+        self.assertNotIn("onclick", rendered)
+        self.assertIn('<b class="x">monde</b>', rendered)
+        self.assertIn("Bonjour", rendered)
+
+    def test_a_plain_translation_is_kept(self):
+        self.assertIn("Bonjour <b>monde</b>", self._render_fr("Bonjour <b>monde</b>"))
+
+    def test_the_adapter_applies_the_same_boundary(self):
+        adapter = xml_term_adapter("Hello <b>world</b>")
+        self.assertIsNone(adapter("&lt;script&gt;x&lt;/script&gt; <b>y</b>"))
+        self.assertEqual(
+            adapter('Salut <b onclick="alert(1)" title="t">monde</b>'),
+            'Salut <b title="t">monde</b>',
+        )
+        self.assertEqual(
+            adapter("a &lt; b <b>c</b>"),
+            "a &lt; b <b>c</b>",
+            "a bare less-than in text is not markup",
+        )
