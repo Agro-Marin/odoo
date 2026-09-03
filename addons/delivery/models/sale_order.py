@@ -103,8 +103,6 @@ class SaleOrder(models.Model):
     def _set_pickup_location(self, pickup_location_data):
         """Set the pickup location on the current order.
 
-        Note: self.check_singleton()
-
         :param str pickup_location_data: The JSON-formatted pickup location address.
         :return: None
         """
@@ -144,8 +142,6 @@ class SaleOrder(models.Model):
 
         Use provided `zip_code` and `country` or the order's delivery address to determine the zip
         code and the country to use.
-
-        Note: self.check_singleton()
 
         :param str zip_code: The zip code to look up to, optional.
         :param res.country country: The country to look up to, required if `zip_code` is provided.
@@ -287,7 +283,7 @@ class SaleOrder(models.Model):
         if self.partner_id and self.fiscal_position_id:
             taxes_ids = self.fiscal_position_id.map_tax(taxes).ids
 
-        # Create the sales order line
+        # Build the sales order line values
 
         if carrier.product_id.description_sale:
             so_description = "%s: %s" % (
