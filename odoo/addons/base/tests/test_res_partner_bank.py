@@ -110,3 +110,52 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
                 {"acc_number": "BE0012518823 03", "partner_id": partner.id}
             )
             self.env["res.partner.bank"].flush_model()
+
+    def test_acc_holder_name_follows_partner_rename_on_archived_accounts(self):
+        partner = self.env["res.partner"].create({"name": "Old Name"})
+        bank = self.env["res.partner.bank"].create(
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
+        )
+        bank.unlink()
+        self.assertFalse(bank.active)
+        partner.invalidate_recordset(["bank_ids"])
+        partner.write({"name": "New Name"})
+        self.assertEqual(
+            bank.acc_holder_name,
+            "New Name",
+            "an archived account must not come back with a stale holder name",
+        )
+
+    def test_get_or_create_revives_an_archived_exact_match(self):
+        partner = self.env["res.partner"].create({"name": "Pepper Test"})
+        bank = self.env["res.partner.bank"].create(
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
+        )
+        bank.unlink()
+        self.assertFalse(bank.active)
+
+        found = self.env["res.partner.bank"]._get_or_create_bank_account(
+            "BE0012518823 03", partner, self.env.company
+        )
+
+        self.assertEqual(found, bank)
+        self.assertTrue(bank.active)
+
+    def test_get_or_create_leaves_a_child_partners_archived_account_alone(self):
+        company = self.env["res.partner"].create(
+            {"name": "Holder Co", "is_company": True}
+        )
+        child = self.env["res.partner"].create(
+            {"name": "Holder Child", "parent_id": company.id}
+        )
+        bank = self.env["res.partner.bank"].create(
+            {"acc_number": "BE001 2518823 03", "partner_id": child.id}
+        )
+        bank.unlink()
+
+        found = self.env["res.partner.bank"]._get_or_create_bank_account(
+            "BE001 2518823 03", company, self.env.company
+        )
+
+        self.assertFalse(found)
+        self.assertFalse(bank.active)

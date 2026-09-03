@@ -189,6 +189,10 @@ class ResPartnerBank(models.Model):
                 ]
             )
         )
+        if bank_account and not bank_account.filtered("active"):
+            bank_account.filtered(lambda b: b.partner_id == partner).sudo(
+                False
+            ).action_unarchive()
         if not bank_account:
             if (
                 not allow_company_account_creation

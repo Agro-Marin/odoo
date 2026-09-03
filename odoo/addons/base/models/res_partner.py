@@ -1317,7 +1317,7 @@ class ResPartner(models.Model):
         if vals.get("website"):
             vals["website"] = self._clean_website(vals["website"])
         if vals.get("name"):
-            banks_to_sync = self.bank_ids.filtered(
+            banks_to_sync = self.with_context(active_test=False).bank_ids.filtered(
                 lambda bank: bank.acc_holder_name == bank.partner_id.name
             )
             if banks_to_sync:
