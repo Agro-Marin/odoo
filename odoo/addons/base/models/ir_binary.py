@@ -134,12 +134,8 @@ class IrBinary(models.AbstractModel):
 
             if filename:
                 stream.download_name = filename
-            elif filename_field in record:
-                name_field = record._fields[filename_field]
-                if "name" in filename_field or record.sudo(False)._has_field_access(
-                    name_field, "read"
-                ):
-                    stream.download_name = record[filename_field]
+            elif self._can_name_from_field(record, filename_field):
+                stream.download_name = record[filename_field]
             if not stream.download_name:
                 stream.download_name = f"{record._table}-{record.id}-{field_name}"
 
@@ -155,6 +151,15 @@ class IrBinary(models.AbstractModel):
                 stream.download_name += guess_extension(stream.mimetype) or ""
 
         return stream
+
+    @staticmethod
+    def _can_name_from_field(record: Any, filename_field: str) -> bool:
+        name_field = record._fields.get(filename_field)
+        if name_field is None or name_field.type != "char":
+            return False
+        return filename_field == "name" or record.sudo(False)._has_field_access(
+            name_field, "read"
+        )
 
     def _get_stream_image_from_record(
         self,

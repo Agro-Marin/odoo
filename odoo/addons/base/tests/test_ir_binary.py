@@ -202,3 +202,43 @@ class TestIrBinaryImageBranches(TransactionCase):
         self.assertEqual(stream.etag, "base-etag-64x32-crop=True-quality=80")
         self.assertEqual(stream.type, "data")
         self.assertTrue(stream.data)
+
+
+@tagged("post_install", "-at_install")
+class TestIrBinaryFilenameField(TransactionCaseWithUserDemo):
+    def setUp(self):
+        super().setUp()
+        self.attachment = self.env["ir.attachment"].create(
+            {"name": "pub.txt", "raw": b"public bytes", "public": True}
+        )
+        model = self.env["ir.model"]._get("ir.attachment")
+        self.env["ir.model.fields"].create(
+            {
+                "name": "x_secret_name",
+                "model_id": model.id,
+                "ttype": "char",
+                "field_description": "Secret name",
+                "groups": [Command.link(self.env.ref("base.group_system").id)],
+            }
+        )
+        self.attachment.write({"x_secret_name": "SECRET.txt"})
+
+    def _download_name(self, filename_field):
+        record = self.attachment.with_user(self.user_demo).sudo()
+        stream = (
+            self.env["ir.binary"]
+            .with_user(self.user_demo)
+            ._get_stream_from_record(record, "raw", filename_field=filename_field)
+        )
+        return stream.download_name
+
+    def test_a_group_restricted_char_whose_name_contains_name_is_not_disclosed(self):
+        self.assertEqual(self._download_name("x_secret_name"), "pub.txt")
+
+    def test_a_non_char_filename_field_falls_back_to_the_default_name(self):
+        for field_name in ("res_id", "create_date", "public"):
+            with self.subTest(field_name=field_name):
+                self.assertEqual(self._download_name(field_name), "pub.txt")
+
+    def test_the_name_field_itself_still_names_the_download(self):
+        self.assertEqual(self._download_name("name"), "pub.txt")
