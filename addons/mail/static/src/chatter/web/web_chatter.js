@@ -11,7 +11,7 @@ import { SearchMessageResult } from "@mail/core/common/search_message_result";
 import { Activity } from "@mail/core/web/activity";
 import { FollowerList } from "@mail/core/web/follower_list";
 import { RecipientsInput } from "@mail/core/web/recipients_input";
-import { useHover, useMessageScrolling } from "@mail/utils/common/hooks";
+import { useHover } from "@mail/utils/common/hooks";
 import { assignGetter, isDragSourceExternalFile } from "@mail/utils/common/misc";
 import { status, useEffect } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
@@ -26,7 +26,7 @@ import { useRecordObserver } from "@web/fields/hooks/record_observer";
 export const DELAY_FOR_SPINNER = 1000;
 
 /**
- * @typedef {import("@mail/chatter/web_portal/chatter").Props & { close?: function, compactHeight?: boolean, has_activities?: boolean, hasAttachmentPreview?: boolean, hasParentReloadOnActivityChanged?: boolean, hasParentReloadOnAttachmentsChanged?: boolean, hasParentReloadOnFollowersUpdate?: boolean, hasParentReloadOnMessagePosted?: boolean, highlightMessageId?: number, isAttachmentBoxVisibleInitially?: boolean, isChatterAside?: boolean, isInFormSheetBg?: boolean, saveRecord?: function, record?: Object, }} Props
+ * @typedef {import("@mail/chatter/web_portal/chatter").Props & { close?: function, compactHeight?: boolean, has_activities?: boolean, hasAttachmentPreview?: boolean, hasParentReloadOnActivityChanged?: boolean, hasParentReloadOnAttachmentsChanged?: boolean, hasParentReloadOnFollowersUpdate?: boolean, hasParentReloadOnMessagePosted?: boolean, isAttachmentBoxVisibleInitially?: boolean, isChatterAside?: boolean, isInFormSheetBg?: boolean, saveRecord?: function, record?: Object, }} Props
  */
 /**
  * @typedef {import("@mail/chatter/web_portal/chatter").State & { composerType: "message"|"note"|false, isAttachmentBoxOpened: boolean, isCollapsed: boolean, isSearchOpen: boolean, showActivities: boolean, showAttachmentLoading: boolean, showScheduledMessages: boolean, }} State
@@ -58,7 +58,6 @@ export class WebChatter extends Chatter {
         "hasParentReloadOnAttachmentsChanged?",
         "hasParentReloadOnFollowersUpdate?",
         "hasParentReloadOnMessagePosted?",
-        "highlightMessageId?",
         "isAttachmentBoxVisibleInitially?",
         "isChatterAside?",
         "isInFormSheetBg?",
@@ -199,7 +198,6 @@ export class WebChatter extends Chatter {
         );
     }
     setup() {
-        this.messageHighlight = useMessageScrolling();
         super.setup(...arguments);
         this._setupServicesAndState();
         this._setupChatterDropzone();
@@ -293,9 +291,7 @@ export class WebChatter extends Chatter {
     }
 
     get childSubEnv() {
-        const res = Object.assign(super.childSubEnv, {
-            messageHighlight: this.messageHighlight,
-        });
+        const res = super.childSubEnv;
         assignGetter(res.inChatter, { aside: () => this.props.isChatterAside });
         Object.assign(res.inChatter, {
             toggleComposer: this.toggleComposer.bind(this),
@@ -440,13 +436,6 @@ export class WebChatter extends Chatter {
     onFollowerChanged() {
         document.body.click();
         this.reloadParentView();
-    }
-
-    _onMounted() {
-        super._onMounted();
-        if (this.state.thread && this.props.highlightMessageId) {
-            this.state.thread.highlightMessage = this.props.highlightMessageId;
-        }
     }
 
     onPostCallback() {

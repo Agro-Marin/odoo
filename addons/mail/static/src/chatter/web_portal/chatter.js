@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { Thread } from "@mail/core/common/thread";
+import { useMessageScrolling } from "@mail/utils/common/hooks";
 import {
     Component,
     onMounted,
@@ -9,6 +10,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { router } from "@web/core/browser/router";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
@@ -50,6 +52,8 @@ export class Chatter extends Component {
                 disabled: !this.props.threadId,
             })
         );
+        this.messageHighlight = useMessageScrolling();
+        this.highlightMessageId = router.current.highlight_message_id;
         this.rootRef = useRef("root");
         this.onScrollDebounced = useThrottleForAnimation(this.onScroll);
         useChildSubEnv(this.childSubEnv);
@@ -83,7 +87,7 @@ export class Chatter extends Component {
     }
 
     get childSubEnv() {
-        return { inChatter: this.state };
+        return { inChatter: this.state, messageHighlight: this.messageHighlight };
     }
 
     /** @returns {string[]} */
@@ -105,6 +109,13 @@ export class Chatter extends Component {
             model: threadModel,
             id: threadId,
         });
+        if (threadId && this.highlightMessageId) {
+            // The URL names one message, so it is spent on the first real
+            // thread this chatter shows and not re-applied when the host
+            // switches record.
+            this.state.thread.highlightMessage = this.highlightMessageId;
+            this.highlightMessageId = undefined;
+        }
         if (threadId === false) {
             if (this.state.thread.messages.length === 0) {
                 const { effectiveSelf } = this.state.thread;

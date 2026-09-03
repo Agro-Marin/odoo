@@ -28,11 +28,13 @@ import {
     getService,
     makeServerError,
     mockService,
+    mountWithCleanup,
     onRpc,
     patchWithCleanup,
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
+import { router } from "@web/core/browser/router";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -785,6 +787,44 @@ test("Update primary email in recipient without saving", async () => {
     await contains(".o-mail-RecipientsInput .o_tag_badge_text", {
         text: "test@test.be",
     });
+});
+
+test("chatter highlights the message the URL points at", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Partner" });
+    const messageIds = pyEnv["mail.message"].create(
+        Array.from({ length: 3 }, (_, index) => ({
+            author_id: serverState.partnerId,
+            body: `message ${index}`,
+            message_type: "comment",
+            model: "res.partner",
+            res_id: partnerId,
+        })),
+    );
+    patchWithCleanup(router, { current: { highlight_message_id: messageIds[0] } });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await contains(".o-mail-Message.o-highlighted", { text: "message 0" });
+});
+
+test("a chatter hosted outside a form view still highlights from the URL", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Partner" });
+    const messageIds = pyEnv["mail.message"].create(
+        Array.from({ length: 3 }, (_, index) => ({
+            author_id: serverState.partnerId,
+            body: `message ${index}`,
+            message_type: "comment",
+            model: "res.partner",
+            res_id: partnerId,
+        })),
+    );
+    patchWithCleanup(router, { current: { highlight_message_id: messageIds[0] } });
+    await start();
+    await mountWithCleanup(WebChatter, {
+        props: { threadModel: "res.partner", threadId: partnerId },
+    });
+    await contains(".o-mail-Message.o-highlighted", { text: "message 0" });
 });
 
 test("form view mounts WebChatter; base Chatter statics stay portal-clean", async () => {
