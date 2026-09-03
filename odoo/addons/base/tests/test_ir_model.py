@@ -1595,7 +1595,9 @@ class TestIrModelFieldsSelection(TransactionCase):
         with patch.object(BaseModel, "write", guarded_write):
             yield
 
-    def _make_selection_field(self, stem, *, company_dependent=False, values=None):
+    def _make_selection_field(
+        self, stem, *, company_dependent=False, values=None, ttype="selection"
+    ):
         values = values or [("draft", "Draft"), ("done", "Done")]
         model = self.env["ir.model"].create(
             {"model": f"x_sel_{stem}", "name": f"Selection test {stem}"}
@@ -1605,7 +1607,7 @@ class TestIrModelFieldsSelection(TransactionCase):
                 "name": f"x_{stem}",
                 "field_description": f"Sel {stem}",
                 "model_id": model.id,
-                "ttype": "selection",
+                "ttype": ttype,
                 "company_dependent": company_dependent,
                 "selection_ids": [
                     Command.create({"value": value, "name": label, "sequence": index})
@@ -1746,6 +1748,116 @@ class TestIrModelFieldsSelection(TransactionCase):
         field.selection_ids.filtered(lambda s: s.value == "draft").unlink()
         record.invalidate_recordset(["x_pnull"])
         self.assertFalse(record.x_pnull)
+
+    def _make_reference_field(self, stem, *, company_dependent=False):
+        return self._make_selection_field(
+            stem,
+            company_dependent=company_dependent,
+            values=[("res.partner", "Partner"), ("res.users", "User")],
+            ttype="reference",
+        )
+
+    def _read_column(self, model, field, record):
+        return self._read_jsonb(model, field, record)
+
+    def test_option_unlink_discards_its_default(self):
+        Model, field = self._make_selection_field("defdel")
+        self.env["ir.default"].set(Model._name, field.name, "done")
+
+        field.selection_ids.filtered(lambda s: s.value == "done").unlink()
+
+        self.assertIsNone(self.env["ir.default"]._get(Model._name, field.name))
+        self.assertFalse(Model.create({}).x_defdel)
+
+    def test_option_value_rename_renames_its_default(self):
+        Model, field = self._make_selection_field("defren")
+        self.env["ir.default"].set(Model._name, field.name, "done")
+
+        field.selection_ids.filtered(lambda s: s.value == "done").write(
+            {"value": "finished"}
+        )
+
+        self.assertEqual(
+            self.env["ir.default"]._get(Model._name, field.name), "finished"
+        )
+        self.assertEqual(self.env[Model._name].create({}).x_defren, "finished")
+
+    def test_reference_option_value_rename_rewrites_stored_values(self):
+        Model, field = self._make_reference_field("refren")
+        partner = self.env["res.partner"].create({"name": "Ref"})
+        record = Model.create({field.name: f"res.partner,{partner.id}"})
+        record.flush_recordset()
+
+        field.selection_ids.filtered(lambda s: s.value == "res.partner").write(
+            {"value": "res.company"}
+        )
+
+        self.assertEqual(
+            self._read_column(Model, field, record), f"res.company,{partner.id}"
+        )
+        record.invalidate_recordset([field.name])
+        self.assertEqual(record[field.name]._name, "res.company")
+
+    def test_reference_option_value_rename_company_dependent(self):
+        company = self.env.company
+        Model, field = self._make_reference_field("refrencd", company_dependent=True)
+        record = Model.create({})
+        record.flush_recordset()
+        self._set_jsonb(
+            Model, field, record, {company.id: "res.partner,7", 0: "res.users,7"}
+        )
+
+        field.selection_ids.filtered(lambda s: s.value == "res.partner").write(
+            {"value": "res.company"}
+        )
+
+        self.assertEqual(
+            self._read_jsonb(Model, field, record),
+            {str(company.id): "res.company,7", "0": "res.users,7"},
+        )
+
+    def test_reference_option_unlink_nulls_stored_values(self):
+        Model, field = self._make_reference_field("refdel")
+        partner = self.env["res.partner"].create({"name": "Ref"})
+        record = Model.create({field.name: f"res.partner,{partner.id}"})
+        other = Model.create({field.name: f"res.users,{self.env.uid}"})
+        (record + other).flush_recordset()
+
+        field.selection_ids.filtered(lambda s: s.value == "res.partner").unlink()
+
+        self.assertIsNone(self._read_column(Model, field, record))
+        self.assertEqual(
+            self._read_column(Model, field, other), f"res.users,{self.env.uid}"
+        )
+
+    def test_reference_option_unlink_company_dependent(self):
+        company = self.env.company
+        Model, field = self._make_reference_field("refdelcd", company_dependent=True)
+        record = Model.create({})
+        record.flush_recordset()
+        self._set_jsonb(Model, field, record, {company.id: "res.partner,7"})
+
+        field.selection_ids.filtered(lambda s: s.value == "res.partner").unlink()
+
+        record.invalidate_recordset([field.name])
+        self.assertFalse(record.with_company(company)[field.name])
+
+    def test_base_field_option_cannot_be_renamed_even_by_admin(self):
+        option = self.env["ir.model.fields.selection"].search(
+            [
+                ("field_id.model", "=", "res.partner"),
+                ("field_id.name", "=", "type"),
+                ("value", "=", "other"),
+            ]
+        )
+        self.assertTrue(option)
+        self.assertTrue(self.env.user._is_admin())
+        with self.assertRaises(UserError):
+            option.write({"value": "otherx"})
+        with self.assertRaises(UserError):
+            option.write({"sequence": 42})
+        option.write({"name": "Other (relabelled)"})
+        self.assertEqual(option.name, "Other (relabelled)")
 
     def test_ondelete_set_constant(self):
         Model, field = self._make_selection_field("pset")

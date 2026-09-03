@@ -2,6 +2,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from psycopg import IntegrityError
+from psycopg.types.json import Json
 
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import TransactionCase, new_test_user
@@ -234,6 +235,34 @@ class TestIrDefault(TransactionCase):
                     "json_value": "2147483648",
                 }
             )
+
+    def test_json_format_rejects_a_field_outside_the_registry(self):
+        self.env.cr.execute(
+            'INSERT INTO ir_model (model, name, state, "order")'
+            " VALUES ('x_ghost', %s, 'manual', 'id') RETURNING id",
+            (Json({"en_US": "Ghost"}),),
+        )
+        [model_id] = self.env.cr.fetchone()
+        self.env.cr.execute(
+            "INSERT INTO ir_model_fields"
+            " (model_id, model, name, field_description, ttype, state)"
+            " VALUES (%s, 'x_ghost', 'x_ghostf', %s, 'char', 'manual') RETURNING id",
+            (model_id, Json({"en_US": "Ghost field"})),
+        )
+        [field_id] = self.env.cr.fetchone()
+        with self.assertRaises(ValidationError):
+            self.env["ir.default"].create({"field_id": field_id, "json_value": '"x"'})
+
+    def test_rename_value(self):
+        IrDefault = self.env["ir.default"]
+        IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
+
+        IrDefault.set("res.partner", "ref", "OLD")
+        IrDefault.rename_value("res.partner", "ref", "OLD", "NEW")
+        self.assertEqual(IrDefault._get("res.partner", "ref"), "NEW")
+
+        IrDefault.rename_value("res.partner", "ref", "NOPE", "OTHER")
+        self.assertEqual(IrDefault._get("res.partner", "ref"), "NEW")
 
     def test_get(self):
         IrDefault = self.env["ir.default"]

@@ -191,14 +191,16 @@ class IrModelFieldsSelection(models.Model):
             )
         )
 
+    def _check_base_field_mutation(self, fields_: Any) -> None:
+        if any(field.state != "manual" for field in fields_):
+            raise self._prepare_base_field_error()
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         field_ids = {vals["field_id"] for vals in vals_list}
-        field_names = set()
-        for field in self.env["ir.model.fields"].browse(field_ids):
-            field_names.add((field.model, field.name))
-            if field.state != "manual":
-                raise self._prepare_base_field_error()
+        fields_ = self.env["ir.model.fields"].browse(field_ids)
+        self._check_base_field_mutation(fields_)
+        field_names = {(field.model, field.name) for field in fields_}
         recs = super().create(vals_list)
 
         model_names = OrderedSet()
@@ -221,14 +223,63 @@ class IrModelFieldsSelection(models.Model):
     def _is_jsonb_stored(self, field) -> bool:
         return bool(field.company_dependent)
 
+    def _is_reference(self, field) -> bool:
+        return field.ttype == "reference"
+
+    def _prepare_stored_value_match(self, field, stored: SQL, value: str) -> SQL:
+        if self._is_reference(field):
+            return SQL("split_part(%s, ',', 1) = %s", stored, value)
+        return SQL("%s = %s", stored, value)
+
+    def _prepare_renamed_stored_value(
+        self, field, stored: SQL, old_value: str, new_value: str
+    ) -> SQL:
+        if self._is_reference(field):
+            return SQL("%s || substr(%s, %s)", new_value, stored, len(old_value) + 1)
+        return SQL("%s", new_value)
+
+    def _rename_stored_values(self, field, old_value: str, new_value: str) -> None:
+        model = self.env[field.model]
+        fname = field.name
+        column = SQL.identifier(fname)
+        model.invalidate_model([fname])
+        if self._is_jsonb_stored(field):
+            stored = SQL("(e.value #>> '{}')")
+            query = SQL(
+                "UPDATE %s AS t SET %s = ("
+                " SELECT jsonb_object_agg(e.key,"
+                " CASE WHEN jsonb_typeof(e.value) = 'string' AND %s"
+                " THEN to_jsonb(%s::text) ELSE e.value END)"
+                " FROM jsonb_each(t.%s) AS e"
+                ") WHERE jsonb_typeof(t.%s) = 'object' AND EXISTS ("
+                " SELECT 1 FROM jsonb_each(t.%s) AS e"
+                " WHERE jsonb_typeof(e.value) = 'string' AND %s"
+                ")",
+                SQL.identifier(model._table),
+                column,
+                self._prepare_stored_value_match(field, stored, old_value),
+                self._prepare_renamed_stored_value(field, stored, old_value, new_value),
+                column,
+                column,
+                column,
+                self._prepare_stored_value_match(field, stored, old_value),
+            )
+        else:
+            query = SQL(
+                "UPDATE %s SET %s = %s WHERE %s",
+                SQL.identifier(model._table),
+                column,
+                self._prepare_renamed_stored_value(field, column, old_value, new_value),
+                self._prepare_stored_value_match(field, column, old_value),
+            )
+        self.env.cr.execute(query)
+
     def write(self, vals: dict[str, Any]) -> bool:
         if not self:
             return True
 
-        if not self.env.user._is_admin() and any(
-            record.field_id.state != "manual" for record in self
-        ):
-            raise self._prepare_base_field_error()
+        if not all(self._fields[fname].translate for fname in vals):
+            self._check_base_field_mutation(self.field_id)
 
         if "value" in vals:
             if len(self) > len(self.field_id):
@@ -242,38 +293,10 @@ class IrModelFieldsSelection(models.Model):
                 if selection.value == vals["value"]:
                     continue
                 if selection.field_id.store:
-                    model = self.env[selection.field_id.model]
-                    fname = selection.field_id.name
-                    model.invalidate_model([fname])
-                    if self._is_jsonb_stored(selection.field_id):
-                        query = SQL(
-                            "UPDATE %s AS t SET %s = ("
-                            " SELECT jsonb_object_agg(e.key,"
-                            " CASE WHEN e.value = to_jsonb(%s::text)"
-                            " THEN to_jsonb(%s::text) ELSE e.value END)"
-                            " FROM jsonb_each(t.%s) AS e"
-                            ") WHERE EXISTS ("
-                            " SELECT 1 FROM jsonb_each(t.%s) AS e2"
-                            " WHERE e2.value = to_jsonb(%s::text)"
-                            ")",
-                            SQL.identifier(model._table),
-                            SQL.identifier(fname),
-                            selection.value,
-                            vals["value"],
-                            SQL.identifier(fname),
-                            SQL.identifier(fname),
-                            selection.value,
-                        )
-                    else:
-                        query = SQL(
-                            "UPDATE %s SET %s = %s WHERE %s = %s",
-                            SQL.identifier(model._table),
-                            SQL.identifier(fname),
-                            vals["value"],
-                            SQL.identifier(fname),
-                            selection.value,
-                        )
-                    self.env.cr.execute(query)
+                    self._rename_stored_values(
+                        selection.field_id, selection.value, vals["value"]
+                    )
+        old_values = {selection.id: selection.value for selection in self}
 
         result = super().write(vals)
 
@@ -284,25 +307,48 @@ class IrModelFieldsSelection(models.Model):
         elif "name" in vals:
             self.env.registry.clear_cache("stable")
 
+        if "value" in vals:
+            self._rename_defaults(old_values)
+
         return result
+
+    def _rename_defaults(self, old_values: dict[int, str]) -> None:
+        IrDefault = self.env["ir.default"]
+        for selection in self:
+            if old_values[selection.id] != selection.value:
+                IrDefault.rename_value(
+                    selection.field_id.model,
+                    selection.field_id.name,
+                    old_values[selection.id],
+                    selection.value,
+                )
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_base_field(self) -> None:
-        if self.pool.ready and any(
-            selection.field_id.state != "manual" for selection in self
-        ):
-            raise self._prepare_base_field_error()
+        if self.pool.ready:
+            self._check_base_field_mutation(self.field_id)
 
     def unlink(self) -> bool:
         model_names = self.field_id.model_id.mapped("model")
+        uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)
         self._process_ondelete()
+        if not uninstalling:
+            self._discard_defaults()
         result = super().unlink()
 
-        if not self.env.context.get(MODULE_UNINSTALL_FLAG):
+        if not uninstalling:
             self.env.flush_all()
             self.pool._setup_models__(self.env.cr, model_names)
 
         return result
+
+    def _discard_defaults(self) -> None:
+        IrDefault = self.env["ir.default"]
+        for field_record, selections in self.grouped("field_id").items():
+            if field_record.model in self.env:
+                IrDefault.discard_values(
+                    field_record.model, field_record.name, selections.mapped("value")
+                )
 
     def _process_ondelete(self) -> None:
 
@@ -421,26 +467,21 @@ class IrModelFieldsSelection(models.Model):
         fname = field.name
         company_model.flush_model([fname])
         if self._is_jsonb_stored(field):
-            company_key = str(company_model.env.company.id)
-            query = SQL(
-                "SELECT %s ->> %s AS value, array_agg(id) AS ids FROM %s "
-                "WHERE %s ->> %s = ANY(%s) GROUP BY 1",
-                SQL.identifier(fname),
-                company_key,
-                SQL.identifier(company_model._table),
-                SQL.identifier(fname),
-                company_key,
-                values,
+            stored = SQL(
+                "%s ->> %s", SQL.identifier(fname), str(company_model.env.company.id)
             )
         else:
-            query = SQL(
-                "SELECT %s AS value, array_agg(id) AS ids FROM %s "
-                "WHERE %s = ANY(%s) GROUP BY 1",
-                SQL.identifier(fname),
-                SQL.identifier(company_model._table),
-                SQL.identifier(fname),
-                values,
-            )
+            stored = SQL.identifier(fname)
+        if field.type == "reference":
+            stored = SQL("split_part(%s, ',', 1)", stored)
+        query = SQL(
+            "SELECT %s AS value, array_agg(id) AS ids FROM %s "
+            "WHERE %s = ANY(%s) GROUP BY 1",
+            stored,
+            SQL.identifier(company_model._table),
+            stored,
+            values,
+        )
         self.env.cr.execute(query)
         return {
             value: company_model.browse(ids) for value, ids in self.env.cr.fetchall()

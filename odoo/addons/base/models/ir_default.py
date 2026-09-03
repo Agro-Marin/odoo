@@ -60,8 +60,16 @@ class IrDefault(models.Model):
         for record in self:
             field_rec = record.sudo().field_id
             model_name = field_rec.model_id.model
-            model = self.env[model_name]
-            field = model._fields[field_rec.name]
+            model = self.env.get(model_name)
+            field = None if model is None else model._fields.get(field_rec.name)
+            if field is None:
+                raise ValidationError(
+                    self.env._(
+                        "Invalid field %(model)s.%(field)s",
+                        model=model_name,
+                        field=field_rec.name,
+                    )
+                )
             try:
                 value = json.loads(record.json_value)
             except json.JSONDecodeError:
@@ -282,6 +290,19 @@ class IrDefault(models.Model):
         json_vals = [json.dumps(value, ensure_ascii=False) for value in values]
         domain = [("field_id", "=", field.id), ("json_value", "in", json_vals)]
         return self.search(domain).unlink()
+
+    @api.model
+    def rename_value(
+        self, model_name: str, field_name: str, old_value: Any, new_value: Any
+    ) -> bool:
+        field = self.env["ir.model.fields"]._get(model_name, field_name)
+        domain = [
+            ("field_id", "=", field.id),
+            ("json_value", "=", json.dumps(old_value, ensure_ascii=False)),
+        ]
+        return self.search(domain).write(
+            {"json_value": json.dumps(new_value, ensure_ascii=False)}
+        )
 
     @tools.ormcache("model_name", "field_name")
     def _get_field_column_fallbacks(self, model_name: str, field_name: str) -> str:
