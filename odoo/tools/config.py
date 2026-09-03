@@ -1631,7 +1631,11 @@ class configmanager:
         ):
             return
         rcfile = self["config"]
-        if rcfile and Path(rcfile).exists() and not os.access(rcfile, os.R_OK):
+        if not rcfile or self["save"]:
+            return
+        if not Path(rcfile).exists():
+            self.parser.error(f"the configuration file {rcfile!r} does not exist")
+        if not os.access(rcfile, os.R_OK):
             self.parser.error(
                 f"the configuration file {rcfile!r} exists but could not be "
                 f"read; check its permissions"
