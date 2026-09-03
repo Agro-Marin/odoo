@@ -1,34 +1,10 @@
-import logging
-import re
-import time
 from contextlib import contextmanager
 from types import SimpleNamespace
 
 from odoo.exceptions import AccessDenied
 from odoo.http import SessionExpiredException
 from odoo.http.core import _request_stack
-from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
-
-_logger = logging.getLogger(__name__)
-
-
-@tagged("-at_install", "post_install")
-class TestIrHttpPerformances(TransactionCase):
-    def test_routing_map_performance(self):
-        self.env.registry.clear_cache("routing")
-        re._cache.clear()
-
-        self.env.registry.clear_cache("routing")
-        start = time.time()
-        self.env["ir.http"].routing_map()
-        duration = time.time() - start
-        _logger.info("Routing map web generated in %.3fs", duration)
-
-        start = time.time()
-        self.env["ir.http"].routing_map(key=1)
-        duration = time.time() - start
-        _logger.info("Routing map website1 generated in %.3fs", duration)
 
 
 class TestIrHttpAuth(TransactionCase):

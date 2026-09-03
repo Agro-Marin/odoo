@@ -2682,7 +2682,7 @@ class TestMany2one(TransactionCase):
             )
             self.Partner.search([("company_id", "in", company_ids.subselect())])
 
-    def testbypass_search_access(self):
+    def test_bypass_search_access(self):
         self.patch(self.Partner._fields["company_id"], "bypass_search_access", True)
         self.patch(self.company._fields["partner_id"], "bypass_search_access", False)
         self.Partner.search([("company_id.partner_id.name", "like", self.company.name)])
@@ -2935,7 +2935,7 @@ class TestOne2many(TransactionCase):
                 [("child_ids.bank_ids.sanitized_acc_number", "like", "12")]
             )
 
-    def testbypass_search_access(self):
+    def test_bypass_search_access(self):
         self.patch(self.Partner._fields["bank_ids"], "bypass_search_access", True)
         self.patch(self.Partner._fields["child_ids"], "bypass_search_access", True)
         self.Partner.search([("bank_ids", "in", self.partner.bank_ids.ids)])
@@ -3066,7 +3066,7 @@ class TestOne2many(TransactionCase):
                 [("child_ids.bank_ids.id", "in", self.partner.bank_ids.ids)]
             )
 
-    def testbypass_search_access_mixed(self):
+    def test_bypass_search_access_mixed(self):
         self.patch(self.Partner._fields["child_ids"], "bypass_search_access", True)
         self.patch(self.Partner._fields["state_id"], "bypass_search_access", True)
         self.patch(
@@ -3326,7 +3326,7 @@ class TestMany2many(TransactionCase):
         ):
             self.User.search([("group_ids", "not in", [group.id, False])], order="id")
 
-    def testbypass_search_access(self):
+    def test_bypass_search_access(self):
         self.patch(self.User._fields["group_ids"], "bypass_search_access", True)
         with self.assertQueries(
             [

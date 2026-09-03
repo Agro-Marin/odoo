@@ -57,6 +57,8 @@ from . import test_cache_scan_predicates
 from . import test_log_access_cache
 from . import test_sort_collation
 from . import test_unaccent_parity
+# test_uninstall is deliberately not imported: it installs and uninstalls the
+# test_uninstall module, which re-enters module loading and loops.
 from . import test_base_language_wizards_audit
 from . import test_base_module_wizards
 from . import test_change_password_wizard_audit

@@ -5606,7 +5606,7 @@ class TestMaintenanceConnectionOptions(BaseCase):
         config["db_session_gucs"] = "statement_timeout=50ms"
         pool = ConnectionPool(maxconn=4)
         conn = None
-        name = "_test_guc_create_db"
+        name = f"_test_guc_create_db_{os.getpid()}"
         try:
             _, info = get_connection_info_for_database("postgres")
             conn = pool.borrow(info)

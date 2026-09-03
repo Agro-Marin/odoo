@@ -4761,7 +4761,7 @@ class TestViewTranslations(common.TransactionCase):
 
 
 class ViewModeField(ViewCase):
-    def testModeImplicitValue(self):
+    def test_mode_implicit_value(self):
         view = self.View.create({"inherit_id": None, "arch": "<qweb/>"})
         self.assertEqual(view.mode, "primary")
 
@@ -4775,7 +4775,7 @@ class ViewModeField(ViewCase):
         self.assertEqual(view2.mode, "extension")
 
     @mute_logger("odoo.db")
-    def testModeExplicit(self):
+    def test_mode_explicit(self):
         view = self.View.create({"inherit_id": None, "arch": "<qweb/>"})
         view2 = self.View.create(
             {"inherit_id": view.id, "mode": "primary", "arch": "<qweb/>"}
@@ -4789,13 +4789,13 @@ class ViewModeField(ViewCase):
             )
 
     @mute_logger("odoo.db")
-    def testPurePrimaryToExtension(self):
+    def test_pure_primary_to_extension(self):
         view_pure_primary = self.View.create({"inherit_id": None, "arch": "<qweb/>"})
         with self.assertRaises(IntegrityError):
             view_pure_primary.write({"mode": "extension"})
             view_pure_primary.env.flush_all()
 
-    def testInheritPrimaryToExtension(self):
+    def test_inherit_primary_to_extension(self):
         base = self.View.create(
             {
                 "inherit_id": None,
@@ -4808,7 +4808,7 @@ class ViewModeField(ViewCase):
 
         view.write({"mode": "extension"})
 
-    def testDefaultExtensionToPrimary(self):
+    def test_default_extension_to_primary(self):
         base = self.View.create(
             {
                 "inherit_id": None,
@@ -4819,7 +4819,7 @@ class ViewModeField(ViewCase):
 
         view.write({"mode": "primary"})
 
-    def testChangeInheritOfPrimary(self):
+    def test_change_inherit_of_primary(self):
         base1 = self.View.create(
             {
                 "inherit_id": None,
@@ -4845,7 +4845,7 @@ class ViewModeField(ViewCase):
 
 
 class TestDefaultView(ViewCase):
-    def testDefaultViewBase(self):
+    def test_default_view_base(self):
         self.View.create(
             {
                 "inherit_id": False,
@@ -4870,7 +4870,7 @@ class TestDefaultView(ViewCase):
             "default_view should get the view with the lowest priority for a (model, view_type) pair",
         )
 
-    def testDefaultViewPrimary(self):
+    def test_default_view_primary(self):
         view1 = self.View.create(
             {
                 "inherit_id": False,
@@ -5995,6 +5995,7 @@ class TestRenderAllViews(TransactionCaseWithUserDemo):
             self.env.user.name,
             elapsed,
         )
+        self.assertGreater(count, 0, "no model was readable, so nothing was rendered")
 
 
 @common.tagged("post_install", "-at_install", "post_install_l10n")
