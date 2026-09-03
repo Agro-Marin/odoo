@@ -52,6 +52,15 @@ def _escape_pdf_literal(text: str) -> str:
     return text.translate(_PDF_LITERAL_ESCAPES)
 
 
+class PdfSignatureError(Exception):
+    """Raised when a PDF signing attempt with a real key/certificate fails.
+
+    Not raised when signing is simply not configured (no company
+    certificate) — that case still returns None, preserving the
+    existing silent no-op contract for the common case.
+    """
+
+
 class _SignatureAlgorithm(NamedTuple):
     digest: str
     signature: str
@@ -416,18 +425,19 @@ class PdfSigner:
             return False
         algorithm = self._get_signature_algorithm(private_key)
         if algorithm is None:
-            _logger.warning(
-                "Cannot sign PDF: unsupported private key type %s "
-                "(supported: RSA, EC, Ed25519)",
-                type(private_key).__name__,
+            msg = (
+                f"unsupported private key type {type(private_key).__name__} "
+                "(supported: RSA, EC, Ed25519)"
             )
-            return False
+            _logger.warning("Cannot sign PDF: %s", msg)
+            raise PdfSignatureError(msg)
 
         pdf_data = self._get_document_data()
 
         located = self._locate_contents_placeholder(pdf_data)
         if located is None:
-            return False
+            msg = "could not locate a valid /Contents placeholder to sign"
+            raise PdfSignatureError(msg)
         placeholder_start, placeholder_end, placeholder = located
 
         placeholder_byte_range = sig_field_value.get("/ByteRange")
@@ -450,14 +460,14 @@ class PdfSigner:
         pdf_data = self._get_document_data()
 
         if pdf_data[placeholder_start:placeholder_end] != placeholder:
-            _logger.error(
-                "Cannot sign PDF: filling in /ByteRange moved the /Contents "
-                "placeholder (expected it at %d..%d), so the digest would cover "
-                "the wrong bytes. /Contents must serialise before /ByteRange.",
-                placeholder_start,
-                placeholder_end,
+            msg = (
+                f"filling in /ByteRange moved the /Contents placeholder "
+                f"(expected it at {placeholder_start}..{placeholder_end}), so "
+                "the digest would cover the wrong bytes. /Contents must "
+                "serialise before /ByteRange."
             )
-            return False
+            _logger.error("Cannot sign PDF: %s", msg)
+            raise PdfSignatureError(msg)
 
         digest = self._compute_digest_from_byte_range(
             pdf_data, byte_range, algorithm.digest
