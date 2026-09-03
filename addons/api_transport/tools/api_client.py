@@ -1,6 +1,8 @@
 import ipaddress
+import itertools
 import json
 import logging
+import random
 import re
 import socket
 import uuid
@@ -37,6 +39,51 @@ def register_url_secret(pattern, replacement):
     _URL_SECRET_PATTERNS.append(
         (re.compile(pattern) if isinstance(pattern, str) else pattern, replacement),
     )
+
+
+class _ShapedRetry(Retry):
+    """`Retry` with a `fixed` and a `linear` backoff, neither of which
+    `urllib3` has: its own `get_backoff_time()` is hardcoded to exponential
+    (`backoff_factor * 2 ** (n - 1)`), so `retry_backoff_type="fixed"` and
+    `"linear"` used to fall back to that same formula and be indistinguishable
+    from `"exponential"`.
+
+    `backoff_type` lives outside `Retry.__init__`'s own fields because
+    `Retry.new()` clones a retry object with `type(self)(**params)` using only
+    those fields; it is instead carried as a plain attribute and copied across
+    by the `new()` override below, so a clone made mid-retry keeps its shape.
+    """
+
+    backoff_type = "exponential"
+
+    def new(self, **kw):
+        clone = super().new(**kw)
+        clone.backoff_type = self.backoff_type
+        return clone
+
+    def get_backoff_time(self):
+        if self.backoff_type == "exponential":
+            return super().get_backoff_time()
+
+        # Same "ignore redirects" rule as Retry.get_backoff_time().
+        consecutive_errors_len = len(
+            list(
+                itertools.takewhile(
+                    lambda x: x.redirect_location is None,
+                    reversed(self.history),
+                ),
+            ),
+        )
+        if consecutive_errors_len <= 1:
+            return 0
+
+        if self.backoff_type == "fixed":
+            backoff_value = self.backoff_factor
+        else:
+            backoff_value = self.backoff_factor * (consecutive_errors_len - 1)
+        if self.backoff_jitter > 0.0:
+            backoff_value += random.random() * self.backoff_jitter
+        return float(max(0, min(self.backoff_max, backoff_value)))
 
 
 def _apply_registered_secrets(value: str) -> str:
@@ -270,18 +317,21 @@ class OutboundAPIClient:
         if not self.service.retry_enabled:
             return None
 
+        backoff_type = self.service.retry_backoff_type
         backoff_factor = {
             "fixed": 1.0,
             "linear": 1.0,
             "exponential": 2.0,
-        }.get(self.service.retry_backoff_type, 2.0)
+        }.get(backoff_type, 2.0)
 
-        return Retry(
+        retry = _ShapedRetry(
             total=self.service.retry_max_attempts or 3,
             backoff_factor=backoff_factor,
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         )
+        retry.backoff_type = backoff_type or "exponential"
+        return retry
 
     def request(self, method, endpoint, raw=False, **kwargs):
         method = method.upper()
