@@ -41,3 +41,28 @@ class TestMrpViewArch(TestMrpCommon):
             [("lot_producing_ids", "ilike", lot.name)]
         )
         self.assertIn(mo, found)
+
+    def test_kit_bom_hides_the_manufacturing_lead_times(self):
+        """A kit is exploded, never manufactured, so its lead times mean nothing.
+
+        `picking_type_id` already carried the condition; `produce_delay`,
+        `days_to_prepare_mo` and the Compute button beside them did not, so a kit
+        form offered three inputs that no manufacturing path reads.
+        """
+        arch = self._arch("mrp.mrp_bom_form_view", "mrp.bom", "form")
+
+        group = arch.xpath("//field[@name='produce_delay']/ancestor::group[1]")
+        self.assertTrue(group, "produce_delay must still live in a group")
+        self.assertEqual(group[0].get("invisible"), "type == 'phantom'")
+
+        for fname in ("produce_delay", "days_to_prepare_mo"):
+            node = arch.xpath(f"//field[@name='{fname}']")
+            self.assertTrue(node, f"{fname} must still be on the form")
+            self.assertIsNone(
+                node[0].get("invisible"),
+                f"{fname} must inherit the condition from its group, not repeat it",
+            )
+
+        # The normal-BoM inputs beside them keep their own narrower condition.
+        batch = arch.xpath("//field[@name='batch_size']")
+        self.assertTrue(batch)
