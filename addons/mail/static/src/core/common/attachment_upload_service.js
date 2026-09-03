@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { EventBus } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -33,7 +32,6 @@ export class AttachmentUploadService {
         this.deferredByAttachmentId = new Map();
         this.tmpUrlByAttachmentId = new Map();
         this.uploadingAttachmentIds = new Set();
-        this._fileUploadBus = new EventBus();
         /** @type {Map<number, {composer: import("models").Composer, thread: import("models").Thread}>} */
         this.targetsByTmpId = new Map();
         for (const [event, handler] of [
@@ -157,7 +155,6 @@ export class AttachmentUploadService {
             }
         }
         def.resolve(attachment);
-        this._fileUploadBus.trigger("UPLOAD", thread);
         this._cleanupUploading(tmpId);
     }
 
@@ -245,21 +242,6 @@ export class AttachmentUploadService {
                 }
             });
         return uploadDoneDeferred;
-    }
-
-    /**
-     * @param {import("models").Thread} thread
-     * @param {() => void} onFileUploaded
-     */
-    onFileUploaded(thread, onFileUploaded) {
-        this._fileUploadBus.addEventListener(
-            "UPLOAD",
-            /** @param {CustomEvent<import("models").Thread>} ev */ ({ detail }) => {
-                if (thread.eq(detail)) {
-                    onFileUploaded();
-                }
-            },
-        );
     }
 
     /**

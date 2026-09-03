@@ -64,8 +64,7 @@ export class AttachmentUploader {
  * @param {import("models").Thread} thread
  * @param {Object} [param1={}]
  * @param {import("models").Composer} [param1.composer]
- * @param {function} [param1.onFileUploaded]
  */
-export function useAttachmentUploader(thread, { composer, onFileUploaded } = {}) {
-    return useState(new AttachmentUploader(...arguments));
+export function useAttachmentUploader(thread, { composer } = {}) {
+    return useState(new AttachmentUploader(thread, { composer }));
 }

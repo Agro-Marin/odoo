@@ -647,7 +647,7 @@ export class Message extends Record {
         const data = await rpc("/mail/message/update_content", {
             message_id: this.id,
             update_data: updateData,
-            ...this.thread.rpcParams,
+            ...this.thread?.rpcParams,
         });
         this.store.insert(data);
         if ((hadLink || this.hasLink) && this.store.hasLinkPreviewFeature) {
@@ -740,7 +740,7 @@ export class Message extends Record {
                     action: "add",
                     content,
                     message_id: this.id,
-                    ...this.thread.rpcParams,
+                    ...this.thread?.rpcParams,
                 },
                 { silent: true },
             ),
@@ -755,7 +755,7 @@ export class Message extends Record {
         const data = await rpc("/mail/message/update_content", {
             message_id: this.id,
             update_data: this.removeParams,
-            ...this.thread.rpcParams,
+            ...this.thread?.rpcParams,
         });
         this.store.insert(data);
         if (this.thread && removeFromThread) {

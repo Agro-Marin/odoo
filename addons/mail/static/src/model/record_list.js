@@ -87,16 +87,20 @@ function recordListGet(recordList, name, receiver) {
     if (name === "length") {
         return recordListFullProxy.data.length;
     }
-    if (typeof name !== "symbol" && !window.isNaN(parseInt(name))) {
+    if (!window.isNaN(parseInt(name))) {
         const index = parseInt(name);
         return recordListFullProxy._store.recordByLocalId.get(
             recordListFullProxy.data[index],
         );
     }
-    const array = [...recordList[Symbol.iterator].call(recordListFullProxy)];
-    return /** @type {Object<string, Function>} */ (/** @type {unknown} */ (array))[
-        name
-    ]?.bind(array);
+    if (Object.prototype.hasOwnProperty.call(Array.prototype, name)) {
+        throw new Error(
+            `Array.prototype.${name}() is not supported on record list "${recordList._.owner.Model.getName()}/${
+                recordList._.name
+            }": reimplement it over "data" in RecordList before using it.`,
+        );
+    }
+    return Reflect.get(recordList, name, receiver);
 }
 /**
  * @param {RecordList<any>} recordList
@@ -105,7 +109,6 @@ function recordListGet(recordList, name, receiver) {
  * @param {any} val
  */
 function recordListSetIndex(recordList, recordListProxy, name, val) {
-    const store = recordList._store;
     const index = parseInt(name);
     if (index < 0 || index > recordList.data.length) {
         throw new Error(
@@ -127,38 +130,14 @@ function recordListSetIndex(recordList, recordListProxy, name, val) {
         /** @param {Record} newRecord */
         function recordListSet_Insert(newRecord) {
             const oldLocalId = recordList.data[index];
-            const oldRecordProxy =
-                oldLocalId && toRaw(recordList._store.recordByLocalId).get(oldLocalId);
-            const oldRecord = oldRecordProxy ? toRaw(oldRecordProxy)._raw : undefined;
-            if (oldRecord?.eq(newRecord)) {
+            if (oldLocalId === newRecord.localId) {
                 return;
             }
-            recordListProxy.data[index] = newRecord?.localId;
-            recordList._.syncLength(recordList);
-            const inverse = getInverse(recordList);
-            if (oldRecord) {
-                oldRecord._.uses.delete(recordList);
-                store._.ADD_QUEUE(
-                    "onDelete",
-                    recordList._.owner,
-                    recordList._.name,
-                    oldRecord,
-                );
-                if (inverse) {
-                    relationOf(oldRecord, inverse).delete(recordList._.owner);
-                }
-            }
-            if (newRecord) {
-                newRecord._.uses.add(recordList);
-                store._.ADD_QUEUE(
-                    "onAdd",
-                    recordList._.owner,
-                    recordList._.name,
-                    newRecord,
-                );
-                if (inverse) {
-                    relationOf(newRecord, inverse).add?.(recordList._.owner);
-                }
+            if (oldLocalId === undefined) {
+                recordList._.attach(recordList, newRecord, index);
+            } else {
+                recordList._.withdraw(recordList, oldLocalId);
+                recordList._.replace(recordList, index, newRecord);
             }
         },
     );
@@ -232,7 +211,12 @@ function mutatorOf(receiver) {
     };
 }
 
-export class RecordListInternal {
+/**
+ * Membership engine of a record list. `insert` is the only place that writes
+ * the inverse side (`withdraw` is its DELETE spelling); `attach`, `detach`,
+ * `replace` and `release` touch this list's data and bookkeeping alone.
+ */
+class RecordListInternal {
     /** @type {string} */
     name;
     /** @type {Record} */
@@ -240,77 +224,123 @@ export class RecordListInternal {
 
     /**
      * @param {RecordList} recordList
+     * @param {Record} record
+     * @param {number} [index] appended when omitted
+     */
+    attach(recordList, record, index) {
+        const data = recordList._proxy.data;
+        if (index === undefined || index >= data.length) {
+            data.push(record.localId);
+        } else {
+            recordList._proxy.data = data.toSpliced(index, 0, record.localId);
+        }
+        this.syncLength(recordList);
+        record._.uses.add(recordList);
+        recordList._store._.ADD_QUEUE("onAdd", this.owner, this.name, record);
+    }
+    /**
+     * @param {RecordList} recordList
+     * @param {number} index
+     * @returns {Record|undefined}
+     */
+    detach(recordList, index) {
+        const data = recordList._proxy.data;
+        const localId = data[index];
+        if (isOne(recordList)) {
+            data.pop();
+        } else {
+            recordList._proxy.data = data.toSpliced(index, 1);
+        }
+        this.syncLength(recordList);
+        return this.release(recordList, localId);
+    }
+    /**
+     * @param {RecordList} recordList
+     * @param {number} index
+     * @param {Record} record
+     * @returns {Record|undefined} the record previously at that index
+     */
+    replace(recordList, index, record) {
+        const old = this.release(recordList, recordList.data[index]);
+        recordList._proxy.data[index] = record.localId;
+        record._.uses.add(recordList);
+        recordList._store._.ADD_QUEUE("onAdd", this.owner, this.name, record);
+        return old;
+    }
+    /**
+     * Bookkeeping of a record that has left (or is leaving) this list's data.
+     * @param {RecordList} recordList
+     * @param {string} localId
+     * @returns {Record|undefined}
+     */
+    release(recordList, localId) {
+        const recordProxy = toRaw(recordList._store.recordByLocalId).get(localId);
+        if (!recordProxy) {
+            return undefined;
+        }
+        const record = toRaw(recordProxy)._raw;
+        record._.uses.delete(recordList);
+        recordList._store._.ADD_QUEUE("onDelete", this.owner, this.name, record);
+        return record;
+    }
+    /**
+     * Withdraws the owner from the inverse of the record with that localId.
+     * @param {RecordList} recordList
+     * @param {string} localId
+     */
+    withdraw(recordList, localId) {
+        const recordProxy = toRaw(recordList._store.recordByLocalId).get(localId);
+        if (recordProxy) {
+            this.insert(recordList, recordProxy, undefined, { mode: "DELETE" });
+        }
+    }
+    /**
+     * @param {RecordList} recordList
      * @param {...Record} records
      */
     addNoinv(recordList, ...records) {
         const self = this;
-        const store = recordList._store;
         if (isOne(recordList)) {
             const last = records.at(-1);
             if (isRecord(last) && last.in(recordList)) {
                 return;
             }
-            let changed = false;
-            const record = self.insert(
+            self.insert(
                 recordList,
                 last,
                 /** @param {Record} record */
                 function recordList_AddNoInvOneInsert(record) {
-                    if (record.localId !== recordList.data[0]) {
-                        changed = true;
-                        const old = recordList._proxy.at(-1);
-                        recordList._proxy.data.pop();
-                        old?._.uses.delete(recordList);
-                        recordList._proxy.data.push(record.localId);
-                        self.syncLength(recordList);
-                        record._.uses.add(recordList);
-                        if (old) {
-                            const oldRecord = toRaw(old)._raw;
-                            store._.ADD_QUEUE(
-                                "onDelete",
-                                self.owner,
-                                self.name,
-                                oldRecord,
-                            );
-                            const inverse = getInverse(recordList);
-                            if (
-                                inverse &&
-                                !oldRecord.Model._.fieldsCompute.get(inverse)
-                            ) {
-                                relationOf(oldRecord, inverse).delete(self.owner);
-                            }
-                        }
+                    if (record.localId === recordList.data[0]) {
+                        return;
+                    }
+                    const old = recordList.data.length
+                        ? self.replace(recordList, 0, record)
+                        : self.attach(recordList, record, 0);
+                    const inverse = getInverse(recordList);
+                    if (old && inverse && !old.Model._.fieldsCompute.get(inverse)) {
+                        const oldInverse = toRaw(relationOf(old, inverse))._raw;
+                        oldInverse._.deleteNoinv(oldInverse, self.owner);
                     }
                 },
                 { inv: false },
             );
-            if (changed) {
-                store._.ADD_QUEUE("onAdd", self.owner, self.name, record);
-            }
             return;
         }
         for (const val of records) {
             if (isRecord(val) && val.in(recordList)) {
                 continue;
             }
-            let added = false;
-            const record = self.insert(
+            self.insert(
                 recordList,
                 val,
                 /** @param {Record} record */
                 function recordList_AddNoInvManyInsert(record) {
                     if (recordList.data.indexOf(record.localId) === -1) {
-                        recordList._proxy.data.push(record.localId);
-                        self.syncLength(recordList);
-                        record._.uses.add(recordList);
-                        added = true;
+                        self.attach(recordList, record);
                     }
                 },
                 { inv: false },
             );
-            if (added) {
-                store._.ADD_QUEUE("onAdd", self.owner, self.name, record);
-            }
         }
     }
     /**
@@ -328,12 +358,11 @@ export class RecordListInternal {
             const vals = [...collection].filter(
                 (val) => val !== undefined && val !== null && val !== false,
             );
-            const oldRecords = recordList._proxyInternal.slice
-                .call(recordList._proxy)
-                .map((recordProxy) => toRaw(recordProxy)._raw);
-            const oldLocalIdSet = new Set(oldRecords.map((record) => record.localId));
+            const oldLocalIds = recordList.data.slice();
+            const oldLocalIdSet = new Set(oldLocalIds);
             const newLocalIdSet = new Set();
-            const newRecords = [];
+            /** @type {string[]} */
+            const newLocalIds = [];
             for (const val of vals) {
                 const record = self.insert(
                     recordList,
@@ -348,30 +377,43 @@ export class RecordListInternal {
                             store._.ADD_QUEUE("onAdd", self.owner, self.name, record);
                         }
                     },
+                    {
+                        inv: !(
+                            isRecord(val) && oldLocalIdSet.has(toRaw(val)._raw.localId)
+                        ),
+                    },
                 );
                 if (!record || newLocalIdSet.has(record.localId)) {
                     continue;
                 }
                 newLocalIdSet.add(record.localId);
-                newRecords.push(record);
+                newLocalIds.push(record.localId);
             }
-            const inverse = getInverse(recordList);
-            for (const oldRecord of oldRecords) {
-                if (!newLocalIdSet.has(oldRecord.localId)) {
-                    oldRecord._.uses.delete(recordList);
-                    store._.ADD_QUEUE("onDelete", self.owner, self.name, oldRecord);
-                    if (inverse) {
-                        relationOf(oldRecord, inverse).delete(self.owner);
-                    }
+            for (const localId of oldLocalIds) {
+                if (newLocalIdSet.has(localId)) {
+                    continue;
                 }
+                const oldRecordProxy = toRaw(store.recordByLocalId).get(localId);
+                if (!oldRecordProxy) {
+                    continue;
+                }
+                self.insert(
+                    recordList,
+                    oldRecordProxy,
+                    /** @param {Record} oldRecord */
+                    function recordListAssignDelete(oldRecord) {
+                        oldRecord._.uses.delete(recordList);
+                        store._.ADD_QUEUE("onDelete", self.owner, self.name, oldRecord);
+                    },
+                    { mode: "DELETE" },
+                );
             }
-            const newLocalIds = newRecords.map((newRecord) => newRecord.localId);
             const hasChanged =
                 newLocalIds.length !== recordList.data.length ||
                 recordList.data.some((localId, i) => localId !== newLocalIds[i]);
             if (hasChanged) {
                 recordList._proxy.data = newLocalIds;
-                recordList._.syncLength(recordList);
+                self.syncLength(recordList);
             }
         });
     }
@@ -381,26 +423,19 @@ export class RecordListInternal {
      */
     deleteNoinv(recordList, ...records) {
         const self = this;
-        const store = recordList._store;
         for (const val of records) {
-            let removed = false;
-            const record = this.insert(
+            self.insert(
                 recordList,
                 val,
                 /** @param {Record} record */
                 function recordList_DeleteNoInv_Insert(record) {
                     const index = recordList.data.indexOf(record.localId);
                     if (index !== -1) {
-                        recordList.splice.call(recordList._proxy, index, 1);
-                        self.syncLength(recordList);
-                        removed = true;
+                        self.detach(recordList, index);
                     }
                 },
                 { inv: false },
             );
-            if (removed) {
-                store._.ADD_QUEUE("onDelete", self.owner, self.name, record);
-            }
         }
     }
     /**
@@ -510,29 +545,12 @@ export class RecordList extends Array {
         const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
         return store.MAKE_UPDATE(function recordListPush() {
             for (const val of records) {
-                const record = recordList._.insert(
+                recordList._.insert(
                     recordList,
                     val,
                     /** @param {Record} record */
-                    function recordListPushInsert(record) {
-                        recordList._proxy.data.push(record.localId);
-                        recordList._.syncLength(recordList);
-                        record._.uses.add(recordList);
-                    },
+                    (record) => recordList._.attach(recordList, record),
                 );
-                if (!record) {
-                    continue;
-                }
-                store._.ADD_QUEUE(
-                    "onAdd",
-                    recordList._.owner,
-                    recordList._.name,
-                    record,
-                );
-                const inverse = getInverse(recordList);
-                if (inverse) {
-                    relationOf(record, inverse).add(recordList._.owner);
-                }
             }
             return recordListFullProxy.data.length;
         });
@@ -541,42 +559,18 @@ export class RecordList extends Array {
     pop() {
         const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
         return store.MAKE_UPDATE(function recordListPop() {
-            /** @type {R} */
-            const oldRecordProxy = recordListFullProxy.at(-1);
-            if (oldRecordProxy) {
-                recordList.splice.call(
-                    recordListFullProxy,
-                    recordListFullProxy.length - 1,
-                    1,
-                );
-            }
-            return oldRecordProxy;
+            return recordList.splice.call(
+                recordListFullProxy,
+                recordListFullProxy.data.length - 1,
+                1,
+            )[0];
         });
     }
     /** @returns {R} */
     shift() {
         const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
         return store.MAKE_UPDATE(function recordListShift() {
-            const recordProxy = recordListFullProxy._store.recordByLocalId.get(
-                recordList._proxy.data.shift(),
-            );
-            recordList._.syncLength(recordList);
-            if (!recordProxy) {
-                return;
-            }
-            const record = toRaw(recordProxy)._raw;
-            record._.uses.delete(recordList);
-            store._.ADD_QUEUE(
-                "onDelete",
-                recordList._.owner,
-                recordList._.name,
-                record,
-            );
-            const inverse = getInverse(recordList);
-            if (inverse) {
-                relationOf(record, inverse).delete(recordList._.owner);
-            }
-            return recordProxy;
+            return recordList.splice.call(recordListFullProxy, 0, 1)[0];
         });
     }
     /** @param {R[]} records */
@@ -584,29 +578,12 @@ export class RecordList extends Array {
         const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
         return store.MAKE_UPDATE(function recordListUnshift() {
             for (let i = records.length - 1; i >= 0; i--) {
-                const record = recordList._.insert(
+                recordList._.insert(
                     recordList,
                     records[i],
                     /** @param {Record} record */
-                    (record) => {
-                        recordList._proxy.data.unshift(record.localId);
-                        recordList._.syncLength(recordList);
-                        record._.uses.add(recordList);
-                    },
+                    (record) => recordList._.attach(recordList, record, 0),
                 );
-                if (!record) {
-                    continue;
-                }
-                store._.ADD_QUEUE(
-                    "onAdd",
-                    recordList._.owner,
-                    recordList._.name,
-                    record,
-                );
-                const inverse = getInverse(recordList);
-                if (inverse) {
-                    relationOf(record, inverse).add(recordList._.owner);
-                }
             }
             return recordListFullProxy.data.length;
         });
@@ -615,13 +592,18 @@ export class RecordList extends Array {
     indexOf(recordProxy) {
         return cursorOf(this).data.indexOf(toRaw(recordProxy)?._raw.localId);
     }
+    /** @param {R} recordProxy */
+    lastIndexOf(recordProxy) {
+        return cursorOf(this).data.lastIndexOf(toRaw(recordProxy)?._raw.localId);
+    }
     /**
      * @param {number} [start]
      * @param {number} [deleteCount]
      * @param {...R} [newRecordsProxy]
+     * @returns {R[]} the removed records
      */
     splice(start, deleteCount, ...newRecordsProxy) {
-        const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
+        const { list: recordList, store } = mutatorOf(this);
         const length = recordList.data.length;
         const relativeStart = Math.trunc(start) || 0;
         const actualStart =
@@ -638,21 +620,40 @@ export class RecordList extends Array {
                         length - actualStart,
                     );
         return store.MAKE_UPDATE(function recordListSplice() {
-            const oldRecordLocalIds = recordList.data.slice(
+            const removed = [];
+            for (const localId of recordList.data.slice(
                 actualStart,
                 actualStart + actualDeleteCount,
-            );
-            const oldRecords = oldRecordLocalIds
-                .map((localId) => toRaw(recordList._store.recordByLocalId).get(localId))
-                .filter(Boolean)
-                .map((oldRecordProxy) => toRaw(oldRecordProxy)._raw);
-            const list = recordListFullProxy.data.slice();
-            list.splice(
+            )) {
+                recordList._.withdraw(recordList, localId);
+                const record = recordList._.release(recordList, localId);
+                if (record) {
+                    removed.push(record._proxy);
+                }
+            }
+            /** @type {string[]} */
+            const newLocalIds = [];
+            for (const newRecordProxy of newRecordsProxy) {
+                recordList._.insert(
+                    recordList,
+                    newRecordProxy,
+                    /** @param {Record} record */
+                    function recordListSpliceInsert(record) {
+                        record._.uses.add(recordList);
+                        store._.ADD_QUEUE(
+                            "onAdd",
+                            recordList._.owner,
+                            recordList._.name,
+                            record,
+                        );
+                        newLocalIds.push(record.localId);
+                    },
+                );
+            }
+            const list = recordList.data.toSpliced(
                 actualStart,
                 actualDeleteCount,
-                ...newRecordsProxy.map(
-                    (newRecordProxy) => toRaw(newRecordProxy)._raw.localId,
-                ),
+                ...newLocalIds,
             );
             if (isOne(recordList) && actualStart === 0 && actualDeleteCount === 1) {
                 if (list.length === 0) {
@@ -664,33 +665,7 @@ export class RecordList extends Array {
                 recordList._proxy.data = list;
             }
             recordList._.syncLength(recordList);
-            for (const oldRecord of oldRecords) {
-                oldRecord._.uses.delete(recordList);
-                store._.ADD_QUEUE(
-                    "onDelete",
-                    recordList._.owner,
-                    recordList._.name,
-                    oldRecord,
-                );
-                const inverse = getInverse(recordList);
-                if (inverse) {
-                    relationOf(oldRecord, inverse).delete(recordList._.owner);
-                }
-            }
-            for (const newRecordProxy of newRecordsProxy) {
-                const newRecord = toRaw(newRecordProxy)._raw;
-                newRecord._.uses.add(recordList);
-                store._.ADD_QUEUE(
-                    "onAdd",
-                    recordList._.owner,
-                    recordList._.name,
-                    newRecord,
-                );
-                const inverse = getInverse(recordList);
-                if (inverse) {
-                    relationOf(newRecord, inverse).add(recordList._.owner);
-                }
-            }
+            return removed;
         });
     }
     /** @param {(a: R, b: R) => number} func */
@@ -729,8 +704,15 @@ export class RecordList extends Array {
                     last,
                     /** @param {Record} record */
                     function recordListAddInsertOne(record) {
-                        if (record.localId !== recordList.data[0]) {
-                            recordList.splice.call(recordList._proxy, 0, 1, record);
+                        const [oldLocalId] = recordList.data;
+                        if (oldLocalId === record.localId) {
+                            return;
+                        }
+                        if (oldLocalId === undefined) {
+                            recordList._.attach(recordList, record, 0);
+                        } else {
+                            recordList._.withdraw(recordList, oldLocalId);
+                            recordList._.replace(recordList, 0, record);
                         }
                     },
                 )?._proxy;
@@ -751,7 +733,7 @@ export class RecordList extends Array {
                     /** @param {Record} record */
                     function recordListAddInsertMany(record) {
                         if (!has(record.localId)) {
-                            recordList.push.call(recordList._proxy, record);
+                            recordList._.attach(recordList, record);
                             known?.add(record.localId);
                         }
                     },
@@ -786,7 +768,7 @@ export class RecordList extends Array {
                     function recordListDelete_Insert(record) {
                         const index = recordList.data.indexOf(record.localId);
                         if (index !== -1) {
-                            recordList.splice.call(recordList._proxy, index, 1);
+                            recordList._.detach(recordList, index);
                         }
                     },
                     { mode: "DELETE" },
@@ -802,31 +784,11 @@ export class RecordList extends Array {
             if (oldLocalIds.length === 0) {
                 return;
             }
-            if (isOne(recordList)) {
-                recordList._proxy.data.pop();
-            } else {
-                recordList._proxy.data = [];
-            }
+            recordList._proxy.data = [];
             recordList._.syncLength(recordList);
-            const inverse = getInverse(recordList);
             for (let i = oldLocalIds.length - 1; i >= 0; i--) {
-                const oldRecordProxy = toRaw(recordList._store.recordByLocalId).get(
-                    oldLocalIds[i],
-                );
-                if (!oldRecordProxy) {
-                    continue;
-                }
-                const oldRecord = toRaw(oldRecordProxy)._raw;
-                oldRecord._.uses.delete(recordList);
-                store._.ADD_QUEUE(
-                    "onDelete",
-                    recordList._.owner,
-                    recordList._.name,
-                    oldRecord,
-                );
-                if (inverse) {
-                    relationOf(oldRecord, inverse).delete(recordList._.owner);
-                }
+                recordList._.withdraw(recordList, oldLocalIds[i]);
+                recordList._.release(recordList, oldLocalIds[i]);
             }
         });
     }
@@ -835,6 +797,24 @@ export class RecordList extends Array {
         const { data, byLocalId } = cursorOf(this);
         for (const localId of data) {
             yield byLocalId.get(localId);
+        }
+    }
+    /** @yields {R} */
+    *values() {
+        yield* this;
+    }
+    /** @yields {number} */
+    *keys() {
+        const { data } = cursorOf(this);
+        for (let index = 0; index < data.length; index++) {
+            yield index;
+        }
+    }
+    /** @yields {[number, R]} */
+    *entries() {
+        const { data, byLocalId } = cursorOf(this);
+        for (let index = 0; index < data.length; index++) {
+            yield [index, byLocalId.get(data[index])];
         }
     }
     /** @param {number} index */
@@ -846,6 +826,13 @@ export class RecordList extends Array {
     map(fn) {
         const { data, byLocalId } = cursorOf(this);
         return data.map((localId, index) => fn(byLocalId.get(localId), index, this));
+    }
+    /**
+     * @param {(record: R, index: number, recordList: this) => any} fn
+     * @returns {any[]}
+     */
+    flatMap(fn) {
+        return this.map(fn).flat();
     }
     /**
      * @param {(record: R, index: number, recordList: this) => boolean} fn
@@ -960,6 +947,31 @@ export class RecordList extends Array {
         return acc;
     }
     /**
+     * @param {(acc: any, record: R, index: number, recordList: this) => any} fn
+     * @param {...any} init
+     * @returns {any}
+     */
+    reduceRight(fn, ...init) {
+        const { data, byLocalId } = cursorOf(this);
+        let acc;
+        let start = data.length - 1;
+        if (init.length) {
+            acc = init[0];
+        } else {
+            if (data.length === 0) {
+                throw new TypeError(
+                    "Reduce of empty record list with no initial value",
+                );
+            }
+            acc = byLocalId.get(data[start]);
+            start--;
+        }
+        for (let index = start; index >= 0; index--) {
+            acc = fn(acc, byLocalId.get(data[index]), index, this);
+        }
+        return acc;
+    }
+    /**
      * @param {number} [start]
      * @param {number} [end]
      * @returns {R[]}
@@ -971,6 +983,58 @@ export class RecordList extends Array {
     /** @param {R} recordProxy */
     includes(recordProxy) {
         return cursorOf(this).data.includes(toRaw(recordProxy)?._raw.localId);
+    }
+    /** @param {string} [separator] */
+    join(separator) {
+        const { data, byLocalId } = cursorOf(this);
+        return data.map((localId) => byLocalId.get(localId)).join(separator);
+    }
+    toString() {
+        return this.join();
+    }
+    toLocaleString() {
+        return this.join();
+    }
+    /**
+     * @param {number} [depth]
+     * @returns {any[]}
+     */
+    flat(depth) {
+        return this.slice().flat(depth);
+    }
+    /** @returns {R[]} */
+    toReversed() {
+        return this.slice().reverse();
+    }
+    /**
+     * @param {(a: R, b: R) => number} [func]
+     * @returns {R[]}
+     */
+    toSorted(func) {
+        return this.slice().sort(func);
+    }
+    /**
+     * @param {number} start
+     * @param {number} [deleteCount]
+     * @param {...R} items
+     * @returns {R[]}
+     */
+    toSpliced(start, deleteCount, ...items) {
+        const copy = this.slice();
+        if (deleteCount === undefined && items.length === 0) {
+            copy.splice(start);
+        } else {
+            copy.splice(start, deleteCount, ...items);
+        }
+        return copy;
+    }
+    /**
+     * @param {number} index
+     * @param {R} value
+     * @returns {R[]}
+     */
+    with(index, value) {
+        return this.slice().with(index, value);
     }
     reverse() {
         const recordList = toRaw(this)._raw;

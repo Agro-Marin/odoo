@@ -39,16 +39,10 @@ const storeServicePatch = {
     },
     /** @param {number} channelId */
     async fetchChannel(channelId) {
-        const fetchParam = this.fetchParams.find(
-            ([name]) => name === "discuss.channel",
-        );
-        if (fetchParam) {
-            const [, channelIds, dataRequest] = fetchParam;
-            channelIds.push(channelId);
-            await dataRequest._resultDef;
-        } else {
-            await this.fetchStoreData("discuss.channel", [channelId]);
-        }
+        await this.fetchStoreData("discuss.channel", [channelId], {
+            merge: (queuedIds, [id]) =>
+                queuedIds.includes(id) ? queuedIds : [...queuedIds, id],
+        });
     },
     /** @returns {number[]} */
     getRecentChatPartnerIds() {

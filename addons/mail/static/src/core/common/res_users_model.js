@@ -33,6 +33,27 @@ export class ResUsers extends Record {
     share;
     /** @type {ReturnType<import("@odoo/owl").markup>|string|undefined} */
     signature = fields.Html(undefined);
+    /** @type {Promise<import("models").ResPartner|undefined>|undefined} */
+    _partnerFetch;
+
+    /** @returns {Promise<import("models").ResPartner|undefined>} */
+    fetchPartner() {
+        if (this.partner_id) {
+            return Promise.resolve(this.partner_id);
+        }
+        this._partnerFetch ??= this.store.env.services.orm.silent
+            .read("res.users", [this.id], ["partner_id"], {
+                context: { active_test: false },
+            })
+            .then(([userData]) => {
+                if (userData?.partner_id) {
+                    this.partner_id = userData.partner_id[0];
+                }
+                return this.partner_id;
+            })
+            .finally(() => (this._partnerFetch = undefined));
+        return this._partnerFetch;
+    }
 
     getSignatureBlock() {
         if (!this.signature) {
