@@ -1,3 +1,4 @@
+import os
 import time
 import unittest
 from pathlib import Path
@@ -116,6 +117,32 @@ class TestScanSelection(_ScanCase):
     def test_an_invalid_regex_is_rejected(self):
         with self.assertRaises(ValueError):
             self.regex_scan(["(unclosed"])
+
+
+class TestScanRefusesToUndercount(_ScanCase):
+    def test_a_missing_root_raises(self):
+        with self.assertRaises(OSError):
+            scan_byte_patterns([str(self.root / "absent")], [".py"], [b"hit"], [])
+
+    @unittest.skipIf(os.geteuid() == 0, "root reads every file")
+    def test_an_unreadable_file_raises_after_the_whole_scan(self):
+        readable = self.write("a.py", b"hit\n")
+        locked = self.write("b.py", b"hit\n")
+        locked.chmod(0)
+        self.addCleanup(locked.chmod, 0o644)
+        with self.assertRaises(OSError) as caught:
+            self.bytes_scan([b"hit"])
+        self.assertIn(str(locked), str(caught.exception))
+        self.assertNotIn(str(readable), str(caught.exception))
+
+    @unittest.skipIf(os.geteuid() == 0, "root reads every file")
+    def test_an_unreadable_directory_raises(self):
+        self.write("sub/a.py", b"hit\n")
+        sub = self.root / "sub"
+        sub.chmod(0)
+        self.addCleanup(sub.chmod, 0o755)
+        with self.assertRaises(OSError):
+            self.regex_scan(["hit"], extensions=[".py"])
 
 
 class TestRegexScan(_ScanCase):

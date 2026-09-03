@@ -22,7 +22,7 @@ pub fn scan_regex_patterns(
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid regex: {e}")))?
         .into();
 
-    Ok(scan_files(
+    scan_files(
         py,
         &roots,
         &extensions,
@@ -40,5 +40,5 @@ pub fn scan_regex_patterns(
                 }
             }
         },
-    ))
+    )
 }

@@ -22,7 +22,7 @@ pub fn scan_byte_patterns(
     }
     let pats: Arc<[Vec<u8>]> = patterns.into();
 
-    Ok(scan_files(
+    scan_files(
         py,
         &roots,
         &extensions,
@@ -48,5 +48,5 @@ pub fn scan_byte_patterns(
                 }
             }
         },
-    ))
+    )
 }

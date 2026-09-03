@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
+
+use pyo3::exceptions::PyOSError;
 
 use ignore::WalkBuilder;
 use pyo3::prelude::*;
@@ -65,13 +67,13 @@ pub fn scan_files<T, F>(
     extensions: &[String],
     exclude_dirs: Vec<String>,
     per_file: F,
-) -> Vec<T>
+) -> PyResult<Vec<T>>
 where
     T: Send + 'static,
     F: Fn(&Path, &[u8], &mut Vec<T>) + Send + Sync,
 {
     if roots.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let roots = prune_nested_roots(roots);
 
@@ -80,6 +82,7 @@ where
     let ext_set = normalize_extensions(extensions);
     let exclude: Arc<[String]> = exclude_dirs.into();
     let results: Arc<Mutex<Vec<T>>> = Arc::default();
+    let failures: Arc<Mutex<Vec<String>>> = Arc::default();
     let per_file = &per_file;
 
     py.detach(|| {
@@ -94,11 +97,19 @@ where
             let ext_set = Arc::clone(&ext_set);
             let exclude = Arc::clone(&exclude);
             let results = Arc::clone(&results);
+            let failures = Arc::clone(&failures);
+            let fail = move |message: String| {
+                failures
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(message);
+                ignore::WalkState::Continue
+            };
 
             Box::new(move |entry| {
                 let entry = match entry {
                     Ok(e) => e,
-                    Err(_) => return ignore::WalkState::Continue,
+                    Err(e) => return fail(e.to_string()),
                 };
 
                 if let Some(state) = filter_entry(&entry, &ext_set, &exclude) {
@@ -108,16 +119,17 @@ where
                 let path = entry.path();
                 let content = match std::fs::read(path) {
                     Ok(c) => c,
-                    Err(_) => return ignore::WalkState::Continue,
+                    Err(e) => return fail(format!("{}: {e}", path.display())),
                 };
 
                 let mut hits = Vec::new();
                 per_file(path, &content, &mut hits);
 
-                if !hits.is_empty()
-                    && let Ok(mut acc) = results.lock()
-                {
-                    acc.append(&mut hits);
+                if !hits.is_empty() {
+                    results
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .append(&mut hits);
                 }
 
                 ignore::WalkState::Continue
@@ -125,12 +137,22 @@ where
         });
     });
 
-    match Arc::try_unwrap(results) {
-        Ok(mutex) => mutex
-            .into_inner()
-            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    let mut failures = unwrap_shared(failures);
+    if !failures.is_empty() {
+        failures.sort();
+        return Err(PyOSError::new_err(format!(
+            "scan could not read {} path(s), so its findings are not a count of the tree:\n  {}",
+            failures.len(),
+            failures.join("\n  ")
+        )));
+    }
+    Ok(unwrap_shared(results))
+}
 
-        Err(_) => Vec::new(),
+fn unwrap_shared<T>(shared: Arc<Mutex<Vec<T>>>) -> Vec<T> {
+    match Arc::try_unwrap(shared) {
+        Ok(mutex) => mutex.into_inner().unwrap_or_else(PoisonError::into_inner),
+        Err(arc) => std::mem::take(&mut *arc.lock().unwrap_or_else(PoisonError::into_inner)),
     }
 }
 
