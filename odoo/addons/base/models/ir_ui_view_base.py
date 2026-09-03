@@ -338,6 +338,10 @@ class Base(models.AbstractModel):
         node = etree.fromstring(result["arch"])
         node = self.env["ir.ui.view"]._postprocess_access_rights(node)
         node = self.env["ir.ui.view"]._postprocess_debug(node)
+        if node.tag in ("form", "list") and (
+            header := self.view_header_get(result["id"], node.tag)
+        ):
+            node.set("string", header)
         result["arch"] = etree.tostring(node, encoding="unicode")
 
         return result

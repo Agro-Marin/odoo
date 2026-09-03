@@ -47,11 +47,7 @@ class NameManager:
 
     @functools.cached_property
     def field_info(self) -> dict[str, Any]:
-        field_info = self.model.fields_get(attributes=["readonly", "required"])
-        if not (self.model.has_access("write") or self.model.has_access("create")):
-            for info in field_info.values():
-                info["readonly"] = True
-        return field_info
+        return self.model.fields_get(attributes=())
 
     def add_available_field(
         self,
@@ -215,13 +211,6 @@ class NameManager:
                         name,
                     )
                     continue
-            elif info.get("select") == "multi":
-                msg = _(
-                    "Field \u201c%(name)s\u201d used in %(use)s is present in view but is in select multi.",
-                    name=name,
-                    use=self._describe_use(use),
-                )
-                raise view._prepare_view_error(msg, node)
 
     def _check_group_consistency(self, view: Any) -> None:
         for name, (

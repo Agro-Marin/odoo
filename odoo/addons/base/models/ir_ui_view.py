@@ -492,7 +492,7 @@ class IrUiView(models.Model):
         for data in (
             self.env["ir.model.data"]
             .sudo()
-            .search_read(domain, ["module", "name", "res_id"])
+            .search_read(domain, ["module", "name", "res_id"], order="id")
         ):
             rows_by_view[data["res_id"]].append(data)
         return rows_by_view
@@ -636,9 +636,7 @@ class IrUiView(models.Model):
                     else view._get_combined_arch()
                 )
 
-                if not self.env.context.get("_skip_primary_extensions_check") and (
-                    view.inherit_id or view.inherit_children_ids
-                ):
+                if view.inherit_id or view.inherit_children_ids:
                     self._check_sibling_primary_views(view)
 
                 if view.type == "qweb":
@@ -655,8 +653,6 @@ class IrUiView(models.Model):
                 raise err from None
 
             try:
-                view._check_view(combined_arch, view.model)
-
                 if _xpath_attrs(combined_arch) or _xpath_states(combined_arch):
                     view_name = view._view_display_name()
                     err = ValidationError(
@@ -668,6 +664,8 @@ class IrUiView(models.Model):
                     )
                     err.context = {"name": "invalid view"}
                     raise err
+
+                view._check_view(combined_arch, view.model)
 
                 if combined_arch.tag == "data":
                     view_archs = list(combined_arch)
@@ -2020,7 +2018,7 @@ class IrUiView(models.Model):
         if not name:
             return
 
-        attrs = {"id": node.get("id"), "select": node.get("select")}
+        attrs = {"id": node.get("id")}
         field = name_manager.model._fields.get(name)
 
         if field:
@@ -2083,16 +2081,6 @@ class IrUiView(models.Model):
 
         name_manager.add_available_field(node, name, node_info, attrs)
 
-    def _postprocess_tag_form(
-        self,
-        node: _Element,
-        name_manager: NameManager,
-        node_info: dict[str, Any],
-    ) -> None:
-        result = name_manager.model.view_header_get(False, node.tag)
-        if result:
-            node.set("string", result)
-
     def _postprocess_tag_groupby(
         self,
         node: _Element,
@@ -2143,14 +2131,6 @@ class IrUiView(models.Model):
             node_info["children"] = [
                 child for child in node if child.tag != "searchpanel"
             ]
-
-    def _postprocess_tag_list(
-        self,
-        node: _Element,
-        name_manager: NameManager,
-        node_info: dict[str, Any],
-    ) -> None:
-        self._postprocess_tag_form(node, name_manager, node_info)
 
     @api.model
     @tools.ormcache()
@@ -2410,12 +2390,7 @@ class IrUiView(models.Model):
             )
             raise self._prepare_view_error(msg, node)
 
-        name_manager.add_available_field(
-            node,
-            name,
-            node_info,
-            {"id": node.get("id"), "select": node.get("select")},
-        )
+        name_manager.add_available_field(node, name, node_info, {"id": node.get("id")})
 
     def _check_view_tag_filter(
         self,
@@ -3179,51 +3154,3 @@ class IrUiView(models.Model):
                 values,
             )
         )
-
-    _SELF_HANDLED_RENAMES = {
-        ("data-bs-toggle", "dropdown"): ("data-self-handled", "dropdown"),
-        ("data-bs-toggle", "modal"): ("data-self-handled", "modal"),
-        ("data-bs-dismiss", "modal"): ("data-modal-dismiss", "1"),
-        ("data-bs-dismiss", "alert"): ("data-dismiss-alert", "1"),
-    }
-
-    @api.model
-    def _migrate_self_handled_arch(self) -> Self:
-        views = self.with_context(lang=None).search(
-            [
-                ("type", "in", ("form", "list", "kanban", "search")),
-                ("arch_db", "like", "data-bs-"),
-            ]
-        )
-        migrated = self.browse()
-        for view in views:
-            try:
-                arch = etree.fromstring(view.arch.encode())
-            except etree.XMLSyntaxError:
-                _logger.warning("Skipping unparsable arch on view %s", view.id)
-                continue
-            if not self._rewrite_self_handled_attributes(arch):
-                continue
-            view.with_context(no_save_prev=True).write(
-                {"arch_db": etree.tostring(arch, encoding="unicode")}
-            )
-            migrated |= view
-        _logger.info("Migrated data-api arch on %s view(s)", len(migrated))
-        return migrated
-
-    @api.model
-    def _rewrite_self_handled_attributes(self, arch: _Element) -> bool:
-        changed = False
-        for node in arch.iter(etree.Element):
-            for (attr, value), (
-                new_attr,
-                new_value,
-            ) in self._SELF_HANDLED_RENAMES.items():
-                if node.get(attr) != value:
-                    continue
-                node.attrib.pop(attr)
-                node.set(new_attr, new_value)
-                changed = True
-                if new_value == "modal" and node.get("data-bs-target"):
-                    node.set("data-modal-target", node.attrib.pop("data-bs-target"))
-        return changed

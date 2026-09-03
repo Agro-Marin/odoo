@@ -3157,16 +3157,6 @@ class TestViews(ViewCase):
             arch % ("", '<field name="inherit_id"/>', "inherit_id", "inherit_id"),
             """Unknown field "res.groups.inherit_id" in domain of <field name="group_ids"> ([('inherit_id', '=', inherit_id)])""",
         )
-        self.assertInvalid(
-            arch
-            % (
-                "",
-                '<field name="inherit_id" select="multi"/>',
-                "view_access",
-                "inherit_id",
-            ),
-            """Field “inherit_id” used in domain="[('view_access', '=', inherit_id)]" is present in view but is in select multi.""",
-        )
 
         arch = """
             <search>
@@ -7916,158 +7906,6 @@ class TestViewArchFileResolution(common.TransactionCase):
         self.assertIn("SHORT", ir_ui_view.get_view_arch_from_file(path, "other.dup"))
 
 
-class TestSelfHandledArchMigration(ViewCase):
-    def _make_view(self, arch, view_type="form"):
-        return self.View.create(
-            {
-                "name": "self-handled migration",
-                "model": "ir.ui.view",
-                "type": view_type,
-                "arch": arch,
-            }
-        )
-
-    def test_dropdown_toggle_is_renamed(self):
-        view = self._make_view(
-            """<form>
-                <div class="dropdown">
-                    <button type="button" data-bs-toggle="dropdown">M</button>
-                    <div class="dropdown-menu"><a class="dropdown-item">x</a></div>
-                </div>
-            </form>"""
-        )
-        self.assertIn(view, self.View._migrate_self_handled_arch())
-        self.assertIn('data-self-handled="dropdown"', view.arch)
-        self.assertNotIn("data-bs-toggle", view.arch)
-
-    def test_modal_control_takes_its_target_with_it(self):
-        view = self._make_view(
-            """<form>
-                <a data-bs-toggle="modal" data-bs-target=".m">open</a>
-                <div class="modal m">
-                    <button data-bs-dismiss="modal">close</button>
-                </div>
-            </form>"""
-        )
-        self.View._migrate_self_handled_arch()
-        self.assertIn('data-self-handled="modal"', view.arch)
-        self.assertIn('data-modal-target=".m"', view.arch)
-        self.assertIn("data-modal-dismiss", view.arch)
-        self.assertNotIn("data-bs-", view.arch)
-
-    def test_bs_target_survives_on_a_non_modal_control(self):
-        view = self._make_view(
-            """<form>
-                <a data-bs-toggle="collapse" data-bs-target="#c">more</a>
-                <div class="collapse" id="c">body</div>
-            </form>"""
-        )
-        self.View._migrate_self_handled_arch()
-        self.assertIn('data-bs-target="#c"', view.arch)
-        self.assertIn('data-bs-toggle="collapse"', view.arch)
-
-    def test_qweb_arch_is_left_alone(self):
-        view = self._make_view(
-            """<div><a data-bs-toggle="dropdown">m</a></div>""", view_type="qweb"
-        )
-        self.assertNotIn(view, self.View._migrate_self_handled_arch())
-        self.assertIn('data-bs-toggle="dropdown"', view.arch)
-
-    def test_an_alert_dismiss_moves_to_the_service_that_reads_it(self):
-        view = self._make_view(
-            """<form>
-                <div class="alert"><a class="close" data-bs-dismiss="alert">x</a></div>
-            </form>"""
-        )
-        self.assertIn(view, self.View._migrate_self_handled_arch())
-        self.assertIn('data-dismiss-alert="1"', view.arch)
-        self.assertNotIn("data-bs-dismiss", view.arch)
-
-    def test_the_migration_rewrites_the_source_arch_not_a_translation(self):
-        self.env["res.lang"]._activate_lang("fr_FR")
-        view = self._make_view("""<form><a data-bs-toggle="dropdown">m</a></form>""")
-        self.env["ir.ui.view"].with_context(lang="fr_FR")._migrate_self_handled_arch()
-
-        source = view.with_context(lang=None).arch
-        self.assertIn(
-            'data-self-handled="dropdown"',
-            source,
-            "the source arch itself must carry the migration",
-        )
-        self.assertNotIn("data-bs-toggle", source)
-
-
-class TestShadowedMigrationBehaviour(ViewCase):
-    def _view_with_an_unsaved_edit(self):
-        view = self.View.create(
-            {
-                "name": "shadowed migration",
-                "model": "ir.ui.view",
-                "type": "form",
-                "arch": """<form>
-                    <field name="name"/>
-                    <a data-bs-toggle="dropdown">m</a>
-                </form>""",
-            }
-        )
-        self.env.flush_all()
-        view.arch = """<form>
-            <field name="name"/>
-            <field name="model"/>
-            <a data-bs-toggle="dropdown">m</a>
-        </form>"""
-        self.env.flush_all()
-        self.env.invalidate_all()
-        return view
-
-    def test_the_migration_does_not_spend_the_users_undo_slot(self):
-        view = self._view_with_an_unsaved_edit()
-        undo_target = view.arch_prev
-
-        self.assertNotIn(
-            'name="model"',
-            undo_target,
-            "arch_prev should hold the state BEFORE the user's edit",
-        )
-
-        self.View._migrate_self_handled_arch()
-        self.env.flush_all()
-        self.env.invalidate_all()
-
-        self.assertIn("data-self-handled", view.arch, "the migration ran")
-        self.assertEqual(
-            view.arch_prev,
-            undo_target,
-            "arch_prev is a single slot and reset_arch(mode='soft') -- the "
-            "reset wizard's default -- is what reads it. A mechanical "
-            "respelling that writes it turns the user's undo into a no-op.",
-        )
-
-    def test_a_soft_reset_still_reaches_the_state_before_the_users_edit(self):
-        view = self._view_with_an_unsaved_edit()
-        self.View._migrate_self_handled_arch()
-        self.env.flush_all()
-
-        self.assertTrue(view.reset_arch(mode="soft"))
-        self.env.flush_all()
-        self.env.invalidate_all()
-        self.assertNotIn('name="model"', view.arch)
-
-    def test_an_alert_dismiss_moves_to_the_service_that_reads_it(self):
-        view = self.View.create(
-            {
-                "name": "alert",
-                "model": "ir.ui.view",
-                "type": "form",
-                "arch": '<form><div class="alert">'
-                '<button data-bs-dismiss="alert">x</button></div></form>',
-            }
-        )
-        self.View._migrate_self_handled_arch()
-        self.assertIn('data-dismiss-alert="1"', view.arch)
-        self.assertNotIn("data-bs-dismiss", view.arch)
-
-
 class TestGroupbyPostprocessTermination(ViewCase):
     def test_a_self_referencing_groupby_does_not_recurse(self):
         view = self.View.create(
@@ -8565,3 +8403,89 @@ class TestSteeringDoesNotHideASubtreeFromTheSchema(ViewCase):
         finally:
             View._check_view_tag_searchpanel = original
         self.assertEqual(len(seen), 1, "the searchpanel was validated twice")
+
+
+class TestViewHeaderIsNotCached(ViewCase):
+    def test_the_header_follows_the_context_not_the_first_caller(self):
+        Partner = self.registry["res.partner"]
+
+        def header(model, view_id, view_type):
+            tag = model.env.context.get("hdr_tag")
+            return f"Partners: {tag}" if tag else False
+
+        with patch.object(Partner, "view_header_get", header):
+            self.env.registry.clear_cache("templates")
+            tagged_arch = (
+                self.env["res.partner"].with_context(hdr_tag="ZZTAG").get_view()["arch"]
+            )
+            plain_arch = self.env["res.partner"].get_view()["arch"]
+
+        self.assertEqual(etree.fromstring(tagged_arch).get("string"), "Partners: ZZTAG")
+        self.assertNotEqual(
+            etree.fromstring(plain_arch).get("string"),
+            "Partners: ZZTAG",
+            "the first caller's context must not be served to the next one",
+        )
+
+    def test_the_list_root_gets_its_header_too(self):
+        Partner = self.registry["res.partner"]
+        with patch.object(
+            Partner, "view_header_get", lambda model, view_id, view_type: "HDR"
+        ):
+            self.env.registry.clear_cache("templates")
+            arch = self.env["res.partner"].get_view(view_type="list")["arch"]
+        self.assertEqual(etree.fromstring(arch).get("string"), "HDR")
+
+
+class TestNestedSubviewsAreChecked(ViewCase):
+    def test_attrs_on_a_nested_list_is_refused(self):
+        self.assertInvalid(
+            """<form>
+                <field name="inherit_children_ids">
+                    <list><field name="name" attrs="{}"/></list>
+                </field>
+            </form>""",
+            'Since 17.0, the "attrs" and "states" attributes are no longer used.',
+        )
+
+    def test_states_on_a_nested_form_is_refused(self):
+        self.assertInvalid(
+            """<list>
+                <field name="inherit_children_ids">
+                    <form><field name="name" states="draft"/></form>
+                </field>
+            </list>""",
+            'Since 17.0, the "attrs" and "states" attributes are no longer used.',
+        )
+
+    def test_a_clean_nested_list_still_passes(self):
+        self.assertValid(
+            """<form>
+                <field name="inherit_children_ids">
+                    <list><field name="name"/></list>
+                </field>
+            </form>"""
+        )
+
+
+class TestXmlIdFollowsTheFirstDeclaration(ViewCase):
+    def test_the_oldest_declaration_wins_over_the_alphabetical_one(self):
+        view = self.assertValid("<form><field name='name'/></form>")
+        self.env["ir.model.data"].create(
+            [
+                {
+                    "module": "zzz_orig",
+                    "name": "v1",
+                    "model": "ir.ui.view",
+                    "res_id": view.id,
+                },
+                {
+                    "module": "aaa_later",
+                    "name": "v1",
+                    "model": "ir.ui.view",
+                    "res_id": view.id,
+                },
+            ]
+        )
+        view.invalidate_recordset(["xml_id", "model_data_id"])
+        self.assertEqual(view.xml_id, "zzz_orig.v1")
