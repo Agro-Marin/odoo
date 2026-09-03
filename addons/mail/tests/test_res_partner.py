@@ -5,6 +5,7 @@ from uuid import uuid4
 from markupsafe import Markup
 
 from odoo import tools
+from odoo.exceptions import AccessError
 from odoo.tests import Form, RecordCapturer, tagged, users
 from odoo.tools import mute_logger
 
@@ -665,6 +666,34 @@ class TestPartner(MailCommon):
                     self.assertIn(partner, self._new_partners)
                 self.assertEqual(partner.email, expected_email)
                 self.assertEqual(partner.name, expected_name)
+
+    def test_message_post_only_needs_read_access(self):
+        """An internal user without contact-management rights can read a partner
+        (and therefore see its chatter) but cannot write it. Posting must still
+        work: relaxing `_mail_post_access` to "read" is what makes the chatter
+        usable for every non-admin internal user."""
+        reader = mail_new_test_user(
+            self.env,
+            groups="base.group_user",
+            login="partner_reader",
+            name="Paul Reader",
+        )
+        partner = self.env["res.partner"].create({"name": "Read Only Contact"})
+        partner_as_reader = partner.with_user(reader)
+
+        self.assertFalse(reader.has_group("base.group_partner_manager"))
+        self.assertEqual(partner_as_reader.name, "Read Only Contact")
+        with self.assertRaises(AccessError):
+            partner_as_reader.check_access("write")
+
+        message = partner_as_reader.message_post(
+            body=Markup("<p>Wrong phone number</p>"),
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        self.assertEqual(message.author_id, reader.partner_id)
+        self.assertEqual(message.model, "res.partner")
+        self.assertEqual(message.res_id, partner.id)
 
     def test_message_get_default_recipients(self):
         partners = self.env["res.partner"].create(

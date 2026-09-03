@@ -332,13 +332,13 @@ assert_eq "StoreInternal is NOT a model (false 'extends Record' substring match)
 assert_eq "every core/common .register() is a model or the Store singleton" \
     "$(( $(grep -rh '\.register();' "$MAIL/static/src/core/common" | wc -l) > 0 ))" "1"
 # static _name split: 25 declare one, 14 are keyed by class name. Verified against the live
-# modelRegistry in a browser (40 entries there: these 39 + ai.prompt.button from the `ai`
+# modelRegistry in a browser (42 entries there: these 41 + ai.prompt.button from the `ai`
 # module — the registry is global, so only the source-side count is assertable here).
 named=0; unnamed=0
 for f in $(grep -rl '\.register();' "$MAIL/static/src"); do
     if grep -q 'static _name = "' "$f"; then named=$((named+1)); else unnamed=$((unnamed+1)); fi
 done
-assert_eq "registered models declaring static _name" "$named" "25"
+assert_eq "registered models declaring static _name" "$named" "27"
 assert_doc_cites "CONVENTIONS.md gotcha 4 cites both halves of the _name split" \
     "$unnamed $registered_models" \
     '%s of the %s registered models have no `static _name`' CONVENTIONS.md
@@ -569,14 +569,14 @@ assert_eq "channel.py's two auth=user routes (update_avatar + sub_channel/delete
 
 # XML totals. ARCHITECTURE.md claimed "~380"; the real module-wide total is 232 and its own
 # breakdown only ever summed to 224 (it omitted wizard/security/test XML).
-assert_eq "module-wide XML file count" "$(find "$MAIL" -name '*.xml' | wc -l)" "232"
-assert_eq "static OWL template XML" "$(find "$MAIL/static/src" -name '*.xml' | wc -l)" "164"
+assert_eq "module-wide XML file count" "$(find "$MAIL" -name '*.xml' | wc -l)" "239"
+assert_eq "static OWL template XML" "$(find "$MAIL/static/src" -name '*.xml' | wc -l)" "170"
 assert_eq "views/ XML"   "$(find "$MAIL/views"  -name '*.xml' | wc -l)" "41"
 assert_eq "data/ XML"    "$(find "$MAIL/data"   -name '*.xml' | wc -l)" "15"
 assert_eq "wizard/ XML"  "$(find "$MAIL/wizard" -name '*.xml' | wc -l)" "6"
-assert_eq "demo/ XML"    "$(find "$MAIL/demo"   -name '*.xml' | wc -l)" "4"
-assert_eq "ARCHITECTURE.md cites the 232 XML total with its breakdown" \
-    "$(grep -c '232 = 164 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test' "$DOC/ARCHITECTURE.md")" "1"
+assert_eq "demo/ XML"    "$(find "$MAIL/demo"   -name '*.xml' | wc -l)" "5"
+assert_eq "ARCHITECTURE.md cites the 239 XML total with its breakdown" \
+    "$(grep -c '239 = 170 static OWL + 41 views + 15 data + 6 wizard + 5 demo + 1 security + 1 test' "$DOC/ARCHITECTURE.md")" "1"
 assert_eq "ARCHITECTURE.md no stale ~380 XML cite" \
     "$(grep -c '~380' "$DOC/ARCHITECTURE.md")" "0"
 
@@ -658,13 +658,13 @@ assert_eq "every TEST_TAGS.md row that states a class count states the tree's" \
 assert_eq "mail_controller classes (7 across 6 discuss files + mock_server_contract)" \
     "$(grep -rhE '^@(odoo\.tests\.)?tagged\(' "$MAIL/tests" | grep -c 'mail_controller')" "9"
 
-# Controller file count: 19, not 21 — the docs were counting the two __init__.py, which is
-# inconsistent with the models row (76, which excludes it).
+# Controller file count excludes the two __init__.py, to stay consistent with the
+# models row (which also excludes it). The guard against a stale literal "21
+# controller files" is gone: 21 became the DERIVED figure when controllers/poll.py
+# landed, so it and the assertion above it could not both hold.
 assert_doc_cites "ROUTE_MAP.md cites the controller file count" \
     "$(find "$MAIL/controllers" -name '*.py' ! -name '__init__.py' | wc -l)" \
     '\*\*%s\*\* controller files' ROUTE_MAP.md
-assert_eq "no doc still claims 21 controller files" \
-    "$(grep -rc '21 controller files' "$DOC"/*.md | grep -vc ':0')" "0"
 # The row carries two figures. It used to be pinned as one literal string holding
 # both, so the route half was a second copy of the count asserted above and the
 # file half could not move without it.
@@ -797,15 +797,15 @@ assert_eq "the gate is wired into architecture.yml" \
 # discuss/ and utils/ drifted unnoticed.
 assert_doc_cites "DIRECTORY_MAP.md cites the core/ JS count" \
     "$(find "$MAIL/static/src/core" -name '*.js' | wc -l)" '\| `core/` \| %s \|' DIRECTORY_MAP.md
-assert_eq "discuss/ recursive JS count" "$(find "$MAIL/static/src/discuss" -name '*.js' | wc -l)" "146"
+assert_eq "discuss/ recursive JS count" "$(find "$MAIL/static/src/discuss" -name '*.js' | wc -l)" "148"
 assert_eq "utils/ recursive JS count"   "$(find "$MAIL/static/src/utils"   -name '*.js' | wc -l)" "10"
 assert_eq "chatter/ recursive JS count" "$(find "$MAIL/static/src/chatter" -name '*.js' | wc -l)" "13"
-assert_eq "DIRECTORY_MAP.md cites discuss 146" "$(grep -c '| `discuss/` | 146 |' "$DOC/DIRECTORY_MAP.md")" "1"
+assert_eq "DIRECTORY_MAP.md cites discuss 148" "$(grep -c '| `discuss/` | 148 |' "$DOC/DIRECTORY_MAP.md")" "1"
 
 # SCSS count: stated in ARCHITECTURE's table, never asserted.
-assert_eq "static/src SCSS count" "$(find "$MAIL/static/src" -name '*.scss' | wc -l)" "101"
-assert_eq "ARCHITECTURE.md cites 101 SCSS" \
-    "$(grep -c '| SCSS (`static/src/`) | 101 |' "$DOC/ARCHITECTURE.md")" "1"
+assert_eq "static/src SCSS count" "$(find "$MAIL/static/src" -name '*.scss' | wc -l)" "104"
+assert_eq "ARCHITECTURE.md cites 104 SCSS" \
+    "$(grep -c '| SCSS (`static/src/`) | 104 |' "$DOC/ARCHITECTURE.md")" "1"
 
 # tools/ file list, stated in DIRECTORY_MAP and two files short.
 assert_eq "tools/ .py count (excl __init__)" \

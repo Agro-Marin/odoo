@@ -15,6 +15,8 @@ declare module "models" {
     import { MailActivityType as MailActivityTypeClass } from "@mail/core/common/mail_activity_type_model";
     import { MailGuest as MailGuestClass } from "@mail/core/common/mail_guest_model";
     import { MailMessageSubtype as MailMessageSubtypeClass } from "@mail/core/common/mail_message_subtype_model";
+    import { MailPoll as MailPollClass } from "@mail/core/common/mail_poll_model";
+    import { MailPollOption as MailPollOptionClass } from "@mail/core/common/mail_poll_option_model";
     import { MailTemplate as MailTemplateClass } from "@mail/core/common/mail_template_model";
     import { Message as MessageClass } from "@mail/core/common/message_model";
     import { MessageLinkPreview as MessageLinkPreviewClass } from "@mail/core/common/message_link_preview_model";
@@ -47,6 +49,8 @@ declare module "models" {
     export interface MailActivityType extends MailActivityTypeClass {}
     export interface MailGuest extends MailGuestClass {}
     export interface MailMessageSubtype extends MailMessageSubtypeClass {}
+    export interface MailPoll extends MailPollClass {}
+    export interface MailPollOption extends MailPollOptionClass {}
     export interface MailTemplate extends MailTemplateClass {}
     export interface Message extends MessageClass {}
     export interface MessageLinkPreview extends MessageLinkPreviewClass {}
@@ -110,6 +114,8 @@ declare module "models" {
             typeof MailMessageSubtypeClass
         >;
         "mail.notification": StaticMailRecord<Notification, typeof NotificationClass>;
+        "mail.poll": StaticMailRecord<MailPoll, typeof MailPollClass>;
+        "mail.poll.option": StaticMailRecord<MailPollOption, typeof MailPollOptionClass>;
         "mail.template": StaticMailRecord<MailTemplate, typeof MailTemplateClass>;
         MessageReactions: StaticMailRecord<
             MessageReactions,
@@ -150,6 +156,8 @@ declare module "models" {
         "mail.message.link.preview": MessageLinkPreview;
         "mail.message.subtype": MailMessageSubtype;
         "mail.notification": Notification;
+        "mail.poll": MailPoll;
+        "mail.poll.option": MailPollOption;
         "mail.template": MailTemplate;
         MessageReactions: MessageReactions;
         MessagingMenu: MessagingMenu;

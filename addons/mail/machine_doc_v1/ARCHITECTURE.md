@@ -174,22 +174,22 @@ every one as a literal, so re-run it rather than trusting this table.
 
 | Category | Count |
 |----------|------:|
-| Python models (`models/`, incl. `discuss/`) | 82 (63 + 14 in `discuss/`) |
-| Python controllers | 20 files · **64** routes across **84** URL strings |
+| Python models (`models/`, incl. `discuss/`) | 85 (66 + 14 in `discuss/`) |
+| Python controllers | 21 files · **69** routes across **89** URL strings |
 | Python wizards | 9 |
 | Python tests | 55 `test_*.py` |
-| JavaScript (`static/src/`) | 398 |
-| JS model classes (registered with `.register()`) | 39 (+ the base `Record` itself → 40 calls) |
+| JavaScript (`static/src/`) | 406 |
+| JS model classes (registered with `.register()`) | 41 (+ the base `Record` itself → 42 calls) |
 | JS OWL services | 23 |
 | JS tests (`static/tests/`, `*.test.js`) | 143 |
-| SCSS (`static/src/`) | 101 |
-| XML (module-wide) | 232 = 164 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test |
+| SCSS (`static/src/`) | 104 |
+| XML (module-wide) | 239 = 170 static OWL + 41 views + 15 data + 6 wizard + 5 demo + 1 security + 1 test |
 | i18n (.po/.pot) | 64 |
 
 > **Counting the JS models:** grep for `extends Record` and you get the wrong set, twice over
 > — it misses `Attachment extends FileModelMixin(Record)`
 > (`core/common/attachment_model.js`) and falsely matches `class StoreInternal extends
-> RecordInternal` (`model/store_internal.js`). Count `.register()` call sites instead: 40,
+> RecordInternal` (`model/store_internal.js`). Count `.register()` call sites instead: 42,
 > of which one is `Record.register()` in `model/record.js` (the base class), leaving 39
 > model classes. (The two grep errors used to cancel out and return the right number for the
 > wrong reason; they no longer do, which is the whole argument for counting `.register()`.)

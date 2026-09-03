@@ -19,6 +19,7 @@ from . import test_mail_mail
 from . import test_mail_message
 from . import test_mail_message_translate
 from . import test_mail_notification
+from . import test_mail_poll
 from . import test_mail_presence
 from . import test_mail_render
 from . import test_mail_template
@@ -28,6 +29,7 @@ from . import test_res_partner
 from . import test_res_role
 from . import test_res_users
 from . import test_service_worker
+from . import test_ui_alias
 from . import test_uninstall
 from . import test_update_notification
 from . import test_webmanifest

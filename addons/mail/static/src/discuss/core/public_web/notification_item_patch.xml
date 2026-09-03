@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="mail.NotificationItem" t-inherit-mode="extension">
+        <xpath expr="//t[@t-slot='body-icon']" position="after">
+            <MessageSeenIndicator t-if="previewedMessage?.showSeenIndicator(props.thread)" message="previewedMessage" thread="props.thread"/>
+        </xpath>
+    </t>
+</templates>

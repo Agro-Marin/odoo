@@ -1,0 +1,65 @@
+// One stylesheet answers both colour schemes -- mail ships no `*.dark.scss`
+// (ASSET_LAYERS.md). The base colours compile once; only how strongly they are
+// tinted differs between light and dark, so the opacity is a custom property.
+@mixin o-poll-bg($color-value, $opacity-var) {
+    --poll-bg-r: #{red($color-value)};
+    --poll-bg-g: #{green($color-value)};
+    --poll-bg-b: #{blue($color-value)};
+    --poll-bg-opacity: #{var($opacity-var)};
+}
+
+.o-mail-Poll {
+    --poll-opacity-secondary: 0.3;
+    --poll-opacity-action: 0.1;
+    --poll-opacity-brand: 0.2;
+
+    @include o-poll-bg($secondary, --poll-opacity-secondary);
+
+    &.o-ongoing .o-mail-PollOption.o-selected,
+    &.o-ongoing.o-isShowingResults .o-mail-PollOption.o-hasVotes {
+        @include o-poll-bg($o-action, --poll-opacity-action);
+    }
+
+    &:not(.o-ongoing) .o-mail-PollOption.o-winningOption {
+        @include o-poll-bg($o-brand-primary, --poll-opacity-brand);
+    }
+
+    &.o-isShowingResults .o-mail-PollOption {
+        --poll-bg-color: rgba(
+            var(--poll-bg-r),
+            var(--poll-bg-g),
+            var(--poll-bg-b),
+            var(--poll-bg-opacity)
+        );
+        background: linear-gradient(to right, var(--poll-bg-color), var(--poll-bg-color))
+            no-repeat;
+    }
+}
+
+.o-mail-PollOption {
+    --poll-border-color: rgba(
+        var(--poll-bg-r),
+        var(--poll-bg-g),
+        var(--poll-bg-b),
+        0.5
+    );
+    border: 1px solid var(--poll-border-color);
+    background-size: 0%;
+    transition: background-size 0.6s cubic-bezier(0.215, 0.61, 0.355, 1);
+
+    .fa-circle-check {
+        color: rgb(var(--poll-bg-r), var(--poll-bg-g), var(--poll-bg-b));
+    }
+
+    .form-check-input:focus {
+        box-shadow: none;
+    }
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o-mail-Poll {
+        --poll-opacity-secondary: 0.6;
+        --poll-opacity-action: 0.2;
+        --poll-opacity-brand: 0.4;
+    }
+}

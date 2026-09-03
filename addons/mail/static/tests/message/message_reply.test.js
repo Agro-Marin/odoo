@@ -351,3 +351,58 @@ test("Click reply to note again preserves composer content", async () => {
     );
     expect(editor.editable.textContent).toBe("\uFEFF@Batman\uFEFF\u00A0Strong Text");
 });
+
+test("Replying to a message containing attachments should display an attachment icon", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "general" });
+    const messageId = pyEnv["mail.message"].create({
+        body: "<p>Message first line.</p>",
+        message_type: "comment",
+        model: "discuss.channel",
+        res_id: channelId,
+        attachment_ids: [
+            pyEnv["ir.attachment"].create({ name: "test.txt", mimetype: "text/plain" }),
+        ],
+    });
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    pyEnv["mail.message"].create({
+        body: "Howdy",
+        message_type: "comment",
+        model: "discuss.channel",
+        author_id: partnerId,
+        parent_id: messageId,
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    // the parent has a body AND an attachment: the icon must show anyway, and
+    // it must be the icon of the attachment's own type, not a hardcoded image
+    await contains(".o-mail-MessageInReply .fa-file");
+    await contains(".o-mail-MessageInReply:contains('Message first line.')");
+});
+
+test("Replying to an attachment-only message shows the icon of the attachment type", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "general" });
+    const messageId = pyEnv["mail.message"].create({
+        body: "",
+        message_type: "comment",
+        model: "discuss.channel",
+        res_id: channelId,
+        attachment_ids: [
+            pyEnv["ir.attachment"].create({ name: "clip.mp4", mimetype: "video/mp4" }),
+        ],
+    });
+    pyEnv["mail.message"].create({
+        body: "Howdy",
+        message_type: "comment",
+        model: "discuss.channel",
+        parent_id: messageId,
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-MessageInReply:contains('Click to see the attachments')");
+    await contains(".o-mail-MessageInReply .fa-video");
+    await contains(".o-mail-MessageInReply .fa-image", { count: 0 });
+});

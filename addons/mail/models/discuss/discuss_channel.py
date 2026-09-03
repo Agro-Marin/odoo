@@ -2040,6 +2040,16 @@ class DiscussChannel(models.Model):
             ),
         ]
 
+    def _get_store_target(self) -> dict:
+        """The `Store` kwargs that reach everyone watching this channel.
+
+        A channel IS its own bus channel, so there is no subchannel. Only
+        `discuss.channel` defines this: polls live in channels, and a bare
+        `mixin.mail.thread` is not a `mixin.bus.listener` here, so it has
+        nothing to broadcast on.
+        """
+        return {"bus_channel": self, "bus_subchannel": None}
+
     def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         self.fetch(["is_member", "self_member_id"])
         channels_with_all_members = self.filtered(

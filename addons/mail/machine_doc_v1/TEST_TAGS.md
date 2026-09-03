@@ -1,7 +1,7 @@
 # Mail Module Test Tags
 
 Reference for running targeted subsets of the `mail` module's tests — Python
-(`tests/`, 61 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 145 `*.test.js`).
+(`tests/`, 63 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 145 `*.test.js`).
 
 > **See also**: `CONVENTIONS.md` (the mock-gateway / bus test helpers), `ROUTE_MAP.md`
 > (the controller-contract tests), `STATE_MANAGEMENT.md` (what the JS store tests exercise).
@@ -10,7 +10,7 @@ Reference for running targeted subsets of the `mail` module's tests — Python
 
 Almost every mail test class is decorated `@tagged("post_install", "-at_install", …)` — the
 suites need a fully-installed database (mail wires into `res.partner`, `res.users`, the bus,
-etc.). Of **93** tagged classes, **72** carry `post_install`/`-at_install`. Note both
+etc.). Of **95** tagged classes, **74** carry `post_install`/`-at_install`. Note both
 decorator spellings are in use (`@tagged(...)` and `@odoo.tests.tagged(...)`, the latter in
 e.g. `test_js.py` and `discuss/test_discuss_attachment_controller.py`) — grep for both or you
 will undercount. Topic tags on top of that are
@@ -31,6 +31,8 @@ Class counts measured 2026-08-17 at `dd172d10485`; `factcheck.sh` pins them.
 | `mail_render` | 3 | `test_mail_render.py` | QWeb / inline-template rendering |
 | `res_users` | 3 | `test_res_users.py` | User mail behavior |
 | `mail_activity` | 2 | `test_mail_activity.py` | `mail.activity` scheduling/state |
+| `mail_alias` | 1 | `test_ui_alias.py` | The alias form's copy-the-address tour |
+| `mail_poll` | 1 | `test_mail_poll.py` | Discuss polls: create, vote, end, delete |
 | `mail_server` | 2 | `test_ir_mail_server.py` | Outgoing SMTP server selection/config |
 | `mail_js` | 2 | `test_js.py` | Runs the JS/HOOT suites in a headless browser |
 | `res_partner` | 2 | `test_res_partner.py`, `test_mail_tools.py` | Partner mail behavior |
@@ -47,7 +49,7 @@ Class counts measured 2026-08-17 at `dd172d10485`; `factcheck.sh` pins them.
 | `mail_notification` | 1 | `test_mail_notification.py` | `format_failure_reason`, in the recipient's language |
 | `web_manifest` | 1 | `test_webmanifest.py` | Service worker + web manifest served to the browser |
 
-**34 of the 61 test files carry no topic tag at all** and are reachable only by the module
+**34 of the 63 test files carry no topic tag at all** and are reachable only by the module
 filter — among them `test_fetchmail.py`, `test_mail_mail.py`, `test_mail_blacklist.py`,
 `test_mail_message_access_parity.py`, `test_mail_message_search.py`, `test_uninstall.py`,
 `test_update_notification.py`, and **18 of the 27 files** in `discuss/`. That is **more than
