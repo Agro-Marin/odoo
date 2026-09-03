@@ -573,14 +573,14 @@ export class Message extends Record {
     }
 
     async copyLink() {
-        let notification = _t("Message Link Copied!");
-        let type = "info";
+        let notification = _t("Message Link Copied");
+        let type = "success";
         try {
             await browser.navigator.clipboard.writeText(
                 url(`/mail/message/${this.id}`),
             );
         } catch {
-            notification = _t("Message Link Copy Failed (Permission denied?)!");
+            notification = _t("Message Link Copy Failed (Permission denied?)");
             type = "danger";
         }
         this.store.env.services.notification.add(notification, { type });
@@ -592,13 +592,13 @@ export class Message extends Record {
             await browser.navigator.clipboard.writeText(messageBody);
         } catch {
             this.store.env.services.notification.add(
-                _t("Message Copy Failed (Permission denied?)!"),
+                _t("Text Copy Failed (Permission denied?)"),
                 { type: "danger" },
             );
             return;
         }
-        this.store.env.services.notification.add(_t("Message Copied!"), {
-            type: "info",
+        this.store.env.services.notification.add(_t("Text copied"), {
+            type: "success",
         });
     }
 
