@@ -77,6 +77,8 @@ PERIODICITY_SELECTION = [(key, p.label) for key, p in PERIODICITIES.items()]
 
 
 class DigestDigest(models.Model):
+    """Periodic KPI email digest sent to a set of recipients."""
+
     _name = "digest.digest"
     _description = "Digest"
     _order = "name, id"
@@ -261,6 +263,13 @@ class DigestDigest(models.Model):
             digest.next_run_date = digest._get_next_run_date()
 
     def _action_send_to_user(self, user, tips_count=1, consume_tips=True):
+        """Render and send the digest email to a single recipient.
+
+        :param res.users user: The recipient.
+        :param int tips_count: Number of tips to include in the email.
+        :param bool consume_tips: Whether to mark the included tips as consumed for `user`.
+        :return: True
+        """
         unsubscribe_token = self._get_unsubscribe_token(user.id)
 
         rendered_body = self.env["mixin.mail.render"]._render_template(
