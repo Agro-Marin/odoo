@@ -98,6 +98,8 @@ class TestProcessRequestUnderThreadExhaustion:
             server.process_request_thread = MagicMock(
                 side_effect=lambda *a: served.append(a)
             )
+            server.shutdown_request = MagicMock()
+            request = MagicMock(name="request-socket")
             made = []
 
             class _Thread:
@@ -113,26 +115,34 @@ class TestProcessRequestUnderThreadExhaustion:
                         raise RuntimeError("can't start new thread")
 
             with patch.object(wsgi.threading, "Thread", _Thread):
-                server.process_request("req", ("127.0.0.1", 5555))
-            return served, made
+                server.process_request(request, ("127.0.0.1", 5555))
+            return served, made, request
 
         return _run
 
     def test_normally_the_request_goes_to_a_thread(self, dispatch):
-        served, made = dispatch(spawn_fails=False)
+        served, made, request = dispatch(spawn_fails=False)
         assert served == [], "the thread body did not run, so nothing served here"
-        assert made and made[0].args == ("req", ("127.0.0.1", 5555))
+        assert made and made[0].args == (request, ("127.0.0.1", 5555))
         assert made[0].daemon is True, (
             "a non-daemon request thread blocks interpreter shutdown"
         )
 
-    def test_a_refused_thread_is_served_synchronously_not_dropped(self, dispatch):
-        served, _ = dispatch(spawn_fails=True)
-        assert served == [("req", ("127.0.0.1", 5555))], (
-            "under thread exhaustion the choice is between serving slowly and "
-            "dropping the connection with no response; dropping it looks like "
-            "a network fault to the client"
+    def test_a_refused_thread_gets_a_503_not_silence_or_a_slow_reply(self, dispatch):
+        served, _, request = dispatch(spawn_fails=True)
+        assert served == [], (
+            "under thread exhaustion the app must not run synchronously in the "
+            "accept loop, or every other connection stalls for its full duration"
         )
+        request.sendall.assert_called_once_with(wsgi._THREAD_EXHAUSTION_RESPONSE)
+        assert b"503" in wsgi._THREAD_EXHAUSTION_RESPONSE, (
+            "a real response beats a silent drop, which looks like a network "
+            "fault to the client"
+        )
+
+    def test_a_refused_thread_still_shuts_down_the_request(self, server, dispatch):
+        _, _, request = dispatch(spawn_fails=True)
+        server.shutdown_request.assert_called_once_with(request)
 
     def test_the_refusal_is_logged_with_the_thread_count(self, dispatch, caplog):
         dispatch(spawn_fails=True)

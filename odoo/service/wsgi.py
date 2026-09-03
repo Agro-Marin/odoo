@@ -23,6 +23,17 @@ from .settings import current
 
 _logger = logging.getLogger("odoo.service.server")
 
+# Answers a request the accept loop cannot hand off to a thread. Running the
+# WSGI app synchronously here instead would block accept() -- and therefore
+# every other connection, including health checks -- for the app's full
+# runtime, at the exact moment the server is already out of threads.
+_THREAD_EXHAUSTION_RESPONSE = (
+    b"HTTP/1.1 503 Service Unavailable\r\n"
+    b"Content-Length: 0\r\n"
+    b"Connection: close\r\n"
+    b"\r\n"
+)
+
 
 def get_http_socket_timeout() -> float:
     return get_env_float("ODOO_HTTP_SOCKET_TIMEOUT", 2.0, minimum=0.1, logger=_logger)
@@ -303,11 +314,15 @@ class ThreadedWSGIServerReloadable(
             t.start()
         except RuntimeError as exc:
             _logger.warning(
-                "thread spawn failed (%s, active=%d); serving request synchronously",
+                "thread spawn failed (%s, active=%d); answering %s with 503 "
+                "instead of serving it synchronously in the accept loop",
                 exc,
                 threading.active_count(),
+                client_address,
             )
-            self.process_request_thread(request, client_address)
+            with suppress(OSError):
+                request.sendall(_THREAD_EXHAUSTION_RESPONSE)
+            self.shutdown_request(request)
 
     def _handle_request_noblock(self) -> None:
         if self.max_http_threads and not self.http_threads_sem.acquire(timeout=0.1):
