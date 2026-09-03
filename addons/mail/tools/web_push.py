@@ -3,6 +3,8 @@ import logging as logger
 import os
 import struct
 import textwrap
+from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -21,6 +23,10 @@ MAX_PAYLOAD_SIZE = 4096
 ENCRYPTION_HEADER_SIZE = 16 + 4 + 1 + (1 + 32 + 32)
 
 ENCRYPTION_BLOCK_OVERHEAD = 1 + 16
+
+P256DH_UNCOMPRESSED_POINT_SIZE = 65
+P256DH_UNCOMPRESSED_POINT_PREFIX = 0x04
+AUTH_SECRET_SIZE = 16
 
 
 class PUSH_NOTIFICATION_TYPE:
@@ -41,7 +47,41 @@ class DeviceUnreachableError(Exception):
 
 
 class PushEndpointUnresolvableError(Exception):
-    pass
+    def __init__(self, message: str, retry_after: timedelta | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+def decode_browser_keys(keys: Any) -> tuple[bytes, bytes]:
+    if not isinstance(keys, dict):
+        raise ValueError("browser keys must be a mapping with p256dh and auth")
+    try:
+        p256dh = jwt.base64_decode_with_padding(keys.get("p256dh") or "")
+        auth = jwt.base64_decode_with_padding(keys.get("auth") or "")
+    except (TypeError, ValueError) as error:
+        raise ValueError("browser keys are not base64url encoded") from error
+    if (
+        len(p256dh) != P256DH_UNCOMPRESSED_POINT_SIZE
+        or p256dh[0] != P256DH_UNCOMPRESSED_POINT_PREFIX
+    ):
+        raise ValueError("p256dh is not an uncompressed P-256 point")
+    if len(auth) != AUTH_SECRET_SIZE:
+        raise ValueError("auth is not a 16 byte secret")
+    return p256dh, auth
+
+
+def _retry_after(response: requests.Response) -> timedelta | None:
+    value = response.headers.get("Retry-After")
+    if not value:
+        return None
+    try:
+        seconds = int(value)
+    except ValueError:
+        try:
+            seconds = (parsedate_to_datetime(value) - datetime.now(UTC)).total_seconds()
+        except TypeError, ValueError:
+            return None
+    return timedelta(seconds=max(seconds, 0))
 
 
 def _iv(base: bytes, counter: int) -> bytes:
@@ -54,9 +94,7 @@ def _derive_key(
     private_key: ec.EllipticCurvePrivateKey,
     device: dict[str, Any],
 ) -> tuple[bytes, bytes]:
-    device_keys = json.loads(device["keys"])
-    p256dh = jwt.base64_decode_with_padding(device_keys.get("p256dh"))
-    auth = jwt.base64_decode_with_padding(device_keys.get("auth"))
+    p256dh, auth = decode_browser_keys(json.loads(device["keys"]))
 
     pub_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), p256dh)
     sender_pub_key = private_key.public_key().public_bytes(
@@ -123,12 +161,13 @@ def push_to_end_point(
     vapid_private_key: str,
     vapid_public_key: str,
     session: requests.Session,
+    safety_cache: dict[tuple[str, int], UrlSafety] | None = None,
 ) -> None:
     endpoint = device["endpoint"]
     url = urlsplit(endpoint)
     if (url.hostname or "").endswith(".invalid"):
         raise DeviceUnreachableError("Device Unreachable")
-    safety = _classify_url_safety(endpoint)
+    safety = _classify_url_safety(endpoint, cache=safety_cache)
     if safety is UrlSafety.BLOCKED:
         raise DeviceUnreachableError("Device Unreachable")
     if safety is UrlSafety.UNRESOLVABLE:
@@ -141,7 +180,10 @@ def push_to_end_point(
         jwt_claims, vapid_private_key, ttl=12 * 60 * 60, algorithm=jwt.Algorithm.ES256
     )
     body_payload = payload.encode()
-    encrypted_payload = _encrypt_payload(body_payload, device)
+    try:
+        encrypted_payload = _encrypt_payload(body_payload, device)
+    except (TypeError, ValueError) as error:
+        raise DeviceUnreachableError("Device keys cannot be used") from error
     headers = {
         "Authorization": f"vapid t={token}, k={vapid_public_key}",
         "Content-Encoding": "aes128gcm",
@@ -168,3 +210,8 @@ def push_to_end_point(
 
         if response.status_code in {404, 410}:
             raise DeviceUnreachableError("Device Unreachable")
+        if response.status_code == 429 or response.status_code >= 500:
+            raise PushEndpointUnresolvableError(
+                f"Push endpoint answered {response.status_code}",
+                retry_after=_retry_after(response),
+            )

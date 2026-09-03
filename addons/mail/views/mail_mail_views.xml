@@ -243,9 +243,7 @@
         <field name="res_model">mail.mail</field>
         <field
             name="domain">[('email_from', '!=', False), ('fetchmail_server_id', '=', active_id)]</field>
-        <field
-            name="context">{'search_default_server_id': active_id, 'default_fetchmail_server_id':
-            active_id}</field>
+        <field name="context">{'default_fetchmail_server_id': active_id}</field>
         <field name="binding_model_id" ref="model_fetchmail_server" />
         <field name="binding_view_types">form</field>
     </record>

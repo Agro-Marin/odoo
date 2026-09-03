@@ -510,18 +510,13 @@ class Base(models.AbstractModel):
         keys = list(
             tools.unique(email_comparison_key(e) for e in emails if e and e.strip())
         )
-        root = self.env.ref("base.partner_root").sudo()
-        root_email = root.email_normalized
+        Partner = self.env["res.partner"]
+        root_email = Partner._mail_get_root_email()
         banned = set()
         if (
             root_email
-            and root_email in set(keys)
-            and not self.env["res.partner"]
-            .sudo()
-            .search_count(
-                [("email_normalized", "=", root_email), ("id", "!=", root.id)],
-                limit=1,
-            )
+            and root_email in keys
+            and Partner._mail_root_email_is_unique(root_email)
         ):
             banned.add(root_email)
         banned.update(
@@ -873,6 +868,7 @@ class Base(models.AbstractModel):
 
         def sort_key(p: ResPartner) -> tuple[bool, ...]:
             return (
+                p.active,
                 p.id == current_partner_id,
                 p.id in follower_ids,
                 not p.partner_share,
@@ -934,14 +930,15 @@ class Base(models.AbstractModel):
         ban_emails = (ban_emails or []) + alias_emails
         sort_key = records._partner_find_from_emails_sort_key(emails_key_company_id)
 
-        partners = self.env["res.partner"]._get_or_create_from_emails(
+        Partner = self.env["res.partner"]
+        partners = Partner._get_or_create_from_emails(
             emails_all,
             additional_values={
-                mail_key: {
+                Partner._get_or_create_from_emails_key(mail): {
                     "company_id": emails_key_company_id.get(mail_key, False),
                     **emails_normalized_info.get(mail_key, {}),
                 }
-                for mail_key in emails_key_all
+                for mail, mail_key in zip(emails_all, emails_key_all, strict=True)
             },
             ban_emails=ban_emails,
             filter_found=filter_found,

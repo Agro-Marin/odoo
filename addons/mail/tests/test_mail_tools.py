@@ -1,4 +1,4 @@
-from odoo.tests import tagged, users
+from odoo.tests import RecordCapturer, tagged, users
 
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.mail.tools.mime import Attachment, Payload, postprocess_payload
@@ -67,6 +67,32 @@ class TestMailTools(MailCommon):
             ["alfred_astaire@test.example.com"]
         )
         self.assertEqual(found, [self.env["res.partner"]])
+
+    @users("employee")
+    def test_mail_find_partner_from_emails_archived(self):
+        Partner = self.env["res.partner"]
+        record = Partner.create(
+            {"name": "Archive Lookup Thread", "email": "other@test.example.com"}
+        )
+        self.test_partner.sudo().action_archive()
+        record.message_subscribe(partner_ids=self.test_partner.ids)
+
+        self.assertEqual(
+            record._partner_find_from_emails_single([self._test_email], no_create=True),
+            Partner,
+            "an archived sender is not recognised when nothing may be created",
+        )
+        with RecordCapturer(Partner, []) as capture:
+            found = record._partner_find_from_emails_single([self._test_email])
+        self.assertEqual(found, self.test_partner, "returned rather than duplicated")
+        self.assertFalse(capture.records)
+
+        active = Partner.create({"name": "Active Twin", "email": self._test_email})
+        self.assertEqual(
+            record._partner_find_from_emails_single([self._test_email]),
+            active,
+            "an active partner beats an archived one even when that one follows",
+        )
 
     def test_mail_find_partner_from_emails_alias_localpart(self):
         self.env["mail.alias"].create(
@@ -338,7 +364,6 @@ class TestMailUtils(MailCommon):
 
 @tagged("mail_tools")
 class TestMailBannedEmails(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -373,10 +398,119 @@ class TestMailBannedEmails(MailCommon):
         banned = self.env["res.partner"]._mail_get_banned_emails([self.root_email])
         self.assertIn(self.root_email, banned)
 
+    def test_root_email_ban_follows_every_partner_change(self):
+        Partner = self.env["res.partner"]
+
+        def is_banned():
+            return self.root_email in Partner._mail_get_banned_emails([self.root_email])
+
+        self.assertTrue(is_banned())
+        sharer = Partner.create(
+            {"name": "Sharer", "email": "elsewhere@test.example.com"}
+        )
+        self.assertTrue(is_banned())
+        sharer.email = self.root_email
+        self.assertFalse(is_banned(), "a write onto the address is seen")
+        sharer.action_archive()
+        self.assertTrue(is_banned(), "an archived sharer does not count")
+        sharer.action_unarchive()
+        self.assertFalse(is_banned())
+        sharer.email = "elsewhere@test.example.com"
+        self.assertTrue(is_banned(), "a write away from the address is seen")
+        sharer.email = self.root_email
+        sharer.unlink()
+        self.assertTrue(is_banned(), "an unlink is seen")
+
+
+@tagged("mail_tools")
+class TestMailBlacklistCreate(MailCommon):
+    def test_create_returns_one_record_per_input_in_input_order(self):
+        Blacklist = self.env["mail.blacklist"]
+        existing = Blacklist.create({"email": "dup@test.example.com"})
+        records = Blacklist.create(
+            [
+                {"email": "New@test.example.com"},
+                {"email": "dup@test.example.com"},
+                {"email": "new@test.example.com"},
+                {"email": "other@test.example.com"},
+            ]
+        )
+        self.assertEqual(len(records), 4)
+        self.assertEqual(records[1], existing, "an existing address is reused")
+        self.assertEqual(records[0], records[2], "a repeated address is one record")
+        self.assertEqual(
+            records.mapped("email"),
+            [
+                "new@test.example.com",
+                "dup@test.example.com",
+                "new@test.example.com",
+                "other@test.example.com",
+            ],
+        )
+
+    def test_action_add_takes_one_record(self):
+        Blacklist = self.env["mail.blacklist"]
+        records = Blacklist.create(
+            [{"email": "one@test.example.com"}, {"email": "two@test.example.com"}]
+        )
+        with self.assertRaises(ValueError):
+            records.action_add()
+
+
+@tagged("mail_tools")
+class TestRestrictTemplateRenderingParam(MailCommon):
+    KEY = "mail.restrict.template.rendering"
+
+    def _editor_is_implied(self):
+        return (
+            self.env.ref("mail.group_mail_template_editor")
+            in self.env.ref("base.group_user").implied_ids
+        )
+
+    def test_a_row_edit_keeps_the_editor_group_in_step(self):
+        ICP = self.env["ir.config_parameter"].sudo()
+        ICP.set_param(self.KEY, True)
+        self.assertFalse(self._editor_is_implied())
+        row = ICP.search([("key", "=", self.KEY)])
+        row.write({"value": "False"})
+        self.assertTrue(self._editor_is_implied(), "a row edit is honoured")
+        row.write({"value": "1"})
+        self.assertFalse(self._editor_is_implied())
+        row.unlink()
+        self.assertTrue(self._editor_is_implied(), "an absent key is not restricting")
+        ICP.create({"key": self.KEY, "value": "True"})
+        self.assertFalse(self._editor_is_implied(), "a created row is honoured")
+        ICP.set_param(self.KEY, "False")
+        self.assertTrue(
+            self._editor_is_implied(), "the string a settings form sends is read"
+        )
+
+
+@tagged("mail_tools", "mail_render")
+class TestRestrictedRenderingAttributes(MailCommon):
+    def test_static_attributes_are_admitted_and_directives_are_not(self):
+        Render = self.env["mixin.mail.render"]
+        for template, unsafe in (
+            ('<t t-out="object.name"/>', False),
+            ('<p class="static">static text</p>', False),
+            ('<span class="x" title="y" t-out="object.name"/>', False),
+            ('<t t-out="object.name" data-x="1"/>', False),
+            ('<t t-out="object.name" t-if="object"/>', True),
+            ('<a t-att-href="object.name" t-out="object.name"/>', True),
+            ('<a t-attf-href="/{{ object.name }}" t-out="object.name"/>', True),
+            ('<p t-att="{\'title\': object.name}" t-out="object.name"/>', True),
+        ):
+            with self.subTest(template=template):
+                self.assertEqual(
+                    Render._has_unsafe_expression_template_qweb(
+                        template, "res.partner"
+                    ),
+                    unsafe,
+                )
+
 
 @tagged("mail_tools")
 class TestPostprocessPayload(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

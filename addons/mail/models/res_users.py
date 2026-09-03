@@ -149,6 +149,7 @@ class ResUsers(models.Model):
         )
 
         previous_email_by_user = {}
+        user_notification_type_modified = self.browse()
         if "email" in vals:
             new_email_normalized = email_normalize(vals["email"] or "")
             previous_email_by_user = {
@@ -180,9 +181,8 @@ class ResUsers(models.Model):
                     )
 
         self._notify_security_settings_updated(vals, previous_email_by_user)
-        if "notification_type" in vals:
-            for user in user_notification_type_modified:
-                Store(bus_channel=user).add(user, "notification_type").bus_send()
+        for user in user_notification_type_modified:
+            Store(bus_channel=user).add(user, "notification_type").bus_send()
         if "active" in vals and not vals["active"]:
             self._remove_assigned_activities()
         if "group_ids" in vals:
@@ -246,11 +246,7 @@ class ResUsers(models.Model):
     @api.depends("manual_im_status", "presence_ids.status")
     def _compute_im_status(self) -> None:
         for user in self:
-            user.im_status = (
-                user.presence_ids._get_im_status(user.manual_im_status)
-                if user.presence_ids
-                else "offline"
-            )
+            user.im_status = user.presence_ids._fold_im_status(user.manual_im_status)
 
     @api.depends("out_of_office_from", "out_of_office_to")
     def _compute_is_out_of_office(self) -> None:
@@ -353,14 +349,7 @@ class ResUsers(models.Model):
     @api.model
     def action_test_outgoing_mail_server(self) -> dict:
         user = self.env.user
-        if not user.has_external_mail_server:
-            raise UserError(_("You are not allowed to test personal mail servers."))
-
-        if not user._is_internal():
-            raise UserError(
-                _("Only internal users can configure personal mail servers.")
-            )
-
+        self._check_personal_mail_server_access(user)
         server_sudo = user.outgoing_mail_server_id.sudo()
         if not server_sudo:
             raise UserError(_("No mail server configured"))
@@ -600,7 +589,6 @@ class ResUsers(models.Model):
     @api.model
     def _get_activity_groups(self) -> list:
         activities = self._get_systray_activities()
-        activities.mapped("state")
         activity_ids_by_record = self._group_activity_ids_by_record(activities)
         counts, activity_ids_by_bucket, res_ids_by_bucket = (
             self._count_activities_per_bucket(activity_ids_by_record)
@@ -705,7 +693,7 @@ class ResUsers(models.Model):
         )
         activity_ids_by_bucket = defaultdict(list)
         res_ids_by_bucket = defaultdict(list)
-        Activity = self.env["mail.activity"]
+        state_by_activity_id = self._get_activity_states(activity_ids_by_record)
         for model_name, activity_ids_by_res_id in activity_ids_by_record.items():
             allowed_ids, unallowed_ids = self._get_readable_activity_record_ids(
                 model_name, activity_ids_by_res_id.keys()
@@ -722,7 +710,9 @@ class ResUsers(models.Model):
                     continue
                 activity_ids_by_bucket[bucket].extend(activity_ids)
                 res_ids_by_bucket[bucket].append(res_id)
-                states = set(Activity.browse(activity_ids).mapped("state"))
+                states = {
+                    state_by_activity_id[activity_id] for activity_id in activity_ids
+                }
                 if "overdue" in states:
                     counts_by_bucket[bucket]["overdue_count"] += 1
                     counts_by_bucket[bucket]["due_count"] += 1
@@ -732,6 +722,20 @@ class ResUsers(models.Model):
                 else:
                     counts_by_bucket[bucket]["planned_count"] += 1
         return counts_by_bucket, activity_ids_by_bucket, res_ids_by_bucket
+
+    @api.model
+    def _get_activity_states(
+        self, activity_ids_by_record: dict[str, dict[int, list[int]]]
+    ) -> dict[int, str]:
+        activities = self.env["mail.activity"].browse(
+            [
+                activity_id
+                for activity_ids_by_res_id in activity_ids_by_record.values()
+                for activity_ids in activity_ids_by_res_id.values()
+                for activity_id in activity_ids
+            ]
+        )
+        return {activity.id: activity.state for activity in activities}
 
     @api.model
     def _prepare_activity_group_values(

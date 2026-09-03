@@ -62,8 +62,9 @@ class MailPush(models.Model):
             return
 
         session = Session()
+        safety_cache = {}
         devices_to_unlink = set()
-        unresolvable_notif_ids = set()
+        retry_delay_by_notif_id = {}
 
         base_url = self.get_base_url()
         devices = web_push_notifications_sudo.mail_push_device_id.grouped("id")
@@ -83,31 +84,35 @@ class MailPush(models.Model):
                     vapid_private_key=vapid_private_key,
                     vapid_public_key=vapid_public_key,
                     session=session,
+                    safety_cache=safety_cache,
                 )
             except DeviceUnreachableError:
                 devices_to_unlink.add(device.id)
-            except PushEndpointUnresolvableError:
-                unresolvable_notif_ids.add(web_push_notification_sudo.id)
+            except PushEndpointUnresolvableError as error:
+                retry_delay_by_notif_id[web_push_notification_sudo.id] = min(
+                    error.retry_after or PUSH_ENDPOINT_RETRY_DELAY,
+                    timedelta(days=PUSH_ENDPOINT_RETRY_DAYS),
+                )
                 _logger.info(
-                    "Push endpoint temporarily unresolvable, keeping device %s",
+                    "Push endpoint temporarily unavailable (%s), keeping device %s",
+                    error,
                     device.id,
                 )
             except Exception as e:
                 _logger.error("An error occurred while trying to send web push: %s", e)
 
-        retry_cutoff = fields.Datetime.now() - timedelta(days=PUSH_ENDPOINT_RETRY_DAYS)
+        now = fields.Datetime.now()
+        retry_cutoff = now - timedelta(days=PUSH_ENDPOINT_RETRY_DAYS)
         notifs_to_keep = web_push_notifications_sudo.filtered(
             lambda n: (
-                n.id in unresolvable_notif_ids
+                n.id in retry_delay_by_notif_id
                 and n.create_date
                 and n.create_date > retry_cutoff
             )
         )
         (web_push_notifications_sudo - notifs_to_keep).unlink()
-        if notifs_to_keep:
-            notifs_to_keep.retry_after = (
-                fields.Datetime.now() + PUSH_ENDPOINT_RETRY_DELAY
-            )
+        for notif in notifs_to_keep:
+            notif.retry_after = now + retry_delay_by_notif_id[notif.id]
 
         if devices_to_unlink:
             self.env["mail.push.device"].sudo().browse(devices_to_unlink).unlink()

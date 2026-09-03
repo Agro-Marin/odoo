@@ -1,3 +1,4 @@
+from odoo.exceptions import UserError
 from odoo.tests import tagged
 from odoo.tools import mute_logger
 
@@ -82,3 +83,63 @@ class TestInvite(MailCommon):
 
         # Check removed followers and that notifications are sent.
         self.assertEqual(test_record.message_partner_ids, self.env["res.partner"])
+
+    def test_edit_followers_drops_stale_ids_and_refuses_an_empty_selection(self):
+        Simple = self.env["mail.test.simple"].with_context(self._test_context)
+        record, stale = Simple.create([{"name": "Kept"}, {"name": "Removed"}])
+        stale_id = stale.id
+        stale.unlink()
+        partner = self.env["res.partner"].create({"name": "Follower"})
+        Wizard = self.env["mail.followers.edit"].with_user(self.user_employee)
+
+        wizard = Wizard.create(
+            {
+                "res_model": "mail.test.simple",
+                "res_ids": str([record.id, stale_id]),
+                "partner_ids": [(4, partner.id)],
+            }
+        )
+        wizard.edit_followers()
+        self.assertIn(partner, record.message_partner_ids)
+
+        wizard = Wizard.create(
+            {
+                "res_model": "mail.test.simple",
+                "res_ids": str([stale_id]),
+                "partner_ids": [(4, partner.id)],
+            }
+        )
+        with self.assertRaises(UserError):
+            wizard.edit_followers()
+
+    def test_edit_followers_message_names_the_operation(self):
+        record = (
+            self.env["mail.test.simple"]
+            .with_context(self._test_context)
+            .create({"name": "Named"})
+        )
+        partner = self.env["res.partner"].create({"name": "Follower"})
+        Wizard = self.env["mail.followers.edit"].with_user(self.user_employee)
+        add, remove = Wizard.create(
+            [
+                {
+                    "res_model": "mail.test.simple",
+                    "res_ids": str([record.id]),
+                    "partner_ids": [(4, partner.id)],
+                },
+                {
+                    "res_model": "mail.test.simple",
+                    "res_ids": str([record.id]),
+                    "partner_ids": [(4, partner.id)],
+                    "operation": "remove",
+                },
+            ]
+        )
+        self.assertEqual(add.edit_followers()["params"]["message"], "Followers added")
+        self.assertEqual(
+            remove.edit_followers()["params"]["message"], "Followers removed"
+        )
+        self.assertEqual(
+            (add | remove).edit_followers()["params"]["message"],
+            "Followers updated",
+        )

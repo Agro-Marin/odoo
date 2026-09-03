@@ -786,7 +786,7 @@ class TestPartner(MailCommon):
                 self.assertEqual(partner.email, expected_email)
 
     @users("admin")
-    @mute_logger("odoo.addons.base.partner.merge", "odoo.tests")
+    @mute_logger("odoo.addons.base.partner.merge")
     def test_partner_merge_wizards(self):
         Partner = self.env["res.partner"]
 
@@ -833,3 +833,50 @@ class TestPartner(MailCommon):
             "Should have original messages + a log",
         )
         self.assertTrue(all(msg in p2.message_ids for msg in all_msg))
+
+
+@tagged("res_partner", "mail_tools")
+class TestPartnerArchivedLookup(MailCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.archived_email = "gone@test.example.com"
+        cls.archived = cls.env["res.partner"].create(
+            {"name": "Gone", "email": cls.archived_email, "active": False}
+        )
+
+    def test_get_or_create_returns_the_archived_partner(self):
+        Partner = self.env["res.partner"]
+        with RecordCapturer(Partner, []) as capture:
+            found = Partner.get_or_create(f'"Gone Again" <{self.archived_email}>')
+        self.assertEqual(found, self.archived)
+        self.assertFalse(capture.records, "no active duplicate of an archived contact")
+
+    def test_get_or_create_from_emails_returns_the_archived_partner(self):
+        Partner = self.env["res.partner"]
+        with RecordCapturer(Partner, []) as capture:
+            partners = Partner._get_or_create_from_emails(
+                [f'"Gone Again" <{self.archived_email}>']
+            )
+        self.assertEqual(partners, [self.archived])
+        self.assertFalse(capture.records, "no active duplicate of an archived contact")
+
+    def test_get_or_create_from_emails_without_create_ignores_archived(self):
+        Partner = self.env["res.partner"]
+        self.assertEqual(
+            Partner._get_or_create_from_emails([self.archived_email], no_create=True),
+            [Partner],
+            "a lookup that may not create sees the same partners it always did",
+        )
+
+    def test_an_active_partner_is_preferred_over_an_archived_one(self):
+        Partner = self.env["res.partner"]
+        active = Partner.create({"name": "Back", "email": self.archived_email})
+        self.assertEqual(Partner.get_or_create(self.archived_email), active)
+        self.assertEqual(
+            Partner._get_or_create_from_emails([self.archived_email]), [active]
+        )
+        self.assertEqual(
+            Partner._get_or_create_from_emails([self.archived_email], no_create=True),
+            [active],
+        )

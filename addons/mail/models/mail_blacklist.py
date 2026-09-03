@@ -29,29 +29,26 @@ class MailBlacklist(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        new_values = []
-        all_emails = []
+        emails = []
         for value in vals_list:
             email = tools.email_normalize(value.get("email"))
             if not email:
                 raise UserError(_("Invalid email address “%s”", value["email"]))
-            if email in all_emails:
-                continue
-            all_emails.append(email)
-            new_value = dict(value, email=email)
-            new_values.append(new_value)
+            emails.append(email)
 
-        to_create = []
-        bl_entries = {}
-        if new_values:
+        id_by_email = {}
+        if emails:
             sql = """SELECT email, id FROM mail_blacklist WHERE email = ANY(%s)"""
-            emails = [v["email"] for v in new_values]
             self.env.cr.execute(sql, (emails,))
-            bl_entries = dict(self.env.cr.fetchall())
-            to_create = [v for v in new_values if v["email"] not in bl_entries]
+            id_by_email = dict(self.env.cr.fetchall())
 
-        results = super().create(to_create)
-        return self.env["mail.blacklist"].browse(bl_entries.values()) | results
+        vals_by_new_email = {}
+        for value, email in zip(vals_list, emails, strict=True):
+            if email not in id_by_email:
+                vals_by_new_email.setdefault(email, dict(value, email=email))
+        created = super().create(list(vals_by_new_email.values()))
+        id_by_email.update(zip(vals_by_new_email, created.ids, strict=True))
+        return self.browse([id_by_email[email] for email in emails])
 
     def write(self, vals: ValuesType) -> Literal[True]:
         if "email" in vals:
@@ -124,4 +121,5 @@ class MailBlacklist(models.Model):
         }
 
     def action_add(self) -> None:
+        self.check_singleton()
         self._add(self.email)

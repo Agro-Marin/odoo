@@ -19,34 +19,44 @@ class IrUiMenu(models.Model):
             if menu_root_id:
                 return menu_root_id
 
-            menus = self.env["ir.ui.menu"].browse(visible_menu_ids)
-            self.env["ir.actions.act_window"].sudo().browse(
-                [
-                    int(menu["action"].split(",")[1])
-                    for menu in menus.read(["action", "parent_path"])
-                    if menu["action"]
-                    and menu["action"].startswith("ir.actions.act_window,")
-                ]
-            ).filtered("res_model")
+            menus_data = (
+                self.env["ir.ui.menu"]
+                .browse(visible_menu_ids)
+                .read(["action", "parent_path"])
+            )
+            action_id_by_menu_id = {
+                menu["id"]: int(menu["action"].split(",")[1])
+                for menu in menus_data
+                if menu["action"]
+                and menu["action"].startswith("ir.actions.act_window,")
+            }
+            actions = (
+                self.env["ir.actions.act_window"]
+                .sudo()
+                .browse(list(set(action_id_by_menu_id.values())))
+            )
+            actions.fetch(["res_model", "path"])
+            action_by_id = {action.id: action for action in actions}
 
-            def _menu_sort_key(menu_action: tuple) -> tuple:
-                menu, action = menu_action
-                return 1 if action.path else 0, -menu.id
+            def _menu_sort_key(candidate: tuple) -> tuple:
+                menu_id, _parent_path, action = candidate
+                return 1 if action.path else 0, -menu_id
 
-            menu_sudo = max(
+            _menu_id, parent_path, _action = max(
                 (
-                    (menu, action)
-                    for menu in menus.sudo()
-                    for action in (menu.action,)
-                    if action
-                    and action.type == "ir.actions.act_window"
+                    (menu["id"], menu["parent_path"], action)
+                    for menu in menus_data
+                    if (
+                        action := action_by_id.get(action_id_by_menu_id.get(menu["id"]))
+                    )
                     and action.res_model == res_model
                     and all(
-                        menu_id in visible_menu_ids
-                        for menu_id in menu._ancestor_ids(include_self=True)
+                        int(menu_id) in visible_menu_ids
+                        for menu_id in menu["parent_path"].split("/")
+                        if menu_id
                     )
                 ),
                 key=_menu_sort_key,
-                default=(None, None),
-            )[0]
-            return menu_sudo._root().id if menu_sudo else None
+                default=(None, None, None),
+            )
+            return int(parent_path[: parent_path.index("/")]) if parent_path else None

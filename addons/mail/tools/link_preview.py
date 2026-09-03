@@ -17,6 +17,7 @@ _logger = logging.getLogger(__name__)
 MAX_HEAD_BYTES = 512 * 1024
 MAX_REDIRECTS = 5
 MAX_FETCH_SECONDS = 10
+HEAD_SCAN_CHUNK_SIZE = 8192
 
 
 class UrlSafety(enum.Enum):
@@ -25,7 +26,15 @@ class UrlSafety(enum.Enum):
     UNRESOLVABLE = "unresolvable"
 
 
-def _classify_url_safety(url: str) -> UrlSafety:
+def _classify_url_safety(
+    url: str, cache: dict[tuple[str, int], UrlSafety] | None = None
+) -> UrlSafety:
+    # The verdict comes from one DNS answer and the request that follows
+    # resolves the name again, so a host whose record flips between the two
+    # lookups (DNS rebinding) is not caught here; pinning the connection to the
+    # resolved address would need a TLS stack that verifies the certificate
+    # against a name other than the one dialled. What the cache buys is one
+    # verdict per host for a whole batch instead of one per notification.
     split = urlsplit(url)
     if split.scheme not in ("http", "https"):
         return UrlSafety.UNRESOLVABLE
@@ -36,6 +45,15 @@ def _classify_url_safety(url: str) -> UrlSafety:
         return UrlSafety.UNRESOLVABLE
     if not host:
         return UrlSafety.UNRESOLVABLE
+    if cache is not None and (host, port) in cache:
+        return cache[host, port]
+    safety = _classify_host_safety(host, port)
+    if cache is not None:
+        cache[host, port] = safety
+    return safety
+
+
+def _classify_host_safety(host: str, port: int) -> UrlSafety:
     try:
         addrinfos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror, UnicodeError, ValueError:
@@ -120,9 +138,9 @@ def get_link_preview_from_html(
     url: str, response: requests.Response, deadline: float | None = None
 ) -> dict[str, Any] | Literal[False]:
     content = b""
-    for chunk in response.iter_content(chunk_size=8192):
+    for chunk in response.iter_content(chunk_size=HEAD_SCAN_CHUNK_SIZE):
         content += chunk
-        pos = content.find(b"</head>", -8196 * 2)
+        pos = content.find(b"</head>", -2 * HEAD_SCAN_CHUNK_SIZE)
         if pos != -1:
             content = content[: pos + 7]
             break
