@@ -1,6 +1,6 @@
 {
-  "count": 12059,
-  "measured_at": "8f4a84e81517082ea9f85bce41f01c5a7dc36aaa",
+  "count": 12038,
+  "measured_at": "c16fe21b9a50768d295a24c103ade8220ed2f75b",
   "measured_root": "",
-  "note": "Rebase resolution set this to the replayed side (12192) while origin held 12124 and the merged tree measures 12059, so the floor sat 133 units ABOVE the tree. This gate is the odoo-side --mode no-increase one, which fails upward only, so a floor above the tree is not conservative -- it is switched off, and 133 units of new long-function debt could have landed unseen. Banked at the reading, not re-stamped high. py_function_length.py --count --addon addons on a clean tree at this commit reads 12059. The fall from 12124 is upstream work carried in by the replay, not this branch."
+  "note": "Re-measured on a clean detached worktree at c16fe21b9a5. The floor read 12059 while the tree read 12067: website.py configurator_apply had grown by 8 through 865a16db021 and 401c2cde5de, so this no-increase gate was red before the base audit series and through it (every split the series made stayed under the 90-line budget; the series moved this number by 0). c16fe21b9a5 moves the footer-links block of configurator_apply into _configurator_write_footer_links (31 lines), taking the excess 12067 -> 12038."
 }
