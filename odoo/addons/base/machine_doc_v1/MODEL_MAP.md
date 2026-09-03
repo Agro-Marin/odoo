@@ -765,7 +765,6 @@ no filestore rewrite. `_gc_rehash_legacy_keys` converges old keys only if
 - `_backend_for_key(fname)` — Read-side backend owning a store key
 - `_storage_delete(fname)` — Key-dispatched content deletion
 - `_filestore()` — Filestore directory path
-- `force_storage()` — Migrate all attachments to configured storage
 - `_file_read(fname, size)`, `_file_write(bin_value, checksum)`, `_file_delete(fname)`
 - `_gc_file_store()` — Autovacuum: runs every backend's `autovacuum()`
 - `_gc_rehash_legacy_keys(limit)` — Autovacuum: opt-in re-keying of rows
