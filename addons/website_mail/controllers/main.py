@@ -1,7 +1,11 @@
+import logging
 from collections import defaultdict
 
 from odoo import http
+from odoo.exceptions import UserError, ValidationError
 from odoo.http import request
+
+_logger = logging.getLogger(__name__)
 
 
 class WebsiteMail(http.Controller):
@@ -26,7 +30,12 @@ class WebsiteMail(http.Controller):
                 self.env["ir.http"]._check_request_recaptcha_token(
                     "website_mail_follow"
                 )
-            except Exception:
+            except (ValidationError, UserError) as e:
+                _logger.debug(
+                    "website_mail_follow recaptcha check failed, "
+                    "falling back to no_create: %s",
+                    e,
+                )
                 no_create = True
             else:
                 no_create = False
@@ -35,6 +44,8 @@ class WebsiteMail(http.Controller):
                 ._partner_find_from_emails_single([email], no_create=no_create)
                 .ids
             )
+            if not partner_ids:
+                return False
         # add or remove follower
         if is_follower:
             record.sudo().message_unsubscribe(partner_ids)
