@@ -500,6 +500,7 @@ def _normalise_version(module: str, manifest: dict) -> None:
                 manifest["version"],
             )
             manifest["installable"] = False
+        manifest["version"] = str(manifest["version"])
     if manifest["installable"] and not check_version(
         str(manifest["version"]), should_raise=False
     ):
