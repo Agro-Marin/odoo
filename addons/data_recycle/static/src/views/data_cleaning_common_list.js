@@ -27,9 +27,6 @@ export class DataCleaningCommonListController extends ListController {
         });
     }
 
-    /**
-     * Unselect all the records
-     */
     onUnselectClick() {
         this.discardSelection();
     }
