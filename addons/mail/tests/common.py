@@ -1768,7 +1768,7 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
                 n.mail_message_id == message
                 and (
                     (partner and n.res_partner_id == partner)
-                    or n.mail_email_address in email_to_lst
+                    or (not n.res_partner_id and n.mail_email_address in email_to_lst)
                 )
                 and n.notification_type == ntype
             )

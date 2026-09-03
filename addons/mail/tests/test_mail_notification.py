@@ -9,7 +9,6 @@ FAILURE_TYPE = "mail_email_invalid"
 
 @tagged("mail_notification")
 class TestMailNotificationFailureReason(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -37,7 +36,6 @@ class TestMailNotificationFailureReason(MailCommon):
 
 @tagged("mail_notification")
 class TestReplyToLengthBoundary(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -73,4 +71,42 @@ class TestReplyToLengthBoundary(MailCommon):
         self.assertLessEqual(len(formatted), _MAIL_REPLY_TO_LENGTH_LIMIT)
         self.assertNotIn(
             self.author.name, formatted, "the over-long author name must not survive"
+        )
+
+
+@tagged("mail_notification")
+class TestNotificationKeepsTheAddressUsed(MailCommon):
+    """The chatter must report the address a notification was actually sent to,
+    not whatever the recipient's contact card says today."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env["res.partner"].create({"name": "Record"})
+        cls.customer = cls.env["res.partner"].create(
+            {"name": "Customer", "email": "before@test.example.com"}
+        )
+
+    def test_partner_notification_records_the_address_used(self):
+        with self.mock_mail_gateway():
+            self.record.message_notify(
+                body="<p>Hello</p>",
+                partner_ids=self.customer.ids,
+                subject="Hello",
+            )
+        notification = self.env["mail.notification"].search(
+            [
+                ("res_partner_id", "=", self.customer.id),
+                ("notification_type", "=", "email"),
+            ],
+            order="id desc",
+            limit=1,
+        )
+        self.assertTrue(notification, "the customer must have been mailed")
+        self.assertEqual(notification.mail_email_address, "before@test.example.com")
+        self.customer.email = "after@test.example.com"
+        self.assertEqual(
+            notification.mail_email_address,
+            "before@test.example.com",
+            "changing the contact must not rewrite what was already sent",
         )

@@ -2695,7 +2695,20 @@ class MixinMailThread(models.AbstractModel):
         base_mail_values: dict,
         mail_body: Markup,
         batch_size: int,
-    ) -> Iterator[tuple[dict, tuple]]:
+    ) -> Iterator[tuple[dict, list[dict]]]:
+        """Yield ``(mail_values, recipients_values)``, where each entry of
+        ``recipients_values`` is the recipient-specific part of one
+        ``mail.notification``.
+
+        A partner notification carries ``mail_email_address`` too: the contact
+        may be re-addressed later, and the chatter must keep reporting the
+        address this mail actually went to.
+        """
+        email_by_pid = {
+            r["id"]: r["email_normalized"]
+            for r in recipients_group["recipients_data"]
+            if r["id"]
+        }
         for recipient_ids_chunk in batched(
             recipients_group["recipients_ids"], batch_size, strict=False
         ):
@@ -2705,14 +2718,23 @@ class MixinMailThread(models.AbstractModel):
                     base_mail_values,
                     additional_values={"body_html": mail_body},
                 ),
-                ("res_partner_id", recipient_ids_chunk),
+                [
+                    {
+                        "res_partner_id": pid,
+                        "mail_email_address": email_by_pid.get(pid),
+                    }
+                    for pid in recipient_ids_chunk
+                ],
             )
         if recipients_emails := recipients_group["recipients_emails"]:
             mail_values = self._notify_by_email_get_final_mail_values(
                 [], base_mail_values, additional_values={"body_html": mail_body}
             )
             mail_values["email_to"] = ",".join(recipients_emails)
-            yield mail_values, ("mail_email_address", recipients_emails)
+            yield (
+                mail_values,
+                [{"mail_email_address": email} for email in recipients_emails],
+            )
 
     def _notify_by_email_prepare(
         self,
@@ -2751,7 +2773,7 @@ class MixinMailThread(models.AbstractModel):
             self.env["ir.config_parameter"]._get_int_param("mail.batch_size", 50) or 50
         )
         mail_values_list = []
-        notif_targets = []
+        notif_recipients_values = []
         for (
             _lang,
             render_values,
@@ -2773,21 +2795,20 @@ class MixinMailThread(models.AbstractModel):
                 msg_vals=msg_vals,
                 render_values=render_values,
             )
-            for mail_values, target in self._notify_by_email_split_group(
+            for mail_values, recipients_values in self._notify_by_email_split_group(
                 recipients_group, base_mail_values, mail_body, gen_batch_size
             ):
                 mail_values_list.append(mail_values)
-                notif_targets.append(target)
+                notif_recipients_values.append(recipients_values)
 
         return [
             {
                 "mail_values": mail_values,
-                "target_field": target_field,
-                "targets": targets,
+                "recipients_values": recipients_values,
                 "notification_values": base_notification_values,
             }
-            for mail_values, (target_field, targets) in zip(
-                mail_values_list, notif_targets, strict=True
+            for mail_values, recipients_values in zip(
+                mail_values_list, notif_recipients_values, strict=True
             )
         ]
 
@@ -2811,11 +2832,11 @@ class MixinMailThread(models.AbstractModel):
         notif_create_values = [
             {
                 "mail_mail_id": mail.id,
-                entry["target_field"]: target,
+                **recipient_values,
                 **entry["notification_values"],
             }
             for mail, entry in zip(emails, prepared, strict=True)
-            for target in entry["targets"]
+            for recipient_values in entry["recipients_values"]
         ]
         if notif_create_values:
             SafeNotification.create(notif_create_values)
