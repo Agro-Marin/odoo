@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import logging
+import textwrap
 import typing
 from collections import defaultdict
 from collections.abc import Collection, Iterable, Iterator, Sequence
@@ -2271,9 +2272,17 @@ class MixinMailThread(models.AbstractModel):
         )
         return parents
 
+    # Long enough to identify the record, short enough that a mail client shows
+    # it whole instead of truncating it itself.
+    SUBJECT_MAX_LENGTH = 100
+
     def _message_compute_subject(self) -> str:
         self.check_singleton()
-        return self.display_name
+        return textwrap.shorten(
+            self.display_name or "",
+            width=self.SUBJECT_MAX_LENGTH,
+            placeholder="...",
+        )
 
     def _message_create(self, values_list: list[dict]) -> MailMessage:
         values_list = [
@@ -2954,6 +2963,11 @@ class MixinMailThread(models.AbstractModel):
             ),
         }
 
+    # The layout prints the record name inline in the header bar, in a cell with
+    # white-space:nowrap, so a long name cannot wrap: it stretches the bar and
+    # pushes the access button out of view.
+    NOTIFICATION_RECORD_NAME_MAX_LENGTH = 100
+
     def _notify_by_email_prepare_rendering_context(
         self,
         message: MailMessage,
@@ -2980,7 +2994,11 @@ class MixinMailThread(models.AbstractModel):
             model_description = record_wlang._get_model_description(
                 msg_vals.get("model", message.model)
             )
-        record_name = force_record_name or message.with_context(lang=lang).record_name
+        record_name = textwrap.shorten(
+            force_record_name or message.with_context(lang=lang).record_name or "",
+            width=self.NOTIFICATION_RECORD_NAME_MAX_LENGTH,
+            placeholder="...",
+        )
 
         check_tracking = (
             msg_vals.get("tracking_value_ids", True) if msg_vals else bool(self)
@@ -3462,13 +3480,16 @@ class MixinMailThread(models.AbstractModel):
 
         skip_author_id = self._notify_get_skip_author(message, msg_vals, pids, kwargs)
 
-        emailed_normalized = set(
+        # Mailboxes this conversation already reaches: the incoming To/Cc, plus
+        # every mailbox accepted below. Skipping a partner whose mailbox is
+        # already covered is what stops two contacts on a shared inbox -- or a
+        # duplicated contact -- from getting the same notification twice.
+        emailed_normalized_covered = set(
             email_normalize_all(
                 f"{msg_vals.get('incoming_email_to', msg_sudo.incoming_email_to) or ''}, "
                 f"{msg_vals.get('incoming_email_cc', msg_sudo.incoming_email_cc) or ''}"
             )
         )
-        emailed_normalized_covered = set(emailed_normalized)
 
         for pid, pdata in res.items():
             if pid and pid == skip_author_id:
@@ -3477,7 +3498,7 @@ class MixinMailThread(models.AbstractModel):
                 continue
             if (
                 pdata["notif"] == "email"
-                and pdata["email_normalized"] in emailed_normalized
+                and pdata["email_normalized"] in emailed_normalized_covered
             ):
                 continue
             recipients_data.append(pdata)

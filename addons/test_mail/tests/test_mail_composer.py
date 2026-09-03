@@ -1957,6 +1957,58 @@ class TestComposerInternals(TestMailComposer):
         )
 
     @users("employee")
+    def test_mail_composer_save_template_drops_quoted_reply(self):
+        """Saving a reply as a template used to archive the other person's mail.
+
+        The chatter's Reply/Forward actions prefill the body with the quoted
+        conversation inside `o_mail_reply_container`. That block belongs to the
+        message being answered, not to the template, and a template born with it
+        re-sends a stranger's words to every later recipient.
+        """
+        quoted = (
+            "<div><br></div>"
+            '<div class="o_mail_reply_container" data-o-mail-quote="1">'
+            '<div class="o_mail_reply_content">On 2005-01-01 John wrote</div>'
+            "</div>"
+        )
+        composer = (
+            self.env["mail.compose.message"]
+            .with_context(self._get_web_context(self.test_record, add_web=False))
+            .create(
+                {
+                    "template_name": "Reply Template",
+                    "body": f"<p>Le respondo en dos dias.</p>{quoted}",
+                }
+            )
+        )
+        composer.create_mail_template()
+        template = composer.template_id
+
+        self.assertIn("Le respondo en dos dias.", template.body_html)
+        self.assertNotIn(
+            "o_mail_reply_container",
+            template.body_html,
+            "the quoted conversation must not be archived in the template",
+        )
+        self.assertNotIn("John wrote", template.body_html)
+        self.assertIn(
+            "o_mail_reply_container",
+            composer.body,
+            "the composer keeps its own body: only the template is cleaned",
+        )
+
+    @users("employee")
+    def test_mail_composer_save_template_keeps_a_plain_body(self):
+        """A body with nothing quoted must come through byte for byte."""
+        composer = (
+            self.env["mail.compose.message"]
+            .with_context(self._get_web_context(self.test_record, add_web=False))
+            .create({"template_name": "Plain", "body": "<p>Template Body</p>"})
+        )
+        composer.create_mail_template()
+        self.assertEqual(composer.template_id.body_html, "<p>Template Body</p>")
+
+    @users("employee")
     def test_mail_composer_schedule_message(self):
         """Test scheduling of a message from the composer"""
 

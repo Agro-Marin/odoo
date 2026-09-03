@@ -40,7 +40,6 @@ export class CallParticipantCard extends Component {
         this.store = useService("mail.store");
         this.ui = useService("ui");
         this.rootHover = useHover("root");
-        this.resumeStreamHover = useHover("resumeStream");
         this.isMobileOS = isMobileOS();
         this.dragPos = undefined;
         this.isDrag = false;
@@ -111,6 +110,12 @@ export class CallParticipantCard extends Component {
         if (this.rtc.state.screenTrack) {
             this.rtc.state.screenTrack.enabled = true;
         }
+    }
+
+    stopScreenStream() {
+        // Our toggleVideo takes an options object: a bare `false` would land as
+        // `{}` and merely toggle.
+        this.rtc.toggleVideo("screen", { force: false });
     }
 
     get showLiveLabel() {

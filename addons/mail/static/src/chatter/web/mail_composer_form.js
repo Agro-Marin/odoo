@@ -61,17 +61,21 @@ export class MailComposerFormRenderer extends formView.Renderer {
             return thread;
         });
     }
-    _setupReplyAllFocus() {
+    _setupBodyFocus() {
         useEffect(
             /**
              * @param {boolean} isInEdition
              * @param {HTMLElement|null} el
              */
             (isInEdition, el) => {
+                // Everything but a forward wants the cursor in the body: the
+                // suggested recipients are good enough that the user is here to
+                // write. A forward keeps the focus on the recipients, which is
+                // the part that is still empty.
                 if (
                     el &&
                     isInEdition &&
-                    this.props.record.data.composition_comment_option === "reply_all"
+                    this.props.record.data.composition_comment_option !== "forward"
                 ) {
                     const element = el.querySelector(".note-editable[contenteditable]");
                     if (element) {
@@ -170,7 +174,7 @@ export class MailComposerFormRenderer extends formView.Renderer {
         super.setup();
         this.orm = useService("orm");
         this.root = useRef("compiled_view_root");
-        this._setupReplyAllFocus();
+        this._setupBodyFocus();
         this._setupAttachmentDropzone();
         this.env.dialogData.dismiss = () => this._syncRecipientsFromFullComposer();
     }

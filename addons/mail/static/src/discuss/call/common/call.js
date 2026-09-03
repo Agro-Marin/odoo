@@ -5,6 +5,7 @@ import { BlurPerformanceWarning } from "@mail/discuss/call/common/blur_performan
 import { CallActionList } from "@mail/discuss/call/common/call_action_list";
 import { useCallActions } from "@mail/discuss/call/common/call_actions";
 import { CallParticipantCard } from "@mail/discuss/call/common/call_participant_card";
+import { CallPresentationBar } from "@mail/discuss/call/common/call_presentation_bar";
 import { PttAdBanner } from "@mail/discuss/call/common/ptt_ad_banner";
 import { inDiscussCallViewProps, useInDiscussCallView } from "@mail/utils/common/hooks";
 import {
@@ -41,6 +42,7 @@ export class Call extends Component {
         BlurPerformanceWarning,
         CallActionList,
         CallParticipantCard,
+        CallPresentationBar,
         PttAdBanner,
     };
     static props = ["thread?", "compact?", "hasOverlay?", ...inDiscussCallViewProps];
@@ -93,6 +95,10 @@ export class Call extends Component {
         return this.callActions.actions.filter((action) =>
             action.tags.includes(ACTION_TAGS.CALL_LAYOUT),
         );
+    }
+
+    get isAnyonePresenting() {
+        return this.channel.rtc_session_ids.some((session) => session.is_screen_sharing_on);
     }
 
     get isFullSize() {

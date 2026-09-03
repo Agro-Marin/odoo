@@ -22,10 +22,15 @@
  t-ref="root"
  >
  <t t-if="showPausedScreenStream">
- <div class="o-text-white display-5 gap-3">
- <button class="pe-auto bg-transparent o-text-white border-0 opacity-25 opacity-75-hover" t-ref="resumeStream" t-on-click.stop="resumeScreenStream">
- <i class="fa-regular " t-att-class="{ 'fa-circle-play': resumeStreamHover.isHover, 'fa-circle-pause': !resumeStreamHover.isHover }"/> <span><t t-if="resumeStreamHover.isHover">Resume stream</t><t t-else="">Stream paused</t></span>
- </button>
+ <div class="d-flex flex-column align-items-center">
+ <h1 class="o-text-white">You are Presenting</h1>
+ <div class="o-text-white fs-5 text-center d-flex flex-column">
+ <span>To avoid an infinity mirror, don't share your entire screen or browser window.<br/>Share just a tab or a different window instead.</span>
+ </div>
+ <div class="d-flex mt-4 gap-3">
+ <button class="btn btn-primary rounded-pill px-5 pe-auto" t-on-click.stop="resumeScreenStream" aria-label="Show My Screen Anyway">Show My Screen Anyway</button>
+ <button class="btn btn-secondary rounded-pill px-5 pe-auto" t-on-click.stop="stopScreenStream" aria-label="Stop Presenting">Stop Presenting</button>
+ </div>
  </div>
  </t>
  <CallParticipantVideo t-elif="hasVideo" session="rtcSession" type="props.cardData.type" inset="props.inset"/>
