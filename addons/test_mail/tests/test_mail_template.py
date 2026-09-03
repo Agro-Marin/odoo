@@ -416,7 +416,7 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
         contextual action, with dynamic reports involved"""
         self.env.invalidate_all()
         # tm: 22, nightly: +1
-        with self.with_user(self.user_employee.login), self.assertQueryCount(21):
+        with self.with_user(self.user_employee.login), self.assertQueryCount(22):
             mail_id = self.test_template_wreports.with_env(self.env).send_mail(
                 self.test_record.id
             )

@@ -30,6 +30,7 @@ from weasyprint.urls import URLFetcher, URLFetcherResponse
 from odoo import _, api, fields, models, modules, tools
 from odoo.exceptions import (
     AccessError,
+    MissingError,
     RedirectWarning,
     UserError,
     ValidationError,
@@ -1757,9 +1758,12 @@ class IrActionsReport(models.Model):
         return report
 
     def _check_report_access(self, report: Self) -> None:
-        if self.env.su or not report.exists():
+        if self.env.su:
             return
-        groups = report.group_ids
+        try:
+            groups = report.group_ids
+        except MissingError:
+            return
         if groups and not (groups & self.env.user.all_group_ids):
             raise AccessError(
                 _(
