@@ -163,7 +163,8 @@ class Application:
         if not db:
             return self.nodb_routing_map
         router_env = env if env is not None else request.env
-        assert router_env is not None, "a database router needs a bound environment"
+        if router_env is None:
+            raise RuntimeError("a database router needs a bound environment")
         return ir_http(router_env).routing_map()
 
     @_locked_cached_property
