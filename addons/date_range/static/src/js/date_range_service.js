@@ -5,8 +5,6 @@ export const dateRangeService = {
     dependencies: ["orm"],
 
     /**
-     * Start the date_range service
-     *
      * @param {Object} env - Odoo environment
      * @param {Object} deps - Service dependencies
      * @param {Object} deps.orm - ORM service for database access
@@ -29,12 +27,10 @@ export const dateRangeService = {
          * console.log(ranges); // [{ id: 1, name: "Q1 2024", ... }, ...]
          */
         async function loadDateRanges() {
-            // Return cached data if available
             if (cache) {
                 return cache;
             }
 
-            // Return ongoing loading promise if already loading
             if (loading) {
                 return loading;
             }
@@ -57,7 +53,6 @@ export const dateRangeService = {
                 ),
             ])
                 .then(([ranges, types]) => {
-                    // Cache the results
                     cache = { ranges, types };
                     loading = null;
                     return cache;
