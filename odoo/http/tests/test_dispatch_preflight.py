@@ -24,6 +24,7 @@ def _request(method="GET", headers=None, mimetype="text/html"):
         future_response=FutureResponse(),
         httprequest=SimpleNamespace(
             method=method,
+            path="/x",
             headers=headers or {},
             mimetype=mimetype,
             max_content_length=None,
@@ -88,7 +89,19 @@ def test_plain_cors_still_emits_the_declared_value():
     headers = req.future_response.headers
     assert headers["Access-Control-Allow-Origin"] == "*"
     assert "Access-Control-Allow-Credentials" not in headers
-    assert "Vary" not in headers
+
+
+def test_a_resolver_returning_a_wildcard_grants_no_credentials():
+    # _check_cors_credentials rejects a literal cors="*" at decoration time, but
+    # a resolver callable is only evaluated per request: the same pair must not
+    # get through here either.
+    req = _request(headers={"Origin": "*"})
+    _pre_dispatch(req, _rule(cors=lambda r: "*", cors_credentials=True))
+
+    headers = req.future_response.headers
+    assert "Access-Control-Allow-Origin" not in headers
+    assert "Access-Control-Allow-Credentials" not in headers
+    assert headers["Vary"] == "Origin"
 
 
 def test_credentialed_cors_emits_nothing_without_an_origin():

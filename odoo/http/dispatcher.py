@@ -28,6 +28,7 @@ from .constants import (
     CORS_MAX_AGE,
     MISSING_CSRF_WARNING,
     SAFE_HTTP_METHODS,
+    WILDCARD_CORS_CREDENTIALS_WARNING,
     prepare_allow_header,
 )
 from .exceptions import SessionExpiredException
@@ -132,7 +133,15 @@ class Dispatcher(ABC):
             if "Origin" not in vary:
                 vary.append("Origin")
             origin = self.request.httprequest.headers.get("Origin")
-            if origin and allow_origin == origin:
+            if allow_origin == "*":
+                # A literal cors="*" never gets this far -- _check_cors_credentials
+                # rejects it at decoration time. A resolver callable is only
+                # evaluated here, so this is where the same invariant has to hold.
+                _logger.warning(
+                    WILDCARD_CORS_CREDENTIALS_WARNING, self.request.httprequest.path
+                )
+                allow_origin = None
+            elif origin and allow_origin == origin:
                 set_header("Access-Control-Allow-Credentials", "true")
             else:
                 allow_origin = None
