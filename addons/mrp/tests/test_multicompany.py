@@ -1,4 +1,4 @@
-from odoo.exceptions import UserError
+from odoo.exceptions import RedirectWarning, UserError
 from odoo.fields import Command
 from odoo.tests import Form, common
 
@@ -393,3 +393,40 @@ class TestMrpMulticompany(common.TransactionCase):
         self.assertRecordValues(
             delivery.move_ids, [{"state": "confirmed", "quantity": 0.0}]
         )
+
+
+class TestMrpBomOverviewWithoutWarehouse(common.TransactionCase):
+    """A company with no warehouse is a real state here.
+
+    `res.company.create` only bootstraps a warehouse under
+    `modules.module.current_test` (addons/stock/models/res_company.py:92), so in
+    production every company after the first starts without one.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # `_warehouse_redirect_warning` returns quietly while the registry is
+        # still loading, so that installing a module cannot raise. Tests run
+        # inside that window; simulate a ready server as test_mail does.
+        old = self.env.registry.ready
+        self.env.registry.ready = True
+        self.addCleanup(setattr, self.env.registry, "ready", old)
+
+    def test_bom_overview_warehouses_offers_to_create_one(self):
+        company = self.env["res.company"].create({"name": "Warehouseless Co"})
+        self.env["stock.warehouse"].search(
+            [("company_id", "=", company.id)]
+        ).active = False
+        self.env.user.company_ids = [Command.link(company.id)]
+        self.env.user.group_ids = [
+            Command.link(self.env.ref("stock.group_stock_manager").id)
+        ]
+
+        report = (
+            self.env["report.mrp.report_bom_structure"]
+            .with_company(company)
+            .with_context(allowed_company_ids=company.ids)
+        )
+
+        with self.assertRaises(RedirectWarning):
+            report.get_warehouses()
