@@ -76,8 +76,14 @@ class TestAnExplicitlyChosenFileIsLoud(_ConfigFileCase):
         self.config._env_options["config"] = str(readable)
         self.config._check_config_file_is_readable()
 
-    def test_an_absent_explicit_file_is_not_this_guard_s_business(self):
+    def test_an_absent_explicit_file_is_also_loud(self):
         self.config._env_options["config"] = str(self.tmp / "nope.conf")
+        with self.assertRaises(SystemExit):
+            self.config._check_config_file_is_readable()
+
+    def test_an_absent_explicit_file_is_tolerated_when_saving(self):
+        self.config._env_options["config"] = str(self.tmp / "nope.conf")
+        self.config._cli_options["save"] = True
         self.config._check_config_file_is_readable()
 
 
