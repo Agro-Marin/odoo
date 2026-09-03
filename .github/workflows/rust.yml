@@ -1,27 +1,7 @@
 name: Rust Extensions (odoo_rust · odoo_lint)
 
-# `crates/` is a cargo workspace with three members:
-#
-#   odoo_rust   — a HARD dependency of the core framework. There is no
-#                 pure-Python fallback; it is imported unconditionally by web
-#                 export and the ORM hot paths (db/cursor, orm/fields/base,
-#                 orm/models/mixins/read, orm/runtime/environment, orm/helpers,
-#                 libs/json/fast_clone, libs/_field_access).
-#   odoo_lint   — the parallel source scanner behind four test_lint gates.
-#                 Split out of odoo_rust because it is test-only and dominated
-#                 the runtime wheel: 1156 KB and 35 crates with it, 266 KB and
-#                 15 without. Not a runtime dependency; libs/lint/scan.py is
-#                 its only importer.
-#   odoo_build  — the build-script support both share, so the source-fingerprint
-#                 algorithm that must match odoo/libs/native.py exists once.
-#
-# A crate that fails to format, lint, test, build, or export its required
-# symbols must BLOCK the merge, not warn — so this gate is intentionally NOT
-# continue-on-error.
 
 on:
-  # Mainline re-verification: re-check the native crates on every push to a
-  # protected branch so a direct commit / merge-skew cannot break them unnoticed.
   push:
     branches: ['19.0-marin', '19.0']
   pull_request:
@@ -49,9 +29,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      # Python comes first: pyo3's build script needs an interpreter, and the
-      # non-extension-module `cargo test` build links libpython (setup-python
-      # ships a shared libpython). Pin to the fork's interpreter.
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -68,20 +45,12 @@ jobs:
           workspaces: crates
 
       - name: Format check
-        # Workspace-wide from `crates/`. Before the split this ran in
-        # crates/odoo_rust, where "the only crate" and "every crate" were the
-        # same set; a second crate added outside the workspace would have been
-        # formatted, linted and tested by nothing.
         run: cargo fmt --all --check
 
       - name: Clippy (warnings are errors)
-        # Default features (extension-module off) — same config the test build
-        # uses; these crates have no cfg-gated code, so they lint identically.
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Unit tests
-        # No --features extension-module: that build links libpython for the
-        # test harness. maturin re-enables it for the wheels (next step).
         run: cargo test --workspace
 
       - name: Build + install both extensions (maturin)

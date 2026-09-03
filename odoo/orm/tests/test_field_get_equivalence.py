@@ -402,7 +402,7 @@ def test_stored_computed_pending_guard_recomputes_and_never_leaks_pending():
         assert not env._core.has_pending_field(field)
 
 
-def test_pending_evicted_for_scalar_via_scalar_cache_get():
+def test_pending_evicted_for_a_scalar_read():
     with model_test_env(GHost, GChild, GCurrency) as env:
         host = env["g.host"].create({"f_int": 9})
         field = host._fields["f_int"]

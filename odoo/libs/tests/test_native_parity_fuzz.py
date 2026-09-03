@@ -149,3 +149,37 @@ def test_fast_clone_agrees_with_deepcopy_on_a_tree():
     for _ in range(300):
         blob = _json_like(rng)
         assert fast.fast_clone(blob) == copy.deepcopy(blob), f"blob={blob!r}"
+
+
+def test_rows_to_dicts_refuses_rows_that_shrink_under_a_reentrant_name():
+    rows = [(1, 2)] * 50
+
+    class Key(str):
+        __slots__ = ()
+
+        def __hash__(self):
+            rows.clear()
+            return 7
+
+    with pytest.raises(ValueError):
+        fast.rows_to_dicts((Key("a"), "b"), rows)
+
+
+@pytest.mark.parametrize("clone", [fast.fast_clone, clone_ref], ids=["native", "ref"])
+def test_fast_clone_refuses_a_dict_that_changes_size_while_cloned(clone):
+    source: dict = {}
+
+    class Key:
+        armed = False
+
+        def __hash__(self):
+            if self.armed:
+                source.clear()
+                source.update({f"k{i}": [i] for i in range(64)})
+            return 1
+
+    key = Key()
+    source.update({key: [1], "b": [2], "c": [3]})
+    key.armed = True
+    with pytest.raises(RuntimeError):
+        clone(source)

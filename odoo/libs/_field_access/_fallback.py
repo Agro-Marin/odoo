@@ -5,7 +5,6 @@ __all__ = [
     "batch_cache_filter",
     "batch_cache_get",
     "batch_group_ids",
-    "scalar_cache_get",
     "sort_ids_by_cache",
     "to_prefetch_ids",
 ]
@@ -166,19 +165,3 @@ def batch_group_ids(ids: tuple, values: list) -> dict[object, list]:
         else:
             group.append(id_)
     return result
-
-
-def scalar_cache_get(
-    env_dict: dict,
-    field: object,
-    record_id: object,
-    pending: object,
-    sentinel: object,
-) -> object:
-    try:
-        value = env_dict["_field_cache_memo"][field][record_id]
-    except KeyError:
-        return sentinel
-    if value is pending:
-        return sentinel
-    return value

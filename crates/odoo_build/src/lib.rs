@@ -56,6 +56,7 @@ pub fn stamp_build_identity(prefix: &str) {
     inputs.sort_by(|a, b| a.0.cmp(&b.0));
 
     println!("cargo:rerun-if-changed=src");
+    println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=../Cargo.lock");
 
     let mut blob: Vec<u8> = Vec::new();
@@ -64,7 +65,6 @@ pub fn stamp_build_identity(prefix: &str) {
         blob.push(0);
         blob.extend_from_slice(&fs::read(path).unwrap_or_else(|e| panic!("read {rel}: {e}")));
         blob.push(0);
-        println!("cargo:rerun-if-changed={}", path.display());
     }
 
     println!("cargo:rustc-env={prefix}_SOURCE_CRC={:08x}", crc32(&blob));

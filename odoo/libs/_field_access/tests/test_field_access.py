@@ -11,7 +11,6 @@ from odoo.libs._field_access._fallback import (
     batch_cache_filter,
     batch_cache_get,
     batch_group_ids,
-    scalar_cache_get,
     sort_ids_by_cache,
     to_prefetch_ids,
 )
@@ -59,7 +58,6 @@ class _FieldAccessTestMixin(_MixinBase):
     batch_cache_fill: Callable
     batch_cache_get: Callable
     batch_cache_filter: Callable
-    scalar_cache_get: Callable
     sort_ids_by_cache: Callable
     batch_group_ids: Callable
     to_prefetch_ids: Callable
@@ -306,51 +304,6 @@ class _FieldAccessTestMixin(_MixinBase):
         self.assertEqual(list(passing), [1, 2, 3])
         self.assertEqual(list(misses), [])
 
-    def test_scalar_hit(self) -> None:
-        field = object()
-        env_dict = {"_field_cache_memo": {field: {42: "value"}}}
-        result = self.scalar_cache_get(env_dict, field, 42, PENDING, SENTINEL)
-        self.assertEqual(result, "value")
-
-    def test_scalar_miss_no_memo(self) -> None:
-        result = self.scalar_cache_get({}, "f", 42, PENDING, SENTINEL)
-        self.assertIs(result, SENTINEL)
-
-    def test_scalar_miss_no_field(self) -> None:
-        env_dict: dict = {"_field_cache_memo": {}}
-        result = self.scalar_cache_get(env_dict, "f", 42, PENDING, SENTINEL)
-        self.assertIs(result, SENTINEL)
-
-    def test_scalar_miss_no_id(self) -> None:
-        field = object()
-        env_dict: dict = {"_field_cache_memo": {field: {}}}
-        result = self.scalar_cache_get(env_dict, field, 42, PENDING, SENTINEL)
-        self.assertIs(result, SENTINEL)
-
-    def test_scalar_pending_returns_sentinel(self) -> None:
-        field = object()
-        env_dict = {"_field_cache_memo": {field: {42: PENDING}}}
-        result = self.scalar_cache_get(env_dict, field, 42, PENDING, SENTINEL)
-        self.assertIs(result, SENTINEL)
-
-    def test_scalar_none_is_valid(self) -> None:
-        field = object()
-        env_dict = {"_field_cache_memo": {field: {42: None}}}
-        result = self.scalar_cache_get(env_dict, field, 42, PENDING, SENTINEL)
-        self.assertIsNone(result)
-
-    def test_scalar_false_is_valid(self) -> None:
-        field = object()
-        env_dict = {"_field_cache_memo": {field: {42: False}}}
-        result = self.scalar_cache_get(env_dict, field, 42, PENDING, SENTINEL)
-        self.assertIs(result, False)
-
-    def test_scalar_zero_is_valid(self) -> None:
-        field = object()
-        env_dict = {"_field_cache_memo": {field: {42: 0}}}
-        result = self.scalar_cache_get(env_dict, field, 42, PENDING, SENTINEL)
-        self.assertEqual(result, 0)
-
     def _sort(self, ids, values, reverse, null_high=True):
         cache = dict(zip(ids, values, strict=True))
         return self.sort_ids_by_cache(cache, ids, PENDING, reverse, null_high)
@@ -479,7 +432,6 @@ class TestFallback(_FieldAccessTestMixin, unittest.TestCase):
         cls.batch_cache_fill = staticmethod(batch_cache_fill)
         cls.batch_cache_get = staticmethod(batch_cache_get)
         cls.batch_cache_filter = staticmethod(batch_cache_filter)
-        cls.scalar_cache_get = staticmethod(scalar_cache_get)
         cls.sort_ids_by_cache = staticmethod(sort_ids_by_cache)
         cls.batch_group_ids = staticmethod(batch_group_ids)
         cls.to_prefetch_ids = staticmethod(to_prefetch_ids)
@@ -491,7 +443,6 @@ class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
         cls.batch_cache_fill = staticmethod(_rust_batch_cache_fill)
         cls.batch_cache_get = staticmethod(_rust_batch_cache_get)
         cls.batch_cache_filter = staticmethod(_rust_batch_cache_filter)
-        cls.scalar_cache_get = staticmethod(scalar_cache_get)
         cls.sort_ids_by_cache = staticmethod(_rust_sort_ids_by_cache)
         cls.batch_group_ids = staticmethod(_rust_batch_group_ids)
         cls.to_prefetch_ids = staticmethod(_rust_to_prefetch_ids)
@@ -558,6 +509,38 @@ class TestAcceleratedMemorySafety(unittest.TestCase):
             Suicidal.target = None
         self.assertEqual(list(result.values()), [[1]])
 
+    def test_a_reentrant_bool_that_replaces_its_own_slot_writes_to_the_old_dict(
+        self,
+    ) -> None:
+        results: list = []
+
+        class Evil(dict):
+            def __bool__(self):
+                results[self["i"]] = {"replaced": True, "pad": "x" * 64}
+                return True
+
+        results.extend([Evil(i=0), Evil(i=1), Evil(i=2)])
+        originals = list(results)
+        cache = {1: "a", 2: "b", 3: "c"}
+        misses = _rust_batch_cache_fill(cache, (1, 2, 3), results, "f", PENDING, None)
+        self.assertEqual(misses, [])
+        self.assertEqual([d["f"] for d in originals], ["a", "b", "c"])
+        self.assertTrue(all("f" not in d for d in results))
+
+    def test_a_reentrant_bool_that_appends_to_results_is_refused(self) -> None:
+        results: list = []
+
+        class Evil(dict):
+            def __bool__(self):
+                results.append({})
+                return True
+
+        results.extend([Evil(), {}])
+        with self.assertRaises(ValueError):
+            _rust_batch_cache_fill(
+                {1: "a", 2: "b"}, (1, 2), results, "f", PENDING, None
+            )
+
     def test_a_failing_group_releases_the_key_it_borrowed(self) -> None:
         key: list = ["unhashable"]
         before = sys.getrefcount(key)
@@ -594,21 +577,19 @@ class TestSortDifferential(unittest.TestCase):
                     rust, py, msg=f"values={values!r} {reverse=} {null_high=}"
                 )
 
-    _assert_values_match = _assert_cache_match
-
     def test_diff_big_ints(self) -> None:
-        self._assert_values_match([2**63, 2**63 + 1, 1, 2**70, -(2**63) - 5])
+        self._assert_cache_match([2**63, 2**63 + 1, 1, 2**70, -(2**63) - 5])
         self._assert_cache_match([2**63, 2**63 + 1, 1, 2**70])
 
     def test_diff_floats_signed_zero(self) -> None:
-        self._assert_values_match([1.0, -0.0, 0.0, 2.0, -1.5])
+        self._assert_cache_match([1.0, -0.0, 0.0, 2.0, -1.5])
         self._assert_cache_match([1.0, -0.0, 0.0, 2.0, -1.5])
 
     def test_diff_floats_nan(self) -> None:
-        self._assert_values_match([1.0, float("nan"), 2.0, 0.0, float("nan")])
+        self._assert_cache_match([1.0, float("nan"), 2.0, 0.0, float("nan")])
 
     def test_diff_dates(self) -> None:
-        self._assert_values_match(
+        self._assert_cache_match(
             [date(2021, 1, 1), date(2020, 6, 15), date(2022, 3, 3)]
         )
         self._assert_cache_match(
@@ -616,7 +597,7 @@ class TestSortDifferential(unittest.TestCase):
         )
 
     def test_diff_datetimes(self) -> None:
-        self._assert_values_match(
+        self._assert_cache_match(
             [
                 datetime(2021, 1, 1, 12, 0),
                 datetime(2021, 1, 1, 9, 0),
@@ -628,19 +609,19 @@ class TestSortDifferential(unittest.TestCase):
         values = [date(2021, 1, 2), datetime(2021, 1, 1, 12, 0), date(2021, 1, 1)]
         with self.assertRaises(TypeError):
             sorted(values)
-        self._assert_values_match(values)
+        self._assert_cache_match(values)
 
     def test_diff_datetime_subclass_of_date_is_not_a_date_column(self) -> None:
-        self._assert_values_match(
+        self._assert_cache_match(
             [datetime(2021, 1, 2), datetime(2021, 1, 1, 12, 0), datetime(2021, 1, 1)]
         )
-        self._assert_values_match([date(2021, 1, 2), date(2021, 1, 1)])
+        self._assert_cache_match([date(2021, 1, 2), date(2021, 1, 1)])
 
     def test_diff_mixed_int_str(self) -> None:
-        self._assert_values_match([3, "a", 1])
+        self._assert_cache_match([3, "a", 1])
 
     def test_diff_non_ascii(self) -> None:
-        self._assert_values_match(["é", "a", "ñ", "z", "😀", "b", "Z"])
+        self._assert_cache_match(["é", "a", "ñ", "z", "😀", "b", "Z"])
         self._assert_cache_match(["é", "a", "ñ", "z", "😀", "b", "Z"])
 
 
@@ -653,9 +634,11 @@ class TestBoolIdParityWithRust(unittest.TestCase):
         self.assertEqual(_rust_to_prefetch_ids(True, (), {}, 10), (True,))
         self.assertEqual(to_prefetch_ids(True, (), {}, 10), (True,))
 
-    def test_a_bool_inside_prefetch_ids_is_skipped_by_both(self):
+    def test_a_bool_inside_prefetch_ids_counts_as_its_int_value_for_both(self):
         self.assertEqual(_rust_to_prefetch_ids(1, (True, 2), {}, 10), (1, 2))
         self.assertEqual(to_prefetch_ids(1, (True, 2), {}, 10), (1, 2))
+        self.assertEqual(_rust_to_prefetch_ids(2, (True, 1), {}, 10), (2, True))
+        self.assertEqual(to_prefetch_ids(2, (True, 1), {}, 10), (2, True))
 
     def test_false_is_rejected_by_both(self):
         self.assertIsNone(_rust_to_prefetch_ids(False, (), {}, 10))

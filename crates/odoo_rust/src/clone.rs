@@ -34,6 +34,12 @@ unsafe fn clone_inner(
             let mut val: *mut ffi::PyObject = std::ptr::null_mut();
 
             while ffi::PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
+                if ffi::PyDict_Size(obj) != size {
+                    ffi::Py_DECREF(new_dict);
+                    return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                        "dictionary changed size during iteration",
+                    ));
+                }
                 let cloned_val = match clone_inner(py, val, depth + 1) {
                     Ok(v) => v,
                     Err(e) => {

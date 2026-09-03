@@ -5,6 +5,7 @@ mod clone;
 mod ffi_ext;
 mod ids;
 mod prefetch;
+mod pyutil;
 mod rows;
 mod sort;
 mod web;

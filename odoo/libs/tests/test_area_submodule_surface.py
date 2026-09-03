@@ -242,7 +242,6 @@ UNPROMOTED_SUBMODULE_EXPORTS: dict[str, set[str]] = {
         "batch_cache_filter",
         "batch_cache_get",
         "batch_group_ids",
-        "scalar_cache_get",
         "sort_ids_by_cache",
         "to_prefetch_ids",
     },

@@ -1,16 +1,12 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyBytes, PyList, PyString};
+use pyo3::types::{PyBytes, PyList, PyString};
+
+use crate::pyutil::is_none_or_false;
 
 #[pyfunction]
-pub fn csv_export(
-    py: Python<'_>,
-    headers: &Bound<'_, PyList>,
-    rows: &Bound<'_, PyList>,
-) -> PyResult<Vec<u8>> {
+pub fn csv_export(headers: &Bound<'_, PyList>, rows: &Bound<'_, PyList>) -> PyResult<Vec<u8>> {
     let n_rows = rows.len();
     let n_cols = headers.len();
-
-    let py_false = PyBool::new(py, false).to_owned().into_any();
 
     let mut buf = String::with_capacity(n_cols.max(1) * 16);
 
@@ -37,14 +33,14 @@ pub fn csv_export(
                 if col_idx > 0 {
                     buf.push(',');
                 }
-                write_cell(&mut buf, &row_list.get_item(col_idx)?, &py_false)?;
+                write_cell(&mut buf, &row_list.get_item(col_idx)?)?;
             }
         } else {
             for (col_idx, cell) in row.try_iter()?.enumerate() {
                 if col_idx > 0 {
                     buf.push(',');
                 }
-                write_cell(&mut buf, &cell?, &py_false)?;
+                write_cell(&mut buf, &cell?)?;
             }
         }
         buf.push_str("\r\n");
@@ -58,12 +54,8 @@ pub fn csv_export(
     Ok(buf.into_bytes())
 }
 
-fn write_cell(
-    buf: &mut String,
-    cell: &Bound<'_, PyAny>,
-    py_false: &Bound<'_, PyAny>,
-) -> PyResult<()> {
-    if cell.is_none() || cell.is(py_false) {
+fn write_cell(buf: &mut String, cell: &Bound<'_, PyAny>) -> PyResult<()> {
+    if is_none_or_false(cell) {
         buf.push_str("\"\"");
         return Ok(());
     }

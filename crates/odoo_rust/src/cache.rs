@@ -148,7 +148,8 @@ pub fn batch_cache_fill<'py>(
                     "batch_cache_fill: `results` changed length during the fill",
                 ));
             }
-            let vals_ptr = ffi::PyList_GET_ITEM(results_ptr, i);
+            let vals = Bound::from_borrowed_ptr(py, ffi::PyList_GET_ITEM(results_ptr, i));
+            let vals_ptr = vals.as_ptr();
 
             let exact = ffi::PyDict_CheckExact(vals_ptr) != 0;
             let empty = if exact {

@@ -88,6 +88,10 @@ GATES = {
 
 UNPROBED = {
     "js_imports": "a shared parser imported by the gates, not a gate — no main()",
+    "import_edges": (
+        "the shared Python import-edge counter doc_restated_counts and the "
+        "module view import, not a gate — no main()"
+    ),
     "doc_measured": (
         "a helper the gates call to keep their own docstrings' figures honest, "
         "not a gate — no main(); test_doc_measured covers its refusals, "

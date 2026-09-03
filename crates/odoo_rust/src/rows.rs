@@ -1,3 +1,4 @@
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::ffi;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
@@ -17,52 +18,44 @@ pub fn rows_to_dicts<'py>(
     let rows_ptr = rows.as_ptr();
 
     unsafe {
-        let result_ptr = ffi::PyList_New(nrows);
-        if result_ptr.is_null() {
-            return Err(PyErr::fetch(py));
-        }
+        let result = Bound::from_owned_ptr_or_err(py, ffi::PyList_New(nrows))?;
+        let result_ptr = result.as_ptr();
 
         for i in 0..nrows {
-            let row_ptr = ffi::PyList_GET_ITEM(rows_ptr, i);
+            if ffi::PyList_GET_SIZE(rows_ptr) != nrows {
+                return Err(PyValueError::new_err(
+                    "rows_to_dicts: `rows` changed length during the conversion",
+                ));
+            }
+            let row = Bound::from_borrowed_ptr(py, ffi::PyList_GET_ITEM(rows_ptr, i));
+            let row_ptr = row.as_ptr();
 
             if ffi::PyTuple_Check(row_ptr) == 0 {
-                ffi::Py_DECREF(result_ptr);
-                return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                    "row {} is not a tuple",
-                    i,
-                )));
+                return Err(PyTypeError::new_err(format!("row {} is not a tuple", i)));
             }
 
             let row_len = ffi::PyTuple_GET_SIZE(row_ptr);
             if row_len != ncols {
-                ffi::Py_DECREF(result_ptr);
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                return Err(PyValueError::new_err(format!(
                     "row {} has {} elements, expected {}",
                     i, row_len, ncols
                 )));
             }
 
-            let dict_ptr = _PyDict_NewPresized(ncols);
-            if dict_ptr.is_null() {
-                ffi::Py_DECREF(result_ptr);
-                return Err(PyErr::fetch(py));
-            }
+            let dict = Bound::from_owned_ptr_or_err(py, _PyDict_NewPresized(ncols))?;
+            let dict_ptr = dict.as_ptr();
 
             for j in 0..ncols {
                 let key = ffi::PyTuple_GET_ITEM(names_ptr, j);
                 let val = ffi::PyTuple_GET_ITEM(row_ptr, j);
                 if ffi::PyDict_SetItem(dict_ptr, key, val) < 0 {
-                    ffi::Py_DECREF(dict_ptr);
-                    ffi::Py_DECREF(result_ptr);
                     return Err(PyErr::fetch(py));
                 }
             }
 
-            ffi::PyList_SET_ITEM(result_ptr, i, dict_ptr);
+            ffi::PyList_SET_ITEM(result_ptr, i, dict.into_ptr());
         }
 
-        Ok(Bound::from_owned_ptr(py, result_ptr)
-            .cast_into_unchecked::<PyList>()
-            .unbind())
+        Ok(result.cast_into_unchecked::<PyList>().unbind())
     }
 }

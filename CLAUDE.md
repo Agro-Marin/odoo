@@ -51,7 +51,7 @@ The profile is stamped beside the source fingerprint; `odoo/libs/native.py` refu
 
 ### A stale build is worse than a missing one
 
-With no fallback, a stale `.so` segfaults on a cyclic `fast_clone` and silently mis-orders timezone-aware columns; neither failure names its cause. CI never sees it — every lane builds fresh — so it is a long-lived-virtualenv problem only.
+The pure-Python twins step in only when the extension is *absent*; a stale `.so` is imported and used. Before the freshness check, a stale build segfaulted on a cyclic `fast_clone` and silently mis-ordered timezone-aware columns; neither failure names its cause. CI never sees it — every lane builds fresh — so it is a long-lived-virtualenv problem only.
 
 Each crate's `build.rs` stamps a CRC of its sources into the binary (`crates/odoo_build`); `odoo/libs/native.py` refuses to proceed when it disagrees with the crate on disk, naming the rebuild command. Rebuild after any `git pull` that touched `crates/`. Escape hatch: `ODOO_SKIP_RUST_FRESHNESS_CHECK=1`.
 

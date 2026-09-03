@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+use crate::pyutil::is_none_or_false;
 use pyo3::exceptions::PyValueError;
 use pyo3::ffi;
 use pyo3::prelude::*;
@@ -7,8 +8,6 @@ use pyo3::types::{
     PyBool, PyDate, PyDateAccess, PyDateTime, PyDict, PyFloat, PyInt, PyList, PyString,
     PyTimeAccess, PyTuple, PyTzInfoAccess,
 };
-
-type Values<'a, 'py> = [Borrowed<'a, 'py, PyAny>];
 
 #[pyfunction]
 pub fn sort_ids_by_cache<'py>(
@@ -21,7 +20,7 @@ pub fn sort_ids_by_cache<'py>(
 ) -> PyResult<Option<Py<PyTuple>>> {
     let n = ids.len();
 
-    let holder: Vec<Borrowed<'_, 'py, PyAny>> = unsafe {
+    let holder: Vec<Bound<'py, PyAny>> = unsafe {
         let cache_ptr = field_cache.as_ptr();
         let ids_ptr = ids.as_ptr();
         let pending_ptr = pending.as_ptr();
@@ -32,7 +31,7 @@ pub fn sort_ids_by_cache<'py>(
             let Some(v) = crate::cache::cache_probe(cache_ptr, id_obj, pending_ptr) else {
                 return Ok(None);
             };
-            holder.push(Borrowed::from_ptr(py, v.as_ptr()));
+            holder.push(Bound::from_borrowed_ptr(py, v.as_ptr()));
         }
         holder
     };
@@ -44,23 +43,7 @@ pub fn sort_ids_by_cache<'py>(
         let order = sort_column(&mut column, reverse, null_high);
         return build_sorted_tuple(py, ids, &order).map(Some);
     }
-    drop(holder);
-
-    let strong: Vec<Bound<'py, PyAny>> = unsafe {
-        let cache_ptr = field_cache.as_ptr();
-        let ids_ptr = ids.as_ptr();
-        let pending_ptr = pending.as_ptr();
-        let mut strong = Vec::with_capacity(n);
-        for i in 0..n {
-            let id_obj = ffi::PyTuple_GET_ITEM(ids_ptr, i as ffi::Py_ssize_t);
-            let Some(v) = crate::cache::cache_probe(cache_ptr, id_obj, pending_ptr) else {
-                return Ok(None);
-            };
-            strong.push(Bound::from_borrowed_ptr(py, v.as_ptr()));
-        }
-        strong
-    };
-    sort_objects_to_tuple(py, ids, &strong, reverse, null_high).map(Some)
+    sort_objects_to_tuple(py, ids, &holder, reverse, null_high).map(Some)
 }
 
 #[derive(Clone, Copy)]
@@ -308,19 +291,14 @@ fn date_key(value: &Bound<'_, PyAny>) -> Option<i64> {
     ))
 }
 
-#[inline]
-fn is_null(value: &Bound<'_, PyAny>) -> bool {
-    value.is_none() || value.as_ptr() == unsafe { ffi::Py_False() }
-}
-
 fn decode<'a, 'py, K>(
-    holder: &'a Values<'a, 'py>,
+    holder: &'a [Bound<'py, PyAny>],
     key: impl Fn(&'a Bound<'py, PyAny>) -> Option<K>,
 ) -> Option<Vec<(Option<K>, u32)>> {
     let mut rows = Vec::with_capacity(holder.len());
     for (index, value) in holder.iter().enumerate() {
         let index = index as u32;
-        if is_null(value) {
+        if is_none_or_false(value) {
             rows.push((None, index));
         } else {
             rows.push((Some(key(value)?), index));
@@ -329,8 +307,8 @@ fn decode<'a, 'py, K>(
     Some(rows)
 }
 
-fn decode_column<'a, 'py>(holder: &'a Values<'a, 'py>) -> Option<Column<'a>> {
-    let kind = match holder.iter().find(|value| !is_null(value)) {
+fn decode_column<'a, 'py>(holder: &'a [Bound<'py, PyAny>]) -> Option<Column<'a>> {
+    let kind = match holder.iter().find(|value| !is_none_or_false(value)) {
         Some(first) => Kind::of(first)?,
         None => Kind::Int,
     };
@@ -355,7 +333,7 @@ fn sort_objects_to_tuple<'py>(
     let keys = PyList::new(
         py,
         holder.iter().map(|value| {
-            if is_null(value) {
+            if is_none_or_false(value) {
                 (null_rank, &empty)
             } else {
                 (val_rank, value)
