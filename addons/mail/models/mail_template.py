@@ -1,3 +1,4 @@
+import ast
 import base64
 import contextlib
 import logging
@@ -5,14 +6,17 @@ import re
 import threading
 import typing
 from ast import literal_eval
-from collections.abc import Collection
+from collections.abc import Collection, Iterator
 from itertools import batched
 from types import NotImplementedType
 from typing import Any, Literal, Self
 
+from lxml import etree
+
 from odoo import _, api, fields, models, tools
 from odoo.api import ValuesType
-from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
+from odoo.db.errors import PG_RECOVERABLE_EXCEPTIONS
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools.rendering_tools import parse_inline_template
 from odoo.tools.safe_eval import safe_eval, time
@@ -85,12 +89,56 @@ SEND_RENDER_FIELDS = frozenset(
 
 ACCUMULATED_VALUE_KEYS = frozenset({"attachment_ids", "attachments", "partner_ids"})
 
+QWEB_EXPRESSION_ATTRIBUTES = frozenset(
+    {
+        "t-elif",
+        "t-esc",
+        "t-field",
+        "t-foreach",
+        "t-if",
+        "t-log",
+        "t-options",
+        "t-out",
+        "t-raw",
+        "t-value",
+    }
+)
+
 NO_RECORD_RES_ID = 0
 
 
 _MODIFYING_STATEMENT = re.compile(
     r"(INSERT|UPDATE|DELETE|COPY|TRUNCATE)\b", re.IGNORECASE
 )
+
+
+def _iter_inline_expressions(source: str) -> Iterator[str]:
+    for _string, expression, _default in parse_inline_template(source):
+        if expression:
+            yield expression
+
+
+def _iter_qweb_expressions(node: etree._Element) -> Iterator[str]:
+    for element in node.iter(etree.Element):
+        for attribute, value in element.attrib.items():
+            if attribute in QWEB_EXPRESSION_ATTRIBUTES or attribute.startswith(
+                "t-att-"
+            ):
+                yield value
+            elif attribute.startswith("t-attf-"):
+                yield from _iter_inline_expressions(value)
+
+
+def _attribute_chain(node: ast.Attribute) -> list[str] | None:
+    names = []
+    while isinstance(node, ast.Attribute):
+        names.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    names.append(node.id)
+    names.reverse()
+    return names
 
 
 def _merge_render_results(
@@ -393,17 +441,26 @@ class MailTemplate(models.Model):
             if failure := template._compile_dynamic_fields(checked_fnames):
                 fname, error = failure
                 raise template._prepare_rendering_error(fname, error) from error
+        self._probe_rendering_samples(checked_fnames, render_options)
+
+    def _probe_rendering_samples(
+        self, fnames: Collection[str], render_options: dict | None
+    ) -> None:
         samples = self.sudo()._get_rendering_samples()
-        if samples and (
-            failure := self.sudo()._render_dynamic_fields(
-                samples, checked_fnames, render_options
-            )
-        ):
-            template_id, fname, error = failure
-            template = self.browse(template_id)
-            raise template._prepare_rendering_error(
-                fname, error, sample=samples.get(template.model)
-            ) from error
+        if not samples:
+            return
+        failure = self.sudo()._render_dynamic_fields(samples, fnames, render_options)
+        if not failure:
+            return
+        template_id, fname, error = failure
+        _logger.info(
+            "mail.template %s: field %s compiles but does not render on sample "
+            "%s; saved anyway, sending on records of that shape will fail",
+            template_id,
+            fname,
+            samples[self.browse(template_id).model],
+            exc_info=error,
+        )
 
     def _get_rendering_samples(self) -> dict[str, models.BaseModel]:
 
@@ -419,23 +476,70 @@ class MailTemplate(models.Model):
         self, fnames: Collection[str]
     ) -> tuple[str, Exception] | None:
         self.check_singleton()
+        model = self.env.get(self.model)
         for fname in sorted(fnames):
-            source = self[fname]
-            if not source:
+            if not self[fname]:
                 continue
-            engine = getattr(self._fields[fname], "render_engine", "inline_template")
             try:
-                if engine == "qweb":
-                    node = self._get_qweb_template_node(str(source))[0]
-                    self.env["ir.qweb"]._generate_code(node)
-                elif engine == "inline_template":
-                    for _string, expression, _default in parse_inline_template(
-                        str(source)
-                    ):
-                        if expression:
-                            compile(expression, "<mail.template>", "eval")
-            except (UserError, ValueError, SyntaxError) as error:
+                expressions = self._compile_field_expressions(fname)
+                if model is not None:
+                    for expression in expressions:
+                        if message := self._find_unknown_object_attribute(
+                            expression, model
+                        ):
+                            raise AttributeError(message)
+            except PG_RECOVERABLE_EXCEPTIONS:
+                raise
+            except Exception as error:
                 return (fname, error)
+        return None
+
+    def _compile_field_expressions(self, fname: str) -> list[str]:
+        self.check_singleton()
+        source = str(self[fname])
+        engine = getattr(self._fields[fname], "render_engine", "inline_template")
+        if engine == "qweb":
+            node = self._get_qweb_template_node(source)[0]
+            expressions = list(_iter_qweb_expressions(node))
+            self.env["ir.qweb"]._generate_code(node)
+            return expressions
+        if engine == "inline_template":
+            expressions = list(_iter_inline_expressions(source))
+            for expression in expressions:
+                compile(expression, "<mail.template>", "eval")
+            return expressions
+        return []
+
+    def _find_unknown_object_attribute(
+        self, expression: str, model: models.BaseModel
+    ) -> str | None:
+        try:
+            tree = ast.parse(expression.strip(), mode="eval")
+        except SyntaxError, ValueError:
+            return None
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Attribute):
+                continue
+            chain = _attribute_chain(node)
+            if chain and chain[0] == "object":
+                if message := self._find_unknown_model_attribute(chain[1:], model):
+                    return message
+        return None
+
+    def _find_unknown_model_attribute(
+        self, names: list[str], model: models.BaseModel
+    ) -> str | None:
+        for name in names:
+            if not hasattr(type(model), name):
+                return _(
+                    "%(model)s has no field or attribute %(name)r",
+                    model=model._name,
+                    name=name,
+                )
+            field = model._fields.get(name)
+            if field is None or not field.relational:
+                return None
+            model = self.env[field.comodel_name]
         return None
 
     @contextlib.contextmanager
@@ -484,33 +588,25 @@ class MailTemplate(models.Model):
                         template._render_field(
                             fname, record.ids, options=render_options
                         )
-                    except AccessError, MissingError:
+                    except PG_RECOVERABLE_EXCEPTIONS:
                         raise
-                    except (UserError, ValueError, SyntaxError) as error:
+                    except Exception as error:
                         failures.append((template.id, fname, error))
                         break
                 if failures:
                     break
         return failures[0] if failures else None
 
-    def _prepare_rendering_error(
-        self,
-        fname: str,
-        error: Exception,
-        sample: models.BaseModel | None = None,
-    ) -> ValidationError:
-
+    def _prepare_rendering_error(self, fname: str, error: Exception) -> ValidationError:
         self.check_singleton()
         _logger.info(
-            "mail.template %s: field %s does not render", self.id, fname, exc_info=error
+            "mail.template %s: field %s does not compile",
+            self.id,
+            fname,
+            exc_info=error,
         )
-        disclosable = (
-            sample is None
-            or self.env.su
-            or sample.with_user(self.env.user).has_access("read")
-        )
-        if disclosable:
-            message = _(
+        return ValidationError(
+            _(
                 "Oops! We couldn't save your template due to an issue.\n\n"
                 "Field: %(field_name)s\n"
                 "Error: %(error_details)s\n\n"
@@ -518,16 +614,7 @@ class MailTemplate(models.Model):
                 field_name=self._fields[fname].string or fname,
                 error_details=str(error),
             )
-        else:
-            message = _(
-                "Oops! We couldn't save your template due to an issue.\n\n"
-                "Field: %(field_name)s\n"
-                "It could not be rendered on a sample record. Ask an administrator "
-                "to read the server log for the details.\n\n"
-                "Correct it and try again.",
-                field_name=self._fields[fname].string or fname,
-            )
-        return ValidationError(message)
+        )
 
     @api.constrains("model_id")
     def _check_model_not_abstract(self) -> None:

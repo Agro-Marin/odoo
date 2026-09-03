@@ -30,6 +30,12 @@ from odoo.addons.mail.tools.failure_type import (
 )
 
 
+def _personalize(mail, body, partner=False, doc_to_followers=None):
+    return mail._apply_unfollow_block(
+        body, mail._locate_unfollow_block(body), partner, doc_to_followers
+    )
+
+
 @tagged("mail_mail")
 class TestMailMail(MailCommon):
     @classmethod
@@ -503,7 +509,7 @@ class TestMailMail(MailCommon):
             "%s@%s" % (self.alias_bounce, self.alias_domain),
         )
 
-    @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.tests")
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_mail_mail_send_nothing_left_to_deliver(self):
         """A notification mail whose every recipient already carries a 'sent'
         notification has nothing to deliver, and that is not a failure.
@@ -589,7 +595,7 @@ class TestMailMail(MailCommon):
             "nothing was handed to SMTP, so nothing may be recorded as sent",
         )
 
-    @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.tests")
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_mail_mail_send_prefetch_window_follows_commits(self):
         """The prefetch window of the send loop must follow the commit strategy,
         not the batch size.
@@ -656,7 +662,7 @@ class TestMailMail(MailCommon):
             "auto_delete rows _postprocess_sent_message has already unlinked.",
         )
 
-    @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.tests")
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_mail_mail_schedule(self):
         """Test that a mail scheduled in the past/future are sent or not"""
         now = datetime(2022, 6, 28, 14, 0, 0)
@@ -730,7 +736,7 @@ class TestMailMail(MailCommon):
             for mail, expected_state in zip(mails, expected_states, strict=True):
                 self.assertEqual(mail.state, expected_state)
 
-    @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.tests")
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_mail_mail_send_configuration(self):
         """Test configuration and control of email queue"""
         self.env["mail.mail"].search([]).unlink()  # cleanup queue
@@ -2360,6 +2366,77 @@ class TestMailMailPersonalServerQuota(MailCommon):
         self.assertEqual(partners_only._personal_server_cost(), 3)
 
 
+@tagged("mail_mail")
+class TestMailMailRecipientDeduplication(MailCommon):
+    """An address named both raw and through a partner gets one copy."""
+
+    def test_a_raw_address_a_partner_also_holds_is_sent_once(self):
+        partner = self.env["res.partner"].create(
+            {"name": "Twice", "email": '"Twice" <twice@test.example.com>'}
+        )
+        mail = self.env["mail.mail"].create(
+            {
+                "body_html": "<p>Body</p>",
+                "email_from": "test.from@mycompany.example.com",
+                "email_to": '"Twice" <TWICE@test.example.com>, other@test.example.com',
+                "email_cc": "twice@test.example.com",
+                "recipient_ids": [Command.set(partner.ids)],
+            }
+        )
+        with self.assertLogs("odoo.addons.mail.models.mail_mail", level="INFO") as logs:
+            raw_group, partner_group = mail._prepare_recipient_groups()
+        self.assertIn("also name a recipient partner", logs.output[0])
+        self.assertEqual(raw_group["email_to"], ["other@test.example.com"])
+        self.assertEqual(raw_group["email_cc"], [])
+        self.assertEqual(raw_group["email_to_normalized"], ["other@test.example.com"])
+        self.assertEqual(partner_group["partner"], partner)
+        self.assertEqual(
+            mail._personal_server_cost(), 2, "the quota charges what is sent"
+        )
+
+        mail.write({"email_cc": False, "email_to": "twice@test.example.com"})
+        self.assertEqual(len(mail._prepare_recipient_groups()), 1)
+        self.assertEqual(mail._personal_server_cost(), 1)
+        with self.mock_mail_gateway():
+            mail.send()
+        self.assertEqual(mail.state, "sent")
+        self.assertEqual(len(self._mails), 1)
+        self.assertEqual(self._mails[0]["email_to"], [partner.email_formatted])
+
+
+@tagged("mail_mail")
+class TestMailMailSchedule(MailCommon):
+    """Every sender applies the queue's due filter; Send Now overrides it."""
+
+    def _scheduled_mail(self):
+        return self.env["mail.mail"].create(
+            {
+                "body_html": "<p>Later</p>",
+                "email_from": "test.from@mycompany.example.com",
+                "email_to": "later@test.example.com",
+                "scheduled_date": "2099-01-01 10:00:00",
+            }
+        )
+
+    def test_send_leaves_a_future_mail_in_the_queue(self):
+        mail = self._scheduled_mail()
+        with self.mock_mail_gateway():
+            mail.send()
+        self.assertEqual(mail.state, "outgoing")
+        self.assertFalse(self._mails)
+        with freeze_time("2099-01-01 10:00:00"), self.mock_mail_gateway():
+            mail.send()
+        self.assertEqual(mail.state, "sent")
+
+    def test_send_now_drops_the_schedule(self):
+        mail = self._scheduled_mail()
+        with self.mock_mail_gateway():
+            mail.action_send_and_close()
+        self.assertFalse(mail.scheduled_date)
+        self.assertEqual(mail.state, "sent")
+        self.assertEqual(len(self._mails), 1)
+
+
 @tagged("mail_mail", "mail_server")
 class TestMailMailSendGuarantees(MailCommon):
     """The properties the send path is *for*, asserted directly.
@@ -3026,8 +3103,8 @@ class TestMailMailUnfollowBlock(MailCommon):
             }
         )
         self.assertFalse(mail._has_unfollow_block(mail.body_html))
-        personalized = mail._personalize_outgoing_body(
-            mail.body_html, self.partner_employee, doc_to_followers={}
+        personalized = _personalize(
+            mail, mail.body_html, self.partner_employee, doc_to_followers={}
         )
         self.assertNotIn(
             "/mail/unfollow",
@@ -3045,10 +3122,7 @@ class TestMailMailUnfollowBlock(MailCommon):
             }
         )
         self.assertFalse(mail._has_unfollow_block(body))
-        self.assertNotIn(
-            "mail_unfollow",
-            mail._personalize_outgoing_body(body, doc_to_followers={}),
-        )
+        self.assertNotIn("mail_unfollow", _personalize(mail, body, doc_to_followers={}))
 
     def test_a_whole_block_is_recognised_by_both_readers(self):
         body = (
@@ -3792,8 +3866,8 @@ class TestMailMailUnfollowScope(MailCommon):
         """
         mail = self._mail()
         followers = {("res.partner", self.doc.id): {self.partner_employee.id}}
-        personalized = mail._personalize_outgoing_body(
-            mail.body_html, self.partner_employee, doc_to_followers=followers
+        personalized = _personalize(
+            mail, mail.body_html, self.partner_employee, doc_to_followers=followers
         )
         self.assertIn(
             'href="https://help.example.com/mail/unfollow">',
@@ -3812,8 +3886,8 @@ class TestMailMailUnfollowScope(MailCommon):
     def test_a_link_the_author_wrote_survives_the_strip(self):
         """The mirror case: stripping the block is not licence to edit the body."""
         mail = self._mail()
-        stripped = mail._personalize_outgoing_body(
-            mail.body_html, self.partner_employee, doc_to_followers={}
+        stripped = _personalize(
+            mail, mail.body_html, self.partner_employee, doc_to_followers={}
         )
         self.assertNotIn('id="mail_unfollow"', stripped, "the block is gone")
         self.assertIn('href="https://help.example.com/mail/unfollow">', stripped)
@@ -3849,7 +3923,8 @@ class TestMailMailUnfollowScope(MailCommon):
         """
         mail = self._mail()
         mail.mail_message_id.sudo().write({"model": "no.such.model"})
-        personalized = mail._personalize_outgoing_body(
+        personalized = _personalize(
+            mail,
             mail.body_html,
             self.partner_employee,
             doc_to_followers={
@@ -4072,8 +4147,8 @@ class TestMailMailSelfClosingUnfollowSpan(MailCommon):
 class TestMailMailBodyIsBuiltOncePerMail(MailCommon):
     """The unfollow rewrite is per-body work, not per-recipient work.
 
-    `_personalize_outgoing_body` scanned the whole document for the block on
-    every recipient, and `_strip_unfollow_block` scanned it again -- two full
+    The per-recipient step scanned the whole document for the block on every
+    recipient, and `_strip_unfollow_block` scanned it again -- two full
     regex passes per recipient over a body that is identical for all of them,
     for a notification mail that carries up to `mail.batch_size` (50) of them.
     """

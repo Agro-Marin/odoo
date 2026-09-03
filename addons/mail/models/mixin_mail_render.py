@@ -390,12 +390,23 @@ class MixinMailRender(models.AbstractModel):
     def _has_unsafe_expression_template_inline_template(
         self, template_txt: str, model: str, fname: str | None = None
     ) -> bool:
-        if template_txt:
-            template_instructions = parse_inline_template(str(template_txt))
-            expressions = [inst[1] for inst in template_instructions]
-            if not all(self._is_static_expression(e, model) for e in expressions if e):
-                return True
-        return False
+        return (
+            bool(template_txt)
+            and self._parse_static_inline_template(str(template_txt), model) is None
+        )
+
+    @api.model
+    def _parse_static_inline_template(
+        self, template_txt: str, model: str
+    ) -> list[tuple] | None:
+        template = parse_inline_template(template_txt)
+        if all(
+            self._is_static_expression(expression, model)
+            for _string, expression, _default in template
+            if expression
+        ):
+            return template
+        return None
 
     def _check_access_right_dynamic_template(self, fnames: set | None = None) -> None:
         if (
@@ -769,12 +780,11 @@ class MixinMailRender(models.AbstractModel):
         if not template_txt or not res_ids:
             return results
 
-        if not self._has_unsafe_expression_template_inline_template(
-            str(template_txt), model
-        ):
+        static_template = self._parse_static_inline_template(str(template_txt), model)
+        if static_template is not None:
             try:
                 return self._render_template_inline_template_static(
-                    str(template_txt), model, res_ids
+                    static_template, model, res_ids
                 )
             except StaticRenderUnsupported:
                 _logger.debug(
@@ -807,15 +817,8 @@ class MixinMailRender(models.AbstractModel):
 
     @api.model
     def _render_template_inline_template_static(
-        self, template_txt: str, model: str, res_ids: list[int]
+        self, template: list[tuple], model: str, res_ids: list[int]
     ) -> dict:
-        template = parse_inline_template(str(template_txt))
-        for _string, expression, _default in template:
-            if expression and not self._is_static_expression(expression, model):
-                raise StaticRenderUnsupported(
-                    f"expression not allowed without evaluation: {expression!r}"
-                )
-
         result = {}
         for record in self.env[model].browse(res_ids):
             renderer = []

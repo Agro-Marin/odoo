@@ -1,6 +1,5 @@
 import ast
 import base64
-import datetime
 import itertools
 import json
 import typing
@@ -19,6 +18,11 @@ from odoo.tools.mail import (
 )
 from odoo.tools.misc import clean_context
 
+from ..models.mail_template import (
+    ATTACHMENT_FIELD_NAMES,
+    DYNAMIC_FIELD_NAMES,
+    RECIPIENT_FIELD_NAMES,
+)
 from odoo.addons.mail.tools.parser import parse_res_ids
 from odoo.addons.mail.tools.recipients import prepare_recipient_data
 
@@ -43,6 +47,12 @@ COMPOSER_FIELD_TO_TEMPLATE_FIELD = {
 }
 
 TEMPLATE_FIELD_TO_COMPOSER_FIELD = {"body_html": "body"}
+
+TEMPLATE_RENDER_FIELDS = (DYNAMIC_FIELD_NAMES - RECIPIENT_FIELD_NAMES) | (
+    ATTACHMENT_FIELD_NAMES
+)
+
+SENT_EMAILS_MAPPING_CONTEXT_KEY = "mail_composer_sent_emails_mapping"
 
 
 def _reopen(self, res_id: int, model: str, context: dict | None = None) -> dict:
@@ -115,6 +125,8 @@ class MailComposeMessage(models.TransientModel):
         "Use template",
         domain="[('model', '=', model), '|', ('user_id','=', False), ('user_id', '=', uid)]",
     )
+    template_render_values = fields.Json(compute="_compute_template_render_values")
+    lang = fields.Char(precompute=False)
     attachment_ids: IrAttachment = fields.Many2many(
         "ir.attachment",
         "mail_compose_message_ir_attachments_rel",
@@ -367,24 +379,40 @@ class MailComposeMessage(models.TransientModel):
                 composer.body = False
 
     @api.depends("composition_mode", "model", "res_domain", "res_ids", "template_id")
+    def _compute_template_render_values(self) -> None:
+        for composer in self:
+            composer.template_render_values = composer._render_template_values()
+
+    def _render_template_values(self) -> dict | Literal[False]:
+        self.check_singleton()
+        if (
+            not self.template_id
+            or self.composition_mode != "comment"
+            or self.composition_batch
+        ):
+            return False
+        res_ids = self._evaluate_res_ids() or [0]
+        values = self.template_id._prepare_mail_vals(res_ids, TEMPLATE_RENDER_FIELDS)[
+            res_ids[0]
+        ]
+        if scheduled_date := values.get("scheduled_date"):
+            values["scheduled_date"] = fields.Datetime.to_string(scheduled_date)
+        if attachments := values.get("attachments"):
+            values["attachments"] = [
+                [name, datas.decode()] for name, datas in attachments
+            ]
+        return values
+
+    @api.depends("composition_mode", "model", "res_domain", "res_ids", "template_id")
     def _compute_attachment_ids(self) -> None:
         for composer in self:
-            res_ids = composer._evaluate_res_ids() or [0]
             if composer.template_id.attachment_ids and (
                 composer.composition_mode == "mass_mail" or composer.composition_batch
             ):
                 composer.attachment_ids = composer.template_id.attachment_ids
-            elif (
-                composer.template_id
-                and composer.composition_mode == "comment"
-                and len(res_ids) == 1
-            ):
-                rendered_values = composer._prepare_template_vals(
-                    res_ids,
-                    ("attachment_ids", "attachments"),
-                )[res_ids[0]]
-                attachment_ids = rendered_values.get("attachment_ids") or []
-                if rendered_values.get("attachments"):
+            elif rendered_values := composer.template_render_values:
+                attachment_ids = list(rendered_values.get("attachment_ids") or [])
+                if attachments := rendered_values.get("attachments"):
                     attachment_ids += (
                         self.env["ir.attachment"]
                         .create(
@@ -396,9 +424,7 @@ class MailComposeMessage(models.TransientModel):
                                     "res_id": 0,
                                     "type": "binary",
                                 }
-                                for attach_fname, attach_datas in rendered_values.pop(
-                                    "attachments"
-                                )
+                                for attach_fname, attach_datas in attachments
                             ]
                         )
                         .ids
@@ -701,7 +727,7 @@ class MailComposeMessage(models.TransientModel):
             )
         ).notify_skip_followers = True
 
-    @api.depends("composition_mode", "model", "res_ids", "template_id")
+    @api.depends("composition_mode", "model", "res_domain", "res_ids", "template_id")
     def _compute_scheduled_date(self) -> None:
         for composer in self:
             if composer.template_id:
@@ -709,7 +735,7 @@ class MailComposeMessage(models.TransientModel):
             if not composer.template_id:
                 composer.scheduled_date = False
 
-    @api.depends("template_id")
+    @api.depends("composition_mode", "model", "res_domain", "res_ids", "template_id")
     def _compute_lang(self) -> None:
         for composer in self:
             if composer.template_id:
@@ -868,9 +894,10 @@ class MailComposeMessage(models.TransientModel):
 
         batch_size = self.env["mail.mail"]._get_send_batch_size(self._batch_size or 50)
         counter_mails_done = 0
+        composer = self.with_context(**{SENT_EMAILS_MAPPING_CONTEXT_KEY: {}})
         for res_ids_iter in itertools.batched(res_ids, batch_size, strict=False):
-            prepared_mail_values_filtered = self._manage_mail_values(
-                self._prepare_mail_values(res_ids_iter)
+            prepared_mail_values_filtered = composer._manage_mail_values(
+                composer._prepare_mail_values(res_ids_iter)
             )
             iter_mails_sudo = (
                 self.env["mail.mail"]
@@ -892,13 +919,7 @@ class MailComposeMessage(models.TransientModel):
 
             sent_in_batch = False
             if self.force_send:
-                iter_mails_sudo_tosend = iter_mails_sudo.filtered(
-                    lambda mail: (
-                        not mail.scheduled_date
-                        or mail.scheduled_date
-                        <= datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
-                    )
-                )
+                iter_mails_sudo_tosend = iter_mails_sudo._filter_ready_to_send()
                 if iter_mails_sudo_tosend:
                     iter_mails_sudo_tosend.send(auto_commit=auto_commit)
                     sent_in_batch = True
@@ -1099,7 +1120,7 @@ class MailComposeMessage(models.TransientModel):
         )
 
         if self.template_id:
-            self._update_mail_values_from_template(mail_values_all, res_ids)
+            self._update_mail_values_from_template(mail_values_all, res_ids, langs)
         elif not self.partner_ids and email_mode:
             default_recipients = records._message_get_default_recipients()
             for res_id in res_ids:
@@ -1188,7 +1209,10 @@ class MailComposeMessage(models.TransientModel):
         }
 
     def _update_mail_values_from_template(
-        self, mail_values_all: dict, res_ids: list[int]
+        self,
+        mail_values_all: dict,
+        res_ids: list[int],
+        res_ids_lang: dict[int, str] | None = None,
     ) -> None:
         template_values = self._prepare_template_vals(
             res_ids,
@@ -1208,6 +1232,7 @@ class MailComposeMessage(models.TransientModel):
             find_or_create_partners=self.env.context.get(
                 "mail_composer_force_partners", True
             ),
+            res_ids_lang=res_ids_lang,
         )
         for res_id in res_ids:
             template_values[res_id].pop("attachment_ids", None)
@@ -1255,26 +1280,41 @@ class MailComposeMessage(models.TransientModel):
         if self.template_id:
             new_mail_message_values["email_add_signature"] = False
         message_inmem = self.env["mail.message"].new(new_mail_message_values)
-        for (
-            _lang,
-            render_values,
-            recipients_group_data,
-        ) in record._notify_get_classified_recipients_iterator(
-            message_inmem,
-            [
-                prepare_recipient_data(partner_id=pid, lang=lang)
-                for pid in recipient_ids
-            ],
-            msg_vals=msg_vals,
-            model_description=False,
-            force_email_lang=lang,
-        ):
-            mail_values["body_html"] = record._notify_by_email_render_layout(
+        classified = list(
+            record._notify_get_classified_recipients_iterator(
                 message_inmem,
-                recipients_group_data,
+                [
+                    prepare_recipient_data(partner_id=pid, lang=lang)
+                    for pid in recipient_ids
+                ],
                 msg_vals=msg_vals,
-                render_values=render_values,
+                model_description=False,
+                force_email_lang=lang,
             )
+        )
+        if not classified:
+            return
+        _lang, render_values, recipients_group = classified[-1]
+        merged_group = {
+            **recipients_group,
+            "has_button_access": all(
+                group["has_button_access"] for _lang, _values, group in classified
+            ),
+            **{
+                key: [
+                    item for _lang, _values, group in classified for item in group[key]
+                ]
+                for key in ("recipients_data", "recipients_emails", "recipients_ids")
+            },
+        }
+        if any(values["show_unfollow"] for _lang, values, _group in classified):
+            render_values = {**render_values, "show_unfollow": True}
+        mail_values["body_html"] = record._notify_by_email_render_layout(
+            message_inmem,
+            merged_group,
+            msg_vals=msg_vals,
+            render_values=render_values,
+        )
 
     def _prepare_mail_values_rendered(self, res_ids: list[int]) -> dict:
         self.check_singleton()
@@ -1328,7 +1368,9 @@ class MailComposeMessage(models.TransientModel):
         )
         optout_emails = self._get_optout_emails(mail_values_dict)
         done_emails = self._get_done_emails(mail_values_dict)
-        sent_emails_mapping = {}
+        sent_emails_mapping = self.env.context.get(SENT_EMAILS_MAPPING_CONTEXT_KEY)
+        if sent_emails_mapping is None:
+            sent_emails_mapping = {}
 
         for record_id, mail_values in mail_values_dict.items():
             recipients = recipients_info[record_id]
@@ -1382,6 +1424,7 @@ class MailComposeMessage(models.TransientModel):
         render_fields: Collection[str],
         allow_suggested: bool = False,
         find_or_create_partners: bool = True,
+        res_ids_lang: dict[int, str] | None = None,
     ) -> dict:
         self.check_singleton()
 
@@ -1394,6 +1437,7 @@ class MailComposeMessage(models.TransientModel):
             template_fields,
             recipients_allow_suggested=allow_suggested,
             find_or_create_partners=find_or_create_partners,
+            res_ids_lang=res_ids_lang,
         )
 
         excluded = {"email_cc", "email_to"} if find_or_create_partners else frozenset()
@@ -1532,16 +1576,8 @@ class MailComposeMessage(models.TransientModel):
             )
 
         if template_value:
-            if self.composition_mode == "comment" and not self.composition_batch:
-                res_ids = self._evaluate_res_ids()
-                rendering_res_ids = res_ids or [0]
-                self[composer_fname] = self.template_id._prepare_mail_vals(
-                    rendering_res_ids,
-                    {template_fname},
-                    recipients_allow_suggested=(
-                        self.message_type == "comment" and not self.subtype_is_log
-                    ),
-                )[rendering_res_ids[0]][template_fname]
+            if rendered_values := self.template_render_values:
+                self[composer_fname] = rendered_values[template_fname]
             else:
                 self[composer_fname] = self.template_id[template_fname]
         return self[composer_fname]

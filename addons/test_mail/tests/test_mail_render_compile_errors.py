@@ -13,8 +13,8 @@ is the permissive HTML parser and accepts attribute names `etree.Element` reject
 so `<p t-out="object.name" a&#34;b="1"/>` parses here and dies in QWeb's codegen
 with `ValueError: Invalid attribute name 'a&#34;b'`.
 
-`mail.template._compile_dynamic_fields` wraps the same `_generate_code` call in
-`except (UserError, ValueError, SyntaxError)`, so an administrator saving such a
+`mail.template._compile_dynamic_fields` reports every failure of the same
+`_generate_code` call as a compile error, so an administrator saving such a
 body got the friendly `ValidationError` all along. The mixin's copy did not, which
 is why the outcome depended on who was saving: a member of the template-editor
 group short-circuits `_check_access_right_dynamic_template` and reached that
