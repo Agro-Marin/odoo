@@ -8,6 +8,7 @@ from itertools import starmap
 from typing import Any, Literal, Self
 
 from markupsafe import Markup
+from werkzeug.exceptions import NotFound
 
 import odoo
 from odoo import models
@@ -32,7 +33,7 @@ def add_guest_to_context[F: Callable](func: F) -> F:
         req = request or wsrequest
         token = req.cookies.get(req.env["mail.guest"]._cookie_name, "")
         guest = req.env["mail.guest"]._get_guest_from_token(token)
-        if guest and not guest.timezone and not req.env.cr.readonly:
+        if guest and not guest.sudo().timezone and not req.env.cr.readonly:
             timezone = req.env["mail.guest"]._get_timezone_from_request(req)
             if timezone:
                 guest._update_timezone(timezone)
@@ -43,6 +44,23 @@ def add_guest_to_context[F: Callable](func: F) -> F:
         return func(self, *args, **kwargs)
 
     return wrapper
+
+
+def to_record_id(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise NotFound
+    try:
+        return int(value)
+    except ValueError:
+        raise NotFound from None
+
+
+def to_record_ids(values: Any) -> list[int]:
+    if values is None:
+        return []
+    if isinstance(values, str) or not isinstance(values, (list, tuple)):
+        raise NotFound
+    return [to_record_id(value) for value in values]
 
 
 def get_twilio_credentials(env: Environment) -> tuple[str | None, str | None]:

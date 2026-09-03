@@ -2,6 +2,7 @@ import logging
 import typing
 import uuid
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from copy import deepcopy
 from datetime import datetime, timedelta
 from types import NotImplementedType
@@ -33,6 +34,17 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 SFU_MODE_THRESHOLD = 3
 AVATAR_CARD_FIELDS = ["avatar_128", "im_status", "name"]
+
+
+def escape_like_wildcards(value: str) -> str:
+    """Neutralise LIKE metacharacters in a value used as an `=ilike` pattern.
+
+    An address is data, not a pattern: unescaped, the `_` in `a_b@x.com` matches
+    the `-` in `a-b@x.com`, so the lookup can hit members it was not asking about.
+    `=ilike` stays the operator because guest emails are stored unnormalised and
+    the comparison has to remain case-insensitive.
+    """
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class DiscussChannelMember(models.Model):
@@ -318,23 +330,19 @@ class DiscussChannelMember(models.Model):
             for channel in self.env["discuss.channel"].browse(set(added_by_channel))
         }
         for channel in name_members_by_channel:
-            limit = channel._channel_type_policy().max_members
-            if (
-                limit
-                and len(channel.channel_member_ids) + added_by_channel[channel.id]
-                > limit
-            ):
-                raise UserError(
-                    _(
-                        "Adding more members to this chat isn't possible; it's designed for just two people."
-                    )
-                )
+            channel._check_chat_capacity(
+                channel.channel_type,
+                len(channel.channel_member_ids) + added_by_channel[channel.id],
+            )
         res = super().create(vals_list)
         res.partner_id.invalidate_recordset(["channel_ids"])
         res.guest_id.invalidate_recordset(["channel_ids"])
+        members_by_parent = defaultdict(self.browse)
         for member in res:
             if parent := member.channel_id.parent_channel_id:
-                parent._add_members(partners=member.partner_id, guests=member.guest_id)
+                members_by_parent[parent] |= member
+        for parent, members in members_by_parent.items():
+            parent._add_members(partners=members.partner_id, guests=members.guest_id)
         for channel, members in name_members_by_channel.items():
             if channel.channel_name_member_ids != members:
                 Store(bus_channel=channel).add(
@@ -443,6 +451,16 @@ class DiscussChannelMember(models.Model):
 
     def _bus_channel(self) -> models.Model:
         return self.partner_id.main_user_id or self.guest_id
+
+    @api.model
+    def _member_email_domain(self, emails: Iterable[str]) -> Domain:
+        return Domain.OR(
+            [
+                [(field, "=ilike", escape_like_wildcards(email))]
+                for email in emails
+                for field in ("guest_id.email", "partner_id.email")
+            ]
+        )
 
     def _notify_typing(self, is_typing: bool) -> None:
         for member in self:
@@ -571,6 +589,12 @@ class DiscussChannelMember(models.Model):
         sfu_server_url = discuss.get_sfu_url(self.env)
         if not sfu_server_url:
             return
+        sfu_key = discuss.get_sfu_key(self.env)
+        if not sfu_key:
+            _logger.warning(
+                "An SFU server URL is configured without an SFU key, user will stay in p2p"
+            )
+            return
         sfu_local_key = (
             self.env["ir.config_parameter"].sudo().get_param("mail.sfu_local_key")
         )
@@ -584,7 +608,7 @@ class DiscussChannelMember(models.Model):
                 "iss": f"{self.get_base_url()}:channel:{self.channel_id.id}",
                 "key": sfu_local_key,
             },
-            key=discuss.get_sfu_key(self.env),
+            key=sfu_key,
             ttl=30,
             algorithm=jwt.Algorithm.HS256,
         )
@@ -772,27 +796,36 @@ class DiscussChannelMember(models.Model):
         last_message = self.env["mail.message"].search(domain, order="id DESC", limit=1)
         if not last_message:
             return
-        self._set_last_seen_message(last_message)
-        self._set_new_message_separator(last_message.id + 1)
+        self._mark_message_read(last_message)
 
-    def _set_last_seen_message(self, message: MailMessage, notify: bool = True) -> None:
+    def _mark_message_read(self, message: MailMessage, notify: bool = True) -> None:
         self.check_singleton()
-        bus_channel = self._bus_channel()
-        if self.seen_message_id.id < message.id:
-            self.write(
+        vals = {}
+        seen_changed = self.seen_message_id.id < message.id
+        if seen_changed:
+            vals.update(
                 {
                     "fetched_message_id": max(self.fetched_message_id.id, message.id),
                     "seen_message_id": message.id,
                     "last_seen_dt": fields.Datetime.now(),
                 }
             )
-            if (
-                self.channel_id.channel_type
-                in self.channel_id._types_allowing_seen_infos()
-            ):
-                bus_channel = self.channel_id
+        if self.new_message_separator != message.id + 1:
+            vals["new_message_separator"] = message.id + 1
+        if vals:
+            self.write(vals)
         if not notify:
             return
+        if seen_changed:
+            self._notify_seen()
+        elif not vals:
+            self._notify_read_state()
+
+    def _notify_seen(self) -> None:
+        self.check_singleton()
+        bus_channel = self._bus_channel()
+        if self.channel_id.channel_type in self.channel_id._types_allowing_seen_infos():
+            bus_channel = self.channel_id
         Store(bus_channel=bus_channel).add(
             self,
             [
@@ -801,6 +834,21 @@ class DiscussChannelMember(models.Model):
                     AVATAR_CARD_FIELDS
                 ),
                 "seen_message_id",
+            ],
+        ).bus_send()
+
+    def _notify_read_state(self) -> None:
+        self.check_singleton()
+        bus_last_id = self.env["bus.bus"].sudo()._bus_last_id()
+        Store(bus_channel=self._bus_channel()).add(
+            self,
+            [
+                Store.One("channel_id", [], as_thread=True),
+                "message_unread_counter",
+                {"message_unread_counter_bus_id": bus_last_id},
+                "new_message_separator",
+                "seen_message_id",
+                *self.env["discuss.channel.member"]._to_store_persona([]),
             ],
         ).bus_send()
 

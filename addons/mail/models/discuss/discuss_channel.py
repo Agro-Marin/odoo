@@ -38,17 +38,6 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_groups import ResGroups
 
 
-def escape_like_wildcards(value: str) -> str:
-    """Neutralise LIKE metacharacters in a value used as an `=ilike` pattern.
-
-    An address is data, not a pattern: unescaped, the `_` in `a_b@x.com` matches
-    the `-` in `a-b@x.com`, so the lookup can hit members it was not asking about.
-    `=ilike` stays the operator because guest emails are stored unnormalised and
-    the comparison has to remain case-insensitive.
-    """
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 def format_sql_in_literals(values: list[str]) -> str:
     """Render channel-type codes as a SQL IN list.
 
@@ -355,13 +344,20 @@ class DiscussChannel(models.Model):
     @api.constrains("channel_member_ids")
     def _constraint_partners_chat(self) -> None:
         for ch in self.sudo():
-            limit = ch._channel_type_policy().max_members
-            if limit and len(ch.channel_member_ids) > limit:
-                raise ValidationError(
-                    self.env._(
-                        "A channel of type 'chat' cannot have more than two users."
-                    )
+            ch._check_chat_capacity(ch.channel_type, len(ch.channel_member_ids))
+
+    @api.model
+    def _check_chat_capacity(self, channel_type: str, member_count: int) -> None:
+        limit = self._channel_type_policies()[channel_type].max_members
+        if limit and member_count > limit:
+            raise ValidationError(
+                self.env._(
+                    "A %(channel_type)s cannot have more than %(limit)s members. "
+                    "Create a group instead.",
+                    channel_type=channel_type,
+                    limit=limit,
                 )
+            )
 
     @api.constrains("group_public_id", "group_ids")
     def _constraint_group_id_channel(self) -> None:
@@ -535,7 +531,6 @@ class DiscussChannel(models.Model):
         res[None] += [
             Store.Attr("avatar_cache_key", predicate=has_generated_avatar),
             "channel_type",
-            "create_uid",
             "default_display_mode",
             Store.Attr("description", predicate=has_description),
             Store.Many("group_ids", [], predicate=supports_group_authorization),
@@ -1124,8 +1119,7 @@ class DiscussChannel(models.Model):
 
     def _message_post_after_hook(self, message: MailMessage, msg_vals: dict) -> None:
         if self.self_member_id and message.is_current_user_or_guest_author:
-            self.self_member_id._set_last_seen_message(message, notify=False)
-            self.self_member_id._set_new_message_separator(message.id + 1)
+            self.self_member_id._mark_message_read(message, notify=False)
         if self.parent_channel_id and message.partner_ids:
             members = self.env["discuss.channel.member"].search(
                 [
@@ -1302,7 +1296,6 @@ class DiscussChannel(models.Model):
         )
         if not member:
             return
-        self.message_unsubscribe(partner.ids)
         if post_leave_message and self._narrates_membership_changes():
             notification = Markup(
                 '<div class="o_mail_notification" data-oe-type="channel-left">%s</div>'
@@ -1548,17 +1541,14 @@ class DiscussChannel(models.Model):
         eligible_emails = OrderedSet(
             norm for email in emails if email and (norm := email_normalize(email))
         )
-        member_domain = Domain("channel_id", "=", self.id) & Domain.OR(
-            [
-                [(field, "=ilike", escape_like_wildcards(email))]
-                for email in eligible_emails
-                for field in ("guest_id.email", "partner_id.email")
-            ],
-        )
+        Member = self.env["discuss.channel.member"]
+        member_domain = Domain(
+            "channel_id", "=", self.id
+        ) & Member._member_email_domain(eligible_emails)
         eligible_emails -= set(
-            self.env["discuss.channel.member"]
-            .search_fetch(member_domain, ["partner_id", "guest_id"])
-            .mapped(lambda m: email_normalize(m.partner_id.email or m.guest_id.email))
+            Member.search_fetch(member_domain, ["partner_id", "guest_id"]).mapped(
+                lambda m: email_normalize(m.partner_id.email or m.guest_id.email)
+            )
         )
         return eligible_emails
 
@@ -1606,8 +1596,14 @@ class DiscussChannel(models.Model):
             for addr in addresses
         ]
 
-    def _subscribe_users_automatically(self) -> None:
-        new_members_to_create = self._subscribe_users_automatically_get_members()
+    def _subscribe_users_automatically(
+        self, partners: ResPartner | None = None
+    ) -> None:
+        new_members_to_create = (
+            self._subscribe_users_automatically_get_members()
+            if partners is None
+            else self._get_group_partners_to_subscribe(partners)
+        )
         if not any(new_members_to_create.values()):
             return
         to_create = [
@@ -1632,17 +1628,50 @@ class DiscussChannel(models.Model):
             ).bus_send()
 
     def _subscribe_users_automatically_get_members(self) -> dict[int, list[int]]:
-        return {
-            channel.id: (
-                (
-                    channel.group_ids.all_user_ids.partner_id.filtered(
-                        lambda p: p.active
-                    )
-                    - channel.channel_partner_ids
-                ).ids
-            )
-            for channel in self
+        return self._get_group_partners_to_subscribe()
+
+    def _get_group_partners_to_subscribe(
+        self, partners: ResPartner | None = None
+    ) -> dict[int, list[int]]:
+        candidates_by_channel = {
+            channel: channel._get_group_partner_candidates(partners) for channel in self
         }
+        candidates = self.env["res.partner"].union(*candidates_by_channel.values())
+        member_partner_ids = defaultdict(set)
+        if candidates:
+            members = (
+                self.env["discuss.channel.member"]
+                .sudo()
+                .search_fetch(
+                    [
+                        ("channel_id", "in", self.ids),
+                        ("partner_id", "in", candidates.ids),
+                    ],
+                    ["channel_id", "partner_id"],
+                )
+            )
+            for member in members:
+                member_partner_ids[member.channel_id.id].add(member.partner_id.id)
+        return {
+            channel.id: [
+                partner_id
+                for partner_id in channel_candidates.ids
+                if partner_id not in member_partner_ids[channel.id]
+            ]
+            for channel, channel_candidates in candidates_by_channel.items()
+        }
+
+    def _get_group_partner_candidates(self, partners: ResPartner | None) -> ResPartner:
+        self.check_singleton()
+        if partners is None:
+            return self.group_ids.all_user_ids.partner_id.filtered("active")
+        return partners.filtered(
+            lambda partner: (
+                partner.active
+                and partner.with_context(active_test=False).user_ids.all_group_ids
+                & self.group_ids
+            )
+        )
 
     def _get_or_create_member_for_self(self) -> DiscussChannelMember:
         self.check_singleton()
@@ -1711,12 +1740,10 @@ class DiscussChannel(models.Model):
         member = self.self_member_id.filtered(lambda m: m.is_pinned != pinned)
         if member:
             member.write({"unpin_dt": False if pinned else fields.Datetime.now()})
-        store = Store(bus_channel=self.self_member_id._bus_channel() or self.env.user)
         if not pinned:
-            store.add(self, {"close_chat_window": True})
-        else:
-            store.add(self)
-        store.bus_send()
+            Store(bus_channel=self.self_member_id._bus_channel() or self.env.user).add(
+                self, {"close_chat_window": True}
+            ).bus_send()
 
     def channel_fetched(self) -> None:
         channels = self.filtered(
@@ -1931,12 +1958,7 @@ class DiscussChannel(models.Model):
             .with_context(active_test=False)
             .search([("id", "in", partners_to)])
         ) | self.env.user.partner_id
-        if len(partners) > 2:
-            raise UserError(
-                self.env._(
-                    "A chat should not be created with more than 2 persons. Create a group instead."
-                )
-            )
+        self._check_chat_capacity("chat", len(partners))
         self.env.cr.execute(
             SQL(
                 "SELECT pg_advisory_xact_lock(hashtextextended('discuss.chat:' || %s, 0))",
@@ -2039,9 +2061,7 @@ class DiscussChannel(models.Model):
         store = Store().add(channels, channel_fields)
         return store.get_result()
 
-    def _prefetch_store_members(
-        self, target: Store.Target, channels_with_all_members: Self
-    ) -> None:
+    def _prefetch_store_members(self, channels_with_all_members: Self) -> None:
         all_members = (
             self.self_member_id
             | self.invited_member_ids
@@ -2049,10 +2069,31 @@ class DiscussChannel(models.Model):
             | channels_with_all_members.channel_member_ids
             | self.channel_name_member_ids
         )
-        all_members.mapped("create_date")
-        Store(bus_channel=target.channel, bus_subchannel=target.subchannel).add(
-            all_members
+        all_members.fetch(
+            [
+                "channel_id",
+                "create_date",
+                "fetched_message_id",
+                "guest_id",
+                "last_seen_dt",
+                "partner_id",
+                "seen_message_id",
+            ]
         )
+        partners = all_members.partner_id.sudo()
+        partners.fetch(
+            [
+                "active",
+                "email",
+                "im_status",
+                "is_company",
+                "main_user_id",
+                "name",
+                "write_date",
+            ]
+        )
+        partners.main_user_id.fetch(["partner_id", "share"])
+        all_members.guest_id.sudo().fetch(["im_status", "name", "write_date"])
 
     def _to_store_defaults_for_self(self) -> list[StoreFieldSpec]:
         bus_last_id = self.env["bus.bus"].sudo()._bus_last_id()
@@ -2085,7 +2126,7 @@ class DiscussChannel(models.Model):
                 channel.channel_type not in self._lazy_load_members_channel_types()
             ),
         )
-        self._prefetch_store_members(target, channels_with_all_members)
+        self._prefetch_store_members(channels_with_all_members)
         res = [
             Store.Attr("avatar_cache_key", predicate=has_generated_avatar),
             "channel_type",

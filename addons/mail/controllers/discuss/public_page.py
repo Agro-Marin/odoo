@@ -134,8 +134,10 @@ class PublicPageController(http.Controller):
     def _response_discuss_channel_invitation(
         self, store: Store, channel: DiscussChannel, guest_email: str | None = None
     ) -> Response:
+        channel_sudo = channel.sudo()
         group_public_id = (
-            channel.group_public_id or channel.parent_channel_id.sudo().group_public_id
+            channel_sudo.group_public_id
+            or channel_sudo.parent_channel_id.group_public_id
         )
         if group_public_id and group_public_id not in request.env.user.all_group_ids:
             raise NotFound

@@ -2,7 +2,7 @@ from odoo.exceptions import ValidationError
 from odoo.tests.common import tagged
 from odoo.tools import format_list
 
-from odoo.addons.mail.models.discuss.discuss_channel import escape_like_wildcards
+from odoo.addons.mail.models.discuss.discuss_channel_member import escape_like_wildcards
 from odoo.addons.mail.tests.common import MailCommon
 
 

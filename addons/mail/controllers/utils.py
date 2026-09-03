@@ -4,30 +4,17 @@ from odoo import http, models
 from odoo.http import NotFound, request
 from odoo.tools import file_open
 
-from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.discuss import (  # noqa: F401 - re-exports, read by every controller
+    Store,
+    to_record_id,
+    to_record_ids,
+)
 from odoo.addons.mail.tools.paging import (
     FETCH_LIMIT_MAX,
     clamp_limit,  # noqa: F401 - re-export, read by discuss/search.py
 )
 
 MAX_FETCH_LIMIT = FETCH_LIMIT_MAX
-
-
-def to_record_id(value: Any) -> int:
-    if isinstance(value, bool) or not isinstance(value, (int, str)):
-        raise NotFound
-    try:
-        return int(value)
-    except ValueError:
-        raise NotFound from None
-
-
-def to_record_ids(values: Any) -> list[int]:
-    if values is None:
-        return []
-    if isinstance(values, str) or not isinstance(values, (list, tuple)):
-        raise NotFound
-    return [to_record_id(value) for value in values]
 
 
 def get_channel_or_404(channel_id: Any) -> models.Model:

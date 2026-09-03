@@ -77,6 +77,8 @@ class RtcController(http.Controller):
     )
     @add_guest_to_context
     def session_update_and_broadcast(self, session_id: int, values: dict) -> None:
+        if not isinstance(values, dict):
+            raise NotFound
         if request.env.user._is_public():
             guest = request.env["mail.guest"]._get_guest_from_context()
             if guest:
@@ -115,7 +117,9 @@ class RtcController(http.Controller):
             raise NotFound
         store = Store()
         member.sudo()._rtc_join_call(
-            store, check_rtc_session_ids=check_rtc_session_ids, camera=camera
+            store,
+            check_rtc_session_ids=to_record_ids(check_rtc_session_ids),
+            camera=bool(camera),
         )
         return store.get_result()
 
@@ -127,7 +131,9 @@ class RtcController(http.Controller):
         self, channel_id: int, session_id: int | None = None
     ) -> None:
         member = get_self_member_or_404(channel_id)
-        member.sudo()._rtc_leave_call(session_id)
+        member.sudo()._rtc_leave_call(
+            to_record_id(session_id) if session_id is not None else None
+        )
 
     @http.route(
         "/mail/rtc/channel/upgrade_connection",
@@ -187,7 +193,7 @@ class RtcController(http.Controller):
                 domain
             ).write({})
         current_rtc_sessions, outdated_rtc_sessions = (
-            channel_member_sudo._rtc_sync_sessions(check_rtc_session_ids)
+            channel_member_sudo._rtc_sync_sessions(to_record_ids(check_rtc_session_ids))
         )
         return (
             Store()

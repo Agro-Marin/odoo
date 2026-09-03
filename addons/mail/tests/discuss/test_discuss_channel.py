@@ -533,7 +533,7 @@ class TestChannelInternals(MailCommon, HttpCase):
         )
 
     @users("employee")
-    def test_set_last_seen_message_should_always_send_notification(self):
+    def test_mark_as_read_resyncs_a_reader_that_missed_the_notification(self):
         chat = (
             self.env["discuss.channel"]
             .with_user(self.user_admin)
@@ -600,19 +600,40 @@ class TestChannelInternals(MailCommon, HttpCase):
 
         with self.assertBus(
             [
-                (self.env.cr.dbname, "discuss.channel", chat.id),
                 (self.env.cr.dbname, "res.partner", self.user_admin.partner_id.id),
+                (self.env.cr.dbname, "discuss.channel", chat.id),
             ],
             mark_as_read_notifs,
         ):
             member._mark_as_read(msg_1.id)
         self._reset_bus()
+        # Nothing changes on the second read, so the reader's own bus gets one
+        # payload carrying both markers: a browser that missed the first
+        # notification (odoo/odoo#225575) catches up from it, and the chat is
+        # not told about a seen marker that did not move.
         with self.assertBus(
+            [(self.env.cr.dbname, "res.partner", self.user_admin.partner_id.id)],
             [
-                (self.env.cr.dbname, "res.partner", self.user_admin.partner_id.id),
-                (self.env.cr.dbname, "res.partner", self.user_admin.partner_id.id),
+                {
+                    "type": "mail.record/insert",
+                    "payload": {
+                        "discuss.channel.member": [
+                            {
+                                "id": member.id,
+                                "channel_id": {
+                                    "id": chat.id,
+                                    "model": "discuss.channel",
+                                },
+                                "message_unread_counter": 0,
+                                "message_unread_counter_bus_id": 0,
+                                "new_message_separator": msg_1.id + 1,
+                                "partner_id": self.user_admin.partner_id.id,
+                                "seen_message_id": msg_1.id,
+                            },
+                        ],
+                    },
+                },
             ],
-            mark_as_read_notifs,
         ):
             member._mark_as_read(msg_1.id)
 
