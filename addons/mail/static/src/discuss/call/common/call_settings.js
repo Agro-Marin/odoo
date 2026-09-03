@@ -134,6 +134,10 @@ export class CallSettings extends Component {
         this.store.settings.setUseBlur(ev.target.checked);
     }
 
+    onChangeCallAutoFocus() {
+        this.store.settings.useCallAutoFocus = !this.store.settings.useCallAutoFocus;
+    }
+
     /** @param {Event} ev */
     onChangeShowOnlyVideo(ev) {
         const showOnlyVideo = ev.target.checked;
