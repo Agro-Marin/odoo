@@ -429,10 +429,12 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         ):
             raise ValueError("_poll_due_mailboxes is meant for cron usage only")
         records = self.search(MAIL_SERVER_DOMAIN, order=FETCH_ORDER)
-        time_buffer = self.env.context["cron_end_time"] + (
+        # Each connection still has to be torn down after the deadline stops the
+        # loop, so that time is taken out of the cron's budget, never added to it.
+        deadline = self.env.context["cron_end_time"] - (
             SERVER_TEARDOWN_BUDGET * len(records)
         )
-        records.with_context(cron_end_time=time_buffer)._poll_mailboxes(**kw)
+        records.with_context(cron_end_time=deadline)._poll_mailboxes(**kw)
         if not self.search_count(MAIL_SERVER_DOMAIN, limit=1):
             self.env["ir.cron"]._commit_progress(deactivate=True)
 

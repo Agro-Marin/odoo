@@ -1,19 +1,25 @@
 import json
 import logging
-import lxml
-from itertools import batched
-
 from datetime import datetime
-from dateutil import relativedelta
-from markupsafe import Markup
+from itertools import batched
 from urllib.parse import quote, urlencode
 
+import lxml
+from dateutil import relativedelta
+from markupsafe import Markup
+
 from odoo import _, api, fields, models, tools
-from odoo.addons.mail.tools.alias_error import AliasError
-from odoo.exceptions import ValidationError, UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import hmac
-from odoo.tools.mail import email_normalize, generate_tracking_message_id, add_html_content
+from odoo.tools.mail import (
+    add_html_content,
+    email_normalize,
+    generate_tracking_message_id,
+)
+
+from odoo.addons.mail.models.mixin_mail_gateway import RouteVerdict
+from odoo.addons.mail.tools.alias_error import AliasError
 
 _logger = logging.getLogger(__name__)
 
@@ -224,7 +230,7 @@ class MailGroup(models.Model):
         self.check_singleton()
 
         email = email_normalize(message_dict.get('email_from', ''))
-        email_has_access = self.search_count([('id', '=', self.id), ('access_group_id.user_ids.email_normalized', '=', email)])
+        email_has_access = email and self.search_count([('id', '=', self.id), ('access_group_id.user_ids.email_normalized', '=', email)])
         if self.access_mode == 'groups' and not email_has_access:
             return AliasError('error_mail_group_members_restricted',
                                   _('Only selected groups of users can send email to the mailing list.'))
@@ -495,7 +501,7 @@ class MailGroup(models.Model):
                 message,
                 references=message_dict.get("message_id", ""),
             )
-            return ()
+            return RouteVerdict.REFUSED
         return self.env['mixin.mail.thread']._routing_check_route(message, message_dict, route, raise_exception)
 
     def action_join(self):

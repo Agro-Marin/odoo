@@ -7,25 +7,25 @@ class Base(models.AbstractModel):
     _inherit = "base"
 
     def _alias_get_error(self, message, message_dict, alias):
-        if alias.alias_contact == "employees":
-            email_from = tools.mail.decode_message_header(message, "From")
-            email_address = tools.email_normalize(email_from, strict=False)
-            if not email_address:
-                return AliasError(
-                    "error_hr_employee_restricted",
-                    self.env._("restricted to employees"),
-                )
-            employee = self.env["hr.employee"].search(
-                [("work_email", "ilike", email_address)], limit=1
-            )
-            if not employee:
-                employee = self.env["hr.employee"].search(
-                    [("user_id.email", "ilike", email_address)], limit=1
-                )
-            if not employee:
-                return AliasError(
-                    "error_hr_employee_restricted",
-                    self.env._("restricted to employees"),
-                )
-            return False
-        return super()._alias_get_error(message, message_dict, alias)
+        if alias.alias_contact != "employees":
+            return super()._alias_get_error(message, message_dict, alias)
+        error = AliasError(
+            "error_hr_employee_restricted", self.env._("restricted to employees")
+        )
+        email_address = tools.email_normalize(
+            message_dict.get("email_from") or "", strict=False
+        )
+        if not email_address:
+            return error
+        # `=ilike`, not `ilike`: `%` and `_` are legal in a local part, and a
+        # substring match would let `%@example.com` stand for every employee.
+        pattern = tools.escape_psql(email_address)
+        employee = self.env["hr.employee"].search(
+            [
+                "|",
+                ("work_email", "=ilike", pattern),
+                ("user_id.email", "=ilike", pattern),
+            ],
+            limit=1,
+        )
+        return False if employee else error

@@ -1,9 +1,10 @@
-from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.addons.mail_group.tests.common import TestMailListCommon
-from odoo.exceptions import ValidationError, AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import tagged, users
 from odoo.tools import mute_logger
 from odoo.tools.mail import add_html_content
+
+from odoo.addons.mail.tests.common import mail_new_test_user
+from odoo.addons.mail_group.tests.common import TestMailListCommon
 
 
 @tagged("mail_group")
@@ -45,6 +46,16 @@ class TestMailGroup(TestMailListCommon):
         self.test_group.access_mode = 'groups'
         err_msg = self.test_group._alias_get_error({}, {'email_from': group_user_not_member.email}, self.test_group.alias_id)
         self.assertFalse(err_msg, "Mail with sender belonging to allowed user group (not a member of the mail group) was rejected")
+
+    def test_group_access_refuses_an_address_less_sender(self):
+        """`email_normalized = False` is `IS NULL`, which matched any group user
+        without an email and let a sender with no address through."""
+        self.test_group.access_mode = 'groups'
+        for email_from in ('', False, 'not an address'):
+            with self.subTest(email_from=email_from):
+                error = self.test_group._alias_get_error({}, {'email_from': email_from}, self.test_group.alias_id)
+                self.assertTrue(error)
+                self.assertEqual(error.code, 'error_mail_group_members_restricted')
 
     def test_find_member(self):
         """Test the priority to retrieve a member of a mail group from a partner_id

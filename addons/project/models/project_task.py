@@ -3075,6 +3075,10 @@ class ProjectTask(models.Model):
             return self.env.ref(mail_message_subtype_per_state[self.state])
         return super()._track_subtype(init_values)
 
+    def _mail_get_governing_alias(self):
+        self.check_singleton()
+        return self.project_id.alias_id
+
     def _mail_get_message_subtypes(self) -> Self:
         res = super()._mail_get_message_subtypes()
         if not self.step_id.rating_active:

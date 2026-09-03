@@ -36,6 +36,44 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
             ]
         )
 
+    def test_employees_alias_compares_whole_addresses(self):
+        """`work_email ilike <address>` read `%` and `_` as wildcards, and both
+        are legal in a local part: `%@test.example.com` matched every employee."""
+        alias = self.env["mail.alias"].create(
+            {
+                "alias_contact": "employees",
+                "alias_domain_id": self.mail_alias_domain.id,
+                "alias_model_id": self.env["ir.model"]._get_id("hr.employee"),
+                "alias_name": "employees.only",
+            }
+        )
+        self.employee.user_id = self.res_users_hr_officer
+        Employee = self.env["hr.employee"]
+
+        def verdict(email_from):
+            return Employee._alias_get_error(None, {"email_from": email_from}, alias)
+
+        for refused in (
+            "%@test.example.com",
+            "_uick.employee@test.example.com",
+            "quick.employee@test.example.co_",
+            "employee@test.example.com",
+            "",
+            False,
+            "not an address",
+        ):
+            with self.subTest(email_from=refused):
+                error = verdict(refused)
+                self.assertTrue(error)
+                self.assertEqual(error.code, "error_hr_employee_restricted")
+        for accepted in (
+            "quick.employee@test.example.com",
+            '"Quick" <QUICK.Employee@Test.Example.COM>',
+            self.res_users_hr_officer.email,
+        ):
+            with self.subTest(email_from=accepted):
+                self.assertFalse(verdict(accepted))
+
     def test_assert_initial_values(self):
         self.assertTrue(self.test_employee.work_contact_id)
         self.assertFalse(self.test_employee.message_partner_ids)

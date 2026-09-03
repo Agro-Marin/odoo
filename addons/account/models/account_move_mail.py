@@ -5,6 +5,8 @@ from odoo.fields import Command
 from odoo.tools import format_amount, format_date
 from odoo.tools.mail import email_re, email_split, generate_tracking_message_id
 
+from odoo.addons.mail.models.mixin_mail_gateway import RouteVerdict
+
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -15,7 +17,7 @@ class AccountMove(models.Model):
     @api.model
     def _routing_check_route(self, message, message_dict, route, raise_exception=True):
         if route[0] == "account.move" and len(message_dict["attachments"]) < 1:
-            company_id = route[2].get("company_id", self.env.company.id)
+            company_id = (route[2] or {}).get("company_id", self.env.company.id)
             if not isinstance(company_id, int):
                 raise ValueError(
                     f"Default value for 'company_id' for {route[4]} is not an integer"
@@ -41,7 +43,7 @@ class AccountMove(models.Model):
                 references=f"{message_dict['message_id']} {generate_tracking_message_id('loop-detection-bounce-email')}",
                 reply_to=reply_to_journal_company,
             )
-            return ()
+            return RouteVerdict.REFUSED
         return super()._routing_check_route(
             message, message_dict, route, raise_exception=raise_exception
         )

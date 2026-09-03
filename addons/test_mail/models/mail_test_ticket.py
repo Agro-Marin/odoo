@@ -143,6 +143,10 @@ class MailTestTicketMc(models.Model):
                 values["company_id"] = ticket.company_id.id
         return email_keys_to_values
 
+    def _mail_get_governing_alias(self):
+        self.check_singleton()
+        return self.container_id.alias_id
+
     def _notify_get_reply_to_addresses(self):
         # Override to use alias of the parent container
         addresses = self.sudo().mapped("container_id")._notify_get_reply_to_addresses()

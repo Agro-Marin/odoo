@@ -140,7 +140,9 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
             for record, alias_domain_id in alias_domain_values.items():
                 record.sudo().alias_domain_id = alias_domain_id.id
 
-        if alias_vals and (record_vals or self.has_access("write")):
+        if alias_vals:
+            if not record_vals:
+                self.check_access("write")
             self.mapped("alias_id").sudo().write(alias_vals)
 
         return True
