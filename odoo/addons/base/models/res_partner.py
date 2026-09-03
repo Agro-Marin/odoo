@@ -92,9 +92,7 @@ def _lang_get(self) -> list[tuple[str, str]]:
 
 _tzs = [
     (tz, tz)
-    for tz in sorted(
-        all_timezones(), key=lambda tz: tz if not tz.startswith("Etc/") else "_"
-    )
+    for tz in sorted(all_timezones(), key=lambda tz: (tz.startswith("Etc/"), tz))
 ]
 
 

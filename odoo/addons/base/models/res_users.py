@@ -26,7 +26,6 @@ from odoo.exceptions import (
 from odoo.fields import Command, Domain
 from odoo.http import DEFAULT_LANG, request
 from odoo.libs.datetime import all_timezones
-from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.password import _MAX_ROUNDS, CryptContext
 from odoo.tools import (
@@ -342,11 +341,6 @@ class ResUsers(models.Model):
     )
 
     active = fields.Boolean(default=True)
-    tz_offset = fields.Char(
-        compute="_compute_tz_offset",
-        string="Timezone offset",
-    )
-
     active_partner = fields.Boolean(
         related="partner_id.active",
         readonly=True,
@@ -785,16 +779,6 @@ class ResUsers(models.Model):
 
     def _compute_companies_count(self) -> None:
         self.companies_count = self.env["res.company"].sudo().search_count([])
-
-    @api.depends("tz")
-    def _compute_tz_offset(self) -> None:
-        now = datetime.datetime.now
-        tz_cache: dict[str | None, str] = {}
-        for user in self:
-            tz = user.tz or "GMT"
-            if (offset := tz_cache.get(tz)) is None:
-                offset = tz_cache[tz] = now(get_timezone(tz)).strftime("%z")
-            user.tz_offset = offset
 
     @api.depends("all_group_ids")
     def _compute_access_counts(self) -> None:

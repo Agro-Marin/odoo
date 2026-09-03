@@ -5,6 +5,8 @@ from unittest.mock import patch
 from odoo.libs.datetime import TIMEZONE_ALIASES, all_timezones, timezone, tz
 from odoo.tests.common import TransactionCase
 
+from odoo.addons.base.models import res_partner as res_partner_module
+
 _logger = logging.getLogger(__name__)
 
 
@@ -97,6 +99,22 @@ class TestTZ(TransactionCase):
             expected_offset,
             "Timezone offset should work even with deprecated timezone names",
         )
+
+    def test_etc_zones_are_listed_last_and_alphabetically(self):
+        codes = [code for code, _label in res_partner_module._tzs]
+        etc = [code for code in codes if code.startswith("Etc/")]
+        self.assertTrue(etc)
+        self.assertEqual(codes[-len(etc) :], sorted(etc))
+        self.assertEqual(codes[: -len(etc)], sorted(codes[: -len(etc)]))
+
+    def test_user_tz_offset_is_the_partners(self):
+        user = self.env.user
+        user.tz = "America/New_York"
+        expected_offset = datetime.datetime.now(timezone("America/New_York")).strftime(
+            "%z"
+        )
+        self.assertEqual(user.tz_offset, expected_offset)
+        self.assertEqual(user.tz_offset, user.partner_id.tz_offset)
 
 
 class TestLegacyTimezoneGrouping(TransactionCase):
