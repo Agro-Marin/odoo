@@ -132,11 +132,48 @@ export class MailCoreWeb {
             },
         );
     }
+    _subscribeMarkedAsUnread() {
+        this.busService.subscribe(
+            "mail.message/mark_as_unread",
+            /**
+             * @param {{message_ids: number[], needaction_inbox_counter: number}} payload
+             * @param {{id: number}} metadata
+             */
+            (payload, { id: notifId }) => {
+                const { message_ids: messageIds, needaction_inbox_counter } = payload;
+                const inbox = this.store.inbox;
+                for (const messageId of messageIds) {
+                    const message = this.store["mail.message"].get(messageId);
+                    if (!message) {
+                        continue;
+                    }
+                    if (message.thread && !message.needaction) {
+                        applyCounterDelta(
+                            message.thread,
+                            "message_needaction_counter",
+                            1,
+                            { busId: notifId },
+                        );
+                    }
+                    message.needaction = true;
+                    inbox.messages.add(message);
+                    this.store.history.messages.delete({ id: messageId });
+                }
+                applyCounterAbsolute(
+                    inbox,
+                    "counter",
+                    needaction_inbox_counter,
+                    notifId,
+                );
+            },
+        );
+    }
     setup() {
         this._subscribeActivityUpdated();
         this._subscribeMessageDeleted();
         this._subscribeInboxMessages();
         this._subscribeMarkedAsRead();
+        this._subscribeMarkedAsUnread();
     }
 }
 

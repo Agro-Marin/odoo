@@ -37,6 +37,40 @@ class TestMailMessage(common.MailCommon):
         self.env["mail.message"].unstar_all()
         self.assertNotIn(self.env.user.partner_id, message.starred_partner_ids)
 
+    @users("employee")
+    def test_mark_as_unread_returns_the_message_to_inbox(self):
+        """Marking as read must be reversible: the notification goes back to
+        unread and the inbox counter with it."""
+        message = (
+            self.env["res.partner"]
+            .browse(self.partner_admin.id)
+            .with_user(self.user_admin)
+            .message_post(body="Hello", partner_ids=self.env.user.partner_id.ids)
+        )
+        message = self.env["mail.message"].browse(message.id)
+        notification = self.env["mail.notification"].search(
+            [
+                ("mail_message_id", "=", message.id),
+                ("res_partner_id", "=", self.env.user.partner_id.id),
+            ]
+        )
+        self.assertEqual(notification.notification_type, "inbox")
+        message.set_message_done()
+        self.assertTrue(notification.is_read)
+        counter_read = self.env.user.partner_id._get_needaction_count()
+
+        self.assertEqual(message.mark_as_unread(), message.ids)
+        self.assertFalse(notification.is_read)
+        self.assertFalse(notification.read_date)
+        self.assertEqual(
+            self.env.user.partner_id._get_needaction_count(), counter_read + 1
+        )
+
+    @users("employee")
+    def test_mark_as_unread_ignores_messages_never_in_inbox(self):
+        message = self.env["mail.message"].sudo().create({"body": "no notification"})
+        self.assertEqual(message.sudo(False).mark_as_unread(), [])
+
     def test_mail_message_read_inexisting(self):
         inexisting_message = (
             self.env["mail.message"].with_user(self.user_employee).browse(-434264)

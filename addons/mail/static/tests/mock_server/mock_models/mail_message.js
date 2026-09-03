@@ -271,6 +271,45 @@ export class MailMessage extends models.ServerModel {
     }
 
     /** @param {number[]} ids */
+    mark_as_unread(ids) {
+        /** @type {import("mock_models").BusBus} */
+        const BusBus = this.env["bus.bus"];
+        /** @type {import("mock_models").MailNotification} */
+        const MailNotification = this.env["mail.notification"];
+        /** @type {import("mock_models").ResPartner} */
+        const ResPartner = this.env["res.partner"];
+
+        if (!this.env.user) {
+            return [];
+        }
+        const messages = this.browse(ids);
+        const notifications = MailNotification._filter([
+            ["res_partner_id", "=", this.env.user.partner_id],
+            ["notification_type", "=", "inbox"],
+            ["is_read", "=", true],
+            ["mail_message_id", "in", messages.map((message) => message.id)],
+        ]);
+        if (notifications.length === 0) {
+            return [];
+        }
+        MailNotification.write(
+            notifications.map((notification) => notification.id),
+            { is_read: false, read_date: false },
+        );
+        const messageIds = notifications.map(
+            (notification) => notification.mail_message_id,
+        );
+        this.write(messageIds, { needaction: true });
+        const [partner] = ResPartner.read(this.env.user.partner_id);
+        BusBus._sendone(partner, "mail.message/mark_as_unread", {
+            message_ids: messageIds,
+            needaction_inbox_counter: ResPartner._get_needaction_count(
+                this.env.user.partner_id,
+            ),
+        });
+        return messageIds;
+    }
+
     set_message_done(ids) {
         /** @type {import("mock_models").BusBus} */
         const BusBus = this.env["bus.bus"];
