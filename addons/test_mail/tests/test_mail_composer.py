@@ -5443,6 +5443,148 @@ class TestComposerResultsMass(TestMailComposer):
                 },
             )
 
+    @users("employee")
+    @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.tests")
+    def test_mail_composer_wtpl_lang_reaches_the_template_render(self):
+        """The composer's language drives the reports, not the template's."""
+        self.env["res.lang"].sudo()._activate_lang("fr_FR")
+        self.template.write(
+            {"report_template_ids": [Command.set(self.test_report.ids)]}
+        )
+        composer = Form(
+            self.env["mail.compose.message"].with_context(
+                self._get_web_context(
+                    self.test_records[0],
+                    add_web=True,
+                    default_composition_mode="mass_mail",
+                    default_template_id=self.template.id,
+                )
+            )
+        ).save()
+        self.assertEqual(composer.lang, "{{ object.customer_id.lang }}")
+        composer.lang = "fr_FR"
+
+        rendered_langs = []
+
+        def _render_qweb_pdf(reports, report_ref, res_ids=None, data=None):
+            rendered_langs.append(reports.env.context.get("lang"))
+            return b"%PDF-1.4", "pdf"
+
+        with (
+            patch.object(
+                type(self.env["ir.actions.report"]),
+                "_render_qweb_pdf",
+                autospec=True,
+                side_effect=_render_qweb_pdf,
+            ),
+            self.mock_mail_gateway(),
+        ):
+            composer._action_send_mail()
+
+        self.assertEqual(rendered_langs, ["fr_FR"])
+        self.assertEqual(
+            self._new_mails.attachment_ids.mapped("name"),
+            [f"TestReport for {self.test_records[0].name}.pdf"],
+        )
+
+    @users("employee")
+    @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.tests")
+    def test_mail_composer_wtpl_layout_is_rendered_once_per_mail(self):
+        """A mail carries one body, so its layout is rendered once for all of
+        its recipients, however a module classifies them."""
+        self.template.write({"email_layout_xmlid": "mail.test_layout"})
+        composer = Form(
+            self.env["mail.compose.message"].with_context(
+                self._get_web_context(
+                    self.test_records,
+                    add_web=True,
+                    default_template_id=self.template.id,
+                )
+            )
+        ).save()
+        composer.partner_ids = self.partner_employee_2
+
+        TicketModel = type(self.env["mail.test.ticket.mc"])
+        groups_origin = TicketModel._notify_get_recipients_groups
+        render_origin = TicketModel._notify_by_email_render_layout
+
+        def _split_by_partner(record, message, model_description, msg_vals=False):
+            groups = groups_origin(record, message, model_description, msg_vals)
+            return [
+                [
+                    "colleague",
+                    lambda pdata: pdata["id"] == self.partner_employee_2.id,
+                    {"has_button_access": False},
+                ],
+                *groups,
+            ]
+
+        with (
+            patch.object(
+                TicketModel,
+                "_notify_get_recipients_groups",
+                autospec=True,
+                side_effect=_split_by_partner,
+            ),
+            patch.object(
+                TicketModel,
+                "_notify_by_email_render_layout",
+                autospec=True,
+                side_effect=render_origin,
+            ) as render_mocked,
+            self.mock_mail_gateway(),
+        ):
+            composer._action_send_mail()
+
+        self.assertEqual(render_mocked.call_count, len(self.test_records))
+        for render_call, record in zip(
+            render_mocked.call_args_list, self.test_records, strict=True
+        ):
+            recipients_group = render_call.args[2]
+            self.assertEqual(
+                set(recipients_group["recipients_ids"]),
+                {record.customer_id.id, self.partner_employee_2.id},
+            )
+            self.assertFalse(
+                recipients_group["has_button_access"],
+                "the test ticket grants its customers the button; one body for "
+                "every group offers no button one of them lacks",
+            )
+        for mail in self._new_mails:
+            self.assertIn("English Layout", mail.body_html)
+
+    @users("employee")
+    @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.tests")
+    def test_mail_composer_duplicates_across_batches(self):
+        """Duplicate detection remembers the recipients of earlier batches."""
+        self.template.write(
+            {
+                "body_html": "<p>Common Body</p>",
+                "email_to": "",
+                "partner_to": "{{ object.customer_id.id }}",
+                "subject": "Common Subject",
+            }
+        )
+        self.test_partners.write({"email": "shared@test.example.com"})
+        composer = Form(
+            self.env["mail.compose.message"].with_context(
+                self._get_web_context(
+                    self.test_records,
+                    add_web=True,
+                    default_template_id=self.template.id,
+                )
+            )
+        ).save()
+        with (
+            patch.object(MailComposeMessage, "_batch_size", 1),
+            self.mock_mail_gateway(),
+        ):
+            composer._action_send_mail()
+
+        self.assertEqual(len(self._mails), 1)
+        self.assertEqual(self._new_mails.mapped("state"), ["sent", "cancel"])
+        self.assertEqual(self._new_mails.mapped("failure_type"), [False, "mail_dup"])
+
 
 @tagged("mail_composer", "mail_blacklist")
 class TestComposerResultsMassStatus(TestMailComposer):

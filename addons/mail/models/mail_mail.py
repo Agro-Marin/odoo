@@ -459,7 +459,9 @@ class MailMail(models.Model):
             _logger.exception("Failed processing mail queue")
 
     @api.model
-    def _get_domain_pending_email_notifications(self, mail_ids: list[int]) -> list[tuple]:
+    def _get_domain_pending_email_notifications(
+        self, mail_ids: list[int]
+    ) -> list[tuple]:
         return [
             ("notification_type", "=", "email"),
             ("mail_mail_id", "in", mail_ids),
@@ -674,17 +676,6 @@ class MailMail(models.Model):
                 return opening.start(), tag.end()
         return opening.start(), len(body)
 
-    def _personalize_outgoing_body(
-        self,
-        body: str,
-        partner: ResPartner | Literal[False] = False,
-        doc_to_followers: dict | None = None,
-    ) -> str:
-        self.check_singleton()
-        return self._apply_unfollow_block(
-            body, self._locate_unfollow_block(body), partner, doc_to_followers
-        )
-
     @api.model
     def _locate_unfollow_block(self, body: str) -> tuple[int, int] | None:
         if not self._has_unfollow_block(body):
@@ -867,38 +858,16 @@ class MailMail(models.Model):
     ) -> list[dict]:
         self.check_singleton()
         email_list = []
-        if self.email_to:
-            email_to_normalized = tools.mail.email_normalize_all(self.email_to)
-            email_to = tools.mail.email_split_and_format_normalize(self.email_to)
-            email_list.append(
-                {
-                    "email_cc": [],
-                    "email_to": email_to,
-                    "email_to_normalized": email_to_normalized,
-                    "partner": self.env["res.partner"],
-                }
+        raw_group, covered = self._prepare_raw_recipient_group()
+        if covered:
+            _logger.info(
+                "Mail (mail.mail) with ID %r: %s also name a recipient partner, "
+                "sent to the partner only",
+                self.id,
+                covered,
             )
-        if self.email_cc:
-            if email_list:
-                email_list[0]["email_cc"] = tools.mail.email_split_and_format_normalize(
-                    self.email_cc
-                )
-                email_list[0]["email_to_normalized"] += tools.mail.email_normalize_all(
-                    self.email_cc
-                )
-            else:
-                email_list.append(
-                    {
-                        "email_cc": tools.mail.email_split_and_format_normalize(
-                            self.email_cc
-                        ),
-                        "email_to": [],
-                        "email_to_normalized": tools.mail.email_normalize_all(
-                            self.email_cc
-                        ),
-                        "partner": self.env["res.partner"],
-                    }
-                )
+        if raw_group:
+            email_list.append(raw_group)
         recipients = self.recipient_ids
         if self.is_notification and recipients:
             sent_pids = self._get_already_sent_pids(already_sent_pids=already_sent_pids)
@@ -923,6 +892,36 @@ class MailMail(models.Model):
             )
 
         return email_list
+
+    def _prepare_raw_recipient_group(self) -> tuple[dict | None, list[str]]:
+        self.check_singleton()
+        partner_emails = {
+            email
+            for partner in self.recipient_ids
+            for email in tools.mail.email_normalize_all(partner.email)
+        }
+        email_to, email_cc, covered = [], [], []
+        for fname, addresses in (("email_to", email_to), ("email_cc", email_cc)):
+            for address in tools.mail.email_split_and_format_normalize(
+                self[fname] or ""
+            ):
+                if tools.email_normalize(address) in partner_emails:
+                    covered.append(address)
+                else:
+                    addresses.append(address)
+        has_raw_addresses = bool(
+            (self.email_to or "").strip() or (self.email_cc or "").strip()
+        )
+        if not (email_to or email_cc) and (covered or not has_raw_addresses):
+            return None, covered
+        return {
+            "email_cc": email_cc,
+            "email_to": email_to,
+            "email_to_normalized": [
+                tools.email_normalize(address) for address in email_to + email_cc
+            ],
+            "partner": self.env["res.partner"],
+        }, covered
 
     def _prepare_outgoing_list(
         self,
@@ -952,6 +951,7 @@ class MailMail(models.Model):
         body, email_attachments = self._prepare_outgoing_attachments(
             body, headers, mail_server=mail_server, smtp_session=smtp_session
         )
+        email_from = self._get_envelope_email_from()
 
         results = []
         plaintext_per_body = {}
@@ -981,7 +981,7 @@ class MailMail(models.Model):
                     "body": body_personalized,
                     "body_alternative": plaintext_per_body[body_personalized],
                     "email_cc": email_values["email_cc"],
-                    "email_from": self.email_from,
+                    "email_from": email_from,
                     "email_to": email_values["email_to"],
                     "email_to_normalized": email_values["email_to_normalized"],
                     "headers": dict(headers),
@@ -1052,6 +1052,15 @@ class MailMail(models.Model):
             for batch_ids in itertools.batched(record_ids, batch_size, strict=False):
                 yield mail_server_id, alias_domain_id, smtp_from, batch_ids
 
+    def _filter_ready_to_send(self) -> Self:
+        now = fields.Datetime.now()
+        return self.filtered(
+            lambda mail: (
+                mail.state == "outgoing"
+                and (not mail.scheduled_date or mail.scheduled_date <= now)
+            )
+        )
+
     def _has_any_recipient(self) -> bool:
         self.check_singleton()
         return bool(
@@ -1062,7 +1071,7 @@ class MailMail(models.Model):
 
     def _raw_address_message_count(self) -> int:
         self.check_singleton()
-        return int(bool((self.email_to or "").strip() or (self.email_cc or "").strip()))
+        return int(self._prepare_raw_recipient_group()[0] is not None)
 
     def _personal_server_cost(self) -> int:
         return sum(
@@ -1223,7 +1232,7 @@ class MailMail(models.Model):
         raise_exception: bool = False,
         post_send_callback: Callable[..., bool] | None = None,
     ) -> None:
-        outgoing = self.filtered(lambda mail: mail.state == "outgoing")
+        outgoing = self._filter_ready_to_send()
         for (
             mail_server_id,
             alias_domain_id,
@@ -1319,6 +1328,7 @@ class MailMail(models.Model):
         )
 
     def action_send_and_close(self) -> dict:
+        self.filtered("scheduled_date").write({"scheduled_date": False})
         self.send()
         return {
             "name": _("Emails"),
@@ -1536,11 +1546,8 @@ class MailMail(models.Model):
             smtp_session=batch.smtp_session,
             already_sent_pids=batch.already_sent_pids,
         )
-        email_from = self._get_envelope_email_from()
         for email in email_list:
-            outcome.absorb(
-                self._deliver_one(email, email_from, batch, outcome.failure_type)
-            )
+            outcome.absorb(self._deliver_one(email, batch, outcome.failure_type))
         return email_list
 
     def _record_send_success(
@@ -1671,7 +1678,6 @@ class MailMail(models.Model):
     def _deliver_one(
         self,
         email: dict,
-        email_from: str,
         batch: _SendBatch,
         previous_failure_type: str | None = None,
     ) -> _DeliveryResult:
@@ -1687,7 +1693,7 @@ class MailMail(models.Model):
             )
         SendIrMailServer = IrMailServer.with_context(**send_context)
         msg = SendIrMailServer._prepare_email__(
-            email_from=email_from,
+            email_from=email["email_from"],
             email_to=email["email_to"],
             subject=email["subject"],
             body=email["body"],

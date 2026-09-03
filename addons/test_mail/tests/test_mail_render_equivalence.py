@@ -383,7 +383,7 @@ class TestDynamicTemplateWriteScope(common.MailCommon):
         # short-circuits for a template editor, and the test env is one, so
         # spying deeper would pass vacuously.
         self.patch(model_cls, "_check_access_right_dynamic_template", spy)
-        template.write({"model_id": self.env["ir.model"]._get("mail.test.simple").id})
+        template.write({"model_id": self.env["ir.model"]._get("mail.test.ticket").id})
         self.env.flush_all()
         self.assertEqual(
             received,

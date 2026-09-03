@@ -3,11 +3,25 @@ import datetime
 from unittest.mock import patch
 
 from freezegun import freeze_time
+from markupsafe import Markup
 
+from odoo.exceptions import ValidationError
 from odoo.tests import tagged, users, warmup
 from odoo.tools import mute_logger, safe_eval
 
+from odoo.addons.mail.models.mail_template import (
+    ATTACHMENT_FIELD_NAMES,
+    DYNAMIC_FIELD_NAMES,
+    RECIPIENT_FIELD_NAMES,
+    SEND_RENDER_FIELDS,
+    TEMPLATE_SPECIFIC_FIELD_NAMES,
+)
 from odoo.addons.mail.tests.common import MailCommon
+from odoo.addons.mail.wizard.mail_compose_message import (
+    COMPOSER_FIELD_TO_TEMPLATE_FIELD,
+    TEMPLATE_FIELD_TO_COMPOSER_FIELD,
+    TEMPLATE_RENDER_FIELDS,
+)
 from odoo.addons.test_mail.tests.common import TestRecipients
 
 
@@ -600,4 +614,172 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
         )
         self.assertEqual(
             mails_sudo[1].subject, f"EnglishSubject for {test_records[1].name}"
+        )
+
+
+@tagged("mail_template")
+class TestMailTemplateSaveGate(MailCommon):
+    """Saving a template judges the template, not the first row of its table."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.model = "mail.test.ticket"
+        cls.model_id = cls.env["ir.model"]._get_id(cls.model)
+
+    def _create_template(self, **values):
+        return self.env["mail.template"].create(
+            {"name": "Gate", "model_id": self.model_id, **values}
+        )
+
+    def test_a_record_shaped_failure_does_not_refuse_the_save(self):
+        customer = self.env["res.partner"].create({"name": "Customer"})
+        bare, full = self.env[self.model].create(
+            [{"name": "Bare"}, {"name": "Full", "customer_id": customer.id}]
+        )
+        self.assertEqual(self.env[self.model].search([], limit=1), bare)
+        with self.assertLogs("odoo.addons.mail.models.mail_template", "INFO") as logs:
+            template = self._create_template(
+                subject="{{ object.customer_id.name.upper() }}"
+            )
+        self.assertIn("does not render on sample", logs.output[0])
+        mail = self.env["mail.mail"].browse(template.send_mail(full.id))
+        self.assertEqual(mail.subject, "CUSTOMER")
+
+    def test_a_compile_failure_is_refused(self):
+        with self.assertRaises(ValidationError):
+            self._create_template(subject="{{ object.name ( }}")
+
+    def test_a_qweb_structure_error_is_refused_not_a_traceback(self):
+        with self.assertRaises(ValidationError):
+            self._create_template(
+                body_html=Markup('<t t-foreach="object.message_ids">x</t>')
+            )
+
+    def test_an_unknown_attribute_is_refused_without_a_row(self):
+        self.assertFalse(self.env[self.model].search_count([]))
+        with self.assertRaises(ValidationError):
+            self._create_template(subject="{{ object.no_such_field }}")
+        with self.assertRaises(ValidationError):
+            self._create_template(
+                body_html=Markup('<p t-out="object.customer_id.no_such_field"/>')
+            )
+        with self.assertRaises(ValidationError):
+            self._create_template(email_to="{{ object.no_such_method() }}")
+        self.assertTrue(
+            self._create_template(
+                body_html=Markup(
+                    '<t t-foreach="object.message_ids" t-as="line">'
+                    '<t t-out="line.no_such_field"/></t>'
+                ),
+                subject="{{ object.customer_id.name.upper() }}",
+                email_to="{{ object.sudo().no_such_field }}",
+            ),
+            "only a chain the model graph can answer for is judged",
+        )
+
+    def test_the_verdict_does_not_depend_on_the_table_having_rows(self):
+        self.assertFalse(self.env[self.model].search_count([]))
+        self.assertTrue(
+            self._create_template(subject="{{ object.customer_id.name.upper() }}")
+        )
+        with self.assertRaises(ValidationError):
+            self._create_template(subject="{{ object.name ( }}")
+        with self.assertRaises(ValidationError):
+            self._create_template(
+                body_html=Markup('<t t-foreach="object.message_ids">x</t>')
+            )
+
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    def test_a_future_schedule_survives_force_send(self):
+        template = self._create_template(
+            body_html=Markup("<p>Later</p>"),
+            email_to="later@test.example.com",
+            scheduled_date="2099-01-01 10:00:00",
+            subject="Later",
+            use_default_to=False,
+        )
+        record = self.env[self.model].create({"name": "Later"})
+        with self.mock_mail_gateway():
+            mail = self.env["mail.mail"].browse(
+                template.send_mail(record.id, force_send=True)
+            )
+            self.assertEqual(mail.scheduled_date, datetime.datetime(2099, 1, 1, 10))
+            self.assertEqual(mail.state, "outgoing")
+            mail.send()
+            self.assertEqual(
+                mail.state, "outgoing", "send() applies the queue's due filter"
+            )
+        self.assertFalse(self._mails)
+        with freeze_time("2099-01-01 10:00:01"), self.mock_mail_gateway():
+            mail.send()
+        self.assertEqual(mail.state, "sent")
+        self.assertEqual(len(self._mails), 1)
+
+
+@tagged("mail_template")
+class TestMailTemplateFieldLists(MailCommon):
+    """The hand-maintained field lists agree on what a template renders."""
+
+    def test_the_lists_hold_their_invariants(self):
+        template_fields = self.env["mail.template"]._fields
+        rendered_types = {
+            fname
+            for fname, field in template_fields.items()
+            if field.type in ("char", "text", "html") and field.store
+        }
+        self.assertTrue(rendered_types >= DYNAMIC_FIELD_NAMES)
+        self.assertEqual(
+            self.env["mail.template"]._get_dynamic_field_names(), DYNAMIC_FIELD_NAMES
+        )
+        self.assertTrue(RECIPIENT_FIELD_NAMES <= DYNAMIC_FIELD_NAMES)
+        self.assertEqual(
+            DYNAMIC_FIELD_NAMES & TEMPLATE_SPECIFIC_FIELD_NAMES,
+            RECIPIENT_FIELD_NAMES | {"scheduled_date"},
+            "a dynamic field _prepare_mail_vals does not render itself is a "
+            "recipient or the schedule, each with its own helper",
+        )
+        self.assertTrue(ATTACHMENT_FIELD_NAMES <= TEMPLATE_SPECIFIC_FIELD_NAMES)
+        self.assertTrue(DYNAMIC_FIELD_NAMES - {"lang"} <= SEND_RENDER_FIELDS)
+        self.assertTrue(ATTACHMENT_FIELD_NAMES <= SEND_RENDER_FIELDS)
+        self.assertTrue(
+            SEND_RENDER_FIELDS <= DYNAMIC_FIELD_NAMES | TEMPLATE_SPECIFIC_FIELD_NAMES
+        )
+        self.assertTrue(
+            (SEND_RENDER_FIELDS | {"lang"}) - {"res_id"} <= template_fields.keys(),
+            "res_id is the one sent value that is a record's, not the template's",
+        )
+
+    def test_the_preview_shows_a_subset_of_what_a_send_renders(self):
+        preview_fields = set(self.env["mail.template.preview"]._MAIL_TEMPLATE_FIELDS)
+        self.assertTrue(preview_fields <= SEND_RENDER_FIELDS)
+        self.assertTrue(
+            preview_fields - {"partner_to"}
+            <= self.env["mail.template.preview"]._fields.keys()
+        )
+
+    def test_the_composer_maps_name_fields_of_both_models(self):
+        template_fields = self.env["mail.template"]._fields
+        composer_fields = self.env["mail.compose.message"]._fields
+        counterparts = self.env["mixin.mail.composer"]._template_field_counterparts
+        self.assertTrue(
+            set(COMPOSER_FIELD_TO_TEMPLATE_FIELD.values()) <= template_fields.keys()
+        )
+        self.assertTrue(
+            COMPOSER_FIELD_TO_TEMPLATE_FIELD.keys() - {"attachments"}
+            <= composer_fields.keys(),
+            "every key is a composer field, except the attachments render key",
+        )
+        self.assertTrue(
+            counterparts.items() <= COMPOSER_FIELD_TO_TEMPLATE_FIELD.items()
+        )
+        self.assertEqual(
+            TEMPLATE_FIELD_TO_COMPOSER_FIELD,
+            {template: composer for composer, template in counterparts.items()},
+        )
+        self.assertTrue(counterparts.keys() <= composer_fields.keys())
+        self.assertTrue(set(counterparts.values()) <= template_fields.keys())
+        self.assertTrue(
+            TEMPLATE_RENDER_FIELDS
+            <= (DYNAMIC_FIELD_NAMES | ATTACHMENT_FIELD_NAMES) - RECIPIENT_FIELD_NAMES
         )
