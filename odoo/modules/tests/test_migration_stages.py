@@ -3,8 +3,10 @@ from pathlib import Path
 
 import pytest
 
+import odoo.modules.migration as migration_mod
 from odoo.modules.migration import (
     MIGRATION_STAGES,
+    MigrationManager,
     _get_scripts_by_version,
     _warn_unstaged_scripts,
 )
@@ -83,6 +85,58 @@ class TestCollectionWiresTheWarning:
 class TestStagesAreDeclaredOnce:
     def test_the_stage_tuple_is_what_migrate_module_accepts(self):
         assert MIGRATION_STAGES == ("pre", "post", "end")
+
+
+class _FakePkg:
+    def __init__(self, name, load_state):
+        self.name = name
+        self.load_state = load_state
+
+
+class TestMigrationManagerDoesNotReindexDonePackages:
+    def test_update_skips_a_package_already_indexed(self, monkeypatch):
+        calls = []
+        original = migration_mod._get_scripts_by_version
+
+        def counting(path):
+            calls.append(path)
+            return original(path)
+
+        monkeypatch.setattr(migration_mod, "_get_scripts_by_version", counting)
+
+        graph = [_FakePkg("odoo_probe_nonexistent_module", "to upgrade")]
+        manager = MigrationManager(None, graph)
+        assert calls, "the first index must scan the (absent) package"
+        calls_after_init = len(calls)
+
+        manager.update()
+        assert len(calls) == calls_after_init, (
+            "update() re-scanned a package already present in self.migrations"
+        )
+
+    def test_update_indexes_a_package_added_after_init(self, monkeypatch):
+        calls = []
+        original = migration_mod._get_scripts_by_version
+
+        def counting(path):
+            calls.append(path)
+            return original(path)
+
+        monkeypatch.setattr(migration_mod, "_get_scripts_by_version", counting)
+
+        graph = [_FakePkg("odoo_probe_nonexistent_module_a", "to upgrade")]
+        manager = MigrationManager(None, graph)
+        calls_after_init = len(calls)
+
+        graph.append(_FakePkg("odoo_probe_nonexistent_module_b", "to upgrade"))
+        manager.update()
+        assert len(calls) > calls_after_init, (
+            "update() must still index a package newly added to the graph"
+        )
+        assert set(manager.migrations) == {
+            "odoo_probe_nonexistent_module_a",
+            "odoo_probe_nonexistent_module_b",
+        }
 
 
 class TestNoScriptIsSilentlySkipped:

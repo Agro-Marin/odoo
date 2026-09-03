@@ -149,8 +149,14 @@ class MigrationManager:
     def _is_migration_required(self, pkg: module_graph.ModuleNode) -> bool:
         return pkg.load_state == "to upgrade"
 
+    def update(self) -> None:
+        """Index any package added to the graph since the last (re)index."""
+        self._index_migration_scripts()
+
     def _index_migration_scripts(self) -> None:
         for pkg in self.graph:
+            if pkg.name in self.migrations:
+                continue
             if not self._is_migration_required(pkg):
                 continue
 
