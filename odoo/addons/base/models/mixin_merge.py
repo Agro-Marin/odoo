@@ -63,9 +63,19 @@ class MixinMerge(models.AbstractModel):
                 AND r.relname = %s
                 AND r.relnamespace = current_schema::regnamespace
                 AND a.attname = %s
+            UNION ALL
+            SELECT 1
+            FROM pg_index i
+            JOIN pg_class r ON (i.indrelid = r.oid)
+            CROSS JOIN LATERAL unnest(i.indkey) AS iattr(attnum)
+            JOIN pg_attribute a ON (a.attrelid = i.indrelid AND a.attnum = iattr.attnum)
+            WHERE i.indisunique
+                AND r.relname = %s
+                AND r.relnamespace = current_schema::regnamespace
+                AND a.attname = %s
             LIMIT 1
         """,
-            (table, column),
+            (table, column, table, column),
         )
         return bool(self.env.cr.fetchone())
 
@@ -272,6 +282,16 @@ class MixinMerge(models.AbstractModel):
         self.env.flush_all()
         self.env["ir.default"]._invalidate_defaults_cache()
 
+    @api.model
+    def _get_sidecar_reference_fields(self) -> list[tuple[str, str, str]]:
+        return sorted(
+            (model._name, field.model_field, field.name)
+            for model in self.env.values()
+            if not model._abstract
+            for field in model._fields.values()
+            if field.is_many2one_reference and field.store and field.model_field
+        )
+
     def _repoint_sidecar_rows(
         self,
         referenced_model: str,
@@ -279,29 +299,14 @@ class MixinMerge(models.AbstractModel):
         dst_record: models.BaseModel,
         additional_update_records: list[dict[str, str]],
     ) -> None:
+        sidecars = self._get_sidecar_reference_fields() + [
+            (update_record["model"], update_record["field_model"], "res_id")
+            for update_record in additional_update_records
+        ]
         for record in src_records:
-            self._repoint_model_rows(
-                "ir.attachment", referenced_model, record, dst_record, "res_model"
-            )
-            self._repoint_model_rows(
-                "mail.followers", referenced_model, record, dst_record, "res_model"
-            )
-            self._repoint_model_rows(
-                "mail.activity", referenced_model, record, dst_record, "res_model"
-            )
-            self._repoint_model_rows(
-                "mail.message", referenced_model, record, dst_record
-            )
-            self._repoint_model_rows(
-                "ir.model.data", referenced_model, record, dst_record
-            )
-            for update_record in additional_update_records:
+            for model, field_model, field_id in sidecars:
                 self._repoint_model_rows(
-                    update_record["model"],
-                    referenced_model,
-                    record,
-                    dst_record,
-                    update_record["field_model"],
+                    model, referenced_model, record, dst_record, field_model, field_id
                 )
 
     def _repoint_model_rows(
@@ -322,15 +327,40 @@ class MixinMerge(models.AbstractModel):
         if not records:
             return
         if not self._has_check_or_unique_constraint(records._table, field_id):
-            records.sudo().write({field_id: dst_record.id})
+            records.write({field_id: dst_record.id})
             records.env.flush_all()
             return
         try:
             with mute_logger("odoo.db"), self.env.cr.savepoint():
-                records.sudo().write({field_id: dst_record.id})
+                records.write({field_id: dst_record.id})
                 records.env.flush_all()
         except psycopg.Error:
-            records.sudo().unlink()
+            self._repoint_model_rows_one_by_one(records, field_id, src, dst_record)
+
+    def _repoint_model_rows_one_by_one(
+        self,
+        records: models.BaseModel,
+        field_id: str,
+        src: models.BaseModel,
+        dst_record: models.BaseModel,
+    ) -> None:
+        for record in records:
+            try:
+                with mute_logger("odoo.db"), self.env.cr.savepoint():
+                    record.write({field_id: dst_record.id})
+                    record.env.flush_all()
+            except psycopg.Error as error:
+                _logger.warning(
+                    "Merging %s into %s: re-pointing %s#%s.%s failed (%s); "
+                    "dropping only that clashing row",
+                    src.id,
+                    dst_record.id,
+                    record._name,
+                    record.id,
+                    field_id,
+                    error.__class__.__name__,
+                )
+                record.unlink()
 
     def _repoint_reference_fields(
         self,

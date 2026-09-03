@@ -102,6 +102,7 @@ from . import test_res_partner_identifier
 from . import test_partner_identifier_confidentiality
 from . import test_partner_private_address_access
 from . import test_res_partner_merge
+from . import test_mixin_merge
 from . import test_res_users
 from . import test_res_users_apikeys
 from . import test_res_users_identitycheck
