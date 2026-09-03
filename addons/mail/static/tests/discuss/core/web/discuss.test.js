@@ -1,3 +1,4 @@
+import { createChannel } from "@mail/../tests/mail_scenarios";
 import {
     click,
     contains,
@@ -268,3 +269,36 @@ test("Create channel must have a name", async () => {
     await triggerHotkey("Enter");
     await contains(".invalid-feedback", { text: "Channel must have a name." });
 });
+
+test("a channel reached without being a member offers to join it", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Demo" });
+    const channelId = createChannel(pyEnv, {
+        name: "Very cool channel",
+        channel_type: "channel",
+        members: [partnerId],
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-discuss-ChannelMember", { count: 1, text: "Demo" });
+    await click("[name='join-channel']");
+    await contains(".o-discuss-ChannelMember", { count: 2 });
+    await contains(".o-discuss-ChannelMember", { text: serverState.partnerName });
+    await contains("[name='join-channel']", { count: 0 });
+});
+
+// A chat or a group has a fixed roster, and a livechat conversation is joined
+// through im_livechat's own flow, so none of them may offer the generic button.
+for (const channel_type of ["chat", "group", "livechat"]) {
+    test(`a ${channel_type} offers no join button`, async () => {
+        const pyEnv = await startServer();
+        const partnerId = pyEnv["res.partner"].create({ name: "Demo" });
+        const channelId = createChannel(pyEnv, { channel_type, members: [partnerId] });
+        await start();
+        await openDiscuss(channelId);
+        // anchor on something that only renders once the thread is up, so the
+        // absence assertion below cannot pass by rendering nothing at all
+        await contains(".o-mail-DiscussContent-threadName");
+        await contains("[name='join-channel']", { count: 0 });
+    });
+}
