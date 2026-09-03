@@ -9,7 +9,7 @@ registry.category("web_tour.tours").add("discuss.invite_by_email", {
         },
         {
             trigger:
-                ".o-discuss-ChannelInvitation-search[placeholder='Invite people or email']",
+                ".o-discuss-ChannelInvitation-search[placeholder='Enter name or email']",
             run: "edit john@test.com",
         },
         {
