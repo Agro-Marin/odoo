@@ -23,6 +23,7 @@ Featuring
     "depends": [
         "portal_rating",
         "survey",
+        "website",
         "website_mail",
         "website_profile",
     ],

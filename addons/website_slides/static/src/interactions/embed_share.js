@@ -1,9 +1,8 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
+import { Popover } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
-import { usePopover } from "@web/ui/popover";
-import { Tooltip } from "@web/ui/tooltip";
 
 export class EmbedShare extends Interaction {
     static selector = ".oe_slide_js_embed_code_widget";
@@ -16,17 +15,18 @@ export class EmbedShare extends Interaction {
      * @param {HTMLElement} currentTargetEl
      */
     async onClick(ev, currentTargetEl) {
-        const tooltip = usePopover(Tooltip, {
-            title: "Copied!",
-            trigger: "manual",
-            placement: "bottom",
-        });
         const embedEl = document.querySelector(
             "#wslides_share_embed_id_" + currentTargetEl.id.split("id_")[1],
         );
         await this.waitFor(browser.navigator.clipboard.writeText(embedEl.value || ""));
-        tooltip.open(currentTargetEl);
-        this.waitForTimeout(tooltip.close, 800);
+        const bsPopover = Popover.getOrCreateInstance(currentTargetEl, {
+            title: "Copied!",
+            trigger: "manual",
+            placement: "bottom",
+        });
+        this.registerCleanup(() => bsPopover.dispose());
+        bsPopover.show();
+        this.waitForTimeout(() => bsPopover.hide(), 800);
     }
 }
 

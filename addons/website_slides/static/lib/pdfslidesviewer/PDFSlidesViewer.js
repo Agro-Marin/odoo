@@ -122,7 +122,7 @@ globalThis.PDFSlidesViewer = (function(){
      * Displays the given page.
      */
     PDFSlidesViewer.prototype.changePage = function(num){
-        if(1 <= num <= this.pdf_page_total){
+        if(num >= 1 && num <= this.pdf_page_total){
             this.pdf_page_current = num;
             return this.queueRenderPage(num);
         }

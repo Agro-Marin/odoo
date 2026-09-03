@@ -224,8 +224,15 @@ export class CourseJoin extends Interaction {
             isMemberOrInvited: data.isMemberOrInvited,
             isPartnerWithoutUser: data.isPartnerWithoutUser,
         };
-        for (const el of document.querySelectorAll(".o_wslides_js_course_join")) {
-            new CourseJoinBehavior(this, el, options);
+        // Scoped to this link's own wrapper: `.o_wslides_js_course_join_link`
+        // can appear several times on one lesson page (sidebar, comments,
+        // resources), and `CourseJoin` gets one instance per match, so
+        // querying the whole document here attached a fresh
+        // `CourseJoinBehavior` — and click listener — to every wrapper on
+        // the page, once per link found.
+        const wrapperEl = this.el.closest(".o_wslides_js_course_join");
+        if (wrapperEl) {
+            new CourseJoinBehavior(this, wrapperEl, options);
         }
     }
 }
