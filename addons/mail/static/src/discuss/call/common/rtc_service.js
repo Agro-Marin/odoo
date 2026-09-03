@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { CallInfiniteMirroringWarning } from "@mail/discuss/call/common/call_infinite_mirroring_warning";
+import { CallPermissionDeniedDialog } from "@mail/discuss/call/common/call_permission_denied_dialog";
 import { CallPermissionDialog } from "@mail/discuss/call/common/call_permission_dialog";
 import {
     CallTransport,
@@ -938,21 +939,20 @@ export class Rtc extends Record {
      * @param {boolean} [media.screen]
      */
     showMediaUnavailableWarning({ microphone, camera, screen }) {
-        let errorMessage;
-        if (microphone && camera) {
-            errorMessage = _t(
-                "Camera and microphone access blocked. Enable in browser settings.",
+        if (screen) {
+            // Screen sharing is granted per attempt, so there is no browser
+            // setting to walk the user to: a notification is all we can say.
+            this.notification.add(
+                _t("Screen sharing access blocked. Enable in browser settings."),
+                { type: "warning" },
             );
-        } else if (camera) {
-            errorMessage = _t("Camera access blocked. Enable in browser settings.");
-        } else if (microphone) {
-            errorMessage = _t("Microphone access blocked. Enable in browser settings.");
-        } else if (screen) {
-            errorMessage = _t(
-                "Screen sharing access blocked. Enable in browser settings.",
-            );
+            return;
         }
-        this.notification.add(errorMessage, { type: "warning" });
+        this.dialog.add(
+            CallPermissionDeniedDialog,
+            { media: microphone === camera ? undefined : microphone ? "microphone" : "camera" },
+            { rootId: rootIdOf(this.rootEl) },
+        );
     }
 
     /**

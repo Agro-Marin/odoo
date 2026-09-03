@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="discuss.CallPermissionDeniedDialog">
+        <Dialog title="''" size="'md'" contentClass="'o-discuss-CallPermissionDeniedDialog'">
+            <h5 class="fw-medium fs-2 mb-3" t-out="title"/>
+            <ol class="ps-3 d-flex flex-column gap-2 text-muted mb-0">
+                <li>Click the page info icon in your browser's address bar</li>
+                <li t-out="permissionStep"/>
+            </ol>
+        </Dialog>
+    </t>
+
+</templates>
