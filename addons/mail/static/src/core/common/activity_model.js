@@ -26,13 +26,9 @@ export class Activity extends Record {
 
     /** @type {number} */
     id;
-    /** @type {boolean} */
-    active;
     /** @type {string} */
     activity_category;
     activity_type_id = fields.One("mail.activity.type");
-    /** @type {string|false} */
-    activity_decoration;
     /** @type {Object[]} */
     attachment_ids;
     /** @type {boolean} */
@@ -45,8 +41,6 @@ export class Activity extends Record {
     date_done = fields.Date();
     /** @type {string} */
     display_name;
-    /** @type {boolean} */
-    has_recommended_activities;
     /** @type {string} */
     feedback;
     /** @type {string} */
@@ -55,8 +49,6 @@ export class Activity extends Record {
     note = fields.Html("");
     /** @type {string} */
     res_model;
-    /** @type {[number, string]} */
-    res_model_id;
     /** @type {number} */
     res_id;
     /** @type {string} */
@@ -66,10 +58,6 @@ export class Activity extends Record {
     /** @type {string} */
     summary;
     user_id = fields.One("res.users");
-    /** @type {string} */
-    write_date;
-    /** @type {[number, string]} */
-    write_uid;
 
     serialize() {
         return JSON.parse(JSON.stringify(this.toData(["user_id"])));

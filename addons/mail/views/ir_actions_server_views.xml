@@ -29,7 +29,7 @@
                             <field
                                 name="activity_date_deadline_range_type"
                                 class="oe_inline"
-                                required="state == 'next_activity' and activity_date_deadline_range &gt; 0" />
+                                required="state == 'next_activity' and activity_date_deadline_range != 0" />
                         </div>
                         <field
                             name="activity_user_type"

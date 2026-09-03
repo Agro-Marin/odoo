@@ -6,6 +6,7 @@ from typing import Literal, Self
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
+from odoo.tools.date_utils import get_timedelta
 
 FOLLOWER_STATES = frozenset({"followers", "remove_followers"})
 MAIL_STATES = frozenset({"mail_post", "next_activity"}) | FOLLOWER_STATES
@@ -338,7 +339,6 @@ class IrActionsServer(models.Model):
     @api.model
     def _get_fields_warning_depends(self) -> list[str]:
         return super()._get_fields_warning_depends() + [
-            "activity_date_deadline_range",
             "activity_type_id",
             "activity_user_field_name",
             "activity_user_type",
@@ -362,9 +362,6 @@ class IrActionsServer(models.Model):
 
         if self.state == "next_activity" and not self.activity_type_id:
             warnings.append(_("Select the type of activity to schedule."))
-
-        if self.activity_date_deadline_range < 0:
-            warnings.append(_("The 'Due Date In' value can't be negative."))
 
         if (
             self.state == "mail_post"
@@ -596,18 +593,19 @@ class IrActionsServer(models.Model):
             batch_vals = dict(vals)
             if user:
                 batch_vals["user_id"] = user.id
-            if self.activity_date_deadline_range > 0:
+            if self.activity_date_deadline_range:
                 assignee = user or self.activity_type_id.default_user_id
-                batch_vals["date_deadline"] = self.env["mail.activity"]._today_for(
-                    assignee
-                ) + relativedelta(
-                    **{
-                        self.activity_date_deadline_range_type
-                        or "days": self.activity_date_deadline_range
-                    }
+                batch_vals["date_deadline"] = (
+                    self.env["mail.activity"]._today_for(assignee)
+                    + self._get_activity_deadline_delta()
                 )
             batch.activity_schedule(**batch_vals)
         return False
+
+    def _get_activity_deadline_delta(self) -> relativedelta:
+        self.check_singleton()
+        unit = (self.activity_date_deadline_range_type or "days").removesuffix("s")
+        return get_timedelta(self.activity_date_deadline_range, unit)
 
     def _get_activity_assignees(
         self, records: models.BaseModel

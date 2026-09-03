@@ -346,12 +346,12 @@
                 <filter
                     string="Overdue"
                     name="filter_date_deadline_past"
-                    domain="[('date_deadline', '&lt;', 'today')]"
+                    domain="[('state', '=', 'overdue')]"
                     help="Show all records whose next activity date is past" />
                 <filter
                     string="Today"
                     name="filter_date_deadline_today"
-                    domain="[('date_deadline', '=', 'today')]" />
+                    domain="[('state', '=', 'today')]" />
                 <filter
                     string="Tomorrow"
                     name="filter_date_deadline_tomorrow"
@@ -365,7 +365,7 @@
                 <filter
                     string="Future"
                     name="filter_date_deadline_future"
-                    domain="[('date_deadline', '&gt;', 'today')]" />
+                    domain="[('state', '=', 'planned')]" />
                 <separator />
                 <filter
                     string="Done"
