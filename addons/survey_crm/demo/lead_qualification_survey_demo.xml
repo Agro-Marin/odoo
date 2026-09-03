@@ -26,9 +26,7 @@
             <field name="is_page" eval="True" />
             <field name="question_type" eval="False" />
             <field name="sequence">0</field>
-            <field name="description" type="html">
-                <p> </p>
-            </field>
+            <field name="description" type="html"><p> </p></field>
         </record>
         <record id="lead_qualification_question_1" model="survey.question">
             <field
@@ -83,9 +81,7 @@
             <field name="is_page" eval="True" />
             <field name="question_type" eval="False" />
             <field name="sequence">5</field>
-            <field name="description" type="html">
-                <p> </p>
-            </field>
+            <field name="description" type="html"><p> </p></field>
         </record>
         <record id="lead_qualification_question_6" model="survey.question">
             <field name="survey_id" ref="lead_qualification_survey" />
@@ -168,9 +164,7 @@
             <field name="is_page" eval="True" />
             <field name="question_type" eval="False" />
             <field name="sequence">9</field>
-            <field name="description" type="html">
-                <p> </p>
-            </field>
+            <field name="description" type="html"><p> </p></field>
         </record>
         <record id="lead_qualification_question_10" model="survey.question">
             <field name="survey_id" ref="lead_qualification_survey" />

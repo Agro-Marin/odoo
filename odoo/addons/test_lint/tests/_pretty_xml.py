@@ -280,6 +280,18 @@ def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
 
     inner = _inner_content(elem)
 
+    # A field authored on one physical line carries no structural indentation
+    # to normalize. For `type="xml"`/`name="arch"` that would only cost
+    # readability, but `type="html"` content is rendered or compared
+    # literally (a mail template body, a message body) -- splitting it onto
+    # its own lines below inserts a newline and leading indentation that
+    # becomes part of the field's own value, not whitespace between
+    # structural tags. Keep single-line content single-line.
+    if "\n" not in (elem.text or "") and "\n" not in inner:
+        return _open_tag_lines(
+            tag, attrs, pad, f">{_normalize_self_close(inner)}</{tag}>"
+        )
+
     if elem.text and elem.text.strip():
         inner_lines = inner.split("\n")
         while inner_lines and not inner_lines[0].strip():

@@ -189,7 +189,7 @@ The Python boundary checker is one gate among several. The
 | `worker_thread_surface_check.py` | inline `threading.current_thread().<attr>` reads of per-request bookkeeping (`dbname`, `cursor_mode`, …), which mypy and `layer_check` cannot see |
 | `libs_facade_check.py` | addon code **and every core package** importing `odoo.libs` **areas**, never their leaf modules |
 | `facade_surface_check.py` | every name imported from a façade module against what that module actually exposes — `odoo.tools.misc` forwards names living in `odoo.libs`, so `__all__` states one surface and the module another, and an import of a name in neither fails at *module import time*: at install, in one addon, for whoever installs it next |
-| `mail_hook_keyword_check.py` | the keywords `mail` passes to its own `_notify_*` / `_message_*` / `_track_*` / `_mail_*` hooks, against every override of them — `mail` is a framework whose extension points are implemented in dozens of addons across four repos, so its own **600**-test suite is structurally unable to see a signature it just broke, and `28ed9db3341` broke six overrides and merged green |
+| `mail_hook_keyword_check.py` | the keywords `mail` passes to its own `_notify_*` / `_message_*` / `_track_*` / `_mail_*` hooks, against every override of them — `mail` is a framework whose extension points are implemented in dozens of addons across four repos, so its own **627**-test suite is structurally unable to see a signature it just broke, and `28ed9db3341` broke six overrides and merged green |
 | `external_dependency_pins.py` | every `external_dependencies["python"]` a manifest declares against the requirements file of the repo that owns it — the two halves are written by hand in different files and nothing compared them, so three modules carried one without the other and could not install wherever the package was not dragged in by something else. A sibling may lean on this repo's `requirements.txt`, which every server process imports, but not on `requirements-addons.txt`, which the install command each sibling's own header documents does not read |
 | `py_cycle_check.py` | Python import cycles in the core — the direction gates cannot see them |
 | `py_docstring_at_runtime.py` | runtime code that reads `__doc__` where a `None` would raise — prose is stripped from `odoo/`, `tests/` and `tooling/` by policy, so `upgrade_code` could not print `--help` and `base_sparse_field` could not be imported |
@@ -480,7 +480,7 @@ expected set from the gates the workflows actually drive rather than from a list
 beside it, so the next retirement fails instead of lingering.
 
 **DB-backed integration gate** (`.github/workflows/integration_tests.yml`)
-— boots PostgreSQL 18 and runs twenty-six suites, **each against its own
+— boots PostgreSQL 18 and runs twenty-eight suites, **each against its own
 database**:
 
 | Suite | Database | Notes |
@@ -510,7 +510,9 @@ database**:
 | `date_range` | `ci_date_range` | installs `test_date_range`, whose closure is `date_range`; runs both tags, 37 tests |
 | `account_coa` | `ci_account_coa` | 30 tests |
 | `test_performance_compare` | `ci_perf_compare` | 1 test, and it is the cheapest lane here |
-| `mail`, `test_mail`, `mail_group` | `ci_mail` | added 2026-09-02, with the HTTP server up: mail's own suite, `test_mail` (the suite written for it, which carries the query floors) and `mail_group` (the one alias owner outside the mixin, whose gateway had been broken for weeks with nobody running it) had been run by no lane. Tour classes and the HOOT suites are excluded by tag; the `url_open` HttpCase classes run. |
+| `mail` | `ci_mail` | added 2026-09-02, split into its own database 2026-09-03: `test_mail` and `mail_group` both depend on `mail` but neither depends on the other, so no single module's closure covered a shared database and `test_each_suite_gets_its_own_database` refused it. Runs with the HTTP server up; mail's own suite had been run by no lane. Tour classes and the `mail_js` HOOT suite are excluded by tag; the `url_open` HttpCase classes run |
+| `test_mail` | `ci_test_mail` | split out 2026-09-03. The suite written for `mail`, which carries the query floors, had been run by no lane. Runs with the HTTP server up, `test_mail_js` and its tour class excluded by tag |
+| `mail_group` | `ci_mail_group` | split out 2026-09-03. The one alias owner outside the mixin, whose gateway had been broken for weeks with nobody running it, had been run by no lane. Runs with the HTTP server up; carries no tour or HOOT suite to exclude |
 
 Adding `test_orm` paid for itself on the first run:
 `TestBackendDifferential.test_divergence_ilike_unaccent` asserted PostgreSQL's

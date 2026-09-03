@@ -134,7 +134,7 @@ happen, and it needed no schema knowledge to detect.
 than an error, because an addon may legitimately keep a helper module beside its
 scripts. Measured across this repository's two addon trees — the scope CI
 reproduces, a workspace reading being whatever checkouts happened to be on
-disk: **274** scripts in `migrations/` and **5** in `upgrades/`, all correctly
+disk: **275** scripts in `migrations/` and **5** in `upgrades/`, all correctly
 prefixed, **0** dropped.
 
 A risk stated at the level of its hardest half hides the half that is cheap to
@@ -185,7 +185,7 @@ addon tests in 2026-08 while every gate and both tiers stayed green.
 
 **Cost.** A green boundary job reads as "the framework works" when it means "the
 structure holds". Two lanes execute addon tests: the integration lane is the only
-one that runs addon tests in Python, and it runs twenty-five suites; the JS lane
+one that runs addon tests in Python, and it runs twenty-eight suites; the JS lane
 (`js_tests.yml`, added 2026-09-01) runs the HOOT suites under both presets.
 
 **Widened 2026-09-02: the Python lane is headless as well as narrow.** Nearly
@@ -350,7 +350,7 @@ changed".
 HTTP client against the server — needs a running HTTP server, and `--no-http`
 starts none. Such a class skips itself at `setUpClass`, which never reaches
 `startTest`, so it adds nothing to the test count and the log records a skip
-where the suite's author wrote a test. **22** of the **25** suites the
+where the suite's author wrote a test. **22** of the **28** suites the
 integration lane runs pass `--no-http`; `test_http` and `rpc` are the two that do
 not, and each carries a count floor set *above* what a headless run of the same
 suite reports, so that a re-added flag fails the lane instead of passing it. The
