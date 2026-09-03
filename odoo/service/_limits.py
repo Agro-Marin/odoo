@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Any
 
-from odoo.tools.config import config
+from .settings import INHERIT_FROM_CRON, current
 
 _logger = logging.getLogger("odoo.service.server")
 
@@ -28,19 +28,18 @@ counter, so the base was the offset and neither was written down.
 base, and `base=2` is what reproduces this curve exactly.
 """
 
-INHERIT_FROM_CRON = -1
-
 
 def _is_inherited_from_cron(limit: int) -> bool:
     return limit <= INHERIT_FROM_CRON
 
 
 def _get_inherited_budget(*keys: str) -> int:
-    limit = config[keys[0]]
+    settings = current()
+    limit: int = getattr(settings, keys[0])
     for key in keys[1:]:
         if not _is_inherited_from_cron(limit):
             break
-        limit = config[key]
+        limit = getattr(settings, key)
     return limit
 
 
