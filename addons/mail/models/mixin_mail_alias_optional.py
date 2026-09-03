@@ -64,7 +64,14 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
                     .with_prefetch(company_prefetch_ids)
                     .browse(company_id)
                 )
-                alias_vals, record_vals = self._alias_filter_fields(vals)
+                # Same allowlist as write(): user-supplied vals may only set the
+                # writeable alias fields. Otherwise a caller with create rights on
+                # the owning record could set alias_model_id / alias_force_thread_id
+                # and point a new alias at any model or thread under sudo. The
+                # alias's model and routing come from _alias_get_creation_values.
+                alias_vals, record_vals = self._alias_filter_fields(
+                    vals, filters=self.ALIAS_WRITEABLE_FIELDS
+                )
                 creation_vals = (
                     self.env[self._name]
                     .with_context(

@@ -146,6 +146,31 @@ class TestMailAlias(TestMailAliasCommon):
         record_upd_c1.alias_domain_id = misc_alias_domain
 
     @users("admin")
+    def test_create_rejects_non_writeable_alias_fields(self):
+        """A restricted alias field in create vals must be refused, exactly as
+        write() refuses it. Otherwise a caller with create rights on the owning
+        record could point a new alias at any model or thread under sudo; the
+        alias's model and routing must come only from _alias_get_creation_values."""
+        Model = self.env["mail.test.alias.optional"]
+        gateway_model_id = self.env["ir.model"]._get("mail.test.gateway").id
+        # a writeable field is accepted on create
+        record = Model.create({"alias_name": "writeable-ok"})
+        self.assertTrue(record.alias_id)
+        self.assertEqual(
+            record.alias_id.alias_model_id,
+            self.env["ir.model"]._get("mail.test.alias.optional"),
+            "the alias model comes from the record, not from create vals",
+        )
+        # a non-writeable alias field is routed to the record and rejected there,
+        # the same way write() rejects it
+        for restricted in ("alias_model_id", "alias_force_thread_id"):
+            with self.assertRaises(
+                ValueError,
+                msg=f"{restricted} must not be settable through create vals",
+            ):
+                Model.create({"alias_name": "hijack", restricted: gateway_model_id})
+
+    @users("admin")
     def test_alias_name_unique(self):
         """Check uniqueness constraint on alias names, at create and update.
         Also check conflict management with bounce / catchall defined on

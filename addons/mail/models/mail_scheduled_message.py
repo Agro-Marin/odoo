@@ -9,7 +9,7 @@ from markupsafe import Markup
 
 from odoo import _, api, fields, models, modules
 from odoo.api import DomainType, ValuesType
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import Query
 from odoo.tools.misc import clean_context
 
@@ -237,7 +237,7 @@ class MailScheduledMessage(models.Model):
         if self.env.is_admin() or self.create_uid.id == self.env.uid:
             self._post_message()
         else:
-            raise UserError(_("You are not allowed to send this scheduled message"))
+            raise AccessError(_("You are not allowed to send this scheduled message"))
 
     def _message_created_hook(self, message: MailMessage) -> None:
         self.check_singleton()

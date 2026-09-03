@@ -125,8 +125,8 @@ class TestScheduledMessageAccess(TestScheduledMessage):
         # write on a message scheduled by another user on a record the user can post to
         with self.assertRaises(AccessError):
             self.visible_scheduled_message.write({"body": "boum"})
-        # post a message scheduled on a record the user can post to
-        with self.assertRaises(UserError):
+        # post a message scheduled by another user: not the creator, not admin
+        with self.assertRaises(AccessError):
             self.visible_scheduled_message.post_message()
         # unlink a message scheduled on a record the user can post to
         self.visible_scheduled_message.unlink()
