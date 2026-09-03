@@ -44,7 +44,7 @@
                     </record>
                     <record id="l10n_pk_wh_vat_line_P2" model="account.report.line">
                         <field name="name">Purchase -1.5% WH</field>
-                        <field name="code">PURWH1.5</field>
+                        <field name="code">PURWH1_5</field>
                         <field name="expression_ids">
                             <record
                                 id="l10n_pk_wh_vat_expression_P2_base"
@@ -84,7 +84,7 @@
                     </record>
                     <record id="l10n_pk_wh_vat_line_P4" model="account.report.line">
                         <field name="name">Purchase -3.5% WH</field>
-                        <field name="code">PURWH3.5</field>
+                        <field name="code">PURWH3_5</field>
                         <field name="expression_ids">
                             <record
                                 id="l10n_pk_wh_vat_expression_P4_base"
@@ -144,7 +144,7 @@
                     </record>
                     <record id="l10n_pk_wh_vat_line_P7" model="account.report.line">
                         <field name="name">Purchase -5.5% WH</field>
-                        <field name="code">PURWH5.5</field>
+                        <field name="code">PURWH5_5</field>
                         <field name="expression_ids">
                             <record
                                 id="l10n_pk_wh_vat_expression_P7_base"
@@ -184,7 +184,7 @@
                     </record>
                     <record id="l10n_pk_wh_vat_line_P9" model="account.report.line">
                         <field name="name">Purchase -7.5% WH</field>
-                        <field name="code">PURWH7.5</field>
+                        <field name="code">PURWH7_5</field>
                         <field name="expression_ids">
                             <record
                                 id="l10n_pk_wh_vat_expression_P9_base"
@@ -310,7 +310,7 @@
                     </record>
                     <record id="l10n_pk_wh_vat_line_S2" model="account.report.line">
                         <field name="name">Sales -1.5% WH</field>
-                        <field name="code">SALWH1.5</field>
+                        <field name="code">SALWH1_5</field>
                         <field name="expression_ids">
                             <record
                                 id="l10n_pk_wh_vat_expression_S2_base"
@@ -370,7 +370,7 @@
                     </record>
                     <record id="l10n_pk_wh_vat_line_S5" model="account.report.line">
                         <field name="name">Sales -5.5% WH</field>
-                        <field name="code">SALWH5.5</field>
+                        <field name="code">SALWH5_5</field>
                         <field name="expression_ids">
                             <record
                                 id="l10n_pk_wh_vat_expression_S5_base"
@@ -390,7 +390,7 @@
                     </record>
                     <record id="l10n_pk_wh_vat_line_S6" model="account.report.line">
                         <field name="name">Sales -7.5% WH</field>
-                        <field name="code">SALWH7.5</field>
+                        <field name="code">SALWH7_5</field>
                         <field name="expression_ids">
                             <record
                                 id="l10n_pk_wh_vat_expression_S6_base"
