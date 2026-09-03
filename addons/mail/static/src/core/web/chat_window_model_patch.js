@@ -9,7 +9,7 @@ patch(ChatWindow.prototype, {
             !this.store.discuss.isActive &&
             this.fromMessagingMenu
         ) {
-            document.querySelector(".o_menu_systray i[aria-label='Messages']")?.click();
+            this.store.messagingMenu.dropdown?.open();
             await Promise.resolve();
         }
         await super._onClose(...arguments);

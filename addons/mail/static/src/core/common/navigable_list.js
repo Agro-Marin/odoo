@@ -1,7 +1,14 @@
 /** @odoo-module native */
 import { ImStatus } from "@mail/core/common/im_status";
 import { onExternalClick } from "@mail/utils/common/hooks";
-import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    onWillRender,
+    useEffect,
+    useExternalListener,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { usePosition } from "@web/core/position/position_hook";
@@ -36,6 +43,11 @@ export class NavigableList extends Component {
         });
         this.hotkey = useService("hotkey");
         this.hotkeysToRemove = [];
+        /** @type {Object[]} */
+        this.sortedOptions = [];
+        /** @type {Map<Object, string>} */
+        this.optionKeys = new Map();
+        onWillRender(() => this.computeSortedOptions());
 
         useExternalListener(window, "keydown", this.onKeydown, true);
         onExternalClick(
@@ -87,14 +99,24 @@ export class NavigableList extends Component {
         );
     }
 
-    get sortedOptions() {
-        return [...this.props.options].sort(
+    computeSortedOptions() {
+        this.sortedOptions = [...this.props.options].sort(
             /**
              * @param {Object} o1
              * @param {Object} o2
              */
             (o1, o2) => (o1.group ?? 0) - (o2.group ?? 0),
         );
+        this.optionKeys = new Map();
+        const usedKeys = new Set();
+        for (const option of this.sortedOptions) {
+            let key = this.getOptionKey(option);
+            while (usedKeys.has(key)) {
+                key += "_";
+            }
+            usedKeys.add(key);
+            this.optionKeys.set(option, key);
+        }
     }
 
     /**

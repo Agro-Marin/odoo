@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { ActivityListPopoverItem } from "@mail/core/web/activity_list_popover_item";
 import { compareDatetime } from "@mail/utils/common/misc";
-import { Component, onWillUpdateProps } from "@odoo/owl";
+import { Component, onWillRender, onWillUpdateProps } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
@@ -35,18 +35,31 @@ export class ActivityListPopover extends Component {
             /** @param {{activityIds: number[]}} props */ (props) =>
                 this.updateFromProps(props).catch(() => {}),
         );
+        onWillRender(() => this.computeActivityBuckets());
     }
 
-    get activities() {
-        const activityIds = new Set(this.props.activityIds);
+    computeActivityBuckets() {
         /** @type {import("models").Activity[]} */
-        const allActivities = Object.values(this.store["mail.activity"].records);
-        return allActivities
-            .filter((activity) => activityIds.has(activity.id))
+        this.activities = this.props.activityIds
+            .map((id) => this.store["mail.activity"].get(id))
+            .filter(Boolean)
             .sort(
                 (a, b) =>
                     compareDatetime(a.date_deadline, b.date_deadline) || a.id - b.id,
             );
+        this.doneActivities = [];
+        this.overdueActivities = [];
+        this.plannedActivities = [];
+        this.todayActivities = [];
+        const buckets = {
+            done: this.doneActivities,
+            overdue: this.overdueActivities,
+            planned: this.plannedActivities,
+            today: this.todayActivities,
+        };
+        for (const activity of this.activities) {
+            buckets[activity.state]?.push(activity);
+        }
     }
 
     onClickAddActivityButton() {
@@ -58,22 +71,6 @@ export class ActivityListPopover extends Component {
             )
             .then(() => this.props.onActivityChanged());
         this.props.close();
-    }
-
-    get doneActivities() {
-        return this.activities.filter((activity) => activity.state === "done");
-    }
-
-    get overdueActivities() {
-        return this.activities.filter((activity) => activity.state === "overdue");
-    }
-
-    get plannedActivities() {
-        return this.activities.filter((activity) => activity.state === "planned");
-    }
-
-    get todayActivities() {
-        return this.activities.filter((activity) => activity.state === "today");
     }
 
     /** @param {{activityIds: number[]}} props */

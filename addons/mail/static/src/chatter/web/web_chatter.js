@@ -189,7 +189,7 @@ export class WebChatter extends Chatter {
                     this.state.isAttachmentBoxOpened = false;
                 }
             },
-            () => [this.state.thread?.status, this.attachments],
+            () => [this.state.thread?.status, this.attachments.length],
         );
         useEffect(
             () => {
@@ -438,7 +438,6 @@ export class WebChatter extends Chatter {
     }
 
     onFollowerChanged() {
-        document.body.click();
         this.reloadParentView();
     }
 
@@ -558,14 +557,14 @@ export class WebChatter extends Chatter {
      */
     async toggleComposer(mode = false, { force = false } = {}) {
         this.closeSearch();
-        const toggle = async () => {
+        const toggle = () => {
             if (!force && this.state.composerType === mode) {
                 this.state.composerType = false;
             } else {
-                if (mode === "message") {
-                    await this.updateRecipients(this.props.record, mode);
-                }
                 this.state.composerType = mode;
+                if (mode === "message") {
+                    this.updateRecipients(this.props.record, mode);
+                }
             }
         };
         if (this.state.thread.id) {

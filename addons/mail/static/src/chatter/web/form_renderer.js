@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { WebChatter } from "@mail/chatter/web/web_chatter";
 import { AttachmentView } from "@mail/core/common/attachment_view";
-import { useState } from "@odoo/owl";
+import { onWillRender, useState } from "@odoo/owl";
 import { router } from "@web/core/browser/router";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
@@ -24,17 +24,26 @@ patch(FormRenderer.prototype, {
         }
         this.uiService = useService("ui");
         this.mailPopoutService = useService("mail.popout");
+        onWillRender(() => this.syncMessagingThread());
+    },
+    syncMessagingThread() {
+        const { resId, resModel } = this.props.record;
+        if (!this.mailStore || !resId) {
+            this.messagingState.thread = undefined;
+            return;
+        }
+        const thread = this.messagingState.thread;
+        if (thread?.id === resId && thread.model === resModel) {
+            return;
+        }
+        this.messagingState.thread = this.mailStore.Thread.insert({
+            id: resId,
+            model: resModel,
+        });
     },
     /** @returns {boolean} */
     hasFile() {
-        if (!this.mailStore || !this.props.record.resId) {
-            return false;
-        }
-        this.messagingState.thread = this.mailStore.Thread.insert({
-            id: this.props.record.resId,
-            model: this.props.record.resModel,
-        });
-        return this.messagingState.thread.attachmentsInWebClientView.length > 0;
+        return (this.messagingState.thread?.attachmentsInWebClientView.length ?? 0) > 0;
     },
     /**
      * @param {boolean} hasAttachmentContainer

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 
-/* global idbKeyval, sw, PUSH_NOTIFICATION_ACTION, arrayBufferToBase64Url, planPushNotification, notificationTargetPath */
+/* global idbKeyval, sw, PUSH_NOTIFICATION_ACTION, arrayBufferToBase64Url, planPushNotification, notificationTargetPath, pickTargetClient */
 
 importScripts("/mail/static/lib/idb-keyval/idb-keyval.js");
 
@@ -160,26 +160,10 @@ async function openDiscussChannel(
             new RegExp(`/odoo/action-${action}`),
         );
     }
-    /**
-     * @param {WindowClient} client
-     * @returns {number}
-     */
-    const getScore = (client) =>
-        (client.focused ? 4 : 0) +
-        (client.visibilityState === "visible" ? 2 : 0) +
-        (discussURLRegexes.some((r) => r.test(new URL(client.url).pathname)) ? 1 : 0);
-    let targetClient;
-    for (const client of await sw.clients.matchAll({
-        type: "window",
-        includeUncontrolled: true,
-    })) {
-        if (source && source.id === client.id) {
-            continue;
-        }
-        if (!targetClient || getScore(client) > getScore(targetClient)) {
-            targetClient = client;
-        }
-    }
+    const targetClient = pickTargetClient(await matchWindowClients(), {
+        source,
+        urlRegexes: discussURLRegexes,
+    });
     if (targetClient) {
         targetClient.postMessage({
             action: "OPEN_CHANNEL",
@@ -196,6 +180,28 @@ async function openDiscussChannel(
         url.searchParams.set("call", "accept");
     }
     await sw.clients.openWindow(url.toString());
+}
+
+/** @returns {Promise<readonly WindowClient[]>} */
+function matchWindowClients() {
+    return sw.clients.matchAll({ type: "window", includeUncontrolled: true });
+}
+
+/**
+ * @param {string} model
+ * @param {number} resId
+ */
+async function openRecord(model, resId) {
+    const targetClient = pickTargetClient(await matchWindowClients());
+    if (targetClient) {
+        targetClient.postMessage({
+            action: "OPEN_RECORD",
+            data: { model, res_id: resId },
+        });
+        targetClient.focus().catch(() => {});
+        return;
+    }
+    await sw.clients.openWindow(notificationTargetPath(model, resId));
 }
 
 sw.addEventListener(
@@ -229,9 +235,7 @@ sw.addEventListener(
                     }),
                 );
             } else if (model) {
-                event.waitUntil(
-                    clients.openWindow(notificationTargetPath(model, res_id)),
-                );
+                event.waitUntil(openRecord(model, res_id));
             }
         }
     },

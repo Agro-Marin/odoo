@@ -127,7 +127,9 @@ const StorePatch = {
     },
     updateAppBadge() {
         if (unread_store) {
-            window.idbKeyval.set("unread", this.globalCounter, unread_store);
+            Promise.resolve(
+                window.idbKeyval.set("unread", this.globalCounter, unread_store),
+            ).catch(() => {});
             Promise.resolve(navigator.setAppBadge?.(this.globalCounter)).catch(
                 () => {},
             );

@@ -351,3 +351,56 @@ test("Click reply to note again preserves composer content", async () => {
     );
     expect(editor.editable.textContent).toBe("\uFEFF@Batman\uFEFF\u00A0Strong Text");
 });
+
+test("reply to an authorless email shows the email icon, whatever the reply's own type", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "general" });
+    const emailId = pyEnv["mail.message"].create({
+        author_id: false,
+        body: "Incoming email",
+        email_from: "someone@example.com",
+        message_type: "email",
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    pyEnv["mail.message"].create({
+        body: "Reply to the email",
+        message_type: "comment",
+        model: "discuss.channel",
+        parent_id: emailId,
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(
+        `.o-mail-MessageInReply-avatar[data-src='${getOrigin()}/mail/static/src/img/email_icon.png']`,
+    );
+});
+
+test("reply of type email to an authored message shows the parent author's avatar", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "general" });
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    const partner = pyEnv["res.partner"].search_read([["id", "=", partnerId]])[0];
+    const parentId = pyEnv["mail.message"].create({
+        author_id: partnerId,
+        body: "Hey there",
+        message_type: "comment",
+        model: "discuss.channel",
+        res_id: channelId,
+    });
+    pyEnv["mail.message"].create({
+        author_id: false,
+        body: "Emailed reply",
+        email_from: "someone@example.com",
+        message_type: "email",
+        model: "discuss.channel",
+        parent_id: parentId,
+        res_id: channelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(
+        `.o-mail-MessageInReply-avatar[data-src='${getOrigin()}/web/image/res.partner/${partnerId}/avatar_128?unique=${deserializeDateTime(partner.write_date).ts}']`,
+    );
+});

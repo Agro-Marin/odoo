@@ -9,9 +9,16 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
+import { RecipientsInputTagsList } from "@mail/core/web/recipients_input_tags_list";
 import { describe, expect, test } from "@odoo/hoot";
 import { Deferred, tick } from "@odoo/hoot-mock";
-import { asyncStep, mockService, waitForSteps } from "@web/../tests/web_test_helpers";
+import {
+    asyncStep,
+    getService,
+    mockService,
+    patchWithCleanup,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -318,4 +325,33 @@ test("the recipients dropdown does not offer 'Search More...' below the limit", 
         text: "Zorg Only <only@example.com>",
     });
     await contains(".o_m2o_dropdown_option_search_more", { count: 0 });
+});
+
+test("the missing-email popover is opened once, not on every re-render of the recipients", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Jane" });
+    const fakeId = pyEnv["res.fake"].create({ partner_ids: [partnerId] });
+    let popoverOpenings = 0;
+    patchWithCleanup(RecipientsInputTagsList.prototype, {
+        updateTag() {
+            popoverOpenings++;
+            return super.updateTag(...arguments);
+        },
+    });
+    registerArchs(archs);
+    await start();
+    await openFormView("res.fake", fakeId);
+    await click("button", { text: "Send message" });
+    await contains(".o-mail-RecipientsInputTagsListPopover");
+    expect(popoverOpenings).toBe(1);
+    const thread = getService("mail.store").Thread.get({
+        model: "res.fake",
+        id: fakeId,
+    });
+    thread.additionalRecipients = [...thread.additionalRecipients];
+    await tick();
+    thread.suggestedRecipients = [...thread.suggestedRecipients];
+    await tick();
+    await contains(".o-mail-RecipientsInputTagsListPopover");
+    expect(popoverOpenings).toBe(1);
 });

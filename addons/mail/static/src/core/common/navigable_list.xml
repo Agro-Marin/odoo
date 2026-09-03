@@ -8,7 +8,7 @@
                     <t t-call="mail.NavigableList.spinner"/>
                 </div>
                 <div
-                    t-foreach="sortedOptions" t-as="option" t-key="option_index"
+                    t-foreach="sortedOptions" t-as="option" t-key="optionKeys.get(option)"
                     class="o-mail-NavigableList-item"
                     t-att-class="option.classList"
                     t-att-title="option.title"

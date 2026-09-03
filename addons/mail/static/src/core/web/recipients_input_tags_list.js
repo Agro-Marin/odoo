@@ -25,7 +25,10 @@ export class RecipientsInputTagsList extends TagsList {
             /** @param {{tags: Array<{id: string, resId?: number, text: string, email?: string, canEdit: boolean}>}} nextProps */ (
                 nextProps,
             ) => {
-                this.state.tagToUpdate = this.getFirstTagToUpdate(nextProps.tags);
+                const tagToUpdate = this.getFirstTagToUpdate(nextProps.tags);
+                if (!this.tagEquals(tagToUpdate, this.state.tagToUpdate)) {
+                    this.state.tagToUpdate = tagToUpdate;
+                }
             },
         );
         useEffect(
@@ -58,7 +61,15 @@ export class RecipientsInputTagsList extends TagsList {
      * @returns {boolean}
      */
     tagEquals(tag1, tag2) {
-        return toRaw(tag1) === toRaw(tag2);
+        if (toRaw(tag1) === toRaw(tag2)) {
+            return true;
+        }
+        return (
+            Boolean(tag1 && tag2) &&
+            tag1.resId === tag2.resId &&
+            tag1.text === tag2.text &&
+            tag1.email === tag2.email
+        );
     }
 
     updateTag() {

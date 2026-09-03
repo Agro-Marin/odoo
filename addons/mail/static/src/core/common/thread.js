@@ -75,7 +75,6 @@ export class Thread extends Component {
             scrollTop: null,
         });
         this.lastJumpPresent = this.props.jumpPresent;
-        this.orm = useService("orm");
         /** @type {ReturnType<import('@mail/utils/common/hooks').useMessageScrolling>|null} */
         this.messageHighlight = this.env.messageHighlight
             ? useState(this.env.messageHighlight)
@@ -336,12 +335,6 @@ export class Thread extends Component {
 
     onClickLoadOlder() {
         this.props.thread.fetchMoreMessages();
-    }
-
-    async onClickPreferences() {
-        const actionDescription = await this.orm.call("res.users", "action_get");
-        actionDescription.res_id = this.store.self_partner?.main_user_id?.id;
-        this.env.services.action.doAction(actionDescription);
     }
 
     onFocusin() {

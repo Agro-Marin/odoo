@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
+import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
 export const CALL_PROMOTE_FULLSCREEN = Object.freeze({
     INACTIVE: "INACTIVE",
@@ -81,7 +82,7 @@ const ThreadPatch = {
             /** @this {import("models").Thread} */
             onUpdate() {
                 if (this.useCameraByDefault !== null) {
-                    localStorage.setItem(
+                    browser.localStorage.setItem(
                         `discuss_channel_camera_default_${this.id}`,
                         JSON.stringify(this.useCameraByDefault),
                     );
@@ -97,7 +98,9 @@ const ThreadPatch = {
         ) {
             return this.store.rtc.selfSession.is_camera_on;
         }
-        const raw = localStorage.getItem(`discuss_channel_camera_default_${this.id}`);
+        const raw = browser.localStorage.getItem(
+            `discuss_channel_camera_default_${this.id}`,
+        );
         if (!raw || raw === "undefined") {
             return null;
         }

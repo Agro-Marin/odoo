@@ -3,6 +3,12 @@ declare module "models" {
 
     export interface DiscussApp extends DiscussAppClass {}
 
+    export interface MessagingMenu {
+        dropdown:
+            | ReturnType<typeof import("@web/components/dropdown").useDropdownState>
+            | undefined;
+    }
+
     export interface Store {
         action_discuss_id: number | undefined;
         discuss: DiscussApp;

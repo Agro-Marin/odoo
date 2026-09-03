@@ -7,6 +7,7 @@ import {
     onPatched,
     onWillDestroy,
     onWillUnmount,
+    onWillUpdateProps,
     toRaw,
     useComponent,
     useEffect,
@@ -67,6 +68,23 @@ export function useOnChange(target, key, callback) {
     const dispose = onChange(target, key, callback);
     onWillDestroy(dispose);
     return dispose;
+}
+
+/**
+ * @param {string} [refName="root"]
+ * @returns {import("@odoo/owl").Ref<HTMLElement>}
+ */
+export function useRegisterMessageRef(refName = "root") {
+    const component = useComponent();
+    const ref = useRef(refName);
+    /** @param {import("@odoo/owl").Ref<HTMLElement>|null} value */
+    const register = (value) =>
+        component.props.registerMessageRef?.(component.props.message, value);
+    onWillUpdateProps(() => register(null));
+    onMounted(() => register(ref));
+    onPatched(() => register(ref));
+    onWillDestroy(() => register(null));
+    return ref;
 }
 
 /**

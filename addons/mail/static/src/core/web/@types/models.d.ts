@@ -44,9 +44,6 @@ declare module "models" {
         isDisplayedInDiscussAppDesktop: boolean;
         openRecordActionRequest: Readonly<ActionDescription>;
         loadMoreFollowers: () => Promise<void>;
-        loadMoreRecipients: () => Promise<void>;
         recipients: Follower[];
-        recipientsCount: number | undefined;
-        recipientsFullyLoaded: Readonly<boolean>;
     }
 }

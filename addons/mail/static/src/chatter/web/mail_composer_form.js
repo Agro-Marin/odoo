@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { MailAttachmentDropzone } from "@mail/core/common/mail_attachment_dropzone";
+import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
 import { EventBus, toRaw, useEffect, useRef, useSubEnv } from "@odoo/owl";
 import { useCustomDropzone } from "@web/components/dropzone";
 import { registry } from "@web/core/registry";
@@ -11,12 +12,12 @@ export class MailComposerFormController extends formView.Controller {
         ...formView.Controller.props,
         fullComposerBus: { type: EventBus, optional: true },
     };
-    static defaultProps = { fullComposerBus: new EventBus() };
     setup() {
         super.setup();
         toRaw(this.env.dialogData).model = this.props.resModel;
+        this.fullComposerBus = this.props.fullComposerBus ?? new EventBus();
         useSubEnv({
-            fullComposerBus: this.props.fullComposerBus,
+            fullComposerBus: this.fullComposerBus,
         });
     }
 }
@@ -45,21 +46,7 @@ function withCorrespondingPartner(recipient, selectedPartners) {
 export class MailComposerFormRenderer extends formView.Renderer {
     /** @returns {import("models").Thread[]} */
     _getActiveMailThreads() {
-        let resIds;
-        if (this.props.record.resModel === "mail.scheduled.message") {
-            resIds = [this.props.record.data.res_id.resId];
-        } else {
-            resIds = this.props.record.data.res_ids
-                ? JSON.parse(this.props.record.data.res_ids)
-                : this.props.record.context.active_ids;
-        }
-        return resIds.map((resId) => {
-            const thread = this.mailStore.Thread.insert({
-                model: this.props.record.data.model,
-                id: resId,
-            });
-            return thread;
-        });
+        return getComposerTargetThreads(this.mailStore, this.props.record);
     }
     _setupReplyAllFocus() {
         useEffect(

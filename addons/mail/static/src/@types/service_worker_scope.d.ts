@@ -12,6 +12,7 @@ declare global {
     const arrayBufferToBase64Url: typeof import("@mail/service_worker_utils").arrayBufferToBase64Url;
     const planPushNotification: typeof import("@mail/service_worker_utils").planPushNotification;
     const notificationTargetPath: typeof import("@mail/service_worker_utils").notificationTargetPath;
+    const pickTargetClient: typeof import("@mail/service_worker_utils").pickTargetClient;
 
     interface ServiceWorkerGlobalScope {
         handlePushEventMessageFns: Map<string, () => void>;

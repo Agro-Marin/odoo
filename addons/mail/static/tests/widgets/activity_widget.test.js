@@ -8,8 +8,10 @@ import {
     startServer,
     waitStoreFetch,
 } from "@mail/../tests/mail_test_helpers";
+import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
 import { describe, expect, test } from "@odoo/hoot";
 import { Deferred, tick } from "@odoo/hoot-dom";
+import { onRendered } from "@odoo/owl";
 import {
     asyncStep,
     onRpc,
@@ -346,4 +348,75 @@ test("list activity exception widget with activity", async () => {
     await contains(":nth-child(2 of .o_data_row) .o_activity_exception_cell", {
         contains: [".o-mail-ActivityException"],
     });
+});
+
+test("list activity widget: the popover buckets its activities once per render", async () => {
+    const pyEnv = await startServer();
+    const [activityTypeId_1, activityTypeId_2] = pyEnv["mail.activity.type"].create([
+        {},
+        {},
+    ]);
+    const activityIds = pyEnv["mail.activity"].create([
+        {
+            summary: "Call with Al",
+            date_deadline: serializeDate(luxon.DateTime.now()),
+            can_write: true,
+            state: "today",
+            user_id: serverState.userId,
+            create_uid: serverState.userId,
+            activity_type_id: activityTypeId_1,
+        },
+        {
+            summary: "Meet FP",
+            date_deadline: serializeDate(luxon.DateTime.now().plus({ days: 1 })),
+            can_write: true,
+            state: "planned",
+            user_id: serverState.userId,
+            create_uid: serverState.userId,
+            activity_type_id: activityTypeId_2,
+        },
+        {
+            summary: "Late one",
+            date_deadline: serializeDate(luxon.DateTime.now().minus({ days: 1 })),
+            can_write: true,
+            state: "overdue",
+            user_id: serverState.userId,
+            create_uid: serverState.userId,
+            activity_type_id: activityTypeId_2,
+        },
+    ]);
+    pyEnv["res.partner"].write([serverState.partnerId], {
+        activity_ids: activityIds,
+        activity_state: "overdue",
+        activity_type_id: activityTypeId_2,
+    });
+    pyEnv["res.users"].write([serverState.userId], {
+        activity_type_id: activityTypeId_2,
+    });
+    onRpc("mail.activity", "activity_format", () => asyncStep("activity_format"));
+    let renders = 0;
+    let scans = 0;
+    patchWithCleanup(ActivityListPopover.prototype, {
+        setup() {
+            super.setup(...arguments);
+            onRendered(() => renders++);
+        },
+        computeActivityBuckets() {
+            scans++;
+            return super.computeActivityBuckets(...arguments);
+        },
+    });
+    await start();
+    await openListView("res.users", {
+        arch: "<list><field name='name'/><field name='activity_ids' widget='list_activity'/></list>",
+    });
+    await contains(".o-mail-ListActivity-summary", { text: "Late one" });
+    await click(".o-mail-ActivityButton");
+    await waitForSteps(["activity_format"]);
+    await contains(".o-mail-ActivityListPopoverItem", { count: 3 });
+    await contains(".o-mail-ActivityListPopover", { text: "Overdue" });
+    await contains(".o-mail-ActivityListPopover", { text: "Today" });
+    await contains(".o-mail-ActivityListPopover", { text: "Planned" });
+    expect(renders).toBeGreaterThan(0);
+    expect(scans).toBe(renders);
 });

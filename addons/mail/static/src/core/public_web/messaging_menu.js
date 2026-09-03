@@ -3,7 +3,14 @@ import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";
 import { NotificationItem } from "@mail/core/public_web/notification_item";
 import { useDiscussSystray } from "@mail/utils/common/hooks";
-import { Component, useExternalListener, useRef, useState, useSubEnv } from "@odoo/owl";
+import {
+    Component,
+    onWillDestroy,
+    useExternalListener,
+    useRef,
+    useState,
+    useSubEnv,
+} from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import {
     hasTouch,
@@ -36,9 +43,10 @@ export class MessagingMenu extends Component {
         this.ui = useService("ui");
         this.state = useState({
             activeIndex: null,
-            adding: false,
         });
         this.dropdown = useDropdownState();
+        this.store.messagingMenu.dropdown = this.dropdown;
+        onWillDestroy(() => (this.store.messagingMenu.dropdown = undefined));
         this.discussSystray = useDiscussSystray(this.dropdown);
         this.notificationList = useRef("notification-list");
         useSubEnv({ inMessagingMenu: { dropdown: this.dropdown } });
