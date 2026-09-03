@@ -15,6 +15,22 @@ from odoo.tools.translate import _
 _logger = logging.getLogger(__name__)
 
 
+def _get_owner_ids_by_name(records: models.BaseModel) -> dict[str, set[int]]:
+    names = list({record.name for record in records})
+    if not names:
+        return {}
+    return {
+        name: set(ids)
+        for name, ids in records.env.execute_query(
+            SQL(
+                "SELECT name, array_agg(id) FROM %s WHERE name = ANY(%s) GROUP BY name",
+                SQL.identifier(records._table),
+                names,
+            )
+        )
+    }
+
+
 class IrModelConstraint(models.Model):
     _name = "ir.model.constraint"
     _is_registry_metadata = True
@@ -65,25 +81,11 @@ class IrModelConstraint(models.Model):
 
     def unlink(self) -> bool:
         self.check_access("unlink")
-        ids_set = set(self.ids)
-
-        owners: dict[str, set[int]] = {}
-        names = list({data.name for data in self})
-        if names:
-            owners = {
-                name: set(ids)
-                for name, ids in self.env.execute_query(
-                    SQL(
-                        "SELECT name, array_agg(id) FROM ir_model_constraint"
-                        " WHERE name = ANY(%s) GROUP BY name",
-                        names,
-                    )
-                )
-            }
+        owners = _get_owner_ids_by_name(self)
 
         for data in self.sorted(key="id", reverse=True):
             name = data.name
-            if owners.get(name, set()) - ids_set:
+            if not owners[name].issubset(self._ids):
                 continue
 
             hname = normalize_identifier(name)
@@ -351,26 +353,12 @@ class IrModelRelation(models.Model):
                 _("Administrator access is required to uninstall a module")
             )
 
-        ids_set = set(self.ids)
-
-        owners: dict[str, set[int]] = {}
-        names = list({data.name for data in self})
-        if names:
-            owners = {
-                name: set(ids)
-                for name, ids in self.env.execute_query(
-                    SQL(
-                        "SELECT name, array_agg(id) FROM ir_model_relation"
-                        " WHERE name = ANY(%s) GROUP BY name",
-                        names,
-                    )
-                )
-            }
+        owners = _get_owner_ids_by_name(self)
 
         to_drop = OrderedSet()
         for data in self.sorted(key="id", reverse=True):
             name = data.name
-            if not owners.get(name, set()).issubset(ids_set):
+            if not owners[name].issubset(self._ids):
                 continue
             if sql.table_exists(self.env.cr, name):
                 to_drop.add(name)

@@ -111,23 +111,6 @@ class IrModelData(models.Model):
     ) -> int | bool:
         return self._xmlid_to_res_model_res_id(xmlid, raise_if_not_found)[1]
 
-    @api.model
-    def check_object_reference(
-        self, module: str, xml_id: str, raise_on_access_error: bool = False
-    ) -> tuple[str, int | bool]:
-        model, res_id = self._xmlid_lookup(f"{module}.{xml_id}")
-        if self.env[model].search([("id", "=", res_id)]):
-            return model, res_id
-        if raise_on_access_error:
-            raise AccessError(
-                _(
-                    'Not enough access rights on the external ID "%(module)s.%(xml_id)s"',
-                    module=module,
-                    xml_id=xml_id,
-                )
-            )
-        return model, False
-
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
         for model, vals in zip(self, vals_list, strict=True):
