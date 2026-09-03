@@ -16,6 +16,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, db, fields, models
 from odoo.api import SUPERUSER_ID, ValuesType
+from odoo.db.errors import PG_RETRY_EXCEPTIONS
 from odoo.exceptions import LockError, UserError
 from odoo.http import serialize_exception
 from odoo.libs.worker_thread import working_on_database
@@ -29,16 +30,15 @@ from odoo.tools import SQL, str2bool
 from odoo.tools.constants import CRON_TRIGGER_CHANNEL
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
 
     from odoo.db import BaseCursor
 
 _logger = logging.getLogger(__name__)
 
-_TRANSACTION_ROLLBACK_ERRORS = (
+PG_CONCURRENCY_ERRORS = (
+    *PG_RETRY_EXCEPTIONS,
     psycopg.errors.TransactionRollback,
-    psycopg.errors.SerializationFailure,
-    psycopg.errors.DeadlockDetected,
     psycopg.errors.TransactionIntegrityConstraintViolation,
     psycopg.errors.StatementCompletionUnknown,
 )
@@ -58,6 +58,22 @@ PROGRESS_RETENTION_PERIOD = timedelta(weeks=1)
 NOTIFY_PENDING_KEY = "ir.cron.notify"
 
 ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
+
+
+def is_user_archived(env: api.Environment) -> bool:
+    return not env.user.active and env.uid != SUPERUSER_ID
+
+
+def schedule_notify_after_commit(
+    cr: BaseCursor, pending_key: str, notify: Callable[[str], None]
+) -> None:
+    if cr.postcommit.data.get(pending_key):
+        return
+    cr.postcommit.data[pending_key] = True
+    db_name = cr.dbname
+    cr.postcommit.add(lambda: notify(db_name))
+
+
 NOTIFY_CRON_CHANGES = str2bool(os.getenv("ODOO_NOTIFY_CRON_CHANGES", ""), default=False)
 
 
@@ -351,7 +367,7 @@ class IrCron(models.Model):
             IrCronModel = registry[IrCron._name]
             try:
                 job = IrCronModel._acquire_job(cron_cr, job_id)
-            except _TRANSACTION_ROLLBACK_ERRORS:
+            except PG_CONCURRENCY_ERRORS:
                 cron_cr.rollback()
                 _logger.debug(
                     "job %s has been processed by another worker, skip", job_id
@@ -481,7 +497,7 @@ class IrCron(models.Model):
         )
         try:
             cr.execute(query, log_exceptions=False, prepare=False)
-        except _TRANSACTION_ROLLBACK_ERRORS:
+        except PG_CONCURRENCY_ERRORS:
             raise
         except psycopg.Error as exc:
             _logger.error("bad query: %s\nERROR: %s", query, exc)
@@ -627,7 +643,7 @@ class IrCron(models.Model):
 
     @staticmethod
     def _is_user_archived(job: CronJob, env: api.Environment) -> bool:
-        if env.user.active or env.uid == SUPERUSER_ID:
+        if not is_user_archived(env):
             return False
         _logger.warning(
             "Forbidden server action %r executed while the user %s is archived.",
@@ -650,6 +666,7 @@ class IrCron(models.Model):
                     "lastcall": job.lastcall,
                     "cron_id": job.id,
                     "cron_end_time": end_time,
+                    "cron_hard_deadline": hard_deadline,
                 },
             )
             env.transaction.default_env = env
@@ -967,11 +984,11 @@ class IrCron(models.Model):
 
     @staticmethod
     def _notify_after_commit(cr: BaseCursor) -> None:
-        if cr.postcommit.data.get(NOTIFY_PENDING_KEY):
-            return
-        cr.postcommit.data[NOTIFY_PENDING_KEY] = True
-        db_name = cr.dbname
-        cr.postcommit.add(lambda: notify_channel(CRON_TRIGGER_CHANNEL, db_name))
+        schedule_notify_after_commit(
+            cr,
+            NOTIFY_PENDING_KEY,
+            lambda db_name: notify_channel(CRON_TRIGGER_CHANNEL, db_name),
+        )
 
     def _add_progress(
         self, *, timed_out_counter: int | None = None

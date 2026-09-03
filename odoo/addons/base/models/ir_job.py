@@ -9,12 +9,12 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from enum import StrEnum
+from functools import partial
 from typing import Any
 
 import psycopg.errors
 
 from odoo import api, db, fields, models
-from odoo.api import SUPERUSER_ID
 from odoo.db.errors import PG_RETRY_EXCEPTIONS
 from odoo.exceptions import (
     ConcurrencyError,
@@ -33,10 +33,13 @@ from odoo.tools import SQL
 from odoo.tools.constants import JOB_QUEUE_CHANNEL
 
 from .ir_cron import (
+    PG_CONCURRENCY_ERRORS,
     BadModuleStateError,
     BadVersionError,
     IrCron,
+    is_user_archived,
     notify_channel,
+    schedule_notify_after_commit,
 )
 
 _logger = logging.getLogger(__name__)
@@ -57,7 +60,7 @@ CLAIM_BACKOFF_MAX_S = 1.0
 CONCURRENCY_MAX_ATTEMPTS = 5
 CONCURRENCY_BACKOFF_BASE_S = 0.2
 CONCURRENCY_BACKOFF_MAX_S = 2.0
-JOB_CONCURRENCY_EXCEPTIONS = (*PG_RETRY_EXCEPTIONS, ConcurrencyError)
+JOB_CONCURRENCY_EXCEPTIONS = (*PG_CONCURRENCY_ERRORS, ConcurrencyError)
 
 DRAIN_BUDGET_RATIO = 0.4
 
@@ -171,16 +174,29 @@ def _job_session_lock(cr, job_id: int, *, blocking: bool = True) -> Iterator[boo
         yield acquired
     finally:
         if acquired:
-            try:
-                cr.execute(
-                    SQL("SELECT pg_advisory_unlock(%s)", _advisory_key_sql(job_id))
-                )
-            except psycopg.Error:
-                _logger.warning(
-                    "Job %s: could not release its liveness lock, "
-                    "leaving it to the connection pool",
-                    job_id,
-                )
+            _release_job_session_lock(cr, job_id)
+
+
+def _release_job_session_lock(cr, job_id: int) -> None:
+    unlock = SQL("SELECT pg_advisory_unlock(%s)", _advisory_key_sql(job_id))
+    try:
+        cr.execute(unlock)
+    except psycopg.errors.InFailedSqlTransaction:
+        # the session lock outlives the aborted transaction; release it on
+        # the rollback that ends the transaction, when the connection is
+        # usable again
+        _logger.info(
+            "Job %s: its transaction is aborted, releasing the liveness lock "
+            "after the rollback",
+            job_id,
+        )
+        cr.postrollback.add(partial(cr.execute, unlock))
+    except psycopg.Error:
+        _logger.warning(
+            "Job %s: could not release its liveness lock, "
+            "leaving it to the connection pool",
+            job_id,
+        )
 
 
 class DelayedProxy:
@@ -615,11 +631,10 @@ class IrJob(models.Model):
 
     @staticmethod
     def _notify_after_commit(cr) -> None:
-        if cr.postcommit.data.get(NOTIFY_PENDING_KEY):
-            return
-        cr.postcommit.data[NOTIFY_PENDING_KEY] = True
-        db_name = cr.dbname
-        cr.postcommit.add(lambda: IrJob._notify_workers(db_name))
+        def notify(db_name: str) -> None:
+            IrJob._notify_workers(db_name)
+
+        schedule_notify_after_commit(cr, NOTIFY_PENDING_KEY, notify)
 
     @staticmethod
     def _notify_workers(db_name: str) -> None:
@@ -708,12 +723,13 @@ class IrJob(models.Model):
                 IrJob._reap_dead_jobs(cr)
                 IrJob._release_ready_dependents(cr)
                 cr.commit()
-            except psycopg.errors.SerializationFailure:
+            except PG_RETRY_EXCEPTIONS as exc:
                 cr.rollback()
                 _logger.info(
-                    "Job maintenance sweep of %s lost a race with a worker;"
+                    "Job maintenance sweep of %s lost a race with a worker (%s);"
                     " the next sweep repeats it",
                     db_conn.dbname,
+                    type(exc).__name__,
                 )
 
     @staticmethod
@@ -901,7 +917,7 @@ class IrJob(models.Model):
                         CLAIMED_COLUMNS,
                     )
                 )
-            except psycopg.errors.SerializationFailure:
+            except PG_RETRY_EXCEPTIONS:
                 cr.rollback()
                 if attempt < CLAIM_MAX_ATTEMPTS:
                     time.sleep(
@@ -926,7 +942,7 @@ class IrJob(models.Model):
     ) -> tuple[api.Environment, models.BaseModel]:
         env = api.Environment(cr, job["user_id"], dict(job["context"] or {}))
         env.transaction.default_env = env
-        if not env.user.active and env.uid != SUPERUSER_ID:
+        if is_user_archived(env):
             raise TerminalJobError(
                 env._(
                     "Job %(id)s runs as %(login)s, whose account has been "
@@ -1082,7 +1098,7 @@ class IrJob(models.Model):
             delay = (
                 seconds
                 if seconds is not None
-                else backoff.bound(
+                else backoff.delay(
                     retry + 1, base=RETRY_BACKOFF_BASE_S, cap=RETRY_BACKOFF_MAX_S
                 )
             )
@@ -1342,30 +1358,35 @@ class IrJob(models.Model):
         with _job_session_lock(cr, self.id, blocking=False) as acquired:
             if not acquired:
                 raise UserError(self.env._("This job is already running."))
-            cr.execute(
-                SQL(
-                    """
-                    UPDATE ir_job
-                    SET state = 'started',
-                        started_at = (now() AT TIME ZONE 'UTC'),
-                        worker_ident = %s,
-                        write_date = (now() AT TIME ZONE 'UTC')
-                    WHERE id = %s AND state IN %s
-                    RETURNING %s
-                    """,
-                    f"manual:{self.env.uid}",
-                    self.id,
-                    tuple(RUNNABLE_STATES),
-                    CLAIMED_COLUMNS,
-                )
+            try:
+                self._run_now_claimed(cr)
+            finally:
+                self.invalidate_recordset()
+
+    def _run_now_claimed(self, cr) -> None:
+        cr.execute(
+            SQL(
+                """
+                UPDATE ir_job
+                SET state = 'started',
+                    started_at = (now() AT TIME ZONE 'UTC'),
+                    worker_ident = %s,
+                    write_date = (now() AT TIME ZONE 'UTC')
+                WHERE id = %s AND state IN %s
+                RETURNING %s
+                """,
+                f"manual:{self.env.uid}",
+                self.id,
+                tuple(RUNNABLE_STATES),
+                CLAIMED_COLUMNS,
             )
-            row = cr.fetchone()
-            if row is None:
-                raise UserError(self.env._("Only a queued job can be run manually."))
-            job = dict(zip([d.name for d in cr.description], row, strict=True))
-            self.invalidate_recordset()
-            type(self)._run_claimed(cr, job)
-            self.invalidate_recordset()
+        )
+        row = cr.fetchone()
+        if row is None:
+            raise UserError(self.env._("Only a queued job can be run manually."))
+        job = dict(zip([d.name for d in cr.description], row, strict=True))
+        self.invalidate_recordset()
+        type(self)._run_claimed(cr, job)
 
     def action_requeue(self) -> None:
         self.browse().check_access("write")

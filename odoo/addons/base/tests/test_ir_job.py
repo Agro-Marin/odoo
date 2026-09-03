@@ -327,7 +327,7 @@ class TestIrJob(TransactionCase):
         self.assertEqual(record.exc_name, "ValueError")
         self.assertTrue(record.done_at)
 
-    def test_the_retry_ladder_is_the_shared_bounded_backoff(self):
+    def test_the_retry_ladder_is_the_shared_jittered_backoff(self):
         for retry, expected in enumerate((10, 20, 40, 80, 160)):
             self.assertEqual(
                 backoff.bound(
@@ -336,9 +336,22 @@ class TestIrJob(TransactionCase):
                     cap=ir_job.RETRY_BACKOFF_MAX_S,
                 ),
                 expected,
-                "the ladder is backoff.bound, and unjittered: a stored eta that "
-                "halved on every retry would hammer whatever just failed",
             )
+        record = self.partner.delayed(max_retries=3)._ir_job_test_boom()
+        job = self._claim()
+        with patch.object(ir_job.backoff, "delay", return_value=42.0) as delay:
+            IrJob._record_failure(self.env.cr, job, ValueError("boom"))
+        delay.assert_called_once_with(
+            1, base=ir_job.RETRY_BACKOFF_BASE_S, cap=ir_job.RETRY_BACKOFF_MAX_S
+        )
+        record.invalidate_recordset()
+        self.assertEqual(record.retry, 1)
+        self.assertAlmostEqual(
+            (record.eta - self.env.cr.now().replace(tzinfo=None)).total_seconds(),
+            42.0,
+            delta=2,
+            msg="the eta is the jittered delay, so retries of one failure spread out",
+        )
 
     def test_only_a_retryable_error_dictates_its_own_delay(self):
         class SecondsCarrier(ValueError):
@@ -355,7 +368,7 @@ class TestIrJob(TransactionCase):
             "an unrelated exception that happens to carry a .seconds attribute "
             "does not get to bypass the backoff ladder",
         )
-        self.assertGreater(record.eta, fields.Datetime.now())
+        self.assertGreater(record.eta, self.env.cr.now().replace(tzinfo=None))
 
     def test_vanished_records_fail_the_job_terminally(self):
         doomed = self.env["res.partner"].create({"name": "doomed"})
@@ -1453,6 +1466,36 @@ class TestIrJobExecutorLiveness(BaseCase):
                 "started",
                 "the reaper requeued a job that was running right then",
             )
+
+    @mute_logger("odoo.addons.base.models.ir_job", "odoo.db.cursor")
+    def test_run_now_releases_its_lock_after_an_aborted_transaction(self):
+        def _sql_boom(cr, claimed):
+            cr.execute("SELECT 1/0")
+
+        with self.registry.cursor() as cr_run, self.registry.cursor() as cr_other:
+            job = self._enqueue(cr_run)
+            with (
+                patch.object(IrJob, "_run_claimed", staticmethod(_sql_boom)),
+                self.assertRaises(psycopg.errors.DivisionByZero),
+            ):
+                job.action_run_now()
+            cr_run.rollback()
+            cr_run.execute(
+                "SELECT count(*) FROM pg_locks"
+                " WHERE locktype = 'advisory' AND pid = pg_backend_pid()"
+            )
+            self.assertEqual(
+                cr_run.fetchone()[0],
+                0,
+                "the liveness lock must be released once the connection is usable",
+            )
+            other_env = odoo.api.Environment(cr_other, common.ADMIN_USER_ID, {})
+            other_job = other_env["ir.job"].browse(job.id)
+            self.assertEqual(other_job.state, "pending", "the claim was rolled back")
+            with patch.object(IrJob, "_run_claimed", staticmethod(_sql_boom)):
+                with self.assertRaises(psycopg.errors.DivisionByZero):
+                    other_job.action_run_now()
+            cr_other.rollback()
 
     def test_the_claim_is_committed_before_the_liveness_lock(self):
         with self.registry.cursor() as cr, self.registry.cursor() as observer:
