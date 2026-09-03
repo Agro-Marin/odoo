@@ -569,14 +569,14 @@ assert_eq "channel.py's two auth=user routes (update_avatar + sub_channel/delete
 
 # XML totals. ARCHITECTURE.md claimed "~380"; the real module-wide total is 232 and its own
 # breakdown only ever summed to 224 (it omitted wizard/security/test XML).
-assert_eq "module-wide XML file count" "$(find "$MAIL" -name '*.xml' | wc -l)" "232"
-assert_eq "static OWL template XML" "$(find "$MAIL/static/src" -name '*.xml' | wc -l)" "164"
+assert_eq "module-wide XML file count" "$(find "$MAIL" -name '*.xml' | wc -l)" "234"
+assert_eq "static OWL template XML" "$(find "$MAIL/static/src" -name '*.xml' | wc -l)" "166"
 assert_eq "views/ XML"   "$(find "$MAIL/views"  -name '*.xml' | wc -l)" "41"
 assert_eq "data/ XML"    "$(find "$MAIL/data"   -name '*.xml' | wc -l)" "15"
 assert_eq "wizard/ XML"  "$(find "$MAIL/wizard" -name '*.xml' | wc -l)" "6"
 assert_eq "demo/ XML"    "$(find "$MAIL/demo"   -name '*.xml' | wc -l)" "4"
 assert_eq "ARCHITECTURE.md cites the 232 XML total with its breakdown" \
-    "$(grep -c '232 = 164 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test' "$DOC/ARCHITECTURE.md")" "1"
+    "$(grep -c '234 = 166 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test' "$DOC/ARCHITECTURE.md")" "1"
 assert_eq "ARCHITECTURE.md no stale ~380 XML cite" \
     "$(grep -c '~380' "$DOC/ARCHITECTURE.md")" "0"
 
@@ -797,15 +797,15 @@ assert_eq "the gate is wired into architecture.yml" \
 # discuss/ and utils/ drifted unnoticed.
 assert_doc_cites "DIRECTORY_MAP.md cites the core/ JS count" \
     "$(find "$MAIL/static/src/core" -name '*.js' | wc -l)" '\| `core/` \| %s \|' DIRECTORY_MAP.md
-assert_eq "discuss/ recursive JS count" "$(find "$MAIL/static/src/discuss" -name '*.js' | wc -l)" "146"
+assert_eq "discuss/ recursive JS count" "$(find "$MAIL/static/src/discuss" -name '*.js' | wc -l)" "148"
 assert_eq "utils/ recursive JS count"   "$(find "$MAIL/static/src/utils"   -name '*.js' | wc -l)" "10"
 assert_eq "chatter/ recursive JS count" "$(find "$MAIL/static/src/chatter" -name '*.js' | wc -l)" "13"
-assert_eq "DIRECTORY_MAP.md cites discuss 146" "$(grep -c '| `discuss/` | 146 |' "$DOC/DIRECTORY_MAP.md")" "1"
+assert_eq "DIRECTORY_MAP.md cites discuss 148" "$(grep -c '| `discuss/` | 148 |' "$DOC/DIRECTORY_MAP.md")" "1"
 
 # SCSS count: stated in ARCHITECTURE's table, never asserted.
-assert_eq "static/src SCSS count" "$(find "$MAIL/static/src" -name '*.scss' | wc -l)" "101"
-assert_eq "ARCHITECTURE.md cites 101 SCSS" \
-    "$(grep -c '| SCSS (`static/src/`) | 101 |' "$DOC/ARCHITECTURE.md")" "1"
+assert_eq "static/src SCSS count" "$(find "$MAIL/static/src" -name '*.scss' | wc -l)" "102"
+assert_eq "ARCHITECTURE.md cites 102 SCSS" \
+    "$(grep -c '| SCSS (`static/src/`) | 102 |' "$DOC/ARCHITECTURE.md")" "1"
 
 # tools/ file list, stated in DIRECTORY_MAP and two files short.
 assert_eq "tools/ .py count (excl __init__)" \

@@ -14,7 +14,7 @@ see `ASSET_LAYERS.md`) + primary responsibility. JS file counts are per-director
 |---------|---------:|------|
 | `model/` | 10 | The client-side reactive ORM (`Record`/`Store`) — see `STATE_MANAGEMENT.md` |
 | `core/` | 154 | The messaging framework: store service, models, base UI components |
-| `discuss/` | 146 | The Discuss app feature layers (channels, calls, typing, voice, gifs, pinning) |
+| `discuss/` | 148 | The Discuss app feature layers (channels, calls, typing, voice, gifs, pinning) |
 | `chatter/` | 13 | Form/portal document chatter |
 | `views/` | 61 | Backend view integrations (activity view, mail field widgets, rotting widgets) |
 | `utils/` | 10 | Shared date/format/DOM helpers |
@@ -22,7 +22,7 @@ see `ASSET_LAYERS.md`) + primary responsibility. JS file counts are per-director
 | `worklets/` | 1 | `audio_processor.js` — the RTC audio worklet, served raw by `/mail/rtc/audio_worklet_processor_v2` (not bundled) |
 | `(root)` | 2 | `service_worker.js` + `service_worker_utils.js` |
 
-The rows above sum to **398**, the module's full `static/src` JS count. (`audio/`, `img/`
+The rows above sum to **400**, the module's full `static/src` JS count. (`audio/`, `img/`
 and `scss/` carry no JS.)
 
 > **`js/` no longer exists.** It was the last unlayered directory in the module — outside the
