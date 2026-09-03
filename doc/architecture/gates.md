@@ -457,7 +457,7 @@ expected set from the gates the workflows actually drive rather than from a list
 beside it, so the next retirement fails instead of lingering.
 
 **DB-backed integration gate** (`.github/workflows/integration_tests.yml`,
-ADR-0007) — boots PostgreSQL 18 and runs twelve suites, **each against its own
+ADR-0007) — boots PostgreSQL 18 and runs nineteen suites, **each against its own
 database**:
 
 | Suite | Database | Notes |
@@ -474,6 +474,7 @@ database**:
 | `mixin_report_sql` | `ci_sql_report` | added 2026-08-28, and the cheapest lane here — the module depends on `base` alone. Its 30 tests had been run by nothing at all: this lane named seven other suites, `module_installability.yml` enables only one `test_lint` class, and pytest collects none of it because the cases are `TransactionCase` while `testpaths` holds the DB-free tiers. The suite was patching the abstract mixins in place rather than building a real report, so five correctness defects sat behind that gap; rewritten against concrete fixture models it runs 78 |
 | `test_read_group` | `ci_read_group` | added 2026-08-28. The only coverage of the five `read_group/` units — `_empty`, `fill`, `format`, `mixin`, `sql` — and reachable by neither DB-free tier by construction: a `read_group` is a `GROUP BY`, and what it groups is decided by SQL the in-memory path never runs |
 | `test_access_rights` | `ci_access_rights` | added 2026-08-28. Record rules and ACLs, the one subsystem here where a wrong answer is a security answer rather than a broken one. One of its 52 skips for want of an HTTP server and is reported as skipped |
+| `mail`, `test_mail`, `mail_group` | `ci_mail` | added 2026-09-02, with the HTTP server up: mail's own suite, `test_mail` (the suite written for it, which carries the query floors) and `mail_group` (the one alias owner outside the mixin, whose gateway had been broken for weeks with nobody running it) had been run by no lane. Tour classes and the HOOT suites are excluded by tag; the `url_open` HttpCase classes run. |
 
 Adding `test_orm` paid for itself on the first run:
 `TestBackendDifferential.test_divergence_ilike_unaccent` asserted PostgreSQL's

@@ -1,5 +1,5 @@
 {
-  "count": 412,
-  "measured_at": "14a4cc97b0738bc1b226f0ccfcdd67093675434d",
-  "note": "411 -> 412, and the unit is a module rather than anything this rebase changed: 9f5060ff60f (Microsoft OAuth tokens into the vault) ships addons/microsoft_account/tests/test_credential_storage.py, and no lane in .github/workflows names microsoft_account. Diffed as a SET against the pre-rebase tip rather than compared as a count -- 412 both sides, one name different -- so this is that commit s floor and not a second thing hiding behind a matching total.\n\nTHIS IS THE STOPGAP, NOT THE RESOLUTION. The gate asks for a lane or an EXEMPT entry with a reason; giving that module a lane takes this straight back to 411 and this floor with it. Raised here only so the branch is not red on a gate whose fix belongs to that commit s author."
+  "count": 407,
+  "measured_at": "62197c60c7f4f444c1dec3ab32601a724bdc4058",
+  "note": "412 -> 407, three lanes' worth of units in two moves. 412 -> 410 was already true at HEAD 62197c60c7f and banked by nobody: e91c996117a's hr_holidays lane took hr_holidays and hr_holidays_attendance out of the silent set. 410 -> 407 is this commit's mail lane in integration_tests.yml: mail, test_mail and mail_group now run in CI, one database (test_mail is mail's own suite and mail_group is its only alias-owner outside the mixin). Measured as a SET diff of module_suite_lane.py's output between a detached worktree at HEAD and this tree, on 2026-09-02; the three names are the only difference."
 }

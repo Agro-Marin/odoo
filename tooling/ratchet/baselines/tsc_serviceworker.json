@@ -1,4 +1,5 @@
 {
-  "count": 85,
-  "note": "RED IN THE FALLING DIRECTION, like `tsc` was. 87 -> 85, summed over the three deployed routes: web 49, pos 3, event 33.\n\nSeeded 2026-08-16 with the lane itself and never moved since, so the two units were earned somewhere in the commits between and banked by none of them. An exact ratchet fails in the falling direction too, so this lane was failing alongside the `tsc` one -- both of them counted inside the workspace CLAUDE.md`s standing `typecheck.yml, 3 of 4 gates` row, and both fixable by banking rather than by work.\n\nMeasured as \u00a79.3 prescribes: a detached worktree at HEAD, `node_modules` symlinked, TypeScript 5.9.3, one `tsc --project tsconfig.serviceworker.<lane>.json --noEmit` per route, `grep -c \"error TS\"`, summed. The per-route split is recorded because the floor is a sum and a future move should say which route moved."
+  "count": 84,
+  "measured_at": "62197c60c7f4f444c1dec3ab32601a724bdc4058",
+  "note": "85 -> 84, web lane 49 -> 48; pos 3 and event 33 unchanged. The unit is service_worker.js's notificationclick handler: pickTargetClient() moved into service_worker_utils.js (typed in @types/service_worker_scope.d.ts) and the inline getScore that carried one of the old implicit-any errors is gone. Measured 2026-09-02 with npx tsc over the three tsconfig.serviceworker.<lane>.json in this tree, summed as typecheck.yml does."
 }

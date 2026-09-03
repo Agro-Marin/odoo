@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from datetime import UTC, timedelta
 from functools import partial
 from random import randint
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from urllib.parse import parse_qsl, urlencode, urlparse
 
 from freezegun import freeze_time
@@ -30,7 +30,7 @@ from odoo.addons.base.models.ir_mail_server import IrMail_Server
 from odoo.addons.base.tests.common import MockSmtplibCase
 from odoo.addons.bus.models.bus import BusBus, json_dump
 from odoo.addons.bus.tests.common import BusCase
-from odoo.addons.mail.models import mixin_mail_thread
+from odoo.addons.mail.models import mail_push, mixin_mail_thread
 from odoo.addons.mail.models.mail_mail import MailMail
 from odoo.addons.mail.models.mail_message import MailMessage
 from odoo.addons.mail.models.mail_notification import MailNotification
@@ -67,16 +67,21 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
     @contextmanager
     def mock_push_to_end_point(self, max_direct_push=5):
         with (
-            patch.object(mixin_mail_thread, "push_to_end_point") as patched_push,
-            patch(
-                "odoo.addons.mail.models.mixin_mail_thread.MAX_DIRECT_PUSH",
-                max_direct_push,
-            ),
+            self._patch_push_to_end_point() as patched_push,
+            patch.object(mixin_mail_thread, "MAX_DIRECT_PUSH", max_direct_push),
         ):
             self.push_to_end_point_mocked = patched_push
             yield
 
     @contextmanager
+    def _patch_push_to_end_point(self):
+        patched_push = MagicMock(name="push_to_end_point")
+        with (
+            patch.object(mixin_mail_thread, "push_to_end_point", patched_push),
+            patch.object(mail_push, "push_to_end_point", patched_push),
+        ):
+            yield patched_push
+
     def _mock_push_to_end_point(self, max_direct_push=5):
         mock = self.mock_push_to_end_point(max_direct_push=max_direct_push)
         mock.__enter__()
@@ -156,7 +161,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                 wraps=MailMail,
                 side_effect=_mail_mail_unlink,
             ),
-            patch.object(mixin_mail_thread, "push_to_end_point") as patched_push,
+            self._patch_push_to_end_point() as patched_push,
         ):
             self.build_email_mocked = build_email_mocked
             self.send_email_mocked = send_email_mocked
