@@ -127,3 +127,16 @@ test("local storage for call settings", async () => {
     await advanceTime(2000);
     await waitForSteps(["mail_user_setting_voice_threshold: 0.3"]);
 });
+
+test("quick voice settings show which key is push-to-talk", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "test" });
+    const env = await start();
+    env.services["mail.store"].settings.push_to_talk_key = "true.true.true.b";
+    await openDiscuss(channelId);
+    await click("[title='Start Call']");
+    await click("button[title='Voice Settings']");
+    await contains(".o-discuss-QuickVoiceSettings span", {
+        text: "Press [Ctrl + Alt + Shift + b]",
+    });
+});

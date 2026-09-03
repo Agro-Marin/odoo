@@ -2,6 +2,7 @@
 import { CallSettingsDialog } from "@mail/discuss/call/common/call_settings";
 import { DeviceSelect } from "@mail/discuss/call/common/device_select";
 import { Component } from "@odoo/owl";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 export class QuickVoiceSettings extends Component {
     static template = "discuss.QuickVoiceSettings";
@@ -16,5 +17,11 @@ export class QuickVoiceSettings extends Component {
 
     onClickVoiceSettings() {
         this.dialogService.add(CallSettingsDialog, {});
+    }
+
+    get pttKeyDisplayText() {
+        return _t("Press [%(shortcut)s]", {
+            shortcut: this.store.settings.pushToTalkKeyText,
+        });
     }
 }

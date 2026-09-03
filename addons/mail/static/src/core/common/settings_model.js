@@ -366,6 +366,17 @@ export class Settings extends Record {
         }
         return settingsKeySet.has(ev.key === "Meta" ? "Alt" : ev.key);
     }
+    get pushToTalkKeyText() {
+        const { shiftKey, ctrlKey, altKey, key } = this.pushToTalkKeyFormat() ?? {};
+        /**
+         * @param {boolean} k
+         * @param {string} name
+         */
+        const f = (k, name) => (k ? name : "");
+        return [f(ctrlKey, "Ctrl"), f(altKey, "Alt"), f(shiftKey, "Shift"), key]
+            .filter(Boolean)
+            .join(" + ");
+    }
     pushToTalkKeyFormat() {
         if (!this.push_to_talk_key) {
             return;
