@@ -19,6 +19,7 @@ class ResPartner(models.Model):
     _name = "res.partner"
     _inherit = ["res.partner", "mixin.mail.activity", "mixin.mail.thread.blacklist"]
     _mail_flat_thread = False
+    _mail_post_access = "read"
 
     name = fields.Char(tracking=1)
     email = fields.Char(tracking=1)
