@@ -14,6 +14,8 @@ from odoo.tests import Form, HttpCase, TransactionCase, tagged
 from odoo.tests.common import new_test_user
 from odoo.tools import SQL, escape_psql, mute_logger
 
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
+
 
 class TestXMLID(TransactionCase):
     def get_data(self, xml_id):
@@ -702,13 +704,89 @@ class TestIrModelFields(TransactionCase):
         original = cls._prepare_update
         calls = []
 
-        def counting(records):
+        def counting(records, **kwargs):
             calls.append(records)
-            return original(records)
+            return original(records, **kwargs)
 
         with patch.object(cls, "_prepare_update", counting):
             field.write({"name": "x_renonce2"})
         self.assertEqual(len(calls), 1)
+
+    def test_field_rename_sets_up_the_registry_once(self):
+        _Model, field = self._make_manual_field("setuponce")
+        self.env.flush_all()
+        original = type(self.env.registry)._setup_models__
+        calls = []
+
+        def spy(registry, cr, model_names=None, **kwargs):
+            calls.append(model_names)
+            return original(registry, cr, model_names, **kwargs)
+
+        with patch.object(type(self.env.registry), "_setup_models__", spy):
+            field.write({"name": "x_setuponce2"})
+        self.assertEqual(len(calls), 1, calls)
+
+    def test_rename_blocked_by_a_view_restores_the_registry(self):
+        Model, field = self._make_manual_field("viewkept")
+        self.env["ir.ui.view"].create(
+            {
+                "name": "viewkept form",
+                "model": Model._name,
+                "arch": f'<form><field name="{field.name}"/></form>',
+            }
+        )
+        with self.assertRaises(UserError):
+            field.write({"name": "x_viewkept2"})
+        self.assertIn(field.name, self.env.registry[Model._name]._fields)
+
+    def _make_binary_record(self, stem):
+        model = self.env["ir.model"].create(
+            {"model": f"x_imf_{stem}", "name": f"IMF binary {stem}"}
+        )
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": f"x_{stem}",
+                "field_description": f"Binary {stem}",
+                "model_id": model.id,
+                "ttype": "binary",
+            }
+        )
+        Model = self.env[model.model]
+        record = Model.create({field.name: b"aGVsbG8="})
+        record.flush_recordset()
+        attachments = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search([("res_model", "=", Model._name), ("res_field", "=", field.name)])
+        )
+        self.assertEqual(len(attachments), 1)
+        return Model, field, record, attachments
+
+    def test_binary_field_rename_carries_its_attachments(self):
+        Model, field, record, attachments = self._make_binary_record("binren")
+
+        field.write({"name": "x_binren2"})
+
+        self.assertEqual(attachments.mapped("res_field"), ["x_binren2"])
+        record = self.env[Model._name].browse(record.id)
+        self.assertEqual(record.x_binren2, b"aGVsbG8=")
+
+    def test_binary_field_unlink_removes_its_attachments(self):
+        _Model, field, _record, attachments = self._make_binary_record("bindel")
+        field.unlink()
+        self.assertFalse(attachments.exists())
+
+    def test_binary_field_unlink_at_uninstall_keeps_its_attachments(self):
+        _Model, field, _record, attachments = self._make_binary_record("binkeep")
+        field.with_context(**{MODULE_UNINSTALL_FLAG: True}).unlink()
+        self.assertTrue(attachments.exists())
+
+    def test_help_on_a_base_field_skips_registry_setup(self):
+        field = self.env["ir.model.fields"]._get("res.partner", "comment")
+        self.assertFalse(field.help)
+        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+            field.write({"help": "Tooltip"})
+        mock_setup.assert_not_called()
 
     def test_boolean_translate_rejected(self):
         model = self.env["ir.model"].create(

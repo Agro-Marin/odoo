@@ -9,7 +9,7 @@ from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.db import schema as sql
 from odoo.exceptions import UserError, ValidationError
-from odoo.fields import NO_ACCESS
+from odoo.fields import NO_ACCESS, Domain
 from odoo.libs.sql import get_index_name
 from odoo.models import pop_field
 from odoo.tools import SQL, OrderedSet, frozendict, unique
@@ -714,7 +714,7 @@ class IrModelFields(models.Model):
             return self._custom_many2many_names(field.model, field.relation)[0]
         return None
 
-    def _prepare_update(self) -> Self:
+    def _prepare_update(self, setup_models: bool = True) -> Self:
         uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)
         if not uninstalling and any(record.state != "manual" for record in self):
             raise UserError(
@@ -761,6 +761,9 @@ class IrModelFields(models.Model):
                 view._check_xml()
         except Exception:
             if not uninstalling:
+                self.pool._setup_models__(
+                    self.env.cr, OrderedSet(records.mapped("model"))
+                )
                 raise UserError(
                     _(
                         "Cannot rename/delete fields that are still present in views:\nFields: %(fields)s\nView: %(view)s",
@@ -773,13 +776,34 @@ class IrModelFields(models.Model):
                 ", ".join(str(f) for f in fields_),
                 view.name,
             )
-        finally:
-            if not uninstalling:
-                self.pool._setup_models__(
-                    self.env.cr, OrderedSet(records.mapped("model"))
-                )
+        if not uninstalling and setup_models:
+            self.pool._setup_models__(self.env.cr, OrderedSet(records.mapped("model")))
 
         return self
+
+    def _get_attachments_of_binary_fields(self) -> models.BaseModel:
+        Attachment = self.env["ir.attachment"].sudo()
+        binaries = self.filtered(
+            lambda record: record.ttype == "binary" and record.model
+        )
+        if not binaries:
+            return Attachment
+        domain = Domain.OR(
+            Domain("res_model", "=", model)
+            & Domain("res_field", "in", records.mapped("name"))
+            for model, records in binaries.grouped("model").items()
+        )
+        return Attachment.search(domain)
+
+    def _rename_attachments_of_binary_field(self, old_name: str) -> None:
+        self.check_singleton()
+        attachments = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search([("res_model", "=", self.model), ("res_field", "=", old_name)])
+        )
+        if attachments:
+            attachments.write({"res_field": self.name})
 
     def _collect_field_dependencies(self) -> tuple[Self, list[tuple]]:
         records = self
@@ -828,10 +852,13 @@ class IrModelFields(models.Model):
             self.env._core.discard_field(field)
 
         model_names = OrderedSet(self.mapped("model"))
+        uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)
+        if not uninstalling:
+            self._get_attachments_of_binary_fields().unlink()
         self._drop_columns()
         res = super().unlink()
 
-        if not self.env.context.get(MODULE_UNINSTALL_FLAG):
+        if not uninstalling:
             reload_schema(self.env, model_names, model_names)
 
         return res
@@ -1020,6 +1047,7 @@ class IrModelFields(models.Model):
             bool(record[fname]) != bool(value)
             for fname, value in vals.items()
             for record in self
+            if record.state == "manual"
         )
 
         if translate_only:
@@ -1038,9 +1066,8 @@ class IrModelFields(models.Model):
         old_names = {record.id: record.name for record in renamed}
 
         if renamed:
-            (renamed._prepare_update() - self).with_context(
-                **{MODULE_UNINSTALL_FLAG: True}
-            ).unlink()
+            dependents = renamed._prepare_update(setup_models=False) - self
+            dependents.with_context(**{MODULE_UNINSTALL_FLAG: True}).unlink()
 
         res = super().write(vals)
 
@@ -1049,6 +1076,9 @@ class IrModelFields(models.Model):
 
         if renamed:
             renamed._rename_xml_ids(old_names)
+            for record in renamed:
+                if record.ttype == "binary":
+                    record._rename_attachments_of_binary_field(old_names[record.id])
 
         if "groups" in vals:
             self._add_missing_group_xml_ids()
