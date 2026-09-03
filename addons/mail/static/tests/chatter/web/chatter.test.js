@@ -940,3 +940,23 @@ test("saving a record still refreshes its chatter data", async () => {
     await advanceTime(1000);
     expect(fetchedThreadIds).toEqual([partnerId, partnerId]);
 });
+
+test("files section comes before the activity list", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({});
+    pyEnv["mail.activity"].create({
+        res_id: partnerId,
+        res_model: "res.partner",
+    });
+    pyEnv["ir.attachment"].create({
+        mimetype: "text/plain",
+        name: "Blah.txt",
+        res_id: partnerId,
+        res_model: "res.partner",
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await contains(".o-mail-ActivityList");
+    await click("button[aria-label='Attach files']");
+    await contains(".o-mail-AttachmentBox + .o-mail-ActivityList");
+});
