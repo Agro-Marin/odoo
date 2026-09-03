@@ -24,7 +24,7 @@ class IrHttp(models.AbstractModel):
 
         `session_info` is on the critical path of every backend page load, so a
         parameter an administrator cleared or mistyped must not be allowed to
-        take the whole web client down with it -- note that `get_param`'s
+        take the whole web client down with it: `get_param`'s
         default only covers an *absent* key, not an empty one.
         """
         param = (
