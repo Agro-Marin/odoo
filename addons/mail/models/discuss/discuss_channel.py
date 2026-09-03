@@ -941,8 +941,12 @@ class DiscussChannel(models.Model):
         self, message: MailMessage, msg_vals: dict | Literal[False] = False, **kwargs
     ) -> list[dict]:
         rdata = super()._notify_thread(message, msg_vals=msg_vals, **kwargs)
+        store = Store(bus_channel=self).add(message)
+        if message.channel_id.parent_channel_id:
+            # the parent's thread list shows the count, so keep it live
+            store.add(message.channel_id, ["message_count"])
         payload = {
-            "data": Store(bus_channel=self).add(message).get_result(),
+            "data": store.get_result(),
             "id": self.id,
             "message_id": message.id,
         }
@@ -2075,6 +2079,8 @@ class DiscussChannel(models.Model):
             ),
             "last_interest_dt",
             "member_count",
+            # a sub-channel preview says how much conversation sits behind it
+            Store.Attr("message_count", predicate=lambda c: c.parent_channel_id),
             "name",
             Store.Many(
                 "channel_name_member_ids",

@@ -262,11 +262,32 @@ class ChannelController(http.Controller):
         sub_channels = request.env["discuss.channel"].search(
             domain, order="id desc", limit=clamp_limit(limit)
         )
+        store = Store().add(sub_channels).add(sub_channels._get_last_messages())
+        if sub_channels:
+            # only the handful of members the preview's avatar stack shows:
+            # reading every member of every thread would not scale
+            request.env.cr.execute(
+                """
+                    SELECT id
+                      FROM (
+                          SELECT id,
+                                 ROW_NUMBER() OVER (
+                                     PARTITION BY channel_id ORDER BY id
+                                 ) AS rn
+                            FROM discuss_channel_member
+                           WHERE channel_id = ANY(%(channel_ids)s)
+                      ) ranked
+                     WHERE rn <= %(max_avatars)s
+                """,
+                {"channel_ids": list(sub_channels.ids), "max_avatars": 4},
+            )
+            store.add(
+                request.env["discuss.channel.member"].browse(
+                    [row[0] for row in request.env.cr.fetchall()]
+                )
+            )
         return {
-            "store_data": Store()
-            .add(sub_channels)
-            .add(sub_channels._get_last_messages())
-            .get_result(),
+            "store_data": store.get_result(),
             "sub_channel_ids": sub_channels.ids,
         }
 

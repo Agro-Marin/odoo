@@ -126,6 +126,8 @@ class DiscussChannelMember(models.Model):
         string="Ringing session",
     )
 
+    # the sub-channel preview asks for the first members of many channels
+    _channel_id_id_idx = models.Index("(channel_id, id)")
     _seen_message_id_idx = models.Index("(channel_id, partner_id, seen_message_id)")
 
     @api.autovacuum

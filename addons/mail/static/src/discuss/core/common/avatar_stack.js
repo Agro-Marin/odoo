@@ -8,6 +8,10 @@ import { Component } from "@odoo/owl";
  * @prop {"v"|"h"} [direction]
  * @prop {number} [max]
  * @prop {number} [size]
+ * @prop {number} [total] Total number of avatars behind the stack. Lets the
+ * counter stay accurate without fetching every persona.
+ * @prop {number} [spacing] Overlap between avatars, in pixels: the higher, the
+ * closer together.
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class AvatarStack extends Component {
@@ -26,6 +30,8 @@ export class AvatarStack extends Component {
         personas: Array,
         size: { type: Number, optional: true },
         slots: { optional: true },
+        spacing: { type: Number, optional: true },
+        total: { type: Number, optional: true },
     };
     static defaultProps = {
         avatarClass: () => "",
@@ -33,6 +39,7 @@ export class AvatarStack extends Component {
         max: 4,
         size: 24,
         direction: "h",
+        spacing: 8,
     };
 
     /**
@@ -43,15 +50,19 @@ export class AvatarStack extends Component {
         const styles = [
             "box-sizing: content-box",
             `height: ${this.props.size}px`,
-            "margin: 1px",
             `padding: 1.5px`,
             `width: ${this.props.size}px`,
-            `z-index: ${this.props.personas.length - index}`,
+            `z-index: ${this.props.personas.length + index}`,
         ];
         if (index !== 0) {
             const marginDirection = this.props.direction === "v" ? "top" : "left";
-            styles.push(`margin-${marginDirection}: -${this.props.size / 4.5}px`);
+            styles.push(`margin-${marginDirection}: -${this.props.spacing}px`);
         }
         return styles.join(";");
+    }
+
+    get remainingCount() {
+        const total = this.props.total ?? this.props.personas.length;
+        return total - Math.min(this.props.personas.length, this.props.max);
     }
 }

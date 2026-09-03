@@ -454,3 +454,35 @@ test("sub-channel search paginates instead of refetching its first page", async 
     expect(parent.loadSubChannelsDone).toBe(false);
     expect(parent.lastSubChannelLoaded).toBe(null);
 });
+
+test("thread preview names and pictures the author of its last message", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Demo" });
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "General",
+        channel_member_ids: [Command.create({ partner_id: serverState.partnerId })],
+    });
+    const subChannelId = pyEnv["discuss.channel"].create({
+        name: "Sub thread",
+        parent_channel_id: channelId,
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: partnerId }),
+        ],
+    });
+    pyEnv["mail.message"].create({
+        author_id: partnerId,
+        body: "<p>the newest word</p>",
+        message_type: "comment",
+        model: "discuss.channel",
+        res_id: subChannelId,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-discuss-ChannelMemberList");
+    await click("button[title='Threads']");
+    await contains(".o-mail-SubChannelPreview:contains('Sub thread')");
+    await contains(".o-mail-SubChannelPreview-lastMessage:contains('Demo')");
+    await contains(".o-mail-SubChannelPreview-lastMessage img[title='Demo']");
+    await contains(".o-mail-SubChannelPreview-members img[title='Demo']");
+});

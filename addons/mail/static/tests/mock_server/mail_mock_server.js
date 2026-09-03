@@ -403,6 +403,15 @@ async function discuss_channel_sub_channel_fetch(request) {
         }
     }
     store.add(MailMessage.browse(lastMessageIds));
+    /** @type {import("mock_models").DiscussChannelMember} */
+    const DiscussChannelMember = this.env["discuss.channel.member"];
+    const memberIds = [];
+    for (const channelId of subChannels) {
+        memberIds.push(
+            ...DiscussChannelMember.search([["channel_id", "=", channelId]]).slice(0, 4),
+        );
+    }
+    store.add(DiscussChannelMember.browse(memberIds));
     return {
         store_data: store.get_result(),
         sub_channel_ids: subChannels,
