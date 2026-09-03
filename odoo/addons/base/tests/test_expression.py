@@ -97,9 +97,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         with_b = self._search(partners, [("tag_ids", "in", [cat_b.id])])
         self.assertEqual(b + ab, with_b, "Search for tag_ids in cat_b failed.")
 
-        with_a_or_b = self._search(
-            partners, [("tag_ids", "in", [cat_a.id, cat_b.id])]
-        )
+        with_a_or_b = self._search(partners, [("tag_ids", "in", [cat_a.id, cat_b.id])])
         self.assertEqual(
             a + b + ab,
             with_a_or_b,
@@ -2005,13 +2003,9 @@ class TestBypassAccess(TransactionExpressionCase):
         )
 
         patch_domain(partner_obj, "tag_ids", lambda self: [("name", "!=", "bar")])
-        self.assertIn(
-            p_a, self._search(partner_obj, [("tag_ids.name", "=", "foo")])
-        )
+        self.assertIn(p_a, self._search(partner_obj, [("tag_ids.name", "=", "foo")]))
         patch_bypass_search_access(partner_obj, "tag_ids", True)
-        self.assertIn(
-            p_a, self._search(partner_obj, [("tag_ids.name", "=", "foo")])
-        )
+        self.assertIn(p_a, self._search(partner_obj, [("tag_ids.name", "=", "foo")]))
 
         patch_bypass_search_access(partner_obj, "tag_ids", False)
         patch_bypass_search_access(partner_obj, "bank_ids", False)
