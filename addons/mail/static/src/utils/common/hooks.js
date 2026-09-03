@@ -514,6 +514,10 @@ export function useMessageScrolling(duration = 2000) {
     return state;
 }
 
+export function useMessageSelection() {
+    return useState({ messageId: undefined });
+}
+
 export function useMicrophoneVolume() {
     let isClosed = false;
     /** @type {MediaStreamTrack|null} */

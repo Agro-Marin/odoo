@@ -49,7 +49,8 @@ registerMessageAction("reaction", {
         message,
         messageActive: owner.isActive,
     }),
-    componentCondition: () => !isMobileOS(),
+    /** @param {ActionParams} params */
+    componentCondition: ({ owner }) => !isMobileOS() && !owner.isMessageContextMenu,
     /** @param {ActionParams} params */
     condition: ({ message, thread }) => message.canAddReaction(thread),
     icon: "oi oi-smile-add",
@@ -57,7 +58,9 @@ registerMessageAction("reaction", {
     /** @param {ActionParams} params */
     onSelected({ owner }) {
         return owner.reactionPicker.open({
-            el: owner.root?.el?.querySelector(`[name="${this.id}"]`),
+            el: owner.isMessageContextMenu
+                ? owner.anchor.el
+                : owner.root?.el?.querySelector(`[name="${this.id}"]`),
         });
     },
     /** @param {ActionParams} params */

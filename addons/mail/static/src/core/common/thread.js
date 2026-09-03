@@ -2,7 +2,7 @@
 import { DateSection } from "@mail/core/common/date_section";
 import { Message } from "@mail/core/common/message";
 import { useThreadScroll } from "@mail/core/common/thread_scroll_hook";
-import { useVisible } from "@mail/utils/common/hooks";
+import { useMessageSelection, useVisible } from "@mail/utils/common/hooks";
 import { markThreadAsReadIfAtBottom } from "@mail/utils/common/thread_read";
 import {
     Component,
@@ -101,6 +101,7 @@ export class Thread extends Component {
             "scrollend",
             () => (this.state.scrollTop = this.scrollableRef.el.scrollTop),
         );
+        this.messageSelection = useMessageSelection();
         this.presentThresholdState = useVisible("present-treshold", () =>
             this.updateShowJumpPresent(),
         );

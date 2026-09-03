@@ -25,7 +25,14 @@ import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { OutOfFocusService } from "@mail/core/common/out_of_focus_service";
 import { LAST_DISCUSS_ACTIVE_ID_LS } from "@mail/core/public_web/discuss_app_model";
 import { describe, expect, test } from "@odoo/hoot";
-import { animationFrame, Deferred, press, runAllTimers, waitFor } from "@odoo/hoot-dom";
+import {
+    animationFrame,
+    Deferred,
+    press,
+    rightClick,
+    runAllTimers,
+    waitFor,
+} from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
 import {
     asyncStep,
@@ -2564,4 +2571,59 @@ test("do not show control panel without breadcrumbs", async () => {
     await openDiscuss();
     await contains(".o-mail-Discuss");
     await contains(".o_control_panel .breadcrumb", { text: serverState.partnerName });
+});
+
+test("right-click on a message opens its actions in a context menu", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Refactoring" });
+    const [messageId_1, messageId_2] = pyEnv["mail.message"].create([
+        { body: "message-body-1", model: "res.partner", needaction: true, res_id: partnerId },
+        { body: "message-body-2", model: "res.partner", needaction: true, res_id: partnerId },
+    ]);
+    pyEnv["mail.notification"].create([
+        {
+            mail_message_id: messageId_1,
+            notification_status: "sent",
+            notification_type: "inbox",
+            res_partner_id: serverState.partnerId,
+        },
+        {
+            mail_message_id: messageId_2,
+            notification_status: "sent",
+            notification_type: "inbox",
+            res_partner_id: serverState.partnerId,
+        },
+    ]);
+    await start();
+    await openDiscuss("mail.box_inbox");
+    await contains(".o-mail-Message", { count: 2 });
+    await rightClick(".o-mail-Message:eq(0)");
+    await contains(".o-dropdown-item:contains('Reply')");
+    await contains(".o-dropdown-item:contains('Mark as Read')");
+    await contains(".o-mail-Message:eq(0).o-selected");
+    await contains(".o-mail-Message:eq(1):not(.o-selected)");
+});
+
+test("can add a reaction from the message context menu", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Refactoring" });
+    const messageId = pyEnv["mail.message"].create({
+        body: "message-body-1",
+        model: "res.partner",
+        needaction: true,
+        res_id: partnerId,
+    });
+    pyEnv["mail.notification"].create({
+        mail_message_id: messageId,
+        notification_status: "sent",
+        notification_type: "inbox",
+        res_partner_id: serverState.partnerId,
+    });
+    await start();
+    await openDiscuss("mail.box_inbox");
+    await contains(".o-mail-Message");
+    await rightClick(".o-mail-Message");
+    await click(".o-dropdown-item:contains('Add a Reaction')");
+    await click(".o-Emoji:contains(\u{1F60A})");
+    await contains(".o-mail-MessageReaction:contains(\u{1F60A})");
 });

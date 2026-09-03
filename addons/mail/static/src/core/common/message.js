@@ -34,13 +34,14 @@ import { _t } from "@web/core/translation";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { attachShadowRoot } from "@web/core/utils/dom/ui";
-import { useService } from "@web/core/utils/hooks";
+import { useChildRef, useService } from "@web/core/utils/hooks";
 import { renderToElement } from "@web/core/utils/render";
 import { getOrigin, url } from "@web/core/utils/urls";
 import { rootIdOf } from "@web/ui/overlay/root_id";
 import { usePopover } from "@web/ui/popover";
 
 import { discussComponentRegistry } from "./discuss_component_registry.js";
+import { MessageContextMenu } from "./message_context_menu.js";
 import { useMessageActions } from "./message_actions.js";
 import { NotificationMessage } from "./notification_message.js";
 
@@ -79,6 +80,7 @@ export class Message extends Component {
         Composer,
         Dropdown: MessageDropdown,
         ImStatus,
+        MessageContextMenu,
         MessageInReply,
         MessageLinkPreviewList,
         MessageReactions,
@@ -94,6 +96,7 @@ export class Message extends Component {
         "asCard?",
         "registerMessageRef?",
         "hasActions?",
+        "messageSelection?",
         "isInChatWindow?",
         "onParentMessageClick?",
         "message",
@@ -152,6 +155,14 @@ export class Message extends Component {
         this.ui = useService("ui");
         this.openReactionMenu = this.openReactionMenu.bind(this);
         this.optionsDropdown = useDropdownState();
+        this.contextMenuDropdown = useDropdownState({
+            onClose: () => {
+                if (this.props.messageSelection) {
+                    this.props.messageSelection.messageId = undefined;
+                }
+            },
+        });
+        this.contextMenuAnchor = useChildRef("contextMenuAnchor");
         useSubEnv({ inMessage: true });
         useChildSubEnv({
             message: this.props.message,
@@ -319,9 +330,11 @@ export class Message extends Component {
             "pt-1": !this.props.asCard && !this.props.squashed,
             "o-pt-0_5": !this.props.asCard && this.props.squashed,
             "o-selfAuthored": this.message.isSelfAuthored && !this.env.messageCard,
-            "o-selected": this.props.message.composerAsReplyToMessage?.thread.eq(
-                this.props.thread,
-            ),
+            "o-selected":
+                this.props.message.composerAsReplyToMessage?.thread.eq(
+                    this.props.thread,
+                ) ||
+                this.props.messageSelection?.messageId === this.props.message.id,
             "o-squashed": this.props.squashed,
             "mt-1":
                 !this.props.squashed &&
@@ -550,6 +563,22 @@ export class Message extends Component {
             markEventHandled(ev, "Message.ClickFailure");
         }
         this.popover.open(ev.target, { message });
+    }
+
+    /** @param {MouseEvent} ev */
+    onContextMenu(ev) {
+        if (!document.getSelection()?.isCollapsed || isMobileOS()) {
+            // selecting text keeps the native menu; mobile has useLongPress
+            return;
+        }
+        const el = this.contextMenuAnchor.el;
+        el.style.left = ev.clientX + "px";
+        el.style.top = ev.clientY + "px";
+        this.contextMenuDropdown.open();
+        if (this.props.messageSelection) {
+            this.props.messageSelection.messageId = this.props.message.id;
+        }
+        ev.preventDefault();
     }
 
     /** @param {MouseEvent} [ev] */
