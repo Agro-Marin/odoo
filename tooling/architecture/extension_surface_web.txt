@@ -21,7 +21,7 @@ BinaryField.update  enterprise  :triage
 BooleanFavoriteField.update  odoo  :triage
 BooleanField.onChange  odoo enterprise  :keep
 BooleanField.setup  odoo enterprise  :keep
-BurgerMenu.setup  odoo  :keep
+BurgerMenu.setup  odoo enterprise  :keep
 CalendarArchParser.parse  enterprise  :triage
 CalendarCommonPopover.hasFooter  odoo  :keep
 CalendarCommonPopover.isEventDeletable  odoo enterprise  :keep
@@ -185,12 +185,8 @@ GraphRenderer.setup  enterprise  :triage
 GroupConfigMenu.canDeleteGroup  odoo  :triage
 GroupConfigMenu.canEditGroup  odoo  :triage
 GroupConfigMenu.deleteGroup  odoo enterprise  :keep
-GroupConfigMenu.permissions  odoo  :keep
+GroupConfigMenu.permissions  odoo enterprise  :keep
 GroupConfigMenu.setup  odoo enterprise  :keep
-HomeMenu._enableAppsSorting  enterprise  :promote
-HomeMenu._openMenu  enterprise  :promote
-HomeMenu.displayedApps  enterprise  :triage
-HomeMenu.setup  enterprise  :keep
 ImageField.onFileRemove  odoo  :triage
 ImageField.setup  odoo enterprise  :keep
 Interaction.destroy  odoo enterprise  :keep
@@ -233,7 +229,7 @@ KanbanRecord.record  enterprise  :triage
 KanbanRecord.renderingContext  odoo  :triage
 KanbanRecord.setup  odoo enterprise  :keep
 KanbanRecordQuickCreate.getQuickCreateProps  enterprise  :triage
-KanbanRenderer.archiveRecord  odoo  :keep
+KanbanRenderer.archiveRecord  odoo enterprise  :keep
 KanbanRenderer.canCreateGroup  odoo enterprise  :keep
 KanbanRenderer.canMoveRecords  enterprise  :triage
 KanbanRenderer.canResequenceGroups  enterprise  :keep
@@ -348,10 +344,12 @@ NameAndSignature.onClickSignDrawClear  enterprise  :triage
 NameAndSignature.onClickSignLoad  enterprise  :triage
 NameAndSignature.onInputSignName  enterprise  :triage
 NameAndSignature.setup  enterprise  :triage
+NavBar._openAppMenuSidebar  enterprise  :promote
 NavBar._updateMenuAppsIcon  enterprise  :promote
 NavBar.currentAppSections  odoo  :triage
 NavBar.hasBackgroundAction  enterprise  :triage
 NavBar.isInApp  enterprise  :triage
+NavBar.onAllAppsBtnClick  enterprise  :triage
 NavBar.onNavBarDropdownItemSelection  odoo enterprise  :keep
 NavBar.setup  odoo enterprise  :keep
 NavBar.systrayItems  odoo  :triage
@@ -367,6 +365,7 @@ PivotModel._getGroupsSubdivision  odoo enterprise  :promote
 PivotModel._loadData  odoo  :promote
 PivotModel.load  odoo enterprise  :keep
 PivotModel.setup  odoo enterprise  :keep
+PivotRenderer.getPadding  enterprise  :triage
 PivotRenderer.onGroupBySelected  odoo  :triage
 PivotRenderer.onOpenView  enterprise  :triage
 PivotRenderer.setup  enterprise  :keep
@@ -474,8 +473,9 @@ ViewController.actionMenuItems  odoo  :keep
 ViewController.afterExecuteActionButton  odoo enterprise  :keep
 ViewController.archiveDialogProps  odoo enterprise  :keep
 ViewController.deleteConfirmationDialogProps  odoo enterprise  :keep
+WebClient._loadDefaultApp  enterprise  :promote
 WebClient.loadRouterState  odoo  :triage
-WebClient.setup  odoo  :keep
+WebClient.setup  odoo enterprise  :keep
 WeekDays.onChange  odoo  :triage
 Widget.classNames  enterprise  :triage
 Widget.setup  enterprise  :triage

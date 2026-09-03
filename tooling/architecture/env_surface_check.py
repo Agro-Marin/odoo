@@ -56,7 +56,7 @@ LAYER1_CORE_MEMBERS: frozenset[str] = frozenset(
         "protected_ids",
     }
 )
-LAYER1_CORE_REACHES: int = 33
+LAYER1_CORE_REACHES: int = 34
 
 
 @dataclass(frozen=True)

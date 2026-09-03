@@ -218,14 +218,10 @@
 @web/views/view_utils  odoo enterprise agromarin
 @web/views/widgets  odoo enterprise
 @web/webclient/actions  odoo enterprise agromarin
-@web/webclient/burger_menu/burger_menu  odoo
+@web/webclient/burger_menu/burger_menu  odoo enterprise
 @web/webclient/clickbot/clickbot  enterprise
 @web/webclient/color_scheme/color_scheme_service  enterprise
-@web/webclient/home_menu/home_menu  enterprise
 @web/webclient/menus/menu_utils  enterprise
 @web/webclient/navbar/navbar  odoo enterprise
-@web/webclient/promote_studio/promote_studio_dialog  enterprise
-@web/webclient/promote_studio/promote_studio_list_renderer  enterprise
-@web/webclient/promote_studio/promote_studio_systray_item  enterprise
-@web/webclient/user_menu/user_menu  odoo
+@web/webclient/user_menu/user_menu  odoo enterprise
 @web/webclient/webclient  odoo enterprise
