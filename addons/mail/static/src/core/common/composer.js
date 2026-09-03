@@ -24,6 +24,7 @@ import {
     mapSuggestionsToOptions,
     useSuggestion,
 } from "@mail/core/common/suggestion_hook";
+import { getMentionsFromText } from "@mail/core/common/message_post";
 import { insertAtSelection } from "@mail/utils/common/composer_insert";
 import { trimEmptyBlocksAround } from "@mail/utils/common/format";
 import { useSelection } from "@mail/utils/common/hooks";
@@ -54,10 +55,19 @@ import {
 import { FileUploader } from "@web/core/file_upload";
 import { _t } from "@web/core/translation";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
-import { htmlJoin, isHtmlEmpty, setElementContent } from "@web/core/utils/dom/html";
+import {
+    htmlFormatList,
+    htmlJoin,
+    isHtmlEmpty,
+    setElementContent,
+} from "@web/core/utils/dom/html";
+import { Deferred } from "@web/core/utils/concurrency";
 import { isEmail } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { rootIdOf } from "@web/ui/overlay/root_id";
+export const MENTION_AMOUNT_WARNING = 50;
+
 const EDIT_CLICK_TYPE = {
     CANCEL: "cancel",
     SAVE: "save",
@@ -657,11 +667,79 @@ export class Composer extends Component {
                 return;
             }
         }
+        // Our editor syncs its (empty) content back into the record while a
+        // modal holds the focus, so hold the draft across the confirmation and
+        // put it back either way: discarding must leave the message alone.
+        const draft = composer.composerHtml;
+        const confirmed = await this.confirmLargeMentionAudience();
+        if (isHtmlEmpty(composer.composerHtml) && !isHtmlEmpty(draft)) {
+            composer.composerHtml = draft;
+            if (this.editor?.editable) {
+                setElementContent(this.editor.editable, draft);
+                this.setEditorCursorEnd();
+            }
+        }
+        if (!confirmed) {
+            return;
+        }
         await this.processMessage(
             /** @param {ReturnType<markup>|string} value */ async (value) => {
                 await this._sendMessage(value, this.postData, this.extraData);
             },
         );
+    }
+
+    /**
+     * Ask before a message notifies a crowd: `@everyone` in a big channel, or
+     * roles adding up to more people than the author is likely to expect.
+     *
+     * @returns {Promise<boolean>} whether sending should go ahead
+     */
+    async confirmLargeMentionAudience() {
+        const composer = toRaw(this.props.composer);
+        const { specialMentions, roles } = getMentionsFromText(
+            this.store,
+            composer.composerHtml,
+            { mentionedRoles: composer.mentionedRoles, thread: composer.thread },
+        );
+        const memberCount = composer.thread?.member_count ?? 0;
+        const everyoneIsACrowd =
+            specialMentions.includes("everyone") &&
+            memberCount > MENTION_AMOUNT_WARNING;
+        const roleAudience = roles.reduce(
+            /**
+             * @param {number} total
+             * @param {import("models").ResRole} role
+             */
+            (total, role) => total + (role.user_ids_count || 0),
+            0,
+        );
+        if (!everyoneIsACrowd && roleAudience <= MENTION_AMOUNT_WARNING) {
+            return true;
+        }
+        const confirmed = new Deferred();
+        this.env.services.dialog.add(ConfirmationDialog, {
+            body: _t(
+                "You're about to notify %(amount)s people with %(mention)s. Do you want to continue?",
+                {
+                    amount: everyoneIsACrowd ? memberCount : roleAudience,
+                    mention: everyoneIsACrowd
+                        ? markup`<a class="o-discuss-mention pe-none">@everyone</a>`
+                        : htmlFormatList(
+                              roles.map(
+                                  /** @param {import("models").ResRole} role */
+                                  (role) =>
+                                      markup`<a class="o-discuss-mention pe-none">@${role.name}</a>`,
+                              ),
+                          ),
+                },
+            ),
+            confirmLabel: _t("Send Message"),
+            cancelLabel: _t("Discard"),
+            confirm: () => confirmed.resolve(true),
+            cancel: () => confirmed.resolve(false),
+        });
+        return confirmed;
     }
 
     get postData() {

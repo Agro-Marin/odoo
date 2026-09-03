@@ -1,6 +1,6 @@
 import typing
 
-from odoo import fields, models
+from odoo import api, fields, models
 
 if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_users import ResUsers
@@ -21,6 +21,20 @@ class ResRole(models.Model):
         string="Users",
     )
 
+    user_ids_count = fields.Integer(compute="_compute_user_ids_count")
+
     _unique_name = models.UniqueIndex(
         "(name)", "A role with the same name already exists."
     )
+
+    @api.depends("user_ids")
+    def _compute_user_ids_count(self) -> None:
+        count_by_role = dict(
+            self.env["res.users"]._read_group(
+                [("role_ids", "in", self.ids)],
+                ["role_ids"],
+                ["__count"],
+            )
+        )
+        for role in self:
+            role.user_ids_count = count_by_role.get(role, 0)

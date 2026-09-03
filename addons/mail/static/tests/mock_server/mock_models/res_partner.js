@@ -111,8 +111,8 @@ export class ResPartner extends webModels.ResPartner {
             makeKwArgs({ limit: limit || 8 }),
         );
         store.add(
-            "res.role",
-            this.env["res.role"]._read_format(roleIds, ["name"], false),
+            this.env["res.role"].browse(roleIds),
+            makeKwArgs({ fields: ["name", "user_ids_count"] }),
         );
 
         return store.get_result();
@@ -187,8 +187,8 @@ export class ResPartner extends webModels.ResPartner {
             makeKwArgs({ limit: limit || 8 }),
         );
         store.add(
-            "res.role",
-            this.env["res.role"]._read_format(roleIds, ["name"], false),
+            this.env["res.role"].browse(roleIds),
+            makeKwArgs({ fields: ["name", "user_ids_count"] }),
         );
         return store.get_result();
     }

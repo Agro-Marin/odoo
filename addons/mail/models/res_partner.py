@@ -283,7 +283,7 @@ class ResPartner(models.Model):
         store = Store().add(partners, extra_fields=partners._get_fields_store_mention())
         try:
             roles = self.env["res.role"].search([("name", "ilike", search)], limit=8)
-            store.add(roles, "name")
+            store.add(roles, ["name", "user_ids_count"])
         except AccessError:
             pass
         return store.get_result()
