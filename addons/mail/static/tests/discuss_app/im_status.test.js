@@ -61,7 +61,7 @@ test("initially away", async () => {
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-mail-DiscussContent-header .o-mail-ImStatus i[title='Idle']");
+    await contains(".o-mail-DiscussContent-header .o-mail-ImStatus i.fa-adjust[title='Idle']");
 });
 
 test("change icon on change partner im_status", async () => {
@@ -85,7 +85,7 @@ test("change icon on change partner im_status", async () => {
         im_status: "away",
         presence_status: "away",
     });
-    await contains(".o-mail-DiscussContent-header .o-mail-ImStatus i[title='Idle']");
+    await contains(".o-mail-DiscussContent-header .o-mail-ImStatus i.fa-adjust[title='Idle']");
     pyEnv["res.partner"].write([serverState.partnerId], { im_status: "online" });
     pyEnv["bus.bus"]._sendone(serverState.partnerId, "bus.bus/im_status_updated", {
         partner_id: serverState.partnerId,

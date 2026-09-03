@@ -793,6 +793,20 @@ class MailActivity(models.Model):
         )
 
     @api.model
+    def _searching_by_date_done(self, domain: DomainType) -> bool:
+        """Whether the domain asks for a done date.
+
+        `action_done` archives the activity, so a leaf on `date_done` can only
+        ever be about archived records -- except a falsy one, which is how a
+        caller asks for the activities that are NOT done and must keep the
+        default `active_test`.
+        """
+        return any(
+            leaf.field_expr == "date_done" and leaf.value
+            for leaf in Domain(domain).iter_conditions()
+        )
+
+    @api.model
     def _domain_is_mine(self, domain: DomainType) -> bool:
         if not any(
             leaf.field_expr == "user_id" for leaf in Domain(domain).iter_conditions()
@@ -812,7 +826,9 @@ class MailActivity(models.Model):
         bypass_access: bool = False,
         **kwargs,
     ) -> Query:
-        if kwargs.get("active_test", True) and self._searching_by_state(domain):
+        if kwargs.get("active_test", True) and (
+            self._searching_by_state(domain) or self._searching_by_date_done(domain)
+        ):
             kwargs["active_test"] = False
         if self.env.is_superuser() or bypass_access:
             return super()._search(
