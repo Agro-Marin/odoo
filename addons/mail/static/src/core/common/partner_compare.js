@@ -24,6 +24,26 @@ partnerCompareRegistry.add(
 );
 
 partnerCompareRegistry.add(
+    "mail.self-last",
+    /**
+     * @param {import("models").ResPartner} p1
+     * @param {import("models").ResPartner} p2
+     * @returns {number|undefined}
+     */
+    (p1, p2) => {
+        const isSelf1 = p1.eq(p1.store.self);
+        const isSelf2 = p2.eq(p2.store.self);
+        if (isSelf1 && !isSelf2) {
+            return 1;
+        }
+        if (!isSelf1 && isSelf2) {
+            return -1;
+        }
+    },
+    { sequence: 7 },
+);
+
+partnerCompareRegistry.add(
     "mail.internal-users",
     /**
      * @param {import("models").ResPartner} p1

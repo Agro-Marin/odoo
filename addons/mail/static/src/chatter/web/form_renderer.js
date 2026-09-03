@@ -2,7 +2,6 @@
 import { WebChatter } from "@mail/chatter/web/web_chatter";
 import { AttachmentView } from "@mail/core/common/attachment_view";
 import { useState } from "@odoo/owl";
-import { router } from "@web/core/browser/router";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { SIZES } from "@web/ui/viewport";
@@ -14,7 +13,6 @@ patch(FormRenderer.prototype, {
             AttachmentView,
             Chatter: WebChatter,
         };
-        this.highlightMessageId = router.current.highlight_message_id;
         this.messagingState = useState({
             /** @type {import("models").Thread} */
             thread: undefined,

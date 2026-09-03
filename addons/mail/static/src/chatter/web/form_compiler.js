@@ -36,7 +36,6 @@ function compileChatter(node, params) {
         threadId: "__comp__.props.record.resId or undefined",
         threadModel: "__comp__.props.record.resModel",
         record: "__comp__.props.record",
-        highlightMessageId: "__comp__.highlightMessageId",
     });
     const chatterContainerHookXml = createElement("div");
     chatterContainerHookXml.classList.add(

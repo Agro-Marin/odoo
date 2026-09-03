@@ -46,6 +46,10 @@ class TestMailMessage(common.MailCommon):
             inexisting_message.browse().has_access("read"),
             "Should not crash (can read void)",
         )
+        self.assertFalse(
+            inexisting_message.has_access("read"),
+            "A message that does not exist is not accessible",
+        )
 
     def test_mail_message_read_access(self):
         self.env["res.company"].invalidate_model(["name"])

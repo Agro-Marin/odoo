@@ -39,7 +39,8 @@ test("Should open the search panel when search button is clicked", async () => {
     await click("[title='Search Messages']");
     await contains(".o-mail-SearchMessagesPanel");
     await contains(".o-mail-ActionPanel-header .o_searchview");
-    await contains(".o_searchview_input");
+    await contains(".o-mail-SearchMessagesPanel p:text('Search Messages')");
+    await contains(".o_searchview_input[placeholder='Search General']");
 });
 
 test.tags("desktop");

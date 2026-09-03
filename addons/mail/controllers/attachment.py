@@ -156,6 +156,12 @@ class AttachmentController(ThreadController):
             .sudo()
             .search([("attachment_ids", "in", attachment.ids)], limit=1)
         )
+        if message.model and message.message_type == "comment":
+            # sudo: mixin.mail.thread - ownership of the attachment is already
+            # validated above, and the only write is the edited marker on the
+            # very message that carried it.
+            thread_su = request.env[message.model].sudo().browse(message.res_id)
+            thread_su._message_update_content(message, body=message.body)
         attachment.sudo()._remove_and_notify(message)
 
     @http.route(["/mail/attachment/zip"], methods=["POST"], type="http", auth="public")

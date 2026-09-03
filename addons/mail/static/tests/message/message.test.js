@@ -2348,10 +2348,46 @@ test("Copy Message Link", async () => {
     await click(".o-mail-Message:eq(1) [title='Expand']");
     await click(".o-dropdown-item:contains('Copy Link')");
     await waitForSteps([url(`/mail/message/${messageId_2}`)]);
+    await contains(".o_notification:has(.o_notification_bar.bg-success)", {
+        text: "Message Link Copied",
+    });
     await press(["ctrl", "v"]);
     await press("Enter");
     await contains(`.o-mail-Message a[href='${url(`/mail/message/${messageId_2}`)}']`, {
         text: "channel1",
+    });
+});
+
+test("copying the text of a message says it copied the text, not the link", async () => {
+    mockTouch(true);
+    mockUserAgent("android");
+    patchWithCleanup(browser.navigator.clipboard, {
+        async writeText(text) {
+            asyncStep(text);
+            super.writeText(text);
+        },
+    });
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "general",
+        channel_type: "channel",
+    });
+    pyEnv["mail.message"].create({
+        author_id: serverState.partnerId,
+        body: "Hello world",
+        model: "discuss.channel",
+        res_id: channelId,
+        message_type: "comment",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message");
+    await pointerDown(".o-mail-Message");
+    await advanceTime(LONG_PRESS_DELAY);
+    await click("button:contains('Copy to Clipboard')");
+    await waitForSteps(["Hello world"]);
+    await contains(".o_notification:has(.o_notification_bar.bg-success)", {
+        text: "Text copied",
     });
 });
 

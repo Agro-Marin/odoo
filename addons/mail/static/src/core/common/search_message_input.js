@@ -93,4 +93,10 @@ export class SearchMessageInput extends Component {
             },
         ];
     }
+
+    get inputPlaceholder() {
+        return _t("Search %(threadName)s", {
+            threadName: this.props.thread.displayName,
+        });
+    }
 }
