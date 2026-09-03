@@ -10,7 +10,7 @@ from types import NotImplementedType
 from typing import Any, Literal, Self
 
 from lxml import html
-from psycopg import IntegrityError
+from psycopg.errors import UniqueViolation
 
 from odoo import _, api, fields, models, tools
 from odoo.api import DomainType, ValuesType
@@ -45,6 +45,7 @@ _image_dataurl = re.compile(
 
 PREVIEW_LENGTH = 190
 PREVIEW_PLACEHOLDER = "[...]"
+REACTION_CONTENT_MAX_LENGTH = 32
 
 
 class MailMessage(models.Model):
@@ -55,6 +56,17 @@ class MailMessage(models.Model):
     _rec_name = "subject"
 
     _mail_partner_fields = ()
+
+    _AUTHOR_FIELD_NAMES = ("author_id", "email_from")
+    _ENVELOPE_FIELD_NAMES = (
+        *_AUTHOR_FIELD_NAMES,
+        "author_guest_id",
+        "date",
+        "is_internal",
+        "message_type",
+        "pinned_at",
+        "subtype_id",
+    )
 
     @api.model
     def default_get(self, fields: list[str]) -> ValuesType:
@@ -330,14 +342,12 @@ class MailMessage(models.Model):
     @api.depends("notification_ids")
     @api.depends_context("uid")
     def _compute_needaction(self) -> None:
-        flagged = self._get_message_ids_with_notification(
-            [
-                ("res_partner_id", "=", self.env.user.partner_id.id),
-                ("is_read", "=", False),
-            ]
-        )
+        partner = self.env.user.partner_id
         for message in self:
-            message.needaction = message.id in flagged
+            message.needaction = any(
+                notification.res_partner_id == partner and not notification.is_read
+                for notification in message.sudo().notification_ids
+            )
 
     def _get_message_ids_with_notification(self, domain: DomainType) -> set[int]:
         return set(
@@ -356,11 +366,15 @@ class MailMessage(models.Model):
     ) -> list | NotImplementedType:
         if operator != "in":
             return NotImplemented
-        notification_ids = self.env["mail.notification"]._search(
-            [
-                ("res_partner_id", "=", self.env.user.partner_id.id),
-                ("is_read", "=", False),
-            ]
+        notification_ids = (
+            self.env["mail.notification"]
+            .sudo()
+            ._search(
+                [
+                    ("res_partner_id", "=", self.env.user.partner_id.id),
+                    ("is_read", "=", False),
+                ]
+            )
         )
         return [("notification_ids", "in", notification_ids)]
 
@@ -446,9 +460,11 @@ class MailMessage(models.Model):
         elif message.sudo(False).has_access(mode):
             return message
 
-        if not self.env.user._is_internal() and message.sudo(
-            False
-        )._get_forbidden_internal(mode):
+        if (
+            mode == "read"
+            and not self.env.user._is_internal()
+            and message.sudo(False)._get_forbidden_internal(mode)
+        ):
             return self.browse()
 
         if message.res_id and message._is_thread_model():
@@ -468,8 +484,8 @@ class MailMessage(models.Model):
         vals_list = [dict(values) for values in vals_list]
         if not (self.env.su or self.env.user.has_group("base.group_user")):
             for values in vals_list:
-                values.pop("author_id", None)
-                values.pop("email_from", None)
+                for field_name in self._AUTHOR_FIELD_NAMES:
+                    values.pop(field_name, None)
             self = self.with_context(
                 {
                     k: v
@@ -746,7 +762,7 @@ class MailMessage(models.Model):
             vals = {
                 key: value
                 for key, value in vals.items()
-                if key not in ("author_id", "email_from")
+                if key not in self._ENVELOPE_FIELD_NAMES
             }
         record_changed = "model" in vals or "res_id" in vals
         if record_changed and not self.env.is_system():
@@ -792,7 +808,7 @@ class MailMessage(models.Model):
                 message_ids_by_partner[partner].add(elem.id)
         for partner, message_ids in message_ids_by_partner.items():
             partner._bus_send("mail.message/delete", {"message_ids": list(message_ids)})
-        return super().unlink()
+        return super(MailMessage, self.sudo()).unlink()
 
     def export_data(self, fields_to_export: list[str]) -> dict:
         if not self.env.is_admin():
@@ -896,6 +912,12 @@ class MailMessage(models.Model):
         self.check_singleton()
         if action not in ("add", "remove"):
             raise ValueError(f"Wrong reaction action ({action})")
+        if (
+            not content
+            or not content.strip()
+            or len(content) > REACTION_CONTENT_MAX_LENGTH
+        ):
+            raise ValueError("Wrong reaction content")
         group = self._reaction_group(content)
         own = group.filtered(
             lambda reaction: (
@@ -912,7 +934,7 @@ class MailMessage(models.Model):
             try:
                 with self.env.cr.savepoint():
                     group |= self.env["mail.message.reaction"].create(create_values)
-            except IntegrityError:
+            except UniqueViolation:
                 group = self._reaction_group(content)
         if action == "remove" and own:
             own.unlink()

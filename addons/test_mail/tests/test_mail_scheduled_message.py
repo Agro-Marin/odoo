@@ -7,6 +7,7 @@ from odoo.tools import mute_logger
 
 from odoo.addons.base.tests.test_ir_cron import CronMixinCase
 from odoo.addons.mail.tests.common import MailCommon
+from odoo.addons.test_mail.models.mail_test_access import MailTestAccess
 from odoo.addons.test_mail.models.mail_test_lead import MailTestTLead
 from odoo.addons.test_mail.tests.common import TestRecipients
 
@@ -129,6 +130,47 @@ class TestScheduledMessageAccess(TestScheduledMessage):
             self.visible_scheduled_message.post_message()
         # unlink a message scheduled on a record the user can post to
         self.visible_scheduled_message.unlink()
+
+    @users("employee")
+    def test_read_access_is_decided_by_the_document(self):
+        hidden = self.hidden_scheduled_message.with_env(self.env)
+        visible = self.visible_scheduled_message.with_env(self.env)
+        self.assertFalse(hidden.has_access("read"))
+        with self.assertRaises(AccessError):
+            hidden.check_access("read")
+        self.assertTrue(visible.has_access("read"))
+        visible.check_access("read")
+        self.assertEqual((hidden + visible)._filtered_access("read"), visible)
+
+    @users("employee")
+    def test_post_access_follows_the_document_operation(self):
+        readonly_record = (
+            self.env["mail.test.access"]
+            .sudo()
+            .create({"access": "internal_ro", "name": "Readonly Record"})
+        )
+        Scheduled = self.env["mail.scheduled.message"]
+        for post_value, should_crash in (("read", False), ("write", True)):
+            with (
+                self.subTest(post_value=post_value),
+                patch.object(MailTestAccess, "_mail_post_access", post_value),
+            ):
+                if should_crash:
+                    with self.assertRaises(AccessError):
+                        self.schedule_message(readonly_record)
+                    continue
+                scheduled_message = self.schedule_message(readonly_record)
+                self.assertTrue(scheduled_message.has_access("read"))
+                self.assertEqual(
+                    Scheduled.search([("id", "=", scheduled_message.id)]),
+                    scheduled_message,
+                )
+                with patch.object(MailTestAccess, "_mail_post_access", "write"):
+                    self.env.invalidate_all()
+                    self.assertFalse(scheduled_message.has_access("read"))
+                    self.assertFalse(
+                        Scheduled.search([("id", "=", scheduled_message.id)])
+                    )
 
     @users("employee")
     def test_own_scheduled_message(self):
