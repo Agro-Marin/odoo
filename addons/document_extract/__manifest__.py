@@ -28,7 +28,9 @@ rest. Reading a scan's characters and decoding its codes are two more readers,
 registered by the modules that own those engines.
 
 Holds the bytes and derives ``text``, ``images``,
-``tree``, ``data``, ``rows`` and ``barcodes`` on first access, each at most once. PDF,
+``tree``, ``data``, ``rows`` and ``barcodes`` on first access, each at most once per
+ceiling -- a representation that came back empty is read again if the ceiling rises,
+and one that came back full never is. PDF,
 PNG, JPEG, WebP, GIF, BMP, XML and JSON today; a format is added by teaching
 one class to read it, and every strategy gains it.
 

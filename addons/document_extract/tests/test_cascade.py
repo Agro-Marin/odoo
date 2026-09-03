@@ -1,6 +1,6 @@
 import contextlib
 
-from odoo.libs.documents import Document
+from odoo.libs.documents import REPRESENTATIONS, Document
 from odoo.tests.common import BaseCase, tagged
 
 from odoo.addons.document_extract.tools import cascade
@@ -222,6 +222,17 @@ class TestCascade(BaseCase):
         with self.assertRaises(ValueError):
             with _registered(bad):
                 pass
+
+    def test_every_representation_the_document_layer_has_can_be_needed(self):
+        """The check used to restate the list and had gone stale by one: `rows`
+        arrived with base_import's spreadsheet readers and no strategy could
+        declare it. Asking the layer is what keeps the two from drifting again."""
+        for representation in REPRESENTATIONS:
+            with self.subTest(representation=representation):
+                with _registered(
+                    _Stub(f"needs_{representation}", {}, needs=(representation,))
+                ):
+                    pass
 
 
 @tagged("post_install", "-at_install")

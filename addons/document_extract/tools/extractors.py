@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Protocol, runtime_checkable
 
-from odoo.libs.documents import Document
+from odoo.libs.documents import REPRESENTATIONS, Document
 
 _logger = logging.getLogger(__name__)
 
@@ -62,9 +62,14 @@ def register_extractor(extractor: BaseExtractor) -> BaseExtractor:
     if not extractor.doc_types:
         raise ValueError(f"Extractor {extractor.name!r} declares no document types")
     for need in extractor.needs:
-        if need not in ("text", "images", "tree", "data", "barcodes"):
+        # Asked of the layer that owns the list rather than restated here. The
+        # restatement had gone stale: it predates `rows`, so a strategy reading
+        # a spreadsheet could not declare what it needed, on a document that
+        # has been able to supply it since base_import registered its readers.
+        if need not in REPRESENTATIONS:
             raise ValueError(
-                f"Extractor {extractor.name!r} needs unknown representation {need!r}"
+                f"Extractor {extractor.name!r} needs unknown representation "
+                f"{need!r}; expected one of {', '.join(REPRESENTATIONS)}"
             )
     if extractor.name in _EXTRACTORS:
         raise ValueError(

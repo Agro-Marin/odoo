@@ -217,16 +217,33 @@ class TestReadingPagesCostsMore(BaseCase):
         self.assertEqual(source.text, "")
         self.assertEqual(self.pages_read, [])
 
-    def test_the_ceiling_can_be_raised_on_a_document_already_held(self):
+    def test_the_ceiling_can_be_raised_on_a_document_already_read(self):
+        """Escalation reaches a document that has already answered emptily.
+
+        The cascade runs a free pass before it decides a document is worth
+        paying for, so by the time anything raises the ceiling the text has
+        been asked for and cached. A ceiling that only counted before the
+        first read would be a ceiling nothing could ever raise."""
         self._install(self.Engine())
         source = Document(_scan_pdf(), "application/pdf")
 
         self.assertEqual(source.text, "")
+        self.assertEqual(self.pages_read, [])
 
         source.options["read_up_to"] = EXPENSIVE
-        source._derived.pop("text")
 
         self.assertIn("139.86", source.text)
+        self.assertEqual(len(self.pages_read), 1)
+
+    def test_raising_the_ceiling_does_not_re_read_what_was_already_read(self):
+        self._install(self.Engine())
+        source = Document(_pdf(), "application/pdf")
+
+        self.assertIn("139.86", source.text)
+        source.options["read_up_to"] = EXPENSIVE
+
+        self.assertIn("139.86", source.text)
+        self.assertEqual(self.pages_read, [])
 
     def test_a_document_with_its_own_text_is_not_read_from_pixels(self):
         self._install(self.Engine())

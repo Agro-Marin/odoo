@@ -77,16 +77,18 @@ class Document:
         self.mimetype: str = guess_mimetype(data, declared=mimetype)
         self.options: dict[str, Any] = options
         self._derived: dict[str, Any] = {}
+        self._derived_at: dict[str, int] = {}
 
     @property
     def read_up_to(self) -> int:
         """The dearest reader this document may be derived by.
 
-        Read from the options on each access rather than fixed at construction:
-        a caller that decides mid-flight that a document is worth reading
-        properly raises the ceiling on the object it already holds. Named for
-        reading rather than for extraction, because a consumer of both sets two
-        ceilings and they are not the same question.
+        Read from the options on each access rather than fixed at construction,
+        so a caller that decides mid-flight that a document is worth reading
+        properly raises it on the object it already holds and the readers it
+        already refused are asked. Named for reading rather than for extraction,
+        because a consumer of both sets two ceilings and they are not the same
+        question.
         """
         return self.options.get("read_up_to", DEFAULT_READ_UP_TO)
 
@@ -156,9 +158,9 @@ class Document:
 
     @property
     def text(self) -> str:
-        if TEXT not in self._derived:
-            derived = self._derive(TEXT)
-            if derived is None and not get_readers(self.mimetype, TEXT):
+        derived = self._derive(TEXT)
+        if derived is None:
+            if not get_readers(self.mimetype, TEXT):
                 # Nobody claims this mimetype for text, so decoding the bytes is
                 # the whole of what a reader would have done. Gated on the
                 # registry rather than on `text/*`: a mimetype is a guess, and
@@ -191,19 +193,33 @@ class Document:
     def barcodes(self) -> list[str]:
         return self._derive(BARCODES) or []
 
+    def _is_read(self, representation: str, value: Any) -> bool:
+        """Whether an answer counts as having read the document.
+
+        `tree` is answered with `is not None` rather than truthiness: an lxml
+        element with no children is falsy, lxml warns it will stop being, and a
+        root element on its own is the shape a small EDI payload takes. Every
+        other representation is a container, where empty means nothing was read.
+        """
+        if value is None:
+            return False
+        return True if representation == TREE else bool(value)
+
     def provides(self, representation: str) -> bool:
         """Whether this document can supply a representation, non-empty.
 
-        ``tree`` is answered with ``is not None`` rather than truthiness: an
-        lxml element with no children is falsy, and a root element on its own is
-        the shape a small EDI payload takes.
+        Bounded by `read_up_to`, exactly as deriving is. A probe that answered
+        for a reader the ceiling forbids would promise a representation that
+        comes back empty -- and `BaseExtractor.applies_to` reads this to decide
+        whether to run a strategy, so the promise would be paid for.
         """
         if representation not in REPRESENTATIONS:
             raise ValueError(f"Unknown representation {representation!r}")
         cheap = [
             answer
             for reader in get_readers(self.mimetype, representation)
-            if (answer := reader.provides(self)) is not None
+            if reader.cost <= self.read_up_to
+            and (answer := reader.provides(self)) is not None
         ]
         if cheap:
             return any(cheap)
@@ -229,12 +245,22 @@ class Document:
         read the document are indistinguishable from the outside, so trying the
         next one is the only reading of an empty answer that cannot lose text.
         """
+        ceiling = self.read_up_to
         if representation in self._derived:
-            return self._derived[representation]
+            cached = self._derived[representation]
+            # A cached answer is re-read only when it is empty AND the ceiling
+            # has risen since it was taken. `_derive` stops at the first reader
+            # that reads something, so a cached non-empty answer is already what
+            # a dearer reader would never have been asked for; an empty one may
+            # be all the readers under the old ceiling had to say.
+            if self._is_read(representation, cached) or ceiling <= self._derived_at.get(
+                representation, ceiling
+            ):
+                return cached
         value = None
         clamp = representation == TEXT
         for reader in get_readers(self.mimetype, representation):
-            if reader.cost > self.read_up_to:
+            if reader.cost > ceiling:
                 continue
             try:
                 answer = reader.read(self)
@@ -249,11 +275,7 @@ class Document:
                 continue
             if answer is None:
                 continue
-            # Never truth-test the answer itself: an lxml element with no
-            # children is falsy today and lxml warns it will stop being, so a
-            # tree counts as read as soon as it is not None. Every other
-            # representation is a container, where empty means nothing was read.
-            read = True if representation == TREE else bool(answer)
+            read = self._is_read(representation, answer)
             if value is None or read:
                 value = answer
             if read:
@@ -265,6 +287,7 @@ class Document:
             # stayed in memory -- and would log the same warning per access.
             value = _clamp(value, self.name)
         self._derived[representation] = value
+        self._derived_at[representation] = ceiling
         return value
 
     def __repr__(self) -> str:

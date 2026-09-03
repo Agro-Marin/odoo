@@ -226,6 +226,80 @@ class TestDeriving(unittest.TestCase):
         finally:
             _forget(dear)
 
+    def test_provides_never_promises_what_the_ceiling_forbids(self):
+        """`BaseExtractor.applies_to` reads `provides` to decide whether to run a
+        strategy, so a probe answering for a reader the ceiling refuses would
+        select a strategy against a representation that comes back empty."""
+
+        class _Probing(_Stub):
+            def provides(self, document):
+                return True
+
+        dear = _Probing("dear", {"a/b"}, (TEXT,), "recognised", cost=EXPENSIVE)
+        register_reader(dear)
+        try:
+            doc = Document(b"...", "a/b", "x")
+            self.assertFalse(doc.provides(TEXT))
+            self.assertEqual(doc.text, "")
+
+            doc.options["read_up_to"] = EXPENSIVE
+            self.assertTrue(doc.provides(TEXT))
+        finally:
+            _forget(dear)
+
+    def test_an_empty_answer_is_re_read_when_the_ceiling_rises(self):
+        cheap = _Stub("cheap", {"a/b"}, (TEXT,), "", cost=FREE)
+        dear = _Stub("dear", {"a/b"}, (TEXT,), "recognised", cost=EXPENSIVE)
+        register_reader(cheap)
+        register_reader(dear)
+        try:
+            doc = Document(b"...", "a/b", "x")
+            self.assertEqual(doc.text, "")
+            self.assertEqual(dear.calls, 0)
+
+            doc.options["read_up_to"] = EXPENSIVE
+
+            self.assertEqual(doc.text, "recognised")
+            self.assertEqual(dear.calls, 1)
+            self.assertEqual(doc.text, "recognised")
+            self.assertEqual(dear.calls, 1)
+        finally:
+            _forget(cheap, dear)
+
+    def test_an_answer_that_was_read_is_never_re_read(self):
+        cheap = _Stub("cheap", {"a/b"}, (TEXT,), "the text layer", cost=FREE)
+        dear = _Stub("dear", {"a/b"}, (TEXT,), "recognised", cost=EXPENSIVE)
+        register_reader(cheap)
+        register_reader(dear)
+        try:
+            doc = Document(b"...", "a/b", "x")
+            self.assertEqual(doc.text, "the text layer")
+
+            doc.options["read_up_to"] = EXPENSIVE
+
+            self.assertEqual(doc.text, "the text layer")
+            self.assertEqual(cheap.calls, 1)
+            self.assertEqual(dear.calls, 0)
+        finally:
+            _forget(cheap, dear)
+
+    def test_a_childless_root_is_not_re_read_when_the_ceiling_rises(self):
+        from lxml import etree
+
+        root = etree.fromstring(b"<Invoice/>")
+        cheap = _Stub("cheap", {"a/b"}, (TREE,), root, cost=FREE)
+        dear = _Stub("dear", {"a/b"}, (TREE,), None, cost=EXPENSIVE)
+        register_reader(cheap)
+        register_reader(dear)
+        try:
+            doc = Document(b"...", "a/b", "x")
+            self.assertIs(doc.tree, root)
+            doc.options["read_up_to"] = EXPENSIVE
+            self.assertIs(doc.tree, root)
+            self.assertEqual(dear.calls, 0)
+        finally:
+            _forget(cheap, dear)
+
     def test_the_default_ceiling_admits_cheap_readers_and_no_dearer_ones(self):
         self.assertEqual(DEFAULT_READ_UP_TO, CHEAP)
 
