@@ -145,10 +145,14 @@ class WebsiteEventController(http.Controller):
         current_type = None
         current_country = None
 
-        if searches["type"] != "all":
+        if searches["type"] != "all" and searches["type"].isdigit():
             current_type = SudoEventType.browse(int(searches["type"]))
 
-        if searches["country"] != "all" and searches["country"] != "online":
+        if (
+            searches["country"] != "all"
+            and searches["country"] != "online"
+            and searches["country"].isdigit()
+        ):
             current_country = request.env["res.country"].browse(
                 int(searches["country"])
             )
@@ -237,10 +241,10 @@ class WebsiteEventController(http.Controller):
                 [
                     ("event_id", "=", event.id),
                     "|",
-                    ("view_id.key", "ilike", page),
+                    ("view_id.key", "=", page),
                     (
                         "view_id.key",
-                        "ilike",
+                        "=",
                         f"website_event.{event.name}-{base_page_name.split('/')[-1]}",
                     ),
                 ],
@@ -357,7 +361,7 @@ class WebsiteEventController(http.Controller):
                 ),  # next is used if the ticket id isn't known (alone event case)
             }
             for tid, count in ticket_order.items()
-            if count
+            if count > 0
         ]
 
     @http.route(
@@ -482,6 +486,20 @@ class WebsiteEventController(http.Controller):
                 raise UserError(
                     _("This ticket is not available for sale for this event")
                 )
+        for slot_id in list(
+            filter(
+                lambda x: x is not None,
+                [
+                    form_details[field] if "event_slot_id" in field else None
+                    for field in form_details
+                ],
+            )
+        ):
+            if (
+                int(slot_id) not in event.event_slot_ids.ids
+                and len(event.event_slot_ids.ids) > 0
+            ):
+                raise UserError(_("This slot is not available for this event"))
         registrations = {}
         general_answer_ids = []
         general_identification_answers = {}
@@ -608,6 +626,12 @@ class WebsiteEventController(http.Controller):
                 "/event/%s/register?registration_error_code=recaptcha_failed" % event.id
             )
         registrations_data = self._process_attendees_form(event, post)
+        if any(
+            "event_ticket_id" not in registration for registration in registrations_data
+        ):
+            return request.redirect(
+                "/event/%s/register?registration_error_code=missing_ticket" % event.id
+            )
         counter_per_combination = Counter(
             (registration.get("event_slot_id", False), registration["event_ticket_id"])
             for registration in registrations_data
@@ -617,11 +641,11 @@ class WebsiteEventController(http.Controller):
             ticket_id for _, ticket_id in counter_per_combination if ticket_id
         }
         slots_per_id = {
-            slot.id: slot for slot in self.env["event.slot"].browse(slot_ids)
+            slot.id: slot for slot in request.env["event.slot"].browse(slot_ids)
         }
         tickets_per_id = {
             ticket.id: ticket
-            for ticket in self.env["event.event.ticket"].browse(ticket_ids)
+            for ticket in request.env["event.event.ticket"].browse(ticket_ids)
         }
         try:
             event._check_seats_availability(

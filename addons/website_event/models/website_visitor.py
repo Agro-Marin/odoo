@@ -104,6 +104,8 @@ class WebsiteVisitor(models.Model):
 
     def _merge_visitor(self, target):
         """Override linking process to link registrations to the final visitor."""
+        if not target.partner_id:
+            raise ValueError("The `target` visitor should be linked to a partner.")
         self.event_registration_ids.visitor_id = target.id
         registration_wo_partner = self.event_registration_ids.filtered(
             lambda registration: not registration.partner_id

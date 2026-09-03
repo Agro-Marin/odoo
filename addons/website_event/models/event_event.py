@@ -185,7 +185,7 @@ class EventEvent(models.Model):
         if self:
             base_domain = Domain("event_id", "in", self.ids) & base_domain
 
-        visitor_domain = Domain.TRUE
+        visitor_domain = Domain.FALSE
         partner_id = self.env.user.partner_id
         if current_visitor:
             visitor_domain = Domain("visitor_id", "=", current_visitor.id)
@@ -761,6 +761,8 @@ class EventEvent(models.Model):
                     )
                 ) or literal_eval(tags)
             except SyntaxError:
+                pass
+            except ValueError:
                 pass
             else:
                 # perform a search to filter on existing / valid tags implicitely + apply rules on color

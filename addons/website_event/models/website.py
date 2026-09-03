@@ -60,7 +60,10 @@ class Website(models.Model):
 
         if website_event_menu and new_page.get("view_id"):
             website_event_menu.view_id = new_page["view_id"]
-            website_event_menu.view_id.key = f"website_event.{website_event_menu.event_id.name}-{name.split('/')[-1]}"
+            website_event_menu.view_id.key = self.get_unique_key(
+                f"{website_event_menu.event_id.name}-{name.split('/')[-1]}",
+                "website_event",
+            )
 
             arch = website_event_menu.view_id.arch
             if arch:
@@ -79,7 +82,7 @@ class Website(models.Model):
                     content_container.attrib.pop("id", None)
 
                     if sections_arch:
-                        for section in wrap.xpath("//section"):
+                        for section in wrap.xpath("./section"):
                             # to be properly editable, the content needs to be contained within a
                             # single empty oe_structure, unlike 'wrap' that has the event menu inside
                             wrap.remove(section)
