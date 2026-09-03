@@ -51896,3 +51896,69 @@ msgstr ""
 msgid ""
 "You have to specify a filter for your selection, or tick Similar Names."
 msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_actions_embedded.py:0
+msgid "An embedded action needs either an action or a python method to open."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_actions_embedded.py:0
+msgid "An embedded action needs the model it is shown on."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_sequence.py:0
+msgid ""
+"Cannot create a sequence date range for %(date)s on sequence '%(seq)s': the "
+"neighbouring ranges leave no room between %(date_from)s and %(date_to)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_lang.py:0
+msgid ""
+"Cannot deactivate a language that is used by archived users, such as the "
+"ones automated processes run as."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_attachment_storage.py:0
+msgid ""
+"The content of attachment %(id)s is held by a storage backend that is not "
+"installed (%(key)s)."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_sequence.py:0
+msgid ""
+"The date range %(date_from)s - %(date_to)s of sequence '%(seq)s' ends before"
+" it starts."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_sequence.py:0
+msgid ""
+"The date range %(date_from)s - %(date_to)s of sequence '%(seq)s' overlaps "
+"%(other_from)s - %(other_to)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_actions_client.py:0
+msgid ""
+"The parameters of client action '%(name)s' must be a dictionary, not "
+"%(type)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_actions_report.py:0
+msgid "You are not allowed to print the report “%s”."
+msgstr ""
