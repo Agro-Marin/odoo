@@ -2,6 +2,7 @@
 import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
 import { fillEmpty } from "@html_editor/utils/dom";
 import { isEmpty } from "@html_editor/utils/dom_info";
+import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
 import { markup } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
@@ -79,10 +80,10 @@ export class HtmlComposerMessageField extends HtmlMailField {
                 }
                 this.props.record.data.attachment_ids.linkTo(attachment.id, attachment);
             };
-        config.thread = this.env.services["mail.store"]?.Thread.get({
-            model: this.props.record.data.model,
-            id: JSON.parse(this.props.record.data.res_ids || "[]")[0],
-        });
+        const store = this.env.services["mail.store"];
+        config.thread = store
+            ? getComposerTargetThreads(store, this.props.record)[0]
+            : undefined;
         return config;
     }
 

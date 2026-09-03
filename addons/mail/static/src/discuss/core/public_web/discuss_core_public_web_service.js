@@ -75,6 +75,10 @@ export class DiscussCorePublicWeb {
     async onServiceWorkerMessage(action, data) {
         if (action === "OPEN_CHANNEL") {
             await this.openPushedChannel(data);
+        } else if (action === "OPEN_RECORD") {
+            this.store.Thread.insert({ model: data.model, id: data.res_id }).open({
+                focus: true,
+            });
         } else if (action === "POST_RTC_LOGS") {
             this.downloadRtcLogs(data);
         }

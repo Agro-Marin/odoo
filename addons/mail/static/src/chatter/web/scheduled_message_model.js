@@ -1,8 +1,10 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { htmlToTextContentInline } from "@mail/utils/common/format";
-import { ConnectionAbortedError, ConnectionLostError } from "@web/core/network";
+import { RPCError } from "@web/core/network";
 import { _t } from "@web/core/translation";
+
+const ALREADY_SENT_EXCEPTION = "odoo.exceptions.MissingError";
 export class ScheduledMessage extends Record {
     static _name = "mail.scheduled.message";
     static id = "id";
@@ -73,18 +75,26 @@ export class ScheduledMessage extends Record {
                 [this.id],
             );
         } catch (e) {
-            if (
-                e instanceof ConnectionLostError ||
-                e instanceof ConnectionAbortedError
-            ) {
-                throw e;
-            }
-            this.notifyAlreadySent();
+            this.handleServerError(e);
             return;
         }
         return new Promise((resolve) =>
             this.store.env.services.action.doAction(action, { onClose: resolve }),
         );
+    }
+
+    /** @param {Error} error */
+    handleServerError(error) {
+        if (!(error instanceof RPCError)) {
+            throw error;
+        }
+        if (error.exceptionName === ALREADY_SENT_EXCEPTION) {
+            this.notifyAlreadySent();
+            return;
+        }
+        this.store.env.services.notification.add(error.data?.message || error.message, {
+            type: "danger",
+        });
     }
 
     notifyAlreadySent() {
@@ -104,13 +114,7 @@ export class ScheduledMessage extends Record {
                 [this.id],
             );
         } catch (e) {
-            if (
-                e instanceof ConnectionLostError ||
-                e instanceof ConnectionAbortedError
-            ) {
-                throw e;
-            }
-            return;
+            this.handleServerError(e);
         }
     }
 }

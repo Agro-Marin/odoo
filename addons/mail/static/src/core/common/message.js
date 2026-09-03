@@ -10,15 +10,11 @@ import { handleValidChannelMention } from "@mail/core/common/message_post";
 import { MessageReactionMenu } from "@mail/core/common/message_reaction_menu";
 import { MessageReactions } from "@mail/core/common/message_reactions";
 import { htmlToTextContentInline } from "@mail/utils/common/format";
-import { useLongPress } from "@mail/utils/common/hooks";
+import { useLongPress, useRegisterMessageRef } from "@mail/utils/common/hooks";
 import { loadCssFromBundle } from "@mail/utils/common/misc";
 import {
     Component,
-    onMounted,
-    onPatched,
-    onWillDestroy,
     onWillRender,
-    onWillUpdateProps,
     status,
     toRaw,
     useChildSubEnv,
@@ -125,21 +121,13 @@ export class Message extends Component {
         });
         /** @type {ShadowRoot} */
         this.shadowRoot;
-        this.root = useRef("root");
+        this.root = useRegisterMessageRef();
         if (isMobileOS()) {
             useLongPress("root", {
                 action: () => this.openMobileActions(),
                 predicate: () => !this.isEditing,
             });
         }
-        onWillUpdateProps(
-            /** @param {Object} nextProps */ (nextProps) => {
-                this.props.registerMessageRef?.(this.props.message, null);
-            },
-        );
-        onMounted(() => this.props.registerMessageRef?.(this.props.message, this.root));
-        onPatched(() => this.props.registerMessageRef?.(this.props.message, this.root));
-        onWillDestroy(() => this.props.registerMessageRef?.(this.props.message, null));
         this.hasTouch = hasTouch;
         this.messageBody = useRef("body");
         this.messageActions = useMessageActions({

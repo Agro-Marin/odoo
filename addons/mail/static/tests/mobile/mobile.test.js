@@ -23,7 +23,12 @@ import { LONG_PRESS_DELAY } from "@mail/utils/common/hooks";
 import { describe, test } from "@odoo/hoot";
 import { advanceTime, pointerDown, press } from "@odoo/hoot-dom";
 import { Deferred, mockTouch, mockUserAgent } from "@odoo/hoot-mock";
-import { asyncStep, serverState, waitForSteps } from "@web/../tests/web_test_helpers";
+import {
+    asyncStep,
+    patchTranslations,
+    serverState,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 
 describe.current.tags("mobile");
@@ -156,4 +161,21 @@ test("click on an odoo link should fold the chat window (mobile)", async () => {
     await openListView("discuss.channel", { res_id: channelId });
     await contains(".o-mail-ChatBubble");
     assertChatHub({ folded: [channelId] });
+});
+
+test("closing a chat window opened from the messaging menu reopens the menu in a translated UI", async () => {
+    patchTranslations({ mail: { Messages: "Mensajes" } });
+    const pyEnv = await startServer();
+    pyEnv["discuss.channel"].create({ name: "General" });
+    patchUiSize({ size: SIZES.SM });
+    await start();
+    await click(".o_menu_systray i[aria-label='Mensajes']");
+    await click(".o-mail-NotificationItem", { text: "General" });
+    await contains(".o-mail-ChatWindow", { text: "General" });
+    await contains(".o-mail-MessagingMenu", { count: 0 });
+    await click(".o-mail-ChatWindow [title*='Close Chat Window']");
+    await contains(".o-mail-ChatWindow", { count: 0 });
+    await contains(".o-mail-MessagingMenu .o-mail-NotificationItem", {
+        text: "General",
+    });
 });

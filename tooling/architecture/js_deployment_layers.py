@@ -1,6 +1,7 @@
 import argparse
 import json
 import posixpath
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,11 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_deployment_layers")
 ADDON_ROOTS: tuple[Path, ...] = (ROOT / "addons", ROOT / "odoo" / "addons")
 
 EXCLUDED_PARTS = frozenset({"lib", "legacy", "__pycache__"})
+SOURCE_SUFFIXES = frozenset({".js", ".xml"})
+
+STATIC_TEMPLATE_RE = re.compile(r"""\bstatic\s+template\s*=\s*["']([\w.-]+)["']""")
+T_NAME_RE = re.compile(r"""\bt-name=["']([\w.-]+)["']""")
+T_INHERIT_RE = re.compile(r"""\bt-inherit=["']([\w.-]+)["']""")
 
 BACKEND, PUBLIC, PORTAL = "backend", "public", "portal"
 
@@ -69,7 +75,7 @@ def addon_src_dirs() -> dict[str, Path]:
 def iter_source_files() -> list[tuple[str, Path, Path]]:
     out: list[tuple[str, Path, Path]] = []
     for addon, src in addon_src_dirs().items():
-        for path in sorted(src.rglob("*.js")):
+        for path in sorted(p for p in src.rglob("*") if p.suffix in SOURCE_SUFFIXES):
             rel_parts = path.relative_to(src).parts
             if EXCLUDED_PARTS.intersection(rel_parts):
                 continue
@@ -107,6 +113,38 @@ def _is_known(module: str, target: str) -> bool:
     return any(k.module == module and k.imports == target for k in KNOWN_VIOLATIONS)
 
 
+def _lineno(text: str, offset: int) -> int:
+    return text.count("\n", 0, offset) + 1
+
+
+def _read(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError) as exc:  # pragma: no cover
+        print(f"warning: could not read {path}: {exc}", file=sys.stderr)
+        return None
+
+
+def index_templates(files: list[tuple[str, Path, Path]]) -> dict[str, str]:
+
+    defined: dict[str, str] = {}
+    for addon, src, path in files:
+        if path.suffix != ".xml":
+            continue
+        text = _read(path)
+        if text is None:
+            continue
+        rel = path.relative_to(src).as_posix()
+        for match in T_NAME_RE.finditer(text):
+            defined.setdefault(match.group(1), f"{addon}/{rel}")
+    return defined
+
+
+def template_references(path: Path, text: str) -> list[tuple[str, int]]:
+    pattern = STATIC_TEMPLATE_RE if path.suffix == ".js" else T_INHERIT_RE
+    return [(m.group(1), _lineno(text, m.start())) for m in pattern.finditer(text)]
+
+
 def check(
     files: list[tuple[str, Path, Path]] | None = None,
 ) -> tuple[list[Violation], list[Violation]]:
@@ -115,20 +153,26 @@ def check(
     known: list[Violation] = []
     selected = files if files is not None else iter_source_files()
     addons = frozenset(a for a, _, _ in selected)
+    templates = index_templates(selected)
     for addon, src, path in selected:
         rel = path.relative_to(src).as_posix()
         src_layer = layer_of(rel)
         src_bundles = LAYER_BUNDLES[src_layer]
         module = f"{addon}/{rel.removesuffix('.js')}"
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError) as exc:  # pragma: no cover
-            print(f"warning: could not read {path}: {exc}", file=sys.stderr)
+        text = _read(path)
+        if text is None:
             continue
-        for spec, lineno in collect_imports(text):
-            target = resolve(spec, addon, rel, addons)
-            if target is None:
-                continue
+        edges: list[tuple[str, int]] = []
+        if path.suffix == ".js":
+            for spec, lineno in collect_imports(text):
+                target = resolve(spec, addon, rel, addons)
+                if target is not None:
+                    edges.append((target, lineno))
+        for name, lineno in template_references(path, text):
+            defining_file = templates.get(name)
+            if defining_file is not None:
+                edges.append((f"{defining_file}#{name}", lineno))
+        for target, lineno in edges:
             target_layer = layer_of(target.partition("/")[2])
             if target_layer is None:
                 continue
@@ -198,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{len(known)} known violation(s) tolerated (tracked debt):")
         for v in known:
             print(f"  {v.module} -> {v.imports}")
-    print(f"\nLayered files scanned: {scanned}")
+    print(f"\nLayered files scanned (JS and XML): {scanned}")
     print(f"New: {len(new)}   Known/tolerated: {len(known)}")
     return 1 if (args.check and new) else 0
 

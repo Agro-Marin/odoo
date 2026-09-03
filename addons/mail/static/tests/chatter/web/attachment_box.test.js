@@ -250,3 +250,28 @@ test("attachment should be uploaded on the correct record when using the pager n
     await contains(".o-mail-AttachmentCard", { text: "A.jpeg" });
     await contains(".o-mail-AttachmentCard", { text: "B.jpeg" });
 });
+
+test("attachment box closes once its last attachment is unlinked", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    pyEnv["ir.attachment"].create({
+        mimetype: "text/plain",
+        name: "Blah.txt",
+        res_id: partnerId,
+        res_model: "res.partner",
+    });
+    await start();
+    await openFormView("res.partner", partnerId, {
+        arch: `
+            <form>
+                <sheet></sheet>
+                <chatter open_attachments="True"/>
+            </form>`,
+    });
+    await contains(".o-mail-AttachmentBox");
+    await contains(".o-mail-AttachmentCard", { text: "Blah.txt" });
+    await click("button[title='Remove']");
+    await click(".modal-footer .btn-primary");
+    await contains(".o-mail-AttachmentCard", { count: 0 });
+    await contains(".o-mail-AttachmentBox", { count: 0 });
+});

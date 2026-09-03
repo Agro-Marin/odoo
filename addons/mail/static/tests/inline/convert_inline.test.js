@@ -1900,3 +1900,18 @@ test("a masonry row asking for full height is given a share of its parent", asyn
     expect(rows.length).toBe(2);
     expect(rows[0].style.height).toMatch(/^[\d.]+px$/);
 });
+
+test("an !important stylesheet rule overwrites the same property declared inline", async () => {
+    editable = document.createElement("div");
+    const styleSheet = document.head.appendChild(document.createElement("style")).sheet;
+    styleSheet.insertRule(
+        ".test-important-beats-inline { color: black !important; }",
+        0,
+    );
+    editable.innerHTML = `<div class="test-important-beats-inline" style="color: yellow; margin: 1px;"></div>`;
+    classToStyle(editable, getCSSRules(editable.ownerDocument));
+    expect(editable).toHaveInnerHTML(
+        `<div class="test-important-beats-inline" style="box-sizing:border-box;color:black;margin: 1px;"></div>`,
+    );
+    styleSheet.ownerNode.remove();
+});

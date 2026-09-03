@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { dataUrlToBlob } from "@mail/core/common/attachment_uploader_hook";
+import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
 import { Component } from "@odoo/owl";
 import { FileUploader } from "@web/core/file_upload";
 import { registry } from "@web/core/registry";
@@ -22,18 +23,7 @@ export class MailComposerAttachmentSelector extends Component {
 
     /** @param {Object} data */
     async onFileUploaded({ data, name, type }) {
-        let resIds;
-        if (this.props.record.resModel === "mail.scheduled.message") {
-            resIds = [this.props.record.data.res_id.resId];
-        } else {
-            resIds = this.props.record.data.res_ids
-                ? JSON.parse(this.props.record.data.res_ids)
-                : this.props.record.context.active_ids;
-        }
-        const thread = await this.mailStore.Thread.insert({
-            model: this.props.record.data.model,
-            id: resIds[0],
-        });
+        const [thread] = getComposerTargetThreads(this.mailStore, this.props.record);
         const file = new File([dataUrlToBlob(data, type)], name, { type });
         const isThreadComposer = this.props.record.context.is_thread_composer;
         let composer = isThreadComposer ? thread.composer : undefined;

@@ -10,8 +10,13 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
+import { Thread } from "@mail/core/common/thread_model";
 import { describe, expect, test } from "@odoo/hoot";
-import { mockService, serverState } from "@web/../tests/web_test_helpers";
+import {
+    mockService,
+    patchWithCleanup,
+    serverState,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -244,4 +249,41 @@ test("read more/less should appear only once for the signature", async () => {
     expect(".o-mail-Message .o-signature-container button.o-mail-ellipsis").toHaveCount(
         1,
     );
+});
+
+test("the form renderer inserts the record's thread once, not once per layout read", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    pyEnv["ir.attachment"].create({
+        mimetype: "application/pdf",
+        name: "Blah.pdf",
+        res_id: partnerId,
+        res_model: "res.partner",
+    });
+    let threadInserts = 0;
+    patchWithCleanup(Thread, {
+        insert(data) {
+            if (data?.model === "res.partner" && data?.id === partnerId) {
+                threadInserts++;
+            }
+            return super.insert(...arguments);
+        },
+    });
+    await start();
+    await openFormView("res.partner", partnerId, {
+        arch: `
+            <form>
+                <sheet>
+                    <field name="name"/>
+                </sheet>
+                <chatter/>
+            </form>`,
+    });
+    await contains(".o-mail-Chatter");
+    await contains(".o-mail-Chatter-attachFiles sup", { text: "1" });
+    const insertsAfterMount = threadInserts;
+    expect(insertsAfterMount).toBeLessThan(6);
+    await insertText("[name='name'] input", "Jane Doe", { replace: true });
+    await contains("[name='name'] input", { value: "Jane Doe" });
+    expect(threadInserts).toBe(insertsAfterMount);
 });

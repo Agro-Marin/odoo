@@ -24,6 +24,8 @@ import { queryFirst } from "@odoo/hoot-dom";
 import { advanceTime, Deferred } from "@odoo/hoot-mock";
 import {
     asyncStep,
+    clickFieldDropdown,
+    clickFieldDropdownItem,
     defineActions,
     getService,
     makeServerError,
@@ -939,4 +941,33 @@ test("saving a record still refreshes its chatter data", async () => {
     await click(".o_form_button_save");
     await advanceTime(1000);
     expect(fetchedThreadIds).toEqual([partnerId, partnerId]);
+});
+
+test("the message composer shows before the suggested recipients have been fetched", async () => {
+    const pyEnv = await startServer();
+    pyEnv["res.partner"].create({ name: "Peter Johnson", email: "peter@johnson.be" });
+    const fakeId = pyEnv["res.fake"].create({});
+    const recipientsFetched = new Deferred();
+    onRpc("/mail/thread/recipients/get_suggested_recipients", async () => {
+        asyncStep("get_suggested_recipients");
+        await recipientsFetched;
+    });
+    await start();
+    await openFormView("res.fake", fakeId, {
+        arch: `
+            <form>
+                <sheet>
+                    <field name="partner_id"/>
+                </sheet>
+                <chatter/>
+            </form>`,
+    });
+    await clickFieldDropdown("partner_id");
+    await clickFieldDropdownItem("partner_id", "Peter Johnson");
+    await click("button", { text: "Send message" });
+    await waitForSteps(["get_suggested_recipients"]);
+    await contains(".o-mail-Composer");
+    await contains(".o-mail-RecipientsInput");
+    recipientsFetched.resolve();
+    await contains(".o-mail-Composer");
 });

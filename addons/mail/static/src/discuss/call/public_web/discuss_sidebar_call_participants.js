@@ -6,7 +6,7 @@ import {
 } from "@mail/discuss/call/common/call_actions";
 import { AvatarStack } from "@mail/discuss/core/common/avatar_stack";
 import { useHover } from "@mail/utils/common/hooks";
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, onWillRender, useEffect, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -35,6 +35,9 @@ export class DiscussSidebarCallParticipants extends Component {
         this.floating = useDropdownState();
         this.CALL_ICON_DEAFEN = CALL_ICON_DEAFEN;
         this.CALL_ICON_MUTED = CALL_ICON_MUTED;
+        /** @type {import("models").RtcSession[]} */
+        this.sessions = [];
+        onWillRender(() => this.computeSessions());
         useEffect(
             /**
              * @param {import("models").RtcSession|undefined} selfSession
@@ -59,35 +62,15 @@ export class DiscussSidebarCallParticipants extends Component {
         return this.store.discuss.isSidebarCompact;
     }
 
-    get lastActiveSession() {
-        const sessions = [...this.props.thread.rtc_session_ids];
-        sessions?.sort((s1, s2) => {
-            if (s1.isActuallyTalking && !s2.isActuallyTalking) {
-                return -1;
-            }
-            if (!s1.isActuallyTalking && s2.isActuallyTalking) {
-                return 1;
-            }
-            if (s1.isVideoStreaming && !s2.isVideoStreaming) {
-                return -1;
-            }
-            if (!s1.isVideoStreaming && s2.isVideoStreaming) {
-                return 1;
-            }
-            return s2.talkingTime - s1.talkingTime;
-        });
-        return sessions[0];
-    }
-
     get attClass() {
         return {
             "justify-content-center bg-inherit": this.compact,
         };
     }
 
-    get sessions() {
+    computeSessions() {
         const sessions = [...this.props.thread.rtc_session_ids];
-        return sessions.sort((s1, s2) => {
+        this.sessions = sessions.sort((s1, s2) => {
             const persona1 = s1.channel_member_id?.persona;
             const persona2 = s2.channel_member_id?.persona;
             return (

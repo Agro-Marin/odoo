@@ -43,18 +43,18 @@ export class DiscussAppCategory extends Record {
         /** @this {import("models").DiscussAppCategory} */
         compute() {
             return Boolean(
-                localStorage.getItem(`mail.sidebar_category_${this.id}_hidden`),
+                browser.localStorage.getItem(`mail.sidebar_category_${this.id}_hidden`),
             );
         },
         /** @this {import("models").DiscussAppCategory} */
         onUpdate() {
             const key = `mail.sidebar_category_${this.id}_hidden`;
             if (!this.hidden && this.hidden !== undefined) {
-                if (localStorage.getItem(key) !== null) {
-                    localStorage.removeItem(key);
+                if (browser.localStorage.getItem(key) !== null) {
+                    browser.localStorage.removeItem(key);
                 }
             } else {
-                localStorage.setItem(key, true);
+                browser.localStorage.setItem(key, true);
             }
         },
     });

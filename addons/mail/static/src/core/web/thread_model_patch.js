@@ -11,8 +11,6 @@ import { fields } from "../common/record.js";
 const threadPatch = {
     setup() {
         super.setup();
-        /** @type {number|undefined} */
-        this.recipientsCount = undefined;
         this.recipients = fields.Many("mail.followers");
         this.activities = fields.Many("mail.activity", {
             sort: (a, b) =>
@@ -36,9 +34,6 @@ const threadPatch = {
             },
         });
     },
-    get recipientsFullyLoaded() {
-        return this.recipientsCount === this.recipients.length;
-    },
     computeIsDisplayed() {
         return this.isDisplayedInDiscussAppDesktop || super.computeIsDisplayed();
     },
@@ -47,15 +42,6 @@ const threadPatch = {
             this.model,
             "message_get_followers",
             [[this.id], this.followers.at(-1).id],
-        );
-        this.store.insert(data);
-    },
-    async loadMoreRecipients() {
-        const data = await this.store.env.services.orm.call(
-            this.model,
-            "message_get_followers",
-            [[this.id], this.recipients.at(-1).id],
-            { filter_recipients: true },
         );
         this.store.insert(data);
     },

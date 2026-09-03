@@ -35,8 +35,11 @@ resolves to `undefined` on the public page, where `web/` is absent. See CONVENTI
 **This is now gated, not just documented.** `tooling/architecture/js_deployment_layers.py`
 enforces it drift-zero across every addon using the convention (mail plus `im_livechat`,
 `hr_holidays`, `whatsapp`, `cloud_storage`, …), including cross-addon and relative
-imports. It runs in `.github/workflows/architecture.yml` and is blocking. The tree was at
-zero when the gate landed and `KNOWN_VIOLATIONS` is empty.
+imports, and — since 2026-09-02 — the template axis too: a component's `static template =
+"…"` and an XML `t-inherit="…"` are checked against the layer of the file that defines the
+`t-name`, so a `web_portal/` component can no longer be declared on a `web/` template. It runs
+in `.github/workflows/architecture.yml` and is blocking. The tree was at zero when the gate
+landed and `KNOWN_VIOLATIONS` is empty.
 
 Directories on disk carrying these suffixes: `core/{common,public_web,web_portal,web}`,
 `chatter/{web,web_portal}`, `discuss/call/{common,public,public_web,web}`,

@@ -14,6 +14,7 @@ import { manuallyDispatchProgrammaticEvent, queryAll } from "@odoo/hoot-dom";
 import { advanceTime, Deferred, mockDate } from "@odoo/hoot-mock";
 import {
     getService,
+    makeServerError,
     mockService,
     onRpc,
     patchWithCleanup,
@@ -493,4 +494,55 @@ test("widget mail_composer_attachment_selector: edit attachment of scheduled mes
     });
     await isUploaded;
     await contains("[name='attachment_ids'] a", { text: "text.txt" });
+});
+
+test("send() reports a server error other than 'already sent' with its own message", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv.user.partner_id;
+    pyEnv["mail.scheduled.message"].create({
+        subject: "Greetings",
+        body: "<p>Hello There</p>",
+        model: "res.partner",
+        res_id: partnerId,
+        scheduled_date: "2024-10-20 14:00:00",
+    });
+    onRpc("mail.scheduled.message", "post_message", () => {
+        throw makeServerError({
+            type: "AccessError",
+            message: "You are not allowed to send this scheduled message",
+        });
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click(".o-mail-Scheduled-Message-buttons .btn", { text: "Send Now" });
+    await contains(".o_notification", {
+        text: "You are not allowed to send this scheduled message",
+    });
+    await contains(".o_notification", {
+        text: "This message has already been sent.",
+        count: 0,
+    });
+    await contains(".o-mail-Scheduled-Message");
+});
+
+test("send() reports a vanished scheduled message as already sent", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv.user.partner_id;
+    pyEnv["mail.scheduled.message"].create({
+        subject: "Greetings",
+        body: "<p>Hello There</p>",
+        model: "res.partner",
+        res_id: partnerId,
+        scheduled_date: "2024-10-20 14:00:00",
+    });
+    onRpc("mail.scheduled.message", "post_message", () => {
+        throw makeServerError({
+            type: "MissingError",
+            message: "Record does not exist",
+        });
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click(".o-mail-Scheduled-Message-buttons .btn", { text: "Send Now" });
+    await contains(".o_notification", { text: "This message has already been sent." });
 });

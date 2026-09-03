@@ -20,6 +20,7 @@ export { splitSelectorAroundCommasOutsideParentheses };
 /**
  * @typedef {Object<string, string>} StyleMap
  */
+const IMPORTANT_KEYS = Symbol("importantKeys");
 /**
  * @typedef {Object} CssRule
  * @property {string} selector
@@ -697,6 +698,11 @@ function _prepareStyleAttributeWrite(node, css, styleProbe, writes) {
         .join(";");
     styleProbe.style.cssText = style;
     for (const [key, value] of Object.entries(css)) {
+        const inlineValue = styleProbe.style.getPropertyValue(key);
+        if (css[IMPORTANT_KEYS]?.has(key) && inlineValue && inlineValue !== value) {
+            styleProbe.style.removeProperty(key);
+            style = styleProbe.style.cssText;
+        }
         if (!styleProbe.style.getPropertyValue(key)) {
             style = `${key}:${value};${style}`;
         }
@@ -2122,11 +2128,14 @@ function _mergeStyleMaps(styleMaps) {
             }
         }
     }
+    const importantKeys = new Set();
     for (const [key, value] of Object.entries(merged)) {
         if (value && value.endsWith("important")) {
+            importantKeys.add(key);
             merged[key] = value.replace(/\s*!important\s*$/, "");
         }
     }
+    Object.defineProperty(merged, IMPORTANT_KEYS, { value: importantKeys });
     return merged;
 }
 /**

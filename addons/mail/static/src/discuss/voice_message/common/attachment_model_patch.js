@@ -7,6 +7,7 @@ import { patch } from "@web/core/utils/patch";
  */
 const attachmentPatch = {
     setup() {
+        super.setup(...arguments);
         this.voice_ids = fields.Many("discuss.voice.metadata");
     },
     get isViewable() {
@@ -18,12 +19,6 @@ const attachmentPatch = {
             voiceService.activePlayer = null;
         }
         super.delete(...arguments);
-    },
-    /** @param {import("models").Attachment} attachment */
-    onClickAttachment(attachment) {
-        if (!attachment.voice) {
-            super.onClickAttachment(attachment);
-        }
     },
     get voice() {
         return this.voice_ids.length > 0;

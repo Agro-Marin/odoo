@@ -24,7 +24,6 @@ export class CallPipService {
             () => {},
             () => {
                 this.state.active = false;
-                this.env.services["discuss.rtc"]?.channel?.openChatWindow();
             },
         );
     }

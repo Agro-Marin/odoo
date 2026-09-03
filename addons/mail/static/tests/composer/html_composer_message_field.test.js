@@ -304,3 +304,33 @@ describe("Remove attachments", () => {
         await waitForNone(".odoo-editor-editable img[data-attachment-id='1']");
     });
 });
+
+test("editing a scheduled message gives the mention plugin the target record's thread", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    const scheduledMessageId = pyEnv["mail.scheduled.message"].create({
+        subject: "Greetings",
+        body: "<p>Hello There</p>",
+        model: "res.partner",
+        res_id: partnerId,
+        scheduled_date: "2024-10-20 14:00:00",
+    });
+    patchWithCleanup(HtmlComposerMessageField.prototype, {
+        getConfig() {
+            const config = super.getConfig(...arguments);
+            expect.step(`thread: ${config.thread?.model},${config.thread?.id}`);
+            return config;
+        },
+    });
+    await start();
+    await openFormView("mail.scheduled.message", scheduledMessageId, {
+        arch: `
+            <form>
+                <field name="res_id" widget="many2one_reference_integer"/>
+                <field name="model"/>
+                <field name="body" type="html" widget="html_composer_message"/>
+            </form>`,
+    });
+    await waitFor("[name='body'] .odoo-editor-editable");
+    expect.verifySteps([`thread: res.partner,${partnerId}`]);
+});

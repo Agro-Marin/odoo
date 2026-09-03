@@ -1,12 +1,6 @@
 /** @odoo-module native */
-import {
-    Component,
-    onMounted,
-    onPatched,
-    onWillDestroy,
-    onWillUpdateProps,
-    useRef,
-} from "@odoo/owl";
+import { useRegisterMessageRef } from "@mail/utils/common/hooks";
+import { Component } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
 import { escape } from "@web/core/utils/format/strings";
@@ -17,15 +11,7 @@ export class NotificationMessage extends Component {
 
     setup() {
         super.setup();
-        this.root = useRef("root");
-        onWillUpdateProps(
-            /** @param {Object} nextProps */ (nextProps) => {
-                this.props.registerMessageRef?.(this.props.message, null);
-            },
-        );
-        onMounted(() => this.props.registerMessageRef?.(this.props.message, this.root));
-        onPatched(() => this.props.registerMessageRef?.(this.props.message, this.root));
-        onWillDestroy(() => this.props.registerMessageRef?.(this.props.message, null));
+        this.root = useRegisterMessageRef();
         this.escape = escape;
         this.store = useService("mail.store");
         this.linkNavigation = useService("mail.link_navigation");

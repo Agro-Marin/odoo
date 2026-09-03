@@ -13,19 +13,15 @@ export class MessageInReply extends Component {
     }
 
     get authorAvatarUrl() {
+        const parent = this.props.message.parent_id;
         if (
-            this.props.message.message_type &&
-            this.props.message.message_type.includes("email") &&
-            !this.props.message.author_id &&
-            !this.props.message.author_guest_id
+            parent.message_type &&
+            parent.message_type.includes("email") &&
+            !parent.author_id &&
+            !parent.author_guest_id
         ) {
             return url("/mail/static/src/img/email_icon.png");
         }
-
-        if (this.props.message.parent_id.author) {
-            return this.props.message.parent_id.author.avatarUrl;
-        }
-
-        return this.store.DEFAULT_AVATAR;
+        return parent.author?.avatarUrl ?? this.store.DEFAULT_AVATAR;
     }
 }

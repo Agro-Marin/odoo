@@ -55,6 +55,32 @@ export function planPushNotification(notification, { isAndroid = false } = {}) {
 }
 
 /**
+ * @template {{id: string, url: string, focused?: boolean, visibilityState?: string}} T
+ * @param {readonly T[]} clients
+ * @param {Object} [options]
+ * @param {{id: string}} [options.source]
+ * @param {RegExp[]} [options.urlRegexes]
+ * @returns {T|undefined}
+ */
+export function pickTargetClient(clients, { source, urlRegexes = [] } = {}) {
+    /** @param {T} client */
+    const getScore = (client) =>
+        (client.focused ? 4 : 0) +
+        (client.visibilityState === "visible" ? 2 : 0) +
+        (urlRegexes.some((r) => r.test(new URL(client.url).pathname)) ? 1 : 0);
+    let targetClient;
+    for (const client of clients) {
+        if (source && source.id === client.id) {
+            continue;
+        }
+        if (!targetClient || getScore(client) > getScore(targetClient)) {
+            targetClient = client;
+        }
+    }
+    return targetClient;
+}
+
+/**
  * @param {string} model
  * @param {number|string} resId
  * @returns {string}

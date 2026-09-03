@@ -387,7 +387,21 @@ export function useThreadScroll(options) {
             scrollTop: scroll.el.scrollTop,
         };
     });
-    useEffect(scroll.applyScroll);
+    useEffect(scroll.applyScroll, () => {
+        const thread = options.getThread();
+        return [
+            thread,
+            thread.isLoaded,
+            options.getMountedAndLoaded(),
+            thread.messages.length,
+            thread.newestPersistentMessage?.id,
+            thread.oldestPersistentMessage?.id,
+            thread.scrollTop,
+            thread.loadNewer,
+            options.getHighlightedMessageId(),
+            options.getOrder(),
+        ];
+    });
     const observer = new ResizeObserver(() => {
         options.onResize();
         scroll.applyScroll();

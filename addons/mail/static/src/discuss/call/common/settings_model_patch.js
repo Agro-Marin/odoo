@@ -5,9 +5,6 @@ import { patch } from "@web/core/utils/patch";
  * @type {Partial<import("models").Settings> & ThisType<import("models").Settings>}
  */
 const SettingsPatch = {
-    setup() {
-        super.setup(...arguments);
-    },
     /** @param {import("models").RtcSession} rtcSession */
     getVolume(rtcSession) {
         return (

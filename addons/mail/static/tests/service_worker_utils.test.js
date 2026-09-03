@@ -1,6 +1,7 @@
 import {
     arrayBufferToBase64Url,
     notificationTargetPath,
+    pickTargetClient,
     planPushNotification,
     PUSH_NOTIFICATION_ACTION,
 } from "@mail/service_worker_utils";
@@ -76,4 +77,49 @@ test("notificationTargetPath maps dotted models and shorthand", () => {
         "/odoo/discuss.channel/7",
     );
     expect(notificationTargetPath("project", 3)).toBe("/odoo/m-project/3");
+});
+
+function windowClient(id, { focused = false, visible = false, path = "/odoo" } = {}) {
+    return {
+        id,
+        focused,
+        visibilityState: visible ? "visible" : "hidden",
+        url: `https://example.com${path}`,
+    };
+}
+
+test("pickTargetClient: nothing to pick from", () => {
+    expect(pickTargetClient([])).toBe(undefined);
+    expect(pickTargetClient([windowClient("a")], { source: { id: "a" } })).toBe(
+        undefined,
+    );
+});
+
+test("pickTargetClient: a focused window beats a visible one, which beats a hidden one", () => {
+    const hidden = windowClient("hidden");
+    const visible = windowClient("visible", { visible: true });
+    const focused = windowClient("focused", { focused: true });
+    expect(pickTargetClient([hidden, visible, focused])).toBe(focused);
+    expect(pickTargetClient([hidden, visible])).toBe(visible);
+    expect(pickTargetClient([hidden])).toBe(hidden);
+});
+
+test("pickTargetClient: a matching URL breaks ties and never outranks focus", () => {
+    const onDiscuss = windowClient("discuss", { path: "/odoo/discuss" });
+    const elsewhere = windowClient("elsewhere", { path: "/odoo/contacts" });
+    const focusedElsewhere = windowClient("focused", {
+        focused: true,
+        path: "/odoo/contacts",
+    });
+    const urlRegexes = [/\/odoo\/discuss/];
+    expect(pickTargetClient([elsewhere, onDiscuss], { urlRegexes })).toBe(onDiscuss);
+    expect(pickTargetClient([onDiscuss, focusedElsewhere], { urlRegexes })).toBe(
+        focusedElsewhere,
+    );
+});
+
+test("pickTargetClient: the message source is never picked", () => {
+    const source = windowClient("source", { focused: true });
+    const other = windowClient("other");
+    expect(pickTargetClient([source, other], { source })).toBe(other);
 });

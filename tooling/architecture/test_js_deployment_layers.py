@@ -193,3 +193,96 @@ def test_known_violations_is_empty():
     assert jdl.KNOWN_VIOLATIONS == ()
     for k in jdl.KNOWN_VIOLATIONS:  # pragma: no cover - guards a future entry
         assert k.reason.strip()
+
+
+def test_a_component_template_defined_in_a_narrower_layer_is_a_violation(tmp_path):
+    files = _tree(
+        tmp_path,
+        {
+            "mail:chatter/web_portal/chatter.js": (
+                'export class Chatter { static template = "mail.Chatter"; }\n'
+            ),
+            "mail:chatter/web/chatter.xml": (
+                '<templates><t t-name="mail.Chatter"><div/></t></templates>\n'
+            ),
+        },
+    )
+    new, known = jdl.check(files)
+    assert not known
+    assert len(new) == 1
+    assert new[0].module_layer == "web_portal"
+    assert new[0].imports_layer == "web"
+    assert new[0].imports == "mail/chatter/web/chatter.xml#mail.Chatter"
+    assert new[0].lineno == 1
+
+
+def test_a_component_template_defined_in_a_wider_layer_is_silent(tmp_path):
+    files = _tree(
+        tmp_path,
+        {
+            "mail:chatter/web/web_chatter.js": (
+                'export class WebChatter { static template = "mail.Chatter"; }\n'
+            ),
+            "mail:chatter/web_portal/chatter.xml": (
+                '<templates><t t-name="mail.Chatter"><div/></t></templates>\n'
+            ),
+        },
+    )
+    new, _ = jdl.check(files)
+    assert not new
+
+
+def test_a_template_extension_of_a_narrower_layer_is_a_violation(tmp_path):
+    files = _tree(
+        tmp_path,
+        {
+            "cloud_storage:chatter/web_portal/chatter_patch.xml": (
+                "<templates>\n"
+                '  <t t-inherit="mail.Chatter" t-inherit-mode="extension"/>\n'
+                "</templates>\n"
+            ),
+            "mail:chatter/web/chatter.xml": (
+                '<templates><t t-name="mail.Chatter"><div/></t></templates>\n'
+            ),
+        },
+    )
+    new, _ = jdl.check(files)
+    assert len(new) == 1
+    assert new[0].module == "cloud_storage/chatter/web_portal/chatter_patch.xml"
+    assert new[0].imports_layer == "web"
+    assert new[0].lineno == 2
+
+
+def test_a_template_extension_within_the_same_layer_is_silent(tmp_path):
+    files = _tree(
+        tmp_path,
+        {
+            "mail:chatter/web/chatter.xml": (
+                '<templates><t t-inherit="mail.Chatter" t-inherit-mode="extension"/>'
+                "</templates>\n"
+            ),
+            "mail:chatter/web_portal/chatter.xml": (
+                '<templates><t t-name="mail.Chatter"><div/></t></templates>\n'
+            ),
+        },
+    )
+    new, _ = jdl.check(files)
+    assert not new
+
+
+def test_a_template_nobody_in_the_scan_defines_is_not_governed(tmp_path):
+    files = _tree(
+        tmp_path,
+        {
+            "mail:core/common/a.js": (
+                'export class A { static template = "portal.Chatter"; }\n'
+            ),
+        },
+    )
+    new, _ = jdl.check(files)
+    assert not new
+
+
+def test_the_real_tree_scans_xml_beside_js():
+    suffixes = {path.suffix for _, _, path in jdl.iter_source_files()}
+    assert suffixes == {".js", ".xml"}
