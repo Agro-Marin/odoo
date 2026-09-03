@@ -1,16 +1,17 @@
 import importlib.util
 import io
 import logging
-import re
-import warnings
-import xml.dom
-import zipfile
-
-from defusedxml.minidom import parseString as defused_parse_string
-from lxml import etree
 
 from odoo import api, models
 from odoo.libs.lru import LRU
+
+from ..tools.readers import (
+    clean_text_content,
+    read_docx,
+    read_opendoc,
+    read_pptx,
+    read_xlsx,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -44,273 +45,24 @@ _MIMETYPE_TO_FTYPE = {
 index_content_cache = LRU(1)
 
 
-def textToString(element):
-    buff = ""
-    for node in element.childNodes:
-        if node.nodeType == xml.dom.Node.TEXT_NODE:
-            buff += node.nodeValue
-        elif node.nodeType == xml.dom.Node.ELEMENT_NODE:
-            buff += textToString(node)
-    return buff
-
-
-def _clean_text_content(buf):
-    """Clean extracted document text: drop NULs and CRs, tabs to spaces, collapse whitespace."""
-    if not buf:
-        return buf
-    # Drop NULs and CRs (so CRLF becomes LF), turn tabs into spaces
-    buf = buf.translate(
-        {
-            ord("\x00"): None,
-            ord("\r"): None,
-            ord("\t"): ord(" "),
-        }
-    )
-
-    # Collapse runs of whitespace while preserving at most a single blank line
-    def _compact_whitespace(match):
-        chunk = match.group(0)
-        newline_count = chunk.count("\n")
-        if newline_count == 0:
-            return " "
-        return "\n\n" if newline_count > 1 else "\n"
-
-    buf = re.sub(r"\s{2,}", _compact_whitespace, buf)
-    return buf.strip()
-
-
-def _csv_escape(value):
-    if value is None:
-        return ""
-    value = str(value)
-    if "," in value or '"' in value or "\n" in value or "\r" in value:
-        return '"' + value.replace('"', '""') + '"'
-    return value
-
-
 class IrAttachment(models.Model):
     _inherit = "ir.attachment"
 
-    def _read_zip_entry(self, zf, info):
-        """Read one zip entry, refusing to inflate anything past _INDEX_MAX_BYTES.
-
-        Guards against a zip bomb: a small, well-formed office document
-        (.docx/.pptx/.odt) whose inner XML entry declares a huge
-        uncompressed size can otherwise force a full in-memory inflate
-        of attacker-controlled content on every attachment create/write.
-        """
-        if info.file_size > self._INDEX_MAX_BYTES:
-            _logger.info(
-                "attachment_indexation: skipping oversized zip entry %r (%d bytes)",
-                info.filename,
-                info.file_size,
-            )
-            return None
-        return zf.read(info)
-
     def _index_docx(self, bin_data):
         """Index Microsoft .docx documents"""
-        buf = ""
-        f = io.BytesIO(bin_data)
-        if zipfile.is_zipfile(f):
-            try:
-                zf = zipfile.ZipFile(f)
-                raw = self._read_zip_entry(zf, zf.getinfo("word/document.xml"))
-                if raw is None:
-                    return buf
-                content = defused_parse_string(raw)
-                for element in content.getElementsByTagName("w:p"):
-                    buf += textToString(element) + "\n"
-            except Exception:
-                _logger.debug(
-                    "attachment_indexation: failed to index docx content", exc_info=True
-                )
-        return buf
+        return read_docx(bin_data, self._INDEX_MAX_BYTES)
 
     def _index_pptx(self, bin_data):
         """Index Microsoft .pptx documents"""
-
-        buf = ""
-        f = io.BytesIO(bin_data)
-        if zipfile.is_zipfile(f):
-            try:
-                zf = zipfile.ZipFile(f)
-                zf_filelist = [
-                    x for x in zf.namelist() if x.startswith("ppt/slides/slide")
-                ]
-                for name in zf_filelist:
-                    raw = self._read_zip_entry(zf, zf.getinfo(name))
-                    if raw is None:
-                        continue
-                    content = defused_parse_string(raw)
-                    for element in content.getElementsByTagName("a:t"):
-                        buf += textToString(element) + "\n"
-            except Exception:
-                _logger.debug(
-                    "attachment_indexation: failed to index pptx content", exc_info=True
-                )
-        return buf
+        return read_pptx(bin_data, self._INDEX_MAX_BYTES)
 
     def _index_xlsx(self, bin_data):
         """Index Microsoft .xlsx documents"""
-
-        try:
-            from openpyxl import load_workbook
-
-            logging.getLogger("openpyxl").setLevel(logging.CRITICAL)
-        except ImportError:
-            _logger.info("openpyxl is not installed.")
-            return ""
-
-        f = io.BytesIO(bin_data)
-        if zipfile.is_zipfile(f):
-            oversized = any(
-                info.file_size > self._INDEX_MAX_BYTES
-                for info in zipfile.ZipFile(f).infolist()
-            )
-            f.seek(0)
-            if oversized:
-                _logger.info(
-                    "attachment_indexation: skipping oversized xlsx zip entry (zip-bomb guard)"
-                )
-                return ""
-
-        all_sheets = []
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                workbook = load_workbook(f, data_only=True, read_only=True)
-                for sheet in workbook.worksheets:
-                    sheet_name = sheet.title
-                    sheet_name_escaped = _csv_escape(sheet_name)
-                    sheet_rows = []
-                    for row in sheet.iter_rows(values_only=True):
-                        if not any(row):
-                            continue
-                        row_cells = [sheet_name_escaped] + [
-                            _csv_escape(str(cell) if cell is not None else "")
-                            for cell in row
-                        ]
-                        sheet_rows.append(",".join(row_cells))
-                    sheet_data = "\n".join(sheet_rows)
-                    if sheet_data:
-                        all_sheets.append(sheet_data)
-        except Exception:
-            _logger.debug(
-                "attachment_indexation: failed to index xlsx content", exc_info=True
-            )
-
-        all_sheets_str = "\n\n".join(all_sheets)
-        return _clean_text_content(all_sheets_str)
+        return read_xlsx(bin_data, self._INDEX_MAX_BYTES)
 
     def _index_opendoc(self, bin_data):
         """Index OpenDocument documents (.odt, .ods...)"""
-
-        f = io.BytesIO(bin_data)
-        buf = []
-        MAX_COLUMN_REPEAT = 100
-        MAX_ROW_REPEAT = 50
-        main_namespaces = {
-            "office": "urn:oasis:names:tc:opendocument:xmlns:office:1.0",
-            "text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
-            "table": "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
-            "manifest": "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0",
-        }
-
-        def extract_row(row):
-            cells = []
-            for cell in row.xpath(
-                ".//table:table-cell | .//table:covered-table-cell",
-                namespaces=main_namespaces,
-            ):
-                repeat = cell.get(
-                    f"{{{main_namespaces['table']}}}number-columns-repeated"
-                )
-                repeat_count = (
-                    min(int(repeat), MAX_COLUMN_REPEAT)
-                    if repeat and repeat.isdigit()
-                    else 1
-                )
-                text_parts = cell.xpath(".//text:p//text()", namespaces=main_namespaces)
-                cell_text = " ".join(t.strip() for t in text_parts if t.strip())
-                cells.extend([cell_text] * repeat_count)
-            return cells
-
-        def extract_spreadsheet(content):
-            sheets_csv = []
-            tables = content.xpath(".//table:table", namespaces=main_namespaces)
-            for table in tables:
-                table_rows = []
-                table_name = table.get(f"{{{main_namespaces['table']}}}name")
-                if not table_name:
-                    table_name = f"Sheet{len(sheets_csv) + 1}"
-                table_name_escaped = _csv_escape(table_name)
-                for row in table.xpath(
-                    ".//table:table-row", namespaces=main_namespaces
-                ):
-                    row_repeat = row.get(
-                        f"{{{main_namespaces['table']}}}number-rows-repeated"
-                    )
-                    row_repeat_count = (
-                        min(int(row_repeat), MAX_ROW_REPEAT)
-                        if row_repeat and row_repeat.isdigit()
-                        else 1
-                    )
-
-                    cells = extract_row(row)
-                    if not any(cells):
-                        continue
-
-                    while cells and not cells[-1]:
-                        cells.pop()
-
-                    row_str = ",".join(
-                        [table_name_escaped] + list(map(_csv_escape, cells))
-                    )
-                    if row_str.replace(",", "").strip():
-                        table_rows.extend([row_str] * row_repeat_count)
-
-                if table_rows:
-                    sheets_csv.append("\n".join(table_rows))
-
-            return sheets_csv
-
-        def extract_text(content):
-            lines = []
-            for element in content.xpath(
-                ".//text:p | .//text:h | .//text:list-item", namespaces=main_namespaces
-            ):
-                text = "".join(
-                    element.xpath(".//text()", namespaces=main_namespaces)
-                ).strip()
-                if text:
-                    lines.append(text)
-            return lines
-
-        if zipfile.is_zipfile(f):
-            try:
-                zf = zipfile.ZipFile(f)
-                raw = self._read_zip_entry(zf, zf.getinfo("content.xml"))
-                if raw is None:
-                    return _clean_text_content("")
-                # Explicit hardened parser (defense-in-depth): don't rely
-                # solely on the process-wide lxml default set in
-                # odoo/tools/misc.py to guard against XXE/entity-expansion.
-                parser = etree.XMLParser(resolve_entities=False, no_network=True)
-                content = etree.fromstring(raw, parser=parser)
-                mime_type = zf.read("mimetype").decode("utf-8").strip()
-                if mime_type and "spreadsheet" in mime_type:
-                    buf.extend(extract_spreadsheet(content))
-                else:
-                    buf.extend(extract_text(content))
-            except Exception:
-                _logger.debug(
-                    "attachment_indexation: failed to index opendoc content",
-                    exc_info=True,
-                )
-
-        buf_str = "\n\n".join(buf)
-        return _clean_text_content(buf_str)
+        return read_opendoc(bin_data, self._INDEX_MAX_BYTES)
 
     def _index_pdf(self, bin_data):
         """Index PDF documents"""
@@ -350,7 +102,7 @@ class IrAttachment(models.Model):
                     interpreter.process_page(page)
 
                 buf = content.getvalue()
-            return _clean_text_content(buf)
+            return clean_text_content(buf)
         except Exception:
             _logger.debug(
                 "attachment_indexation: failed to index pdf content", exc_info=True

@@ -6,9 +6,9 @@ import zipfile
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.attachment_indexation.models.ir_attachment import (
-    _csv_escape,
     index_content_cache,
 )
+from odoo.addons.attachment_indexation.tools.readers import csv_escape
 
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -36,10 +36,10 @@ class TestIndexContent(TransactionCase):
 
     def test_csv_escape_quotes_special_chars(self):
         """Values with commas/quotes/newlines get quoted and escaped."""
-        self.assertEqual(_csv_escape("plain"), "plain")
-        self.assertEqual(_csv_escape("a,b"), '"a,b"')
-        self.assertEqual(_csv_escape('say "hi"'), '"say ""hi"""')
-        self.assertEqual(_csv_escape(None), "")
+        self.assertEqual(csv_escape("plain"), "plain")
+        self.assertEqual(csv_escape("a,b"), '"a,b"')
+        self.assertEqual(csv_escape('say "hi"'), '"say ""hi"""')
+        self.assertEqual(csv_escape(None), "")
 
     def test_index_docx_extracts_paragraph_text(self):
         """A .docx payload yields its paragraph text."""
