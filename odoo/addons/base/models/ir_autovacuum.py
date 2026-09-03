@@ -3,6 +3,7 @@ import inspect
 import logging
 import random
 import time
+from typing import Any
 
 from odoo import api, models
 from odoo.exceptions import AccessDenied
@@ -27,35 +28,39 @@ class IrAutovacuum(models.AbstractModel):
             raise AccessDenied
 
         all_methods = [
-            (model, attr, func)
+            (model, attr, func, "not started")
             for model in self.env.values()
             for attr, func in inspect.getmembers(model.__class__, is_autovacuum)
         ]
         random.shuffle(all_methods)
         queue = collections.deque(all_methods)
         vacuum_start = time.monotonic()
+        hard_deadline = self.env.context.get("cron_hard_deadline")
+        calls = 0
         deferred = []
         while queue:
-            model, attr, func = queue.pop()
+            if (
+                calls
+                and hard_deadline is not None
+                and time.monotonic() >= hard_deadline
+            ):
+                deferred.extend(
+                    (model._name, attr, remaining)
+                    for model, attr, _f, remaining in queue
+                )
+                break
+            model, attr, func, _remaining = queue.pop()
             _logger.debug("Calling %s.%s()", model, attr)
+            calls += 1
             try:
                 start_time = time.monotonic()
                 result = func(model)
                 self.env["ir.cron"]._commit_progress()
-                if isinstance(result, tuple) and len(result) == 2:
-                    func_done, func_remaining = result
-                    _logger.debug(
-                        "%s.%s  vacuumed %r records, remaining %r",
-                        model,
-                        attr,
-                        func_done,
-                        func_remaining,
-                    )
-                    if func_remaining:
-                        if time.monotonic() - vacuum_start >= MAX_VACUUM_RUNTIME:
-                            deferred.append((model._name, attr, func_remaining))
-                        else:
-                            queue.appendleft((model, attr, func))
+                if remaining := self._get_remaining_work(model, attr, result):
+                    if time.monotonic() - vacuum_start >= MAX_VACUUM_RUNTIME:
+                        deferred.append((model._name, attr, remaining))
+                    else:
+                        queue.appendleft((model, attr, func, remaining))
                 _logger.debug(
                     "%s.%s  took %.2fs",
                     model,
@@ -68,14 +73,37 @@ class IrAutovacuum(models.AbstractModel):
                 self.env.invalidate_all()
         if deferred:
             _logger.warning(
-                "Autovacuum exceeded its %ss wall-clock budget; deferring "
+                "Autovacuum exceeded its wall-clock budget; deferring "
                 "remaining work to the next run: %s",
-                MAX_VACUUM_RUNTIME,
                 ", ".join(
                     f"{name}.{attr} (remaining: {remaining!r})"
                     for name, attr, remaining in deferred
                 ),
             )
+            self.env["ir.cron"]._commit_progress(remaining=len(deferred))
+
+    @staticmethod
+    def _get_remaining_work(model: models.BaseModel, attr: str, result: Any) -> Any:
+        if result is None:
+            return None
+        if not (isinstance(result, tuple) and len(result) == 2):
+            _logger.warning(
+                "%s.%s returned %r; an autovacuum reports (done, remaining) "
+                "or None, so this result is ignored",
+                model._name,
+                attr,
+                result,
+            )
+            return None
+        func_done, func_remaining = result
+        _logger.debug(
+            "%s.%s  vacuumed %r records, remaining %r",
+            model,
+            attr,
+            func_done,
+            func_remaining,
+        )
+        return func_remaining
 
     @api.autovacuum
     def _gc_orm_signaling(self) -> None:

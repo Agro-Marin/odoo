@@ -41,8 +41,14 @@ class TestAutovacuumTimeBudget(TransactionCase):
 
         return fake_getmembers
 
-    def _run(self, methods, fake_time=None):
-        autovacuum = self.env["ir.autovacuum"].with_context(cron_id=1)
+    def _run(self, methods, fake_time=None, progress_calls=None, **context):
+        autovacuum = self.env["ir.autovacuum"].with_context(cron_id=1, **context)
+
+        def fake_commit_progress(cron, *args, **kwargs):
+            if progress_calls is not None:
+                progress_calls.append((args, kwargs))
+            return float("inf")
+
         with contextlib.ExitStack() as stack:
             stack.enter_context(
                 patch.object(
@@ -53,9 +59,7 @@ class TestAutovacuumTimeBudget(TransactionCase):
             )
             stack.enter_context(
                 patch.object(
-                    type(self.env["ir.cron"]),
-                    "_commit_progress",
-                    lambda cron, *args, **kwargs: float("inf"),
+                    type(self.env["ir.cron"]), "_commit_progress", fake_commit_progress
                 )
             )
             if fake_time is not None:
@@ -110,3 +114,55 @@ class TestAutovacuumTimeBudget(TransactionCase):
             )
         self.assertEqual(sorted(calls), ["a", "b"])
         self.assertEqual(len(calls), 2)
+
+    def test_the_pass_deadline_stops_the_loop_and_reports_remaining_work(self):
+        calls = []
+
+        def fake_gc_a(model):
+            calls.append("a")
+            return (1, 7)
+
+        def fake_gc_b(model):
+            calls.append("b")
+            return (1, False)
+
+        ticks = itertools.count(start=0, step=3)
+        fake_time = SimpleNamespace(monotonic=lambda: next(ticks))
+        progress_calls = []
+        with (
+            patch.object(ir_autovacuum.random, "shuffle", lambda methods: None),
+            self.assertLogs(_IR_AUTOVACUUM_LOGGER, level="WARNING") as capture,
+        ):
+            self._run(
+                [("_gc_fake_a", fake_gc_a), ("_gc_fake_b", fake_gc_b)],
+                fake_time=fake_time,
+                progress_calls=progress_calls,
+                cron_hard_deadline=5,
+            )
+        self.assertEqual(calls, ["b"], "one pass, then the deadline is hit")
+        warning = "\n".join(capture.output)
+        self.assertIn("wall-clock budget", warning)
+        self.assertIn("_gc_fake_a (remaining: 'not started')", warning)
+        self.assertIn(
+            ((), {"remaining": 1}),
+            progress_calls,
+            "the cron must end PARTIALLY_DONE so the next pass resumes the sweep",
+        )
+
+    def test_a_malformed_return_is_reported_and_not_requeued(self):
+        calls = []
+
+        def fake_gc(model):
+            calls.append(model._name)
+            return "everything"
+
+        with self.assertLogs(_IR_AUTOVACUUM_LOGGER, level="WARNING") as capture:
+            self._run([("_gc_fake", fake_gc)])
+        self.assertEqual(calls, ["ir.autovacuum"])
+        self.assertIn("(done, remaining)", "\n".join(capture.output))
+        self.assertIn("'everything'", "\n".join(capture.output))
+
+    def test_transient_vacuum_reports_a_count_and_a_flag(self):
+        done, more = self.env["base.partner.merge.automatic.wizard"]._transient_vacuum()
+        self.assertIsInstance(done, int)
+        self.assertIs(more, False)

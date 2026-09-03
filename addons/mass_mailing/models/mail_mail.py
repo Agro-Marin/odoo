@@ -148,11 +148,12 @@ class MailMail(models.Model):
             **kwargs,
         )
 
+    _GC_CANCELED_BATCH_SIZE = 10000
+
     @api.autovacuum
     def _gc_canceled_mail_mail(self):
         """Garbage collects old canceled mail.mail records as we consider
         nobody is going to look at them anymore, becoming noise."""
-        # The 10000 limit is arbitrary, chosen a big limit so that the cleaning can be shorter and not too big so that we don't block the server
         # _get_int_param, not get_param: the latter answers with the stored *string*
         # as soon as the parameter is set, and '6' <= 0 raises TypeError -- taking the
         # whole autovacuum down with it.
@@ -160,14 +161,15 @@ class MailMail(models.Model):
             "mass_mailing.cancelled_mails_months_limit", 6
         )
         if months_limit <= 0:
-            return
+            return 0, False
         history_deadline = datetime.now(UTC) - relativedelta(
             months=months_limit
         )  # 6 months history will be kept
         canceled_mails = self.with_context(active_test=False).search(
             [("state", "=", "cancel"), ("write_date", "<=", history_deadline)],
             order="id asc",
-            limit=10000,
+            limit=self._GC_CANCELED_BATCH_SIZE,
         )
 
         canceled_mails.with_context(prefetch_fields=False).mail_message_id.unlink()
+        return len(canceled_mails), len(canceled_mails) == self._GC_CANCELED_BATCH_SIZE

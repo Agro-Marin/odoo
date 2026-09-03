@@ -24,18 +24,20 @@ class TransientModel(Model):
     )
 
     @api.autovacuum
-    def _transient_vacuum(self) -> tuple[str, bool]:
-        has_remaining = False
+    def _transient_vacuum(self) -> tuple[int, bool]:
+        counts = []
         if self._transient_max_hours:
-            has_remaining |= self._transient_clean_rows_older_than(
-                self._transient_max_hours * 60 * 60
+            counts.append(
+                self._transient_clean_rows_older_than(
+                    self._transient_max_hours * 60 * 60
+                )
             )
 
         if self._transient_max_count:
-            has_remaining |= self._transient_clean_old_rows(self._transient_max_count)
-        return self._name, has_remaining
+            counts.append(self._transient_clean_old_rows(self._transient_max_count))
+        return sum(counts), any(count >= GC_UNLINK_LIMIT for count in counts)
 
-    def _transient_clean_old_rows(self, max_count: int) -> bool:
+    def _transient_clean_old_rows(self, max_count: int) -> int:
         # "count > max_count" without counting the whole table: one row at
         # OFFSET max_count exists exactly when the count exceeds it
         self.env.cr.execute(
@@ -49,12 +51,12 @@ class TransientModel(Model):
             return self._transient_clean_rows_older_than(
                 _TRANSIENT_VACUUM_MIN_AGE_SECONDS
             )
-        return False
+        return 0
 
-    def _transient_clean_rows_older_than(self, seconds: float) -> bool:
+    def _transient_clean_rows_older_than(self, seconds: float) -> int:
         seconds = max(seconds, _TRANSIENT_VACUUM_MIN_AGE_SECONDS)
         now = self.env.cr.now()
         domain = Domain("write_date", "<", now - datetime.timedelta(seconds=seconds))
         records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
-        return len(records) == GC_UNLINK_LIMIT
+        return len(records)
