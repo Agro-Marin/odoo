@@ -113,7 +113,7 @@ class ResPartner(models.Model):
 
     @api.model
     def _run_vat_checks(self, country, vat, partner_name="", validation="error"):
-        """OVERRIDE"""
+        """Validate and format vat against country, applying the '/'-or-empty sentinel per validation mode."""
         if not country or not vat:
             return vat, False
         if len(vat) == 1:
