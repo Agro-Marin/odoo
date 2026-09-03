@@ -194,6 +194,7 @@ class _FromFilter(NamedTuple):
 class _SmtpSessionContext(NamedTuple):
     from_filter: str | bool = False
     smtp_from: str | bool = False
+    mail_server_id: int | None = None
 
 
 _SESSION_CONTEXTS: WeakKeyDictionary[smtplib.SMTP, _SmtpSessionContext] = (
@@ -649,18 +650,7 @@ class IrMail_Server(models.Model):
         transport = mail_server._prepare_smtp_transport()
         return self._open_smtp_connection(transport, smtp_from)
 
-    def _prepare_smtp_transport(
-        self,
-        *,
-        host: str | None = None,
-        port: int | None = None,
-        user: str | None = None,
-        password: str | None = None,
-        encryption: str | None = None,
-        ssl_certificate: str | None = None,
-        ssl_private_key: str | None = None,
-        smtp_debug: bool = False,
-    ) -> _SmtpTransport:
+    def _prepare_smtp_transport(self) -> _SmtpTransport:
         if self and self.smtp_authentication != "cli":
             is_certificate = self.smtp_authentication == "certificate"
             encryption = self.smtp_encryption
@@ -676,25 +666,19 @@ class IrMail_Server(models.Model):
                 user=None if is_certificate else self.smtp_user,
                 password=None if is_certificate else self.smtp_pass,
                 encryption=encryption,
-                debug=smtp_debug or self.smtp_debug,
+                debug=self.smtp_debug,
                 from_filter=self.from_filter,
                 ssl_context=ssl_context,
                 login_server=self,
                 timeout=self._get_smtp_timeout(),
             )
 
-        if encryption is None and tools.config.get("smtp_ssl"):
-            encryption = "starttls"
-
-        cert_filename = ssl_certificate or tools.config.get(
-            "smtp_ssl_certificate_filename"
-        )
-        key_filename = ssl_private_key or tools.config.get(
-            "smtp_ssl_private_key_filename"
-        )
-        server = host or tools.config.get("smtp_server")
+        encryption = self._get_cli_encryption()
+        cert_filename = tools.config.get("smtp_ssl_certificate_filename")
+        key_filename = tools.config.get("smtp_ssl_private_key_filename")
+        server = tools.config.get("smtp_server")
         if cert_filename and key_filename:
-            if encryption in (None, "none"):
+            if encryption is None:
                 _logger.warning(
                     "An SMTP client certificate is configured (%s) but the "
                     "transport to %s is unencrypted, so it will not be "
@@ -705,18 +689,18 @@ class IrMail_Server(models.Model):
             ssl_context = self._prepare_ssl_context_from_cert_files(
                 cert_filename, key_filename, encryption, server
             )
-        elif encryption not in (None, "none"):
+        elif encryption is not None:
             ssl_context = self._prepare_ssl_context_for_encryption(encryption)
         else:
             ssl_context = None
 
         return _SmtpTransport(
             server=server,
-            port=tools.config.get("smtp_port", 25) if port is None else port,
-            user=user or tools.config.get("smtp_user"),
-            password=password or tools.config.get("smtp_password"),
+            port=tools.config.get("smtp_port", 25),
+            user=tools.config.get("smtp_user"),
+            password=tools.config.get("smtp_password"),
             encryption=encryption,
-            debug=smtp_debug or self.smtp_debug,
+            debug=self.smtp_debug,
             from_filter=(
                 self.from_filter
                 if self
@@ -726,6 +710,13 @@ class IrMail_Server(models.Model):
             login_server=self,
             timeout=self._get_smtp_timeout(),
         )
+
+    @staticmethod
+    def _get_cli_encryption() -> str | None:
+        smtp_ssl = tools.config.get("smtp_ssl")
+        if smtp_ssl is True:
+            return "starttls_strict"
+        return smtp_ssl or None
 
     @staticmethod
     def _get_smtp_timeout() -> float | None:
@@ -799,7 +790,11 @@ class IrMail_Server(models.Model):
 
         self._stash_session_context(
             connection,
-            _SmtpSessionContext(from_filter=transport.from_filter, smtp_from=smtp_from),
+            _SmtpSessionContext(
+                from_filter=transport.from_filter,
+                smtp_from=smtp_from,
+                mail_server_id=transport.login_server.id or None,
+            ),
         )
         return connection
 
@@ -934,6 +929,19 @@ class IrMail_Server(models.Model):
                     self.display_name,
                 )
             )
+
+    def _check_session_mail_server(
+        self, smtp_session: smtplib.SMTP, mail_server_id: int | None
+    ) -> None:
+        if not mail_server_id:
+            return
+        session_server_id = self._read_session_context(smtp_session).mail_server_id
+        if session_server_id != mail_server_id:
+            e = (
+                f"smtp_session was opened for mail server {session_server_id}, "
+                f"not {mail_server_id}; connect through the forced server instead"
+            )
+            raise ValueError(e)
 
     def _smtp_login__(
         self, connection: smtplib.SMTP, smtp_user: str, smtp_password: str
@@ -1221,7 +1229,9 @@ class IrMail_Server(models.Model):
     ) -> str:
         smtp = smtp_session
         owns_connection = not smtp_session
-        if not smtp:
+        if smtp:
+            self._check_session_mail_server(smtp, mail_server_id)
+        else:
             smtp = self._connect__(
                 smtp_from=message["From"], mail_server_id=mail_server_id
             )

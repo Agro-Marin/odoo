@@ -64,6 +64,7 @@ class _OdooOption(optparse.Option):
         "upgrade_path",
         "pre_upgrade_scripts",
         "without_demo",
+        "smtp_ssl",
     )
 
     @classproperty
@@ -79,6 +80,7 @@ class _OdooOption(optparse.Option):
             "addons_path": self.config._check_addons_path,
             "upgrade_path": self.config._check_upgrade_path,
             "pre_upgrade_scripts": self.config._check_scripts,
+            "smtp_ssl": self.config._check_smtp_ssl,
         }
         return {
             **{name: _accept_none(check) for name, check in checkers.items()},
@@ -98,6 +100,7 @@ class _OdooOption(optparse.Option):
             "addons_path": self.config._format_list,
             "upgrade_path": self.config._format_list,
             "pre_upgrade_scripts": self.config._format_list,
+            "smtp_ssl": self.config._format_string,
             "without_demo": self.config._format_without_demo,
         }
 
@@ -183,6 +186,7 @@ class _Unset:
 
 
 UNSET = _Unset()
+SMTP_SSL_MODES = ("starttls_strict", "starttls", "ssl_strict", "ssl")
 
 
 def _accept_none(check: Callable[..., Any]) -> Callable[..., Any]:
@@ -829,12 +833,18 @@ class configmanager:
             help="specify the SMTP port",
             type="int",
         )
-        group.add_option(
+        group.add_option(  # type: ignore[call-overload]
             "--smtp-ssl",
             dest="smtp_ssl",
-            action="store_true",
+            type="smtp_ssl",
+            metavar="MODE",
+            nargs="?",
+            const=True,
             my_default=False,
-            help="if passed, SMTP connections will be encrypted with SSL (STARTTLS)",
+            help="encrypt SMTP connections; MODE is one of "
+            + ", ".join(SMTP_SSL_MODES)
+            + " or none. A bare --smtp-ssl (or True) means starttls_strict: "
+            "STARTTLS with the server certificate validated",
         )
 
     def _add_smtp_credentials(self, group: optparse.OptionGroup) -> None:
@@ -1968,6 +1978,22 @@ class configmanager:
         raise optparse.OptionValueError(
             f"option {opt}: invalid boolean value: {value!r}"
         )
+
+    @classmethod
+    def _check_smtp_ssl(
+        cls, option: optparse.Option | None, opt: str, value: str
+    ) -> bool | str:
+        if value in SMTP_SSL_MODES:
+            return value
+        if value == "none":
+            return False
+        try:
+            return cls._check_bool(option, opt, value)
+        except optparse.OptionValueError:
+            raise optparse.OptionValueError(
+                f"option {opt}: invalid value: {value!r}; expected a boolean, "
+                f"none or one of {', '.join(SMTP_SSL_MODES)}"
+            ) from None
 
     @classmethod
     def _check_comma(

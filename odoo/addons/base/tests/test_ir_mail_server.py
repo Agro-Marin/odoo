@@ -888,11 +888,11 @@ class TestSslContexts(TransactionCase):
             cert_path.write_bytes(self.cert_pem)
             key_path.write_bytes(self.key_pem)
             captured = self._capture_connect_context(
-                host="smtp.example.com",
-                port=465,
-                encryption="ssl_strict",
-                ssl_certificate=str(cert_path),
-                ssl_private_key=str(key_path),
+                smtp_server="smtp.example.com",
+                smtp_port=465,
+                smtp_ssl="ssl_strict",
+                smtp_ssl_certificate_filename=str(cert_path),
+                smtp_ssl_private_key_filename=str(key_path),
             )
             ctx = captured["ssl"]
             self.assertEqual(type(ctx).__name__, "PyOpenSSLContext")
@@ -911,7 +911,7 @@ class TestSslContexts(TransactionCase):
         with self.assertRaises(UserError):
             self._make_cert_server("starttls_strict", key_pem=self.mismatched_key_pem)
 
-    def _capture_connect_context(self, **connect_kwargs):
+    def _capture_connect_context(self, **config_values):
         captured = {}
 
         class _FakeConn:
@@ -932,14 +932,15 @@ class TestSslContexts(TransactionCase):
             patch.object(type(IrMailServer), "_disable_send", lambda _: False),
             patch("smtplib.SMTP_SSL", _FakeConn),
             patch("smtplib.SMTP", _FakeConn),
+            config.patch(**config_values),
         ):
-            transport = IrMailServer._prepare_smtp_transport(**connect_kwargs)
+            transport = IrMailServer._prepare_smtp_transport()
             IrMailServer._open_smtp_connection(transport, None)
         return captured
 
     def test_connect_raw_param_strict_encryption_verifies(self):
         captured = self._capture_connect_context(
-            host="smtp.example.test", port=465, encryption="ssl_strict"
+            smtp_server="smtp.example.test", smtp_port=465, smtp_ssl="ssl_strict"
         )
         ctx = captured["ssl"]
         self.assertIsNotNone(ctx, "ssl_strict must not connect with context=None")
@@ -947,7 +948,7 @@ class TestSslContexts(TransactionCase):
         self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
 
         captured = self._capture_connect_context(
-            host="smtp.example.test", port=587, encryption="starttls_strict"
+            smtp_server="smtp.example.test", smtp_port=587, smtp_ssl="starttls_strict"
         )
         ctx = captured["starttls"]
         self.assertIsNotNone(ctx, "starttls_strict must not STARTTLS with context=None")
@@ -956,11 +957,44 @@ class TestSslContexts(TransactionCase):
 
     def test_connect_raw_param_lax_encryption_unchanged(self):
         captured = self._capture_connect_context(
-            host="smtp.example.test", port=465, encryption="ssl"
+            smtp_server="smtp.example.test", smtp_port=465, smtp_ssl="ssl"
         )
         ctx = captured["ssl"]
         self.assertFalse(ctx.check_hostname)
         self.assertEqual(ctx.verify_mode, ssl.CERT_NONE)
+
+    def test_connect_bare_smtp_ssl_flag_is_verified_starttls(self):
+        captured = self._capture_connect_context(
+            smtp_server="smtp.example.test", smtp_port=587, smtp_ssl=True
+        )
+        self.assertIsNone(captured["ssl"], "True must not select implicit TLS")
+        ctx = captured["starttls"]
+        self.assertTrue(ctx.check_hostname)
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
+
+    def test_cli_encryption_follows_the_smtp_ssl_option(self):
+        IrMailServer = self.env["ir.mail_server"].browse()
+        for smtp_ssl, expected in (
+            (False, None),
+            (True, "starttls_strict"),
+            ("starttls", "starttls"),
+            ("starttls_strict", "starttls_strict"),
+            ("ssl", "ssl"),
+            ("ssl_strict", "ssl_strict"),
+        ):
+            with self.subTest(smtp_ssl=smtp_ssl), config.patch(smtp_ssl=smtp_ssl):
+                transport = IrMailServer._prepare_smtp_transport()
+                self.assertEqual(transport.encryption, expected)
+                self.assertEqual(transport.ssl_context is None, expected is None)
+
+    def test_smtp_ssl_option_parses_modes_and_booleans(self):
+        self.assertIs(config.parse("smtp_ssl", "True"), True)
+        self.assertIs(config.parse("smtp_ssl", "false"), False)
+        self.assertIs(config.parse("smtp_ssl", "none"), False)
+        for mode in ("starttls_strict", "starttls", "ssl_strict", "ssl"):
+            self.assertEqual(config.parse("smtp_ssl", mode), mode)
+        with self.assertRaisesRegex(Exception, "invalid value: 'tls'"):
+            config.parse("smtp_ssl", "tls")
 
 
 class TestResolveTransport(TransactionCase):
@@ -1006,18 +1040,6 @@ class TestResolveTransport(TransactionCase):
         )
         self.assertEqual(t.from_filter, "cli.test", "record from_filter is still used")
         self.assertEqual(t.login_server, server)
-
-    def test_resolve_explicit_params_win_over_config(self):
-        IrMailServer = self.env["ir.mail_server"]
-        empty = IrMailServer.browse()
-        with config.patch(smtp_server="conf.host", smtp_user="conf"):
-            t = empty._prepare_smtp_transport(
-                host="explicit.host", port=1234, user="explicit"
-            )
-        self.assertEqual(t.server, "explicit.host")
-        self.assertEqual(t.port, 1234)
-        self.assertEqual(t.user, "explicit")
-        self.assertFalse(t.login_server, "no record -> empty login_server")
 
     def test_session_context_roundtrip(self):
         from odoo.addons.base.models.ir_mail_server import _SmtpSessionContext

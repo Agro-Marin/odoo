@@ -674,13 +674,10 @@ class TestSmtpTimeout(TransactionCase):
         server = self.IrMailServer.create(
             {"name": "timeout", "smtp_host": "smtp_host", "smtp_encryption": "none"}
         )
-        with config.patch(smtp_timeout=7):
+        with config.patch(smtp_timeout=7, smtp_server="smtp_host"):
             self.assertEqual(server._prepare_smtp_transport().timeout, 7)
             self.assertEqual(
-                self.IrMailServer.browse()
-                ._prepare_smtp_transport(host="smtp_host")
-                .timeout,
-                7,
+                self.IrMailServer.browse()._prepare_smtp_transport().timeout, 7
             )
 
 
@@ -1034,13 +1031,15 @@ class TestSmtpDebugGoesThroughTheLogger(TransactionCase):
             def ehlo_or_helo_if_needed(self):
                 pass
 
+        server = IrMailServer.create(
+            {"name": "cli", "smtp_authentication": "cli", "smtp_debug": True}
+        )
         with (
             patch.object(type(IrMailServer), "_disable_send", lambda _: False),
             patch("smtplib.SMTP", _FakeConn),
+            config.patch(smtp_server="smtp.example.com"),
         ):
-            transport = IrMailServer._prepare_smtp_transport(
-                host="smtp.example.com", smtp_debug=True
-            )
+            transport = server._prepare_smtp_transport()
             IrMailServer._open_smtp_connection(transport, None)
 
         self.assertTrue(captured["level"])
@@ -1687,9 +1686,7 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
 
     def _fake_cli_session_context_reference(self):
         with self._capture():
-            transport = self.IrMailServer._prepare_smtp_transport(
-                host="cli.example.com"
-            )
+            transport = self.IrMailServer._prepare_smtp_transport()
             return self.IrMailServer._open_smtp_connection(
                 transport, "notifications@example.com"
             )
@@ -1703,6 +1700,38 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
                 mail_server_id=archived.id,
                 smtp_from="a@example.com",
                 resolve_server=False,
+            )
+
+    def test_a_session_only_sends_through_the_server_it_was_opened_for(self):
+        opened_for = self.IrMailServer.search([], limit=1)
+        other = self.IrMailServer.create(
+            {"name": "other", "smtp_host": "other.example.com"}
+        )
+        with self._capture():
+            session = self.IrMailServer._connect__(
+                mail_server_id=opened_for.id,
+                smtp_from="a@example.com",
+                resolve_server=False,
+            )
+        self.assertEqual(
+            self.IrMailServer._read_session_context(session).mail_server_id,
+            opened_for.id,
+        )
+        message = self.IrMailServer._prepare_email__(
+            "a@example.com", "b@example.com", "subject", "body"
+        )
+        self.IrMailServer._check_session_mail_server(session, opened_for.id)
+        with self.assertRaises(ValueError):
+            self.IrMailServer.send_email(
+                message, mail_server_id=other.id, smtp_session=session
+            )
+        with self._capture():
+            cli_session = self.IrMailServer._connect__(
+                smtp_from="a@example.com", resolve_server=False
+            )
+        with self.assertRaises(ValueError):
+            self.IrMailServer.send_email(
+                message, mail_server_id=opened_for.id, smtp_session=cli_session
             )
 
 
