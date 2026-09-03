@@ -79,10 +79,20 @@ class MixinMailComposer(models.AbstractModel):
     @api.depends("body", "template_id")
     def _compute_body_has_template_value(self) -> None:
         for composer_mixin in self:
+            template_body = composer_mixin.template_id.body_html
+            if template_body:
+                # `body` is stored through a field with sanitize_style=True,
+                # which rewrites inline CSS ("color:red;x" -> "color:red; x").
+                # Comparing the raw template body_html against it makes every
+                # styled template read as edited, wrongly denying non-editors.
+                # Normalize the template value through the same field first.
+                template_body = composer_mixin._fields["body"].convert_to_cache(
+                    template_body, composer_mixin
+                )
             composer_mixin.body_has_template_value = bool(
                 composer_mixin.template_id
                 and not tools.is_html_empty(composer_mixin.body)
-                and composer_mixin.body == composer_mixin.template_id.body_html
+                and composer_mixin.body == template_body
             )
 
     @api.depends_context("uid")

@@ -352,12 +352,12 @@ export class Thread extends Record {
     }
 
     get attachmentsInWebClientView() {
-        const attachments = this.attachments.filter(
+        // `attachments` is already sorted descending by id (see its field
+        // definition), and filter() preserves order, so no re-sort is needed.
+        return this.attachments.filter(
             (attachment) =>
                 (attachment.isPdf || attachment.isImage) && !attachment.uploading,
         );
-        attachments.sort((a1, a2) => a2.id - a1.id);
-        return attachments;
     }
 
     get isUnread() {

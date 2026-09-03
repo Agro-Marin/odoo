@@ -595,3 +595,80 @@ class TestMailMessageLinkedMessages(MailCommon):
             "serialising 20 linking messages must cost what 5 cost: "
             "got %s against %s" % (twenty, five),
         )
+
+
+@tagged("post_install", "-at_install")
+class TestMailMessageNotifiedParentCreate(MailCommon):
+    """Being notified on a parent grants a reply on the SAME document only.
+
+    Exercised through ``_get_forbidden_access("create")`` — the create-only
+    branch that ``_discard_notified_parents`` guards — so the assertion is on
+    that grant alone, not on the surrounding portal ACLs.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Message = cls.env["mail.message"].sudo()
+        cls.doc = cls.env["res.partner"].create({"name": "Parent doc"})
+        cls.parent = Message.create(
+            {
+                "body": "<p>parent</p>",
+                "message_type": "comment",
+                "subtype_id": cls.env.ref("mail.mt_comment").id,
+                "model": "res.partner",
+                "res_id": cls.doc.id,
+                "author_id": cls.user_admin.partner_id.id,
+            }
+        )
+        cls.env["mail.notification"].sudo().create(
+            {
+                "mail_message_id": cls.parent.id,
+                "res_partner_id": cls.user_employee.partner_id.id,
+                "notification_type": "inbox",
+            }
+        )
+        foreign_res_id = cls.env["ir.cron"].sudo().search([], limit=1).id
+        cls.child_same = cls._make_child("res.partner", cls.doc.id)
+        cls.child_foreign = cls._make_child("ir.cron", foreign_res_id)
+
+    @classmethod
+    def _make_child(cls, model, res_id):
+        # author is NOT the notified employee, so the "own message" grant does
+        # not apply and only the notified-parent grant can clear the child.
+        return (
+            cls.env["mail.message"]
+            .sudo()
+            .create(
+                {
+                    "body": "<p>child</p>",
+                    "message_type": "comment",
+                    "subtype_id": cls.env.ref("mail.mt_comment").id,
+                    "parent_id": cls.parent.id,
+                    "model": model,
+                    "res_id": res_id,
+                    "author_id": cls.user_admin.partner_id.id,
+                }
+            )
+        )
+
+    def _forbidden_create(self, message):
+        return (
+            message.with_user(self.user_employee)
+            .sudo(False)
+            ._get_forbidden_access("create")
+        )
+
+    def test_reply_on_the_same_document_is_granted(self):
+        self.assertNotIn(
+            self.child_same,
+            self._forbidden_create(self.child_same),
+            "a notified-parent reply on the same document must be allowed",
+        )
+
+    def test_reply_pointed_at_another_document_is_refused(self):
+        self.assertIn(
+            self.child_foreign,
+            self._forbidden_create(self.child_foreign),
+            "a notified-parent reply must not reach a foreign record",
+        )

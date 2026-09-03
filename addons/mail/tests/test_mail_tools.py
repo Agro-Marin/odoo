@@ -1,7 +1,51 @@
 from odoo.tests import RecordCapturer, tagged, users
 
 from odoo.addons.mail.tests.common import MailCommon
-from odoo.addons.mail.tools.mime import Attachment, Payload, postprocess_payload
+from odoo.addons.mail.tools.mime import (
+    Attachment,
+    Payload,
+    extract_payload,
+    postprocess_payload,
+)
+
+
+@tagged("mail_tools")
+class TestExtractPayloadInlineText(MailCommon):
+    def _message(self, add_part):
+        from email.message import EmailMessage
+
+        message = EmailMessage()
+        message["Subject"] = "invite"
+        message.set_content("visible body")
+        add_part(message)
+        return message
+
+    def test_inline_calendar_part_is_an_attachment_not_body(self):
+        def add(message):
+            message.add_attachment(
+                b"BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nEND:VCALENDAR\r\n",
+                maintype="text",
+                subtype="calendar",
+                disposition="inline",
+                params={"method": "REQUEST"},
+            )
+
+        payload = extract_payload(self._message(add))
+        self.assertEqual(
+            len(payload.attachments), 1, "an inline .ics must be kept as an attachment"
+        )
+        self.assertNotIn(
+            "VCALENDAR", payload.body, "the calendar must not leak into the body"
+        )
+        self.assertIn("visible body", payload.body)
+
+    def test_inline_plaintext_alternative_stays_body(self):
+        def add(message):
+            message.add_alternative("<p>rich body</p>", subtype="html")
+
+        payload = extract_payload(self._message(add))
+        self.assertEqual(payload.attachments, [], "text/html body is not an attachment")
+        self.assertIn("rich body", payload.body)
 
 
 @tagged("mail_tools", "res_partner")
@@ -455,6 +499,22 @@ class TestMailBlacklistCreate(MailCommon):
         )
         with self.assertRaises(ValueError):
             records.action_add()
+
+    def test_create_reactivates_an_archived_entry(self):
+        Blacklist = self.env["mail.blacklist"]
+        entry = Blacklist.create({"email": "gone@test.example.com"})
+        entry._remove("gone@test.example.com")
+        self.assertFalse(entry.active, "sanity: the address was removed")
+        again = Blacklist.create({"email": "gone@test.example.com"})
+        self.assertEqual(again, entry, "the same row is reused")
+        self.assertTrue(
+            again.active, "creating an archived address must re-blacklist it"
+        )
+
+    def test_create_active_false_keeps_a_new_entry_archived(self):
+        Blacklist = self.env["mail.blacklist"]
+        entry = Blacklist.create({"email": "new@test.example.com", "active": False})
+        self.assertFalse(entry.active, "an explicit active=False is honoured")
 
 
 @tagged("mail_tools")

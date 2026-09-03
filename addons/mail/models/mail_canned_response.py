@@ -106,6 +106,12 @@ class MailCannedResponse(models.Model):
         ]
         if not ids:
             return
+        # Only bump responses the caller may actually read: the ids arrive
+        # straight from the client, and canned responses are personal
+        # (record-rule scoped), so a raw UPDATE would touch other users' rows.
+        ids = self.browse(ids)._filtered_access("read").ids
+        if not ids:
+            return
         self.env.cr.execute(
             SQL(
                 """

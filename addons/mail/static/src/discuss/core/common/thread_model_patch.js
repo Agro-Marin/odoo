@@ -324,8 +324,11 @@ const threadPatch = {
             return false;
         }
         let res;
-        for (let i = this.persistentMessages.length - 1; i >= 0; i--) {
-            const message = this.persistentMessages[i];
+        // Read the filtering getter once: it rebuilds the array on every
+        // access, so indexing it inside the loop is O(n^2) per recompute.
+        const persistentMessages = this.persistentMessages;
+        for (let i = persistentMessages.length - 1; i >= 0; i--) {
+            const message = persistentMessages[i];
             if (
                 !message.isSelfAuthored ||
                 message.isNotification ||

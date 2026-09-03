@@ -391,10 +391,11 @@ assert_eq "manifest declares mail.assets_odoo_sfu (bundle + esm + dynamic_child)
     "$(grep -c '"mail.assets_odoo_sfu"' "$MAIL/__manifest__.py")" "3"
 assert_eq "manifest declares mail.assets_lamejs (bundle + esm + dynamic_child)" \
     "$(grep -c '"mail.assets_lamejs"' "$MAIL/__manifest__.py")" "3"
-# discuss remove lines: 1 in web.assets_backend + 1 in mail.assets_public. Was 4 while
+# discuss remove tuples (formatted one element per line): 1 in web.assets_backend + 1 in
+# mail.assets_public. Was 4 while
 # each also stripped *.dark.scss; those two went with the dark-mode rework.
 assert_eq "manifest has discuss remove-then-re-add block (2 remove lines)" \
-    "$(grep -cE 'remove.*mail/static/src/discuss' "$MAIL/__manifest__.py")" "2"
+    "$(grep -A1 -E '"remove",' "$MAIL/__manifest__.py" | grep -c 'mail/static/src/discuss')" "2"
 # Vendored libs exist.
 for lib in idb-keyval/idb-keyval.js lame/lame.js odoo_sfu/odoo_sfu.js selfie_segmentation/selfie_segmentation.js; do
     assert_eq "static/lib/$lib exists" \

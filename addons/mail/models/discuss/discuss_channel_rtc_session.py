@@ -101,7 +101,19 @@ class DiscussChannelRtcSession(models.Model):
         return rtc_sessions
 
     def unlink(self) -> Literal[True]:
-        call_ended_channels = self.channel_id.filtered(
+        channels = self.channel_id
+        if channels:
+            # Serialize with concurrent leaves and with create()'s "first
+            # session posts the call message" decision, which takes the same
+            # lock. Without it, two last members leaving in parallel each still
+            # see the other's not-yet-committed session, so neither detects the
+            # call end and discuss.call.history is never closed.
+            self.env.cr.execute(
+                "SELECT id FROM discuss_channel WHERE id = ANY(%s) FOR UPDATE",
+                [channels.ids],
+            )
+            channels.invalidate_recordset(["rtc_session_ids"])
+        call_ended_channels = channels.filtered(
             lambda c: not (c.rtc_session_ids - self)
         )
         for channel in call_ended_channels:

@@ -48,6 +48,21 @@ class MailBlacklist(models.Model):
                 vals_by_new_email.setdefault(email, dict(value, email=email))
         created = super().create(list(vals_by_new_email.values()))
         id_by_email.update(zip(vals_by_new_email, created.ids, strict=True))
+
+        # An existing row matched by email is returned as-is above, but the
+        # pre-insert lookup ignores `active`: without this a create() over an
+        # archived (previously removed) blacklist entry would hand back the
+        # inactive record and silently fail to blacklist. Reactivate matched
+        # rows, unless the caller explicitly archives (mirrors `_add`).
+        reactivate_ids = [
+            id_by_email[email]
+            for value, email in zip(vals_list, emails, strict=True)
+            if email in id_by_email and value.get("active", True)
+        ]
+        if reactivate_ids:
+            self.browse(reactivate_ids).with_context(active_test=False).filtered(
+                lambda record: not record.active
+            ).action_unarchive()
         return self.browse([id_by_email[email] for email in emails])
 
     def write(self, vals: ValuesType) -> Literal[True]:

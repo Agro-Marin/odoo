@@ -350,7 +350,7 @@ class MailMessage(models.Model):
         if not parent_ids_msg_ids:
             return
         query = SQL(
-            """ SELECT m.id
+            """ SELECT m.id, m.model, m.res_id
                 FROM "mail_message" m
                 JOIN "mail_message_res_partner_rel" partner_rel
                     ON partner_rel.mail_message_id = m.id AND partner_rel.res_partner_id = %s
@@ -358,9 +358,19 @@ class MailMessage(models.Model):
             self.env.user.partner_id.id,
             list(parent_ids_msg_ids),
         )
-        for [parent_id] in self.env.execute_query(query):
+        for parent_id, parent_model, parent_res_id in self.env.execute_query(query):
             for mid in parent_ids_msg_ids[parent_id]:
-                remaining.pop(mid, None)
+                # Being notified on the parent only grants creating a reply on
+                # the SAME document. Without the model/res_id match, a user
+                # notified anywhere could create a message pointing at any
+                # record, since create() never runs _check_parent_on_same_document.
+                child = remaining.get(mid)
+                if (
+                    child
+                    and child.get("model") == parent_model
+                    and child.get("res_id") == parent_res_id
+                ):
+                    remaining.pop(mid, None)
 
     @api.model
     def _filter_records_followed_by_self(

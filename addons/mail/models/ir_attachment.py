@@ -4,8 +4,8 @@ import typing
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.tools.misc import (
-    limited_field_access_token,
     is_valid_limited_field_access_token,
+    limited_field_access_token,
 )
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec

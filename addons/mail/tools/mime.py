@@ -83,7 +83,10 @@ def _is_attachment(part: EmailMessage, filename: str | None) -> bool:
         return True
     if part.get("content-disposition", "").strip().startswith("attachment"):
         return True
-    return part.get_content_maintype() != "text"
+    # Only text/plain and text/html are body candidates. Every other text/*
+    # part (text/calendar invitations, text/csv, ...) is an attachment even
+    # inline and without a filename, otherwise its payload leaks into the body.
+    return part.get_content_type() not in ("text/plain", "text/html")
 
 
 class _Fragment(NamedTuple):
