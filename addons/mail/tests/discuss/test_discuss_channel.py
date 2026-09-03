@@ -366,14 +366,44 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     def test_channel_recipients_mention(self):
+        """A mention reaches an internal user in Discuss, an outsider by email.
+
+        `notification_type` is a preference about the records the user follows,
+        and `mail.group_mail_notification_type_inbox` is not implied by
+        `base.group_user`, so nearly every internal user sits at `email`. Left
+        to decide the channel path too, it turned every mention in every
+        channel into an outgoing email for a message the recipient already has
+        in Discuss.
+        """
+        outsider = self.env["res.partner"].create(
+            {"name": "Ougi Outsider", "email": "ougi@example.com"}
+        )
+        self.assertFalse(self.test_user.share, "the mentioned user is internal")
+        self.assertEqual(
+            self.test_user.notification_type,
+            "email",
+            "and sits at the default that used to force an email",
+        )
         with self.mock_mail_gateway():
-            self.test_channel.message_post(
+            message = self.test_channel.message_post(
                 body="Test",
-                partner_ids=self.test_partner.ids,
+                partner_ids=[self.test_partner.id, outsider.id],
                 message_type="comment",
                 subtype_xmlid="mail.mt_comment",
             )
-        self.assertSentEmail(self.test_channel.env.user.partner_id, [self.test_partner])
+        self.assertEqual(
+            {
+                (notif.res_partner_id, notif.notification_type)
+                for notif in message.notification_ids
+            },
+            {(self.test_partner, "inbox"), (outsider, "email")},
+        )
+        self.assertSentEmail(self.test_channel.env.user.partner_id, [outsider])
+        self.assertNotIn(
+            self.test_partner,
+            self._new_mails.recipient_ids,
+            "the internal user must not be on any outgoing mail",
+        )
 
     @mute_logger("odoo.models.unlink")
     def test_channel_special_mention(self):
