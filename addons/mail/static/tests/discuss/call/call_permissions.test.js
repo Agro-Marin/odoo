@@ -100,3 +100,17 @@ test("Combined mic+camera button only shown when both permissions not granted", 
     await contains(".modal-footer button");
     await contains(".modal-footer button", { text: "Use Microphone" });
 });
+
+test("The permission dialog carries its prompt as the modal title", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    mockGetMedia();
+    mockPermissionsPrompt();
+    await start();
+    await openDiscuss(channelId);
+    await click("[title='Start Call']");
+    await click(".o-discuss-CallActionList button[title='Unmute']");
+    await contains(".modal-header .modal-title", {
+        text: "Do you want people to hear you in the meeting?",
+    });
+});
