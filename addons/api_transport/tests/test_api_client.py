@@ -90,6 +90,42 @@ class TestAPIClient(APITransportTestCase):
 
 
 @tagged("post_install", "-at_install", "api_transport")
+class TestRetryBackoffShape(APITransportTestCase):
+    """`retry_backoff_type` must change the shape of the HTTP-level retry,
+    not just the queue-level one (`calculate_retry_delay`): a `fixed` or
+    `linear` endpoint used to get the same exponential curve as an
+    `exponential` one because `urllib3.Retry` only knows exponential."""
+
+    class _FakeHistoryEntry:
+        redirect_location = None
+
+    def _backoff_curve(self, backoff_type, n=3):
+        self.service_stripe.write(
+            {"retry_enabled": True, "retry_backoff_type": backoff_type}
+        )
+        client = get_api_client(self.env, "test_stripe")
+        retry = client._get_retry_config()
+
+        curve = []
+        for _ in range(n):
+            retry.history = (*retry.history, self._FakeHistoryEntry())
+            curve.append(retry.get_backoff_time())
+        return curve
+
+    def test_fixed_backoff_does_not_grow(self):
+        self.assertEqual(self._backoff_curve("fixed"), [0, 1.0, 1.0])
+
+    def test_linear_backoff_grows_by_a_constant_step(self):
+        self.assertEqual(self._backoff_curve("linear"), [0, 1.0, 2.0])
+
+    def test_exponential_backoff_doubles(self):
+        self.assertEqual(self._backoff_curve("exponential"), [0, 4.0, 8.0])
+
+    def test_fixed_and_linear_are_no_longer_identical(self):
+        self.assertNotEqual(self._backoff_curve("fixed"), self._backoff_curve("linear"))
+
+
+@tagged("post_install", "-at_install", "api_transport")
 class TestURLValidation(APITransportTestCase):
     def _client_for(self, base_url):
         client = get_api_client(self.env, "test_stripe")
