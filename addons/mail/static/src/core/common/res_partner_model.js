@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { IM_STATUS_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { fields, Record } from "@mail/core/common/record";
+import { toRaw } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 import { debounce } from "@web/core/utils/timing";
 import { imageUrl } from "@web/core/utils/urls";
@@ -124,6 +125,11 @@ export class ResPartner extends Record {
         return Object.values(this.store.Thread.records).find((thread) =>
             thread.isChatWith(this),
         );
+    }
+
+    delete() {
+        toRaw(this)._raw.debouncedSetImStatus.cancel();
+        super.delete(...arguments);
     }
 
     /** @param {string} newStatus */

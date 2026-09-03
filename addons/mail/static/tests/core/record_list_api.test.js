@@ -3,7 +3,7 @@ import { makeStore, Record, Store } from "@mail/core/common/record";
 import { fields } from "@mail/model/misc";
 import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
 import { reactive, toRaw } from "@odoo/owl";
-import { mockService } from "@web/../tests/web_test_helpers";
+import { mockService, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 
 describe.current.tags("desktop");
@@ -229,4 +229,143 @@ test("assigning one past the end appends rather than being out of range", async 
     expect(() => {
         john.tasks[5] = store.Task.insert("t3");
     }).toThrow(/out of range/);
+});
+
+/** @param {any} store */
+function stepRelationWrites(store) {
+    patchWithCleanup(toRaw(store)._raw._, {
+        updateRelation(record, fieldName, value) {
+            expect.step(`${record.localId}/${fieldName}`);
+            return super.updateRelation(record, fieldName, value);
+        },
+    });
+}
+
+test("add() and delete() write the inverse relation exactly once", async () => {
+    defineContactTask();
+    const store = await start();
+    const john = store.Contact.insert("John");
+    const t1 = store.Task.insert("t1");
+    stepRelationWrites(store);
+    john.tasks.add(t1);
+    expect.verifySteps(["Task,t1/contact"]);
+    expect(t1.contact.eq(john)).toBe(true);
+    john.tasks.delete(t1);
+    expect.verifySteps(["Task,t1/contact"]);
+    expect(t1.contact).toBe(undefined);
+    expect(john.tasks).toHaveLength(0);
+});
+
+test("assigning a relation writes each inverse exactly once", async () => {
+    defineContactTask();
+    const store = await start();
+    const john = store.Contact.insert("John");
+    const t1 = store.Task.insert("t1");
+    const t2 = store.Task.insert("t2");
+    stepRelationWrites(store);
+    john.tasks = [t1, t2];
+    expect.verifySteps(["Contact,John/tasks", "Task,t1/contact", "Task,t2/contact"]);
+    john.tasks = [t2];
+    expect.verifySteps(["Contact,John/tasks", "Task,t1/contact"]);
+    expect(t1.contact).toBe(undefined);
+    expect(t2.contact.eq(john)).toBe(true);
+    expect(john.tasks.map((t) => t.name)).toEqual(["t2"]);
+});
+
+test("moving a one-field to another owner detaches it from the previous owner once", async () => {
+    defineContactTask();
+    const store = await start();
+    const john = store.Contact.insert("John");
+    const jane = store.Contact.insert("Jane");
+    const t1 = store.Task.insert("t1");
+    john.tasks.add(t1);
+    stepRelationWrites(store);
+    t1.contact = jane;
+    expect.verifySteps(["Task,t1/contact", "Contact,Jane/tasks", "Contact,John/tasks"]);
+    expect(john.tasks).toHaveLength(0);
+    expect(jane.tasks.map((t) => t.name)).toEqual(["t1"]);
+    expect(t1.contact.eq(jane)).toBe(true);
+});
+
+test("pop(), shift() and splice() return the removed records", async () => {
+    defineContactTask();
+    const store = await start();
+    const john = store.Contact.insert("John");
+    const [t1, t2, t3, t4] = ["t1", "t2", "t3", "t4"].map((name) =>
+        store.Task.insert(name),
+    );
+    john.tasks.add(t1, t2, t3, t4);
+    expect(john.tasks.pop().eq(t4)).toBe(true);
+    expect(john.tasks.shift().eq(t1)).toBe(true);
+    const removed = john.tasks.splice(0, 1);
+    expect(removed).toHaveLength(1);
+    expect(removed[0].eq(t2)).toBe(true);
+    expect(john.tasks.map((t) => t.name)).toEqual(["t3"]);
+    for (const task of [t1, t2, t4]) {
+        expect(task.contact).toBe(undefined);
+    }
+    expect(t3.contact.eq(john)).toBe(true);
+    expect(john.tasks.pop().eq(t3)).toBe(true);
+    expect(john.tasks.pop()).toBe(undefined);
+});
+
+test("iterator- and scalar-returning Array methods read `data` without materializing", async () => {
+    defineContactTask();
+    const store = await start();
+    const john = store.Contact.insert("John");
+    const t1 = store.Task.insert("t1");
+    const t2 = store.Task.insert("t2");
+    john.tasks.add(t1);
+    const values = john.tasks.values();
+    const keys = john.tasks.keys();
+    const entries = john.tasks.entries();
+    john.tasks.add(t2);
+    expect([...values].map((t) => t.name)).toEqual(["t1", "t2"]);
+    expect([...keys]).toEqual([0, 1]);
+    expect([...entries].map(([i, t]) => `${i}:${t.name}`)).toEqual(["0:t1", "1:t2"]);
+    expect(john.tasks.lastIndexOf(t2)).toBe(1);
+    expect(john.tasks.lastIndexOf(store.Task.insert("t3"))).toBe(-1);
+    expect(john.tasks.join("|").split("|")).toHaveLength(2);
+    expect(john.tasks.reduceRight((acc, t) => acc + t.name, "")).toBe("t2t1");
+});
+
+test("array-returning Array methods copy once and leave the list untouched", async () => {
+    defineContactTask();
+    const store = await start();
+    const john = store.Contact.insert("John");
+    const t1 = store.Task.insert("t1");
+    const t2 = store.Task.insert("t2");
+    john.tasks.add(t1, t2);
+    const names = (tasks) => tasks.map((t) => t.name);
+    expect(names(john.tasks.toReversed())).toEqual(["t2", "t1"]);
+    expect(names(john.tasks.toSorted((a, b) => b.name.localeCompare(a.name)))).toEqual([
+        "t2",
+        "t1",
+    ]);
+    expect(names(john.tasks.with(0, t2))).toEqual(["t2", "t2"]);
+    expect(names(john.tasks.toSpliced(0, 1))).toEqual(["t2"]);
+    expect(john.tasks.flatMap((t) => [t.name, t.name])).toEqual([
+        "t1",
+        "t1",
+        "t2",
+        "t2",
+    ]);
+    expect(names(john.tasks)).toEqual(["t1", "t2"]);
+    expect(t1.contact.eq(john)).toBe(true);
+});
+
+test("an Array method with no record-list reimplementation throws instead of copying", async () => {
+    defineContactTask();
+    const store = await start();
+    const john = store.Contact.insert("John");
+    john.tasks.add(store.Task.insert("t1"));
+    patchWithCleanup(Array.prototype, {
+        hootProbe() {
+            return "materialized";
+        },
+    });
+    expect(() => john.tasks.hootProbe()).toThrow(
+        /Array\.prototype\.hootProbe\(\) is not supported/,
+    );
+    expect([1].hootProbe()).toBe("materialized");
 });

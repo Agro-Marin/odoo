@@ -28,15 +28,12 @@ const storeServicePatch = {
             );
             if (employeeData && employeeData.user_id) {
                 employee.user_id = employeeData.user_id[0];
-                let user = this.users[employee.user_id];
-                if (!user) {
-                    this.users[employee.user_id] = { id: employee.user_id };
-                    user = this.users[employee.user_id];
-                }
-                user.partner_id = employeeData.user_partner_id[0];
-                this["res.partner"].insert({
-                    display_name: employeeData.user_partner_id[1],
-                    id: employeeData.user_partner_id[0],
+                this["res.users"].insert({
+                    id: employee.user_id,
+                    partner_id: {
+                        display_name: employeeData.user_partner_id[1],
+                        id: employeeData.user_partner_id[0],
+                    },
                 });
             }
         }

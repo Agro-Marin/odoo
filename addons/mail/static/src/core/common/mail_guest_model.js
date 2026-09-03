@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { IM_STATUS_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { fields, Record } from "@mail/core/common/record";
+import { toRaw } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 import { rpc } from "@web/core/network";
 import { debounce } from "@web/core/utils/timing";
@@ -120,6 +121,11 @@ export class MailGuest extends Record {
             guest_id: this.id,
             name,
         });
+    }
+
+    delete() {
+        toRaw(this)._raw.debouncedSetImStatus.cancel();
+        super.delete(...arguments);
     }
 
     /** @param {string} newStatus */

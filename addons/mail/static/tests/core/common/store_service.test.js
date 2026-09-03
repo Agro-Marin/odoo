@@ -1,5 +1,6 @@
 import {
     defineMailModels,
+    listenStoreFetch,
     onRpcBefore,
     start,
     startServer,
@@ -11,6 +12,7 @@ import {
     asyncStep,
     Command,
     getService,
+    onRpc,
     patchWithCleanup,
     serverState,
     waitForSteps,
@@ -174,4 +176,65 @@ test("store.insert different PY model having same JS model", async () => {
     expect(Boolean(store.Thread.get({ id: 1, model: "discuss.channel" }))).toBe(true);
     expect(Boolean(store.Thread.get({ id: 2, model: "discuss.channel" }))).toBe(true);
     expect(Boolean(store.Thread.get({ id: 3, model: "discuss.channel" }))).toBe(true);
+});
+
+test("synchronous fetchChannel calls merge into one discuss.channel fetch", async () => {
+    const pyEnv = await startServer();
+    const [channelId1, channelId2] = pyEnv["discuss.channel"].create([
+        { name: "channel1" },
+        { name: "channel2" },
+    ]);
+    listenStoreFetch("discuss.channel", { logParams: ["discuss.channel"] });
+    await start();
+    const store = getService("mail.store");
+    await Promise.all([
+        store.fetchChannel(channelId1),
+        store.fetchChannel(channelId2),
+        store.fetchChannel(channelId1),
+    ]);
+    await waitForSteps([
+        `store fetch: discuss.channel - [${channelId1},${channelId2}]`,
+    ]);
+});
+
+test("fetchStoreData merge only folds into a queued auto-resolving request", async () => {
+    await start();
+    const store = getService("mail.store");
+    const merge = (queued, incoming) => [...queued, ...incoming];
+    store.fetchStoreData("probe", [1], { requestData: true }).catch(() => {});
+    const first = store.fetchStoreData("probe", [2], { merge });
+    const second = store.fetchStoreData("probe", [3], { merge });
+    expect(store.fetchParams.map(([name, params]) => [name, params])).toEqual([
+        ["probe", [1]],
+        ["probe", [2, 3]],
+    ]);
+    const [requested, merged] = store.fetchParams.map(
+        ([, , dataRequest]) => dataRequest,
+    );
+    expect(requested._autoResolve).toBe(false);
+    merged._resultDef.resolve("shared");
+    expect(await first).toBe("shared");
+    expect(await second).toBe("shared");
+    store.fetchParams = [];
+    requested.delete();
+    merged.delete();
+});
+
+test("getPartner records the user's partner on the res.users model, one lookup at a time", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Bob" });
+    const userId = pyEnv["res.users"].create({ partner_id: partnerId });
+    onRpc("res.users", "read", () => expect.step("res.users.read"));
+    await start();
+    const store = getService("mail.store");
+    const [p1, p2] = await Promise.all([
+        store.getPartner({ userId }),
+        store.getPartner({ userId }),
+    ]);
+    expect(p1.id).toBe(partnerId);
+    expect(p2.eq(p1)).toBe(true);
+    expect(store["res.users"].get(userId).partner_id.eq(p1)).toBe(true);
+    expect.verifySteps(["res.users.read"]);
+    await store.getPartner({ userId });
+    expect.verifySteps([]);
 });

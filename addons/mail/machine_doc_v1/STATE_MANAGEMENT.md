@@ -24,8 +24,8 @@ reactive, id-keyed record graph.
 | File | Exports | Role |
 |------|---------|------|
 | `record.js` | `class Record` | Base class for all models; insert/get/register statics + instance CRUD |
-| `store.js` | `class Store extends Record`, `storeInsertFns` | The store record; owns the `MAKE_UPDATE` cycle + queue flushing + `insert()` |
-| `record_list.js` | `class RecordList extends Array`, `RecordListInternal` | A relational field value — an `Array` subclass over a `data: string[]` of localIds |
+| `store.js` | `class Store extends Record` | The store record; owns the `MAKE_UPDATE` cycle + queue flushing + `insert()` |
+| `record_list.js` | `class RecordList extends Array` | A relational field value — an `Array` subclass over a `data: string[]` of localIds; its module-private `RecordListInternal` engine owns inverse maintenance |
 | `record_uses.js` | `class RecordUses` | Reverse-relation tracker: `Map<Record, Map<fieldName, count>>` of who points at a record |
 | `model_internal.js` | `class ModelInternal` | Per-**Model** field metadata (Maps: Attr/One/Many/Compute/Sort/Inverse/OnAdd/OnDelete/OnUpdate/TargetModel/Type/Default, `idFields`) |
 | `record_internal.js` | `class RecordInternal` | Per-**record** engine: `prepareField`, `requestCompute`, `requestSort`, `compute`, `sort`, `onUpdate`, `downgradeProxy` |
@@ -159,12 +159,17 @@ symbol. `store.env` holds the `OdooEnv`.
   count>>` keyed **by reference** (not localId, to survive delete+reinsert aliasing).
   `add`/`delete` adjust the count for a list's `owner` + `name`; the `RD` flush uses it to
   detach a deleted record from everyone pointing at it.
-- **`RecordList`** (`extends Array`) — backing store is `data: string[]` (localIds). Read
-  methods (`map/filter/find/some/forEach/reduce/slice/at/includes/…`) are reimplemented over
-  `data` + `store.recordByLocalId` to avoid materializing proxy arrays. Mutators
+- **`RecordList`** (`extends Array`) — backing store is `data: string[]` (localIds). Every
+  read method of `Array.prototype` (`map/filter/find/some/forEach/reduce/slice/at/includes/
+  keys/values/entries/join/lastIndexOf/…`) is reimplemented over `data` +
+  `store.recordByLocalId`; the array-returning ones (`toSorted/toReversed/toSpliced/with/flat/
+  flatMap`) materialize once through `slice()`, and an `Array.prototype` method with no
+  reimplementation throws rather than silently copying the list. Mutators
   (`push/pop/splice/sort/add/delete/clear/…`) run inside `MAKE_UPDATE`, maintain inverses +
-  `uses`, and queue `onAdd`/`onDelete`. `reverse`/`fill`/`copyWithin` throw (in-place reorder
-  unsupported).
+  `uses`, and queue `onAdd`/`onDelete`; `RecordListInternal.insert` is the one place that
+  writes the inverse side (as an `ADD.noinv`/`DELETE.noinv` command on the target), so each
+  membership change reaches the inverse exactly once. `reverse`/`fill`/`copyWithin` throw
+  (in-place reorder unsupported).
 
 ## The `store` service and server-data flow
 
@@ -196,7 +201,7 @@ extra `useState` wrapping is needed.
 | `initialize()` | `await fetchStoreData("init_messaging")` |
 | `Store.insert(dataByModelName)` (`model/store.js`) | Iterate model → rows, map py→js model name, handle per-row `_DELETE`, then `store[modelName].insert(rows)` |
 
-Python → JS model-name mapping lives in `pyToJsModels`
+Python → JS model-name mapping lives in the module-private `pyToJsModels`
 (`{"discuss.channel": "Thread", "mixin.mail.thread": "Thread"}`) and `addFieldsByPyModel`
 (`{"discuss.channel": {model: "discuss.channel"}}`), consumed by three overridable
 `Store` methods that `Store.insert` calls (declared neutral in `model/store.js`,

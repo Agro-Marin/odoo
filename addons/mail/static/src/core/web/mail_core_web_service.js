@@ -81,6 +81,9 @@ export class MailCoreWeb {
                 const message = this.store["mail.message"].get(messageId);
                 const inbox = this.store.inbox;
                 applyCounterDelta(inbox, "counter", 1, { busId: notifId });
+                if (!message) {
+                    return;
+                }
                 inbox.messages.add(message);
                 if (message.thread) {
                     applyCounterDelta(message.thread, "message_needaction_counter", 1, {

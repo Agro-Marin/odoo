@@ -25,12 +25,12 @@ const log = makeModelLog("store");
 /**
  * @typedef {{isSpecial: true, channel_types: string[], label: string, displayName: string, description: string}} SpecialMention
  */
-export const pyToJsModels = {
+const pyToJsModels = {
     "discuss.channel": "Thread",
     "mixin.mail.thread": "Thread",
 };
 
-export const addFieldsByPyModel = {
+const addFieldsByPyModel = {
     "discuss.channel": { model: "discuss.channel" },
 };
 
@@ -85,8 +85,6 @@ export class Store extends BaseStore {
             return this.store.env.services.ui.isSmall || isMobileOS();
         },
     });
-    /** @type {Object<number, import("models").ResUsers>} */
-    users = {};
     /** @type {number} */
     internalUserGroupId;
     mt_comment = fields.One("mail.message.subtype");
@@ -156,8 +154,6 @@ export class Store extends BaseStore {
 
     /** @type {Map<string, Mutex>} */
     messagePostMutexes = new Map();
-    /** @type {Map<number, Promise<number|undefined>>} */
-    _partnerIdByUserIdFetches = new Map();
 
     /**
      * @param {{env?: import("@web/env").OdooEnv}} [ctx]
@@ -248,13 +244,26 @@ export class Store extends BaseStore {
      * @param {boolean} [options.requestData=false]
      * @param {boolean} [options.readonly=true]
      * @param {boolean} [options.silent=true]
+     * @param {(queued: any, incoming: any) => any} [options.merge] folds `params`
+     *  into a same-named request still waiting in the batch, whose result is
+     *  then shared, instead of appending a second one
      * @returns {Promise<any>}
      */
     async fetchStoreData(
         name,
         params,
-        { requestData = false, readonly = true, silent = true } = {},
+        { requestData = false, readonly = true, silent = true, merge } = {},
     ) {
+        if (merge && !requestData) {
+            const queued = this.fetchParams.find(
+                ([queuedName, , queuedRequest]) =>
+                    queuedName === name && queuedRequest._autoResolve,
+            );
+            if (queued) {
+                queued[1] = merge(queued[1], params);
+                return queued[2]._resultDef;
+            }
+        }
         const dataRequest = this.DataResponse.createRequest();
         dataRequest._autoResolve = !requestData;
         this.fetchParams.push([name, params, dataRequest]);
@@ -544,28 +553,10 @@ export class Store extends BaseStore {
      */
     async getPartner({ userId, partnerId }) {
         if (userId) {
-            let user = this.users[userId];
-            if (!user) {
-                this.users[userId] = { id: userId };
-                user = this.users[userId];
-            }
-            if (!user.partner_id) {
-                let fetch = this._partnerIdByUserIdFetches.get(userId);
-                if (!fetch) {
-                    fetch = this.env.services.orm.silent
-                        .read("res.users", [user.id], ["partner_id"], {
-                            context: { active_test: false },
-                        })
-                        .then(([userData]) => userData?.partner_id[0])
-                        .finally(() => this._partnerIdByUserIdFetches.delete(userId));
-                    this._partnerIdByUserIdFetches.set(userId, fetch);
-                }
-                const partner_id = await fetch;
-                if (partner_id) {
-                    user.partner_id = partner_id;
-                }
-            }
-            if (!user.partner_id) {
+            const partner = await this["res.users"]
+                .insert({ id: userId })
+                .fetchPartner();
+            if (!partner) {
                 this.env.services.notification.add(
                     _t("You can only chat with existing users."),
                     {
@@ -574,7 +565,7 @@ export class Store extends BaseStore {
                 );
                 return;
             }
-            partnerId = user.partner_id;
+            partnerId = partner.id;
         }
         if (partnerId) {
             const partner = this["res.partner"].insert({ id: partnerId });
