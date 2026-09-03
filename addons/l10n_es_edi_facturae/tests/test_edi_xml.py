@@ -25,7 +25,7 @@ def _compute_is_valid(self):
 
 
 @tagged('post_install_l10n', 'post_install', '-at_install')
-@patch('odoo.addons.certificate.models.certificate.CertificateCertificate._compute_is_valid', _compute_is_valid)
+@patch('odoo.addons.certificate.models.certificate_certificate.CertificateCertificate._compute_is_valid', _compute_is_valid)
 class TestEdiFacturaeXmls(AccountTestInvoicingCommon):
     @classmethod
     @AccountTestInvoicingCommon.setup_country('es')
@@ -52,6 +52,7 @@ class TestEdiFacturaeXmls(AccountTestInvoicingCommon):
             'partner_id': cls.company_data['company'].partner_id.id,
             'bank_id': cls.caixabank.id,
             'acc_type': 'iban',
+            'allow_out_payment': True,
         })
 
         # ==== Business ====
@@ -100,7 +101,7 @@ class TestEdiFacturaeXmls(AccountTestInvoicingCommon):
 
         cls.password = "test"
 
-        cls.certificate_module = "odoo.addons.certificate.models.certificate"
+        cls.certificate_module = "odoo.addons.certificate.models.certificate_certificate"
         cls.move_module = "odoo.addons.l10n_es_edi_facturae.models.account_move"
         with freeze_time(cls.frozen_today), patch(f"{cls.certificate_module}.fields.Datetime.now", lambda x=None: cls.frozen_today):
             cls.certificate = cls.env["certificate.certificate"].create({
