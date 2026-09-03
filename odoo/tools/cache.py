@@ -201,8 +201,7 @@ class ormcache:
             start = _monotonic()
             value = _method(*args, **kwargs)
             counter.gen_time += _monotonic() - start
-            if d.generation == generation:
-                d[key] = value
+            d.set_if_generation(key, value, generation)
             return value
 
         lookup.__cache__ = self  # type: ignore[attr-defined]
@@ -218,9 +217,10 @@ class ormcache:
         model: BaseModel = args[0]
         d: LRU = model.pool.ormcache_lrus[self.cache_name]
         key = self.key(*args, **kwargs)
-        if generation is not None and d.generation != generation:
-            return
-        d[key] = cache_value
+        if generation is None:
+            d[key] = cache_value
+        else:
+            d.set_if_generation(key, cache_value, generation)
 
     def get_cache_generation(self, model: BaseModel) -> int:
         return model.pool.ormcache_lrus[self.cache_name].generation
