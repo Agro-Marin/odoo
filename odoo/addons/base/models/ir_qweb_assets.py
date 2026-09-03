@@ -1460,54 +1460,26 @@ class IrQweb(models.AbstractModel):
         prepare_register_native_modules_js
     )
 
-    @staticmethod
-    def _resolve_esm_satellite_kind(bundle: str) -> str | None:
-        registry = esm_registry()
-        if bundle in registry.import_map_included_bundles:
-            return "import_map_include"
-        if bundle in registry.secondary_bundle_names:
-            return "secondary"
-        return None
-
     def _prepare_esm_bridge_js(
         self,
         bundle: str,
-        native_data: dict[str, Any],
+        import_map: dict[str, str],
         bridge_specifiers: list[str],
-        *,
-        already_has_esm: bool,
     ) -> str:
         hoot_specs = self._get_hoot_specifiers(bundle, bridge_specifiers)
         hoot_spec_set = set(hoot_specs)
         non_hoot_specs = [s for s in bridge_specifiers if s not in hoot_spec_set]
         bridge_code = ""
 
-        if not already_has_esm:
+        if non_hoot_specs:
+            # Imports go by URL, not by bare specifier: the page keeps only the
+            # first bundle's import map, so a later bundle's own specifiers are
+            # unresolvable through it, while the same URL yields the same module
+            # instance in either position and re-registration is a no-op.
             bridge_code = self._prepare_register_native_modules_js(
-                [(spec, spec) for spec in non_hoot_specs], "__m"
+                [(spec, import_map.get(spec, spec)) for spec in non_hoot_specs],
+                "__m",
             )
-        elif satellite := self._resolve_esm_satellite_kind(bundle):
-            if non_hoot_specs:
-                imports = ", ".join(
-                    f"import({json_mod.dumps(s)})" for s in non_hoot_specs
-                )
-                bridge_code += f"await Promise.allSettled([{imports}]);\n"
-                log_event(
-                    _esm_log,
-                    logging.DEBUG,
-                    "satellite_imports",
-                    bundle=bundle,
-                    kind=satellite,
-                    specs=len(non_hoot_specs),
-                )
-        else:
-            own = [
-                (spec, native_data["import_map"][spec])
-                for spec in non_hoot_specs
-                if spec in native_data["import_map"]
-            ]
-            if own:
-                bridge_code += self._prepare_register_native_modules_js(own, "__s")
 
         start_hoot = [s for s in hoot_specs if s.endswith("/start.hoot")]
         other_tests = [s for s in hoot_specs if s not in start_hoot]
@@ -1547,24 +1519,16 @@ class IrQweb(models.AbstractModel):
             with_test_satellites=with_test_satellites,
         )
 
-        _req = request or None
-        _already_has_esm = _req and getattr(
-            _req,
-            "_esm_import_map_rendered",
-            False,
-        )
-
-        if not _already_has_esm:
-            pre_nodes.append(
-                (
-                    "script",
-                    {
-                        "type": "importmap",
-                        "data-bundle": bundle,
-                        "text": json_mod.dumps({"imports": import_map}, indent=2),
-                    },
-                )
+        pre_nodes.append(
+            (
+                "script",
+                {
+                    "type": "importmap",
+                    "data-bundle": bundle,
+                    "text": json_mod.dumps({"imports": import_map}, indent=2),
+                },
             )
+        )
 
         if not debug_assets:
             pre_nodes.extend(self._get_esm_preload_links(bundle, native_data))
@@ -1573,15 +1537,10 @@ class IrQweb(models.AbstractModel):
             set(native_data["import_map"])
             | self._bridge_external_specifiers(native_data)
         )
-        if bridge_specifiers and not _already_has_esm:
-            pre_nodes.append(self._prepare_loader_shim_node(bundle))
-
         if bridge_specifiers:
+            pre_nodes.append(self._prepare_loader_shim_node(bundle))
             bridge_code = self._prepare_esm_bridge_js(
-                bundle,
-                native_data,
-                bridge_specifiers,
-                already_has_esm=bool(_already_has_esm),
+                bundle, import_map, bridge_specifiers
             )
             if bridge_code.strip():
                 post_nodes.append(
@@ -1599,7 +1558,6 @@ class IrQweb(models.AbstractModel):
             post_nodes,
             import_map,
             bridge_shims=len(resolved_bridges),
-            already_has_esm=bool(_already_has_esm),
         )
         return pre_nodes, post_nodes
 

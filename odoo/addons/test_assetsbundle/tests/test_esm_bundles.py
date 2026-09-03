@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools.assets.esm_registry import esm_registry
@@ -6,6 +7,7 @@ from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_path
 
 from .common import _Mod
+from odoo.addons.base.models import ir_qweb_assets
 from odoo.addons.base.models.assetsbundle import (
     AssetsBundle,
     JavascriptAsset,
@@ -426,3 +428,43 @@ class TestTransitiveSpecifierDiscovery(BaseCase):
     def test_an_unreadable_seed_yields_nothing_instead_of_raising(self):
         with self.assertLogs("odoo.assets.bridge", level="WARNING"):
             self.assertEqual(self._discover(["@web/nope/nope"]), set())
+
+
+class TestDebugNodesAreRequestIndependent(TransactionCase):
+    BUNDLE = "test_assetsbundle.native_esm"
+
+    def setUp(self):
+        super().setUp()
+        self.env["ir.config_parameter"].sudo().set_param(
+            "web.esbuild.force_fallback_bundles", self.BUNDLE
+        )
+        self.env.registry.clear_cache("assets")
+
+    def _nodes_for(self, req):
+        with patch.object(ir_qweb_assets, "request", req):
+            return self.env["ir.qweb"]._get_native_module_nodes(self.BUNDLE)
+
+    @staticmethod
+    def _page_holding_a_map():
+        return SimpleNamespace(
+            _esm_import_map_rendered=True, _esm_import_map_specs=frozenset()
+        )
+
+    def test_a_page_already_holding_a_map_does_not_poison_the_cache(self):
+        IrQweb = self.env["ir.qweb"]
+        second_on_page, _post = self._nodes_for(self._page_holding_a_map())
+        self.assertFalse(any(IrQweb._is_import_map_node(n) for n in second_on_page))
+
+        first_on_page, _post = self._nodes_for(SimpleNamespace())
+        self.assertTrue(any(IrQweb._is_import_map_node(n) for n in first_on_page))
+        self.assertTrue(any(IrQweb._is_loader_shim_node(n) for n in first_on_page))
+
+    def test_the_bridge_is_the_same_in_either_position(self):
+        _pre, later = self._nodes_for(self._page_holding_a_map())
+        _pre, first = self._nodes_for(SimpleNamespace())
+        self.assertEqual(later, first)
+        bridges = [attrs["text"] for _tag, attrs in first if "data-bridge" in attrs]
+        self.assertEqual(len(bridges), 1)
+        for line in bridges[0].splitlines():
+            if line.startswith("import * as "):
+                self.assertIn(' from "/', line, "the bridge must import by url")
