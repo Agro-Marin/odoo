@@ -49,14 +49,18 @@ async function mountScreenCardFor(thread, sessionId) {
     await animationFrame();
 }
 
-test("the paused-stream overlay is shown on the self screen-share card", async () => {
+test("the paused-stream panel is shown on the self screen-share card", async () => {
     const { thread } = await setupPausedScreenShare();
     await mountScreenCardFor(thread, SELF_SESSION_ID);
-    expect("button:contains('Stream paused')").toHaveCount(1);
+    expect("h1:contains('You are Presenting')").toHaveCount(1);
+    // The two ways out of the infinite mirror, both on the card itself.
+    expect("button[aria-label='Show My Screen Anyway']").toHaveCount(1);
+    expect("button[aria-label='Stop Presenting']").toHaveCount(1);
 });
 
-test("the paused-stream overlay is NOT shown on another participant's screen-share card", async () => {
+test("the paused-stream panel is NOT shown on another participant's screen-share card", async () => {
     const { thread } = await setupPausedScreenShare();
     await mountScreenCardFor(thread, REMOTE_SESSION_ID);
-    expect("button:contains('Stream paused')").toHaveCount(0);
+    expect("h1:contains('You are Presenting')").toHaveCount(0);
+    expect("button[aria-label='Stop Presenting']").toHaveCount(0);
 });

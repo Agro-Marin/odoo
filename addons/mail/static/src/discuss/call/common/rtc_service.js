@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
-import { CallInfiniteMirroringWarning } from "@mail/discuss/call/common/call_infinite_mirroring_warning";
 import { CallPermissionDialog } from "@mail/discuss/call/common/call_permission_dialog";
 import {
     CallTransport,
@@ -86,9 +85,10 @@ function bindFullscreen(rtc, services) {
             rtc.displaySurface !== "browser" &&
             rtc.fullscreen.id === CALL_FULLSCREEN_ID
         ) {
-            rtc.showMirroringWarning();
+            // Pause the stream and let the participant card say why, instead
+            // of stacking a floating overlay on top of the call.
+            rtc.state.screenTrack.enabled = false;
         } else if (!rtc.state.isFullscreen) {
-            rtc.removeMirroringWarning?.();
             if (wasFullscreen && rtc.state.screenTrack) {
                 rtc.state.screenTrack.enabled = true;
             }
@@ -551,7 +551,6 @@ export class Rtc extends Record {
     start() {
         const services = this.store.env.services;
         this.notification = services.notification;
-        this.overlay = services.overlay;
         this.dialog = services.dialog;
         this.soundEffectsService = services["mail.sound_effects"];
         this.pttExtService = services["discuss.ptt_extension"];
@@ -630,38 +629,6 @@ export class Rtc extends Record {
         this.setPttReleaseTimeout();
     }
 
-    showMirroringWarning() {
-        this.state.screenTrack.enabled = false;
-        const trackEndedFn = () => this.removeMirroringWarning?.();
-        this.removeMirroringWarning = this.overlay.add(
-            CallInfiniteMirroringWarning,
-            {
-                /**
-                 * @param {Object} [options]
-                 * @param {boolean} [options.stopScreensharing]
-                 */
-                onClose: ({ stopScreensharing } = {}) => {
-                    this.removeMirroringWarning({ stopScreensharing });
-                },
-            },
-            {
-                /**
-                 * @param {Object} [options]
-                 * @param {boolean} [options.stopScreensharing]
-                 */
-                onRemove: ({ stopScreensharing } = {}) => {
-                    if (stopScreensharing) {
-                        this.toggleVideo("screen", { force: false });
-                    }
-                    this.state.screenTrack?.removeEventListener("ended", trackEndedFn);
-                    this.removeMirroringWarning = null;
-                },
-            },
-        );
-        this.state.screenTrack.addEventListener("ended", trackEndedFn, { once: true });
-    }
-
-    /** @param {number} [duration=PTT_RELEASE_DURATION] */
     setPttReleaseTimeout(duration = PTT_RELEASE_DURATION) {
         browser.clearTimeout(this.state.pttReleaseTimeout);
         this.state.pttReleaseTimeout = browser.setTimeout(
