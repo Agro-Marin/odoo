@@ -46,6 +46,17 @@ def test_methods_none_route_emits_operations():
     assert sorted(doc["paths"]["/web/version"]) == ["get", "post"]
 
 
+def test_effective_methods_distinguishes_unset_from_explicitly_empty():
+    unset = _route("/v", methods=frozenset(), routing={"type": "http"})
+    assert _get_methods_effective(unset) == frozenset({"GET", "POST"})
+    explicitly_empty = _route(
+        "/v",
+        methods=frozenset({"OPTIONS"}),
+        routing={"type": "http", "methods": []},
+    )
+    assert _get_methods_effective(explicitly_empty) == frozenset()
+
+
 def test_operation_id_disambiguates_realistic_collision():
     used: set[str] = set()
     first = _prepare_operation_id("GET", "/shop/cart", used)

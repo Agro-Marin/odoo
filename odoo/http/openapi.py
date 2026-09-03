@@ -37,6 +37,11 @@ def _get_methods_effective(route: RouteInfo) -> frozenset[str]:
     real = route.methods - _IMPLICIT_METHODS
     if real:
         return real
+    if route.routing.get("methods") is not None:
+        # explicitly declared with no methods beyond the implicit ones
+        # (e.g. methods=[]): report that faithfully instead of assuming
+        # the conventional GET+POST pair used for an unset declaration.
+        return frozenset()
     if route.routing.get("type") == "jsonrpc":
         return _DEFAULT_METHODS_JSONRPC
     return _DEFAULT_METHODS_OTHER
