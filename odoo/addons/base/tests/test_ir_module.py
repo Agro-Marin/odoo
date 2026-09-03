@@ -715,3 +715,35 @@ class IrModuleCategoryCacheCase(TransactionCase):
                 categories,
                 f"{field} is guarded but the hierarchy no longer reads it",
             )
+
+
+class IrModuleStableCacheCase(TransactionCase):
+    def _cleared_by(self, vals):
+        module = self.env["ir.module.module"].search(
+            [("state", "=", "uninstalled")], limit=1
+        )
+        self.assertTrue(module, "precondition: an uninstalled module to touch")
+        cleared = []
+        with patch.object(
+            type(self.env.registry),
+            "clear_cache",
+            lambda registry, *names: cleared.extend(names),
+        ):
+            module.write(vals)
+        return "stable" in cleared
+
+    def test_a_state_change_clears_the_installed_map(self):
+        self.assertTrue(self._cleared_by({"state": "to install"}))
+
+    def test_a_name_change_clears_the_id_lookup(self):
+        self.assertTrue(self._cleared_by({"name": "irmod_stable_renamed"}))
+
+    def test_a_summary_change_does_not(self):
+        self.assertFalse(self._cleared_by({"summary": "irmod stable"}))
+
+    def test_installed_sees_a_state_flip(self):
+        Module = self.env["ir.module.module"]
+        module = Module.search([("state", "=", "uninstalled")], limit=1)
+        self.assertNotIn(module.name, Module._installed())
+        module.write({"state": "installed"})
+        self.assertIn(module.name, Module._installed())

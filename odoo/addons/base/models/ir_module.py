@@ -173,6 +173,8 @@ PENDING_STATES = ("to install", "to upgrade", "to remove")
 
 STUDIO_CUSTOMIZATION = "studio_customization"
 
+STABLE_CACHE_FIELDS = frozenset(("name", "state"))
+
 UNSATISFIABLE_DEPENDENCY_STATES = frozenset(("uninstallable", "unknown"))
 
 LINK_STATES = [*STATES, ("unknown", "Unknown")]
@@ -469,6 +471,12 @@ class IrModuleModule(models.Model):
                         "You are trying to remove a module that is installed or will be installed."
                     )
                 )
+
+    def write(self, vals: dict[str, Any]) -> bool:
+        res = super().write(vals)
+        if not STABLE_CACHE_FIELDS.isdisjoint(vals):
+            self.env.registry.clear_cache("stable")
+        return res
 
     def unlink(self) -> bool:
         self.env.registry.clear_cache("stable")
