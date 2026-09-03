@@ -367,6 +367,14 @@ class TestInboundEventEnqueue(TestApiEventLog):
         self.env["ir.job"].search([]).unlink()
         return event
 
+    def _give_the_channel_a_processing_mode(self, processing_mode):
+        # `processing_mode` lives on the INBOUND mixin too; see
+        # `_give_the_channel_a_handler` above for why it is patched onto the
+        # outbound channel these test events point at.
+        channel_cls = self.registry["api.endpoint.outbound"]
+        channel_cls.processing_mode = processing_mode
+        self.addCleanup(delattr, channel_cls, "processing_mode")
+
     def test_enqueuing_the_same_event_twice_leaves_one_job(self):
         event = self._inbound_event()
 
@@ -391,6 +399,26 @@ class TestInboundEventEnqueue(TestApiEventLog):
             1,
             "the cron must not hand a worker an event another worker already has",
         )
+
+    @mute_logger("odoo.addons.api_transport.models.api_event_log")
+    def test_the_retry_cron_does_not_replay_a_synchronous_endpoints_event(self):
+        # The defect this guards: `queue_event` never enqueues a job for a
+        # `processing_mode="sync"` endpoint (the caller is expected to process
+        # inline and close the event itself), so a caller that forgets leaves
+        # the event `pending` with no job to deduplicate against. The cron
+        # used to enqueue one anyway right after warning that it shouldn't.
+        self._give_the_channel_a_handler(lambda channel, event_id: None)
+        self._give_the_channel_a_processing_mode("sync")
+        event = self._inbound_event()
+
+        self.env["api.event.log"]._cron_retry_failed_events()
+
+        self.assertEqual(
+            len(self._jobs_for(event)),
+            0,
+            "a synchronous endpoint's event must not be handed to a worker",
+        )
+        self.assertEqual(event.state, "pending")
 
     def test_the_job_hands_the_event_to_its_channel(self):
         seen = []

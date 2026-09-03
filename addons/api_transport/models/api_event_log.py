@@ -623,12 +623,14 @@ class ApiEventLog(models.Model):
                     getattr(channel, "processing_mode", None) == "sync"
                 ):
                     _logger.warning(
-                        "Replaying event %d, which endpoint %s left pending "
-                        "after handling it synchronously; the route should "
-                        "mark_success() or mark_failed() instead",
+                        "Leaving event %d pending: endpoint %s handles it "
+                        "synchronously and should have called mark_success() "
+                        "or mark_failed() instead of leaving it here; not "
+                        "replaying it, to avoid processing it a second time",
                         event.id,
                         channel.display_name,
                     )
+                    continue
                 if hasattr(channel, "_run_queued_event"):
                     event.date_next_retry = now + timedelta(seconds=processing_timeout)
                     event._enqueue_processing()
