@@ -925,6 +925,37 @@ class TestPartnerDuplicateIdentifiers(TransactionCase):
         )
         self.assertEqual(be_twin.same_company_registry_partner_id, be_partner)
 
+    def test_a_same_vat_partner_the_user_cannot_read_is_not_linked(self):
+        Partner = self.env["res.partner"]
+        company_a, company_b = self.env["res.company"].create(
+            [{"name": "Vat Co A"}, {"name": "Vat Co B"}]
+        )
+        user = new_test_user(
+            self.env,
+            login="same_vat_reader",
+            groups="base.group_user",
+            company_id=company_a.id,
+            company_ids=[Command.set(company_a.ids)],
+        )
+        mine = Partner.create(
+            {"name": "Vat Mine", "is_company": True, "vat": "BE0477472701"}
+        )
+        hidden = Partner.create(
+            {
+                "name": "Vat Hidden",
+                "is_company": True,
+                "vat": "BE0477472701",
+                "company_id": company_b.id,
+            }
+        )
+        self.assertEqual(mine.same_vat_partner_id, hidden)
+        self.assertFalse(hidden.with_user(user).has_access("read"))
+
+        self.assertFalse(
+            mine.with_user(user).same_vat_partner_id,
+            "a duplicate the user cannot read must not be linked to them",
+        )
+
 
 class TestPartnerSimilarNameDuplicates(TransactionCase):
     @classmethod

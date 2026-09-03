@@ -608,6 +608,7 @@ class ResPartner(models.Model):
                 lambda p: p.id in internal_partner_ids
             ).partner_share = False
 
+    @api.depends_context("uid")
     @api.depends(
         "vat",
         "company_id",
@@ -642,18 +643,20 @@ class ResPartner(models.Model):
 
         vat_by_value: dict[str, list] = defaultdict(list)
         if all_vats:
-            for c in Partner.search_fetch(
+            candidates = Partner.search_fetch(
                 [("vat", "in", list(all_vats))],
                 ["vat", "parent_id", "company_id", "country_id"],
-            ):
+            )
+            for c in candidates.with_env(self.env)._filtered_access("read"):
                 vat_by_value[c.vat].append(c)
 
         reg_by_value: dict[str, list] = defaultdict(list)
         if all_registries:
-            for c in Partner.search_fetch(
+            candidates = Partner.search_fetch(
                 [("company_registry", "in", list(all_registries))],
                 ["company_registry", "parent_id", "company_id", "country_id"],
-            ):
+            )
+            for c in candidates.with_env(self.env)._filtered_access("read"):
                 reg_by_value[c.company_registry].append(c)
 
         for partner in self:
