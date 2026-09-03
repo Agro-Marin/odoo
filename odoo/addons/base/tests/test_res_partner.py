@@ -358,6 +358,30 @@ class TestPartner(TransactionCaseWithUserDemo):
         self.assertEqual(first_child.lang, "de_DE")
         self.assertEqual(second_child.lang, "fr_FR")
 
+    def test_re_parenting_keeps_an_explicit_lang_and_fills_a_missing_one(self):
+        self.env["res.lang"]._activate_lang("de_DE")
+        self.env["res.lang"]._activate_lang("fr_FR")
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Lang Parent", "lang": "de_DE"})
+        explicit = Partner.create({"name": "Explicit Lang", "lang": "fr_FR"})
+        blank = Partner.create({"name": "Blank Lang"})
+        blank.lang = False
+        (explicit | blank).invalidate_recordset()
+
+        explicit.parent_id = parent
+        blank.parent_id = parent
+
+        self.assertEqual(
+            explicit.lang, "fr_FR", "a re-parent must not overwrite an explicit lang"
+        )
+        self.assertEqual(
+            blank.lang, "de_DE", "a contact without a lang takes its new parent's"
+        )
+
+        explicit.write({"parent_id": False, "lang": "de_DE"})
+        explicit.write({"parent_id": parent.id, "lang": "fr_FR"})
+        self.assertEqual(explicit.lang, "fr_FR", "a lang given with the parent wins")
+
     def test_name_create(self):
         res_partner = self.env["res.partner"]
         for text, expected_name, expected_mail in SAMPLES:

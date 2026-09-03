@@ -518,6 +518,11 @@ class ResPartner(models.Model):
 
     @api.depends("parent_id")
     def _compute_lang(self) -> None:
+        self.filtered(
+            lambda partner: not partner.lang or not partner._origin
+        )._update_lang_from_parent()
+
+    def _update_lang_from_parent(self) -> None:
         if not self:
             return
         default_lang = self.default_get(["lang"]).get("lang")
@@ -1394,7 +1399,7 @@ class ResPartner(models.Model):
             if "lang" not in values
         )
         if partners_without_lang:
-            partners_without_lang._compute_lang()
+            partners_without_lang._update_lang_from_parent()
 
         if self.env.context.get("_partners_skip_fields_sync"):
             return partners
