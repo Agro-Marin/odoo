@@ -120,6 +120,8 @@ class PoolError(Exception):
 
 
 class ConnectionPool:
+    """Per-endpoint pool of psycopg connections: borrow/give-back, idle reaping, and the shared connection budget."""
+
     def __init__(
         self,
         maxconn: int = 64,

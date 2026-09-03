@@ -10,7 +10,7 @@ carry the detailed invariants — this file is the map.
 | Module | Contents | Pure? |
 |---|---|---|
 | `__init__.py` | Public API only: `db_connect`, `close_db`/`close_all`, `drain_db`/`drain_all`, `get_pool_health`, the process `registry`, and `sql_counter` via module `__getattr__` | no |
-| `endpoints.py` | `EndpointRegistry`: the lazy registry of `ConnectionPool`s keyed `(endpoint, readonly)` and of `ConnectionBudget`s keyed by endpoint, plus the endpoint resolution (`get_endpoint_key`, `get_base_maxconn`) both sides of the budget comparison share. Was module state in `__init__.py` | no |
+| `endpoints.py` | `EndpointRegistry`: the lazy registry of `ConnectionPool`s keyed `(endpoint, readonly)` and of `ConnectionBudget`s keyed by endpoint, plus the endpoint resolution (`get_endpoint_key`, `get_maxconn_at_endpoint`) both sides of the budget comparison share. Was module state in `__init__.py` | no |
 | `cursor.py` | `BaseCursor` (hooks, flush convergence, savepoint seam) and `Cursor` (the `cr` object: execute/executemany/pipeline, DDL handling, close/commit/rollback guards) | no |
 | `pool.py` | `ConnectionPool` (per-DSN psycopg_pool registry, borrow/give_back, idle-pool reaper, stale-credential eviction, direct maintenance-DB path, `health()`) and `Connection` | no |
 | `probe.py` | `ReachabilityProbe`: is this DSN connectable, and permanently or not — the pre-flight probe, its leader/follower dedup, the `postgres`-side existence check and the per-key proof. Was inlined in `pool.py` | no |
