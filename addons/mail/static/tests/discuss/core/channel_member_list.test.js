@@ -81,6 +81,46 @@ test("members should be correctly categorised into online/offline", async () => 
     await contains(".o-discuss-ChannelMemberList h6", { text: "Offline - 1" });
 });
 
+test("avatar card shows the local time of someone in another timezone", async () => {
+    const pyEnv = await startServer();
+    pyEnv["res.partner"].write([serverState.partnerId], { tz: "America/Mexico_City" });
+    const partnerId = pyEnv["res.partner"].create({
+        name: "Demo",
+        tz: "America/Hermosillo",
+    });
+    pyEnv["res.users"].create({ partner_id: partnerId });
+    const channelId = createChannel(pyEnv, {
+        name: "TestChannel",
+        members: ["self", partnerId],
+        channel_type: "channel",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await click(".o-discuss-ChannelMember.cursor-pointer", { text: "Demo" });
+    await contains(".o_avatar_card .o_card_user_infos", { text: "Demo" });
+    await contains(".o-mail-avatar-card-localTime");
+});
+
+test("avatar card stays quiet for someone in the same timezone", async () => {
+    const pyEnv = await startServer();
+    pyEnv["res.partner"].write([serverState.partnerId], { tz: "America/Mexico_City" });
+    const partnerId = pyEnv["res.partner"].create({
+        name: "Nearby",
+        tz: "America/Mexico_City",
+    });
+    pyEnv["res.users"].create({ partner_id: partnerId });
+    const channelId = createChannel(pyEnv, {
+        name: "TestChannel",
+        members: ["self", partnerId],
+        channel_type: "channel",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await click(".o-discuss-ChannelMember.cursor-pointer", { text: "Nearby" });
+    await contains(".o_avatar_card .o_card_user_infos", { text: "Nearby" });
+    await contains(".o-mail-avatar-card-localTime", { count: 0 });
+});
+
 test("chat with member should be opened after clicking on channel member", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "Demo" });

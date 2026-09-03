@@ -241,7 +241,7 @@ class ResPartner(models.Model):
             "partner_share",
         ]
         if target.is_internal(self.env):
-            fields.extend(["email", "phone"])
+            fields.extend(["email", "phone", "tz"])
         return fields
 
     def _field_store_repr(self, field_spec: StoreFieldSpec) -> list[StoreFieldSpec]:
@@ -272,7 +272,7 @@ class ResPartner(models.Model):
             "name",
         ]
         if target.is_internal(self.env):
-            res.append("email")
+            res.extend(["email", "tz"])
         return res
 
     @api.readonly

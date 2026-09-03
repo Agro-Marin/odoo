@@ -1,8 +1,10 @@
 /** @odoo-module native */
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { ImStatus } from "@mail/core/common/im_status";
+import { formatLocalDateTime } from "@mail/utils/common/dates";
 import { useOpenChat } from "@mail/core/web/open_chat_hook";
-import { Component } from "@odoo/owl";
+import { Component, onMounted, onWillDestroy } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { useService } from "@web/core/utils/hooks";
 export class AvatarCardPopover extends Component {
     static template = "mail.AvatarCardPopover";
@@ -29,6 +31,22 @@ export class AvatarCardPopover extends Component {
             id: this.props.id,
             model: this.props.model,
         });
+        // Land the refresh on the next minute change, not a minute later.
+        onWillDestroy(() => browser.clearTimeout(this.refreshTimeout));
+        onMounted(() => this.refreshLocalDateTimeAtNextMinute());
+    }
+
+    refreshLocalDateTimeAtNextMinute() {
+        browser.clearTimeout(this.refreshTimeout);
+        this.refreshTimeout = browser.setTimeout(() => {
+            this.render();
+            this.refreshLocalDateTimeAtNextMinute();
+        }, 60000 - (Date.now() % 60000));
+    }
+
+    /** Current time where this person is, when it differs from ours. */
+    get localDateTime() {
+        return formatLocalDateTime(this.partner?.tz, this.store.self?.tz);
     }
 
     get user() {

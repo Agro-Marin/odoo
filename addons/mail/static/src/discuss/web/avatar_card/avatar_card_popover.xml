@@ -15,6 +15,7 @@
                     </span>
                     <div class="d-flex flex-column o_card_user_infos overflow-hidden">
                         <span class="o-mail-avatar-card-name fw-bold" t-if="name" t-esc="name"/>
+                        <span class="o-mail-avatar-card-localTime smaller opacity-75" t-if="localDateTime" t-esc="localDateTime"/>
                         <t t-if="userInfoTemplate" t-call="{{userInfoTemplate}}"/>
                         <a t-if="email" t-att-href="'mailto:'+email" t-att-title="email" class="text-truncate">
                             <i class="fa-solid fa-envelope me-1"/><t t-esc="email"/>
