@@ -209,6 +209,11 @@ class MailMessage(models.Model):
                 return forbidden
 
         remaining = self._get_access_values(operation)
+        # A message with no row does not exist, and what does not exist is not
+        # accessible: _get_access_values only reports the ids it found, so the
+        # rest would otherwise fall through this method as allowed.
+        forbidden += self.browse(self.ids) - self.browse(remaining)
+
         self._discard_own_messages(remaining, operation)
         if operation == "read":
             self._discard_notified_messages(remaining)
