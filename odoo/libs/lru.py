@@ -118,6 +118,24 @@ class LRU[K, V](MutableMapping[K, V]):
             self._generation += 1
             self._map.clear()
 
+    def set_if_generation(self, key: K, value: V, expected_generation: int) -> bool:
+        """Atomically store ``value`` under ``key`` iff the generation has not
+        advanced past ``expected_generation`` since it was read by the caller.
+
+        Returns whether the value was stored.
+        """
+        with self._lock:
+            if self._generation != expected_generation:
+                return False
+            map_ = self._map
+            existing = key in map_
+            map_[key] = value
+            if existing:
+                map_.move_to_end(key)
+            else:
+                self._trim()
+            return True
+
     @property
     def generation(self) -> int:
         return self._generation
