@@ -137,6 +137,17 @@ test("Load more button should load more members", async () => {
     await contains(".o-discuss-ChannelMember", { count: 102 });
 });
 
+test("member list invite button is named like the thread action it opens", async () => {
+    const pyEnv = await startServer();
+    const channelId = createChannel(pyEnv, "General");
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-discuss-ChannelMemberList");
+    await contains("[title='Invite People']");
+    await click(".o-discuss-ChannelMemberList button", { text: "Invite People" });
+    await contains(".o-discuss-ChannelInvitation");
+});
+
 test("Channel member count update after user joined", async () => {
     const pyEnv = await startServer();
     const channelId = createChannel(pyEnv, "General");
