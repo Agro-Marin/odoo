@@ -80,5 +80,51 @@ class TestServerActionModelAccessGate(TransactionCase):
         self.action.group_ids = self.env.ref("base.group_user")
         self.action.with_user(self.user).run()
 
+    def _gated_crud_action(self, **vals):
+        return self.env["ir.actions.server"].create(
+            {
+                "name": "audit gated crud",
+                "model_id": self.env["ir.model"]._get_id(self.model_name),
+                "group_ids": [Command.set(self.env.ref("base.group_user").ids)],
+                **vals,
+            }
+        )
+
+    def test_group_gated_create_still_needs_create_access_on_its_target(self):
+        currency_model = self.env["ir.model"]._get_id("res.currency")
+        action = self._gated_crud_action(
+            state="object_create",
+            model_id=currency_model,
+            crud_model_id=currency_model,
+            value="ZZQ",
+        )
+        with self.assertRaises(AccessError):
+            action.with_user(self.user).run()
+        self.assertFalse(
+            self.env["res.currency"]
+            .with_context(active_test=False)
+            .search_count([("name", "=", "ZZQ")])
+        )
+
+    def test_group_gated_write_still_needs_write_access_on_its_records(self):
+        rate = self.env["res.currency.rate"].create(
+            {
+                "name": "2026-01-01",
+                "rate": 1.5,
+                "currency_id": self.env.company.currency_id.id,
+            }
+        )
+        action = self._gated_crud_action(
+            state="object_write",
+            update_path="rate",
+            evaluation_type="value",
+            value="2.5",
+        )
+        with self.assertRaises(AccessError):
+            action.with_user(self.user).with_context(
+                active_model=self.model_name, active_id=rate.id, active_ids=rate.ids
+            ).run()
+        self.assertNotEqual(rate.rate, 2.5)
+
     def test_elevated_caller_still_bypasses(self):
         self.action.sudo().with_user(self.user).sudo().run()

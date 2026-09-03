@@ -1311,6 +1311,7 @@ class IrActionsServer(models.Model):
                 raise AccessError(
                     _("You don't have enough access rights to run this action.")
                 )
+            self._check_access_to_crud_targets(records)
             return
 
         model_name = config.model_id.model
@@ -1336,6 +1337,17 @@ class IrActionsServer(models.Model):
                     records,
                 )
                 raise
+
+    def _check_access_to_crud_targets(self, records: Any) -> None:
+        config = self.sudo()
+        if config.state not in CRUD_STATES:
+            return
+        if config.state == "object_write":
+            records.check_access("write")
+            return
+        self.env[config.crud_model_id.model].check_access("create")
+        if config.link_field_id:
+            records.check_access("write")
 
     @api.depends("evaluation_type", "update_field_id.ttype")
     def _compute_value_field_to_show(self) -> None:
