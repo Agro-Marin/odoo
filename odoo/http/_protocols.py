@@ -149,9 +149,9 @@ class HttpExtension(Protocol):
 def ir_http(source: Registry | odoo.api.Environment) -> HttpExtension:
     """`ir.http`, carrying the protocol its implementation is pinned to.
 
-    Both spellings reach the same object. Every hook `HttpExtension` declares is
-    a `classmethod` on `ir.http`, so `registry["ir.http"]._match` and
-    `env["ir.http"]._match` are the same bound callable, and the protocol
+    Both spellings reach the same object. Every hook `HttpExtension` declares
+    except `routing_map` is a `classmethod` on `ir.http`, so `registry["ir.http"]._match`
+    and `env["ir.http"]._match` are the same bound callable, and the protocol
     describes exactly that bound surface -- `test_ir_http_contract` compares it
     against the model hook by hook, dropping the leading `self`. One return type
     therefore serves a registry and an environment alike.
