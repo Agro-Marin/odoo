@@ -4394,3 +4394,32 @@ class TestQWebTranslationBoundary(TransactionCase):
             "a &lt; b <b>c</b>",
             "a bare less-than in text is not markup",
         )
+
+
+class TestQWebErrorInfoSurvivesTName(TransactionCase):
+    def _render_etree(self, arch):
+        return str(self.env["ir.qweb"]._render(etree.fromstring(arch), {}))
+
+    def test_an_etree_template_with_a_t_name_keeps_its_error_path(self):
+        with self.assertRaises(QWebError) as cm:
+            self._render_etree('<t t-name="base.named_etree"><p t-out="1/0"/></t>')
+        qweb = cm.exception.qweb
+        self.assertEqual(qweb.path, "/t/p")
+        self.assertIn('t-out="1/0"', qweb.element or "")
+        self.assertEqual(qweb.template, "base.named_etree")
+
+    def test_an_etree_template_without_a_t_name_keeps_its_error_path(self):
+        with self.assertRaises(QWebError) as cm:
+            self._render_etree('<t><p t-out="1/0"/></t>')
+        self.assertEqual(cm.exception.qweb.path, "/t/p")
+
+    def test_content_between_t_if_and_t_else_is_refused_even_behind_a_comment(self):
+        arch = '<t><t t-if="False">A</t><!-- c -->X<t t-else="">B</t></t>'
+        with self.assertRaises(QWebError) as cm:
+            self._render_etree(arch)
+        self.assertIsInstance(cm.exception.__cause__, SyntaxError)
+        self.assertIn("between t-if and t-else", str(cm.exception))
+
+    def test_a_comment_alone_between_t_if_and_t_else_is_fine(self):
+        arch = '<t><t t-if="False">A</t><!-- c --> <t t-else="">B</t></t>'
+        self.assertEqual(self._render_etree(arch), "B")

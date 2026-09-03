@@ -618,7 +618,7 @@ class IrQweb(models.AbstractModel):
             error, stack, frame, ETREE_REF
         )
 
-        line_nb = self._error_line_number(ref, ETREE_REF)
+        line_nb = self._error_line_number(ref)
 
         source = [info.params.path_xml for info in stack if info.params.path_xml]
         code_lines = (code or "").split("\n")
@@ -665,14 +665,16 @@ class IrQweb(models.AbstractModel):
                 )
             ref = options.get("ref") or frame.params.view_ref
             ref_name = options.get("ref_name") or None
-            code = loaded_codes.get(frame.params.view_ref) or loaded_codes.get(
-                no_id_ref
+            code = (
+                loaded_codes.get(ref)
+                or loaded_codes.get(frame.params.view_ref)
+                or loaded_codes.get(no_id_ref)
             )
             if ref == self.env.context["_qweb_error_path_xml"][0]:
                 path = self.env.context["_qweb_error_path_xml"][1]
                 html = self.env.context["_qweb_error_path_xml"][2]
         else:
-            options = stack[-2].options or {}
+            options = stack[-2].options or frame.options or {}
             ref = options.get("ref")
             ref_name = options.get("ref_name")
             code = loaded_codes.get(ref) or loaded_codes.get(no_id_ref)
@@ -681,11 +683,10 @@ class IrQweb(models.AbstractModel):
                 html = frame.params.path_xml[2]
         return ref, ref_name, code, path, html
 
-    def _error_line_number(self, ref: Any, no_id_ref: str) -> int:
-        source_file_ref = None if ref == no_id_ref else ref
+    def _error_line_number(self, ref: Any) -> int:
         trace = traceback.format_exc()
         for error_line in reversed(trace.split("\n")):
-            if f'File "<{source_file_ref}>"' in error_line or (
+            if f'File "<{ref}>"' in error_line or (
                 ref is None and 'File "<' in error_line
             ):
                 line_function = error_line.split(", line ")[1]
@@ -885,7 +886,7 @@ class IrQweb(models.AbstractModel):
                 "    return template_functions",
             ]
         )
-        compiled = compile(wrap_code, f"<{ref}>", "exec")
+        compiled = compile(wrap_code, f"<{options.get('ref', ref)}>", "exec")
         globals_dict = self._prepare_globals()
         globals_dict["__builtins__"] = globals_dict
         unsafe_eval(compiled, globals_dict)
@@ -2138,11 +2139,12 @@ class IrQweb(models.AbstractModel):
             next_el.attrib["t-else-valid"] = "True"
 
             parent = el.getparent()
-            for comment in comments_to_remove:
-                parent.remove(comment)
-            if el.tail and not el.tail.isspace():
+            tails = [el.tail, *(comment.tail for comment in comments_to_remove)]
+            if any(tail and not tail.isspace() for tail in tails):
                 msg = "Unexpected non-whitespace characters between t-if and t-else directives"
                 raise SyntaxError(msg)
+            for comment in comments_to_remove:
+                parent.remove(comment)
             el.tail = None
 
             code.append(indent_code("else:", level))
