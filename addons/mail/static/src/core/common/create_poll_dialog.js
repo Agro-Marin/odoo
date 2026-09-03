@@ -65,8 +65,4 @@ export class CreatePollDialog extends Component {
     get questionMissing() {
         return this.state.submitted && !this.state.question?.trim();
     }
-
-    get canAddOption() {
-        return this.state.options.every(({ label }) => Boolean(label));
-    }
 }

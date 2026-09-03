@@ -9,10 +9,12 @@ registry.category("web_tour.tours").add("mail_poll_tour", {
             trigger: "input[name='poll_question']",
             run: "edit What is your favorite color?",
         },
-        { trigger: "button:contains('Add another option'):disabled" },
+        // every option can be created up front and filled afterwards: the
+        // button is live while the two starting options are still empty
+        { trigger: "button:contains('Add another option'):enabled", run: "click" },
+        { trigger: ".o-mail-CreatePollOption input:eq(2)" },
         { trigger: ".o-mail-CreatePollOption input:eq(0)", run: "edit Red" },
         { trigger: ".o-mail-CreatePollOption input:eq(1)", run: "edit Green" },
-        { trigger: "button:contains('Add another option'):enabled", run: "click" },
         { trigger: ".o-mail-CreatePollOption input:eq(2)", run: "edit Blue" },
         { trigger: "button:contains(Post)", run: "click" },
         { trigger: ".o-mail-Poll :contains('What is your favorite color?')" },
