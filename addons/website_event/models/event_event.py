@@ -637,7 +637,7 @@ class EventEvent(models.Model):
         """Prepare the Google and iCal urls for the event.
         :param slot: If a slot is given, prepare the urls for the given slot.
         Returns:
-            The google and iCal url in a dictionnary
+            The google and iCal url in a dictionary
         """
         start = slot.start_datetime if slot else self.date_begin
         end = slot.end_datetime if slot else self.date_end
