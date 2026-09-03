@@ -892,7 +892,7 @@ class DiscussChannel(models.Model):
         self.env["res.partner"].flush_model(
             ["active", "email", "email_normalized", "partner_share"]
         )
-        self.env["res.users"].flush_model(["notification_type", "partner_id"])
+        self.env["res.users"].flush_model(["partner_id"])
         self.env.cr.execute(
             SQL(
                 """
@@ -902,7 +902,6 @@ class DiscussChannel(models.Model):
                        partner.name,
                        partner.partner_share,
                        users.id as uid,
-                       COALESCE(users.notification_type, 'email') as notif,
                        COALESCE(users.share, FALSE) as ushare
                   FROM res_partner partner
              LEFT JOIN res_users users on partner.id = users.partner_id
@@ -919,10 +918,10 @@ class DiscussChannel(models.Model):
                        AND partner.id IN %(partner_ids)s AND partner.id != %(author_id)s
                        -- DISTINCT ON without a matching ORDER BY returns whichever
                        -- row Postgres reaches first, so a partner owning two user
-                       -- accounts was notified by inbox or by email depending on
-                       -- heap order -- a HOT update or autovacuum flipped it. Order
-                       -- internal before portal, then by id, so the answer is both
-                       -- stable and the better of the two.
+                       -- accounts got the uid and the share flag of whichever one
+                       -- the heap reached first -- a HOT update or autovacuum
+                       -- flipped it. Order internal before portal, then by id, so
+                       -- the answer is both stable and the better of the two.
                   ORDER BY partner.id, COALESCE(users.share, FALSE), users.id
                 """,
                 email=email_from or "",
@@ -936,7 +935,15 @@ class DiscussChannel(models.Model):
                 email_normalized=email_normalized,
                 lang=lang,
                 name=name,
-                notif=notif,
+                # A channel mention is not an email to be delivered: the
+                # message is already in the recipient's Discuss. Only someone
+                # who has no Discuss to read it in -- an outsider, or a portal
+                # user -- needs it mailed. `notification_type` deliberately has
+                # no say here: it is a preference about followed records, and
+                # since `mail.group_mail_notification_type_inbox` is not implied
+                # by `base.group_user`, honouring it turned every mention into
+                # an outgoing email for nearly every internal user.
+                notif="email" if partner_share else "inbox",
                 partner_share=partner_share,
                 uid=uid,
                 user_share=ushare,
@@ -948,7 +955,6 @@ class DiscussChannel(models.Model):
                 name,
                 partner_share,
                 uid,
-                notif,
                 ushare,
             ) in self.env.cr.fetchall()
         ]
