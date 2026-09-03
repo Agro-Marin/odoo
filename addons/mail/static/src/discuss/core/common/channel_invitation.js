@@ -99,7 +99,7 @@ export class ChannelInvitation extends Component {
 
     get searchPlaceholder() {
         if (this.props.thread?.allow_invite_by_email) {
-            return _t("Invite people or email");
+            return _t("Enter name or email");
         }
         return _t("Search people to invite");
     }

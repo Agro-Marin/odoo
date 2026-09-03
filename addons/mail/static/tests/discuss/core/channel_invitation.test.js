@@ -123,6 +123,48 @@ test("Invitation form should display channel group restriction", async () => {
     });
 });
 
+test("Invitation form warns that an unrestricted channel is open to anyone with the link", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({
+        name: "TestChannel",
+        channel_type: "channel",
+        group_public_id: false,
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-discuss-ChannelMemberList");
+    await click(".o-mail-DiscussContent-header button[title='Invite People']");
+    await contains(".o-discuss-ChannelInvitation-search[placeholder='Enter name or email']");
+    await contains(".o-discuss-ChannelInvitation div", {
+        text: "Accessible to anyone with the link",
+        after: ["button .fa-solid.fa-copy"],
+    });
+});
+
+test("Invitation form does not claim a chat is open to anyone with the link", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({
+        email: "testpartner@odoo.com",
+        name: "TestPartner",
+    });
+    pyEnv["res.users"].create({ partner_id: partnerId });
+    const channelId = pyEnv["discuss.channel"].create({
+        channel_member_ids: [
+            Command.create({ partner_id: serverState.partnerId }),
+            Command.create({ partner_id: partnerId }),
+        ],
+        channel_type: "chat",
+    });
+    await start();
+    await openDiscuss(channelId);
+    await click(".o-mail-DiscussContent-header button[title='Invite People']");
+    await contains(".o-discuss-ChannelInvitation");
+    await contains(".o-discuss-ChannelInvitation div", {
+        count: 0,
+        text: "Accessible to anyone with the link",
+    });
+});
+
 test("should be able to create a new group chat from an existing chat", async () => {
     const pyEnv = await startServer();
     const partnerId_1 = pyEnv["res.partner"].create({
