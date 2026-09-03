@@ -848,7 +848,15 @@ class CSVFileReader:
             if entry["res_id"] and entry["res_id"].isnumeric():
                 entry["res_id"] = int(entry["res_id"])
             elif not entry.get("imd_name"):
-                entry["module"], entry["imd_name"] = entry["res_id"].split(".", 1)
+                res_id = entry["res_id"]
+                if "." not in res_id:
+                    msg = (
+                        f"Malformed translation row: res_id {res_id!r} is "
+                        "neither numeric nor a fully qualified external id "
+                        "(module.name)"
+                    )
+                    raise ValueError(msg)
+                entry["module"], entry["imd_name"] = res_id.split(".", 1)
                 entry["res_id"] = None
             if entry["type"] == "model" or entry["type"] == "model_terms":
                 entry["imd_model"] = entry["name"].partition(",")[0]
