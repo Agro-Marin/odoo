@@ -76,6 +76,7 @@ class TestUrlClassification:
             ("/web/**/*.js", True),
             ("/web/file?.js", True),
             ("/web/file[14].js", True),
+            ("/web/file].js", False),
         ],
     )
     def test_wildcard_detection(self, path, expected):

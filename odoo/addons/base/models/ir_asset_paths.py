@@ -1,6 +1,6 @@
 import os
 from collections.abc import Callable, Sequence
-from glob import glob
+from glob import glob, has_magic
 from logging import getLogger
 from stat import S_ISLNK
 from typing import Any, NamedTuple
@@ -63,7 +63,7 @@ def can_aggregate(url: str) -> bool:
 
 
 def is_wildcard_glob(path: str) -> bool:
-    return any(char in path for char in "*?[]")
+    return has_magic(path)
 
 
 def _is_symlink(path: str) -> bool:
@@ -154,9 +154,6 @@ class AssetPaths:
 
     def remove_anchor(self, anchor: Anchor) -> None:
         self.anchors.remove(anchor)
-
-    def get_index(self, path: str, bundle: str) -> int:
-        return self.get_index_of_first([path], bundle)
 
     def get_index_of_first(self, paths: Sequence[str], bundle: str) -> int:
         for path in paths:

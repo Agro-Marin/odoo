@@ -29,16 +29,12 @@ class _FakeIrAsset:
     def __init__(self, calls):
         self.calls = calls
 
-    def _get_asset_bundle_url(self, bundle_name, unique, assets_params, ignore_params):
-        self.calls.append((bundle_name, unique, assets_params, ignore_params))
+    def _get_asset_bundle_url(self, bundle_name, unique, assets_params):
+        self.calls.append((bundle_name, unique, assets_params))
         return f"/web/assets/{unique}/{bundle_name}"
 
-    def _get_asset_bundle_url_pattern(
-        self, filename, unique, assets_params, ignore_params=False
-    ):
-        return self._get_asset_bundle_url(
-            like_escape(filename), unique, assets_params, ignore_params
-        )
+    def _get_asset_bundle_url_pattern(self, filename, unique, assets_params):
+        return self._get_asset_bundle_url(like_escape(filename), unique, assets_params)
 
 
 class _FakeEnv:
@@ -66,22 +62,20 @@ class TestAssetAttachmentStoreUnit(BaseCase):
         self.assertTrue(store.is_css("min.css"))
         self.assertTrue(store.is_css("css.map"))
         self.assertFalse(store.is_css("min.js"))
-        self.assertEqual(store._like_escape("web.assets_web"), r"web.assets\_web")
         self.assertFalse(hasattr(store, "bundle"))
 
     def test_get_asset_url_uses_plain_name(self):
         calls = []
         url = self._store(calls).get_asset_url("abc1234", "min.js")
-        bundle_name, unique, _params, ignore_params = calls[-1]
+        bundle_name, unique, _params = calls[-1]
         self.assertEqual(bundle_name, "web.assets_web.min.js")
         self.assertEqual(unique, "abc1234")
-        self.assertFalse(ignore_params)
         self.assertEqual(url, "/web/assets/abc1234/web.assets_web.min.js")
 
     def test_pattern_like_escapes_bundle_name(self):
         calls = []
         self._store(calls).get_asset_url_pattern(extension="min.js")
-        bundle_name, unique, _params, _ignore = calls[-1]
+        bundle_name, unique, _params = calls[-1]
         self.assertEqual(bundle_name, r"web.assets\_web.min.js")
         self.assertEqual(unique, ANY_UNIQUE)
 
@@ -149,50 +143,6 @@ class TestAuditReadonlyAsymmetry(TransactionCase):
         self._make_cursor_readonly()
         attachment = bundle.save_attachment("min.js", "/* ro */")
         self.assertTrue(attachment.exists())
-
-
-class TestAuditFallbackDeadInBase(TransactionCase):
-    def test_ignore_params_pattern_identical_in_base(self):
-        bundle = AssetsBundle(
-            "test_assetsbundle.audit_fb",
-            [asset_file("/test_assetsbundle/static/src/js/audit_fb.js", PLAIN_JS)],
-            env=self.env,
-            css=False,
-        )
-        unique = bundle.get_version("js")
-        primary = bundle._store.get_asset_url_pattern(unique=unique, extension="min.js")
-        fallback = bundle._store.get_asset_url_pattern(
-            unique=unique, extension="min.js", ignore_params=True
-        )
-        self.assertEqual(primary, fallback)
-
-    def test_fallback_query_skipped_when_pattern_identical(self):
-        bundle = AssetsBundle(
-            "test_assetsbundle.audit_fb_skip",
-            [asset_file("/test_assetsbundle/static/src/js/audit_fb_skip.js", PLAIN_JS)],
-            env=self.env,
-            css=False,
-        )
-        store = bundle._store
-        self.assertFalse(store.get_attachments("min.js"))
-        with patch.object(store.env.cr, "execute", wraps=store.env.cr.execute) as spy:
-            self.assertFalse(store.get_attachments("min.js"))
-        self.assertEqual(
-            spy.call_count,
-            1,
-            "base must run only the primary query, not the redundant fallback",
-        )
-        (executed_sql,), _kwargs = spy.call_args
-        url_pattern = store.get_asset_url_pattern(
-            unique=store._version("js"), extension="min.js"
-        )
-        self.assertIn(
-            url_pattern,
-            executed_sql.params,
-            "the one query that ran must be the primary lookup (against the "
-            "un-relaxed url_pattern), not a lone fallback query slipping "
-            "through under the same call count",
-        )
 
 
 class TestAuditLikeUnderscoreWildcard(TransactionCase):
@@ -808,58 +758,3 @@ class TestBundleChangedBroadcastDedup(TransactionCase):
         self.env.cr.precommit.data.pop(AssetAttachmentStore._BROADCAST_KEY, None)
         self._bundle().js()
         self.assertEqual(len(self.sent), 2)
-
-
-class TestSimilarAttachmentReuse(TransactionCase):
-    BUNDLE = "test_assetsbundle.similar"
-
-    def _store(self, params):
-        return AssetsBundle(
-            self.BUNDLE,
-            [asset_file("/m/static/src/a.css", "a{color:red}")],
-            env=self.env,
-            js=False,
-            assets_params=params,
-        )._store
-
-    def _make_params_significant(self):
-        IrAsset = type(self.env["ir.asset"])
-        original = IrAsset._get_asset_bundle_url
-
-        def _params_aware(
-            self, bundle_name, unique, assets_params, ignore_params=False
-        ):
-            url = original(self, bundle_name, unique, assets_params, ignore_params)
-            if ignore_params:
-                return url.replace("/web/assets/", "/web/assets/%/", 1)
-            site = (assets_params or {}).get("site", "0")
-            return url.replace("/web/assets/", f"/web/assets/{site}/", 1)
-
-        self.patch(IrAsset, "_get_asset_bundle_url", _params_aware)
-
-    def test_the_two_patterns_differ_once_params_are_significant(self):
-        self._make_params_significant()
-        store = self._store({"site": "1"})
-        unique = store._version("css")
-        self.assertNotEqual(
-            store.get_asset_url_pattern(unique=unique, extension="min.css"),
-            store.get_asset_url_pattern(
-                unique=unique, extension="min.css", ignore_params=True
-            ),
-            "precondition: the fallback query must now be a different query",
-        )
-
-    def test_an_identical_artifact_is_copied_rather_than_rebuilt(self):
-        self._make_params_significant()
-        first = self._store({"site": "1"}).save_attachment("min.css", "a{color:red}")
-
-        with self.assertLogs(
-            "odoo.addons.base.models.assetsbundle", level="INFO"
-        ) as logged:
-            found = self._store({"site": "2"}).get_attachments("min.css")
-
-        self.assertTrue(found, "the sibling artifact should have been reused")
-        self.assertNotEqual(found.id, first.id, "a copy, not the original row")
-        self.assertEqual(found.raw, first.raw)
-        self.assertNotEqual(found.url, first.url, "served under this site's url")
-        self.assertIn("Found a similar attachment", "\n".join(logged.output))

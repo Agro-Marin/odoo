@@ -124,7 +124,7 @@ class TestAddonPaths(BaseCase):
             ],
             "bundle1",
         )
-        target_index = asset_paths.get_index("/web/b.js", "bundle1")
+        target_index = asset_paths.get_index_of_first(["/web/b.js"], "bundle1")
         asset_paths.insert_paths([], "bundle1", target_index)
         asset_paths.remove_paths([("/web/b.js", "/full/b.js", 1)], "bundle1")
 

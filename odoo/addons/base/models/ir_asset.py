@@ -179,25 +179,15 @@ class IrAsset(models.Model):
         return ()
 
     def _get_asset_bundle_url(
-        self,
-        filename: str,
-        unique: str,
-        assets_params: dict[str, Any],
-        ignore_params: bool = False,
+        self, filename: str, unique: str, assets_params: dict[str, Any]
     ) -> str:
         segments = self._get_asset_bundle_url_segments(assets_params)
         return "/".join(("/web/assets", *segments, unique, filename))
 
     def _get_asset_bundle_url_pattern(
-        self,
-        filename: str,
-        unique: str,
-        assets_params: dict[str, Any],
-        ignore_params: bool = False,
+        self, filename: str, unique: str, assets_params: dict[str, Any]
     ) -> str:
-        return self._get_asset_bundle_url(
-            like_escape(filename), unique, assets_params, ignore_params
-        )
+        return self._get_asset_bundle_url(like_escape(filename), unique, assets_params)
 
     def _parse_bundle_name(
         self, bundle_name: str, debug_assets: bool
