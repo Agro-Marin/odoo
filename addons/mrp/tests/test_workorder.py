@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
@@ -371,3 +371,54 @@ class TestWorkorderChatter(TestWorkorderAudit):
         )
 
         self.assertEqual(len(wo.activity_ids), 1)
+
+
+@tagged("post_install", "-at_install")
+class TestWorkorderPlanningIssues(TestWorkorderAudit):
+    """Planning trouble was readable only by hovering over one row at a time.
+
+    `json_popover` renders the reason on the record it belongs to, so there was
+    no way to ask for every work order in conflict, or to group a planning board
+    by that.
+    """
+
+    def _plan_two_overlapping(self):
+        mo_a = self._mo(tag="CONF_A")
+        mo_b = self._mo(tag="CONF_B")
+        mo_a.button_plan()
+        mo_b.button_plan()
+        wo_a, wo_b = mo_a.workorder_ids, mo_b.workorder_ids
+        # Same work center, same slot: that is what `_get_conflicted_workorder_ids`
+        # detects, and what the popover already reports one row at a time.
+        wo_b.write({"date_start": wo_a.date_start, "date_end": wo_a.date_end})
+        self.env.flush_all()
+        return wo_a, wo_b
+
+    def test_conflicting_workorders_are_searchable(self):
+        wo_a, wo_b = self._plan_two_overlapping()
+        self.assertTrue(wo_a.has_conflicts)
+        self.assertTrue(wo_b.has_conflicts)
+
+        found = self.env["mrp.workorder"].search([("has_conflicts", "=", True)])
+
+        self.assertIn(wo_a, found)
+        self.assertIn(wo_b, found)
+
+    def test_workorder_planned_before_its_predecessor_is_searchable(self):
+        mo = self._mo(n_ops=2, tag="SEQ")
+        mo.bom_id.allow_operation_dependencies = True
+        mo.button_plan()
+        first, second = mo.workorder_ids.sorted("sequence")
+        # Push the second operation to start before the one it waits on.
+        second.write(
+            {
+                "date_start": first.date_start - timedelta(hours=4),
+                "date_end": first.date_start - timedelta(hours=3),
+            }
+        )
+        self.env.flush_all()
+
+        found = self.env["mrp.workorder"].search([("has_planning_issues", "=", True)])
+
+        self.assertIn(second, found)
+        self.assertNotIn(first, found)

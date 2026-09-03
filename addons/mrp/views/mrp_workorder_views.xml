@@ -464,6 +464,16 @@
                     name="late"
                     domain="[('is_late', '=', True)]"
                     help="Should have started already" />
+                <filter
+                    string="Conflicts"
+                    name="has_conflicts"
+                    domain="[('has_conflicts', '=', True)]"
+                    help="Planned at the same time as another work order on the same work center" />
+                <filter
+                    string="Planning Issues"
+                    name="has_planning_issues"
+                    domain="[('has_planning_issues', '=', True)]"
+                    help="Planned to start before a work order it waits on" />
                 <group>
                     <filter
                         string="Work Center"
