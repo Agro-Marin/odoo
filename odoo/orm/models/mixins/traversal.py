@@ -4,10 +4,10 @@ from collections import defaultdict
 from operator import itemgetter
 from typing import Self
 
-from odoo.libs._field_access import batch_cache_filter as _batch_cache_filter
-from odoo.libs._field_access import batch_cache_get as _batch_cache_get
-from odoo.libs._field_access import batch_group_ids as _batch_group_ids
-from odoo.libs._field_access import sort_ids_by_cache as _sort_ids_by_cache
+from odoo.libs.accel import batch_cache_filter as _batch_cache_filter
+from odoo.libs.accel import batch_cache_get as _batch_cache_get
+from odoo.libs.accel import batch_group_ids as _batch_group_ids
+from odoo.libs.accel import sort_ids_by_cache as _sort_ids_by_cache
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
 

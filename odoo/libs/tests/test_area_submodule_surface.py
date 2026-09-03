@@ -237,6 +237,15 @@ def test_every_area_submodule_declares_all():
 
 
 UNPROMOTED_SUBMODULE_EXPORTS: dict[str, set[str]] = {
+    "_field_access/_fallback.py": {
+        "batch_cache_fill",
+        "batch_cache_filter",
+        "batch_cache_get",
+        "batch_group_ids",
+        "scalar_cache_get",
+        "sort_ids_by_cache",
+        "to_prefetch_ids",
+    },
     "filesystem/appdirs.py": {
         "AppDirs",
         "site_config_dir",

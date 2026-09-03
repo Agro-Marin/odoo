@@ -39,12 +39,11 @@ cd crates/odoo_rust && maturin develop --release
 
 ### `--release` is not optional
 
-`maturin develop` defaults to the `dev` profile. A debug build is not merely slower — four exports come in slower than the pure Python they exist to delete:
+`maturin develop` defaults to the `dev` profile. A debug build is not merely slower — three exports come in slower than the pure Python they exist to delete:
 
 | Export | Debug vs pure Python |
 |---|---|
 | `origin_ids` | 4.08x |
-| `sort_ids_by_values` | 3.84x |
 | `to_prefetch_ids` | 2.53x |
 | `sort_ids_by_cache` | 2.41x |
 

@@ -193,7 +193,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build + install the odoo_rust extension
-        # The ORM hot paths (_field_access) hard-import odoo_rust — no fallback.
+        # CI sets ODOO_REQUIRE_NATIVE (via CI=true), so odoo/init.py refuses the pure-Python twins.
         run: |
           python -m pip install --upgrade pip
           python -m pip install 'maturin>=1.0,<2.0'

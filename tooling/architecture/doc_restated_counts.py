@@ -20,6 +20,7 @@ import field_hook_naming
 import field_hook_purity
 import naming_vocabulary
 from _repo_root import find_odoo_root
+from import_edges import count_edges
 
 _ast_cache.enable()
 
@@ -315,9 +316,15 @@ def migration_scripts() -> tuple[int, ...]:
 
 
 GATES = ROOT / "doc" / "architecture" / "gates.md"
+MODULE = ROOT / "doc" / "architecture" / "module.md"
 RISKS = ROOT / "doc" / "architecture" / "risks.md"
 PUBLIC_SURFACE_PIN = ROOT / "tooling" / "architecture" / "public_surface_web.txt"
 GUIDELINES = ROOT / "doc" / "coding_guidelines.rst"
+
+
+def http_symbol_edges() -> tuple[int, ...]:
+    edges = count_edges(ROOT, "http", per_symbol=True)
+    return (edges[("serving", "features")], edges[("features", "serving")])
 
 
 def headless_integration_suites() -> tuple[int, ...]:
@@ -385,6 +392,13 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         GUIDELINES,
         re.compile(r"core Python, \*\*excess lines\*\* over (\d+)"),
         py_function_length_budget,
+        _plain,
+    ),
+    Figure(
+        "http_symbol_edges",
+        MODULE,
+        re.compile(r"by symbol it is (\d+) against (\d+)"),
+        http_symbol_edges,
         _plain,
     ),
     Figure(

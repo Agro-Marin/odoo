@@ -267,8 +267,7 @@ freely.
 be read as a dependency claim. It may use `odoo.tools` and `odoo_rust`; it
 exercises only the first — `primitives.py` takes the `SQL` builder from
 `odoo.tools`, and **no Layer-0 module imports `odoo_rust` at all** — nor does
-any other ORM module. The extension enters through one seam, `odoo/libs/accel.py` (and the `odoo/libs/_field_access`
-façade it re-exports), which resolves each accelerated name to the native
+any other ORM module. The extension enters through one seam, `odoo/libs/accel.py`, which resolves each accelerated name to the native
 function or its pure-Python twin once at import; the ORM, `db/` and `web` reach
 them from there, so whether a process runs on the extension is decided in one
 place. `odoo/init.py` makes its absence fatal only under `ODOO_REQUIRE_NATIVE`

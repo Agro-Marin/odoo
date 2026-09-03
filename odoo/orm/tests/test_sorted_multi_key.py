@@ -1,12 +1,16 @@
 import itertools
 
-from odoo.libs._field_access import sort_ids_by_values
-from odoo.libs._field_access._fallback import (
-    sort_ids_by_values as sort_ids_by_values_py,
-)
+from odoo.libs._field_access._fallback import sort_ids_by_cache as sort_ids_by_cache_py
+from odoo.libs.accel import sort_ids_by_cache
 
 _IDS = tuple(range(24))
 _TIED = [i % 3 for i in _IDS]
+_PENDING = object()
+
+
+def _sort(ids, values, reverse, null_high=True, fn=sort_ids_by_cache):
+    cache = dict(zip(ids, values, strict=True))
+    return fn(cache, ids, _PENDING, reverse, null_high)
 
 
 def _cpython(ids, values, reverse):
@@ -20,15 +24,13 @@ def _cpython(ids, values, reverse):
 
 def test_primitive_is_stable_in_both_directions():
     for reverse in (False, True):
-        assert sort_ids_by_values(_IDS, _TIED, reverse) == _cpython(
-            _IDS, _TIED, reverse
-        ), reverse
+        assert _sort(_IDS, _TIED, reverse) == _cpython(_IDS, _TIED, reverse), reverse
 
 
 def test_rust_and_python_reference_agree():
     for reverse in (False, True):
-        assert sort_ids_by_values(_IDS, _TIED, reverse) == sort_ids_by_values_py(
-            _IDS, _TIED, reverse
+        assert _sort(_IDS, _TIED, reverse) == _sort(
+            _IDS, _TIED, reverse, fn=sort_ids_by_cache_py
         )
 
 
@@ -46,8 +48,8 @@ def test_successive_passes_equal_a_tuple_key_sort():
                 reverse=reverse,
             )
         )
-        first = sort_ids_by_values(_IDS, key_b, reverse)
-        second = sort_ids_by_values(first, [by_id[i] for i in first], reverse)
+        first = _sort(_IDS, key_b, reverse)
+        second = _sort(first, [by_id[i] for i in first], reverse)
         assert second == composite, reverse
 
 
@@ -61,7 +63,7 @@ def test_three_keys_with_mixed_directions():
     ids = _IDS
     for values, desc in reversed(list(zip(columns, directions, strict=True))):
         by_id = dict(zip(_IDS, values, strict=True))
-        ids = sort_ids_by_values(ids, [by_id[i] for i in ids], desc)
+        ids = _sort(ids, [by_id[i] for i in ids], desc)
 
     expected = tuple(
         sorted(
@@ -75,7 +77,7 @@ def test_three_keys_with_mixed_directions():
 def test_null_ranking_survives_stacking():
     values = [None if i % 4 == 0 else i % 5 for i in _IDS]
     for reverse, null_high in itertools.product((False, True), (False, True)):
-        result = sort_ids_by_values(_IDS, values, reverse, null_high)
+        result = _sort(_IDS, values, reverse, null_high)
         nulls = [i for i in result if values[i] is None]
         non_nulls = [i for i in result if values[i] is not None]
         assert sorted(nulls) == sorted(i for i in _IDS if values[i] is None)

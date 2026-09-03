@@ -8,6 +8,15 @@ import pytest
 from odoo.libs import accel, native
 from odoo.libs._field_access import _fallback
 
+_FIELD_ACCESS = (
+    "batch_cache_fill",
+    "batch_cache_filter",
+    "batch_cache_get",
+    "batch_group_ids",
+    "sort_ids_by_cache",
+    "to_prefetch_ids",
+)
+
 
 class TestNativeRequired:
     @pytest.mark.parametrize(
@@ -29,27 +38,24 @@ class TestTheSeamFallsBack:
     def test_without_the_extension_every_name_is_the_pure_python_twin(self):
         try:
             with mock.patch.dict(sys.modules, {"odoo_rust": None}):
-                facade = importlib.reload(sys.modules["odoo.libs._field_access"])
                 seam = importlib.reload(accel)
                 assert seam.NATIVE is False
                 assert seam.csv_export is seam.csv_export_python
                 assert seam.rows_to_dicts is seam.rows_to_dicts_python
                 assert seam.fast_clone is seam.fast_clone_python
                 assert seam.origin_ids is seam.origin_ids_python
-                assert facade.batch_cache_get is _fallback.batch_cache_get
-                assert seam.batch_cache_get is _fallback.batch_cache_get
-                assert seam.to_prefetch_ids is _fallback.to_prefetch_ids
+                for name in _FIELD_ACCESS:
+                    assert getattr(seam, name) is getattr(_fallback, name), name
         finally:
             # outside the patch, so the extension is importable again
-            importlib.reload(sys.modules["odoo.libs._field_access"])
             importlib.reload(accel)
 
     def test_with_the_extension_every_name_is_native(self):
         pytest.importorskip("odoo_rust")
         assert accel.NATIVE is True
-        for name in ("csv_export", "rows_to_dicts", "fast_clone", "origin_ids"):
-            assert getattr(accel, name).__module__.startswith("odoo_rust"), name
-        assert accel.batch_cache_get is not _fallback.batch_cache_get
+        for name in accel.__all__:
+            if name != "NATIVE":
+                assert getattr(accel, name).__module__.startswith("odoo_rust"), name
 
     def test_the_four_pure_twins_agree_with_the_extension(self):
         pytest.importorskip("odoo_rust")

@@ -85,7 +85,7 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
     Known(
         "odoo/orm/tests/test_sorted_multi_key.py",
         "odoo.libs._field_access._fallback",
-        "Imports the pure-Python sort_ids_by_values fallback alongside the area's "
+        "Imports the pure-Python sort_ids_by_cache fallback alongside the area's "
         "fast path to assert parity between them — the same test-the-"
         "implementation pattern as the test_guess_mimetypes entry, so it must "
         "name the fallback the area deliberately does not export.",

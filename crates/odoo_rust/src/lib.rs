@@ -21,7 +21,6 @@ fn odoo_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(prefetch::to_prefetch_ids, m)?)?;
     m.add_function(wrap_pyfunction!(rows::rows_to_dicts, m)?)?;
     m.add_function(wrap_pyfunction!(web::csv_export, m)?)?;
-    m.add_function(wrap_pyfunction!(sort::sort_ids_by_values, m)?)?;
     m.add_function(wrap_pyfunction!(sort::sort_ids_by_cache, m)?)?;
     m.add_function(wrap_pyfunction!(sort::batch_group_ids, m)?)?;
     Ok(())

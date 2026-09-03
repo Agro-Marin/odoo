@@ -11,50 +11,13 @@ use pyo3::types::{
 type Values<'a, 'py> = [Borrowed<'a, 'py, PyAny>];
 
 #[pyfunction]
-#[pyo3(signature = (ids, values, reverse, null_high = None))]
-pub fn sort_ids_by_values<'py>(
-    py: Python<'py>,
-    ids: &Bound<'py, PyTuple>,
-    values: &Bound<'py, PyList>,
-    reverse: bool,
-    null_high: Option<bool>,
-) -> PyResult<Py<PyTuple>> {
-    if values.len() != ids.len() {
-        return Err(PyValueError::new_err(
-            "sort_ids_by_values: `values` must have the same length as `ids`",
-        ));
-    }
-
-    let n = ids.len();
-    if n <= 1 {
-        return Ok(ids.clone().unbind());
-    }
-
-    let holder: Vec<Borrowed<'_, 'py, PyAny>> = unsafe {
-        let values_ptr = values.as_ptr();
-        (0..n)
-            .map(|i| Borrowed::from_ptr(py, ffi::PyList_GET_ITEM(values_ptr, i as ffi::Py_ssize_t)))
-            .collect()
-    };
-    if let Some(order) = sort_native(&holder, reverse, null_high) {
-        return build_sorted_tuple(py, ids, &order);
-    }
-    drop(holder);
-    let strong: Vec<Bound<'py, PyAny>> = (0..n)
-        .map(|i| values.get_item(i))
-        .collect::<PyResult<_>>()?;
-    sort_objects_to_tuple(py, ids, &strong, reverse, null_high)
-}
-
-#[pyfunction]
-#[pyo3(signature = (field_cache, ids, pending, reverse, null_high = None))]
 pub fn sort_ids_by_cache<'py>(
     py: Python<'py>,
     field_cache: &Bound<'py, PyDict>,
     ids: &Bound<'py, PyTuple>,
     pending: &Bound<'py, PyAny>,
     reverse: bool,
-    null_high: Option<bool>,
+    null_high: bool,
 ) -> PyResult<Option<Py<PyTuple>>> {
     let n = ids.len();
 
@@ -77,7 +40,8 @@ pub fn sort_ids_by_cache<'py>(
     if n <= 1 {
         return Ok(Some(ids.clone().unbind()));
     }
-    if let Some(order) = sort_native(&holder, reverse, null_high) {
+    if let Some(mut column) = decode_column(&holder) {
+        let order = sort_column(&mut column, reverse, null_high);
         return build_sorted_tuple(py, ids, &order).map(Some);
     }
     drop(holder);
@@ -97,15 +61,6 @@ pub fn sort_ids_by_cache<'py>(
         strong
     };
     sort_objects_to_tuple(py, ids, &strong, reverse, null_high).map(Some)
-}
-
-fn sort_native(
-    holder: &Values<'_, '_>,
-    reverse: bool,
-    null_high: Option<bool>,
-) -> Option<Vec<usize>> {
-    let mut column = decode_column(holder, null_high.is_some())?;
-    Some(sort_column(&mut column, reverse, null_high))
 }
 
 #[derive(Clone, Copy)]
@@ -198,22 +153,10 @@ fn pack_datetime(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32,
 }
 
 enum Column<'a> {
-    Int(Vec<(i64, u32)>),
-    Float(Vec<(Total, u32)>),
-    Str(Vec<(StrKey<'a>, u32)>),
-    Date(Vec<(i64, u32)>),
-    IntOpt(Vec<(Option<i64>, u32)>),
-    FloatOpt(Vec<(Option<Total>, u32)>),
-    StrOpt(Vec<(Option<StrKey<'a>>, u32)>),
-    DateOpt(Vec<(Option<i64>, u32)>),
-}
-
-fn sort_plain<K: Ord>(rows: &mut [(K, u32)], reverse: bool) {
-    if reverse {
-        rows.sort_by(|a, b| b.0.cmp(&a.0));
-    } else {
-        rows.sort_by(|a, b| a.0.cmp(&b.0));
-    }
+    Int(Vec<(Option<i64>, u32)>),
+    Float(Vec<(Option<Total>, u32)>),
+    Str(Vec<(Option<StrKey<'a>>, u32)>),
+    Date(Vec<(Option<i64>, u32)>),
 }
 
 fn sort_nullable<K: Ord>(rows: &mut [(Option<K>, u32)], reverse: bool, null_high: bool) {
@@ -240,23 +183,18 @@ fn sort_nullable<K: Ord>(rows: &mut [(Option<K>, u32)], reverse: bool, null_high
     });
 }
 
-fn sort_column(column: &mut Column<'_>, reverse: bool, null_high: Option<bool>) -> Vec<usize> {
+fn sort_column(column: &mut Column<'_>, reverse: bool, null_high: bool) -> Vec<usize> {
     macro_rules! run {
-        ($rows:expr, $sorter:expr) => {{
-            $sorter;
+        ($rows:expr) => {{
+            sort_nullable($rows, reverse, null_high);
             $rows.iter().map(|&(_, i)| i as usize).collect()
         }};
     }
-    let high = null_high.unwrap_or(false);
     match column {
-        Column::Int(r) => run!(r, sort_plain(r, reverse)),
-        Column::Float(r) => run!(r, sort_plain(r, reverse)),
-        Column::Str(r) => run!(r, sort_plain(r, reverse)),
-        Column::Date(r) => run!(r, sort_plain(r, reverse)),
-        Column::IntOpt(r) => run!(r, sort_nullable(r, reverse, high)),
-        Column::FloatOpt(r) => run!(r, sort_nullable(r, reverse, high)),
-        Column::StrOpt(r) => run!(r, sort_nullable(r, reverse, high)),
-        Column::DateOpt(r) => run!(r, sort_nullable(r, reverse, high)),
+        Column::Int(r) => run!(r),
+        Column::Float(r) => run!(r),
+        Column::Str(r) => run!(r),
+        Column::Date(r) => run!(r),
     }
 }
 
@@ -370,20 +308,13 @@ fn date_key(value: &Bound<'_, PyAny>) -> Option<i64> {
     ))
 }
 
-fn decode<'a, 'py, K>(
-    holder: &'a Values<'a, 'py>,
-    key: impl Fn(&'a Bound<'py, PyAny>) -> Option<K>,
-) -> Option<Vec<(K, u32)>> {
-    let mut rows = Vec::with_capacity(holder.len());
-    for (index, value) in holder.iter().enumerate() {
-        rows.push((key(value)?, index as u32));
-    }
-    Some(rows)
+#[inline]
+fn is_null(value: &Bound<'_, PyAny>) -> bool {
+    value.is_none() || value.as_ptr() == unsafe { ffi::Py_False() }
 }
 
-fn decode_nullable<'a, 'py, K>(
+fn decode<'a, 'py, K>(
     holder: &'a Values<'a, 'py>,
-    is_null: impl Fn(&Bound<'py, PyAny>) -> bool,
     key: impl Fn(&'a Bound<'py, PyAny>) -> Option<K>,
 ) -> Option<Vec<(Option<K>, u32)>> {
     let mut rows = Vec::with_capacity(holder.len());
@@ -398,26 +329,17 @@ fn decode_nullable<'a, 'py, K>(
     Some(rows)
 }
 
-fn decode_column<'a, 'py>(holder: &'a Values<'a, 'py>, null_aware: bool) -> Option<Column<'a>> {
-    let false_ptr = unsafe { ffi::Py_False() };
-    let is_null =
-        |value: &Bound<'py, PyAny>| null_aware && (value.is_none() || value.as_ptr() == false_ptr);
-
+fn decode_column<'a, 'py>(holder: &'a Values<'a, 'py>) -> Option<Column<'a>> {
     let kind = match holder.iter().find(|value| !is_null(value)) {
         Some(first) => Kind::of(first)?,
         None => Kind::Int,
     };
-    Some(match (kind, null_aware) {
-        (Kind::Int, false) => Column::Int(decode(holder, int_key)?),
-        (Kind::Float, false) => Column::Float(decode(holder, float_key)?),
-        (Kind::Str, false) => Column::Str(decode(holder, str_key)?),
-        (Kind::DateTime, false) => Column::Date(decode(holder, datetime_key)?),
-        (Kind::Date, false) => Column::Date(decode(holder, date_key)?),
-        (Kind::Int, true) => Column::IntOpt(decode_nullable(holder, is_null, int_key)?),
-        (Kind::Float, true) => Column::FloatOpt(decode_nullable(holder, is_null, float_key)?),
-        (Kind::Str, true) => Column::StrOpt(decode_nullable(holder, is_null, str_key)?),
-        (Kind::DateTime, true) => Column::DateOpt(decode_nullable(holder, is_null, datetime_key)?),
-        (Kind::Date, true) => Column::DateOpt(decode_nullable(holder, is_null, date_key)?),
+    Some(match kind {
+        Kind::Int => Column::Int(decode(holder, int_key)?),
+        Kind::Float => Column::Float(decode(holder, float_key)?),
+        Kind::Str => Column::Str(decode(holder, str_key)?),
+        Kind::DateTime => Column::Date(decode(holder, datetime_key)?),
+        Kind::Date => Column::Date(decode(holder, date_key)?),
     })
 }
 
@@ -426,26 +348,20 @@ fn sort_objects_to_tuple<'py>(
     ids: &Bound<'py, PyTuple>,
     holder: &[Bound<'py, PyAny>],
     reverse: bool,
-    null_high: Option<bool>,
+    null_high: bool,
 ) -> PyResult<Py<PyTuple>> {
-    let keys = match null_high {
-        None => PyList::new(py, holder)?,
-        Some(high) => {
-            let (null_rank, val_rank): (u8, u8) = if high { (1, 0) } else { (0, 1) };
-            let false_ptr = unsafe { ffi::Py_False() };
-            let empty = PyString::new(py, "").into_any();
-            PyList::new(
-                py,
-                holder.iter().map(|value| {
-                    if value.is_none() || value.as_ptr() == false_ptr {
-                        (null_rank, &empty)
-                    } else {
-                        (val_rank, value)
-                    }
-                }),
-            )?
-        }
-    };
+    let (null_rank, val_rank): (u8, u8) = if null_high { (1, 0) } else { (0, 1) };
+    let empty = PyString::new(py, "").into_any();
+    let keys = PyList::new(
+        py,
+        holder.iter().map(|value| {
+            if is_null(value) {
+                (null_rank, &empty)
+            } else {
+                (val_rank, value)
+            }
+        }),
+    )?;
     let order = PyList::new(py, 0..holder.len())?;
     let kwargs = PyDict::new(py);
     kwargs.set_item(
@@ -532,13 +448,15 @@ pub fn batch_group_ids<'py>(
 
 #[cfg(test)]
 mod tests {
-    use super::{StrKey, Total, pack_datetime, sort_nullable, sort_plain};
+    use super::{StrKey, Total, pack_datetime, sort_nullable};
     use std::cmp::Ordering;
 
     fn order<K: Ord + Copy>(keys: &[K], reverse: bool) -> Vec<u32> {
-        let mut rows: Vec<(K, u32)> = keys.iter().copied().zip(0u32..).collect();
-        sort_plain(&mut rows, reverse);
-        rows.into_iter().map(|(_, i)| i).collect()
+        order_opt(
+            &keys.iter().map(|&k| Some(k)).collect::<Vec<_>>(),
+            reverse,
+            true,
+        )
     }
 
     fn order_opt<K: Ord + Copy>(keys: &[Option<K>], reverse: bool, high: bool) -> Vec<u32> {
@@ -548,7 +466,7 @@ mod tests {
     }
 
     #[test]
-    fn sort_plain_orders_each_key_type() {
+    fn sort_orders_each_key_type() {
         assert_eq!(order(&[3i64, 1, 2], false), [1, 2, 0]);
         assert_eq!(order(&["abd", "abc", "abe"], false), [1, 0, 2]);
         assert_eq!(
@@ -558,7 +476,7 @@ mod tests {
     }
 
     #[test]
-    fn sort_plain_is_stable_in_both_directions() {
+    fn sort_is_stable_in_both_directions() {
         let keys = [7i64; 5];
         assert_eq!(order(&keys, false), [0, 1, 2, 3, 4]);
         assert_eq!(order(&keys, true), [0, 1, 2, 3, 4]);

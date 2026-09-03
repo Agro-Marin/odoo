@@ -4,7 +4,7 @@ from collections import defaultdict, deque
 from typing import Self
 
 from odoo.exceptions import MissingError
-from odoo.libs._field_access import batch_cache_fill as _batch_cache_fill_rust
+from odoo.libs.accel import batch_cache_fill as _batch_cache_fill
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
 from odoo.tools import OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
@@ -97,7 +97,7 @@ class ReadMixin(_ModelStubs):
         field_cache = field._get_cache(env)
         none_val: typing.Any = field.convert_to_record(None, self[:1])
         if type(field_cache) is dict:
-            miss_indices = _batch_cache_fill_rust(
+            miss_indices = _batch_cache_fill(
                 field_cache, ids, results, name, PENDING, none_val
             )
             for idx in miss_indices:

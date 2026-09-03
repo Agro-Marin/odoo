@@ -10,7 +10,6 @@ from odoo.libs._field_access._fallback import (
     batch_cache_get,
     batch_group_ids,
     sort_ids_by_cache,
-    sort_ids_by_values,
     to_prefetch_ids,
 )
 from odoo.libs.accel import origin_ids_python as _origin_ids_python
@@ -33,7 +32,6 @@ slow = SimpleNamespace(
     batch_cache_get=batch_cache_get,
     batch_group_ids=batch_group_ids,
     sort_ids_by_cache=sort_ids_by_cache,
-    sort_ids_by_values=sort_ids_by_values,
     to_prefetch_ids=to_prefetch_ids,
     origin_ids=_origin_ids_python,
     csv_export=csv_export_ref,
@@ -79,12 +77,8 @@ CASES = (
     ),
     ("batch_group_ids", lambda m: m.batch_group_ids(_IDS, _GROUPS)),
     (
-        "sort_ids_by_values",
-        lambda m: m.sort_ids_by_values(_SORT_IDS, _SORT_COLUMN, False, None),
-    ),
-    (
         "sort_ids_by_cache",
-        lambda m: m.sort_ids_by_cache(_SORT_CACHE, _SORT_IDS, _PENDING, False, None),
+        lambda m: m.sort_ids_by_cache(_SORT_CACHE, _SORT_IDS, _PENDING, False, True),
     ),
     ("to_prefetch_ids", lambda m: m.to_prefetch_ids(1, _IDS, {}, 1000)),
     ("origin_ids", lambda m: m.origin_ids(_ORIGIN_IDS)),
@@ -110,7 +104,7 @@ def test_the_accelerated_call_beats_the_reference(name, call):
         f"{name} takes {ratio:.2f}x the pure-Python reference's time "
         f"({accelerated * 1e6:.2f}us against {reference * 1e6:.2f}us); the bar "
         f"is {MAX_RATIO}. It is a hard dependency whose only purpose is to be "
-        f"faster. Either the Rust has a defect — `sort_ids_by_values` reached "
+        f"faster. Either the Rust has a defect — `sort_ids_by_cache` once reached "
         f"1.16x by dispatching on a column type it had already decided — or the "
         f"boundary costs more than the work, in which case drop the export and "
         f"keep the reference, as `scalar_cache_get` did."
@@ -153,7 +147,6 @@ def test_the_field_access_references_are_the_production_ones():
         "batch_cache_get",
         "batch_group_ids",
         "sort_ids_by_cache",
-        "sort_ids_by_values",
         "to_prefetch_ids",
     ):
         reference = getattr(slow, name)

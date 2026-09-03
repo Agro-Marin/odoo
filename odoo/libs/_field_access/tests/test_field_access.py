@@ -13,7 +13,6 @@ from odoo.libs._field_access._fallback import (
     batch_group_ids,
     scalar_cache_get,
     sort_ids_by_cache,
-    sort_ids_by_values,
     to_prefetch_ids,
 )
 
@@ -25,7 +24,6 @@ _rust_batch_cache_filter = odoo_rust.batch_cache_filter
 _rust_batch_cache_get = odoo_rust.batch_cache_get
 _rust_batch_group_ids = odoo_rust.batch_group_ids
 _rust_sort_ids_by_cache = odoo_rust.sort_ids_by_cache
-_rust_sort_ids_by_values = odoo_rust.sort_ids_by_values
 _rust_to_prefetch_ids = odoo_rust.to_prefetch_ids
 
 if TYPE_CHECKING:
@@ -62,7 +60,6 @@ class _FieldAccessTestMixin(_MixinBase):
     batch_cache_get: Callable
     batch_cache_filter: Callable
     scalar_cache_get: Callable
-    sort_ids_by_values: Callable
     sort_ids_by_cache: Callable
     batch_group_ids: Callable
     to_prefetch_ids: Callable
@@ -214,18 +211,6 @@ class _FieldAccessTestMixin(_MixinBase):
         with self.assertRaises(ValueError):
             self.batch_cache_fill({}, (1, 2, 3), [{"id": 1}], "name", PENDING, False)
 
-    def test_sort_values_shorter_than_ids_raises(self) -> None:
-        with self.assertRaises(ValueError):
-            self.sort_ids_by_values((1, 2, 3), ["b", "a"], False)
-
-    def test_sort_values_longer_than_ids_raises(self) -> None:
-        with self.assertRaises(ValueError):
-            self.sort_ids_by_values((1, 2), ["c", "b", "a"], False)
-
-    def test_sort_length_is_checked_before_the_single_record_shortcut(self) -> None:
-        with self.assertRaises(ValueError):
-            self.sort_ids_by_values((1,), [], False)
-
     def test_group_unhashable_value_raises(self) -> None:
         with self.assertRaises(TypeError):
             self.batch_group_ids((1,), [[]])
@@ -366,72 +351,55 @@ class _FieldAccessTestMixin(_MixinBase):
         result = self.scalar_cache_get(env_dict, field, 42, PENDING, SENTINEL)
         self.assertEqual(result, 0)
 
+    def _sort(self, ids, values, reverse, null_high=True):
+        cache = dict(zip(ids, values, strict=True))
+        return self.sort_ids_by_cache(cache, ids, PENDING, reverse, null_high)
+
     def test_sort_basic_asc(self) -> None:
-        ids = (3, 1, 2)
-        values = ["c", "a", "b"]
-        result = self.sort_ids_by_values(ids, values, False)
-        self.assertEqual(result, (1, 2, 3))
+        self.assertEqual(self._sort((3, 1, 2), ["c", "a", "b"], False), (1, 2, 3))
 
     def test_sort_basic_desc(self) -> None:
-        ids = (3, 1, 2)
-        values = ["c", "a", "b"]
-        result = self.sort_ids_by_values(ids, values, True)
-        self.assertEqual(result, (3, 2, 1))
+        self.assertEqual(self._sort((3, 1, 2), ["c", "a", "b"], True), (3, 2, 1))
 
     def test_sort_integers(self) -> None:
-        ids = (10, 20, 30, 40)
-        values = [40, 10, 30, 20]
-        result = self.sort_ids_by_values(ids, values, False)
-        self.assertEqual(result, (20, 40, 30, 10))
+        self.assertEqual(
+            self._sort((10, 20, 30, 40), [40, 10, 30, 20], False), (20, 40, 30, 10)
+        )
 
     def test_sort_stable_equal_values(self) -> None:
-        ids = (1, 2, 3)
-        values = ["x", "x", "x"]
-        result = self.sort_ids_by_values(ids, values, False)
-        self.assertEqual(result, (1, 2, 3))
+        self.assertEqual(self._sort((1, 2, 3), ["x", "x", "x"], False), (1, 2, 3))
 
     def test_sort_single_element(self) -> None:
-        result = self.sort_ids_by_values((5,), ["z"], False)
-        self.assertEqual(result, (5,))
+        self.assertEqual(self._sort((5,), ["z"], False), (5,))
 
     def test_sort_empty(self) -> None:
-        result = self.sort_ids_by_values((), [], False)
-        self.assertEqual(result, ())
+        self.assertEqual(self._sort((), [], False), ())
 
     def test_sort_null_high_false_sorts_nulls_first(self) -> None:
-        ids = (1, 2, 3)
-        values = ["b", None, "a"]
-        result = self.sort_ids_by_values(ids, values, False, null_high=False)
-        self.assertEqual(result, (2, 3, 1))
+        self.assertEqual(
+            self._sort((1, 2, 3), ["b", None, "a"], False, null_high=False), (2, 3, 1)
+        )
 
     def test_sort_null_high_true_sorts_nulls_last(self) -> None:
-        ids = (1, 2, 3)
-        values = ["b", None, "a"]
-        result = self.sort_ids_by_values(ids, values, False, null_high=True)
-        self.assertEqual(result, (3, 1, 2))
+        self.assertEqual(
+            self._sort((1, 2, 3), ["b", None, "a"], False, null_high=True), (3, 1, 2)
+        )
 
     def test_sort_false_treated_as_null(self) -> None:
-        ids = (1, 2, 3)
-        values = ["b", False, "a"]
-        result = self.sort_ids_by_values(ids, values, False, null_high=False)
-        self.assertEqual(result, (2, 3, 1))
-
-    def test_sort_null_high_none_ignores_none(self) -> None:
-        ids = (1, 2)
-        values = [2, 1]
-        result = self.sort_ids_by_values(ids, values, False, null_high=None)
-        self.assertEqual(result, (2, 1))
+        self.assertEqual(
+            self._sort((1, 2, 3), ["b", False, "a"], False, null_high=False), (2, 3, 1)
+        )
 
     def test_sort_cache_basic_asc(self) -> None:
         ids = (3, 1, 2)
         cache = {3: "c", 1: "a", 2: "b"}
-        result = self.sort_ids_by_cache(cache, ids, PENDING, False)
+        result = self.sort_ids_by_cache(cache, ids, PENDING, False, True)
         self.assertEqual(result, (1, 2, 3))
 
     def test_sort_cache_desc(self) -> None:
         ids = (3, 1, 2)
         cache = {3: "c", 1: "a", 2: "b"}
-        result = self.sort_ids_by_cache(cache, ids, PENDING, True)
+        result = self.sort_ids_by_cache(cache, ids, PENDING, True, True)
         self.assertEqual(result, (3, 2, 1))
 
     def test_sort_cache_null_high_true(self) -> None:
@@ -441,18 +409,20 @@ class _FieldAccessTestMixin(_MixinBase):
         self.assertEqual(result, (3, 1, 2))
 
     def test_sort_cache_single_and_empty(self) -> None:
-        self.assertEqual(self.sort_ids_by_cache({5: "z"}, (5,), PENDING, False), (5,))
-        self.assertEqual(self.sort_ids_by_cache({}, (), PENDING, False), ())
+        self.assertEqual(
+            self.sort_ids_by_cache({5: "z"}, (5,), PENDING, False, True), (5,)
+        )
+        self.assertEqual(self.sort_ids_by_cache({}, (), PENDING, False, True), ())
 
     def test_sort_cache_miss_returns_none(self) -> None:
         ids = (1, 2, 3)
         cache = {1: "a", 3: "c"}
-        self.assertIsNone(self.sort_ids_by_cache(cache, ids, PENDING, False))
+        self.assertIsNone(self.sort_ids_by_cache(cache, ids, PENDING, False, True))
 
     def test_sort_cache_pending_returns_none(self) -> None:
         ids = (1, 2, 3)
         cache = {1: "a", 2: PENDING, 3: "c"}
-        self.assertIsNone(self.sort_ids_by_cache(cache, ids, PENDING, False))
+        self.assertIsNone(self.sort_ids_by_cache(cache, ids, PENDING, False, True))
 
     def test_group_basic(self) -> None:
         ids = (1, 2, 3, 4)
@@ -510,7 +480,6 @@ class TestFallback(_FieldAccessTestMixin, unittest.TestCase):
         cls.batch_cache_get = staticmethod(batch_cache_get)
         cls.batch_cache_filter = staticmethod(batch_cache_filter)
         cls.scalar_cache_get = staticmethod(scalar_cache_get)
-        cls.sort_ids_by_values = staticmethod(sort_ids_by_values)
         cls.sort_ids_by_cache = staticmethod(sort_ids_by_cache)
         cls.batch_group_ids = staticmethod(batch_group_ids)
         cls.to_prefetch_ids = staticmethod(to_prefetch_ids)
@@ -523,7 +492,6 @@ class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
         cls.batch_cache_get = staticmethod(_rust_batch_cache_get)
         cls.batch_cache_filter = staticmethod(_rust_batch_cache_filter)
         cls.scalar_cache_get = staticmethod(scalar_cache_get)
-        cls.sort_ids_by_values = staticmethod(_rust_sort_ids_by_values)
         cls.sort_ids_by_cache = staticmethod(_rust_sort_ids_by_cache)
         cls.batch_group_ids = staticmethod(_rust_batch_group_ids)
         cls.to_prefetch_ids = staticmethod(_rust_to_prefetch_ids)
@@ -611,28 +579,22 @@ class TestSortDifferential(unittest.TestCase):
         except Exception as exc:
             return ("raise", type(exc).__name__)
 
-    def _assert_values_match(self, values, **kw) -> None:
-        ids = tuple(range(1, len(values) + 1))
-        for reverse in (False, True):
-            rust = self._capture(
-                _rust_sort_ids_by_values, ids, list(values), reverse, **kw
-            )
-            py = self._capture(sort_ids_by_values, ids, list(values), reverse, **kw)
-            self.assertEqual(
-                rust, py, msg=f"values={values!r} reverse={reverse} kw={kw}"
-            )
-
-    def _assert_cache_match(self, values, **kw) -> None:
+    def _assert_cache_match(self, values) -> None:
         ids = tuple(range(1, len(values) + 1))
         cache = dict(zip(ids, values, strict=True))
         for reverse in (False, True):
-            rust = self._capture(
-                _rust_sort_ids_by_cache, cache, ids, PENDING, reverse, **kw
-            )
-            py = self._capture(sort_ids_by_cache, cache, ids, PENDING, reverse, **kw)
-            self.assertEqual(
-                rust, py, msg=f"cache values={values!r} reverse={reverse} kw={kw}"
-            )
+            for null_high in (False, True):
+                rust = self._capture(
+                    _rust_sort_ids_by_cache, cache, ids, PENDING, reverse, null_high
+                )
+                py = self._capture(
+                    sort_ids_by_cache, cache, ids, PENDING, reverse, null_high
+                )
+                self.assertEqual(
+                    rust, py, msg=f"values={values!r} {reverse=} {null_high=}"
+                )
+
+    _assert_values_match = _assert_cache_match
 
     def test_diff_big_ints(self) -> None:
         self._assert_values_match([2**63, 2**63 + 1, 1, 2**70, -(2**63) - 5])

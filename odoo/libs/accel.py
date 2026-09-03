@@ -1,7 +1,6 @@
 """The accelerated primitives, native when odoo_rust is importable and pure Python otherwise.
 
-One seam: every call site imports from here (or from ``odoo.libs._field_access``, which
-resolves its own seven names the same way), so whether the process runs on the
+One seam: every call site imports from here, so whether the process runs on the
 extension is decided once. The pure versions are the references the parity and
 timing tests measure the extension against; ``NATIVE`` says which side is live.
 """
@@ -12,6 +11,8 @@ import csv
 import io
 from collections.abc import Iterable, Sequence
 from typing import cast
+
+from ._field_access import _fallback as _field_access
 
 try:
     import odoo_rust as _native
@@ -81,12 +82,9 @@ csv_export = _pick("csv_export", csv_export_python)
 rows_to_dicts = _pick("rows_to_dicts", rows_to_dicts_python)
 fast_clone = _pick("fast_clone", fast_clone_python)
 origin_ids = _pick("origin_ids", origin_ids_python)
-
-from ._field_access import (  # noqa: E402  the field-access facade resolves its own names
-    batch_cache_fill,
-    batch_cache_filter,
-    batch_cache_get,
-    batch_group_ids,
-    sort_ids_by_cache,
-    to_prefetch_ids,
-)
+batch_cache_fill = _pick("batch_cache_fill", _field_access.batch_cache_fill)
+batch_cache_filter = _pick("batch_cache_filter", _field_access.batch_cache_filter)
+batch_cache_get = _pick("batch_cache_get", _field_access.batch_cache_get)
+batch_group_ids = _pick("batch_group_ids", _field_access.batch_group_ids)
+sort_ids_by_cache = _pick("sort_ids_by_cache", _field_access.sort_ids_by_cache)
+to_prefetch_ids = _pick("to_prefetch_ids", _field_access.to_prefetch_ids)

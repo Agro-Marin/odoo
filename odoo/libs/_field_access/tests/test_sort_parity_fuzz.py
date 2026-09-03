@@ -6,25 +6,28 @@ import pytest
 from odoo.libs._field_access._fallback import (
     sort_ids_by_cache as sort_ids_by_cache_py,
 )
-from odoo.libs._field_access._fallback import (
-    sort_ids_by_values as sort_ids_by_values_py,
-)
 
 odoo_rust = pytest.importorskip(
     "odoo_rust", exc_type=ImportError
 )  # a parity test needs both sides
 sort_ids_by_cache = odoo_rust.sort_ids_by_cache
-sort_ids_by_values = odoo_rust.sort_ids_by_values
 
 _PENDING = object()
 
 
+def _rust(ids, values, reverse, null_high=True):
+    return sort_ids_by_cache(
+        dict(zip(ids, values, strict=True)), ids, _PENDING, reverse, null_high
+    )
+
+
+def _py(ids, values, reverse, null_high=True):
+    return sort_ids_by_cache_py(
+        dict(zip(ids, values, strict=True)), ids, _PENDING, reverse, null_high
+    )
+
+
 def _reference(ids, values, reverse, null_high):
-    if null_high is None:
-        pairs = sorted(
-            zip(ids, values, strict=True), key=lambda p: p[1], reverse=reverse
-        )
-        return tuple(p[0] for p in pairs)
     null_key = (1 if null_high else 0, "")
     val_rank = 0 if null_high else 1
     keyed = [
@@ -124,26 +127,13 @@ def test_fuzz_parity_by_kind(kind):
         n = rng.randrange(0, 41)
         ids = tuple(range(n))
         base = make(rng, n)
-        for null_high in (None, False, True):
-            values = base if null_high is None else _with_nulls(rng, list(base))
-            for reverse in (False, True):
-                tag = (kind, seed, reverse, null_high)
-                expected = _reference(ids, values, reverse, null_high)
-                assert (
-                    sort_ids_by_values(ids, values, reverse, null_high) == expected
-                ), tag
-                assert (
-                    sort_ids_by_values_py(ids, values, reverse, null_high) == expected
-                ), tag
-                cache = dict(zip(ids, values, strict=True))
-                assert (
-                    sort_ids_by_cache(cache, ids, _PENDING, reverse, null_high)
-                    == expected
-                ), tag
-                assert (
-                    sort_ids_by_cache_py(cache, ids, _PENDING, reverse, null_high)
-                    == expected
-                ), tag
+        for null_high in (False, True):
+            for values in (base, _with_nulls(rng, list(base))):
+                for reverse in (False, True):
+                    tag = (kind, seed, reverse, null_high)
+                    expected = _reference(ids, values, reverse, null_high)
+                    assert _rust(ids, values, reverse, null_high) == expected, tag
+                    assert _py(ids, values, reverse, null_high) == expected, tag
 
 
 def test_temporal_extremes_survive_the_packed_representation():
@@ -162,19 +152,19 @@ def test_temporal_extremes_survive_the_packed_representation():
     expected = tuple(
         i for _, i in sorted(zip(shuffled, ids, strict=True), key=lambda p: order[p[0]])
     )
-    assert sort_ids_by_values(ids, list(shuffled), False) == expected
-    assert sort_ids_by_values_py(ids, list(shuffled), False) == expected
+    assert _rust(ids, list(shuffled), False) == expected
+    assert _py(ids, list(shuffled), False) == expected
 
 
 def test_a_date_sorts_at_midnight_of_its_day():
     day = date(2026, 8, 28)
     ids = (1, 2, 3)
     dates = [date(2026, 8, 29), day, date(2026, 8, 27)]
-    assert sort_ids_by_values(ids, dates, False) == (3, 2, 1)
+    assert _rust(ids, dates, False) == (3, 2, 1)
 
     midnight = datetime(2026, 8, 28, 0, 0, 0, 0)
     times = [datetime(2026, 8, 28, 0, 0, 0, 1), midnight, datetime(2026, 8, 27, 23, 59)]
-    assert sort_ids_by_values(ids, times, False) == (3, 2, 1)
+    assert _rust(ids, times, False) == (3, 2, 1)
 
 
 def test_incomparable_column_raises_like_python():
@@ -183,18 +173,9 @@ def test_incomparable_column_raises_like_python():
     with pytest.raises(TypeError):
         sorted(values)  # type: ignore[type-var]
     with pytest.raises(TypeError):
-        sort_ids_by_values(ids, values, False)
+        _rust(ids, values, False)
     with pytest.raises(TypeError):
-        sort_ids_by_values_py(ids, values, False)
-
-
-def test_none_without_null_handling_raises_like_python():
-    ids = (0, 1, 2)
-    values = [3, None, 1]
-    with pytest.raises(TypeError):
-        sorted(values)  # type: ignore[type-var]
-    with pytest.raises(TypeError):
-        sort_ids_by_values(ids, values, False)
+        _py(ids, values, False)
 
 
 def test_cache_miss_and_pending_return_none_in_both():
@@ -202,8 +183,8 @@ def test_cache_miss_and_pending_return_none_in_both():
     cache_missing = {0: 5, 2: 1}
     cache_pending = {0: 5, 1: _PENDING, 2: 1}
     for cache in (cache_missing, cache_pending):
-        assert sort_ids_by_cache(cache, ids, _PENDING, False) is None
-        assert sort_ids_by_cache_py(cache, ids, _PENDING, False) is None
+        assert sort_ids_by_cache(cache, ids, _PENDING, False, True) is None
+        assert sort_ids_by_cache_py(cache, ids, _PENDING, False, True) is None
 
 
 def test_aware_datetimes_sort_by_instant_like_python():
@@ -212,9 +193,9 @@ def test_aware_datetimes_sort_by_instant_like_python():
     assert late.timestamp() - early.timestamp() == -10800
     ids = (10, 20)
     values = [early, late]
-    expected = _reference(ids, values, False, None)
+    expected = _reference(ids, values, False, True)
     assert expected == (20, 10)
-    assert sort_ids_by_values(ids, values, False) == expected
+    assert _rust(ids, values, False) == expected
 
 
 def test_mixed_naive_aware_datetimes_raise_like_python():
@@ -223,7 +204,7 @@ def test_mixed_naive_aware_datetimes_raise_like_python():
     with pytest.raises(TypeError):
         sorted(values)
     with pytest.raises(TypeError):
-        sort_ids_by_values(ids, values, False)
+        _rust(ids, values, False)
 
 
 class _RandomOrder:
@@ -241,10 +222,10 @@ class _RandomOrder:
 def test_a_non_total_order_returns_a_permutation_like_python():
     n = 3000
     ids = tuple(range(n))
-    for null_high in (None, True):
+    for null_high in (False, True):
         rng = random.Random(f"random-order-{null_high}")
         values = [_RandomOrder(rng) for _ in range(n)]
-        result = sort_ids_by_values(ids, values, False, null_high)
+        result = _rust(ids, values, False, null_high)
         assert sorted(result) == list(ids)
 
 
@@ -267,10 +248,10 @@ def test_a_comparison_error_midway_propagates_like_python():
     values = [_LateFailure(rng.random()) for _ in ids]
     _LateFailure.calls = 0
     with pytest.raises(ValueError, match="late"):
-        sort_ids_by_values(ids, values, False)
+        _rust(ids, values, False)
     _LateFailure.calls = 0
     with pytest.raises(ValueError, match="late"):
-        sort_ids_by_values_py(ids, values, False)
+        _py(ids, values, False)
 
 
 class _ContrarianEq:
@@ -297,5 +278,5 @@ def test_null_aware_fallback_uses_the_references_tuple_keys():
     values = [_ContrarianEq(3), None, _ContrarianEq(1), _ContrarianEq(2)]
     for reverse in (False, True):
         expected = _reference(ids, values, reverse, True)
-        assert sort_ids_by_values(ids, values, reverse, True) == expected
-        assert sort_ids_by_values_py(ids, values, reverse, True) == expected
+        assert _rust(ids, values, reverse, True) == expected
+        assert _py(ids, values, reverse, True) == expected

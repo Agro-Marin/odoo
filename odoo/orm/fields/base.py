@@ -16,7 +16,7 @@ from collections.abc import (
 )
 from operator import attrgetter
 
-from odoo.libs._field_access import to_prefetch_ids as _to_prefetch_ids
+from odoo.libs.accel import to_prefetch_ids as _to_prefetch_ids
 from odoo.tools import reset_cached_properties
 from odoo.tools.misc import (
     PENDING,

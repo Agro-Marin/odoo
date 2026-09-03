@@ -110,7 +110,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build + install the odoo_rust extension
-        # _field_access hard-imports odoo_rust (no graceful fallback), and the
+        # CI=true makes a missing odoo_rust fatal in odoo/init.py, and the
         # Tier-2 `import odoo` pulls it in transitively.
         run: |
           python -m pip install --upgrade pip

@@ -804,12 +804,11 @@ class TestPermissionIsNotPractice(unittest.TestCase):
         )
         self.assertEqual(
             importers,
-            ["init.py", "libs/_field_access/__init__.py", "libs/accel.py"],
+            ["init.py", "libs/accel.py"],
             "the extension is imported in one seam plus the bootstrap; a new "
             "direct import bypasses the fallback the page promises",
         )
         self.assertIn("`odoo/libs/accel.py`", DOC)
-        self.assertIn("`odoo/libs/_field_access`", DOC)
 
     def test_the_permission_is_really_granted(self) -> None:
         contract = next(

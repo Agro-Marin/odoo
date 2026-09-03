@@ -7,10 +7,8 @@ __all__ = [
     "batch_group_ids",
     "scalar_cache_get",
     "sort_ids_by_cache",
-    "sort_ids_by_values",
     "to_prefetch_ids",
 ]
-
 
 _itemgetter_1 = _itemgetter(1)
 
@@ -126,20 +124,9 @@ def batch_cache_fill(
     return miss_indices
 
 
-def sort_ids_by_values(
-    ids: tuple,
-    values: list,
-    reverse: bool,
-    null_high: bool | None = None,
+def _sort_ids_by_values(
+    ids: tuple, values: list, reverse: bool, null_high: bool
 ) -> tuple:
-    if len(values) != len(ids):
-        raise ValueError(
-            "sort_ids_by_values: `values` must have the same length as `ids`"
-        )
-    if null_high is None:
-        pairs = list(zip(ids, values, strict=True))
-        pairs.sort(key=_itemgetter_1, reverse=reverse)
-        return tuple(p[0] for p in pairs)
     _null_rank = 1 if null_high else 0
     _val_rank = 0 if null_high else 1
     _null_key = (_null_rank, "")
@@ -154,7 +141,7 @@ def sort_ids_by_cache(
     ids: tuple,
     pending: object,
     reverse: bool,
-    null_high: bool | None = None,
+    null_high: bool,
 ) -> tuple | None:
     values: list = []
     _get = field_cache.get
@@ -165,7 +152,7 @@ def sort_ids_by_cache(
         if value is _MISSING or value is pending:
             return None
         _append(value)
-    return sort_ids_by_values(ids, values, reverse, null_high)
+    return _sort_ids_by_values(ids, values, reverse, null_high)
 
 
 def batch_group_ids(ids: tuple, values: list) -> dict[object, list]:
