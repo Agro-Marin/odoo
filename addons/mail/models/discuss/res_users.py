@@ -34,7 +34,7 @@ class ResUsers(models.Model):
             return
         self.env["discuss.channel"].search(
             [("group_ids", "in", self.all_group_ids.ids)]
-        )._subscribe_users_automatically()
+        )._subscribe_users_automatically(partners=self.partner_id)
 
     def _unsubscribe_from_non_public_channels(self) -> None:
         self.env["discuss.channel.member"].sudo().search(

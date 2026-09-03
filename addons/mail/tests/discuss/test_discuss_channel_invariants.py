@@ -1,8 +1,12 @@
 import base64
+import json
+import os
 from collections import Counter
 from unittest.mock import patch
 
-from odoo.exceptions import AccessError, UserError
+from werkzeug.exceptions import NotFound
+
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests.common import new_test_user, tagged
 from odoo.tools import file_open
 
@@ -526,3 +530,316 @@ class TestDiscussChannelInvariants(MailCommon):
 
         self.assertIn("avatar_cache_key", payload["discuss.channel"][0])
         self.assertTrue(payload["discuss.channel"][0]["avatar_cache_key"])
+
+    def test_join_sfu_without_a_key_stays_p2p(self):
+        user = new_test_user(self.env, "inv_sfu", groups="base.group_user")
+        channel = self.Channel.with_user(user)._create_group(
+            partners_to=[user.partner_id.id], name="SFU"
+        )
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("mail.use_sfu_server", True)
+        params.set_param("mail.sfu_server_url", "https://sfu.example.com")
+        params.set_param("mail.sfu_server_key", False)
+        member_module = "odoo.addons.mail.models.discuss.discuss_channel_member"
+
+        with (
+            patch.dict(os.environ, {"ODOO_SFU_KEY": ""}),
+            patch(
+                f"{member_module}.requests.get",
+                side_effect=AssertionError("no SFU request without a key"),
+            ),
+            self.assertLogs(member_module, level="WARNING"),
+        ):
+            channel.self_member_id.sudo()._join_sfu(force=True)
+
+        self.assertFalse(channel.sudo().sfu_channel_uuid, "the call must stay p2p")
+
+    def _make_group_channel(self, size):
+        internal = self.env.ref("base.group_user")
+        group = self.env["res.groups"].create({"name": f"Auto {size}"})
+        self.env["res.users"].create(
+            [
+                {
+                    "name": f"Member {size}-{index}",
+                    "login": f"inv_auto_{size}_{index}",
+                    "group_ids": [(6, 0, [internal.id, group.id])],
+                }
+                for index in range(size)
+            ]
+        )
+        channel = self.Channel._create_channel(name=f"Auto {size}", group_id=None)
+        channel.write({"group_ids": [(4, group.id)]})
+        self.assertEqual(len(channel.channel_member_ids), size + 1)
+        return group, channel
+
+    def test_auto_subscribe_of_a_newcomer_does_not_scale_with_the_membership(self):
+        small_group, small = self._make_group_channel(2)
+        big_group, big = self._make_group_channel(12)
+        newcomer = self.env["res.users"].create(
+            {
+                "name": "Newcomer",
+                "login": "inv_auto_new",
+                "group_ids": [
+                    (
+                        6,
+                        0,
+                        [
+                            self.env.ref("base.group_user").id,
+                            small_group.id,
+                            big_group.id,
+                        ],
+                    )
+                ],
+            }
+        )
+        for channel in (small, big):
+            self.assertIn(
+                newcomer.partner_id,
+                channel.channel_member_ids.partner_id,
+                "creating a user in the group still subscribes it",
+            )
+        self.Member.search(
+            [
+                ("channel_id", "in", (small | big).ids),
+                ("partner_id", "=", newcomer.partner_id.id),
+            ]
+        ).unlink()
+        self.env.flush_all()
+
+        self.env.invalidate_all()
+        queries_small = self._count_queries(
+            lambda: small._subscribe_users_automatically(partners=newcomer.partner_id)
+        )
+        self.env.invalidate_all()
+        queries_big = self._count_queries(
+            lambda: big._subscribe_users_automatically(partners=newcomer.partner_id)
+        )
+
+        self.assertEqual(
+            queries_small,
+            queries_big,
+            "subscribing one newcomer must not read every existing member",
+        )
+        self.assertIn(newcomer.partner_id, small.channel_member_ids.partner_id)
+        self.assertIn(newcomer.partner_id, big.channel_member_ids.partner_id)
+
+    def test_auto_subscribe_ignores_a_partner_outside_the_groups(self):
+        _group, channel = self._make_group_channel(1)
+        outsider = new_test_user(self.env, "inv_auto_out", groups="base.group_user")
+
+        channel._subscribe_users_automatically(partners=outsider.partner_id)
+
+        self.assertNotIn(outsider.partner_id, channel.channel_member_ids.partner_id)
+
+    def test_mark_as_read_writes_once_and_notifies_what_it_wrote(self):
+        user = new_test_user(self.env, "inv_read", groups="base.group_user")
+        chat = self.Channel.with_user(user)._get_or_create_chat(
+            partners_to=[self.env.user.partner_id.id]
+        )
+        message = self.Channel.browse(chat.id).message_post(
+            body="hello", message_type="comment", subtype_xmlid="mail.mt_comment"
+        )
+        member = chat.channel_member_ids.filtered(
+            lambda m: m.partner_id == user.partner_id
+        ).with_user(user)
+        self._reset_bus()
+        writes = Counter()
+        write = type(self.Member).write
+
+        def spy(records, vals):
+            writes["n"] += 1
+            return write(records, vals)
+
+        with patch.object(type(self.Member), "write", spy), self.mock_bus():
+            member._mark_as_read(message.id)
+        self.assertEqual(writes["n"], 1, "seen marker and separator are one write")
+        self.assertEqual(
+            sorted(json.loads(notif.channel)[1] for notif in self._new_bus_notifs),
+            ["discuss.channel", "res.partner"],
+            "the separator goes to the reader, the seen marker to the chat",
+        )
+
+        writes.clear()
+        self._reset_bus()
+        with patch.object(type(self.Member), "write", spy), self.mock_bus():
+            member._mark_as_read(message.id)
+        self.assertEqual(writes["n"], 0)
+        self.assertEqual(
+            [json.loads(notif.channel)[1:] for notif in self._new_bus_notifs],
+            [["res.partner", user.partner_id.id]],
+            "a no-op read resyncs the reader only, once",
+        )
+
+    def test_channel_pin_notifies_only_what_it_wrote(self):
+        user = new_test_user(self.env, "inv_pin2", groups="base.group_user")
+        other = new_test_user(self.env, "inv_pin2_other", groups="base.group_user")
+        chat = self.Channel.with_user(user)._get_or_create_chat(
+            partners_to=[other.partner_id.id]
+        )
+        as_user = self.env(user=user)["discuss.channel"].browse(chat.id)
+
+        self._reset_bus()
+        with self.mock_bus():
+            as_user.channel_pin(True)
+        self.assertFalse(
+            self._new_bus_notifs, "pinning a pinned channel writes and sends nothing"
+        )
+
+        self._reset_bus()
+        with self.mock_bus():
+            as_user.channel_pin(False)
+        payloads = [json.loads(n.message)["payload"] for n in self._new_bus_notifs]
+        self.assertEqual(len(payloads), 2, "the unpin_dt sync plus close_chat_window")
+        self.assertTrue(
+            any(
+                "unpin_dt" in p.get("discuss.channel.member", [{}])[0] for p in payloads
+            )
+        )
+        self.assertTrue(
+            any(
+                p.get("discuss.channel", [{}])[0].get("close_chat_window")
+                for p in payloads
+            )
+        )
+
+        self._reset_bus()
+        with self.mock_bus():
+            as_user.channel_pin(True)
+        payloads = [json.loads(n.message)["payload"] for n in self._new_bus_notifs]
+        self.assertEqual(len(payloads), 1, "re-pinning sends only the unpin_dt sync")
+        self.assertFalse(payloads[0]["discuss.channel.member"][0]["unpin_dt"])
+        self.assertNotIn(
+            "name",
+            payloads[0].get("discuss.channel", [{}])[0],
+            "the full channel payload duplicated what the sync already carries",
+        )
+
+    def test_chat_capacity_is_one_rule_with_one_message(self):
+        users = [
+            new_test_user(self.env, f"inv_cap_{index}", groups="base.group_user")
+            for index in range(3)
+        ]
+        with self.assertRaises(ValidationError) as create_chat:
+            self.Channel.with_user(users[0])._get_or_create_chat(
+                partners_to=[users[1].partner_id.id, users[2].partner_id.id]
+            )
+        chat = self.Channel.with_user(users[0])._get_or_create_chat(
+            partners_to=[users[1].partner_id.id]
+        )
+        with self.assertRaises(ValidationError) as add_member:
+            self.Member.create(
+                {"channel_id": chat.id, "partner_id": users[2].partner_id.id}
+            )
+        with self.assertRaises(ValidationError) as write_members:
+            chat.write(
+                {"channel_member_ids": [(0, 0, {"partner_id": users[2].partner_id.id})]}
+            )
+        with self.assertRaises(ValidationError) as direct:
+            self.Channel._check_chat_capacity("chat", 3)
+
+        self.assertEqual(
+            len(
+                {
+                    str(capture.exception)
+                    for capture in (create_chat, add_member, write_members, direct)
+                }
+            ),
+            1,
+            "three call sites, one rule, one message",
+        )
+        self.Channel._check_chat_capacity("group", 300)
+        self.Channel._check_chat_capacity("chat", 2)
+
+    def test_sub_channel_members_are_admitted_to_the_parent_in_one_call(self):
+        owner = new_test_user(self.env, "inv_parent", groups="base.group_user")
+        parent = self.Channel.with_user(owner)._create_group(
+            partners_to=[owner.partner_id.id], name="Parent"
+        )
+        sub_channel = parent.with_user(owner)._create_sub_channel(name="Sub")
+        partners = self.env["res.partner"].create(
+            [{"name": f"Late {index}"} for index in range(5)]
+        )
+        calls = Counter()
+        add_members = type(self.Channel)._add_members
+
+        def spy(channels, **kwargs):
+            calls["n"] += 1
+            return add_members(channels, **kwargs)
+
+        with patch.object(type(self.Channel), "_add_members", spy):
+            self.Member.create(
+                [
+                    {"channel_id": sub_channel.id, "partner_id": partner.id}
+                    for partner in partners
+                ]
+            )
+
+        self.assertEqual(calls["n"], 1, "one parent, one admission, not one per member")
+        self.assertTrue(partners <= parent.channel_member_ids.partner_id)
+
+    def test_search_for_channel_invite_survives_an_unusable_channel(self):
+        user = new_test_user(self.env, "inv_invite", groups="base.group_user")
+        Partner = self.env(user=user)["res.partner"]
+
+        result = Partner.search_for_channel_invite(
+            "someone@example.com", channel_id=0x7FFFFFF
+        )
+
+        self.assertFalse(result["selectable_email"])
+        self.assertFalse(result["email_already_sent"])
+        with self.assertRaises(NotFound):
+            Partner.search_for_channel_invite(
+                "someone@example.com", channel_id="not-an-id"
+            )
+
+    def test_membership_by_email_ignores_case_in_both_lookups(self):
+        bob = new_test_user(
+            self.env, "inv_bob", groups="base.group_user", email="bob@example.com"
+        )
+        cased = new_test_user(self.env, "inv_cased", groups="base.group_user")
+        cased.partner_id.sudo().email = "Cased.Member@Example.COM"
+        self.assertEqual(cased.partner_id.email, "Cased.Member@Example.COM")
+        group = self.Channel.with_user(bob)._create_group(
+            partners_to=[bob.partner_id.id, cased.partner_id.id], name="Cased"
+        )
+        as_bob = self.env(user=bob)["res.partner"]
+
+        result = as_bob.search_for_channel_invite(
+            "cased.member@example.com", channel_id=group.id
+        )
+
+        self.assertFalse(
+            result["selectable_email"],
+            "a member whose stored address differs only by case is still a member",
+        )
+        self.assertFalse(
+            group.with_user(bob)._get_uninvited_emails(["cased.member@example.com"])
+        )
+        result = as_bob.search_for_channel_invite(
+            "stranger@example.com", channel_id=group.id
+        )
+        self.assertEqual(result["selectable_email"], "stranger@example.com")
+
+    def test_prefetching_store_members_serialises_nothing(self):
+        user = new_test_user(self.env, "inv_prefetch", groups="base.group_user")
+        chat = self.Channel.with_user(user)._get_or_create_chat(
+            partners_to=[self.env.user.partner_id.id]
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        tokens = Counter()
+        get_token = type(self.env["res.partner"])._get_mention_token
+
+        def spy(partner):
+            tokens["n"] += 1
+            return get_token(partner)
+
+        with patch.object(type(self.env["res.partner"]), "_get_mention_token", spy):
+            chat._prefetch_store_members(chat)
+
+        self.assertEqual(tokens["n"], 0, "warming the cache must not build a payload")
+        for member in chat.channel_member_ids:
+            cached = {field.name for field in self.env.cache.get_fields(member)}
+            self.assertLessEqual(
+                {"seen_message_id", "partner_id", "create_date"}, cached
+            )

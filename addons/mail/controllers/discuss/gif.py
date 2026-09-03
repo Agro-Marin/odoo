@@ -17,6 +17,10 @@ GIF_FAVORITES_PAGE = 20
 _logger = logging.getLogger(__name__)
 
 
+def _query_string(params: dict) -> str:
+    return urlencode({key: value for key, value in params.items() if value is not None})
+
+
 def _to_offset(offset: object) -> int:
     try:
         return max(0, int(offset))
@@ -54,7 +58,7 @@ class DiscussGifController(Controller):
         country: str = "US",
         position: str | None = None,
     ) -> dict:
-        query_string = urlencode(
+        query_string = _query_string(
             {
                 "q": search_term,
                 "key": self._api_key(),
@@ -71,7 +75,7 @@ class DiscussGifController(Controller):
 
     @route("/discuss/gif/categories", type="jsonrpc", auth="user", readonly=True)
     def categories(self, locale: str = "en", country: str = "US") -> dict:
-        query_string = urlencode(
+        query_string = _query_string(
             {
                 "key": self._api_key(),
                 "client_key": self._gif_client_key(),
@@ -109,9 +113,9 @@ class DiscussGifController(Controller):
         favorites.create({"tenor_gif_id": tenor_gif_id})
 
     def _gif_posts(self, ids: list[str]) -> list:
-        query_string = urlencode(
+        query_string = _query_string(
             {
-                "ids": ",".join(ids) or None,
+                "ids": ",".join(ids),
                 "key": self._api_key(),
                 "client_key": self._gif_client_key(),
                 "media_filter": "tinygif",

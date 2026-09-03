@@ -385,6 +385,66 @@ class TestMailControllerContract(MailControllerCommon):
             "an id list past the cap must be refused, not assembled",
         )
 
+    def test_malformed_fetch_params_are_discarded_at_info_not_error(self):
+        self.authenticate("contract_user", "contract_user")
+        with self.assertNoLogs("odoo.addons.mail.controllers.webclient", level="ERROR"):
+            result = self.call_jsonrpc(
+                "/mail/data",
+                {
+                    "fetch_params": [
+                        "init_messaging",
+                        ["mixin.mail.thread", {"thread_model": "res.partner"}],
+                        ["mixin.mail.thread", "not a mapping"],
+                        [
+                            "mixin.mail.thread",
+                            {
+                                "thread_model": ["res.partner"],
+                                "thread_id": self.record.id,
+                                "request_list": [],
+                            },
+                        ],
+                        ["avatar_card", 5],
+                        [42, {}],
+                        [["nested"]],
+                        [],
+                        ["mail.canned.response", None, None, "one too many"],
+                    ]
+                },
+            )
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result, "the well-formed params around them are answered")
+
+    def test_gif_search_sends_no_absent_parameter(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "discuss.klipy_api_key", "test-key"
+        )
+        self.authenticate("contract_user", "contract_user")
+        urls = []
+
+        class FakeResponse:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"results": []}
+
+        def fake_get(url, **kwargs):
+            urls.append(url)
+            return FakeResponse()
+
+        with patch("odoo.addons.mail.controllers.discuss.gif.requests.get", fake_get):
+            self.call_jsonrpc("/discuss/gif/search", {"search_term": "cat"})
+            self.call_jsonrpc(
+                "/discuss/gif/search", {"search_term": "cat", "position": "abc"}
+            )
+            self.call_jsonrpc("/discuss/gif/categories", {})
+
+        self.assertEqual(len(urls), 3)
+        self.assertNotIn("pos=", urls[0], "an absent cursor must not be sent")
+        self.assertNotIn("None", urls[0])
+        self.assertIn("pos=abc", urls[1])
+        self.assertNotIn("None", urls[2])
+
 
 @tagged("-at_install", "post_install", "mail_controller")
 class TestMailDataBatching(MailControllerCommon):

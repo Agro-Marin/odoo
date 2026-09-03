@@ -5,7 +5,7 @@ from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools import SQL, email_normalize, single_email_re
 
-from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.discuss import Store, to_record_id
 
 if typing.TYPE_CHECKING:
     from .discuss_channel import DiscussChannel
@@ -60,15 +60,17 @@ class ResPartner(models.Model):
         ):
             email = email_normalize(search_term)
             channel = self.env["discuss.channel"].search_fetch(
-                [("id", "=", int(channel_id))]
+                [("id", "=", to_record_id(channel_id))]
             )
-            member_domain = Domain("channel_id", "=", channel.id)
-            member_domain &= Domain("guest_id.email", "=", email) | Domain(
-                "partner_id.email", "=", email
-            )
-            if channel._allow_invite_by_email() and not self.env[
-                "discuss.channel.member"
-            ].search_count(member_domain, limit=1):
+            Member = self.env["discuss.channel.member"]
+            member_domain = Domain(
+                "channel_id", "=", channel.id
+            ) & Member._member_email_domain([email])
+            if (
+                channel
+                and channel._allow_invite_by_email()
+                and not Member.search_count(member_domain, limit=1)
+            ):
                 selectable_email = email
                 email_already_sent = (
                     self.env["mail.mail"]
@@ -113,7 +115,9 @@ class ResPartner(models.Model):
         )
         channel = self.env["discuss.channel"]
         if channel_id:
-            channel = self.env["discuss.channel"].search([("id", "=", int(channel_id))])
+            channel = self.env["discuss.channel"].search(
+                [("id", "=", to_record_id(channel_id))]
+            )
             domain &= Domain("channel_ids", "not in", channel.id)
             if channel.group_public_id:
                 domain &= Domain(

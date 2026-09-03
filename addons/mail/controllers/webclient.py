@@ -75,14 +75,37 @@ class WebclientController(ThreadController):
         if isinstance(fetch_params, str) or not isinstance(fetch_params, (list, tuple)):
             raise NotFound
         for fetch_param in fetch_params:
-            name, params, data_id = (
-                (fetch_param, None, None)
-                if isinstance(fetch_param, str)
-                else (list(fetch_param) + [None, None])[:3]
-            )
+            parsed = cls._parse_fetch_param(fetch_param)
+            if parsed is None:
+                _logger.info(
+                    "Discarding a malformed fetch param: %s", repr(fetch_param)[:200]
+                )
+                continue
+            name, params, data_id = parsed
             store.data_id = data_id
             cls._process_one_request(store, name, params)
         store.data_id = None
+
+    @staticmethod
+    def _parse_fetch_param(fetch_param: Any) -> tuple[str, Any, Any] | None:
+        if isinstance(fetch_param, str):
+            return fetch_param, None, None
+        if not isinstance(fetch_param, (list, tuple)) or not 1 <= len(fetch_param) <= 3:
+            return None
+        name, params, data_id = (list(fetch_param) + [None, None])[:3]
+        if not isinstance(name, str):
+            return None
+        return name, params, data_id
+
+    @staticmethod
+    def _is_thread_fetch_params(params: Any) -> bool:
+        return (
+            isinstance(params, dict)
+            and isinstance(params.get("thread_model"), str)
+            and "thread_id" in params
+            and isinstance(params.get("request_list"), list)
+            and isinstance(params.get("access_params", {}), dict)
+        )
 
     @classmethod
     def _dispatch_one_request(cls, store: Store, name: str, params: Any) -> None:
@@ -138,6 +161,12 @@ class WebclientController(ThreadController):
 
     @classmethod
     def _add_thread_fetch_param(cls, store: Store, params: Any) -> None:
+        if not cls._is_thread_fetch_params(params):
+            _logger.info(
+                "Discarding a thread fetch param with malformed params: %s",
+                repr(params)[:200],
+            )
+            return
         try:
             thread = cls._get_thread_with_access(
                 params["thread_model"],
@@ -148,7 +177,7 @@ class WebclientController(ThreadController):
         except NotFound:
             _logger.info(
                 "Discarding a thread fetch param naming an unusable model: %r",
-                params.get("thread_model") if isinstance(params, dict) else params,
+                params["thread_model"],
             )
             return
         if not thread:
@@ -216,6 +245,8 @@ class WebclientController(ThreadController):
             ]
             store.add(request.env["mail.canned.response"].search(domain))
         if name == "avatar_card":
+            if not isinstance(params, dict):
+                return
             record_id, model = params.get("id"), params.get("model")
             if not record_id or model not in ("res.users", "res.partner"):
                 return

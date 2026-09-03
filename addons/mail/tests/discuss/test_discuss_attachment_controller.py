@@ -1,4 +1,7 @@
+from unittest.mock import patch
+
 import odoo
+from odoo.tests import JsonRpcException
 from odoo.tools.misc import file_open
 
 from odoo.addons.mail.tests.common_controllers import MailControllerAttachmentCommon
@@ -83,3 +86,37 @@ class TestDiscussAttachmentController(MailControllerAttachmentCommon):
             url = f"/mail/attachment/pdf_first_page/{attachment.id}?access_token={ownership_token}"
             response = self.url_open(url)
             self.assertIn(response.status_code, [415, 200])
+
+    def test_attachment_delete_refusal_echoes_to_the_guest(self):
+        channel = self.env["discuss.channel"].create(
+            {"group_public_id": None, "name": "public channel"}
+        )
+        attachment = self.env["ir.attachment"].create(
+            {"name": "sample", "res_model": channel._name, "res_id": channel.id}
+        )
+        self._authenticate_pseudo_user(self.guest)
+        sent = []
+
+        def spy_guest(records, notification_type, message, /, **kwargs):
+            sent.append(("guest", records, notification_type, message))
+
+        def spy_user(records, notification_type, message, /, **kwargs):
+            sent.append(("user", records, notification_type, message))
+
+        with (
+            patch.object(type(self.env["mail.guest"]), "_bus_send", spy_guest),
+            patch.object(type(self.env["res.users"]), "_bus_send", spy_user),
+            self.assertRaises(JsonRpcException) as capture,
+        ):
+            self._remove_attachment(attachment, token=False)
+
+        self.assertEqual(capture.exception.code, 404)
+        self.assertEqual(
+            [
+                (who, records, notification_type)
+                for who, records, notification_type, _ in sent
+            ],
+            [("guest", self.guest, "ir.attachment/delete")],
+            "the echo belongs on the guest's bus, not the public user's",
+        )
+        self.assertEqual(sent[0][3], {"id": attachment.id})
