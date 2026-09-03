@@ -11,7 +11,7 @@ from odoo.tests.common import BaseCase, TransactionCase, tagged
 from odoo.tools import mute_logger
 from odoo.tools.misc import file_path
 
-from .common import FileTouchable
+from .common import FileTouchable, make_bundle
 from odoo.addons.base.models.assetsbundle import (
     ANY_UNIQUE,
     AssetAttachmentStore,
@@ -951,3 +951,99 @@ class TestErrorManagement(HttpCase):
         )
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.start_tour("/?debug=1", "css_error_tour_frontend")
+
+
+@tagged("-at_install", "post_install")
+class TestEmptyArtifactsAreNotPersisted(TransactionCase):
+    ESM_ONLY = "test_assetsbundle.native_esm"
+
+    def _generated(self, url_like):
+        return (
+            self.env["ir.attachment"]
+            .sudo()
+            .search(
+                [
+                    ("url", "=like", url_like),
+                    ("res_model", "=", "ir.ui.view"),
+                    ("res_id", "=", 0),
+                ]
+            )
+        )
+
+    def test_js_refuses_a_bundle_without_legacy_content(self):
+        bundle = self.env["ir.qweb"]._get_asset_bundle(self.ESM_ONLY, css=False)
+        self.assertTrue(bundle.native_modules)
+        self.assertFalse(bundle.has_js_content)
+        self.assertFalse(bundle.js())
+        self.assertFalse(self._generated(f"/web/assets/%/{self.ESM_ONLY}.min.js"))
+
+    def test_css_refuses_a_bundle_without_stylesheets(self):
+        name = "test_assetsbundle.audit_nocss"
+        bundle = make_bundle(
+            self, name, ("/test_assetsbundle/static/src/js/nocss.js", "var x = 1;")
+        )
+        self.assertFalse(bundle.has_css_content)
+        self.assertFalse(bundle.css())
+        self.assertFalse(self._generated(f"/web/assets/%/{name}.min.css"))
+
+    def test_asset_urls_are_the_fetchable_nodes(self):
+        IrQweb = self.env["ir.qweb"]
+        nodes = IrQweb._get_asset_nodes(self.ESM_ONLY, css=False)
+        fetchable = [
+            attrs.get("src") or attrs.get("href")
+            for _tag, attrs in nodes
+            if attrs.get("src") or attrs.get("href")
+        ]
+        urls = IrQweb._get_asset_urls(self.ESM_ONLY, css=False)
+        self.assertEqual(urls, list(dict.fromkeys(fetchable)))
+        self.assertTrue(urls, "an ESM bundle has at least one fetchable url")
+        self.assertEqual(
+            IrQweb._get_asset_links(self.ESM_ONLY, css=False),
+            [],
+            "the legacy link list cannot see the ESM artifact",
+        )
+
+    def _zero_byte_generated(self):
+        return self._generated("/web/assets/%").filtered(lambda a: not a.file_size)
+
+    def test_pregeneration_persists_no_empty_artifact_and_warms_esm(self):
+        already_empty = self._zero_byte_generated()
+        links = self.env["ir.qweb"]._pregenerate_assets_bundles()
+        IrAttachment = self.env["ir.attachment"].sudo()
+        generated = [link for link in links if link.startswith("/web/assets/")]
+        self.assertTrue(generated)
+        for link in generated:
+            attachment = IrAttachment.search([("url", "=", link)], limit=1)
+            self.assertTrue(attachment, link)
+            self.assertGreater(attachment.file_size, 0, link)
+        self.assertTrue(
+            any(link.startswith("/web/assets/esm/") for link in generated),
+            "pregeneration must warm the ESM artifacts too",
+        )
+        self.assertFalse(
+            self._zero_byte_generated() - already_empty,
+            "pregeneration wrote a zero-byte attachment",
+        )
+
+
+@tagged("-at_install", "post_install")
+class TestEmptyBundleIsNotServed(HttpCase):
+    def test_an_esm_bundle_with_only_templates_answers_404(self):
+        name = "test_assetsbundle.native_esm"
+        self.env["ir.asset"].create(
+            {
+                "name": "templates only",
+                "bundle": name,
+                "path": "test_assetsbundle/static/tests/lazy_test_component/lazy_test_component.xml",
+            }
+        )
+        bundle = self.env["ir.qweb"]._get_asset_bundle(name, css=False)
+        self.assertTrue(bundle.templates)
+        self.assertFalse(bundle.has_js_content)
+        response = self.url_open(f"/web/assets/any/{name}.min.js", allow_redirects=True)
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(
+            self.env["ir.attachment"]
+            .sudo()
+            .search([("url", "=like", f"/web/assets/%/{name}.min.js")])
+        )

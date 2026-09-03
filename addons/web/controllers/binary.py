@@ -258,9 +258,9 @@ class Binary(http.Controller):
                 ):
                     return None, request.redirect(bundle.get_link(asset_type))
                 attachment = None
-                if css and bundle.stylesheets:
+                if css:
                     attachment = bundle.css()
-                elif js and (bundle.javascripts or bundle.templates):
+                elif js:
                     attachment = bundle.js()
                 if attachment:
                     stream = rw_env["ir.binary"]._get_stream_from_record(

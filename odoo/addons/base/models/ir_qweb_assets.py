@@ -134,6 +134,20 @@ class IrQweb(models.AbstractModel):
 
     _is_debug_assets = staticmethod(is_debug_assets)
 
+    def _get_asset_urls(
+        self,
+        bundle: str,
+        css: bool = True,
+        js: bool = True,
+        debug: str | None = None,
+    ) -> list[str]:
+        urls = []
+        for _tag, attrs in self._get_asset_nodes(bundle, css=css, js=js, debug=debug):
+            url = attrs.get("src") or attrs.get("href")
+            if url and url not in urls:
+                urls.append(url)
+        return urls
+
     def _get_asset_links(
         self,
         bundle: str,
@@ -1824,16 +1838,23 @@ class IrQweb(models.AbstractModel):
         self._log_pregeneration_coverage(js_bundles)
 
         start = time.time()
-        links = [
-            self._get_asset_bundle(bundle, css=False, js=True).js().url
-            for bundle in sorted(js_bundles)
-        ]
+        links = []
+        for bundle in sorted(js_bundles):
+            asset_bundle = self._get_asset_bundle(bundle, css=False, js=True)
+            if asset_bundle.has_js_content:
+                links.append(asset_bundle.js().url)
+            if asset_bundle.native_modules:
+                links.extend(
+                    url
+                    for url in self._get_asset_urls(bundle, css=False, js=True)
+                    if url.startswith("/web/assets/esm/") and url not in links
+                )
         _logger.info("JS Assets bundles generated in %s seconds", time.time() - start)
         start = time.time()
-        links += [
-            self._get_asset_bundle(bundle, css=True, js=False).css().url
-            for bundle in sorted(css_bundles)
-        ]
+        for bundle in sorted(css_bundles):
+            asset_bundle = self._get_asset_bundle(bundle, css=True, js=False)
+            if asset_bundle.has_css_content:
+                links.append(asset_bundle.css().url)
         _logger.info("CSS Assets bundles generated in %s seconds", time.time() - start)
         return links
 

@@ -261,6 +261,13 @@ class AssetsBundle:
     def has_js_content(self) -> bool:
         return bool(self.javascripts or self._has_legacy_templates)
 
+    @property
+    def has_css_content(self) -> bool:
+        return bool(self.stylesheets)
+
+    def _no_attachment(self) -> IrAttachment:
+        return self.env["ir.attachment"].sudo().browse()
+
     def get_links(self) -> list[str]:
         response = []
 
@@ -447,6 +454,8 @@ class AssetsBundle:
         return XmlTemplatePipeline(self)
 
     def js(self) -> IrAttachment:
+        if not self.has_js_content:
+            return self._no_attachment()
         is_minified = not self.is_debug_assets
         extension = "min.js" if is_minified else "js"
         js_attachment = self.get_attachments(extension)
@@ -503,6 +512,8 @@ class AssetsBundle:
         return CssPipeline._render_css_error_banner(css_errors, previous_css)
 
     def css(self) -> IrAttachment:
+        if not self.has_css_content:
+            return self._no_attachment()
         is_minified = not self.is_debug_assets
         extension = "min.css" if is_minified else "css"
         attachments = self.get_attachments(extension)

@@ -943,9 +943,7 @@ class PosConfig(models.Model):
         if not self._get_default_warehouse():
             self.env["stock.warehouse"].create(
                 {
-                    "code": (vals_list[0].get("name") or "POS")[
-                        :3
-                    ],
+                    "code": (vals_list[0].get("name") or "POS")[:3],
                     "company_id": self.env.company.id,
                 }
             )
@@ -1258,7 +1256,7 @@ class PosConfig(models.Model):
             f"/pos/ui/{self.id}",
         ]
         return (
-            self.env["ir.qweb"]._get_asset_links(
+            self.env["ir.qweb"]._get_asset_urls(
                 "point_of_sale.assets_prod", debug=debug
             )
             + url_to_cache
