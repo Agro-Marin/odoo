@@ -7,6 +7,7 @@ from unittest.mock import patch
 from odoo.tests.common import TransactionCase
 from odoo.tools.assets.esbuild import EXTERNAL_LIB_ALIASES
 from odoo.tools.assets.esm_bridges import BridgeShimManager
+from odoo.tools.assets.esm_graph import _bridge_shim_source
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_path
 
@@ -66,9 +67,7 @@ class TestBridgeShimLiterals(TransactionCase):
     NAMES = {"alpha", "class", "default", "a-b"}
 
     def test_shim_specifier_is_json_quoted(self):
-        shim, is_fallback = AssetsBundle._bridge_shim_source(
-            "@web/core/x", set(), {"alpha"}, True
-        )
+        shim, is_fallback = _bridge_shim_source("@web/core/x", set(), {"alpha"}, True)
         self.assertIn('odoo.loader.modules.get("@web/core/x");', shim)
         self.assertNotIn("get('@web/core/x')", shim)
         self.assertIn("_e0 = _m.alpha;", shim)
@@ -77,9 +76,7 @@ class TestBridgeShimLiterals(TransactionCase):
         self.assertFalse(is_fallback)
 
     def test_a_reserved_word_survives_as_an_alias(self):
-        shim, _ = AssetsBundle._bridge_shim_source(
-            "@web/core/x", set(), self.NAMES, False
-        )
+        shim, _ = _bridge_shim_source("@web/core/x", set(), self.NAMES, False)
 
         self.assertIn(" as class", shim)
         self.assertNotIn("const class", shim)
@@ -103,9 +100,7 @@ class TestBridgeShimLiterals(TransactionCase):
             text=True,
             check=False,
         )
-        python_shim, _ = AssetsBundle._bridge_shim_source(
-            "@web/core/x", set(), self.NAMES, False
-        )
+        python_shim, _ = _bridge_shim_source("@web/core/x", set(), self.NAMES, False)
 
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(proc.stdout, python_shim)

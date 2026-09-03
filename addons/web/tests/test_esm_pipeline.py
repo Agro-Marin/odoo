@@ -21,6 +21,7 @@ from odoo.tools.assets import esm_bridges
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import (
     _IMPORT_ANY_RE,
+    _bridge_shim_source,
     _BridgeExportResolver,
     _scan_import_specifiers,
     discover_transitive_import_specifiers,
@@ -992,9 +993,7 @@ class TestBridgeHelpers(TransactionCase):
         self.assertEqual(ext_seen, {"@web/extlib"})
 
     def test_shim_source_default_and_named(self):
-        shim, star = AssetsBundle._bridge_shim_source(
-            "@web/foo", set(), {"b", "a"}, True
-        )
+        shim, star = _bridge_shim_source("@web/foo", set(), {"b", "a"}, True)
         self.assertFalse(star)
         self.assertIn('const _m = odoo.loader.modules.get("@web/foo");', shim)
         self.assertIn("_d = _m.default ?? _m;", shim)
@@ -1004,7 +1003,7 @@ class TestBridgeHelpers(TransactionCase):
         self.assertIn("export { _d as default, _e0 as a, _e1 as b };", shim)
 
     def test_shim_source_star_fallback(self):
-        shim, star = AssetsBundle._bridge_shim_source("@web/bar", set(), set(), False)
+        shim, star = _bridge_shim_source("@web/bar", set(), set(), False)
         self.assertTrue(star)
         self.assertIn("_d = _m.default ?? _m;", shim)
         self.assertIn("_d as default", shim)
@@ -1012,25 +1011,21 @@ class TestBridgeHelpers(TransactionCase):
         self.assertNotIn("_e0", shim)
 
     def test_shim_source_named_only_still_exports_default(self):
-        shim, star = AssetsBundle._bridge_shim_source("@web/baz", set(), {"x"}, False)
+        shim, star = _bridge_shim_source("@web/baz", set(), {"x"}, False)
         self.assertFalse(star)
         self.assertIn("_e0 = _m.x;", shim)
         self.assertIn("_e0 as x", shim)
         self.assertIn("_d as default", shim)
 
     def test_shim_source_star_kind_no_duplicate_default(self):
-        shim, star = AssetsBundle._bridge_shim_source(
-            "@web/qux", {"__star__"}, set(), False
-        )
+        shim, star = _bridge_shim_source("@web/qux", {"__star__"}, set(), False)
         self.assertTrue(star)
         self.assertEqual(shim.count("export {"), 1)
         self.assertEqual(shim.count(" as default"), 1)
         self.assertNotIn("export default", shim)
 
     def test_shim_source_default_kind_triggers_export(self):
-        shim, star = AssetsBundle._bridge_shim_source(
-            "@web/q", {"__default__"}, set(), False
-        )
+        shim, star = _bridge_shim_source("@web/q", {"__default__"}, set(), False)
         self.assertFalse(star)
         self.assertIn("_d as default", shim)
 

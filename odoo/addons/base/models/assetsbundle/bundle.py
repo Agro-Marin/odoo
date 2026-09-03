@@ -16,11 +16,7 @@ from odoo.tools.assets.constants import (
 )
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_bridges import BridgeShimManager
-from odoo.tools.assets.esm_graph import (
-    _bridge_shim_source,
-    _cached_module_classification,
-    is_odoo_module,
-)
+from odoo.tools.assets.esm_graph import _cached_module_classification, is_odoo_module
 from odoo.tools.assets.esm_registry import (
     esm_registry,
     external_libs,
@@ -390,8 +386,6 @@ class AssetsBundle:
     @functools.cached_property
     def _bridges(self) -> BridgeShimManager:
         return BridgeShimManager(self.env, self.name, self.native_modules)
-
-    _bridge_shim_source = staticmethod(_bridge_shim_source)
 
     def get_link(self, asset_type: str) -> str:
         unique = self.get_version(asset_type) if not self.is_debug_assets else "debug"
