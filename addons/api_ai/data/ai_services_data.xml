@@ -98,16 +98,14 @@ Real-World Use Cases:
         <field
             name="description">DeepSeek provides powerful AI models for various tasks.
 
-Models Available:
-- deepseek-chat (standard model for general tasks)
-- deepseek-coder (specialized for code generation and analysis)
-- deepseek-vision (vision-language model for OCR and image analysis)
-- 128K token context window
+Models: see DeepSeekClient.VALID_MODELS and the provider's default_model. This
+field deliberately does not list them by name, after service_anthropic's
+description carried a hardcoded model list that aged badly in a noupdate="1"
+record. DeepSeek has no vision-capable model or OCR support in this client.
 
 Features:
 - DeepSeek Sparse Attention (DSA) for efficiency
 - Built-in reasoning capabilities (not exposed as separate field)
-- Vision and OCR capabilities (100+ languages supported)
 - Enhanced agent capabilities
 - OpenAI-compatible API format
 - Function calling / tool use support
@@ -115,21 +113,12 @@ Features:
 - Excellent for mathematical and coding tasks
 - MIT License (model is open-source)
 
-Vision/OCR Capabilities:
-- Text extraction from images (OCR)
-- Document layout detection
-- Caption generation
-- Visual question answering
-- Support for JPEG, PNG, WEBP formats
-- Maximum recommended resolution: 1024px
-- Structured data extraction from invoices/receipts/forms
-
 For current pricing information, visit: https://platform.deepseek.com/
 
-DeepSeekClient Methods (15 total):
+DeepSeekClient Methods:
 - chat_completion() - Full API control with messages
 - simple_completion() - Quick text generation
-- code_completion() - Use deepseek-coder model for coding tasks
+- code_completion() - Quick text generation with a coding-oriented prompt
 - streaming_completion() - Stream responses in real-time
 - structured_output() - Guaranteed JSON with schema validation via function calling
 - json_completion() - Simple JSON via response_format parameter
@@ -138,18 +127,13 @@ DeepSeekClient Methods (15 total):
 - tool_conversation() - Multi-turn agentic workflows with function calling
 - streaming_json_completion() - Stream structured JSON output
 - math_completion() - Optimized prompts for mathematical problems
-- code_review() - Structured code feedback with DeepSeek Coder
-- vision_completion() - Analyze images with deepseek-vision model
-- ocr_completion() - Extract text from images (OCR)
-- vision_structured_output() - Extract structured JSON data from images
+- code_review() - Structured code feedback via structured_output
 
 Note: DeepSeek has built-in reasoning but does NOT expose separate reasoning fields in API responses.
 
 Use Cases:
-- Code generation and analysis (deepseek-coder)
-- Mathematical reasoning (deepseek-chat with optimized prompts)
-- OCR and document processing (deepseek-vision)
-- Invoice/receipt data extraction (vision_structured_output)
+- Code generation and analysis
+- Mathematical reasoning (optimized prompts)
 - Structured data extraction (structured_output)
 - AI agents with Odoo integration (tool_conversation)
 - Bulk text processing
@@ -158,16 +142,16 @@ Use Cases:
 - Long conversation workflows
 
 When to Use DeepSeek vs Claude:
-- Use DeepSeek for: Math, coding, OCR, invoice processing, bulk operations
-- Use Claude for: Native PDF processing (without OCR), extremely complex reasoning, long context (&gt;128K), prompt caching
-- Use Both: DeepSeek for general tasks, Claude for advanced features requiring caching/PDFs
+- Use DeepSeek for: Math, coding, bulk operations
+- Use Claude for: Vision/OCR, native PDF processing, extremely complex reasoning, long context (&gt;128K), prompt caching
+- Use Both: DeepSeek for general tasks, Claude for advanced features requiring vision/caching/PDFs
 
 Limitations:
-- No native PDF processing (requires OCR first or PDF-to-image conversion)
+- No vision or OCR capability
+- No native PDF processing
 - No prompt caching feature
 - No batch API
-- Reasoning is internal only (no separate reasoning field in responses)
-- Vision resolution limit: 1024px recommended</field>
+- Reasoning is internal only (no separate reasoning field in responses)</field>
         <field name="provider">DeepSeek</field>
         <field name="website">https://www.deepseek.com</field>
         <field name="documentation_url">https://platform.deepseek.com/api-docs/</field>
