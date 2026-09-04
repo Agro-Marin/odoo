@@ -33,9 +33,10 @@ _SKIPPED_SUFFIXES = frozenset({".pyc", ".pyo", ".swp", ".DS_Store"})
 
 
 def clean_filename(name: str, replacement: str = "") -> str:
-    if WINDOWS_RESERVED.match(name):
+    cleaned = _CLEAN_FILENAME_RE.sub(replacement, name).lstrip(".-")
+    if not cleaned or WINDOWS_RESERVED.match(cleaned):
         return "Untitled"
-    return _CLEAN_FILENAME_RE.sub(replacement, name).lstrip(".-") or "Untitled"
+    return cleaned
 
 
 def zip_dir(
