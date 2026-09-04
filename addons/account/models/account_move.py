@@ -2544,16 +2544,27 @@ class AccountMove(models.Model):
 
     def _update_tax_country_id(self):
         self.fetch(["fiscal_position_id", "company_id"])
-        foreign_vat_records = self.filtered(lambda r: r.fiscal_position_id.foreign_vat)
+        # Deriving a field is not a person editing the move. Reached from
+        # `_check_taxes_country`, where `tax_country_id` is unprotected, so
+        # these assignments are real writes and `write` would otherwise record
+        # them as manual modifications -- which suppresses vendor autoposting
+        # for every imported bill. From `_compute_tax_country_id` the field IS
+        # protected, no write happens, and the context costs nothing.
+        records = self.with_context(skip_is_manually_modified=True)
+        foreign_vat_records = records.filtered(
+            lambda r: r.fiscal_position_id.foreign_vat
+        )
         for fiscal_position_id, record_group in groupby(
             foreign_vat_records, key=lambda r: r.fiscal_position_id
         ):
-            self.concat(*record_group).tax_country_id = fiscal_position_id.country_id
+            records.browse(
+                [record.id for record in record_group]
+            ).tax_country_id = fiscal_position_id.country_id
         for company_id, record_group in groupby(
-            (self - foreign_vat_records), key=lambda r: r.company_id
+            (records - foreign_vat_records), key=lambda r: r.company_id
         ):
-            self.concat(
-                *record_group
+            records.browse(
+                [record.id for record in record_group]
             ).tax_country_id = company_id.account_fiscal_country_id
 
     @api.depends("tax_country_id")

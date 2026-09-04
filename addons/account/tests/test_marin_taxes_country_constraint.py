@@ -106,3 +106,63 @@ class TestTaxesCountryConstraint(AccountTestInvoicingCommon):
                     "fiscal_position_id": fiscal_position.id,
                 }
             )
+
+
+@tagged("post_install", "-at_install")
+class TestTaxCountryIsPerRecord(AccountTestInvoicingCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.foreign_country = cls.env.ref("base.de")
+        cls.foreign_position = cls.env["account.fiscal.position"].create(
+            {
+                "name": "German registration",
+                "company_id": cls.company_data["company"].id,
+                "country_id": cls.foreign_country.id,
+                "foreign_vat": "DE123456788",
+            }
+        )
+
+    def _bill(self, fiscal_position=None):
+        return self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-06-01",
+                "fiscal_position_id": fiscal_position.id if fiscal_position else False,
+            }
+        )
+
+    def test_two_moves_in_one_batch_keep_their_own_tax_country(self):
+        abroad = self._bill(self.foreign_position)
+        at_home = self._bill()
+        home_country = self.company_data["company"].account_fiscal_country_id
+
+        (abroad | at_home)._update_tax_country_id()
+
+        self.assertEqual(
+            abroad.tax_country_id,
+            self.foreign_country,
+            "the foreign-vat move took the batch's other group's country",
+        )
+        self.assertEqual(at_home.tax_country_id, home_country)
+
+    def test_the_order_of_the_batch_does_not_decide_the_answer(self):
+        """The failure is last-group-wins, so it hides whenever the batch is
+        ordered the convenient way round."""
+        abroad = self._bill(self.foreign_position)
+        at_home = self._bill()
+        home_country = self.company_data["company"].account_fiscal_country_id
+
+        (at_home | abroad)._update_tax_country_id()
+
+        self.assertEqual(abroad.tax_country_id, self.foreign_country)
+        self.assertEqual(at_home.tax_country_id, home_country)
+
+    def test_a_single_move_is_unaffected_either_way(self):
+        """The case that masks it: one group, so nothing overwrites anything."""
+        abroad = self._bill(self.foreign_position)
+
+        abroad._update_tax_country_id()
+
+        self.assertEqual(abroad.tax_country_id, self.foreign_country)

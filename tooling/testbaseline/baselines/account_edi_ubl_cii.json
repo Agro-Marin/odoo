@@ -1,10 +1,8 @@
 {
-  "expected": {
-    "account_edi_ubl_cii/TestAutoPostBills.test_autopost_bills": "FAIL"
-  },
-  "note": "TestAutoPostBills.test_autopost_bills: an imported bill reads is_manually_modified after the importer filled it, so the autopost popup never appears. Pre-existing and older than it looks \u2014 until the add_where arity fix of 2026-08-30 this test ERRORED on tax prediction and never reached the assertion. _get_edi_creation not carrying skip_is_manually_modified is the obvious theory and is REFUTED: setting it there changes nothing, so the write that sets the flag is outside that block. Located 2026-09-03 by instrumenting AccountMove.write: the write that sets the flag comes from _check_taxes_country, a constraint, calling _update_tax_country_id, where tax_country_id is unprotected so the assignment is a real write. Consistent with the refutation above -- it is outside the _get_edi_creation block because it is not in the import path at all. Full account, including a READ-not-measured concern that concat returns self plus its arguments and so widens each assignment past its group, in the workspace CLAUDE.md known defects.",
-  "run_spec": "-u account_edi_ubl_cii --test-enable --test-tags '/account_edi_ubl_cii', ~34s",
+  "expected": {},
+  "note": "Empty since the tax_country_id fix. TestAutoPostBills.test_autopost_bills failed because _update_tax_country_id assigned through self.concat(*record_group), which concatenates onto the receiver, so every group's assignment covered the whole batch and the second loop decided for everybody; and because those assignments are real writes from inside a constraint, so AccountMove.write recorded a derivation as a manual modification and suppressed vendor autoposting. Both fixed. The earlier record read 1 expected of 59 at 26c6ccd72c7, measured on a wider install than this spec produces; its refuted theory -- that _get_edi_creation fails to carry skip_is_manually_modified -- was correct as a refutation, the write is not in the import path at all.",
+  "run_spec": "-u account_edi_ubl_cii --test-enable --test-tags '/account_edi_ubl_cii' on a database carrying account and account_edi_ubl_cii",
   "suite": "/account_edi_ubl_cii",
-  "tests_total": 59,
-  "verified_at": "26c6ccd72c7"
+  "tests_total": 37,
+  "verified_at": "17d60aa1a9f"
 }
