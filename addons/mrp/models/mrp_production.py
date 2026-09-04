@@ -1664,7 +1664,6 @@ class MrpProduction(models.Model):
             self.date_category_to_domain("date_start", date) for date in dates
         )
 
-    @api.depends("lot_producing_ids", "product_tracking")
     @api.depends("bom_id.note")
     def _compute_note(self):
         for production in self:
@@ -1673,6 +1672,7 @@ class MrpProduction(models.Model):
             if not production.note:
                 production.note = production.bom_id.note
 
+    @api.depends("lot_producing_ids", "product_tracking")
     def _compute_serial_numbers_count(self):
         for production in self:
             if production.product_tracking != "serial":
