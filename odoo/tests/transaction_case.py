@@ -309,9 +309,13 @@ class BaseCase(TestCase):
 
                 if retry == tests_run_count - 1:
                     super().run(cast("TestResult", result))
-                    if not result.wasSuccessful() and BaseCase._tests_run_count != 1:
+                    # Scoped to `type(self)`, not `BaseCase`: a permanent
+                    # failure disables retries for the rest of this class
+                    # only, so it never silently strips flake-tolerance from
+                    # unrelated classes running later in the same process.
+                    if not result.wasSuccessful() and type(self)._tests_run_count != 1:
                         _logger.log(RUNBOT, "Disabling auto-retry after a failed test")
-                        BaseCase._tests_run_count = 1
+                        type(self)._tests_run_count = 1
                     break
 
                 attempt.enter_context(warnings.catch_warnings())
