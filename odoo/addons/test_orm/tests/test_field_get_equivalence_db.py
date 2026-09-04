@@ -57,7 +57,6 @@ class TestFieldGetEquivalenceDB(odoo.tests.TransactionCase):
                 self.assertEqual(
                     getattr(rec_user.sudo(), fname), getattr(rec_admin, fname)
                 )
-                getattr(rec_admin, fname)
 
     def test_real_translate_true_per_language_matches_convert_to_record(self):
         self.env["res.lang"]._activate_lang("fr_FR")
