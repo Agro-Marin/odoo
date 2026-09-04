@@ -210,6 +210,9 @@ export function isValidEmail(email) {
 }
 
 export const LONG_PRESS_DURATION = session.test_mode ? 100 : 500;
+// Held on top of LONG_PRESS_DURATION for touch, so that starting to drag a
+// product card does not also open its info popup.
+export const TOUCH_DELAY = session.test_mode ? 50 : 300;
 
 export async function getImageDataUrl(imageUrl) {
     const res = await fetch(imageUrl);
