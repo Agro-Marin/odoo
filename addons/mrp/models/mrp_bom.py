@@ -164,6 +164,10 @@ class MrpBom(models.Model):
         help="All automatically generated manufacturing orders for this product will be of this size.",
     )
     enable_batch_size = fields.Boolean(default=False)
+    note = fields.Html(
+        "Additional Notes",
+        help="Shown on every manufacturing order built from this bill of materials.",
+    )
 
     _qty_positive = models.Constraint(
         "check (product_qty > 0)",

@@ -1062,6 +1062,7 @@
                                         options="{'no_create': True}"
                                         readonly="state != 'draft'"
                                         force_save="1" />
+                                    <field name="note" />
                                 </group>
                             </group>
                         </page>

@@ -326,6 +326,7 @@
                                         <field
                                             name="allow_operation_dependencies"
                                             groups="mrp.group_mrp_workorder_dependencies" />
+                                        <field name="note" />
                                     </group>
                                     <group>
                                         <field

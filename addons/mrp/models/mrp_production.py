@@ -553,6 +553,13 @@ class MrpProduction(models.Model):
         "Count of serial numbers",
         compute="_compute_serial_numbers_count",
     )
+    note = fields.Html(
+        "Additional Notes",
+        compute="_compute_note",
+        store=True,
+        readonly=False,
+        help="Instructions for the shop floor, seeded from the bill of materials.",
+    )
 
     _name_uniq = models.Constraint(
         "unique(name, company_id)",
@@ -1658,6 +1665,14 @@ class MrpProduction(models.Model):
         )
 
     @api.depends("lot_producing_ids", "product_tracking")
+    @api.depends("bom_id.note")
+    def _compute_note(self):
+        for production in self:
+            # An order that already carries a note keeps it: the BoM only seeds
+            # the value, it does not own it.
+            if not production.note:
+                production.note = production.bom_id.note
+
     def _compute_serial_numbers_count(self):
         for production in self:
             if production.product_tracking != "serial":

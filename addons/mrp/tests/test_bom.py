@@ -3825,6 +3825,19 @@ class TestBoM(TestMrpCommon):
         )["lines"]
         self.assertEqual(bom_overview["operations_time"], 32)
 
+    def test_bom_additional_note(self):
+        """The BoM's note reaches the MOs built from it, and an MO that has its
+        own note keeps it when the BoM's changes."""
+        self.bom_1.note = "<p>Wear gloves</p>"
+        mo_form = Form(self.env["mrp.production"])
+        mo_form.bom_id = self.bom_1
+        mo = mo_form.save()
+        self.assertEqual(mo.note, self.bom_1.note)
+
+        mo.note = "<p>Wear gloves and goggles</p>"
+        self.bom_1.note = "<p>Wear a helmet</p>"
+        self.assertEqual(mo.note, "<p>Wear gloves and goggles</p>")
+
 
 @tagged("-at_install", "post_install")
 class TestTourBoM(HttpCase):
