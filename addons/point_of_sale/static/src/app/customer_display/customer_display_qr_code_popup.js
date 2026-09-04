@@ -20,13 +20,50 @@ export class QrCodeCustomerDisplay extends Component {
         return generateQRCodeDataUrl(this.props.customerDisplayURL);
     }
 
-    openOnThisDevice() {
-        window.open(
-            this.props.customerDisplayURL,
-            "newWindow",
-            "width=800,height=600,left=200,top=200",
+    /**
+     * Where to put the customer display window. When the browser can report the
+     * connected screens, a second one gets the whole of its available area;
+     * otherwise we keep the small window on this device.
+     *
+     * https://developer.mozilla.org/en-US/docs/Web/API/Window/getScreenDetails
+     */
+    async getScreenFeatures() {
+        let windowFeatures = "width=800,height=600,left=200,top=200";
+        let usedFallback = false;
+
+        if ("getScreenDetails" in window) {
+            try {
+                const screenDetails = await window.getScreenDetails();
+                const secondScreen = screenDetails.screens.find(
+                    (screen) => screen !== screenDetails.currentScreen,
+                );
+                if (secondScreen) {
+                    windowFeatures = [
+                        `left=${secondScreen.availLeft}`,
+                        `top=${secondScreen.availTop}`,
+                        `width=${secondScreen.availWidth}`,
+                        `height=${secondScreen.availHeight}`,
+                    ].join(",");
+                }
+            } catch {
+                // The API is behind the window-management permission, which the
+                // cashier can refuse.
+                usedFallback = true;
+            }
+        }
+        return { windowFeatures, usedFallback };
+    }
+
+    async openOnThisDevice() {
+        const { windowFeatures, usedFallback } = await this.getScreenFeatures();
+        window.open(this.props.customerDisplayURL, "customerDisplay", windowFeatures);
+        this.notification.add(
+            usedFallback
+                ? _t(
+                      "PoS Customer Display opened in a new window. Allow this site to manage windows to use a second screen.",
+                  )
+                : _t("PoS Customer Display opened in a new window"),
         );
-        this.notification.add(_t("PoS Customer Display opened in a new window"));
     }
 
     showQr() {
