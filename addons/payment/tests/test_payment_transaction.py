@@ -343,22 +343,51 @@ class TestPaymentTransaction(PaymentCommon):
             tx._process("test", {})
         self.assertEqual(apply_updates_mock.call_count, 1)
 
-    def test_processing_does_not_apply_updates_when_amount_data_is_invalid(self):
-        tx = self._create_transaction("redirect", state="draft", amount=100)
-        with (
-            patch(
+    def test_processing_skips_amount_check_for_unsuccessful_states(self):
+        """Test that `_process` only checks the amount once the transaction reached a successful
+        state.
+
+        Providers legitimately omit the amount and the currency from the payment data of a
+        transaction that is not (yet) successful. Checking them there flags the transaction as in
+        error over data the provider never promised to send.
+        """
+        for state in ["draft", "pending", "error", "cancel"]:
+            tx = self._create_transaction(
+                "redirect", reference=f"Test {state}", state=state
+            )
+            with patch(
+                "odoo.addons.payment.models.payment_transaction.PaymentTransaction"
+                "._check_amount"
+            ) as check_amount_mock:
+                tx._process("test", {})
+            self.assertEqual(
+                check_amount_mock.call_count,
+                0,
+                msg=f"The amount should not be checked in the state {state!r}.",
+            )
+
+    def test_processing_sets_successful_tx_to_error_when_amount_data_is_invalid(self):
+        """Test that the amount check still flags a mismatch once the transaction is successful.
+
+        The check now runs after `_apply_updates`, so `done` must be allowed to transition to
+        `error` even though it is not one of the source states of `_set_error`.
+        """
+        self.provider.support_manual_capture = "full_only"
+        for state in ["authorized", "done"]:
+            tx = self._create_transaction(
+                "redirect", reference=f"Test {state}", state=state, amount=100
+            )
+            with patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction"
                 "._extract_amount_data",
                 return_value={"amount": 10, "currency_code": "USD"},
-            ),
-            patch(
-                "odoo.addons.payment.models.payment_transaction.PaymentTransaction"
-                "._apply_updates"
-            ) as apply_updates_mock,
-        ):
-            tx._process("test", {})
-        self.assertEqual(tx.state, "error")
-        self.assertEqual(apply_updates_mock.call_count, 0)
+            ):
+                tx._process("test", {})
+            self.assertEqual(
+                tx.state,
+                "error",
+                msg=f"A mismatching amount should flag a tx in the state {state!r} as in error.",
+            )
 
     def test_processing_tokenizes_validated_transaction(self):
         """Test that `_process` tokenizes 'authorized' and 'done' transactions when possible."""
