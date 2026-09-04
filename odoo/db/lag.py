@@ -68,6 +68,16 @@ class ReplicaLagGate:
     def is_replica_usable(self) -> bool:
         return not (self.enabled and self._lagging)
 
+    def is_sample_due(self) -> bool:
+        """Peek at whether a sample is due, without claiming the slot."""
+        if not self.enabled:
+            return False
+        with self._lock:
+            now = monotonic()
+            return not (
+                self._last_sample and now - self._last_sample < self.sample_interval
+            )
+
     def acquire_sample_interval(self) -> bool:
         if not self.enabled:
             return False

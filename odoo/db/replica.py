@@ -55,7 +55,7 @@ class ReplicaRouter:
         return self.primary.cursor(), "ro->rw"
 
     def _replica_cursor(self, replica: Connection) -> BaseCursor | None:
-        sample_due = self.lag.acquire_sample_interval()
+        sample_due = self.lag.is_sample_due()
         if not (self.lag.is_replica_usable() or sample_due):
             return None
         if not self.breaker.acquire_attempt():
@@ -75,7 +75,7 @@ class ReplicaRouter:
         if not self.breaker.closed:
             _logger.info("Replica reachable again, resuming readonly cursors")
         self.breaker.record_success()
-        if sample_due:
+        if sample_due and self.lag.acquire_sample_interval():
             self._sample_lag(cr)
         if self.lag.is_replica_usable():
             return cr
