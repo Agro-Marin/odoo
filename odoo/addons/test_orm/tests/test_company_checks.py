@@ -224,12 +224,6 @@ class TestCompanyCheck(common.TransactionCase):
             .env.company,
             self.company_b,
         )
-        """
-        wrong_env = user.sudo().with_context(
-            allowed_company_ids=[self.company_a.id, self.company_b.id, 'abc'])
-        wrong_env.env.companies.mapped('name')
-        # Wrong SQL query due to wrong company id.
-        """
         self.assertEqual(user.env.company, user.company_id)
         self.assertEqual(user.env.companies, user.company_ids)
 
