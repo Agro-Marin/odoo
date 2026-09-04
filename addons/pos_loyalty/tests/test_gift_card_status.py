@@ -1,7 +1,13 @@
 from datetime import date
 
+from freezegun import freeze_time
+
 from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
+
+# 20:00 on 9 March at America/Mexico_City is already 10 March in UTC.
+EVENING_IN_UTC = "2026-03-10 02:00:00"
+LOCAL_TOMORROW = date(2026, 3, 10)
 
 
 @tagged("post_install", "-at_install")
@@ -98,3 +104,15 @@ class TestGiftCardStatus(TransactionCase):
         """Nothing is invented to go with a code that was never issued."""
         result = self.Card.get_gift_card_status("NEVER-ISSUED", self.config)
         self.assertFalse(result["data"]["loyalty.card"])
+
+    @freeze_time(EVENING_IN_UTC)
+    def test_a_card_expiring_tomorrow_is_still_good_this_evening(self):
+        """Expiry is a calendar date, and the cashier's calendar is the one.
+
+        Read in UTC, a card expiring tomorrow is refused from 18:00 local --
+        six hours of every evening in which the register turns real money
+        away.
+        """
+        self.env.user.tz = "America/Mexico_City"
+        self._card("GC-TOMORROW", expiration_date=LOCAL_TOMORROW)
+        self.assertTrue(self._usable("GC-TOMORROW"))

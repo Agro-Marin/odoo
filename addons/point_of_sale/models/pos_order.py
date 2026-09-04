@@ -1700,8 +1700,9 @@ class PosOrder(models.Model):
     def action_pos_order_cancel(self):
         if self.env.context.get("active_ids"):
             orders = self.browse(self.env.context.get("active_ids"))
+            today = fields.Date.context_today(self)
             order_is_in_futur = any(
-                order.preset_time and order.preset_time.date() > fields.Date.today()
+                order.preset_time and order.preset_time.date() > today
                 for order in orders
             )
             if order_is_in_futur:

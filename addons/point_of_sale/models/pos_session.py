@@ -340,7 +340,7 @@ class PosSession(models.Model):
         pricelist_item_fields = self.env[
             "product.pricelist.item"
         ]._load_pos_data_fields(pos_config)
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         pricelist_item_domain = [
             "&",
             ("pricelist_id", "in", self.config_id._get_available_pricelists().ids),

@@ -46,3 +46,4 @@ from . import test_pos_load_scoping
 from . import test_esm_registration
 from . import test_pos_category_search
 from . import test_pos_product_list_views
+from . import test_pos_user_local_dates

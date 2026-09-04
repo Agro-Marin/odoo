@@ -60,7 +60,10 @@ class LoyaltyCard(models.Model):
         card = self.search([("code", "=", gift_code)], limit=1)
         is_valid = (
             card.exists()
-            and (not card.expiration_date or card.expiration_date > fields.Date.today())
+            and (
+                not card.expiration_date
+                or card.expiration_date > fields.Date.context_today(self)
+            )
             and card.points > 0
         )
         is_valid = (
