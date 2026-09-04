@@ -82,7 +82,7 @@
 @web/core/utils/dom/ui  odoo enterprise
 @web/core/utils/dom/xml  odoo enterprise agromarin
 @web/core/utils/files  odoo enterprise
-@web/core/utils/format/binary  enterprise agromarin
+@web/core/utils/format/binary  odoo enterprise agromarin
 @web/core/utils/format/colors  odoo
 @web/core/utils/format/numbers  odoo enterprise
 @web/core/utils/format/strings  odoo enterprise agromarin

@@ -1,0 +1,149 @@
+import contextlib
+
+from odoo import fields, models
+from odoo.exceptions import UserError, ValidationError
+
+from .ir_attachment import _get_s3_client
+
+
+class ResConfigSettings(models.TransientModel):
+    _inherit = "res.config.settings"
+
+    cloud_storage_provider = fields.Selection(
+        selection_add=[("s3", "Amazon S3")],
+    )
+    cloud_storage_s3_bucket_name = fields.Char(
+        string="S3 Bucket Name",
+        config_parameter="cloud_storage_s3_bucket_name",
+    )
+    cloud_storage_s3_region = fields.Char(
+        string="AWS Region",
+        config_parameter="cloud_storage_s3_region",
+    )
+    cloud_storage_s3_access_key_id = fields.Char(
+        string="AWS Access Key ID",
+        config_parameter="cloud_storage_s3_access_key_id",
+    )
+    cloud_storage_s3_secret_access_key = fields.Char(
+        string="AWS Secret Access Key",
+        config_parameter="cloud_storage_s3_secret_access_key",
+    )
+    cloud_storage_s3_enabled = fields.Boolean(
+        string="Use S3 in this environment",
+        config_parameter="cloud_storage_s3_enabled",
+        default=False,
+        help="Master switch for THIS environment. When off, attachments are "
+        "served from the local filestore and S3 is never contacted, even if a "
+        "provider and credentials are configured (e.g. on a database restored "
+        "from production). Production must turn this on explicitly.",
+    )
+    cloud_storage_s3_storage_mode = fields.Selection(
+        selection=[
+            ("s3_only", "S3 Only"),
+            ("hybrid", "Hybrid (S3 + Local)"),
+        ],
+        string="S3 Storage Mode",
+        config_parameter="cloud_storage_s3_storage_mode",
+        default="s3_only",
+        help="S3 Only: new attachments are uploaded straight to S3 from the "
+        "browser and not kept locally. Hybrid: attachments are stored in the "
+        "local filestore and mirrored to S3 by a scheduled job, keeping the "
+        "local copy.",
+    )
+
+    def _is_s3_provider(self):
+        return (
+            self.env["ir.config_parameter"].get_param("cloud_storage_provider") == "s3"
+        )
+
+    def _setup_cloud_storage_provider(self):
+        if not self._is_s3_provider():
+            return super()._setup_cloud_storage_provider()
+        icp = self.env["ir.config_parameter"]
+        if icp.sudo().get_param("cloud_storage_s3_enabled") != "True":
+            return None
+
+        bucket = icp.get_param("cloud_storage_s3_bucket_name")
+        client = _get_s3_client(self.env)
+        blob_name = "0/_setup_test.txt"
+
+        try:
+            client.put_object(Bucket=bucket, Key=blob_name, Body=b"setup_test")
+        except Exception as e:
+            raise ValidationError(
+                self.env._(
+                    "Cannot upload to the S3 bucket. Check your credentials and bucket permissions.\n%s",
+                    str(e),
+                )
+            ) from e
+
+        try:
+            obj = client.get_object(Bucket=bucket, Key=blob_name)
+            obj["Body"].read()
+        except Exception as e:
+            raise ValidationError(
+                self.env._(
+                    "Cannot download from the S3 bucket. Check your credentials and bucket permissions.\n%s",
+                    str(e),
+                )
+            ) from e
+
+        with contextlib.suppress(Exception):
+            client.delete_object(Bucket=bucket, Key=blob_name)
+
+        if icp.get_param("cloud_storage_s3_storage_mode") == "hybrid":
+            return None
+
+        cors_config = {
+            "CORSRules": [
+                {
+                    "AllowedOrigins": ["*"],
+                    "AllowedMethods": ["GET", "PUT"],
+                    "AllowedHeaders": ["Content-Type"],
+                    "MaxAgeSeconds": self.env[
+                        "ir.attachment"
+                    ]._cloud_storage_upload_url_time_to_expiry,
+                }
+            ],
+        }
+        try:
+            client.put_bucket_cors(Bucket=bucket, CORSConfiguration=cors_config)
+        except Exception as e:
+            raise ValidationError(
+                self.env._(
+                    "Cannot configure CORS on the S3 bucket. "
+                    "Ensure the IAM user has s3:PutBucketCors permission.\n%s",
+                    str(e),
+                )
+            ) from e
+
+    def _get_cloud_storage_configuration(self):
+        if not self._is_s3_provider():
+            return super()._get_cloud_storage_configuration()
+        icp = self.env["ir.config_parameter"].sudo()
+        configuration = {
+            "bucket_name": icp.get_param("cloud_storage_s3_bucket_name"),
+            "region": icp.get_param("cloud_storage_s3_region"),
+            "access_key_id": icp.get_param("cloud_storage_s3_access_key_id"),
+            "secret_access_key": icp.get_param("cloud_storage_s3_secret_access_key"),
+        }
+        return configuration if all(configuration.values()) else {}
+
+    def _check_cloud_storage_uninstallable(self):
+        if not self._is_s3_provider():
+            return super()._check_cloud_storage_uninstallable()
+        s3_in_use = self.env["ir.attachment"].search_count(
+            [
+                ("type", "=", "cloud_storage"),
+                ("url", "=like", "https://%.s3.%.amazonaws.com/%"),
+            ],
+            limit=1,
+        )
+        if s3_in_use:
+            raise UserError(
+                self.env._(
+                    "Some S3 attachments are in use. "
+                    "Please migrate cloud storage attachments before disabling the provider."
+                )
+            )
+        return None

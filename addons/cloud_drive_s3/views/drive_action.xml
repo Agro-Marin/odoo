@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_cloud_drive_manager" model="ir.actions.client">
+        <field name="name">Cloud</field>
+        <field name="tag">cloud_drive_s3_manager</field>
+    </record>
+
+    <menuitem
+        id="menu_cloud_drive_root"
+        name="Cloud"
+        action="action_cloud_drive_manager"
+        sequence="80"
+        groups="cloud_drive_s3.group_drive_read"
+        web_icon="cloud_drive_s3,static/description/icon.png" />
+
+</odoo>

@@ -54,6 +54,10 @@
 # ISO-8859-1, and its two misses return None, so they raise rather than corrupt
 # -- but it loses koi8-r, which 5.2.0 gets right, so it buys nothing.
 # Re-measure before moving; do not read "7.x is current" as a reason to.
+boto3==1.43.67  # cloud_drive_s3, cloud_storage_s3
+botocore==1.43.67  # cloud_drive_s3, cloud_storage_s3 -- boto3's own pinned
+                   # runtime, held at the matching version so a boto3 bump
+                   # cannot silently drag a different botocore in
 chardet==5.2.0  # base_import, mail
 defusedxml==0.7.1  # attachment_indexation, website
 google-auth==2.56.3  # cloud_storage_google

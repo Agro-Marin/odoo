@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_cloud_drive_config_admin,cloud.drive.config admin,model_cloud_drive_config,cloud_drive_s3.group_drive_admin,1,1,1,1
+access_cloud_drive_access_admin,cloud.drive.access admin,model_cloud_drive_access,cloud_drive_s3.group_drive_admin,1,1,1,1

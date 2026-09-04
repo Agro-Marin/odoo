@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="cloud_storage_s3_config_settings_view_form" model="ir.ui.view">
+        <field name="name">cloud_storage_s3_config_settings_view_form</field>
+        <field name="model">res.config.settings</field>
+        <field
+            name="inherit_id"
+            ref="cloud_storage.cloud_storage_config_settings_view_form" />
+        <field name="priority" eval="70" />
+        <field name="arch" type="xml">
+            <xpath expr="//setting[@id='cloud_storage_provider']" position="inside">
+                <div
+                    class="content-group mt16"
+                    invisible="cloud_storage_provider != 's3'">
+                    <div class="o_setting_box mb16">
+                        <div class="o_setting_left_pane">
+                            <field
+                                name="cloud_storage_s3_enabled"
+                                widget="boolean_toggle" />
+                        </div>
+                        <div class="o_setting_right_pane">
+                            <label
+                                for="cloud_storage_s3_enabled"
+                                string="Use S3 in this environment" />
+                            <div class="text-muted">
+                                Master switch. Off by default so a database restored
+                                from production does not touch S3 until enabled here.
+                            </div>
+                        </div>
+                    </div>
+                    <div invisible="not cloud_storage_s3_enabled">
+                        <div class="row mt8">
+                            <label
+                                for="cloud_storage_s3_storage_mode"
+                                string="Storage Mode"
+                                class="o_light_label col-lg-3" />
+                            <field
+                                name="cloud_storage_s3_storage_mode"
+                                class="col-lg-4" />
+                        </div>
+                        <div class="row mt8">
+                            <label
+                                for="cloud_storage_s3_bucket_name"
+                                string="Bucket Name"
+                                class="o_light_label col-lg-3" />
+                            <field
+                                name="cloud_storage_s3_bucket_name"
+                                class="col-lg-4"
+                                placeholder="my-odoo-filestore" />
+                        </div>
+                        <div class="row mt8">
+                            <label
+                                for="cloud_storage_s3_region"
+                                string="Region"
+                                class="o_light_label col-lg-3" />
+                            <field
+                                name="cloud_storage_s3_region"
+                                class="col-lg-4"
+                                placeholder="us-east-2" />
+                        </div>
+                        <div class="row mt8">
+                            <label
+                                for="cloud_storage_s3_access_key_id"
+                                string="Access Key ID"
+                                class="o_light_label col-lg-3" />
+                            <field
+                                name="cloud_storage_s3_access_key_id"
+                                class="col-lg-4"
+                                password="True" />
+                        </div>
+                        <div class="row mt8">
+                            <label
+                                for="cloud_storage_s3_secret_access_key"
+                                string="Secret Access Key"
+                                class="o_light_label col-lg-3" />
+                            <field
+                                name="cloud_storage_s3_secret_access_key"
+                                class="col-lg-4"
+                                password="True" />
+                        </div>
+                        <div class="mt8 text-muted">
+                            <i class="fa fa-info-circle" /> IAM permissions required:
+                            <code>s3:PutObject</code>, <code>s3:GetObject</code>,
+                            <code>s3:DeleteObject</code>.
+                            <code>s3:PutBucketCors</code> is only needed in
+                            <b>S3 Only</b> mode (browser-direct uploads).
+                        </div>
+                    </div>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
