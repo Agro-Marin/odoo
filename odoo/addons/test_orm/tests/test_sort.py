@@ -141,6 +141,8 @@ class TestSort(TransactionCase):
             "name ASC",
             "name DESC",
             "name ASC NULLS FIRST",
+            "name DESC NULLS FIRST",
+            "name ASC NULLS LAST",
             "name DESC NULLS LAST",
         ]:
             with self.subTest(order=order, reverse=True):
