@@ -128,6 +128,24 @@ export function clickControlButton(name) {
         },
     ];
 }
+export function refundButtonIsInactive() {
+    return [
+        {
+            isActive: ["desktop"],
+            content: "Refund stays secondary while no quantity is picked",
+            trigger: ".ticket-screen .pay-order-button.btn-secondary.disabled",
+        },
+    ];
+}
+export function refundButtonIsActive() {
+    return [
+        {
+            isActive: ["desktop"],
+            content: "Refund turns primary once a quantity is picked",
+            trigger: ".ticket-screen .pay-order-button.btn-primary:not(.disabled)",
+        },
+    ];
+}
 export function confirmRefund() {
     return [
         ProductScreen.clickReview(),

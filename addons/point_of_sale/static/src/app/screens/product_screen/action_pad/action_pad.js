@@ -13,10 +13,12 @@ export class ActionpadWidget extends Component {
         actionName: String,
         actionToTrigger: Function,
         showActionButton: { type: Boolean, optional: true },
+        buttonClasses: { type: String, optional: true },
         fastValidate: { type: Function, optional: true },
     };
     static defaultProps = {
         showActionButton: true,
+        buttonClasses: "btn-primary",
     };
 
     setup() {

@@ -593,6 +593,9 @@ export class TicketScreen extends Component {
             )} / ${this.filteredOrdersCount}`;
         }
     }
+    get refundButtonClasses() {
+        return this.getHasItemsToRefund() ? "btn-primary" : "btn-secondary disabled";
+    }
     getHasItemsToRefund() {
         const order = this.getSelectedOrder();
         if (!order) {
