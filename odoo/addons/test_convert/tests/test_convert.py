@@ -357,13 +357,13 @@ class TestEvalXML(common.TransactionCase):
 class TestConvertCsvEncoding(common.TransactionCase):
     """Module CSV data is developer-authored, and editors add byte-order marks."""
 
-    def _load(self, text):
+    def _load(self, text, mode="init"):
         convert_csv_import(
             self.env,
             "test_convert",
             "res.partner.tag.csv",
             text.encode("utf-8"),
-            mode="init",
+            mode=mode,
         )
 
     def test_a_plain_csv_loads(self):
@@ -378,3 +378,14 @@ class TestConvertCsvEncoding(common.TransactionCase):
         self._load("﻿id,name\ntest_convert.bom_tag,BOM Tag\n")
 
         self.assertEqual(self.env.ref("test_convert.bom_tag").name, "BOM Tag")
+
+    def test_a_csv_saved_with_a_byte_order_mark_updates_too(self):
+        # The bug this fixes was reported on an update, not an initial
+        # install: without BOM-stripping, the `id` column is unrecognised and
+        # `convert_csv_import`'s mode != "init" guard refuses the file
+        # outright, silently leaving the record unchanged.
+        self._load("id,name\ntest_convert.update_tag,Original Tag\n")
+
+        self._load("﻿id,name\ntest_convert.update_tag,Updated Tag\n", mode="update")
+
+        self.assertEqual(self.env.ref("test_convert.update_tag").name, "Updated Tag")
