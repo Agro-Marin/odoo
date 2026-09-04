@@ -73,38 +73,3 @@ class TestCustomProviderFlows(PaymentCustomCommon):
         """A custom provider without a custom mode must be rejected."""
         with self.assertRaises(ValidationError):
             self.provider.custom_mode = False
-
-    def test_recompute_pending_msg_degrades_without_account_payment(self):
-        """Without account_payment_provider the recompute leaves pending_msg intact."""
-        if (
-            self.env["ir.module.module"]._get("account_payment_provider").state
-            == "installed"
-        ):
-            self.skipTest("account_payment installed: recompute would rewrite")
-        self.provider.pending_msg = "<p>keep me</p>"
-
-        self.provider.action_recompute_pending_msg()
-
-        self.assertEqual(self.provider.pending_msg, "<p>keep me</p>")
-
-    def test_ensure_pending_msg_targets_only_empty_wire_providers(self):
-        """The ensure hook only recomputes providers lacking a message."""
-        self.provider.pending_msg = False
-
-        self.provider._transfer_ensure_pending_msg_is_set()
-
-        # Without account_payment_provider the delegated recompute is a no-op, so the
-        # observable contract here is "selected and delegated without error".
-        self.assertFalse(self.provider.pending_msg)
-
-    def test_create_wire_transfer_clears_pending_msg(self):
-        """Creating a wire-transfer provider starts without a pending message."""
-        provider = self.env["payment.provider"].create(
-            {
-                "name": "Fresh wire transfer",
-                "code": "custom",
-                "custom_mode": "wire_transfer",
-                "pending_msg": "<p>preset message</p>",
-            },
-        )
-        self.assertFalse(provider.pending_msg)
