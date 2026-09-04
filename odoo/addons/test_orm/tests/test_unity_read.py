@@ -121,7 +121,7 @@ class TestUnityRead(TransactionCase):
                 },
             )
 
-    def test_read_many2one_degrades_if_it_cannot_read_extra_fields(self):
+    def test_read_many2one_withholds_extra_fields_if_it_cannot_read_them(self):
         read = self.course.with_user(self.only_course_user).web_read(
             {
                 "display_name": {},
@@ -136,7 +136,7 @@ class TestUnityRead(TransactionCase):
                 {
                     "id": self.course.id,
                     "display_name": "introduction to OWL",
-                    "author_id": False,
+                    "author_id": {"id": self.author.id},
                 }
             ],
         )
@@ -172,7 +172,7 @@ class TestUnityRead(TransactionCase):
             ],
         )
 
-    def test_read_many2one_hides_id_name_if_you_dont_have_access(self):
+    def test_read_many2one_gives_id_name_if_you_dont_have_access(self):
         read = self.course.with_user(self.only_course_user).web_read(
             {"display_name": {}, "author_id": {"fields": {"display_name": {}}}}
         )
@@ -182,7 +182,7 @@ class TestUnityRead(TransactionCase):
                 {
                     "id": self.course.id,
                     "display_name": "introduction to OWL",
-                    "author_id": False,
+                    "author_id": {"id": self.author.id, "display_name": "ged"},
                 },
             ],
         )
