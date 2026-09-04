@@ -9,7 +9,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosSaleDetails(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
         self.config = self.basic_config
@@ -158,6 +157,41 @@ class TestPosSaleDetails(TestPoSCommon):
             report["session_name"],
             session.name,
             "a session straddling the window start must not be filtered out",
+        )
+
+    def _names(self, categories):
+        return {
+            product["product_name"]
+            for category in categories
+            for product in category["products"]
+        }
+
+    def test_sale_details_reports_cancelled_orders_separately(self):
+        """An X/Z report has to account for what was voided: the lines belong in
+        their own section, out of the sold figures and out of the total."""
+        sold = self.create_product("Sold Product", self.categ_basic, 100)
+        voided = self.create_product("Voided Product", self.categ_basic, 50)
+
+        self.config.open_ui()
+        session = self.config.current_session_id
+        order = self._create_order(session, sold, 100)
+        self.make_payment(order, self.bank_split_pm1, 100)
+
+        cancelled = self._create_order(session, voided, 50)
+        cancelled.action_pos_order_cancel()
+        self.assertEqual(cancelled.state, "cancel")
+
+        details = self.report.get_sale_details(session_ids=session.ids)
+
+        self.assertIn("Sold Product", self._names(details["products"]))
+        self.assertNotIn(
+            "Voided Product",
+            self._names(details["products"]),
+            "a voided line must not be reported as sold",
+        )
+        self.assertEqual(self._names(details["cancelled_products"]), {"Voided Product"})
+        self.assertEqual(
+            details["total_paid"], 100, "a void must not inflate what was taken"
         )
 
 

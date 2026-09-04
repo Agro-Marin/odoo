@@ -63,6 +63,37 @@
                 </t>
             </div>
 
+            <t t-if="cancelled_products.length">
+                <br/>
+                <div>------------------------</div>
+                <br/>
+
+                <div>
+                    CANCELLED:
+                </div>
+
+                <div class="orderlines">
+                    <t t-foreach="cancelled_products" t-as="category" t-key="category['name']">
+                        <t t-foreach="category['products']" t-as="line" t-key="line_index">
+                            <div class="responsive-price">
+                                <t t-esc="line['product_name'].substr(0,20)" />
+                                <span class="pos-receipt-right-align">
+                                    <t t-esc="ProductUnit.round(line.quantity)" />
+                                    <t t-if="line.uom !== 'Units'">
+                                        <t t-esc="line.uom" />
+                                    </t>
+                                    x
+                                    <t t-esc="formatCurrency(line.price_unit, false)" />
+                                </span>
+                            </div>
+                            <t t-if="line.discount !== 0">
+                                <div class="pos-receipt-left-padding">Discount: <t t-esc="line.discount" />%</div>
+                            </t>
+                        </t>
+                    </t>
+                </div>
+            </t>
+
             <br/>
             <div>------------------------</div>
             <br/>
