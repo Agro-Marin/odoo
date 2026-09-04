@@ -103,6 +103,7 @@ from . import res_company
 from . import res_groups_privilege
 from . import res_groups
 from . import res_users_log
+from . import res_users_login_cooldown
 from . import res_users
 from . import res_users_identitycheck
 from . import res_users_apikeys
