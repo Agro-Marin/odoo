@@ -1499,6 +1499,38 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
         self.assertIsNotNone(job)
         return job
 
+    def test_completion_bookkeeping_lands_on_the_job_cursor_not_the_caller(self):
+        """INF-2: the completion bookkeeping (lastcall/nextcall) must commit
+        on the SAME cursor as the job body's own last unit of work
+        (job_cr), not on the caller's cron_cr -- deferred there, an
+        exception between _run_job returning and the caller's own commit
+        reverted only the bookkeeping while the job body's already-
+        committed side effects stayed done, so the next pass ran the job
+        again."""
+        seen_cursor_ids = []
+        real_write = self.registry["ir.cron"]._write_job_row
+
+        def spying_write(self, job, vals):
+            seen_cursor_ids.append(id(self.env.cr))
+            return real_write(self, job, vals)
+
+        with (
+            self.enter_registry_test_mode(),
+            patch.object(self.registry["ir.cron"], "_write_job_row", spying_write),
+            self.registry.cursor() as cr,
+        ):
+            self.registry["ir.cron"]._run_job(cr, self._acquire(cr))
+            self.assertEqual(
+                len(seen_cursor_ids), 1, "bookkeeping must be written once"
+            )
+            self.assertNotEqual(
+                seen_cursor_ids[0],
+                id(cr),
+                "the completion bookkeeping was written on cron_cr, the "
+                "caller's cursor, instead of the job's own job_cr",
+            )
+            cr.commit()
+
     def test_the_job_is_told_the_budget_the_loop_will_actually_honour(self):
         reported = []
 
