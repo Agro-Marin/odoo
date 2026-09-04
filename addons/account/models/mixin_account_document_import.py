@@ -1,19 +1,17 @@
 import difflib
-import io
 import itertools
 import logging
 from contextlib import contextmanager
 from copy import deepcopy
-from struct import error as StructError
 
 from lxml import etree
 from markupsafe import Markup
 
 from odoo import api, models, modules, tools
 from odoo.exceptions import RedirectWarning
+from odoo.libs.documents import Document
 from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import groupby
-from odoo.tools.pdf import OdooPdfFileReader, PdfReadError
 
 _logger = logging.getLogger(__name__)
 
@@ -55,22 +53,18 @@ def split_etree_on_tag(tree, tag):
 
 
 def extract_pdf_embedded_files(filename, content):
-    with io.BytesIO(content) as buffer:
-        try:
-            pdf_reader = OdooPdfFileReader(buffer, strict=False)
-        except Exception as e:
-            _logger.info('Error when reading the pdf file "%s": %s', filename, e)
-            return []
+    """The `(name, bytes)` pairs a PDF carries inside it.
 
-        try:
-            return list(pdf_reader.get_attachments())
-        except (NotImplementedError, StructError, PdfReadError) as e:
-            _logger.warning(
-                "Unable to access the attachments of %s. Tried to decrypt it, but %s.",
-                filename,
-                e,
-            )
-            return []
+    The reading itself moved to `odoo.tools.documents`, where it is registered
+    as the `children` reader of the document layer, so a strategy handed a
+    Factur-X PDF can reach the XML that carries the fields without going through
+    this mixin. This stays as the shape the importer's `file_data` dicts want.
+    """
+    if not content:
+        return []
+    return [
+        (child.name, child.data) for child in Document(content, name=filename).children
+    ]
 
 
 class MixinAccountDocumentImport(models.AbstractModel):

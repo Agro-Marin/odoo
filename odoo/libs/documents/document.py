@@ -10,6 +10,7 @@ from .guess import decode, looks_like_text
 from .readers import (
     BARCODES,
     CHEAP,
+    CHILDREN,
     CUES,
     DATA,
     IMAGES,
@@ -226,6 +227,23 @@ class Document:
     @property
     def barcodes(self) -> list[str]:
         return self._derive(BARCODES) or []
+
+    @property
+    def children(self) -> list[Document]:
+        """The documents carried inside this one, one level down.
+
+        A Factur-X invoice is a PDF with its XML embedded; a signed CFDI arrives
+        the same way. Three places in this tree unwrapped one by hand and only
+        the accounting import could see inside a container at all, so a strategy
+        handed such a PDF had no way to reach the document that actually carries
+        the fields.
+
+        One level, not all of them: a caller that wants the whole tree recurses
+        over what it gets, which is what `mixin.account.document.import` already
+        does, and a property that recursed would have to decide a depth for
+        everyone.
+        """
+        return self._derive(CHILDREN) or []
 
     @property
     def cues(self) -> list[Any]:
