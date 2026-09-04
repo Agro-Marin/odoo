@@ -106,3 +106,39 @@ class TestFromInsideAFunctionCall(unittest.TestCase):
             categorize_query("DELETE FROM res_partner WHERE id IN (SELECT id FROM o)"),
             ("into", "res_partner"),
         )
+
+
+class TestDataModifyingCte(unittest.TestCase):
+    def test_an_insert_inside_a_cte_is_a_write_to_that_table(self):
+        self.assertEqual(
+            categorize_query(
+                "WITH visitor AS (INSERT INTO website_visitor (name) VALUES ('x') "
+                "RETURNING id) SELECT id FROM visitor"
+            ),
+            ("into", "website_visitor"),
+            "the CTE alias is not the table the statement writes",
+        )
+
+    def test_an_update_inside_a_later_cte_still_wins(self):
+        self.assertEqual(
+            categorize_query(
+                "WITH a AS (SELECT id FROM t1), "
+                "b AS (UPDATE t2 SET x = 1 RETURNING id) SELECT * FROM a"
+            ),
+            ("into", "t2"),
+        )
+
+    def test_a_delete_inside_a_cte(self):
+        self.assertEqual(
+            categorize_query(
+                "WITH gone AS (DELETE FROM t3 WHERE id = 1 RETURNING id) "
+                "SELECT count(*) FROM gone"
+            ),
+            ("into", "t3"),
+        )
+
+    def test_a_read_only_cte_still_categorizes_by_the_main_statement(self):
+        self.assertEqual(
+            categorize_query("WITH a AS (SELECT id FROM t1) SELECT * FROM a"),
+            ("from", "a"),
+        )

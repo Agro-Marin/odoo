@@ -148,20 +148,22 @@ re_cte_name = re.compile(
 re_cte_comma = re.compile(r"\s*,\s*")
 
 
-def _get_offset_after_ctes(decoded_query: str) -> int:
+def _split_ctes(decoded_query: str) -> tuple[int, list[str]]:
     m = re_cte_start.match(decoded_query)
     if not m:
-        return 0
+        return 0, []
     pos = m.end()
     length = len(decoded_query)
+    bodies: list[str] = []
     while True:
         m_name = re_cte_name.match(decoded_query, pos)
         if not m_name:
-            return 0
+            return 0, []
         pos = m_name.end()
         if pos >= length or decoded_query[pos] != "(":
-            return 0
+            return 0, []
         depth = 0
+        start = pos
         while pos < length:
             char = decoded_query[pos]
             if char == "(":
@@ -173,10 +175,11 @@ def _get_offset_after_ctes(decoded_query: str) -> int:
                     break
             pos += 1
         else:
-            return 0
+            return 0, []
+        bodies.append(decoded_query[start + 1 : pos - 1])
         m_comma = re_cte_comma.match(decoded_query, pos)
         if not m_comma:
-            return pos
+            return pos, bodies
         pos = m_comma.end()
 
 
@@ -210,9 +213,7 @@ def _match_from_clause(body: str) -> re.Match | None:
     return None
 
 
-def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
-    body = decoded_query[_get_offset_after_ctes(decoded_query) :]
-
+def _categorize_write(body: str) -> tuple[str, str] | tuple[str, None] | None:
     res_update = re_update.match(body)
     if res_update:
         return "into", res_update.group(1)
@@ -224,6 +225,22 @@ def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
     res_into = re_into.search(body)
     if res_into:
         return "into", res_into.group(1)
+
+    return None
+
+
+def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
+    offset, cte_bodies = _split_ctes(decoded_query)
+    body = decoded_query[offset:]
+
+    for cte_body in cte_bodies:
+        cte_write = _categorize_write(cte_body)
+        if cte_write is not None:
+            return cte_write
+
+    write = _categorize_write(body)
+    if write is not None:
+        return write
 
     res_from = _match_from_clause(body)
     if res_from:
