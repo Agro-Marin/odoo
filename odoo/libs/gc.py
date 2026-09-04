@@ -1,4 +1,4 @@
-__all__ = ["disabling_gc", "gc_info", "gc_set_timing"]
+__all__ = ["disabling_gc", "gc_set_timing"]
 
 import contextlib
 import gc
