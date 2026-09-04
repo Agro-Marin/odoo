@@ -26,6 +26,10 @@ def topological_sort[T](
             node, deps = stack[-1]
             for dep in deps:
                 if dep == node:
+                    # A self-referential edge is tolerated, not an error:
+                    # trivially satisfiable ("this node depends on itself"
+                    # is a no-op ordering constraint), unlike a genuine
+                    # cross-node cycle below, which is unsatisfiable.
                     continue
                 if dep in path:
                     if strict:
