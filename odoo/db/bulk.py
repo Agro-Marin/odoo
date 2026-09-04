@@ -143,6 +143,12 @@ def _check_copy_args(
             "Use batched INSERT ... RETURNING id for fault-tolerant "
             "inserts that need IDs."
         )
+    if returning_ids and "id" in columns:
+        raise ValueError(
+            "copy_from: columns must not already include 'id' when "
+            "returning_ids=True — the id column is added automatically "
+            "for the pre-allocated sequence values."
+        )
     if cursor.in_pipeline:
         raise _errors.NotSupportedError(
             f"copy_from({table!r}) cannot run inside pipeline mode; "

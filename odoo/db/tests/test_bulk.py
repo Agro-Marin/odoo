@@ -40,6 +40,16 @@ class TestCopyFromValidation(unittest.TestCase):
             )
         self.assertIn("returning_ids", str(ctx.exception))
 
+    def test_returning_ids_with_id_already_in_columns_is_rejected(self):
+        with self.assertRaises(ValueError) as ctx:
+            self.bulk.copy_from("t", ["id", "a"], [(1, 2)], returning_ids=True)
+        self.assertIn("'id'", str(ctx.exception))
+
+    def test_returning_ids_without_id_in_columns_is_accepted_by_the_whitelist(self):
+        with self.assertRaises(Exception) as ctx:
+            self.bulk.copy_from("t", ["a"], [(1,)], returning_ids=True)
+        self.assertNotIsInstance(ctx.exception, ValueError)
+
     def test_on_error_stop_is_accepted_by_the_whitelist(self):
         with self.assertRaises(Exception) as ctx:
             self.bulk.copy_from("t", ["a"], [(1,)], on_error="stop")
