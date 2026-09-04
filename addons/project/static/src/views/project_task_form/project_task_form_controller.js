@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { useFocusTitle } from "@project/utils/project_utils";
-import { FormControllerWithHTMLExpander } from "@resource/views/form_with_html_expander/form_controller_with_html_expander";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { FormControllerWithHTMLExpander } from "@web/views/form_with_html_expander/form_controller_with_html_expander";
 
 import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
 import { openDescriptionHistoryDialog } from "./description_history.js";

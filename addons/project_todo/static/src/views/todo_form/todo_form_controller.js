@@ -5,7 +5,7 @@ import { openDescriptionHistoryDialog } from "@project/views/project_task_form/d
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { FormControllerWithHTMLExpander } from "@resource/views/form_with_html_expander/form_controller_with_html_expander";
+import { FormControllerWithHTMLExpander } from "@web/views/form_with_html_expander/form_controller_with_html_expander";
 import { TodoFormCogMenu } from "./todo_form_cog_menu.js";
 
 /**

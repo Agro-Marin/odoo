@@ -570,7 +570,7 @@ class TestHrAuditRound3(TestHrCommon):
             "the field reads False on every row, so the filter must match none",
         )
 
-    def test_expected_attendances_leave_domain_differs_by_branch(self):
+    def test_expected_attendances_leave_domain_agrees_across_branches(self):
         calendar = self.env["resource.calendar"].create(
             {"name": "R3 Leave Domain", "tz": "UTC"}
         )
@@ -607,15 +607,17 @@ class TestHrAuditRound3(TestHrCommon):
                 start.date() == date(2026, 3, 4) for start, _stop, _meta in intervals
             )
 
-        self.assertFalse(
+        self.assertTrue(
             covers_the_holiday(without_contract),
-            "the no-version branch passes no time_type filter, so the "
-            'time_type="other" entry is subtracted',
+            'a time_type="other" entry is working time, so the no-version branch '
+            "must leave the day covered; it used to subtract the entry because "
+            "passing any domain to _leave_intervals_batch replaced the default "
+            "time_type filter instead of narrowing it",
         )
         self.assertTrue(
             covers_the_holiday(with_contract),
-            'the per-version branch filters time_type="leave", so the same entry '
-            "is left as working time -- the divergence this test pins",
+            'the per-version branch filters time_type="leave" itself and always '
+            "left the day covered",
         )
 
     def test_current_version_cron_covers_archived_employees(self):

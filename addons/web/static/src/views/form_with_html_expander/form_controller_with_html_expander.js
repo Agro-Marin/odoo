@@ -3,7 +3,7 @@ import { useState } from "@odoo/owl";
 import { FormController } from "@web/views/form";
 
 export class FormControllerWithHTMLExpander extends FormController {
-    static template = "resource.FormViewWithHtmlExpander";
+    static template = "web.FormViewWithHtmlExpander";
 
     setup() {
         super.setup();

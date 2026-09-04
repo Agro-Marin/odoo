@@ -243,7 +243,6 @@ class ResourceResource(models.Model):
     ) -> tuple[dict[int, Intervals], dict[int, Intervals]]:
         if not (start.tzinfo and end.tzinfo):
             raise ValueError("start and end datetimes must be timezone-aware")
-        resource_calendar_validity_intervals = {}
         calendar_resources = defaultdict(lambda: self.env["resource.resource"])
         resource_work_intervals = defaultdict(Intervals)
         calendar_work_intervals = {}
@@ -292,9 +291,7 @@ class ResourceResource(models.Model):
 
         resources_per_tz = defaultdict(list)
         for resource in self:
-            resources_per_tz[timezone((resource or self.env.user).tz or "UTC")].append(
-                resource
-            )
+            resources_per_tz[timezone(resource.tz or "UTC")].append(resource)
 
         for tz, resources in resources_per_tz.items():
             day = start_date
@@ -550,6 +547,4 @@ class ResourceResource(models.Model):
 
     def _is_flexible(self) -> bool:
         self.check_singleton()
-        return self._is_fully_flexible() or (
-            self.calendar_id and self.calendar_id.flexible_hours
-        )
+        return self._is_fully_flexible() or self.calendar_id.flexible_hours

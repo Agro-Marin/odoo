@@ -34,12 +34,14 @@ class ResourceCalendarLeaves(models.Model):
         domain="[('company_id', 'in', [company_id, False])]",
         check_company=True,
         index=True,
+        ondelete="cascade",
     )
     resource_id = fields.Many2one(
         "resource.resource",
         "Resource",
         index=True,
         check_company=True,
+        ondelete="cascade",
         help="If empty, this is a generic time off for the company. If a resource is set, the time off is only for this resource",
     )
     time_type = fields.Selection(

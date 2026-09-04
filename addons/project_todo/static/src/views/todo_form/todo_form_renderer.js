@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useRef } from "@odoo/owl";
-import { FormRendererWithHtmlExpander } from "@resource/views/form_with_html_expander/form_renderer_with_html_expander";
+import { FormRendererWithHtmlExpander } from "@web/views/form_with_html_expander/form_renderer_with_html_expander";
 import { useBus } from "@web/core/utils/hooks";
 
 export class TodoFormRenderer extends FormRendererWithHtmlExpander {

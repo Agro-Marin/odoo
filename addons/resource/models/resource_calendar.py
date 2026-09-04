@@ -50,16 +50,15 @@ class ResourceCalendar(models.Model):
                 "Working Hours of %s",
                 self.env["res.company"].browse(res["company_id"]).name,
             )
+        company = self.env["res.company"].browse(
+            res.get("company_id", self.env.company.id)
+        )
         if "attendance_ids" in fields and not res.get("attendance_ids"):
-            company_id = res.get("company_id", self.env.company.id)
-            company = self.env["res.company"].browse(company_id)
             res["attendance_ids"] = self._get_default_attendance_ids(company)
             res["two_weeks_calendar"] = company.resource_calendar_id.two_weeks_calendar
         if "full_time_required_hours" in fields and not res.get(
             "full_time_required_hours"
         ):
-            company_id = res.get("company_id", self.env.company.id)
-            company = self.env["res.company"].browse(company_id)
             res["full_time_required_hours"] = (
                 company.resource_calendar_id.full_time_required_hours
             )
@@ -141,9 +140,6 @@ class ResourceCalendar(models.Model):
         "resource.calendar.leaves",
         "calendar_id",
         "Global Time Off",
-        compute="_compute_global_leave_ids",
-        store=True,
-        readonly=False,
         domain=[("resource_id", "=", False)],
         copy=True,
     )
@@ -310,21 +306,6 @@ class ResourceCalendar(models.Model):
                 line.week_type = "1" if even_week_seq > line.sequence else "0"
             else:
                 line.week_type = "0" if odd_week_seq > line.sequence else "1"
-
-    @api.depends("company_id")
-    def _compute_global_leave_ids(self):
-        for calendar in self.filtered(
-            lambda c: not c._origin or c._origin.company_id != c.company_id
-        ):
-            calendar.update(
-                {
-                    "global_leave_ids": [Command.clear()]
-                    + [
-                        Command.create(leave._copy_leave_vals())
-                        for leave in calendar.company_id.resource_calendar_id.global_leave_ids
-                    ],
-                }
-            )
 
     @api.depends(
         "attendance_ids",
@@ -521,11 +502,10 @@ class ResourceCalendar(models.Model):
     def _flexible_attendance_intervals(self, start_datetime, end_datetime, tz):
         self.check_singleton()
         max_hours_per_week = self._get_flexible_hours_per_week()
-        max_hours_per_day = self.hours_per_day
+        max_hours_per_day = self.hours_per_day or HOURS_PER_DAY
         first_day = start_datetime.date()
         last_day = (end_datetime - timedelta(microseconds=1)).date()
         total_hours = (end_datetime - start_datetime).total_seconds() / 3600
-
         intervals = []
         chunk_start = first_day
         while chunk_start <= last_day:
@@ -604,7 +584,7 @@ class ResourceCalendar(models.Model):
             ]
         )
 
-        attendances = self.env["resource.calendar.attendance"].search(domain)
+        calendar_attendances = self.env["resource.calendar.attendance"].search(domain)
         resources_per_tz = defaultdict(list)
         for resource in resources_list:
             resources_per_tz[tz or timezone((resource or self).tz)].append(resource)
@@ -612,7 +592,7 @@ class ResourceCalendar(models.Model):
             self.env["resource.calendar.attendance"] for _ in range(14)
         ]
         weekdays = set()
-        for attendance in attendances:
+        for attendance in calendar_attendances:
             weekday = int(attendance.dayofweek)
             weekdays.add(weekday)
             if self.two_weeks_calendar:
@@ -663,31 +643,45 @@ class ResourceCalendar(models.Model):
             end_datetime = end_dt.astimezone(tz)
 
             for resource in tz_resources:
-                if resource and not resource_calendars.get(resource, False):
-                    result_per_resource_id[resource.id] = Intervals(
-                        self._fully_flexible_attendance_intervals(
-                            start_datetime, end_datetime, tz
-                        ),
-                        keep_distinct=True,
+                result_per_resource_id[resource.id] = (
+                    self._resource_attendance_intervals(
+                        resource,
+                        resource_calendars,
+                        res_intervals,
+                        start_datetime,
+                        end_datetime,
+                        tz,
+                        lunch,
                     )
-                elif self.flexible_hours or (
-                    resource and resource_calendars[resource].flexible_hours
-                ):
-                    if lunch:
-                        result_per_resource_id[resource.id] = Intervals(
-                            [], keep_distinct=True
-                        )
-                        continue
-                    calendar = resource_calendars[resource] if resource else self
-                    intervals = calendar._flexible_attendance_intervals(
-                        start_datetime, end_datetime, tz
-                    )
-                    result_per_resource_id[resource.id] = Intervals(
-                        intervals, keep_distinct=True
-                    )
-                else:
-                    result_per_resource_id[resource.id] = res_intervals
+                )
         return result_per_resource_id
+
+    def _resource_attendance_intervals(
+        self,
+        resource: ResourceResource,
+        resource_calendars: dict,
+        fixed_intervals: Intervals,
+        start_datetime: datetime,
+        end_datetime: datetime,
+        tz: ZoneInfo,
+        lunch: bool,
+    ) -> Intervals:
+        if resource and not resource_calendars.get(resource):
+            return Intervals(
+                self._fully_flexible_attendance_intervals(
+                    start_datetime, end_datetime, tz
+                ),
+                keep_distinct=True,
+            )
+        calendar = resource_calendars[resource] if resource else self
+        if not (self.flexible_hours or (resource and calendar.flexible_hours)):
+            return fixed_intervals
+        if lunch:
+            return Intervals([], keep_distinct=True)
+        return Intervals(
+            calendar._flexible_attendance_intervals(start_datetime, end_datetime, tz),
+            keep_distinct=True,
+        )
 
     def _handle_flexible_leave_interval(
         self, dt0: datetime, dt1: datetime, leave: Any
@@ -696,6 +690,18 @@ class ResourceCalendar(models.Model):
         dt0 = datetime.combine(dt0.date(), time.min).replace(tzinfo=tz)
         dt1 = datetime.combine(dt1.date(), time.max).replace(tzinfo=tz)
         return dt0, dt1
+
+    @staticmethod
+    def _with_default_leave_type(domain: list | None) -> list:
+        leave_only = Domain("time_type", "=", "leave")
+        if domain is None:
+            return list(leave_only)
+        given = Domain(domain)
+        if any(
+            condition.field_expr == "time_type" for condition in given.iter_conditions()
+        ):
+            return list(given)
+        return list(given & leave_only)
 
     def _leave_intervals(
         self,
@@ -729,8 +735,7 @@ class ResourceCalendar(models.Model):
         if isinstance(tz, str):
             tz = timezone(tz)
 
-        if domain is None:
-            domain = [("time_type", "=", "leave")]
+        domain = self._with_default_leave_type(domain)
 
         resources_list = list(resources) if resources else []
 
@@ -1375,8 +1380,7 @@ class ResourceCalendar(models.Model):
         else:
             attendances = init_attendances
 
-        default_start = min((att.hour_from for att in attendances), default=0.0)
-        default_end = max((att.hour_to for att in attendances), default=0.0)
+        week_envelope_from, week_envelope_to = self._week_hours_envelope(attendances)
 
         week_type = False
         if self.two_weeks_calendar:
@@ -1391,13 +1395,20 @@ class ResourceCalendar(models.Model):
             and int(att.dayofweek) == target_date.weekday()
         ]
         hour_from = min(
-            (att.hour_from for att in filtered_attendances), default=default_start
+            (att.hour_from for att in filtered_attendances), default=week_envelope_from
         )
         hour_to = max(
-            (att.hour_to for att in filtered_attendances), default=default_end
+            (att.hour_to for att in filtered_attendances), default=week_envelope_to
         )
 
         return (hour_from, hour_to)
+
+    @staticmethod
+    def _week_hours_envelope(attendances) -> tuple[float, float]:
+        return (
+            min((att.hour_from for att in attendances), default=0.0),
+            max((att.hour_to for att in attendances), default=0.0),
+        )
 
     def _get_working_hours(self):
         self.check_singleton()

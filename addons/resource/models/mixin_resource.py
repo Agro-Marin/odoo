@@ -132,7 +132,7 @@ class MixinResource(models.AbstractModel):
     def _get_calendars(
         self, date_from: datetime | None = None
     ) -> dict[int, ResourceCalendar]:
-        return {resource.id: resource.resource_calendar_id for resource in self}
+        return {record.id: record.resource_calendar_id for record in self}
 
     def _get_work_days_data_batch(
         self,
@@ -300,6 +300,8 @@ class MixinResource(models.AbstractModel):
         self.check_singleton()
         resource = self.resource_id
         calendar = calendar or self.resource_calendar_id
+        if not calendar:
+            return []
 
         if not from_datetime.tzinfo:
             from_datetime = from_datetime.replace(tzinfo=UTC)

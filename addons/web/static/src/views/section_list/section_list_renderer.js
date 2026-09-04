@@ -66,4 +66,4 @@ export class SectionListRenderer extends ListRenderer {
         };
     }
 }
-SectionListRenderer.recordRowTemplate = "resource.SectionListRenderer.RecordRow";
+SectionListRenderer.recordRowTemplate = "web.SectionListRenderer.RecordRow";

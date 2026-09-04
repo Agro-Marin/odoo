@@ -4,8 +4,6 @@ from odoo.libs.datetime import timezone
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
-UTC = UTC
-
 
 @tagged("post_install", "-at_install")
 class TestLeaveDateToMultiCompanyTz(TransactionCase):

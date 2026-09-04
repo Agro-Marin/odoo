@@ -153,18 +153,24 @@ class ResourceCalendarAttendance(models.Model):
     def get_week_type(self, date: date) -> int:
         return int(math.floor((date.toordinal() - 1) / 7) % 2)
 
+    def _derived_duration_hours(self) -> float:
+        self.check_singleton()
+        if self.day_period == "lunch":
+            return 0.0
+        return max(0.0, self.hour_to - self.hour_from)
+
     @api.depends("hour_from", "hour_to", "day_period")
     def _compute_duration_hours(self):
         for attendance in self:
-            attendance.duration_hours = (
-                max(0.0, attendance.hour_to - attendance.hour_from)
-                if attendance.day_period != "lunch"
-                else 0
-            )
+            attendance.duration_hours = attendance._derived_duration_hours()
 
     def _inverse_duration_hours(self):
         for calendar, attendances in self.grouped("calendar_id").items():
             if not calendar.duration_based:
+                for attendance in attendances:
+                    derived = attendance._derived_duration_hours()
+                    if attendance.duration_hours != derived:
+                        attendance.duration_hours = derived
                 continue
             for attendance in attendances:
                 if attendance.day_period == "full_day":

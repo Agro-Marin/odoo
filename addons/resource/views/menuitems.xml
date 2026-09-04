@@ -26,15 +26,21 @@
         sequence="3" />
 
     <menuitem
+        id="menu_resource_role"
+        parent="menu_resource_config"
+        action="resource_role_action"
+        sequence="4" />
+
+    <menuitem
         id="menu_resource_reservation"
         parent="menu_resource_config"
         action="action_resource_reservation"
-        sequence="4" />
+        sequence="5" />
 
     <menuitem
         id="menu_resource_my_schedule"
         parent="menu_resource_config"
         action="action_resource_my_schedule"
-        sequence="5" />
+        sequence="6" />
 
 </odoo>

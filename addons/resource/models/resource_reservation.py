@@ -86,7 +86,8 @@ class ResourceReservation(models.Model):
         help="Percentage of the resource's work capacity allocated to this schedule.",
     )
     _check_allocated_percentage = models.Constraint(
-        "CHECK(allocated_percentage >= 0 AND allocated_percentage <= 100)",
+        "CHECK(allocated_percentage IS NOT NULL"
+        " AND allocated_percentage >= 0 AND allocated_percentage <= 100)",
         "Allocation % must be between 0 and 100.",
     )
 
@@ -156,9 +157,11 @@ class ResourceReservation(models.Model):
 
         if live:
             self.env.cr.execute(
-                "UPDATE resource_resource SET write_date = write_date"
-                " WHERE id = ANY(%s)",
-                (sorted(live.resource_id.ids),),
+                SQL(
+                    "SELECT id FROM resource_resource WHERE id = ANY(%s)"
+                    " ORDER BY id FOR UPDATE",
+                    sorted(live.resource_id.ids),
+                )
             )
 
         if live:
