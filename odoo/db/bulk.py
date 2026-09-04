@@ -51,6 +51,7 @@ if TYPE_CHECKING:
         _cnx: psycopg.Connection
         _thread: threading.Thread
         _schema_cache: TransactionSchemaCache
+        _savepoint_depth: int
         dbname: str
 
         def execute(
@@ -356,14 +357,14 @@ class _BulkAccessMixin:
 
     def _lock_table_for_bulk(self: _CursorInternals, table: str) -> None:
         cache = self._schema_cache
-        if table in cache.locked_tables:
+        if cache.is_locked(table):
             return
         self.execute(
             _sql.SQL("LOCK TABLE {} IN ROW EXCLUSIVE MODE").format(
                 _get_table_identifier(table)
             )
         )
-        cache.locked_tables.add(table)
+        cache.mark_locked(table, self._savepoint_depth)
 
     def _get_id_sequence(self: _CursorInternals, table: str) -> str:
         cache = self._schema_cache
