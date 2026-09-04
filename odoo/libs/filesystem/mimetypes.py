@@ -319,11 +319,9 @@ def get_extension(filename: str) -> str:
     if len(ext) <= 4:
         return f".{ext}".lower()
 
-    guessed_mimetype, guessed_ext = mimetypes.guess_type(filename)
-    if guessed_ext:
-        return guessed_ext
+    guessed_mimetype, _guessed_encoding = mimetypes.guess_type(filename)
     if guessed_mimetype:
-        return f".{ext}".lower()
+        return mimetypes.guess_extension(guessed_mimetype) or f".{ext}".lower()
 
     return ""
 
