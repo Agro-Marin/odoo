@@ -1137,33 +1137,55 @@ class TestReportGroupAccess(MultiArticleReportCase):
     def _report_as_plain_user(self):
         return self.env["ir.actions.report"].with_user(self.plain_user)
 
-    def test_a_user_outside_the_groups_cannot_render_the_report(self):
+    def _hide_partners_from_plain_user(self):
+        self.env["ir.rule"].create(
+            {
+                "name": "audit: hide the article partners",
+                "model_id": self.env["ir.model"]._get_id("res.partner"),
+                "domain_force": [("id", "not in", self.partners.ids)],
+                "groups": [(4, self.env.ref("base.group_user").id)],
+            }
+        )
+
+    def test_a_user_outside_the_groups_renders_records_it_can_read(self):
         Report = self._report_as_plain_user()
         for report_ref in (self.report.id, self.report.report_name, self.report):
-            with self.subTest(report_ref=report_ref), self.assertRaises(AccessError):
-                Report._render_qweb_html(report_ref, self.partners.ids)
+            with self.subTest(report_ref=report_ref):
+                content, _type = Report._render_qweb_html(report_ref, self.partners.ids)
+                self.assertIn(b"Audit Alpha", content)
+        content, _type = Report.with_context(
+            force_report_rendering=True
+        )._render_qweb_pdf(self.report.id, self.partners.ids)
+        self.assertTrue(content)
+
+    def test_a_user_who_cannot_read_the_records_cannot_render_them(self):
+        self._hide_partners_from_plain_user()
+        Report = self._report_as_plain_user()
         with self.assertRaises(AccessError):
-            Report._render_qweb_pdf(self.report.id, self.partners.ids)
-
-    def test_a_user_inside_one_of_the_groups_renders(self):
-        self.report.group_ids |= self.env.ref("base.group_user")
-        content, _type = self._report_as_plain_user()._render_qweb_html(
+            Report._render_qweb_html(self.report.id, self.partners.ids)
+        with self.assertRaises(AccessError):
+            Report.with_context(force_report_rendering=True)._render_qweb_pdf(
+                self.report.id, self.partners.ids
+            )
+        content, _type = Report.sudo()._render_qweb_html(
             self.report.id, self.partners.ids
         )
-        self.assertTrue(content)
+        self.assertIn(b"Audit Alpha", content)
 
-    def test_sudo_and_ungated_reports_keep_rendering(self):
-        content, _type = (
-            self._report_as_plain_user()
-            .sudo()
-            ._render_qweb_html(self.report.id, self.partners.ids)
+    def test_a_stored_attachment_is_not_served_to_a_user_who_cannot_read(self):
+        self.report.write({"attachment": "'audit.pdf'", "attachment_use": True})
+        Report = self.env["ir.actions.report"].with_context(force_report_rendering=True)
+        Report._render_qweb_pdf(self.report.id, self.partners.ids)
+        self.assertTrue(
+            self.env["ir.attachment"].search_count(
+                [("res_model", "=", "res.partner"), ("res_id", "in", self.partners.ids)]
+            )
         )
-        self.assertTrue(content)
-        self.report.group_ids = False
-        content, _type = self._report_as_plain_user()._render_qweb_html(
-            self.report.id, self.partners.ids
-        )
-        self.assertTrue(content)
+        self._hide_partners_from_plain_user()
+        with self.assertRaises(AccessError):
+            Report.with_user(self.plain_user)._render_qweb_pdf(
+                self.report.id, self.partners.ids
+            )
 
     def test_the_toolbar_keeps_filtering_by_group(self):
         bindings = (

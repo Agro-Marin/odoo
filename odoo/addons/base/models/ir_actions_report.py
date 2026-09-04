@@ -30,7 +30,6 @@ from weasyprint.urls import URLFetcher, URLFetcherResponse
 from odoo import _, api, fields, models, modules, tools
 from odoo.exceptions import (
     AccessError,
-    MissingError,
     RedirectWarning,
     UserError,
     ValidationError,
@@ -1096,6 +1095,9 @@ class IrActionsReport(models.Model):
         "uid",
         "gid",
         string="Groups",
+        help="Users outside these groups do not see the report in menus and "
+        "print toolbars. Printing itself is bounded by read access to the "
+        "records being rendered, not by these groups.",
     )
     multi = fields.Boolean(
         string="On Multiple Doc.",
@@ -1747,23 +1749,7 @@ class IrActionsReport(models.Model):
                         f"Fetching report {report_ref!r}: type {report._name}, expected ir.actions.report"
                     )
                 report = report.sudo()
-        self._check_report_access(report)
         return report
-
-    def _check_report_access(self, report: Self) -> None:
-        if self.env.su:
-            return
-        try:
-            groups = report.group_ids
-        except MissingError:
-            return
-        if groups and not (groups & self.env.user.all_group_ids):
-            raise AccessError(
-                _(
-                    "You are not allowed to print the report \u201c%s\u201d.",
-                    report.name,
-                )
-            )
 
     @api.model
     def prepare_barcode(self, barcode_type: str, value: str, **kwargs: Any) -> bytes:
@@ -1948,6 +1934,7 @@ class IrActionsReport(models.Model):
         attachment_names = {}
         attachments_by_id = {}
         if wants_attachment:
+            records.check_access("read")
             attachment_names = report._get_attachment_filenames(records)
             attachments_by_id = report._get_attachments(records, attachment_names)
         collected: dict[int | bool, dict[str, Any]] = {}
@@ -2349,6 +2336,7 @@ class IrActionsReport(models.Model):
             data.update(report_model._get_report_values(docids, data=data))
         else:
             docs = self.env[report.model].browse(docids)
+            docs.check_access("read")
             data.update(
                 {
                     "doc_ids": docids,
