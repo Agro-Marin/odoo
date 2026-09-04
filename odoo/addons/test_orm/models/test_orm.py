@@ -1661,7 +1661,7 @@ class TestOrmCity(models.Model):
     country_id = fields.Many2one("test_orm.country")
 
 
-class MixinTestOrmState_(models.AbstractModel):
+class MixinTestOrmState(models.AbstractModel):
     _name = "mixin.test_orm.state"
     _description = "Dummy state mixin model"
 
