@@ -5,7 +5,6 @@ from collections import OrderedDict as _OrderedDict
 from collections import abc
 from unittest.mock import patch
 
-import babel.dates
 import psycopg
 
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -3438,13 +3437,7 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(result[3]["__count"], 1)
         self.assertEqual(result[3]["attributes.mydate:week"][1], "W5 2023")
         self.assertEqual(result[4]["__count"], 2)
-        babel_year = babel.dates.format_date(
-            datetime.datetime(2023, 1, 1), "YYYY", "en_US"
-        )
-        if babel_year == "2022":
-            self.assertEqual(result[4]["attributes.mydate:week"][1], "W1 2022")
-        else:
-            self.assertEqual(result[4]["attributes.mydate:week"][1], "W1 2023")
+        self.assertEqual(result[4]["attributes.mydate:week"][1], "W1 2023")
         self.assertEqual(
             Model.search(result[0]["__extra_domain"]),
             self.message_6 | self.message_7,
