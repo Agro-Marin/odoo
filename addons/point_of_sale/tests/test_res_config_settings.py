@@ -1,3 +1,5 @@
+from lxml import etree
+
 import odoo
 from odoo import Command
 
@@ -6,7 +8,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestConfigureShops(TestPoSCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -18,10 +19,45 @@ class TestConfigureShops(TestPoSCommon):
                 {"implied_ids": [(4, group_order_template.id)]}
             )
 
+    def test_total_rounding_setting_is_not_labelled_cash_only(self):
+        """The setting rounds the order total whatever the payment method;
+        `only_round_cash_method` is what narrows it to cash. Calling it "Cash
+        Rounding" told the user the opposite."""
+        arch = etree.fromstring(
+            self.env["res.config.settings"].get_view(view_type="form")["arch"],
+        )
+        setting = arch.xpath(
+            "//setting[@documentation="
+            "'/applications/sales/point_of_sale/pricing/cash_rounding.html']",
+        )
+        self.assertTrue(setting, "the POS rounding setting reaches the settings page")
+
+        self.assertEqual(setting[0].get("string"), "Total Rounding")
+        self.assertEqual(
+            setting[0].xpath(".//button[@type='action']")[0].get("string"),
+            "Roundings",
+        )
+        self.assertEqual(
+            setting[0]
+            .xpath(".//label[@for='pos_only_round_cash_method']")[0]
+            .get(
+                "string",
+            ),
+            "Apply only on cash methods",
+        )
+        self.assertEqual(
+            self.env["pos.config"]._fields["cash_rounding"].string,
+            "Total Rounding",
+        )
+        self.assertEqual(
+            self.env["pos.config"]._fields["rounding_method"].string,
+            "Rounding Method",
+        )
+
     def _remove_on_payment_taxes(self):
         self.env["account.tax"].search(
             [
-                ('company_ids', 'in', [self.env.company.id]),
+                ("company_ids", "in", [self.env.company.id]),
                 ("tax_exigibility", "=", "on_payment"),
             ]
         ).unlink()

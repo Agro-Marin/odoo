@@ -8,7 +8,6 @@ _logger = logging.getLogger(__name__)
 
 
 class ResConfigSettings(models.TransientModel):
-
     _inherit = "res.config.settings"
 
     def _default_pos_config_id(self):
@@ -131,7 +130,7 @@ class ResConfigSettings(models.TransientModel):
     pos_cash_rounding = fields.Boolean(
         related="pos_config_id.cash_rounding",
         readonly=False,
-        string="Cash Rounding (PoS)",
+        string="Total Rounding (PoS)",
     )
     pos_company_has_template = fields.Boolean(
         related="pos_config_id.company_has_template"

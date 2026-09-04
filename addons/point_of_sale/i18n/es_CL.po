@@ -965,17 +965,17 @@ msgstr ""
 #. module: point_of_sale
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_config__cash_rounding
 #: model_terms:ir.ui.view,arch_db:point_of_sale.res_config_settings_view_form
-msgid "Cash Rounding"
+msgid "Total Rounding"
 msgstr ""
 
 #. module: point_of_sale
 #: model:ir.model.fields,field_description:point_of_sale.field_res_config_settings__pos_cash_rounding
-msgid "Cash Rounding (PoS)"
+msgid "Total Rounding (PoS)"
 msgstr ""
 
 #. module: point_of_sale
 #: model_terms:ir.ui.view,arch_db:point_of_sale.res_config_settings_view_form
-msgid "Cash Roundings"
+msgid "Roundings"
 msgstr ""
 
 #. module: point_of_sale
@@ -1000,12 +1000,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/point_of_sale/models/pos_session.py:0
 msgid "Cash register"
-msgstr ""
-
-#. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_pos_config__rounding_method
-#: model:ir.model.fields,field_description:point_of_sale.field_res_config_settings__pos_rounding_method
-msgid "Cash rounding"
 msgstr ""
 
 #. module: point_of_sale
@@ -3355,7 +3349,7 @@ msgstr ""
 
 #. module: point_of_sale
 #: model_terms:ir.ui.view,arch_db:point_of_sale.res_config_settings_view_form
-msgid "Only on cash methods"
+msgid "Apply only on cash methods"
 msgstr ""
 
 #. module: point_of_sale
@@ -4946,6 +4940,8 @@ msgid "Rounding"
 msgstr ""
 
 #. module: point_of_sale
+#: model:ir.model.fields,field_description:point_of_sale.field_pos_config__rounding_method
+#: model:ir.model.fields,field_description:point_of_sale.field_res_config_settings__pos_rounding_method
 #: model_terms:ir.ui.view,arch_db:point_of_sale.res_config_settings_view_form
 msgid "Rounding Method"
 msgstr ""
@@ -5759,7 +5755,7 @@ msgstr ""
 #. module: point_of_sale
 #. odoo-python
 #: code:addons/point_of_sale/models/pos_config.py:0
-msgid "The cash rounding strategy of the point of sale %(pos)s must be: '%(value)s'"
+msgid "The rounding strategy of the point of sale %(pos)s must be: '%(value)s'"
 msgstr ""
 
 #. module: point_of_sale
@@ -6622,7 +6618,7 @@ msgstr ""
 #. module: point_of_sale
 #. odoo-python
 #: code:addons/point_of_sale/models/pos_order.py:0
-msgid "You are not allowed to change the cash rounding configuration while a pos session using it is already opened."
+msgid "You are not allowed to change the rounding configuration while a pos session using it is already opened."
 msgstr ""
 
 #. module: point_of_sale

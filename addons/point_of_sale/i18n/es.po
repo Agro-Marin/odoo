@@ -1792,18 +1792,18 @@ msgstr "Salida de efectivo"
 #. module: point_of_sale
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_config__cash_rounding
 #: model_terms:ir.ui.view,arch_db:point_of_sale.res_config_settings_view_form
-msgid "Cash Rounding"
-msgstr "Redondeo de efectivo"
+msgid "Total Rounding"
+msgstr "Redondeo del total"
 
 #. module: point_of_sale
 #: model:ir.model.fields,field_description:point_of_sale.field_res_config_settings__pos_cash_rounding
-msgid "Cash Rounding (PoS)"
-msgstr "Redondeo de efectivo (TPV)"
+msgid "Total Rounding (PoS)"
+msgstr "Redondeo del total (TPV)"
 
 #. module: point_of_sale
 #: model_terms:ir.ui.view,arch_db:point_of_sale.res_config_settings_view_form
-msgid "Cash Roundings"
-msgstr "Redondeos de Efectivo"
+msgid "Roundings"
+msgstr "Redondeos"
 
 #. module: point_of_sale
 #. odoo-javascript
@@ -1866,12 +1866,6 @@ msgstr "Detalles del movimiento de efectivo"
 #: code:addons/point_of_sale/models/pos_session.py:0
 msgid "Cash register"
 msgstr "Caja registradora"
-
-#. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_pos_config__rounding_method
-#: model:ir.model.fields,field_description:point_of_sale.field_res_config_settings__pos_rounding_method
-msgid "Cash rounding"
-msgstr "Redondeo de efectivo"
 
 #. module: point_of_sale
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_config__iface_cashdrawer
@@ -5718,8 +5712,8 @@ msgstr ""
 
 #. module: point_of_sale
 #: model_terms:ir.ui.view,arch_db:point_of_sale.res_config_settings_view_form
-msgid "Only on cash methods"
-msgstr "Solo para métodos de efectivo"
+msgid "Apply only on cash methods"
+msgstr "Aplicar solo a métodos de efectivo"
 
 #. module: point_of_sale
 #: model:ir.model.fields,help:point_of_sale.field_pos_config__restrict_price_control
@@ -7888,6 +7882,8 @@ msgid "Rounding"
 msgstr "Redondeo"
 
 #. module: point_of_sale
+#: model:ir.model.fields,field_description:point_of_sale.field_pos_config__rounding_method
+#: model:ir.model.fields,field_description:point_of_sale.field_res_config_settings__pos_rounding_method
 #: model_terms:ir.ui.view,arch_db:point_of_sale.res_config_settings_view_form
 msgid "Rounding Method"
 msgstr "Método de redondeo"
@@ -9014,10 +9010,9 @@ msgstr "El tipo de tarjeta de pago (p. ej: Visa, AMEX, ...)"
 #. odoo-python
 #: code:addons/point_of_sale/models/pos_config.py:0
 msgid ""
-"The cash rounding strategy of the point of sale %(pos)s must be: '%(value)s'"
+"The rounding strategy of the point of sale %(pos)s must be: '%(value)s'"
 msgstr ""
-"La estrategia de redondeo de efectivo del punto de venta %(pos)s debe ser: '%"
-"(value)s'"
+"La estrategia de redondeo del punto de venta %(pos)s debe ser: '%(value)s'"
 
 #. module: point_of_sale
 #. odoo-python
@@ -10501,11 +10496,11 @@ msgstr ""
 #. odoo-python
 #: code:addons/point_of_sale/models/pos_order.py:0
 msgid ""
-"You are not allowed to change the cash rounding configuration while a pos "
-"session using it is already opened."
+"You are not allowed to change the rounding configuration while a pos session "
+"using it is already opened."
 msgstr ""
-"No tiene permitido cambiar la configuración de redondeo de efectivo mientras "
-"una sesión de TPV que lo usa esté abierta."
+"No tiene permitido cambiar la configuración de redondeo mientras una sesión "
+"de TPV que lo usa esté abierta."
 
 #. module: point_of_sale
 #. odoo-javascript
