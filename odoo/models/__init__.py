@@ -11,7 +11,6 @@ from odoo.orm.primitives import (
     PREFETCH_MAX,
     ValuesType,
 )
-from odoo.orm.parsing import regex_order
 
 from odoo.orm.models import (
     AbstractModel,
@@ -35,7 +34,11 @@ from odoo.orm.helpers import (
     check_company_domain_parent_of,
     to_record_ids,
 )
-from odoo.orm.parsing import fix_import_export_id_paths, parse_read_group_spec
+from odoo.orm.parsing import (
+    fix_import_export_id_paths,
+    parse_read_group_spec,
+    regex_order,
+)
 from odoo.orm.validation import check_pg_name, is_manual_name, is_valid_object_name
 
 __all__ = [
