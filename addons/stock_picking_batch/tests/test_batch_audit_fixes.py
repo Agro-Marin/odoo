@@ -208,6 +208,50 @@ class TestBatchAuditFixes(TransactionCase):
         self.assertEqual(batches[0].picking_type_id, self.picking_type)
         self.assertEqual(batches[1].picking_type_id, other_type)
 
+    def test_waving_a_zero_line_of_a_partly_picked_move_is_a_no_op(self):
+        loc_a, loc_b = self.env["stock.location"].create(
+            [
+                {"name": "Audit A", "location_id": self.stock_location.id},
+                {"name": "Audit B", "location_id": self.stock_location.id},
+            ]
+        )
+        product = self.env["product.product"].create(
+            {"name": "Two lines", "is_storable": True}
+        )
+        for location in (loc_a, loc_b):
+            self.env["stock.quant"]._update_available_quantity(product, location, 5)
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.picking_type.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": product.id,
+                            "product_uom_qty": 10,
+                            "location_id": self.stock_location.id,
+                            "location_dest_id": self.customer_location.id,
+                        }
+                    )
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.action_assign()
+        move = picking.move_ids
+        self.assertEqual(len(move.move_line_ids), 2, "the fixture is two lines")
+        zero_line = move.move_line_ids[0]
+        zero_line.quantity = 0
+
+        wave = self.env["stock.picking.batch"].create(
+            {"is_wave": True, "picking_type_id": self.picking_type.id}
+        )
+        vals = zero_line._prepare_wave_picking_vals(wave, picking, zero_line)
+        self.assertIsNone(vals, "a move that splits to nothing moves no line")
+        self.assertEqual(move.picking_id, picking, "and the move stays put")
+        self.assertEqual(len(move.move_line_ids), 2)
+
     def test_an_empty_batch_cannot_be_confirmed(self):
         batch = self.env["stock.picking.batch"].create(
             {"picking_type_id": self.picking_type.id}

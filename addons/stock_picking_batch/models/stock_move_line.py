@@ -56,18 +56,21 @@ class StockMoveLine(models.Model):
                 "date_planned": picking.date_planned,
             }
         )[0]
-        picking_to_wave_vals["move_line_ids"] += [
-            Command.link(line.id) for line in lines
-        ]
         for move, move_lines in line_by_move.items():
             if move_lines == move.move_line_ids:
                 picking_to_wave_vals["move_ids"] += [Command.link(move.id)]
-                continue
-            qty = qty_by_move[move]
-            new_move = move._split(qty)
-            new_move[0]["move_line_ids"] = [Command.set(move_lines.ids)]
-            picking_to_wave_vals["move_ids"] += [Command.create(new_move[0])]
+            else:
+                new_move = move._split(qty_by_move[move])
+                if not new_move:
+                    continue
+                new_move[0]["move_line_ids"] = [Command.set(move_lines.ids)]
+                picking_to_wave_vals["move_ids"] += [Command.create(new_move[0])]
+            picking_to_wave_vals["move_line_ids"] += [
+                Command.link(line.id) for line in move_lines
+            ]
 
+        if not picking_to_wave_vals["move_ids"]:
+            return None
         return picking_to_wave_vals
 
     def _get_add_to_wave_action(self, wave, notification_title):
