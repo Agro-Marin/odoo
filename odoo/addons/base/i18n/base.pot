@@ -51962,3 +51962,9 @@ msgstr ""
 #: code:addons/base/models/ir_actions_report.py:0
 msgid "You are not allowed to print the report “%s”."
 msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_ui_view.py:0
+msgid "Invalid <%(tag)s> subview definition"
+msgstr ""
