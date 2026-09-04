@@ -49,8 +49,6 @@ class TestSuite(BaseTestSuite):
         currentClass = test.__class__
         if currentClass == previousClass:
             return
-        if result._moduleSetUpFailed:
-            return
         if currentClass.__unittest_skip__:
             return
 
