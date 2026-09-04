@@ -132,10 +132,23 @@ class TestReportUrlFetcher(TransactionCase):
             with self.subTest(host=host):
                 self.assertTrue(_is_host_blocked(host))
 
-    def test_names_needing_resolution_stay_unblocked(self):
-        for host in ("localtest.me", "internal.corp.example.com"):
-            with self.subTest(host=host):
-                self.assertFalse(_is_host_blocked(host))
+    def test_hostname_resolving_to_a_blocked_address_is_blocked(self):
+        """ACT-2: a plain domain name is not exempt just because it isn't an
+        IP literal or on the loopback-name allowlist — a name that resolves
+        to a private/reserved address must be blocked too, or WeasyPrint's
+        own fetch (the only real DNS lookup in the old code) reaches it."""
+        self.assertTrue(
+            _is_host_blocked("localtest.me"),
+            "localtest.me resolves to 127.0.0.1 by design",
+        )
+
+    def test_an_unresolvable_hostname_is_not_blocked_here(self):
+        # No address means nothing to connect to; the fetch itself will
+        # fail on its own resolution attempt, so this isn't an SSRF vector.
+        self.assertFalse(_is_host_blocked("internal.corp.example.com"))
+
+    def test_a_publicly_resolving_hostname_stays_unblocked(self):
+        self.assertFalse(_is_host_blocked("example.com"))
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
     def test_fetch_refuses_private_ip(self):
