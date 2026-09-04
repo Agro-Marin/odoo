@@ -1,3 +1,5 @@
+import subprocess
+import threading
 import unittest
 
 from odoo.db import metrics
@@ -385,3 +387,62 @@ class TestTheDiscardPathTellsAnOutageFromAFault(unittest.TestCase):
         loud = [r for r in records if r.levelno >= 40]
         self.assertTrue(loud, "a genuine rollback fault stopped being reported")
         self.assertIsNotNone(loud[0].exc_info, "and it kept its traceback")
+
+
+class TestPipelineAccountsForTheSyncCost(unittest.TestCase):
+    """Real-Postgres check: pipeline mode only times each queued statement's
+    client-side queue time, not the round trip paid at the implicit sync
+    when the pipeline exits. That gap must land in query_time, not vanish."""
+
+    DBNAME = "test_cursor_pipeline_sync_cost"
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            subprocess.run(
+                ["createdb", cls.DBNAME], check=True, capture_output=True, timeout=30
+            )
+        except (OSError, subprocess.CalledProcessError) as e:
+            raise unittest.SkipTest(f"no local createdb available: {e}") from e
+
+    @classmethod
+    def tearDownClass(cls):
+        subprocess.run(
+            ["dropdb", "--if-exists", cls.DBNAME],
+            check=False,
+            capture_output=True,
+            timeout=30,
+        )
+
+    def test_pipelined_execute_values_accounts_for_almost_all_wall_time(self):
+        import time
+
+        import odoo.tools.config  # noqa: F401  installs the pool settings source
+        from odoo.db import db_connect
+
+        thread = threading.current_thread()
+        thread.query_count = 0
+        thread.query_time = 0.0
+
+        db = db_connect(self.DBNAME)
+        with db.cursor() as cr:
+            cr.execute("CREATE TABLE t_pipeline_sync(id serial primary key, a int)")
+            cr.commit()
+
+            rows = [(i,) for i in range(20000)]
+            before_time = thread.query_time
+            t0 = time.monotonic()
+            cr.execute_values(
+                "INSERT INTO t_pipeline_sync (a) VALUES %s", rows, page_size=200
+            )
+            wall = time.monotonic() - t0
+            recorded = thread.query_time - before_time
+            cr.rollback()
+
+        self.assertGreater(wall, 0)
+        self.assertGreater(
+            recorded / wall,
+            0.9,
+            f"only {recorded:.4f}s of {wall:.4f}s wall time was accounted for "
+            f"-- the pipeline sync/flush cost is going untimed again",
+        )
