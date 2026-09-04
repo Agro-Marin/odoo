@@ -1,3 +1,5 @@
+from odoo.libs.filesystem import guess_mimetype
+
 from . import coerce
 from . import document
 from . import format
@@ -100,6 +102,7 @@ __all__ = [
     "group_digits",
     "guess",
     "guess_encoding",
+    "guess_mimetype",
     "infer_separators",
     "known_formats",
     "known_readers",
