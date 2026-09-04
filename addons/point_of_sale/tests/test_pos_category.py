@@ -3,6 +3,7 @@ from odoo.fields import Command
 from odoo.tests import tagged
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
+from odoo.addons.point_of_sale.tests.test_frontend import TestPointOfSaleHttpCommon
 
 
 @tagged("post_install", "-at_install")
@@ -122,3 +123,23 @@ class TestPosArchiveWithOpenSession(TestPoSCommon):
         self.config.printer_ids = [Command.set(printer.ids)]
         with self.assertRaises(UserError):
             printer_categ.unlink()
+
+
+@tagged("post_install", "-at_install")
+class TestTicketScreenCancelledFilter(TestPointOfSaleHttpCommon):
+    def test_ticket_screen_cancelled_filter(self):
+        """A voided order lives only on the server, so the register can reach it
+        only if the filter asks the backend for it."""
+        self.main_pos_config.with_user(self.pos_user).open_ui()
+        self.env["pos.order"].create(
+            {
+                "company_id": self.env.company.id,
+                "session_id": self.main_pos_config.current_session_id.id,
+                "state": "cancel",
+                "amount_tax": 0,
+                "amount_total": 0,
+                "amount_paid": 0,
+                "amount_return": 0,
+            }
+        )
+        self.start_pos_tour("test_ticket_screen_cancelled_filter")

@@ -42,9 +42,9 @@ class TestPosOrderLookup(CommonPosTest):
             )
         return order
 
-    def _lookup(self, limit=100, offset=0, domain=None):
+    def _lookup(self, limit=100, offset=0, domain=None, **kwargs):
         return self.env["pos.order"].search_paid_order_ids(
-            self.pos_config_usd.id, domain or [], limit, offset
+            self.pos_config_usd.id, domain or [], limit, offset, **kwargs
         )
 
     def test_order_without_lines_is_listed(self):
@@ -84,16 +84,35 @@ class TestPosOrderLookup(CommonPosTest):
             self._create_order()
         result = self._lookup()
         listed = [oid for oid, _d in result["ordersInfo"]]
-        expected = self.env["pos.order"].search(
-            [("config_id", "=", self.pos_config_usd.id), ("state", "=", "paid")],
-            order="create_date desc",
-        ).ids
+        expected = (
+            self.env["pos.order"]
+            .search(
+                [("config_id", "=", self.pos_config_usd.id), ("state", "=", "paid")],
+                order="create_date desc",
+            )
+            .ids
+        )
         self.assertEqual(listed, expected)
 
     def test_draft_and_cancelled_orders_are_excluded(self):
         draft = self._create_order(state="draft")
         result = self._lookup()
         self.assertNotIn(draft.id, [oid for oid, _d in result["ordersInfo"]])
+
+    def test_cancelled_orders_are_listed_only_when_asked_for(self):
+        """The ticket screen has to be able to find a voided order; the default
+        listing must still be the paid one."""
+        cancelled = self._create_order(state="cancel")
+        paid = self._create_order(state="paid")
+
+        default_ids = [oid for oid, _d in self._lookup()["ordersInfo"]]
+        self.assertIn(paid.id, default_ids)
+        self.assertNotIn(cancelled.id, default_ids)
+
+        cancelled_ids = [
+            oid for oid, _d in self._lookup(states=("cancel",))["ordersInfo"]
+        ]
+        self.assertEqual(cancelled_ids, [cancelled.id])
 
     def test_line_write_advances_the_stamp(self):
         order = self._create_order()
