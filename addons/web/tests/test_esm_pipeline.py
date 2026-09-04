@@ -1,6 +1,8 @@
+import contextlib
 import json
 import logging
 import posixpath
+import re
 import shutil
 import tempfile
 import time
@@ -1444,10 +1446,17 @@ class TestEsbuildLockCursor(TransactionCase):
             msg="the advisory lock must not outlive the compile",
         )
 
-    def test_readonly_test_cursor_yields_none(self):
+    def test_readonly_test_cursor_locks_on_the_request_cursor(self):
         with patch.object(self.env.cr, "_readonly", True):
             with self._qweb._get_esbuild_lock_cursor("b.x") as lock_cr:
-                self.assertIsNone(lock_cr)
+                self.assertIs(
+                    lock_cr,
+                    self.env.cr,
+                    msg="a test cannot open a read-write cursor from a readonly "
+                    "one, and an advisory lock is legal on a read-only "
+                    "transaction outside recovery",
+                )
+                self.assertTrue(self._qweb._acquire_esbuild_lock("b.x", cr=lock_cr))
 
     def test_acquire_lock_runs_on_the_given_cursor(self):
         executed = []
@@ -1461,26 +1470,38 @@ class TestEsbuildLockCursor(TransactionCase):
         self.assertEqual(len(executed), 1)
         self.assertIn("pg_try_advisory_xact_lock", executed[0])
 
-    def test_readonly_run_esbuild_skips_lock_and_build(self):
+    def test_readonly_test_cursor_builds_under_the_lock(self):
         ir_qweb = self._qweb
+        locked_on = []
         with (
             patch.object(self.env.cr, "_readonly", True),
             patch.object(
                 type(ir_qweb),
                 "_acquire_esbuild_lock",
-                side_effect=AssertionError("lock must not be attempted"),
+                lambda _self, bundle, cr=None: locked_on.append(cr) or True,
+            ),
+            patch.object(
+                type(ir_qweb),
+                "_get_dynamic_child_bundles",
+                lambda *_a, **_k: [],
+            ),
+            patch.object(
+                type(ir_qweb),
+                "_get_esbuild_child_externals",
+                lambda *_a, **_k: (None, {}),
             ),
             patch.object(
                 AssetsBundle,
                 "esbuild_native_bundle",
-                side_effect=AssertionError("esbuild must not run"),
+                lambda *_a, **_k: EsbuildResult("built", None, None),
             ),
         ):
             result, child_bundles = ir_qweb._compile_with_esbuild_locked(
-                "web.assets_web", SimpleNamespace(), None
+                "web.assets_web", AssetsBundle("web.assets_web", [], env=self.env), None
             )
-        self.assertEqual(result.code, "")
+        self.assertEqual(result.code, "built")
         self.assertEqual(child_bundles, [])
+        self.assertEqual(locked_on, [self.env.cr])
 
 
 @tagged("web_unit", "web_assets")
@@ -2043,6 +2064,177 @@ class TestSecondaryBundleSingletonsBuild(TransactionCase):
             aliased,
             "aliased build must reach browser via the loader singleton",
         )
+
+
+@tagged("web_unit", "web_assets")
+class TestSecondaryBundlePageScopeKey(TransactionCase):
+    BUNDLE = "web.assets_tests"
+
+    def _scope(self, rendered):
+        req = SimpleNamespace(_esm_page_bundles=rendered)
+        with patch.object(ir_qweb_assets, "request", req):
+            return self.env["ir.qweb"]._get_esm_page_scope(self.BUNDLE)
+
+    def test_only_declared_parents_key_the_variant(self):
+        parents = esm_registry().secondary_parents[self.BUNDLE]
+        self.assertIn("web.assets_frontend_lazy", parents)
+        self.assertEqual(
+            self._scope(("web.assets_frontend_lazy", "web.assets_frontend_minimal")),
+            ("web.assets_frontend_lazy",),
+            msg="a sibling bundle on the page is not a provider the secondary "
+            "bundle was declared against; keying on it splits one variant "
+            "into one per render order",
+        )
+
+    def test_the_key_follows_the_declaration_order(self):
+        self.assertEqual(
+            self._scope(("web.assets_frontend_lazy", "web.assets_web")),
+            ("web.assets_web", "web.assets_frontend_lazy"),
+        )
+
+    def test_no_declared_parent_on_the_page_is_the_scope_less_variant(self):
+        self.assertEqual(self._scope(("web.assets_frontend_minimal",)), ())
+
+
+@tagged("web_unit", "web_assets")
+class TestSecondaryBundleServesEveryPage(TransactionCase):
+    BUNDLE = "web.assets_tests"
+    BACKEND = "web.assets_web"
+    FRONTEND = "web.assets_frontend_lazy"
+    STUB_RE = re.compile(r'odoo\.loader\.modules\.get\("([^"]+)"\)')
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        odoo_root = Path(odoo.__path__[0]).parent
+        cls.esbuild = shutil.which("esbuild") or shutil.which(
+            "esbuild", path=str(odoo_root / "node_modules" / ".bin")
+        )
+
+    def setUp(self):
+        super().setUp()
+        if not self.esbuild:
+            self.skipTest("esbuild binary not found (run 'npm install').")
+        self.params = self.env["ir.asset"]._prepare_assets_params()
+        self.satellites = self.env["ir.qweb"]._has_esm_test_satellites("")
+        self.env.registry.clear_cache("assets")
+
+    def _specs(self, bundle):
+        return set(
+            self.env["ir.qweb"]
+            ._get_asset_bundle(
+                bundle,
+                js=True,
+                css=False,
+                debug_assets=False,
+                assets_params=self.params,
+            )
+            .get_native_module_data(with_bridges=False)["import_map"]
+        )
+
+    def _artifact(self, post_nodes):
+        scripts = [attrs for tag, attrs in post_nodes if attrs.get("data-bridge")]
+        self.assertEqual(len(scripts), 1, post_nodes)
+        url = scripts[0].get("src")
+        self.assertTrue(
+            url,
+            msg="the page must get a compiled artifact by url, not the debug "
+            "per-module fallback whose bare imports the page cannot resolve",
+        )
+        attachment = self.env["ir.attachment"].sudo().search([("url", "=", url)])
+        self.assertEqual(len(attachment), 1, url)
+        return url, attachment.raw.decode("utf-8")
+
+    def _render_on_page(self, page_bundle, *, readonly):
+        IrQweb = self.env["ir.qweb"]
+        req = SimpleNamespace(_esm_page_bundles=(page_bundle,))
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(ir_qweb_assets, "request", req))
+            if readonly:
+                stack.enter_context(patch.object(self.env.cr, "_readonly", True))
+            _pre, post = IrQweb._get_native_module_nodes(self.BUNDLE)
+        return self._artifact(post)
+
+    def test_each_page_gets_an_artifact_its_import_map_can_serve(self):
+        if not self._specs(self.FRONTEND) or not self._specs(self.BACKEND):
+            self.skipTest("parent bundles resolved empty (web assets unavailable)")
+        IrQweb = self.env["ir.qweb"]
+        IrQweb._get_native_module_nodes_cached(
+            self.BUNDLE,
+            assets_params=self.params,
+            with_test_satellites=self.satellites,
+            page_scope=(),
+        )
+
+        backend_url, backend_code = self._render_on_page(self.BACKEND, readonly=False)
+        frontend_url, frontend_code = self._render_on_page(self.FRONTEND, readonly=True)
+
+        self.assertNotEqual(backend_url, frontend_url)
+        for page, code in (
+            (self.BACKEND, backend_code),
+            (self.FRONTEND, frontend_code),
+        ):
+            stubs = set(self.STUB_RE.findall(code))
+            self.assertTrue(stubs, f"no loader stubs in the {page} artifact")
+            self.assertLessEqual(
+                stubs,
+                self._specs(page),
+                msg=f"the {page} artifact aliases a module that page does not carry",
+            )
+        self.assertLess(
+            set(self.STUB_RE.findall(frontend_code)),
+            set(self.STUB_RE.findall(backend_code)),
+            "the backend page shares more of its own modules than a page "
+            "every declared parent can serve",
+        )
+
+    def test_the_backend_variant_does_not_evict_the_frontend_one(self):
+        if not self._specs(self.FRONTEND) or not self._specs(self.BACKEND):
+            self.skipTest("parent bundles resolved empty (web assets unavailable)")
+        IrQweb = self.env["ir.qweb"]
+        IrQweb._get_native_module_nodes_cached(
+            self.BUNDLE,
+            assets_params=self.params,
+            with_test_satellites=self.satellites,
+            page_scope=(),
+        )
+        first_url, _ = self._render_on_page(self.FRONTEND, readonly=True)
+        self._render_on_page(self.BACKEND, readonly=False)
+        again_url, _ = self._render_on_page(self.FRONTEND, readonly=True)
+        self.assertEqual(first_url, again_url)
+
+
+@tagged("web_unit", "web_assets")
+class TestPregenerationWarmsSecondaryPageScopes(TransactionCase):
+    BUNDLE = "web.assets_tests"
+
+    def test_every_installed_declared_parent_scope_is_built(self):
+        IrQweb = self.env["ir.qweb"]
+        seen = []
+
+        def _cached(_self, bundle, assets_params=None, **kwargs):
+            seen.append((bundle, kwargs.get("page_scope", ())))
+            return [], []
+
+        with (
+            patch.object(type(IrQweb), "_get_native_module_nodes_cached", _cached),
+            patch.object(
+                type(IrQweb),
+                "_get_bundles_to_pregenerate",
+                lambda _self: ({self.BUNDLE}, set()),
+            ),
+        ):
+            IrQweb._pregenerate_assets_bundles()
+
+        installed = self.env["ir.asset"]._get_addons_installed()
+        expected = {
+            (self.BUNDLE, (parent,))
+            for parent in esm_registry().secondary_parents[self.BUNDLE]
+            if parent.partition(".")[0] in installed
+        }
+        self.assertTrue(expected)
+        self.assertLessEqual(expected, set(seen))
+        self.assertIn((self.BUNDLE, ()), seen)
 
 
 @tagged("web_unit", "web_assets")

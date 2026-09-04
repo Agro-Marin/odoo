@@ -537,7 +537,10 @@ class IrQweb(models.AbstractModel):
     @contextlib.contextmanager
     def _get_esbuild_lock_cursor(self, bundle: str):
         if self.env.cr.readonly and _module.current_test:
-            yield None
+            # A test cannot open a read-write cursor on top of a readonly
+            # one, and an advisory lock is legal on a read-only transaction
+            # outside recovery -- only a hot standby refuses it.
+            yield self.env.cr
             return
         try:
             rw_cr = self.env.registry.cursor(readonly=False)
@@ -682,7 +685,7 @@ class IrQweb(models.AbstractModel):
         esbuild_ok = not debug_assets and self._can_compile_with_esbuild(bundle)
         if not debug_assets:
             try:
-                pre, post = self._get_native_module_nodes_cached(
+                pre, post = self._get_page_scoped_nodes_cached(
                     bundle,
                     assets_params=assets_params,
                     with_test_satellites=satellites,
@@ -709,6 +712,42 @@ class IrQweb(models.AbstractModel):
             )
         self._record_esm_page_bundle(bundle)
         return self._dedup_request_page_scripts(bundle, pre), post
+
+    def _get_page_scoped_nodes_cached(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+        with_test_satellites: bool,
+        page_scope: tuple[str, ...],
+        esbuild_ok: bool,
+    ) -> EsmNodePair:
+        try:
+            return self._get_native_module_nodes_cached(
+                bundle,
+                assets_params=assets_params,
+                with_test_satellites=with_test_satellites,
+                page_scope=page_scope,
+                esbuild_ok=esbuild_ok,
+            )
+        except _EsmFallbackError:
+            if not page_scope:
+                raise
+        # The scope-less variant stubs only what every declared parent
+        # provides, so it resolves on any page that carries one of them.
+        log_event(
+            _fallback_log,
+            logging.INFO,
+            "page_scope_fallback",
+            bundle=bundle,
+            page=",".join(page_scope),
+        )
+        return self._get_native_module_nodes_cached(
+            bundle,
+            assets_params=assets_params,
+            with_test_satellites=with_test_satellites,
+            page_scope=(),
+            esbuild_ok=esbuild_ok,
+        )
 
     _is_import_map_node = staticmethod(is_import_map_node)
     _is_loader_shim_node = staticmethod(is_loader_shim_node)
@@ -1033,9 +1072,15 @@ class IrQweb(models.AbstractModel):
         return include_names
 
     def _get_esm_page_scope(self, bundle: str) -> tuple[str, ...]:
-        if not request or bundle not in esm_registry().secondary_bundle_names:
+        registry = esm_registry()
+        if not request or bundle not in registry.secondary_bundle_names:
             return ()
-        return tuple(getattr(request, "_esm_page_bundles", ()))
+        rendered = set(getattr(request, "_esm_page_bundles", ()))
+        return tuple(
+            parent
+            for parent in registry.secondary_parents.get(bundle, ())
+            if parent in rendered
+        )
 
     @staticmethod
     def _record_esm_page_bundle(bundle: str) -> None:
@@ -1807,6 +1852,7 @@ class IrQweb(models.AbstractModel):
                     for url in self._get_asset_urls(bundle, css=False, js=True)
                     if url.startswith("/web/assets/esm/") and url not in links
                 )
+                self._pregenerate_secondary_page_scopes(bundle)
         _logger.info("JS Assets bundles generated in %s seconds", time.time() - start)
         start = time.time()
         for bundle in sorted(css_bundles):
@@ -1815,6 +1861,32 @@ class IrQweb(models.AbstractModel):
                 links.append(asset_bundle.css().url)
         _logger.info("CSS Assets bundles generated in %s seconds", time.time() - start)
         return links
+
+    def _pregenerate_secondary_page_scopes(self, bundle: str) -> None:
+        parents = esm_registry().secondary_parents.get(bundle)
+        if not parents or not self._can_compile_with_esbuild(bundle):
+            return
+        installed = self.env["ir.asset"]._get_addons_installed()
+        assets_params = self.env["ir.asset"]._prepare_assets_params()
+        satellites = self._has_esm_test_satellites("")
+        for parent in parents:
+            if parent.partition(".")[0] not in installed:
+                continue
+            try:
+                self._get_native_module_nodes_cached(
+                    bundle,
+                    assets_params=assets_params,
+                    with_test_satellites=satellites,
+                    page_scope=(parent,),
+                )
+            except _EsmFallbackError:
+                log_event(
+                    _pregen_log,
+                    logging.INFO,
+                    "page_scope_declined",
+                    bundle=bundle,
+                    page=parent,
+                )
 
     def _log_pregeneration_coverage(self, js_bundles: set[str]) -> None:
         if not _pregen_log.isEnabledFor(logging.DEBUG):
