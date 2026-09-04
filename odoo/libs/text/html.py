@@ -677,7 +677,11 @@ _BR_TAGS_RE = re.compile(r"(([<]\s*[bB][rR]\s*/?[>]\s*){2,})")
 def normalize_url(url: str) -> str:
     if urlparse(url).scheme in ("http", "https", "ftp", "ftps"):
         return url
-    if url.startswith(("/", "?", "#")):
+    # A protocol-relative URL ("//evil.com/x") also starts with "/", but
+    # browsers resolve it against the current page's scheme to an absolute
+    # cross-origin URL, not a local path — LOCAL_LINK_PATTERNS below already
+    # excludes this exact case via its own `/(?!/)` negative lookahead.
+    if url.startswith(("?", "#")) or (url.startswith("/") and not url.startswith("//")):
         return url
     return "http://" + url
 
