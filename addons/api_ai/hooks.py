@@ -30,6 +30,7 @@ _MOVED_RECORDS = {
         "tag_embeddings",
         "tag_chat",
         "tag_content_generation",
+        "tag_audio",
     ],
     "ir.ui.view": [
         "view_ai_provider_search",
