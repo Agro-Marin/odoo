@@ -1,11 +1,6 @@
 import { cookie } from "@web/core/browser/cookie";
 import { registry } from "@web/core/registry";
-
-function assertEqual(actual, expected) {
-    if (actual !== expected) {
-        throw new Error(`Assert failed: expected: ${expected} ; got: ${actual}`);
-    }
-}
+import { assertEqual } from "./tour_test_utils";
 
 registry.category("web_tour.tours").add("test_company_access_error_redirect", {
     steps: () => [
