@@ -515,11 +515,7 @@ class TestEmbeddedSassFallbackWarning(BaseCase):
 
 
 class TestCompileCssImportSanitizeUnit(BaseCase):
-    @staticmethod
-    def _sanitize(source):
-        bundle = _fake_bundle()
-        out = CssPipeline(bundle).compile_css(lambda s: s, source)
-        return out, bundle.css_errors
+    _sanitize = staticmethod(_sanitized)
 
     def test_single_media_query_preserved(self):
         out, errs = self._sanitize('@import "foo" screen;')
