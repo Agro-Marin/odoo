@@ -44,6 +44,15 @@ _logger = logging.getLogger(__name__)
 
 MIN_ROUNDS = 600_000
 
+# A fixed pbkdf2-sha512 hash at MIN_ROUNDS, verified against on every login
+# with an unknown user so that a "user not found" response costs about as
+# much as a "wrong password" one (AUTH-1) and is not distinguishable by
+# timing. The password it was derived from is never used for anything.
+_DUMMY_PASSWORD_HASH = (
+    "$pbkdf2-sha512$600000$7w4wftbyNcmfyucdH94fxA$"
+    "6gY5uDHtaWIcyKdWlT0sfnF8OhSZMjbKmB8DizAUKVRJ8HidOesEczP4wP5dSBKAZPAuoE2TuABEWSXm6XGR1Q"
+)
+
 LOGIN_FAILURES_PRUNE_THRESHOLD = 1000
 
 DEBUG_GROUP = "base.group_no_one"
@@ -1121,6 +1130,9 @@ class ResUsers(models.Model):
                     limit=1,
                 )
                 if not user:
+                    self._crypt_context().match_and_update(
+                        credential.get("password") or "", _DUMMY_PASSWORD_HASH
+                    )
                     raise AccessDenied
                 user = user.with_user(user).sudo()
                 auth_info = user._check_credentials(credential, user_agent_env)

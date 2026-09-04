@@ -932,6 +932,32 @@ class TestLoginCooldown(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
+class TestLoginTimingSideChannel(TransactionCase):
+    @mute_logger("odoo.addons.base.models.res_users")
+    def test_unknown_user_pays_a_dummy_hash_check(self):
+        """AUTH-1: an unknown login must not be rejected before paying the
+        same order-of-magnitude cost as a wrong-password rejection, or the
+        two are distinguishable by response time."""
+        from odoo.addons.base.models.res_users import _DUMMY_PASSWORD_HASH
+
+        with patch(
+            "odoo.libs.password.CryptContext.match_and_update",
+            return_value=(False, None),
+        ) as match_and_update:
+            with self.assertRaises(AccessDenied):
+                self.env["res.users"].sudo()._login(
+                    {
+                        "login": "auth1-no-such-user",
+                        "type": "password",
+                        "password": "whatever",
+                    },
+                    {"interactive": True},
+                )
+
+        match_and_update.assert_called_once_with("whatever", _DUMMY_PASSWORD_HASH)
+
+
+@tagged("post_install", "-at_install")
 class TestResUsersInitPasswordMigration(TransactionCase):
     def test_init_invalidates_all_migrated_passwords(self):
         User = self.env["res.users"]
