@@ -184,7 +184,9 @@ def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
     elif granularity == "day":
         result = value
     elif granularity == "hour" and isinstance(value, datetime):
-        return datetime.combine(value, time.min, value.tzinfo).replace(hour=value.hour)
+        return datetime.combine(
+            value, time.min.replace(fold=value.fold), value.tzinfo
+        ).replace(hour=value.hour)
     elif isinstance(value, datetime):
         raise ValueError(
             f"Granularity must be year, quarter, month, week, day or hour for value {value}"
@@ -195,7 +197,9 @@ def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
         )
 
     if isinstance(value, datetime):
-        return datetime.combine(result, time.min, value.tzinfo)
+        return datetime.combine(
+            result, time.min.replace(fold=result.fold), value.tzinfo
+        )
     return result
 
 
@@ -213,7 +217,9 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
     elif granularity == "day":
         result = value
     elif granularity == "hour" and isinstance(value, datetime):
-        return datetime.combine(value, time.max, value.tzinfo).replace(hour=value.hour)
+        return datetime.combine(
+            value, time.max.replace(fold=value.fold), value.tzinfo
+        ).replace(hour=value.hour)
     elif isinstance(value, datetime):
         raise ValueError(
             f"Granularity must be year, quarter, month, week, day or hour for value {value}"
@@ -224,7 +230,9 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
         )
 
     if isinstance(value, datetime):
-        return datetime.combine(result, time.max, value.tzinfo)
+        return datetime.combine(
+            result, time.max.replace(fold=result.fold), value.tzinfo
+        )
     return result
 
 
