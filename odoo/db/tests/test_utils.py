@@ -176,6 +176,26 @@ class TestFindValueMarkers(unittest.TestCase):
         self.assertEqual(get_value_marker_positions("%%"), [])
         self.assertEqual(get_value_marker_positions("ends %s"), [5])
 
+    def test_a_literal_percent_s_inside_a_string_is_not_a_marker(self):
+        query = "INSERT INTO t (a,b) VALUES ('has a %s inside', %s)"
+        markers = get_value_marker_positions(query)
+        self.assertEqual(markers, [len(query) - 3])
+        self.assertEqual(query[markers[0] : markers[0] + 2], "%s")
+
+    def test_a_literal_percent_s_inside_a_line_comment_is_not_a_marker(self):
+        self.assertEqual(get_value_marker_positions("SELECT 1 -- %s\n"), [])
+
+    def test_a_literal_percent_s_inside_a_block_comment_is_not_a_marker(self):
+        query = "SELECT 1 /* %s */ %s"
+        self.assertEqual(get_value_marker_positions(query), [query.rindex("%s")])
+
+    def test_a_doubled_quote_inside_a_literal_does_not_end_it_early(self):
+        # 'it''s %s' is one SQL string literal (the doubled '' is an escaped
+        # quote), so the %s inside it must stay invisible to the scanner.
+        query = "a = 'it''s %s' AND b = %s"
+        markers = get_value_marker_positions(query)
+        self.assertEqual(markers, [len(query) - 2])
+
 
 if __name__ == "__main__":
     unittest.main()
