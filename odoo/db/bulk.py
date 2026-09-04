@@ -314,12 +314,14 @@ class _BulkAccessMixin:
         debug = _logger.isEnabledFor(logging.DEBUG)
         t0 = monotonic()
         counts = False
+        row_count = 0
         try:
             with obj.copy(copy_stmt) as copy:
                 if col_types:
                     copy.set_types(col_types)
                 for row in write_rows:
                     copy.write_row(row)
+                    row_count += 1
             counts = True
         except Exception as e:
             if binary:
@@ -337,6 +339,7 @@ class _BulkAccessMixin:
             self._statement_done(
                 delay,
                 counts=counts,
+                count=row_count,
                 query=render_copy_statement,
                 label="COPY",
                 hooks=hooks,
