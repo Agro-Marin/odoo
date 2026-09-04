@@ -190,13 +190,14 @@ def create_model_table(
             )
         )
     for colname, _, colcomment in columns:
-        queries.append(
-            SQL(
-                "COMMENT ON COLUMN %s IS %s",
-                SQL.identifier(tablename, colname),
-                colcomment,
+        if colcomment:
+            queries.append(
+                SQL(
+                    "COMMENT ON COLUMN %s IS %s",
+                    SQL.identifier(tablename, colname),
+                    colcomment,
+                )
             )
-        )
     cr.execute(SQL("; ").join(queries))
 
     _schema.debug("Table %r: created", tablename)
