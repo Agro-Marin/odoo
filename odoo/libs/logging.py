@@ -60,7 +60,7 @@ class lower_logging(logging.Handler):
         self._saved: list[tuple[list[logging.Handler], bool]] = []
         self.had_error_log: bool = False
         self.max_level: int = max_level
-        self.to_level: int = to_level or max_level
+        self.to_level: int = to_level if to_level is not None else max_level
 
     @property
     def old_handlers(self) -> list[logging.Handler]:
