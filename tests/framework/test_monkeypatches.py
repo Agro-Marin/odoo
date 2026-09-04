@@ -494,6 +494,27 @@ class TestBulgarianIsRegistered(unittest.TestCase):
             num2words(7.5, lang="bg")
 
 
+class TestPypdfDecompressIsNotOverridden(unittest.TestCase):
+    def test_stock_output_limit_is_enforced(self):
+        import zlib
+
+        import pypdf.errors
+        import pypdf.filters
+
+        payload = b"A" * (pypdf.filters.ZLIB_MAX_OUTPUT_LENGTH + 1)
+        compressed = zlib.compress(payload)
+        with self.assertRaises(pypdf.errors.LimitReachedError):
+            pypdf.filters.decompress(compressed)
+
+    def test_ordinary_streams_still_decompress(self):
+        import zlib
+
+        import pypdf.filters
+
+        payload = b"ordinary content stream"
+        self.assertEqual(pypdf.filters.decompress(zlib.compress(payload)), payload)
+
+
 class TestFreezegunFacade(unittest.TestCase):
     def test_the_module_attribute_is_the_facade(self):
         import freezegun
