@@ -151,8 +151,6 @@ class TestHexToRgb:
         [
             ("#FF0000", (255, 0, 0)),
             ("#f00", (255, 0, 0)),
-            ("#ff0000ff", (255, 0, 0)),
-            ("#f00f", (255, 0, 0)),
             ("#123456", (0x12, 0x34, 0x56)),
             ("#abc", (0xAA, 0xBB, 0xCC)),
         ],
@@ -161,7 +159,19 @@ class TestHexToRgb:
         assert hex_to_rgb(value) == expected
 
     @pytest.mark.parametrize(
-        "value", ["", "#", "#12345", "nope", "#gg0000", "#1234567"]
+        "value",
+        [
+            "",
+            "#",
+            "#12345",
+            "nope",
+            "#gg0000",
+            "#1234567",
+            # 4/8-digit forms carry an alpha channel this function has no
+            # way to return -- rejected, not silently dropped.
+            "#ff0000ff",
+            "#f00f",
+        ],
     )
     def test_rejected_forms(self, value):
         with pytest.raises(ValueError, match="not a hexadecimal color"):
