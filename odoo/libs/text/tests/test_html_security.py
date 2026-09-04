@@ -8,6 +8,7 @@ from odoo.libs.text.html import (
     html_keep_url,
     html_normalize,
     html_sanitize,
+    normalize_url,
     plaintext2html,
 )
 
@@ -90,6 +91,22 @@ class TestCreateLink(unittest.TestCase):
     def test_scheme_less_relative_url_is_kept(self):
         out = create_link("/some/path", "lbl")
         self.assertIn('href="/some/path"', out)
+
+
+class TestNormalizeUrl(unittest.TestCase):
+    def test_protocol_relative_url_is_not_treated_as_local(self):
+        out = normalize_url("//evil.com/x")
+        self.assertNotEqual(out, "//evil.com/x")
+
+    def test_single_slash_local_path_stays_local(self):
+        self.assertEqual(normalize_url("/some/path"), "/some/path")
+
+    def test_query_and_fragment_stay_as_is(self):
+        self.assertEqual(normalize_url("?a=1"), "?a=1")
+        self.assertEqual(normalize_url("#frag"), "#frag")
+
+    def test_bare_host_gets_http_prefix(self):
+        self.assertEqual(normalize_url("example.com"), "http://example.com")
 
 
 class TestHtmlKeepUrl(unittest.TestCase):
