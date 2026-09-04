@@ -106,6 +106,42 @@ class TestMailTemplate(MailCommon):
             )
 
     @users("admin")
+    @mute_logger("odoo.addons.mail.models.mixin_mail_render")
+    def test_guarded_unknown_attribute_is_accepted_on_save(self):
+        mail_template = self.env["mail.template"].create(
+            {
+                "name": "Guarded template",
+                "model_id": self.env["ir.model"]._get_id("res.users"),
+                "subject": "ok",
+            }
+        )
+        for fname, value in [
+            (
+                "body_html",
+                (
+                    "<p><t t-if=\"hasattr(object, 'timesheet_count') and "
+                    'object.timesheet_count">PS: review your timesheets</t></p>'
+                ),
+            ),
+            (
+                "body_html",
+                "<p><t t-out=\"getattr(object, 'timesheet_count', 0)\"/></p>",
+            ),
+            (
+                "subject",
+                "{{ hasattr(object, 'timesheet_count') and object.timesheet_count }}",
+            ),
+        ]:
+            with self.subTest(fname=fname, value=value):
+                mail_template.write({fname: value})
+                self.assertEqual(mail_template[fname], value)
+
+        with self.assertRaises(ValidationError):
+            mail_template.write(
+                {"subject": "{{ hasattr(object, 'other') and object.timesheet_count }}"}
+            )
+
+    @users("admin")
     @mute_logger("odoo.addons.mail.models.mail_template")
     @mute_logger("odoo.addons.mail.models.mixin_mail_render")
     def test_invalid_template_skipped_during_install(self):
