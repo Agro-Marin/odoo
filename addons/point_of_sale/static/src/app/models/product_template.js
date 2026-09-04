@@ -81,7 +81,12 @@ export class ProductTemplate extends ProductTemplateAccounting {
     }
 
     getImageUrl() {
-        return `/web/image?model=product.template&field=image_128&id=${this.id}&unique=${this.write_date}`;
+        // The server ships image_128 as a boolean flag, not the image itself
+        // (product_template.py::_load_pos_data_read), so a product with no
+        // image must not send the browser to /web/image for a placeholder.
+        return this.image_128
+            ? `/web/image?model=product.template&field=image_128&id=${this.id}&unique=${this.write_date}`
+            : false;
     }
 
     _isArchivedCombination(attributeValueIds) {

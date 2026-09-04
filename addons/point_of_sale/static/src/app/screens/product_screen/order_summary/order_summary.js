@@ -264,7 +264,7 @@ export class OrderSummary extends Component {
 
     async setLinePrice(line, price) {
         line.price_type = "manual";
-        line.setUnitPrice(price);
+        line.setUnitPrice(line.getUnitPriceFromDisplayPriceUnit(price));
     }
 
     async _showDecreaseQuantityPopup() {

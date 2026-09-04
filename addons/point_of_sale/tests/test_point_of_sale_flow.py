@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from freezegun import freeze_time
+from lxml import etree
 
 import odoo
 from odoo import fields
@@ -75,6 +76,50 @@ class TestPointOfSaleFlow(CommonPosTest):
         current_session.update_closing_cash_details(total_cash_payment)
         current_session.close_session_from_ui()
         self.assertEqual(current_session.state, "closed")
+
+    def test_refund_order_form_locks_the_amounts(self):
+        """A refund created from the backend must not let anyone change what is
+        being refunded: no new lines, and no editing product, unit price or
+        discount. The register enforces this already; the form did not."""
+        self.pos_config_usd.open_ui()
+
+        order, refund = self.create_backend_pos_order(
+            {
+                "line_data": [
+                    {"product_id": self.ten_dollars_with_10_incl.product_variant_id.id},
+                ],
+                "payment_data": [
+                    {"payment_method_id": self.cash_payment_method.id, "amount": 10},
+                ],
+                "refund_data": [
+                    {"payment_method_id": self.cash_payment_method.id, "amount": -10},
+                ],
+            }
+        )
+        self.assertFalse(order.is_refund)
+        self.assertTrue(refund.is_refund, "the guard hangs off is_refund")
+
+        arch = etree.fromstring(
+            self.env["pos.order"].get_view(
+                view_id=self.env.ref("point_of_sale.view_pos_pos_form").id,
+                view_type="form",
+            )["arch"]
+        )
+        self.assertEqual(
+            arch.find(".//field[@name='lines']").get("create"),
+            "not is_refund",
+        )
+        line_list = arch.find(".//field[@name='lines']/list")
+        line_form = arch.find(".//field[@name='lines']/form")
+        for node in (line_list, line_form):
+            for name in ("product_id", "price_unit", "discount"):
+                self.assertEqual(
+                    node.find(f".//field[@name='{name}']").get("readonly"),
+                    "parent.is_refund",
+                    f"{name} must be readonly on a refund",
+                )
+        # The quantity stays editable: a partial return is the point.
+        self.assertFalse(line_list.find(".//field[@name='qty']").get("readonly"))
 
     def test_refund_multiple_payment_rounding(self):
         self.account_cash_rounding_down.rounding = 5.0

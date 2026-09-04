@@ -164,3 +164,27 @@ registry.category("web_tour.tours").add("test_image_variants_displayed", {
             ProductConfiguratorPopup.checkImagePriceExtraVisible("$ 20"),
         ].flat(),
 });
+
+registry.category("web_tour.tours").add("test_search_variant_by_default_code", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            ...ProductScreen.searchProduct("REF-SIZE-M"),
+            {
+                // The search box is debounced, so wait for it to have applied
+                // before clicking: otherwise the click lands while
+                // pos.searchProductWord is still empty.
+                content: "the search narrowed the list to the referenced variant",
+                trigger:
+                    ".product-list article:only-child .product-name:contains('A always product')",
+            },
+            ProductScreen.clickDisplayedProduct("A always product"),
+            // The reference identifies the M variant by itself, so the
+            // configurator has nothing left to ask and the line is added
+            // straight away. M costs 6.0 where S, the first value and the one
+            // picked before this fix, costs 1.0.
+            ...ProductScreen.selectedOrderlineHas("A always product", "1.0", "6.0"),
+            Chrome.endTour(),
+        ].flat(),
+});

@@ -3,6 +3,7 @@ import { queryAll, queryOne } from "@odoo/hoot-dom";
 import { OrderSummary } from "@point_of_sale/app/screens/product_screen/order_summary/order_summary";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 
+import { getFilledOrderForPriceCheck } from "../accounting/utils.js";
 import { definePosModels } from "../data/generate_model_definitions.js";
 import { getFilledOrder, setupPosEnv } from "../utils.js";
 
@@ -61,4 +62,43 @@ test("+/- with no selected line does not crash", async () => {
     order.deselectOrderline();
     await orderSummary.updateSelectedOrderline({ buffer: "-0", key: "-" });
     expect(order.getSelectedOrderline()).toBe(undefined);
+});
+
+test("setLinePrice takes the price the cashier typed as the price the cashier sees", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrderForPriceCheck(store);
+    const orderSummary = await mountWithCleanup(OrderSummary, {});
+    order.config.iface_tax_included = "total";
+
+    // lines[0] carries one 25% tax-excluded tax, qty 1, no discount. Typing
+    // 125 must bill 125, so price_unit has to come out at 100.
+    const singleTaxLine = order.lines[0];
+    await orderSummary.setLinePrice(singleTaxLine, 125);
+    expect(singleTaxLine.price_unit).toBe(100);
+    expect(singleTaxLine.displayPrice).toBe(125);
+
+    // lines[1] carries 15% + 25%, both tax-excluded.
+    const multiTaxLine = order.lines[1];
+    await orderSummary.setLinePrice(multiTaxLine, 140);
+    expect(multiTaxLine.price_unit).toBe(100);
+    expect(multiTaxLine.displayPrice).toBe(140);
+
+    // The typed price is the price before discount, so setting a price does
+    // not silently undo one.
+    singleTaxLine.setDiscount(10);
+    await orderSummary.setLinePrice(singleTaxLine, 110);
+    expect(singleTaxLine.price_unit).toBe(88);
+    expect(singleTaxLine.displayPrice).toBe(99);
+});
+
+test("setLinePrice keeps the typed price as price_unit on a tax-excluded register", async () => {
+    const store = await setupPosEnv();
+    const order = await getFilledOrderForPriceCheck(store);
+    const orderSummary = await mountWithCleanup(OrderSummary, {});
+    order.config.iface_tax_included = "subtotal";
+
+    const line = order.lines[0];
+    await orderSummary.setLinePrice(line, 125);
+    expect(line.price_unit).toBe(125);
+    expect(line.displayPrice).toBe(125);
 });

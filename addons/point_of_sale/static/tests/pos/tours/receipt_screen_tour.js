@@ -33,7 +33,12 @@ registry.category("web_tour.tours").add("ReceiptScreenTour", {
             Dialog.confirm("Continue with limited functionality"),
             ReceiptScreen.shippingDateExists(),
             ReceiptScreen.shippingDateIsToday(),
-            ReceiptScreen.totalAmountContains("55.0"),
+            // "Letter Tray" carries the 10% SRC tax (test_frontend.py
+            // setUpClass), and the register displays tax-included prices, so
+            // the 5 typed above is the unit price the customer sees. 50.05
+            // rather than 50.00 because price_unit holds 5/1.1 at the two
+            // decimals of "Product Price".
+            ReceiptScreen.totalAmountContains("50.05"),
             ReceiptScreen.clickNextOrder(),
 
             ProductScreen.addOrderline("Desk Pad", "6", "5", "30.0"),
