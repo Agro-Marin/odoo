@@ -3,7 +3,7 @@ from datetime import date, datetime
 from unittest.mock import patch
 
 from odoo import fields
-from odoo.tests import common
+from odoo.tests import common, new_test_user
 from odoo.tools import NEGATIVE_SIGN_JOINER
 
 from odoo.addons.base.tests.common import DISABLED_MAIL_CONTEXT
@@ -288,6 +288,19 @@ class TestQwebFieldOne2Many(common.TransactionCase):
         self.env["res.partner"].create({"name": "Child", "parent_id": parent.id})
         self.assertEqual(self.value_to_html(parent.child_ids), "Parent, Child")
 
+    def test_one2many_drops_a_private_address_the_user_may_not_read(self):
+        Partner = self.env["res.partner"]
+        subject = Partner.create({"name": "Subject"})
+        Partner.create({"name": "Subject Office", "parent_id": subject.id})
+        Partner.create(
+            {"name": "Subject Home", "type": "private", "parent_id": subject.id}
+        )
+        user = new_test_user(self.env, "qweb_o2m_reader")
+        self.assertEqual(
+            self.value_to_html(subject.with_user(user).child_ids),
+            "Subject, Subject Office",
+        )
+
 
 class TestQwebFieldMany2Many(common.TransactionCase):
     def value_to_html(self, value, options=None):
@@ -333,6 +346,17 @@ class TestQwebFieldMany2One(common.TransactionCase):
             {"name": "Minion", "parent_id": parent.id}
         )
         self.assertEqual(self.value_to_html(child.parent_id), "BigBoss")
+
+    def test_many2one_to_a_private_address_renders_nothing(self):
+        Partner = self.env["res.partner"]
+        subject = Partner.create({"name": "Subject"})
+        home = Partner.create(
+            {"name": "Subject Home", "type": "private", "parent_id": subject.id}
+        )
+        record = Partner.create({"name": "Points at home", "parent_id": home.id})
+        user = new_test_user(self.env, "qweb_m2o_reader")
+        self.assertFalse(self.value_to_html(record.with_user(user).parent_id))
+        self.assertEqual(self.value_to_html(record.parent_id), "Subject, Subject Home")
 
 
 class TestQwebFieldHtml(common.TransactionCase):

@@ -313,7 +313,7 @@ class IrQwebFieldMany2one(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup | bool:
         if not value:
             return False
-        value = value.sudo().display_name
+        value = value._filtered_display_name_access().sudo().display_name
         if not value:
             return False
         return nl2br(value)
@@ -328,7 +328,10 @@ class IrQwebFieldMany2many(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup | bool:
         if not value:
             return False
-        text = ", ".join(value.sudo().mapped("display_name"))
+        visible = value._filtered_display_name_access().sudo()
+        text = ", ".join(visible.mapped("display_name"))
+        if not text:
+            return False
         return nl2br(text)
 
 

@@ -1,4 +1,4 @@
-from odoo.tests import TransactionCase, tagged
+from odoo.tests import TransactionCase, new_test_user, tagged
 
 
 @tagged("web_unit", "web_read_group")
@@ -139,6 +139,26 @@ class TestWebReadGroup(TransactionCase):
             aggregates=["create_date:max"],
         )
         self.assertEqual(order2, "create_date:month desc")
+
+    def test_group_header_of_a_private_address_carries_no_label(self):
+        Partner = self.env["res.partner"]
+        subject = Partner.create({"name": "WRG Subject"})
+        home = Partner.create(
+            {"name": "WRG Subject Home", "type": "private", "parent_id": subject.id}
+        )
+        Partner.create({"name": "WRG Points at home", "parent_id": home.id})
+        user = new_test_user(self.env, "wrg_private_reader")
+        self.env.flush_all()
+        self.assertNotIn(home.id, Partner.with_user(user).search([]).ids)
+
+        groups = Partner.with_user(user).web_read_group(
+            [("parent_id", "=", home.id)], ["parent_id"], ["__count"]
+        )["groups"]
+        self.assertEqual([g["parent_id"] for g in groups], [(home.id, "")])
+        [group] = Partner.web_read_group(
+            [("parent_id", "=", home.id)], ["parent_id"], ["__count"]
+        )["groups"]
+        self.assertEqual(group["parent_id"], (home.id, "WRG Subject, WRG Subject Home"))
 
 
 @tagged("web_unit", "web_read_group")
