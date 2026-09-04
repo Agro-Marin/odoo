@@ -363,9 +363,11 @@ class TestRecordsetIteration(TransactionCase):
 
     def test_hash(self):
         r1 = self.cat_a | self.cat_b
-        self.cat_a | self.cat_b
+        r2 = self.cat_a | self.cat_b
         s = {r1}
         self.assertIn(r1, s)
+        self.assertIn(r2, s)
+        self.assertEqual(hash(r1), hash(r2))
 
     def test_deepcopy_returns_self(self):
         result = copy.deepcopy(self.records)
