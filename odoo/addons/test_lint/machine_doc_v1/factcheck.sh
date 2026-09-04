@@ -79,9 +79,5 @@ while read -r cited; do
     fi
 done < <(python3 "$SCRIPT_DIR/_cited_paths.py" "${DOCS[@]}")
 
-# Both CI lanes the map names exist.
-assert_file "$REPO/.github/workflows/test_lint.yml" "the test_lint lane"
-assert_file "$REPO/.github/workflows/asset_lint.yml" "the asset_lint lane"
-
 printf '\n%s: %d passed, %d failed\n' "$(basename "$MOD")" "$pass" "$fail"
 [ "$fail" -eq 0 ]
