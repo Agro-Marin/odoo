@@ -15,24 +15,27 @@ ENOENT = 2
 
 windows = sys.platform.startswith("win")
 
-default_path = environ.get("PATH", defpath).split(pathsep)
 
-if windows:
-    default_path.insert(0, ".")
+def _default_path() -> list[str]:
+    paths = environ.get("PATH", defpath).split(pathsep)
+    if not windows:
+        return paths
+    paths.insert(0, ".")
     seen: set[str] = set()
     deduped = []
-    for entry in default_path:
+    for entry in paths:
         if entry.lower() not in seen:
             seen.add(entry.lower())
             deduped.append(entry)
-    default_path = deduped
-    del seen, deduped
+    return deduped
 
-    defpathext = [""] + environ.get(
+
+def _default_pathext() -> list[str]:
+    if not windows:
+        return [""]
+    return [""] + environ.get(
         "PATHEXT", ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC"
     ).lower().split(pathsep)
-else:
-    defpathext = [""]
 
 
 def which_files(
@@ -47,7 +50,7 @@ def which_files(
     if filepath:
         directories = [filepath]
     elif path is None:
-        directories = default_path
+        directories = _default_path()
     elif isinstance(path, str):
         directories = path.split(pathsep)
     else:
@@ -55,7 +58,7 @@ def which_files(
 
     extensions: list[str]
     if pathext is None:
-        extensions = defpathext
+        extensions = _default_pathext()
     elif isinstance(pathext, str):
         extensions = pathext.split(pathsep)
     else:
