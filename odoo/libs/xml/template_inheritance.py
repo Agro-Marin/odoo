@@ -41,8 +41,6 @@ def _compile_xpath(expr: str) -> etree.ETXPath:
 SKIPPED_ELEMENT_TYPES = (
     etree._Comment,
     etree._ProcessingInstruction,
-    etree.CommentBase,
-    etree.PIBase,
     etree._Entity,
 )
 
