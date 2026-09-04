@@ -1585,7 +1585,7 @@ class test_realworld(SavepointCaseWithUserDemo):
             "street",
             "city",
             "country_id",
-            "category_id",
+            "tag_ids",
             "is_company",
             "parent_id",
         ]

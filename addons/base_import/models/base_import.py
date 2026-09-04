@@ -320,9 +320,17 @@ class _SpreadsheetReader(BaseReader):
 
     These live here rather than in `libs/documents` because xlrd,
     openpyxl and odfpy are optional and this module is where they are declared.
-    The registry reads the first sheet: choosing one is a conversation with a
-    person, which `base_import.import` has and a strategy reading a document
-    does not.
+
+    The document's own options are handed to the reader, not an empty dict. The
+    readers write the workbook's sheet names back into what they are given, so
+    passing `{}` discarded them: a consumer of `Document.rows` got the first
+    sheet with no way to learn there had been others, or to ask for one. The
+    default is unchanged -- no `sheet` still means the first -- and a caller
+    that does know which it wants can now say so.
+
+    One document is one sheet, because `_derive` caches. Reading a second sheet
+    means a second `Document`, which is what `base_import.import` already does:
+    `sheet` is part of its parsed-file cache key.
     """
 
     yields = (ROWS,)
@@ -334,7 +342,7 @@ class _SpreadsheetReader(BaseReader):
         self._module = module
 
     def read(self, document):
-        return self._reader(document.data, {})
+        return self._reader(document.data, document.options)
 
     def provides(self, document):
         return importlib.util.find_spec(self._module) is not None
