@@ -159,3 +159,38 @@ class TestOfficeReaders(TransactionCase):
         )
 
         self.assertIn("SECRET", document.text)
+
+
+@tagged("post_install", "-at_install")
+class TestIndexingEdges(TransactionCase):
+    def test_an_attachment_with_no_content_is_indexed_rather_than_refused(self):
+        """`Document` refuses empty bytes, and an empty attachment is legal.
+
+        Every `_index_*` returned "" for empty content before the indexer read
+        through the layer, so nothing here ever built a document out of nothing.
+        `_prepare_content_vals` reaches `_index` for any create, empty raw
+        included.
+        """
+        self.assertFalse(self.env["ir.attachment"]._index(b"", "application/pdf"))
+
+        attachment = self.env["ir.attachment"].create(
+            {"name": "empty.pdf", "raw": b"", "mimetype": "application/pdf"}
+        )
+
+        self.assertFalse(attachment.index_content)
+
+    def test_content_that_is_not_a_document_is_indexed_rather_than_refused(self):
+        """A single NUL is non-empty, so it builds a document, and no reader
+        claims whatever libmagic makes of it. The interesting part is the NUL
+        itself: it must not survive into the column, because `index_content` is
+        a text field and PostgreSQL rejects a NUL in one."""
+        for content in (b"\x00", b"\x00\x00\x00", b"\xff\xd8\xff\xe0"):
+            with self.subTest(content=content):
+                indexed = self.env["ir.attachment"]._index(content, "")
+                self.assertNotIn("\x00", indexed or "")
+
+        attachment = self.env["ir.attachment"].create(
+            {"name": "nul.bin", "raw": b"\x00"}
+        )
+
+        self.assertNotIn("\x00", attachment.index_content or "")

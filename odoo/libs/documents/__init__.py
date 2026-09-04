@@ -22,7 +22,12 @@ from .cues import (
     write_srt,
     write_vtt,
 )
-from .document import DEFAULT_READ_UP_TO, TEXT_MAX_CHARS, Document
+from .document import (
+    DEFAULT_READ_UP_TO,
+    TEXT_MAX_CHARS,
+    Document,
+    essential_mimetype,
+)
 from .format import (
     ABSOLUTE,
     ISO_DATE,
@@ -115,6 +120,7 @@ __all__ = [
     "cues_as_text",
     "decode",
     "document",
+    "essential_mimetype",
     "extension_for",
     "format",
     "formats",

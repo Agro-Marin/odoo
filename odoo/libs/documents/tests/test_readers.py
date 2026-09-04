@@ -1,6 +1,10 @@
 import unittest
 
-from odoo.libs.documents.document import DEFAULT_READ_UP_TO, Document
+from odoo.libs.documents.document import (
+    DEFAULT_READ_UP_TO,
+    TEXT_MAX_CHARS,
+    Document,
+)
 from odoo.libs.documents.readers import (
     ANY,
     BARCODES,
@@ -321,6 +325,44 @@ class TestDeriving(unittest.TestCase):
             self.assertEqual(dear.calls, 0)
         finally:
             _forget(cheap, dear)
+
+    def test_a_caller_may_raise_the_text_bound(self):
+        """`TEXT_MAX_CHARS` is what a strategy may be handed, not what every
+        caller must live with. `ir.attachment._index` stores about seventy times
+        more, and inheriting this bound would truncate the stored index."""
+        long = "x" * (TEXT_MAX_CHARS + 100)
+        reader = _Stub("long", {"a/b"}, (TEXT,), long, cost=FREE)
+        register_reader(reader)
+        try:
+            self.assertEqual(len(Document(b"...", "a/b", "x").text), TEXT_MAX_CHARS)
+            raised = Document(b"...", "a/b", "x", text_max_chars=TEXT_MAX_CHARS + 100)
+            self.assertEqual(len(raised.text), TEXT_MAX_CHARS + 100)
+        finally:
+            _forget(reader)
+
+    def test_a_bound_of_zero_is_no_bound(self):
+        long = "x" * (TEXT_MAX_CHARS * 2)
+        reader = _Stub("long", {"a/b"}, (TEXT,), long, cost=FREE)
+        register_reader(reader)
+        try:
+            doc = Document(b"...", "a/b", "x", text_max_chars=0)
+            self.assertEqual(len(doc.text), TEXT_MAX_CHARS * 2)
+        finally:
+            _forget(reader)
+
+    def test_the_bound_reaches_the_decode_fallback_too(self):
+        """The clamp is applied in two places -- where a reader answered and
+        where nothing claimed the mimetype and the bytes were decoded. A bound
+        honoured in one and not the other would depend on whether a reader
+        happened to exist."""
+        doc = Document(
+            b"y" * (TEXT_MAX_CHARS + 50),
+            "application/x-nothing",
+            "x",
+            text_max_chars=200,
+        )
+
+        self.assertEqual(len(doc.text), 200)
 
     def test_the_default_ceiling_admits_cheap_readers_and_no_dearer_ones(self):
         self.assertEqual(DEFAULT_READ_UP_TO, CHEAP)
