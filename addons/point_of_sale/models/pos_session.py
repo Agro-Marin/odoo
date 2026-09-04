@@ -20,7 +20,12 @@ class PosSession(models.Model):
     _name = "pos.session"
     _order = "id desc"
     _description = "Point of Sale Session"
-    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.pos.bus", "mixin.pos.load"]
+    _inherit = [
+        "mixin.mail.thread",
+        "mixin.mail.activity",
+        "mixin.pos.bus",
+        "mixin.pos.load",
+    ]
 
     POS_SESSION_STATE = [
         ("opening_control", "Opening Control"),
@@ -964,7 +969,9 @@ class PosSession(models.Model):
             session=self.name,
         )
 
-    def _prepare_diff_line_vals(self, payment_method_id, diff_amount, outstanding_account=False):
+    def _prepare_diff_line_vals(
+        self, payment_method_id, diff_amount, outstanding_account=False
+    ):
         payment_method = self.env["pos.payment.method"].browse(payment_method_id)
         diff_compare_to_zero = self.currency_id.compare_amounts(diff_amount, 0)
         source_account = payment_method.outstanding_account_id or outstanding_account
@@ -1433,9 +1440,7 @@ class PosSession(models.Model):
                     if is_split_payment:
                         split_inv_payment_receivable_lines[payment] |= (
                             payment.account_move_id.line_ids.filtered(
-                                lambda line: (
-                                    line.account_id == pos_receivable_account
-                                )
+                                lambda line: line.account_id == pos_receivable_account
                             )
                         )
                         split_invoice_receivables[payment] = self._update_amounts(
@@ -1446,9 +1451,7 @@ class PosSession(models.Model):
                     else:
                         combine_inv_payment_receivable_lines[payment_method] |= (
                             payment.account_move_id.line_ids.filtered(
-                                lambda line: (
-                                    line.account_id == pos_receivable_account
-                                )
+                                lambda line: line.account_id == pos_receivable_account
                             )
                         )
                         combine_invoice_receivables[payment_method] = (
@@ -2015,7 +2018,9 @@ class PosSession(models.Model):
                 partial_args["account_id"] = (
                     self.config_id.rounding_method.loss_account_id.id
                 )
-                return self._prepare_debit_line_vals(partial_args, -amount, -amount_converted)
+                return self._prepare_debit_line_vals(
+                    partial_args, -amount, -amount_converted
+                )
 
             if (
                 float_compare(0.0, amount, precision_rounding=self.currency_id.rounding)
@@ -2024,7 +2029,9 @@ class PosSession(models.Model):
                 partial_args["account_id"] = (
                     self.config_id.rounding_method.profit_account_id.id
                 )
-                return self._prepare_credit_line_vals(partial_args, amount, amount_converted)
+                return self._prepare_credit_line_vals(
+                    partial_args, amount, amount_converted
+                )
         return None
 
     def _prepare_split_receivable_vals(self, payment, amount, amount_converted):
@@ -2046,7 +2053,9 @@ class PosSession(models.Model):
         }
         return self._prepare_debit_line_vals(partial_vals, amount, amount_converted)
 
-    def _prepare_combine_receivable_vals(self, payment_method, amount, amount_converted):
+    def _prepare_combine_receivable_vals(
+        self, payment_method, amount, amount_converted
+    ):
         partial_vals = {
             "account_id": self._get_receivable_account(payment_method).id,
             "move_id": self.move_id.id,
@@ -2138,7 +2147,9 @@ class PosSession(models.Model):
             partial_args, amount, amount_converted, force_company_currency=True
         )
 
-    def _prepare_stock_valuation_vals(self, stock_val_account, amount, amount_converted):
+    def _prepare_stock_valuation_vals(
+        self, stock_val_account, amount, amount_converted
+    ):
         partial_args = {"account_id": stock_val_account.id, "move_id": self.move_id.id}
         return self._prepare_credit_line_vals(
             partial_args, amount, amount_converted, force_company_currency=True
@@ -2202,7 +2213,6 @@ class PosSession(models.Model):
 
         new_amounts["amount"] += amount
         new_amounts["amount_converted"] += amount_converted
-
 
         if amounts_to_add.get("base_amount"):
             base_amount = amounts_to_add.get("base_amount")
@@ -2491,9 +2501,7 @@ class PosSession(models.Model):
         sessions = self.filtered("cash_journal_id")
         if not sessions:
             raise UserError(_("There is no cash payment method for this PoS Session"))
-        if closed := sessions.filtered(
-            lambda s: s.state not in self.CASH_MOVE_STATES
-        ):
+        if closed := sessions.filtered(lambda s: s.state not in self.CASH_MOVE_STATES):
             raise UserError(
                 _(
                     "You cannot register a cash movement on a session that is no"
