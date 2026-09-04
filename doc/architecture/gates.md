@@ -480,7 +480,7 @@ expected set from the gates the workflows actually drive rather than from a list
 beside it, so the next retirement fails instead of lingering.
 
 **DB-backed integration gate** (`.github/workflows/integration_tests.yml`)
-— boots PostgreSQL 18 and runs twenty-eight suites, **each against its own
+— boots PostgreSQL 18 and runs twenty-nine suites, **each against its own
 database**:
 
 | Suite | Database | Notes |
@@ -513,6 +513,7 @@ database**:
 | `mail` | `ci_mail` | added 2026-09-02, split into its own database 2026-09-03: `test_mail` and `mail_group` both depend on `mail` but neither depends on the other, so no single module's closure covered a shared database and `test_each_suite_gets_its_own_database` refused it. Runs with the HTTP server up; mail's own suite had been run by no lane. Tour classes and the `mail_js` HOOT suite are excluded by tag; the `url_open` HttpCase classes run |
 | `test_mail` | `ci_test_mail` | split out 2026-09-03. The suite written for `mail`, which carries the query floors, had been run by no lane. Runs with the HTTP server up, `test_mail_js` and its tour class excluded by tag |
 | `mail_group` | `ci_mail_group` | split out 2026-09-03. The one alias owner outside the mixin, whose gateway had been broken for weeks with nobody running it, had been run by no lane. Runs with the HTTP server up; carries no tour or HOOT suite to exclude |
+| `speech` | `ci_speech` | added 2026-09-04. Installs `test_speech`, whose closure is the whole layer — `speech`, `speech_ai` and `mail_speech` — because installing any one of them alone tests a configuration nobody runs: `speech` ships no engine, `speech_ai` is the engine, `mail_speech` is the consumer that records a call. The second lane here to run **with** the HTTP server, for the same reason as `rpc`: the upload route and the two subtitle routes are `HttpCase` and none is a tour, so `--no-http` would skip the twelve tests that are the whole layer's access control. 87 tests with the server against 75 without, and the floor is set above 75 so a lane that loses the server fails rather than reporting a smaller green |
 
 Adding `test_orm` paid for itself on the first run:
 `TestBackendDifferential.test_divergence_ilike_unaccent` asserted PostgreSQL's

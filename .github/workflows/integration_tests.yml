@@ -65,6 +65,13 @@ on:
       # rather than six entries, because the family grows by adding a consumer
       # and a list that has to be extended by hand is a list that will not be.
       - 'addons/document_extract*/**'
+      # The speech lane below. The layer is six modules and a framework
+      # protocol, and none of them was named by any workflow here.
+      - 'addons/speech*/**'
+      - 'addons/mail_speech/**'
+      - 'addons/documents_speech/**'
+      - 'addons/test_speech/**'
+      - 'odoo/libs/documents/**'
       # The base_order lane below, and both halves of it: the mixins and the
       # module whose only purpose is to exercise them.
       - 'addons/base_order/**'
@@ -525,6 +532,28 @@ env:
   MAIL_GROUP_TEST_TAGS: /mail_group
   # Measured 2026-09-03 with the server up: 29 tests, 0 failed.
   MAIL_GROUP_TEST_COUNT_FLOOR: 25
+
+  # speech, added 2026-09-04 -- transcription and synthesis for every stored
+  # binary, and the family around it: speech, speech_ai, mail_speech,
+  # documents_speech, voip_speech and test_speech. Named in NO workflow in this
+  # directory, so 87 tests ran nowhere and the whole layer was graded on whether
+  # its graph assembles. What that cost, each found by running the suites by
+  # hand rather than by any lane: a media.segment ownership constraint that had
+  # never executed in any database, because `_check_fields` hands every
+  # constraint a sudo() recordset and the guard read `if self.env.su: return`;
+  # a `transcript` field the mixin took from voip_ai, so a paid transcription
+  # was billed, reported done and discarded; twelve of sixteen transcribable
+  # mimetypes unplayable in the file viewer behind a Preview button that did
+  # nothing; and a caption track no route served.
+  #
+  # Runs WITH the HTTP server, like the rpc lane and unlike most here. The
+  # upload route and the subtitle routes are HttpCase and none of them is a
+  # tour, so nothing needs a browser -- but --no-http would skip them at
+  # setUpClass. Measured on this tree: 87 tests with the server, 75 without.
+  # The twelve that vanish are the two routes that carry the whole layer's
+  # access control, which is the last thing a lane should silently drop.
+  SPEECH_INSTALL: test_speech
+  SPEECH_TEST_TAGS: /speech,/test_speech,/mail_speech,/speech_ai
 
 jobs:
   base-smoke:
@@ -1557,5 +1586,43 @@ jobs:
             echo "::error::only $RAN mail_group tests ran, below the floor of ${MAIL_GROUP_TEST_COUNT_FLOOR} —"
             echo "::error::a suite in this lane was skipped rather than failed,"
             echo "::error::or the HttpCase classes found no server."
+            exit 1
+          fi
+      - name: Run speech suite
+        # Its own database (ci_speech). ONE module, whose dependency closure is
+        # the whole layer: `speech` ships no engine, `speech_ai` is the engine,
+        # `mail_speech` is the consumer that records a call, and installing one
+        # of them alone tests a configuration nobody runs. `test_speech` depends
+        # on all three so this lane can name one module and still cover them.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_speech \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${{ env.SPEECH_INSTALL }}" \
+            --test-enable --test-tags "${{ env.SPEECH_TEST_TAGS }}" \
+            --stop-after-init \
+            --max-cron-threads=0 \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/speech.log
+
+      - name: Assert the speech suite actually ran
+        # Measured 87 on 2026-09-04 WITH the HTTP server; the floor sits under
+        # it. The floor is above 75 on purpose: 75 is what the same command
+        # reports under --no-http, so a lane that quietly loses the server
+        # fails here instead of reporting a smaller green.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/speech.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — speech did not report a count"
+            exit 1
+          fi
+          echo "speech tests run: $RAN (floor: 80)"
+          if [ "$RAN" -lt 80 ]; then
+            echo "::error::only $RAN tests ran, below the floor of 80 —"
+            echo "::error::a suite in this lane was skipped rather than failed, or the"
+            echo "::error::HTTP server was dropped and every HttpCase skipped at setUpClass."
             exit 1
           fi

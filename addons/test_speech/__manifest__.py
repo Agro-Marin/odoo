@@ -18,6 +18,13 @@ ones register on, so a suite proves the wiring without a key or a network call.
     "license": "LGPL-3",
     "depends": [
         "speech",
+        # The suites below stub the engines at the document layer, so they do
+        # not need these to pass -- the lane does. `integration_tests.yml`
+        # gives each suite its own database and refuses a spec naming several
+        # modules that are not one closure, so a layer of six modules is only
+        # reachable from one lane if one module pulls it. This is that module.
+        "mail_speech",
+        "speech_ai",
     ],
     "data": [
         "security/ir.model.access.csv",
