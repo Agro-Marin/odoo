@@ -4,7 +4,7 @@ from psycopg import IntegrityError
 
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
-from odoo.tests.common import TransactionCase, tagged
+from odoo.tests.common import TransactionCase, new_test_user, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.base.models.res_company import ResCompany
@@ -189,6 +189,41 @@ class TestCompany(TransactionCase):
         self.assertTrue(
             seen_partners, "_compute_address must call _get_company_address_update"
         )
+
+    def test_accessible_branches_is_scoped_to_the_branch_and_the_allowed_companies(
+        self,
+    ):
+        Company = self.env["res.company"]
+        root = Company.create({"name": "branch root"})
+        child = Company.create({"name": "branch child", "parent_id": root.id})
+        grand = Company.create({"name": "branch grand", "parent_id": child.id})
+        user = new_test_user(
+            self.env,
+            "branch_reader",
+            company_id=root.id,
+            company_ids=[Command.set((root + child + grand).ids)],
+        )
+
+        def branches(company, allowed):
+            return (
+                company.with_user(user)
+                .with_context(allowed_company_ids=allowed.ids)
+                ._accessible_branches()
+            )
+
+        self.assertEqual(branches(root, root + child + grand), root + child + grand)
+        self.assertEqual(branches(child, root + child + grand), child + grand)
+        self.assertEqual(branches(root, grand), grand)
+        self.assertEqual(branches(root, root + child), root + child)
+
+    def test_get_main_company_falls_back_to_the_first_company(self):
+        main = self.env.ref("base.main_company")
+        self.env["ir.model.data"].search(
+            [("module", "=", "base"), ("name", "=", "main_company")]
+        ).unlink()
+        self.env.registry.clear_cache()
+        self.assertFalse(self.env.ref("base.main_company", raise_if_not_found=False))
+        self.assertEqual(self.env["res.company"]._get_main_company(), main)
 
 
 @tagged("post_install", "-at_install")

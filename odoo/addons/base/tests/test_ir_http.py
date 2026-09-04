@@ -1,6 +1,9 @@
+import os
 from contextlib import contextmanager
 from types import SimpleNamespace
+from unittest.mock import patch
 
+from odoo import http
 from odoo.exceptions import AccessDenied
 from odoo.http import SessionExpiredException
 from odoo.http.core import _request_stack
@@ -76,3 +79,21 @@ class TestIrHttpAuth(TransactionCase):
             "only the public attachment should match the fallback domain",
         )
         self.assertNotEqual(served, non_public)
+
+
+class TestIrHttpSessionGc(TransactionCase):
+    def test_gc_sessions_vacuums_with_the_configured_inactivity(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "sessions.max_inactivity_seconds", "4321"
+        )
+        with patch.object(http.root.session_store, "vacuum") as vacuum:
+            self.env["ir.http"]._gc_sessions()
+        vacuum.assert_called_once_with(max_lifetime=4321)
+
+    def test_gc_sessions_is_skipped_by_the_environment_switch(self):
+        with (
+            patch.dict(os.environ, {"ODOO_SKIP_GC_SESSIONS": "1"}),
+            patch.object(http.root.session_store, "vacuum") as vacuum,
+        ):
+            self.env["ir.http"]._gc_sessions()
+        vacuum.assert_not_called()
