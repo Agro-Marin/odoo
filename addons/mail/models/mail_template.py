@@ -580,7 +580,7 @@ class MailTemplate(models.Model):
         for name in names:
             if not hasattr(type(model), name):
                 return _(
-                    "%(model)s has no field or attribute %(name)r",
+                    "%(model)s has no field or attribute '%(name)s'",
                     model=model._name,
                     name=name,
                 )
