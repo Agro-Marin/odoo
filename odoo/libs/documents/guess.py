@@ -16,6 +16,12 @@ __all__ = [
 ]
 _ENCODING_CHUNK = 1 << 16
 
+# High-entropy content (data chardet's detector cannot resolve early) makes
+# guess_encoding scan every chunk with no early exit -- and chardet itself
+# is expensive on such content (measured ~8s/MiB for os.urandom() on this
+# box), so the cap has to be small, not merely finite.
+_ENCODING_SAMPLE_MAX = 1 << 18
+
 _BOM_MAP = {
     "utf-16le": codecs.BOM_UTF16_LE,
     "utf-16be": codecs.BOM_UTF16_BE,
@@ -28,7 +34,8 @@ def guess_encoding(data: bytes) -> str | None:
     if chardet is None:
         return None
     detector = chardet.UniversalDetector()
-    for start in range(0, len(data), _ENCODING_CHUNK):
+    sample_size = min(len(data), _ENCODING_SAMPLE_MAX)
+    for start in range(0, sample_size, _ENCODING_CHUNK):
         detector.feed(data[start : start + _ENCODING_CHUNK])
         if detector.done:
             break
