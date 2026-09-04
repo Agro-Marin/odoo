@@ -20,15 +20,16 @@ export class HrEmployee extends models.ServerModel {
             user_id: 3,
             work_contact_id: 3,
         },
+        {
+            id: 4,
+            name: "Employee2",
+        },
     ];
 
     _load_pos_data_read(records) {
+        const rolesById = { 2: "manager", 4: "minimal" };
         records.forEach((emp) => {
-            if (emp.id === 2) {
-                emp._role = "manager";
-            } else {
-                emp._role = "cashier";
-            }
+            emp._role = rolesById[emp.id] || "cashier";
         });
         return records;
     }
