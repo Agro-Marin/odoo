@@ -195,6 +195,13 @@ def test_cycle(args: argparse.Namespace) -> None:
         modules_todo = [(module.id, module.name) for module in modules]
 
     resume = args.resume_at
+    if resume and resume not in {name for _, name in modules_todo}:
+        _logger.error(
+            "unknown --resume-at module: %s; known modules: %s",
+            resume,
+            ", ".join(sorted(name for _, name in modules_todo)) or "(none)",
+        )
+        sys.exit(1)
     skip = set(args.skip.split(",")) if args.skip else set()
     for module_id, module_name in modules_todo:
         if module_name == resume:
