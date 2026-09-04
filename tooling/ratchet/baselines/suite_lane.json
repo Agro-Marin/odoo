@@ -1,5 +1,6 @@
 {
-  "count": 408,
-  "measured_at": "f5ed0acf783be9d0ffb743b48ff9f2d134668ce4",
-  "note": "Re-banked during the 2026-09-03 rebase of 19.0-marin onto origin: this floor's own JSON conflicted between the rebase's onto side (410, stamped 24f92b0f744) and this commit's own recorded floor (407, stamped 62197c60c7f), so neither number was trustworthy for the resulting tree and both were discarded rather than picked. Measured live instead: python tooling/architecture/module_suite_lane.py --count against the tree at f5ed0acf783 (the rebase's onto tip, before this commit's mail lane) read 411, one WORSE than the banked 410 -- a unit the 410 stamp never saw, unattributed and not chased further here. Adding this commit's mail lane on top (mail, test_mail, mail_group all gain suites in integration_tests.yml, one database ci_mail) took it 411 -> 408. Verified as a SET diff of module_suite_lane.py --json between the two trees, on 2026-09-03: the three names are the only difference, nothing else moved. 408 is the true count for the tree this rebase produces; the 411-vs-410 discrepancy at the parent is a separate, still-open one unit."
+  "count": 411,
+  "measured_at": "f189ed18b2309338c645455a37e633200b6f3767",
+  "measured_root": "",
+  "note": "Re-measured at f189ed18b23, in a clean worktree, and re-stamped: the old floor of 410 named a commit the 2026-09-02 sync replayed away, so architecture.yml was exiting 2 asking to be re-measured rather than comparing anything. 414 before the speech lane, 411 after it -- the three are test_speech, mail_speech and speech_ai, whose 87 tests were named by no workflow at all. The number is not debt driven down by a repair; it is a census of modules whose suites no lane runs, and it moves only when a lane names one."
 }
