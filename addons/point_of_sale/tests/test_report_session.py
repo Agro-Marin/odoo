@@ -61,7 +61,7 @@ class TestReportSession(TestPoSCommon):
         )
         with self.assertRaisesRegex(
             UserError,
-            "Hold up! Archiving products while POS sessions are active is like pulling a plate mid-meal.\nMake sure to close all sessions first to avoid any issues.",
+            "Hold up! Archiving a product a running register still sells is like pulling a plate mid-meal.\nClose the sessions that sell it first to avoid any issues.",
         ):
             self.product1.with_user(self.res_users_stock_user).action_archive()
 

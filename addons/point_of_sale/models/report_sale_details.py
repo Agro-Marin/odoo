@@ -32,7 +32,9 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
     def _get_domain(
         self, date_start=False, date_stop=False, config_ids=False, session_ids=False
     ):
-        domain = Domain("state", "in", ["paid", "done"])
+        # "cancel" is included so voided orders can be reported in their own
+        # section; _accumulate_products_and_taxes keeps them out of the totals.
+        domain = Domain("state", "in", ["paid", "done", "cancel"])
 
         if session_ids:
             domain &= Domain("session_id", "in", session_ids)
@@ -70,7 +72,17 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         taxes = {"base_amount": 0.0, "taxes": {}}
         refund_done = {}
         refund_taxes = {"base_amount": 0.0, "taxes": {}}
+        cancelled_done = {}
+        cancelled_taxes = {"base_amount": 0.0, "taxes": {}}
         for order in orders:
+            if order.state == "cancel":
+                # Reported, but never counted: a void moved no money.
+                currency = order.session_id.currency_id
+                for line in order.lines:
+                    cancelled_done, cancelled_taxes = self._update_products_and_taxes(
+                        line, cancelled_done, cancelled_taxes, currency
+                    )
+                continue
             if user_currency != order.pricelist_id.currency_id:
                 total += order.pricelist_id.currency_id._convert(
                     order.amount_total,
@@ -91,7 +103,15 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                     products_sold, taxes = self._update_products_and_taxes(
                         line, products_sold, taxes, currency
                     )
-        return total, products_sold, taxes, refund_done, refund_taxes
+        return (
+            total,
+            products_sold,
+            taxes,
+            refund_done,
+            refund_taxes,
+            cancelled_done,
+            cancelled_taxes,
+        )
 
     def _serialize_products_by_category(self, products_by_category):
         categories = [
@@ -132,9 +152,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
 
         configs = self.env["pos.config"].search([("id", "in", config_ids)])
         if session_ids:
-            return configs, self.env["pos.session"].search(
-                [("id", "in", session_ids)]
-            )
+            return configs, self.env["pos.session"].search([("id", "in", session_ids)])
         return configs, self.env["pos.session"].search(
             [
                 ("config_id", "in", configs.ids),
@@ -204,9 +222,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             + session.cash_real_transaction
         )
         payment["money_counted"] = session.cash_register_balance_end_real or 0
-        payment["money_difference"] = (
-            payment["money_counted"] - payment["final_count"]
-        )
+        payment["money_difference"] = payment["money_counted"] - payment["final_count"]
 
         cash_in_out_list = []
         if session.cash_register_balance_start > 0:
@@ -239,9 +255,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
 
     def _count_non_cash_payment(self, payment, diff_move, account_payments):
         if diff_move:
-            journal = (
-                self.env["pos.payment.method"].browse(payment["id"]).journal_id
-            )
+            journal = self.env["pos.payment.method"].browse(payment["id"]).journal_id
             is_loss = any(
                 line.account_id == journal.loss_account_id
                 for line in diff_move.line_ids
@@ -268,17 +282,13 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             return
 
         settled_by = account_payments.filtered(
-            lambda p, method_id=payment["id"]: (
-                p.pos_payment_method_id.id == method_id
-            )
+            lambda p, method_id=payment["id"]: p.pos_payment_method_id.id == method_id
         )
         if not settled_by:
             return
         payment["final_count"] = payment["total"]
         payment["money_counted"] = sum(settled_by.mapped("amount_signed"))
-        payment["money_difference"] = (
-            payment["money_counted"] - payment["final_count"]
-        )
+        payment["money_difference"] = payment["money_counted"] - payment["final_count"]
         payment["cash_moves"] = self._prepare_counting_difference_moves(
             payment["money_difference"], payment["money_difference"] < 0
         )
@@ -314,14 +324,22 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         orders = self.env["pos.order"].search(domain)
 
         user_currency = self._get_report_currency(config_ids, session_ids)
-        total, products_sold, taxes, refund_done, refund_taxes = (
-            self._accumulate_products_and_taxes(orders, user_currency)
-        )
+        (
+            total,
+            products_sold,
+            taxes,
+            refund_done,
+            refund_taxes,
+            cancelled_done,
+            cancelled_taxes,
+        ) = self._accumulate_products_and_taxes(orders, user_currency)
 
         taxes_info = self._get_taxes_info(taxes)
         refund_taxes_info = self._get_taxes_info(refund_taxes)
+        cancelled_taxes_info = self._get_taxes_info(cancelled_taxes)
         taxes = taxes["taxes"]
         refund_taxes = refund_taxes["taxes"]
+        cancelled_taxes = cancelled_taxes["taxes"]
 
         payment_ids = (
             self.env["pos.payment"].search([("pos_order_id", "in", orders.ids)]).ids
@@ -412,6 +430,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                 )
         products = self._serialize_products_by_category(products_sold)
         refund_products = self._serialize_products_by_category(refund_done)
+        cancelled_products = self._serialize_products_by_category(cancelled_done)
 
         products, products_info = self.with_context(
             config_id=configs[0].id if len(configs) > 0 else False
@@ -419,6 +438,9 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         refund_products, refund_info = self.with_context(
             config_id=configs[0].id if len(configs) > 0 else False
         )._get_total_and_qty_per_category(refund_products)
+        cancelled_products, cancelled_info = self.with_context(
+            config_id=configs[0].id if len(configs) > 0 else False
+        )._get_total_and_qty_per_category(cancelled_products)
 
         currency = {
             "symbol": user_currency.symbol,
@@ -496,6 +518,10 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             "refund_taxes_info": refund_taxes_info,
             "refund_info": refund_info,
             "refund_products": refund_products,
+            "cancelled_taxes": list(cancelled_taxes.values()),
+            "cancelled_taxes_info": cancelled_taxes_info,
+            "cancelled_info": cancelled_info,
+            "cancelled_products": cancelled_products,
             "discount_number": discount_number,
             "discount_amount": discount_amount,
             "invoiceList": invoiceList,

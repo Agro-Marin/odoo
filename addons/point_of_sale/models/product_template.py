@@ -70,9 +70,7 @@ class ProductTemplate(models.Model):
     def set_pos_favorite(self, is_favorite):
         self.check_singleton()
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
-            raise AccessError(
-                _("Only Point of Sale users can change a POS favorite.")
-            )
+            raise AccessError(_("Only Point of Sale users can change a POS favorite."))
         if not self.available_in_pos:
             raise AccessError(
                 _(
@@ -394,31 +392,36 @@ class ProductTemplate(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_open_session(self):
-        product_ctx = dict(self.env.context or {}, active_test=False)
-        if self.with_context(product_ctx).search_count(
-            [("id", "in", self.ids), ("available_in_pos", "=", True)],
-            limit=1,
-        ):
-            if self.env["pos.session"].sudo().search_count([("state", "!=", "closed")], limit=1):
-                raise UserError(
-                    _(
-                        "To delete a product, make sure all point of sale sessions are closed.\n\n"
-                        "Deleting a product available in a session would be like attempting to snatch a hamburger from a customer’s hand mid-bite; chaos will ensue as ketchup and mayo go flying everywhere!",
-                    )
+        if self._get_pos_session_loading_these():
+            raise UserError(
+                _(
+                    "To delete a product, make sure the point of sale sessions that sell it are closed.\n\n"
+                    "Deleting a product available in a session would be like attempting to snatch a hamburger from a customer’s hand mid-bite; chaos will ensue as ketchup and mayo go flying everywhere!",
                 )
+            )
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_special_product(self):
         self._check_is_special_product()
 
+    def _get_pos_session_loading_these(self):
+        """Open sessions whose register actually loads one of these products.
+
+        A register restricted to other categories cannot sell them, so it has no
+        say in whether they can be archived or deleted.
+        """
+        product_ctx = dict(self.env.context or {}, active_test=False)
+        in_pos = self.with_context(product_ctx).filtered("available_in_pos")
+        if not in_pos:
+            return self.env["pos.session"].browse()
+        return in_pos.pos_categ_ids._get_blocking_pos_session()
+
     def _check_unused_in_pos(self):
-        if any(self.mapped("available_in_pos")) and self.env[
-            "pos.session"
-        ].sudo().search_count([("state", "!=", "closed")], limit=1):
+        if self._get_pos_session_loading_these():
             raise UserError(
                 _(
-                    "Hold up! Archiving products while POS sessions are active is like pulling a plate mid-meal.\n"
-                    "Make sure to close all sessions first to avoid any issues.",
+                    "Hold up! Archiving a product a running register still sells is like pulling a plate mid-meal.\n"
+                    "Close the sessions that sell it first to avoid any issues.",
                 )
             )
 

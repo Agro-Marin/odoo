@@ -109,7 +109,7 @@ export class TicketScreen extends Component {
         if (nbr && !isNaN(nbr)) {
             this.state.nbrByPage = parseInt(nbr);
             this.state.page = 1;
-            if (this.state.filter === "SYNCED") {
+            if (this.isServerServedFilter) {
                 await this._fetchSyncedOrders();
             }
         }
@@ -120,7 +120,7 @@ export class TicketScreen extends Component {
         } else {
             this.state.selectedPreset = preset;
         }
-        if (this.state.filter === "SYNCED") {
+        if (this.isServerServedFilter) {
             this.state.page = 1;
             await this._fetchSyncedOrders();
         }
@@ -140,7 +140,7 @@ export class TicketScreen extends Component {
         this.pos.screenState.ticketScreen.totalCount = 0;
         this.pos.screenState.ticketScreen.syncedPageOrderIds = [];
 
-        if (this.state.filter === "SYNCED") {
+        if (this.isServerServedFilter) {
             await this._fetchSyncedOrders();
         }
     }
@@ -187,7 +187,7 @@ export class TicketScreen extends Component {
     async onSearch(search) {
         this.state.search = search;
         this.state.page = 1;
-        if (this.state.filter === "SYNCED") {
+        if (this.isServerServedFilter) {
             await this._fetchSyncedOrders();
         }
     }
@@ -218,7 +218,7 @@ export class TicketScreen extends Component {
     async onNextPage() {
         if (this.state.page < this.getNbrPages()) {
             this.state.page += 1;
-            if (this.state.filter === "SYNCED") {
+            if (this.isServerServedFilter) {
                 await this._fetchSyncedOrders();
             }
         }
@@ -226,7 +226,7 @@ export class TicketScreen extends Component {
     async onPrevPage() {
         if (this.state.page > 1) {
             this.state.page -= 1;
-            if (this.state.filter === "SYNCED") {
+            if (this.isServerServedFilter) {
                 await this._fetchSyncedOrders();
             }
         }
@@ -437,8 +437,14 @@ export class TicketScreen extends Component {
         return (
             this.getSelectedOrder()?.finalized &&
             (this.getSelectedOrder().getScreenData().name === "" ||
-                this.state.filter === "SYNCED")
+                this.isServerServedFilter)
         );
+    }
+    get isServerServedFilter() {
+        // These two filters list orders the server holds and the register does
+        // not: paging, counting and fetching all go through the backend for
+        // them, and are local for every other filter.
+        return ["SYNCED", "CANCELLED"].includes(this.state.filter);
     }
     activeOrderFilter(o) {
         const screen = ["ReceiptScreen", "TipScreen"];
@@ -478,7 +484,7 @@ export class TicketScreen extends Component {
             );
         }
 
-        const ascending = this.state.filter !== "SYNCED";
+        const ascending = !this.isServerServedFilter;
         return orders.sort((a, b) => {
             const dateA = a.date_order;
             const dateB = b.date_order;
@@ -492,7 +498,7 @@ export class TicketScreen extends Component {
     }
 
     getFilteredOrderList() {
-        if (this.state.filter === "SYNCED") {
+        if (this.isServerServedFilter) {
             return this.pos.models["pos.order"]
                 .readMany(this.pos.screenState.ticketScreen.syncedPageOrderIds || [])
                 .filter(Boolean);
@@ -504,7 +510,7 @@ export class TicketScreen extends Component {
     }
 
     get filteredOrdersCount() {
-        return this.state.filter === "SYNCED"
+        return this.isServerServedFilter
             ? this.pos.screenState.ticketScreen.totalCount
             : this._getFilteredOrders().length;
     }
@@ -524,6 +530,9 @@ export class TicketScreen extends Component {
         return order.employee_id ? order.employee_id.name : "";
     }
     getStatus(order) {
+        if (order.state === "cancel") {
+            return _t("Cancelled");
+        }
         if (
             order.finalized &&
             (order.getScreenData().name === "" || this.state.filter === "SYNCED")
@@ -717,6 +726,7 @@ export class TicketScreen extends Component {
     _getFilterOptions() {
         const orderStates = this._getOrderStates();
         orderStates.set("SYNCED", { text: _t("Paid") });
+        orderStates.set("CANCELLED", { text: _t("Cancelled") });
         return orderStates;
     }
     /**
@@ -829,6 +839,7 @@ export class TicketScreen extends Component {
     async _fetchSyncedOrders() {
         const screenState = this.pos.screenState.ticketScreen;
         const domain = this._computeSyncedOrdersDomain();
+        const states = this.state.filter === "CANCELLED" ? ["cancel"] : undefined;
         const offset = (this.state.page - 1) * this.state.nbrByPage;
         const config_id = this.pos.config.id;
         const { ordersInfo, totalCount } = await this.pos.data.call(
@@ -840,6 +851,7 @@ export class TicketScreen extends Component {
                 domain,
                 limit: this.state.nbrByPage,
                 offset,
+                states,
             },
         );
 

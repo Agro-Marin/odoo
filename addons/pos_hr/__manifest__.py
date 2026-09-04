@@ -14,6 +14,7 @@ The actual till still requires one user but an unlimited number of employees can
     ],
     "data": [
         "views/pos_config.xml",
+        "views/pos_session_view.xml",
         "views/pos_order_view.xml",
         "views/pos_payment_view.xml",
         "views/pos_order_report_view.xml",

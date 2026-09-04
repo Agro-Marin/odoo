@@ -772,9 +772,7 @@ class PosOrder(models.Model):
         vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
             if not vals.get("session_id"):
-                raise UserError(
-                    _("A point of sale order must belong to a session.")
-                )
+                raise UserError(_("A point of sale order must belong to a session."))
             session = self.env["pos.session"].browse(vals["session_id"])
             self._complete_values_from_session(session, vals)
         return super().create(vals_list)
@@ -1735,9 +1733,7 @@ class PosOrder(models.Model):
 
     @api.model
     def sync_from_ui(self, orders):
-        sync_token = randrange(
-            100_000_000
-        )
+        sync_token = randrange(100_000_000)
         _logger.info(
             "PoS synchronisation #%d started for PoS orders references: %s",
             sync_token,
@@ -2081,10 +2077,14 @@ class PosOrder(models.Model):
         return orders.ids
 
     @api.model
-    def search_paid_order_ids(self, config_id, domain, limit, offset):
+    def search_paid_order_ids(self, config_id, domain, limit, offset, states=None):
+        """`states` lets the caller ask for something other than the finished
+        orders -- the ticket screen's Cancelled filter asks for the voided ones.
+        The default is what the name says, so existing callers are unaffected.
+        """
         pos_config = self.env["pos.config"].browse(config_id)
         real_domain = Domain(domain) & (
-            Domain("state", "not in", ("draft", "cancel"))
+            Domain("state", "in", states or ("paid", "done"))
             & Domain("config_id", "in", [config_id] + pos_config.trusted_config_ids.ids)
         )
         orders = self.search(
@@ -2344,8 +2344,10 @@ class PosOrderLine(models.Model):
                     body + Markup("&rarr;") + str(new_qty)
                 )
             for order, bodies in bodies_per_order.items():
-                body = bodies[0] if len(bodies) == 1 else order._markup_list_message(
-                    bodies
+                body = (
+                    bodies[0]
+                    if len(bodies) == 1
+                    else order._markup_list_message(bodies)
                 )
                 order.message_post(body=order._prepare_pos_log(body))
             edited.is_edited = True

@@ -626,3 +626,22 @@ registry.category("web_tour.tours").add("test_refund_line_keep_attributes", {
             }),
         ].flat(),
 });
+
+registry.category("web_tour.tours").add("test_ticket_screen_cancelled_filter", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            Chrome.clickOrders(),
+            // The voided order is on the server and not in the register, so it
+            // shows up only once the filter asks the backend for it.
+            TicketScreen.selectFilter("Paid"),
+            TicketScreen.filterIs("Paid"),
+            TicketScreen.nbOrdersIs(0),
+            TicketScreen.selectFilter("Cancelled"),
+            TicketScreen.filterIs("Cancelled"),
+            TicketScreen.nbOrdersIs(1),
+            TicketScreen.contains("Cancelled"),
+            Chrome.endTour(),
+        ].flat(),
+});
