@@ -1100,7 +1100,7 @@ Inherits: `mixin.format.address`, `mixin.format.vat.label`, `mixin.avatar`, `mix
 - `user_id` (Many2one → res.users, computed, precompute, readonly=False, stored) — Salesperson
 - `vat` (Char, indexed), `company_registry` (Char)
 - `bank_ids` (One2many → res.partner.bank)
-- `category_id` (Many2many → res.partner.tag) — Tags
+- `tag_ids` (Many2many → res.partner.tag) — Tags
 - `active` (Boolean, default=True)
 - `type` (Selection) — `contact`, `invoice`, `delivery`, `other`
 - Address fields: `street`, `street2`, `zip`, `city`, `state_id`, `country_id`
