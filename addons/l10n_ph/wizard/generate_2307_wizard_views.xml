@@ -28,7 +28,6 @@
                                 string="Tax"
                                 sum="Total"
                                 optional="hide"
-                                modifiers="{'readonly':true}"
                                 widget="monetary"
                                 options="{'currency_field': 'currency_id'}" />
                             <field
@@ -45,8 +44,7 @@
                                 decoration-success="state == 'posted'"
                                 decoration-info="state == 'draft'"
                                 optional="show"
-                                on_change="1"
-                                modifiers="{'readonly':true, 'required':true}" />
+                                on_change="1" />
                         </list>
                     </field>
                 </group>

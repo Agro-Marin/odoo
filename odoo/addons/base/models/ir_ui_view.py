@@ -2381,6 +2381,7 @@ class IrUiView(models.Model):
                     editable=node_info["editable"],
                     node_info=node_info,
                 )
+                self._check_subview_schema(child, field.comodel_name)
 
         elif validate and name not in name_manager.field_info:
             msg = _(
@@ -2391,6 +2392,14 @@ class IrUiView(models.Model):
             raise self._prepare_view_error(msg, node)
 
         name_manager.add_available_field(node, name, node_info, {"id": node.get("id")})
+
+    def _check_subview_schema(self, subview: _Element, model_name: str) -> None:
+        for elem in subview.iter(etree.Element):
+            elem.attrib.pop("__validate__", None)
+        if not valid_view(subview, env=self.env, model=model_name):
+            raise self._prepare_view_error(
+                _("Invalid <%(tag)s> subview definition", tag=subview.tag), subview
+            )
 
     def _check_view_tag_filter(
         self,

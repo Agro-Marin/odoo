@@ -15,7 +15,7 @@
                         <list>
                             <field name="product_id" />
                             <field name="location_dest_id" />
-                            <field name="quantity" String="quantity" />
+                            <field name="quantity" string="quantity" />
                             <field name="lot_id" groups="stock.group_production_lot" />
                         </list>
                         <kanban>
@@ -26,7 +26,7 @@
                                         <field
                                             name="quantity"
                                             class="col-6"
-                                            String="quantity" />
+                                            string="quantity" />
                                     </div>
                                     <field name="location_dest_id" />
                                 </t>

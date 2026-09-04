@@ -262,6 +262,7 @@
             <rng:optional><rng:attribute name="decoration-success"/></rng:optional>
             <rng:optional><rng:attribute name="decoration-warning"/></rng:optional>
             <rng:optional><rng:attribute name="kanban_view_ref" /></rng:optional>
+            <rng:optional><rng:attribute name="business_domain_compute"/></rng:optional>
             <rng:optional>
                 <rng:attribute name="force_save">
                     <rng:choice>
@@ -341,6 +342,7 @@
             <rng:optional><rng:attribute name="display"/></rng:optional>
             <rng:optional><rng:attribute name="data-hotkey"/></rng:optional>
             <rng:optional><rng:attribute name="width"/></rng:optional>
+            <rng:optional><rng:attribute name="options"/></rng:optional>
             <rng:zeroOrMore>
                 <rng:choice>
                     <rng:ref name="field" />
@@ -400,6 +402,15 @@
             <rng:attribute name="string"/>
             <rng:optional><rng:attribute name="context"/></rng:optional>
             <rng:optional><rng:attribute name="name"/></rng:optional>
+            <rng:optional><rng:attribute name="invisible"/></rng:optional>
+            <rng:optional><rng:attribute name="class"/></rng:optional>
+        </rng:element>
+    </rng:define>
+
+    <rng:define name="delete">
+        <rng:element name="delete">
+            <rng:ref name="overload"/>
+            <rng:optional><rng:attribute name="invisible"/></rng:optional>
         </rng:element>
     </rng:define>
 
@@ -409,6 +420,7 @@
             <rng:oneOrMore>
                 <rng:choice>
                     <rng:ref name="create"/>
+                    <rng:ref name="delete"/>
                     <rng:ref name="button"/>
                 </rng:choice>
             </rng:oneOrMore>

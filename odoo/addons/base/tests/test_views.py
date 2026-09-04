@@ -8468,6 +8468,59 @@ class TestNestedSubviewsAreChecked(ViewCase):
             </form>"""
         )
 
+    def test_an_unknown_attribute_on_a_nested_list_is_refused(self):
+        self.assertInvalid(
+            """<form>
+                <field name="inherit_children_ids">
+                    <list bogus="1"><field name="name"/></list>
+                </field>
+            </form>""",
+            "Invalid <list> subview definition",
+        )
+
+    def test_no_open_on_a_nested_list_is_accepted(self):
+        self.assertValid(
+            """<form>
+                <field name="inherit_children_ids">
+                    <list no_open="1"><field name="name"/></list>
+                </field>
+            </form>"""
+        )
+
+    def test_a_partially_validated_extension_of_a_nested_list_is_accepted(self):
+        base = self.assertValid(
+            """<form>
+                <field name="inherit_children_ids">
+                    <list><field name="name"/></list>
+                </field>
+            </form>"""
+        )
+        self.View.with_context(ir_ui_view_partial_validation=True).create(
+            {
+                "name": "extension",
+                "model": "ir.ui.view",
+                "inherit_id": base.id,
+                "arch": """<xpath expr="//list/field[@name='name']" position="attributes">
+                    <attribute name="string">Renamed</attribute>
+                </xpath>""",
+            }
+        )
+
+    def test_control_create_with_invisible_on_a_nested_list_is_accepted(self):
+        self.assertValid(
+            """<form>
+                <field name="inherit_children_ids">
+                    <list editable="bottom">
+                        <control>
+                            <create string="Add" invisible="not id" class="x"/>
+                            <delete invisible="not id"/>
+                        </control>
+                        <field name="name"/>
+                    </list>
+                </field>
+            </form>"""
+        )
+
 
 class TestXmlIdFollowsTheFirstDeclaration(ViewCase):
     def test_the_oldest_declaration_wins_over_the_alphabetical_one(self):
