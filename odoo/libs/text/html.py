@@ -254,8 +254,23 @@ class _Cleaner(clean.Cleaner):
     sanitize_style = False
     conditional_comments = True
 
+    # lxml's HTML parser (used throughout this module) keeps "xml:base" as a
+    # literal attribute name -- it does not resolve it to the namespaced
+    # Clark-notation key an XML parser would use.
+    _XML_BASE_ATTRS = ("xml:base", "{http://www.w3.org/XML/1998/namespace}base")
+
     def __call__(self, doc: etree._Element) -> None:
         super().__call__(doc)
+
+        # xml:base changes the base URI for relative-URL resolution within
+        # its subtree -- combined with a relative src/href elsewhere in the
+        # same fragment, an attacker-controlled xml:base can redirect those
+        # references to an attacker-controlled host. Strip it unconditionally
+        # rather than only when sanitize_attributes=True's safe_attrs
+        # allowlist happens to exclude it.
+        for el in doc.iter(tag=etree.Element):
+            for attr in self._XML_BASE_ATTRS:
+                el.attrib.pop(attr, None)
 
         if not getattr(self, "safe_attrs_only", False) and self.strip_classes:
             for el in doc.iter(tag=etree.Element):
@@ -658,6 +673,13 @@ _EMPTY_TAG_RE = re.compile(
     r'<\s*\/?(?:p|div|section|span|br|b|i|font)\b(?:(\s+[A-Za-z_-][A-Za-z0-9-_]*(\s*=\s*[\'"][^"\']*[\'"]))*)(?:\s*>|\s*\/\s*>)'
 )
 
+# _EMPTY_TAG_RE only strips markup for its allowlisted tags, not the payload
+# of a tag it doesn't know -- script/style content has no visible output but
+# would otherwise count as "real" leftover text below.
+_SCRIPT_STYLE_RE = re.compile(
+    r"<(script|style)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL
+)
+
 _DOCUMENT_SHELL_RE = re.compile(r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)")
 
 _SIGNATURE_BEGIN_RE = re.compile(r"((?:(?:^|\n)[-]{2}[\s]?$))")
@@ -677,7 +699,11 @@ _BR_TAGS_RE = re.compile(r"(([<]\s*[bB][rR]\s*/?[>]\s*){2,})")
 def normalize_url(url: str) -> str:
     if urlparse(url).scheme in ("http", "https", "ftp", "ftps"):
         return url
-    if url.startswith(("/", "?", "#")):
+    # A protocol-relative URL ("//evil.com/x") also starts with "/", but
+    # browsers resolve it against the current page's scheme to an absolute
+    # cross-origin URL, not a local path — LOCAL_LINK_PATTERNS below already
+    # excludes this exact case via its own `/(?!/)` negative lookahead.
+    if url.startswith(("?", "#")) or (url.startswith("/") and not url.startswith("//")):
         return url
     return "http://" + url
 
@@ -687,7 +713,8 @@ def is_html_empty(
 ) -> bool:
     if not html_content:
         return True
-    text_content = htmllib.unescape(_EMPTY_TAG_RE.sub("", html_content))
+    without_scripts = _SCRIPT_STYLE_RE.sub("", html_content)
+    text_content = htmllib.unescape(_EMPTY_TAG_RE.sub("", without_scripts))
     return not bool(text_content.strip()) and not _ICON_RE.search(html_content)
 
 
@@ -716,7 +743,13 @@ def html_to_inner_content(source: str | markupsafe.Markup | None) -> str:
     return processed.strip()
 
 
+_LINK_SAFE_SCHEMES = frozenset({"http", "https", "ftp", "ftps", "mailto", "tel"})
+
+
 def create_link(url: str, label: str) -> Markup:
+    scheme = urlparse(url).scheme
+    if scheme and scheme.lower() not in _LINK_SAFE_SCHEMES:
+        url = "#"
     return Markup(
         '<a href="{}" target="_blank" rel="noreferrer noopener">{}</a>'
     ).format(url, label)

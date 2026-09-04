@@ -1,4 +1,4 @@
-__all__ = ["Intervals", "intervals_overlap", "invert_intervals"]
+__all__ = ["Intervals", "boundaries", "intervals_overlap", "invert_intervals"]
 
 import itertools
 from typing import TYPE_CHECKING
@@ -29,6 +29,13 @@ def _boundaries[T: SupportsOrdering](
         if start < stop:
             yield (start, opening, recs)
             yield (stop, closing, recs)
+
+
+# Public alias: `_boundaries` is already imported directly from outside
+# odoo/libs (addons/hr_attendance), so it is de-facto public API. Keep the
+# private name for internal callers unchanged and export this one instead of
+# renaming in place, which would break that external caller.
+boundaries = _boundaries
 
 
 class Intervals[T: SupportsOrdering]:

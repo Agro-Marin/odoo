@@ -24,16 +24,14 @@ def get_lightness(rgb: Sequence[int]) -> float:
     return (max(rgb) + min(rgb)) / 2 / 255
 
 
-_HEX_COLOR_RE = re.compile(
-    r"#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\Z"
-)
+_HEX_COLOR_RE = re.compile(r"#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\Z")
 
 
 def hex_to_rgb(hx: str) -> tuple[int, int, int]:
     if not _HEX_COLOR_RE.match(hx):
         raise ValueError(f"not a hexadecimal color: {hx!r}")
     digits = hx.removeprefix("#")
-    if len(digits) <= 4:
+    if len(digits) == 3:
         digits = "".join(d * 2 for d in digits)
     red, green, blue = (int(digits[i : i + 2], 16) for i in range(0, 6, 2))
     return red, green, blue

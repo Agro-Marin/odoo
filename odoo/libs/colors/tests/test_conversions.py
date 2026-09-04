@@ -20,6 +20,13 @@ class TestHexToRgb(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 hex_to_rgb(value)
 
+    def test_alpha_forms_are_rejected_not_silently_dropped(self):
+        # 4- and 8-digit hex forms carry an alpha channel this function has
+        # no way to return -- reject them instead of silently discarding it.
+        for value in ("#1234", "#11223344"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                hex_to_rgb(value)
+
 
 if __name__ == "__main__":
     unittest.main()

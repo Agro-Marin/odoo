@@ -71,7 +71,10 @@ class NplusOneTracker:
         record_count: int,
         field_fingerprint: frozenset[str],
     ) -> None:
-        frame: types.FrameType | None = sys._getframe(2)
+        try:
+            frame: types.FrameType | None = sys._getframe(2)
+        except ValueError:
+            return
         while frame is not None:
             code = frame.f_code
             if (
@@ -112,7 +115,7 @@ class NplusOneTracker:
         if not violations:
             return
 
-        lines = [f"N+1 detected ({len(violations)} call site(s)):"]
+        lines = [f"N+1 CRUD detected ({len(violations)} call site(s)):"]
         for (operation, model_name, filename, lineno), entry in violations:
             if operation in READ_OPERATIONS:
                 per_call = entry.total_records / entry.count

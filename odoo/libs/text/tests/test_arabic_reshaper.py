@@ -18,6 +18,15 @@ class TestArabicReshaper(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(reshape(""), "")
 
+    def test_distinct_ligatures_pick_their_own_form(self):
+        # LIGATURES_RE has one alternative per ligature; each match must
+        # select its own row of GROUP_INDEX_TO_LIGATURE_FORMs, not always
+        # the last one (a regression this class used to have when the
+        # regex had no capturing groups at all).
+        self.assertEqual(reshape("لا"), "ﻻ")
+        self.assertEqual(reshape("الله"), "ﷲ")
+        self.assertNotEqual(reshape("لا"), reshape("الله"))
+
 
 if __name__ == "__main__":
     unittest.main()

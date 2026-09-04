@@ -57,6 +57,11 @@ class frozendict[K, T](dict[K, T]):
         return (_rebuild_frozendict, (type(self), dict(self)))
 
     def __hash__(self) -> int:  # type: ignore[override]
+        # Cached on first use. A caller that bypasses this class's own
+        # guards (e.g. dict.__setitem__(frozendict_instance, ...)) after
+        # the hash has been cached leaves it stale -- that is an abuse of
+        # the type (every mutator this class defines raises), not a case
+        # this cache needs to defend against.
         try:
             return self._hash
         except AttributeError:

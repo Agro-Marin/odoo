@@ -11,7 +11,7 @@ from docutils.writers.html4css1 import Writer
 __all__ = [
     "SAFE_SETTINGS",
     "DropSystemMessages",
-    "HtmlFragmentWriter",
+    "HtmlDocumentWriter",
     "render_html",
 ]
 
@@ -31,16 +31,26 @@ class DropSystemMessages(Transform):
             node.parent.remove(node)
 
 
-class HtmlFragmentWriter(Writer):
+class HtmlDocumentWriter(Writer):
+    """Renders a complete standalone HTML document (doctype/html/head/body),
+    not a fragment -- ``get_transforms`` only changes writer-contributed
+    post-processing, it cannot turn ``publish_string``'s output into a
+    fragment. Callers wanting a bare fragment need ``publish_parts(...)
+    ["fragment"]`` instead.
+    """
+
     def get_transforms(self) -> list[type[Transform]]:
         return [DropSystemMessages, writer_aux.Admonitions]
 
 
 def render_html(source: str) -> tuple[str, str]:
+    """Render ``source`` as a complete standalone HTML document (not a
+    fragment) plus any warnings docutils produced.
+    """
     warnings = io.StringIO()
     html = publish_string(
         source=source,
-        writer=HtmlFragmentWriter(),
+        writer=HtmlDocumentWriter(),
         settings_overrides={
             **SAFE_SETTINGS,
             "embed_stylesheet": False,

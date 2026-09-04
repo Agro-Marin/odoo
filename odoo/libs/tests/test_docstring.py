@@ -254,6 +254,26 @@ class TestInfoFields:
             docstring.parse_signature(f)
         assert "cannot parse" in caplog.text
 
+    def test_an_empty_type_field_is_reported_not_raised(self, caplog):
+        def f(a):
+            pass
+
+        f.__doc__ = """:type a:"""
+
+        with caplog.at_level(logging.WARNING, logger=docstring.__name__):
+            docstring.parse_signature(f)
+        assert "empty :type: field" in caplog.text
+
+    def test_an_empty_rtype_field_is_reported_not_raised(self, caplog):
+        def f():
+            pass
+
+        f.__doc__ = """:rtype:"""
+
+        with caplog.at_level(logging.WARNING, logger=docstring.__name__):
+            docstring.parse_signature(f)
+        assert "empty :rtype: field" in caplog.text
+
 
 class TestNormalizeReturn:
     def test_the_hook_rewrites_the_return_annotation(self):

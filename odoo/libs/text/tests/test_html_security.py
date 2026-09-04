@@ -8,6 +8,7 @@ from odoo.libs.text.html import (
     html_keep_url,
     html_normalize,
     html_sanitize,
+    normalize_url,
     plaintext2html,
 )
 
@@ -73,6 +74,40 @@ class TestCreateLink(unittest.TestCase):
         self.assertIn('href="http://e.com/x"', out)
         self.assertIn(">safe<", out)
 
+    def test_javascript_scheme_is_rejected(self):
+        out = create_link("javascript:alert(1)", "lbl")
+        self.assertNotIn("javascript:", out)
+        self.assertIn('href="#"', out)
+
+    def test_data_scheme_is_rejected(self):
+        out = create_link("data:text/html,<script>alert(1)</script>", "lbl")
+        self.assertNotIn("data:", out)
+        self.assertIn('href="#"', out)
+
+    def test_mailto_and_tel_are_allowed(self):
+        self.assertIn('href="mailto:a@b.com"', create_link("mailto:a@b.com", "x"))
+        self.assertIn('href="tel:+123"', create_link("tel:+123", "x"))
+
+    def test_scheme_less_relative_url_is_kept(self):
+        out = create_link("/some/path", "lbl")
+        self.assertIn('href="/some/path"', out)
+
+
+class TestNormalizeUrl(unittest.TestCase):
+    def test_protocol_relative_url_is_not_treated_as_local(self):
+        out = normalize_url("//evil.com/x")
+        self.assertNotEqual(out, "//evil.com/x")
+
+    def test_single_slash_local_path_stays_local(self):
+        self.assertEqual(normalize_url("/some/path"), "/some/path")
+
+    def test_query_and_fragment_stay_as_is(self):
+        self.assertEqual(normalize_url("?a=1"), "?a=1")
+        self.assertEqual(normalize_url("#frag"), "#frag")
+
+    def test_bare_host_gets_http_prefix(self):
+        self.assertEqual(normalize_url("example.com"), "http://example.com")
+
 
 class TestHtmlKeepUrl(unittest.TestCase):
     def test_no_double_escaping(self):
@@ -117,10 +152,6 @@ class TestHtml2Plaintext(unittest.TestCase):
         self.assertEqual(out.strip(), "")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestSanitizeRemovesActiveContent(unittest.TestCase):
     def test_script_element_is_removed(self):
         out = sanitize("<p>keep</p><script>alert(1)</script>")
@@ -136,7 +167,19 @@ class TestSanitizeRemovesActiveContent(unittest.TestCase):
         out = sanitize('<a href="javascript:alert(1)">x</a>')
         self.assertNotIn("javascript:", out)
 
+    def test_xml_base_is_stripped_regardless_of_sanitize_attributes(self):
+        src = '<div xml:base="javascript:alert(1)"><p>keep</p></div>'
+        for sanitize_attributes in (False, True):
+            with self.subTest(sanitize_attributes=sanitize_attributes):
+                out = html_sanitize(src, sanitize_attributes=sanitize_attributes)
+                self.assertNotIn("xml:base", out)
+                self.assertIn("keep", out)
+
     def test_ordinary_markup_survives(self):
         out = sanitize("<p><b>bold</b> and <i>italic</i></p>")
         self.assertIn("<b>bold</b>", out)
         self.assertIn("<i>italic</i>", out)
+
+
+if __name__ == "__main__":
+    unittest.main()
