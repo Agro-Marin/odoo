@@ -70,7 +70,7 @@ class test_inherits(common.TransactionCase):
     def test_60_inherit_with_python(self):
         self.assertEqual(self.env["test.inherit.mother"].foo(), 42)
         self.assertEqual(self.env[TestInheritMother._name].foo(), 42)
-        self.assertEqual(self.env["test.inherit.mother"].browse(1).surname, "Mother A")
+        self.assertEqual(self.env.ref("test_inherit.mother_a").surname, "Mother A")
 
 
 class test_inherits_demo(TransactionCaseWithUserDemo):
