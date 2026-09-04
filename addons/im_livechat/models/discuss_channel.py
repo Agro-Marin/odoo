@@ -798,6 +798,7 @@ class DiscussChannel(models.Model):
                 searchable_by_name=True,
                 describes_as_channel=False,
                 sub_channel_invites_mentioned=False,
+                notify_opted_in_only=False,
             ),
         }
 

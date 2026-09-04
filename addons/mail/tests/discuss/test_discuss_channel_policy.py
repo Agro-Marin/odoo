@@ -56,6 +56,15 @@ class TestDiscussChannelTypePolicy(MailCommon):
                 channel = self._channel_of_type(channel_type)
                 self.assertEqual(channel._narrates_membership_changes(), narrates)
 
+    def test_notify_opted_in_only_is_channel_only(self):
+        # Only 'channel' notifies members who opted in or were mentioned; every
+        # other type (chat, group, and any module's own type) notifies all. This
+        # replaces the `channel_type != "channel"` literal in the notification
+        # member domain, so a new type must decide the attribute rather than
+        # silently inherit the notify-all side.
+        opt_in = self.Channel._types_with("notify_opted_in_only")
+        self.assertEqual(opt_in, ["channel"])
+
     def test_auto_inviting_to_call_is_every_type_but_channel(self):
         expected = {"chat": True, "channel": False, "group": True}
         for channel_type, invites in expected.items():

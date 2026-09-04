@@ -76,6 +76,7 @@ class ChannelTypePolicy:
     searchable_by_name: bool
     describes_as_channel: bool
     sub_channel_invites_mentioned: bool
+    notify_opted_in_only: bool
 
 
 def supports_group_authorization(channel: DiscussChannel) -> bool:
@@ -813,6 +814,7 @@ class DiscussChannel(models.Model):
         self, pids: list[int], author_id: int | Literal[False]
     ) -> Domain:
         self.check_singleton()
+        opt_in_types = self._types_with("notify_opted_in_only")
         settings = "partner_id.user_ids.res_users_settings_ids.channel_notifications"
         opted_in = Domain("custom_notifications", "=", "all") | (
             Domain("custom_notifications", "=", False) & Domain(settings, "=", "all")
@@ -834,9 +836,9 @@ class DiscussChannel(models.Model):
             )
             & Domain("partner_id.user_ids.manual_im_status", "!=", "busy")
             & (
-                Domain("channel_id.channel_type", "!=", "channel")
+                Domain("channel_id.channel_type", "not in", opt_in_types)
                 | (
-                    Domain("channel_id.channel_type", "=", "channel")
+                    Domain("channel_id.channel_type", "in", opt_in_types)
                     & (opted_in | mentioned)
                 )
             )
@@ -2299,6 +2301,7 @@ class DiscussChannel(models.Model):
                 searchable_by_name=False,
                 describes_as_channel=False,
                 sub_channel_invites_mentioned=False,
+                notify_opted_in_only=False,
             ),
             "channel": ChannelTypePolicy(
                 supports_group_authorization=True,
@@ -2318,6 +2321,7 @@ class DiscussChannel(models.Model):
                 searchable_by_name=True,
                 describes_as_channel=True,
                 sub_channel_invites_mentioned=True,
+                notify_opted_in_only=True,
             ),
             "group": ChannelTypePolicy(
                 supports_group_authorization=False,
@@ -2337,6 +2341,7 @@ class DiscussChannel(models.Model):
                 searchable_by_name=True,
                 describes_as_channel=False,
                 sub_channel_invites_mentioned=False,
+                notify_opted_in_only=False,
             ),
         }
 
