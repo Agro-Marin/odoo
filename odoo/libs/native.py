@@ -65,7 +65,7 @@ def assert_optimised(module: object) -> None:
     if os.environ.get(ALLOW_DEBUG_ENV):
         return
     profile = getattr(module, "__profile__", None)
-    if profile is None or profile == "release":
+    if profile == "release":
         return
 
     name = getattr(module, "__name__", str(module))
