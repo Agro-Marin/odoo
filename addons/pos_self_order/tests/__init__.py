@@ -6,6 +6,7 @@ from . import test_self_order_attribute
 from . import test_self_order_combo
 from . import test_self_order_common
 from . import test_webmanifest
+from . import test_kiosk_settings
 from . import test_self_order_sequence
 from . import test_self_order_preset
 from . import test_self_order_controller

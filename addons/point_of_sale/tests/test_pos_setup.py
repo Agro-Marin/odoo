@@ -6,7 +6,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSSetup(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
 
@@ -123,3 +122,17 @@ class TestPoSSetup(TestPoSCommon):
         )
         with self.assertRaises(ValidationError):
             journal.action_archive()
+
+    def test_the_configuration_menu_no_longer_duplicates_the_dashboard(self):
+        self.assertFalse(
+            self.env.ref(
+                "point_of_sale.menu_point_of_sale_list", raise_if_not_found=False
+            ),
+            "the Configuration menu must not repeat what the Dashboard already shows",
+        )
+        dashboard = self.env.ref("point_of_sale.menu_pos_dashboard")
+        self.assertIn(
+            "list",
+            dashboard.action.view_mode.split(","),
+            "removing the menu is only safe while the Dashboard can switch to the list",
+        )

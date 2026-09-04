@@ -136,6 +136,22 @@ class PosPreset(models.Model):
 
         return usage
 
+    def copy_data(self, default=None):
+        default = dict(default or {})
+        vals_list = super().copy_data(default=default)
+        if "name" not in default:
+            for preset, vals in zip(self, vals_list, strict=True):
+                vals["name"] = _("%s (copy)", preset.name)
+        return vals_list
+
+    def copy_translations(self, new, excluded=()):
+        super().copy_translations(new, excluded=(*excluded, "name"))
+        self._copy_translations_of_renamed_field(
+            new,
+            "name",
+            lambda record, term: record.env._("%s (copy)", term),
+        )
+
     def action_view_linked_orders(self):
         self.check_singleton()
         return {

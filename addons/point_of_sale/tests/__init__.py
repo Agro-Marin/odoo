@@ -9,6 +9,7 @@ from . import test_continental
 from . import test_point_of_sale
 from . import test_pos_controller
 from . import test_pos_invoice_consolidation
+from . import test_pos_duplicate
 from . import test_pos_cash_rounding
 from . import test_pos_setup
 from . import test_pos_access_rights

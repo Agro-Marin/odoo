@@ -1,4 +1,4 @@
-from odoo import _, fields, models
+from odoo import _, api, fields, models, modules, tools
 from odoo.exceptions import UserError
 
 
@@ -16,6 +16,10 @@ class PosMakeInvoice(models.TransientModel):
     def _compute_order_count(self):
         for wizard in self:
             wizard.order_count = len(self.env.context.get("active_ids", []))
+
+    @api.model
+    def _can_commit(self):
+        return not (tools.config["test_enable"] or modules.module.current_test)
 
     def action_create_invoices(self):
         self.check_singleton()
@@ -55,6 +59,11 @@ class PosMakeInvoice(models.TransientModel):
         if not self.consolidated_billing or len(selected_orders) == 1:
             for order in selected_orders:
                 invoices |= order._generate_pos_order_invoice()
+                # Issuing an invoice sends it, and the EDI services it reaches
+                # commit on their own. Keep each invoice, so a failure further
+                # down the selection cannot roll back what is already filed.
+                if self._can_commit():
+                    self.env.cr.commit()
         else:
             configs = selected_orders.config_id
             partners = selected_orders.partner_id
@@ -96,6 +105,8 @@ class PosMakeInvoice(models.TransientModel):
 
             for _key, orders in grouped_orders:
                 invoices |= orders._generate_pos_order_invoice()
+                if self._can_commit():
+                    self.env.cr.commit()
 
         if invoices:
             return selected_orders.action_view_invoice()

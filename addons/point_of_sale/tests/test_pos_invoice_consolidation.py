@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo import Command
 from odoo.tests.common import tagged
 
@@ -125,4 +127,47 @@ class TestPosInvoiceConsolidation(TestPoSCommon, CommonPosTest):
         self.assertEqual(len(invoice_user2), 1, "User 2 should have one invoice")
         self.assertEqual(
             sum(orders_user2.mapped("amount_total")), invoice_user2.amount_total
+        )
+
+    def test_invoice_generation_commits_between_orders(self):
+        self.open_new_session()
+
+        orders = self._create_orders(
+            [
+                {
+                    "pos_order_lines_ui_args": [(self.product1, 1)],
+                    "customer": self.customer,
+                    "is_invoiced": False,
+                    "uuid": "commit-order-1",
+                },
+                {
+                    "pos_order_lines_ui_args": [(self.product2, 1)],
+                    "customer": self.customer,
+                    "is_invoiced": False,
+                    "uuid": "commit-order-2",
+                },
+            ]
+        )
+        orders = sum(orders.values(), self.env["pos.order"])
+
+        wizard = (
+            self.env["pos.make.invoice"]
+            .create({"consolidated_billing": False})
+            .with_context(active_ids=orders.ids)
+        )
+        # The test framework installs its own `commit` on the cursor instance,
+        # which raises; patching over it is both what makes the call safe here
+        # and the only way to observe it at all.
+        with (
+            patch.object(type(wizard), "_can_commit", return_value=True),
+            patch.object(self.env.cr, "commit") as commit,
+        ):
+            wizard.action_create_invoices()
+
+        self.assertEqual(len(orders.account_move), 2)
+        self.assertEqual(
+            commit.call_count,
+            2,
+            "each invoice must be committed on its own, so a failure on a later "
+            "order cannot roll back the ones already sent",
         )
