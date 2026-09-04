@@ -492,7 +492,7 @@ class BaseCase(TestCase):
             self.env.invalidate_all()
         finally:
             popped_request = odoo.http._request_stack.pop()
-            if popped_request is not request:
+            if popped_request is not request and sys.exc_info()[0] is None:
                 raise Exception("Wrong request stack cleanup.")
 
     @contextmanager
