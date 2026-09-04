@@ -13,6 +13,19 @@ class OptionSource(Protocol):
 
 
 class SettingsSlot[T]:
+    """A process-global settings holder with a swappable install/override.
+
+    ``installed``/``override`` mutate ``_installed`` via a plain try/finally,
+    with no lock or contextvar: nested/sequential use on one thread restores
+    correctly, but two threads calling ``override`` concurrently on the same
+    slot would race (one thread's restore in ``finally`` can clobber the
+    other's still-active override). This is a single-threaded/test-only
+    contract today -- every real production call site uses the one-shot
+    ``provide`` setter instead; every ``installed``/``override`` caller found
+    is test code, sequential or nested, never concurrent. Back ``_installed``
+    with a ``contextvars.ContextVar`` first if concurrent use is ever needed.
+    """
+
     __slots__ = ("_installed", "_name", "_source")
 
     def __init__(self, name: str, source: Callable[[], T] | None = None) -> None:
