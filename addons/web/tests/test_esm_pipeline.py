@@ -2260,6 +2260,11 @@ class TestSecondaryBundleServesEveryPage(TransactionCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(ir_qweb_assets, "request", req))
             if readonly:
+                # Rolled back like one HttpCase request, which releases the
+                # advisory lock a readonly render takes on the test cursor.
+                stack.enter_context(
+                    contextlib.closing(self.env.cr.savepoint(flush=False))
+                )
                 stack.enter_context(patch.object(self.env.cr, "_readonly", True))
             _pre, post = IrQweb._get_native_module_nodes(self.BUNDLE)
         return self._artifact(post)
@@ -2307,9 +2312,10 @@ class TestSecondaryBundleServesEveryPage(TransactionCase):
             with_test_satellites=self.satellites,
             page_scope=(),
         )
-        first_url, _ = self._render_on_page(self.FRONTEND, readonly=True)
-        self._render_on_page(self.BACKEND, readonly=False)
-        again_url, _ = self._render_on_page(self.FRONTEND, readonly=True)
+        with self.assertNoLogs(f"{ASSET_ROOT}.fallback", level=logging.INFO):
+            first_url, _ = self._render_on_page(self.FRONTEND, readonly=True)
+            self._render_on_page(self.BACKEND, readonly=False)
+            again_url, _ = self._render_on_page(self.FRONTEND, readonly=True)
         self.assertEqual(first_url, again_url)
 
 
