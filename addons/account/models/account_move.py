@@ -35,8 +35,6 @@ _logger = logging.getLogger(__name__)
 
 MAX_HASH_VERSION = 4
 
-# Shared with decimal_precision.py's get_precision() override, which reads
-# this same cursor-cache key written by _disable_recursion() below.
 DISABLE_RECURSION_STACK_CACHE_KEY = "account_disable_recursion_stack"
 
 PAYMENT_STATE_SELECTION = [
@@ -197,9 +195,6 @@ _SQL_PAYMENT_RECONCILIATION = """
 """
 
 
-# The debit and credit sides are two UNION ALL branches rather than one join on an OR,
-# so each side is an equality the planner can index -- the same shape as
-# _SQL_RECONCILED_PARTIALS and _SQL_PAYMENT_RECONCILIATION below.
 _SQL_PAYMENTS_PER_INVOICE = """
 SELECT invoice_id,
        ARRAY_AGG(DISTINCT payment_id) AS payment_ids
@@ -328,7 +323,9 @@ class AccountMove(models.Model):
         tracking=True,
         index="trigram",
     )
-    name_placeholder = fields.Char(compute="_compute_name_placeholder")
+    name_placeholder = fields.Char(
+        compute="_compute_name_placeholder",
+    )
     ref = fields.Char(
         string="Reference",
         copy=False,
@@ -419,11 +416,6 @@ class AccountMove(models.Model):
         string="Related reconciliation",
     )
 
-    # The edge is stored once, on `account.payment.move_id`. This is the head of
-    # `payment_ids`, kept under its own name because ~50 readers and fifteen
-    # localisations spell it, and because "the payment this entry was generated
-    # by" is what they mean -- `payment_ids` is the ORM's spelling of the
-    # inverse, not the concept.
     origin_payment_id = fields.Many2one(
         comodel_name="account.payment",
         string="Payment",
@@ -446,7 +438,10 @@ class AccountMove(models.Model):
         search="_search_reconciled_payment_ids",
         help="Payments that have been reconciled with this invoice.",
     )
-    payment_count = fields.Count("reconciled_payment_ids", compute_sudo=True)
+    payment_count = fields.Count(
+        "reconciled_payment_ids",
+        compute_sudo=True,
+    )
 
     statement_line_id = fields.Many2one(
         comodel_name="account.bank.statement.line",
@@ -503,7 +498,9 @@ class AccountMove(models.Model):
     )
 
     always_tax_exigible = fields.Boolean(
-        compute="_compute_always_tax_exigible", store=True, readonly=False
+        compute="_compute_always_tax_exigible",
+        store=True,
+        readonly=False,
     )
 
     auto_post = fields.Selection(
@@ -536,7 +533,8 @@ class AccountMove(models.Model):
         index="btree_not_null",
     )
     hide_post_button = fields.Boolean(
-        compute="_compute_hide_post_button", readonly=True
+        compute="_compute_hide_post_button",
+        readonly=True,
     )
     checked = fields.Boolean(
         string="Reviewed",
@@ -570,7 +568,8 @@ class AccountMove(models.Model):
         related="company_id.account_fiscal_country_group_codes"
     )
     company_price_include = fields.Selection(
-        related="company_id.account_price_include", readonly=True
+        related="company_id.account_price_include",
+        readonly=True,
     )
     attachment_ids = fields.One2many(
         "ir.attachment",
@@ -599,10 +598,16 @@ class AccountMove(models.Model):
         related="journal_id.restrict_mode_hash_table"
     )
     secure_sequence_number = fields.Integer(
-        string="Inalterability No Gap Sequence #", readonly=True, copy=False, index=True
+        string="Inalterability No Gap Sequence #",
+        readonly=True,
+        copy=False,
+        index=True,
     )
     inalterable_hash = fields.Char(
-        string="Inalterability Hash", readonly=True, copy=False, index="btree_not_null"
+        string="Inalterability Hash",
+        readonly=True,
+        copy=False,
+        index="btree_not_null",
     )
     secured = fields.Boolean(
         compute="_compute_secured",
@@ -646,7 +651,9 @@ class AccountMove(models.Model):
         precompute=True,
         readonly=False,
     )
-    show_delivery_date = fields.Boolean(compute="_compute_show_delivery_date")
+    show_delivery_date = fields.Boolean(
+        compute="_compute_show_delivery_date",
+    )
     taxable_supply_date = fields.Date(
         string="Taxable Supply Date",
         copy=False,
@@ -732,13 +739,13 @@ class AccountMove(models.Model):
         compute="_compute_partner_bank_id",
         store=True,
         readonly=False,
-        help="Bank Account Number to which the invoice will be paid. "
-        "A Company bank account if this is a Customer Invoice or Vendor Credit Note, "
-        "otherwise a Partner bank account number.",
         check_company=True,
         tracking=True,
         index="btree_not_null",
         ondelete="restrict",
+        help="Bank Account Number to which the invoice will be paid. "
+        "A Company bank account if this is a Customer Invoice or Vendor Credit Note, "
+        "otherwise a Partner bank account number.",
     )
     fiscal_position_id = fields.Many2one(
         "account.fiscal.position",
@@ -757,12 +764,12 @@ class AccountMove(models.Model):
         string="Payment Reference",
         index="trigram",
         copy=False,
-        help="The payment reference to set on journal items.",
         tracking=True,
         compute="_compute_payment_reference",
         inverse="_inverse_payment_reference",
         store=True,
         readonly=False,
+        help="The payment reference to set on journal items.",
     )
     display_qr_code = fields.Boolean(
         string="Display QR-code",
@@ -969,7 +976,8 @@ class AccountMove(models.Model):
         "Odoo will automatically create one invoice line with default values to match it.",
     )
     quick_encoding_vals = fields.Json(
-        compute="_compute_quick_encoding_vals", exportable=False
+        compute="_compute_quick_encoding_vals",
+        exportable=False,
     )
 
     narration = fields.Html(
@@ -984,7 +992,8 @@ class AccountMove(models.Model):
         help="It indicates that the invoice/payment has been sent or the PDF has been generated.",
     )
     is_being_sent = fields.Boolean(
-        help="Is the move being sent asynchronously", compute="_compute_is_being_sent"
+        compute="_compute_is_being_sent",
+        help="Is the move being sent asynchronously",
     )
 
     move_sent_values = fields.Selection(
@@ -1005,7 +1014,10 @@ class AccountMove(models.Model):
         store=True,
         readonly=False,
     )
-    user_id = fields.Many2one(string="User", related="invoice_user_id")
+    user_id = fields.Many2one(
+        string="User",
+        related="invoice_user_id",
+    )
     invoice_origin = fields.Char(
         string="Origin",
         readonly=True,
@@ -1059,7 +1071,9 @@ class AccountMove(models.Model):
         compute="_compute_bank_partner_id",
         help="Technical field to get the domain on the bank",
     )
-    tax_lock_date_message = fields.Char(compute="_compute_tax_lock_date_message")
+    tax_lock_date_message = fields.Char(
+        compute="_compute_tax_lock_date_message",
+    )
     display_inactive_currency_warning = fields.Boolean(
         compute="_compute_display_inactive_currency_warning"
     )
@@ -1067,8 +1081,12 @@ class AccountMove(models.Model):
         comodel_name="res.country",
         compute="_compute_tax_country_id",
     )
-    tax_country_code = fields.Char(compute="_compute_tax_country_code")
-    has_reconciled_entries = fields.Boolean(compute="_compute_has_reconciled_entries")
+    tax_country_code = fields.Char(
+        compute="_compute_tax_country_code",
+    )
+    has_reconciled_entries = fields.Boolean(
+        compute="_compute_has_reconciled_entries",
+    )
     show_reset_to_draft_button = fields.Boolean(
         compute="_compute_show_reset_to_draft_button"
     )
@@ -1077,16 +1095,21 @@ class AccountMove(models.Model):
         groups="account.group_account_invoice,account.group_account_readonly",
     )
     duplicated_ref_ids = fields.Many2many(
-        comodel_name="account.move", compute="_compute_duplicated_ref_ids"
+        comodel_name="account.move",
+        compute="_compute_duplicated_ref_ids",
     )
     is_draft_duplicated_ref_ids = fields.Boolean(compute="_compute_duplicates")
     is_exact_move_duplicate = fields.Boolean(compute="_compute_duplicates")
     need_cancel_request = fields.Boolean(compute="_compute_need_cancel_request")
 
-    show_update_fpos = fields.Boolean(string="Has Fiscal Position Changed", store=False)
+    show_update_fpos = fields.Boolean(
+        string="Has Fiscal Position Changed",
+        store=False,
+    )
 
     payment_term_details = fields.Binary(
-        compute="_compute_payment_term_details", exportable=False
+        compute="_compute_payment_term_details",
+        exportable=False,
     )
     show_payment_term_details = fields.Boolean(compute="_compute_show_details")
     show_discount_details = fields.Boolean(compute="_compute_show_details")
@@ -1096,7 +1119,8 @@ class AccountMove(models.Model):
     alerts = fields.Json(compute="_compute_alerts")
 
     taxes_legal_notes = fields.Html(
-        string="Taxes Legal Notes", compute="_compute_taxes_legal_notes"
+        string="Taxes Legal Notes",
+        compute="_compute_taxes_legal_notes",
     )
 
     next_payment_date = fields.Date(
@@ -1116,9 +1140,6 @@ class AccountMove(models.Model):
         "Another entry with the same name already exists.",
     )
     _journal_id_company_id_idx = models.Index("(journal_id, company_id, date)")
-    # Columns and order follow the only query that reads the flag -- the journal
-    # dashboard's hole count in account_journal_dashboard.py -- so that it can be served
-    # index-only. It filters journal_id/company_id/date and groups by sequence_prefix.
     _made_gaps = models.Index(
         "(journal_id, company_id, date, sequence_prefix) WHERE (made_sequence_gap IS TRUE)"
     )
@@ -2374,25 +2395,6 @@ class AccountMove(models.Model):
         return base_lines, tax_lines
 
     @api.depends_context("lang")
-    # This list is knowingly narrower than what the body reads: once the move is
-    # stored, _get_rounded_base_and_tax_lines walks self.line_ids for the epd,
-    # rounding, non-deductible and tax lines that invoice_line_ids' domain excludes,
-    # and reads invoice_currency_rate. Widening it to line_ids.* was tried and
-    # reverted, 2026-08-31 -- it is a behaviour change, not a tightening.
-    #
-    # Three tests fail with it, each confirmed by running that test ALONE in its own
-    # process, with and without the wider list -- a whole-suite failure count decides
-    # nothing on /account (CLAUDE.md, the _update_xmlids ormcache defect):
-    #
-    #   quick_edit_total_amount               1 of 1 failed  vs  0 of 1
-    #   mixed_epd_with_draft_invoice   |      2 of 2 failed  vs  0 of 2
-    #   mixed_epd_with_tax_included    |
-    #
-    # The first fails 99.99 != 100: the extra triggers recompute tax_totals at a
-    # different point and the price_unit _get_quick_edit_suggestions derives from it
-    # moves by a cent. The 11 pre-existing ACL errors in that EPD class are unmoved
-    # by the change and are a separate population. Closing the gap needs that
-    # rounding made order-independent first.
     @api.depends(
         "invoice_line_ids.currency_rate",
         "invoice_line_ids.tax_base_amount",
@@ -2544,12 +2546,6 @@ class AccountMove(models.Model):
 
     def _update_tax_country_id(self):
         self.fetch(["fiscal_position_id", "company_id"])
-        # Deriving a field is not a person editing the move. Reached from
-        # `_check_taxes_country`, where `tax_country_id` is unprotected, so
-        # these assignments are real writes and `write` would otherwise record
-        # them as manual modifications -- which suppresses vendor autoposting
-        # for every imported bill. From `_compute_tax_country_id` the field IS
-        # protected, no write happens, and the context costs nothing.
         records = self.with_context(skip_is_manually_modified=True)
         foreign_vat_records = records.filtered(
             lambda r: r.fiscal_position_id.foreign_vat
@@ -2626,10 +2622,6 @@ class AccountMove(models.Model):
                 )
             else:
                 baseurl = move.company_id.get_base_url() + "/terms"
-                # `_()` picks its language by frame introspection: tools/translate.py
-                # ::_get_frame_context_lang reads a caller local named exactly `context`.
-                # Renaming or inlining this dict silently falls back to env.lang, which is
-                # the acting user's, not the customer's.
                 context = {"lang": lang}
                 narration = _("Terms & Conditions: %s", baseurl)
                 del context
@@ -2955,11 +2947,6 @@ class AccountMove(models.Model):
         return not self.env.context.get("disable_abnormal_invoice_detection")
 
     def _is_abnormal_confirmation_requested(self):
-        # Deliberately a different default from _is_abnormal_detection_enabled: the
-        # warnings are computed for everyone because the form shows them, but posting
-        # only stops for a confirmation wizard when a caller that can answer one opts
-        # in -- the Post buttons in account_move_views.xml. A cron or an RPC call must
-        # never be handed an ir.actions.act_window in place of a posted move.
         return not self.env.context.get("disable_abnormal_invoice_detection", True)
 
     def _get_abnormal_invoice_stats(self, draft_invoices, today):
@@ -3403,12 +3390,6 @@ class AccountMove(models.Model):
     def _inverse_partner_id(self):
         for invoice in self:
             if invoice.is_invoice(True):
-                # Both relations, deliberately. invoice_line_ids is a subset of line_ids
-                # only once the record is stored; on the NewId this onchange actually runs
-                # against, line_ids can be empty while invoice_line_ids holds the lines the
-                # user is editing. Narrowing this to line_ids alone stops partner
-                # propagation in the form. The duplicate visits it causes on a stored
-                # record are free -- the guard below is false the second time.
                 for line in invoice.line_ids | invoice.invoice_line_ids:
                     if line.partner_id != invoice.commercial_partner_id:
                         line.partner_id = invoice.commercial_partner_id
@@ -3829,18 +3810,12 @@ class AccountMove(models.Model):
         AccountTax._add_tax_details_in_base_lines(base_lines, company)
         AccountTax._round_base_lines_tax_details(base_lines, company)
         for base_line in base_lines:
-            # _prepare_discountable_base_lines may split a base line in two; the copy
-            # carries this key, which is how a distributed amount finds its way back
-            # to the invoice line that has to hold it.
             base_line["_invoice_line"] = base_line["record"]
         return AccountTax._prepare_discountable_base_lines(base_lines, company)
 
     def _spread_epd_over_base_lines(
         self, result_per_invoice_line, base_lines, key_line, key_counterpart, deltas
     ):
-        # The discount is one amount per grouping key, but it has to land on the
-        # invoice lines that produced it, in proportion and without losing a cent --
-        # hence the smooth distribution rather than a per-line percentage.
         target_factors = [
             {
                 "factor": base_line["tax_details"]["raw_total_excluded_currency"],
@@ -3863,10 +3838,6 @@ class AccountMove(models.Model):
 
     @api.constrains("journal_id")
     def _check_journal_is_selectable(self):
-        # A field `domain=` is a UI filter and nothing more: measured on this fork,
-        # a write and a create both go through with a journal the domain excludes,
-        # and a record rule on account.journal does not stop them either. So every
-        # clause _get_domain_selectable() contributes is enforced here, or nowhere.
         selectable_domain = self.env["account.journal"]._get_domain_selectable()
         if not selectable_domain:
             return
@@ -3943,8 +3914,6 @@ class AccountMove(models.Model):
 
     def _get_early_payment_discount_details(self):
         self.check_singleton()
-        # what the customer must pay is what reconciliation will settle, so read
-        # the posted line rather than pricing the discount a second time
         line = self.line_ids.filtered(lambda line: line.display_type == "payment_term")[
             :1
         ]
@@ -4901,9 +4870,6 @@ class AccountMove(models.Model):
             return {key: [] for key in res}
 
         res_per_invoice = {}
-        # The exchange line's company, currency and partner come from one of the amls
-        # being reconciled; they share a company, so any of them answers. The last is
-        # kept because that is what the leaked loop variable this replaced resolved to.
         reference_aml = aml_values_list[-1]["aml"]
         for aml_values in aml_values_list:
             aml = aml_values["aml"]
@@ -5279,20 +5245,6 @@ class AccountMove(models.Model):
             raise AccessError(_("You don't have the access rights to post an invoice."))
 
     def _post_check_business_rules(self):
-        # The seam for rules that decide whether someone may post this document --
-        # approval, credit limits, localisation constraints. Called from every entry
-        # point that posts because a person or a schedule asked for it, and from none
-        # of the ones that post a move the system generated:
-        #
-        #   _post_needing_confirmation   the Post/Confirm buttons and the list action
-        #   validate.account.move        the confirmation wizard
-        #   _autopost_draft_entries      the cron
-        #
-        # Deliberately NOT called from _post. _post is also the engine for
-        # cancellation reversals, POS invoices, cash-basis and exchange-difference
-        # entries and landed costs; gating those broke them, measurably -- a customer
-        # in legal process could no longer have an invoice cancelled, because the
-        # reversal is posted through _post and the credit rule refused it.
         return
 
     def _check_post_partner_bank(self, invoice, validation_msgs):
@@ -5431,9 +5383,6 @@ class AccountMove(models.Model):
                 lambda line: line.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
             ):
                 validation_msgs.add(_("Even magicians can't post nothing!"))
-            # Only when the move is being posted now: a move on its way to being
-            # scheduled is validated too, and refusing it for being scheduled would
-            # make deferral impossible.
             if (
                 posting_now
                 and move.auto_post != "no"
@@ -5518,21 +5467,9 @@ class AccountMove(models.Model):
         )
 
     def _post_prepare_reconciliation(self):
-        # Returns the exchange-difference and cash-basis moves that reconciliation
-        # already created for these lines and that must reach 'posted' alongside
-        # them. They are NOT members of the posted set: they were never asked for,
-        # they skipped validation, and folding them in made _post return records
-        # its caller never passed and double-counted their partners' ranks.
-        # Ids rather than a recordset: `|=` in this triple loop rebuilds the whole
-        # recordset on every partial, which is quadratic in a move's reconciliations.
         side_move_ids = set()
         partial_ids_to_unlink = set()
-        # Grows as side moves are collected, because a cash-basis move is not always
-        # posted on creation (`post_after_create`): a later partial in this same loop
-        # can have a still-draft one as its counterpart, and must recognise it.
         reachable_ids = set(self.ids)
-        # One snapshot of each move's cash-basis values for the whole sweep: the
-        # loop below revisits the same moves once per partial per line.
         collected_per_move = {}
 
         for aml in self.line_ids:
@@ -5614,9 +5551,6 @@ class AccountMove(models.Model):
         )
         if not future_moves:
             return self
-        # Validate before scheduling. A move that cannot post must not reach
-        # auto_post='at_date': the cron would pick it up on every run, fail, and
-        # post a message each time, forever.
         future_moves._post_validate(posting_now=False)
         future_moves.filtered(lambda move: move.auto_post == "no").auto_post = "at_date"
         future_moves._message_log_batch(
@@ -5684,10 +5618,6 @@ class AccountMove(models.Model):
             self.env["account.move.line"].browse(line_ids).name = name
 
     def _post(self, soft=True):
-        # Do NOT override this method: it partitions, and an override placed here
-        # would run before the partition and so act on moves that a soft post is
-        # about to defer. `_post_entries` is the override point -- there `self`
-        # is exactly the set being posted, and it is what the method returns.
         self._post_check_access()
 
         moves = self.with_context(skip_is_manually_modified=True)
@@ -5713,8 +5643,6 @@ class AccountMove(models.Model):
 
         (self | side_moves).write({"state": "posted", "posted_before": True})
         self._reveal_partial_deductibility_group()
-        # After the state write, never before: the names it builds are derived from
-        # move.name, which the sequence only assigns as the move becomes posted.
         self._post_update_non_deductible_names()
 
         draft_reverse_moves.reversed_entry_id._reconcile_reversed_moves(
@@ -5759,11 +5687,6 @@ class AccountMove(models.Model):
         except ValidationError:
             return False
         format_values.pop("seq")
-        # `move`, never `self`: the cache is keyed per sequence index by
-        # mixin_sequence._locked_increment, which is singleton-only. Reading the index
-        # off the whole batch yields the union of its journals, which matches no stored
-        # key, so every answer here would be False and the suppression below would never
-        # fire for a batch spanning two journals.
         cache_key = (
             format_string.format(**format_values, seq=0),
             self._sequence_index and move[self._sequence_index],
@@ -6192,9 +6115,6 @@ class AccountMove(models.Model):
         return action
 
     def _post_needing_confirmation(self, need_confirmation, view_id=None):
-        # Both entry points post what they can and ask only about the rest. Sending
-        # the whole selection to the wizard because one move in it is flagged posts
-        # nothing and hides which move raised the question.
         to_post = self - need_confirmation
         if to_post:
             to_post._post_check_business_rules()
@@ -6465,10 +6385,6 @@ class AccountMove(models.Model):
             self.env["ir.cron"]._commit_progress(len(moves))
             return
         except PG_RETRY_EXCEPTIONS:
-            # Same policy as the per-move loop below: a lock or serialization failure
-            # is the cron's to retry, not ours to absorb. Falling through would take
-            # the whole batch through the one-at-a-time path under the contention that
-            # just failed it, and raise from there anyway -- after the retry.
             raise
         except Exception:
             self.env.cr.rollback()
@@ -6717,9 +6633,6 @@ class AccountMove(models.Model):
                 "additional_info": {},
             }
         if epd_installment:
-            # Under an early payment discount the discounted figure IS what is due, so
-            # these two are the other way round from every other branch. Naming them is
-            # the point: as a positional tuple the inversion was invisible at both ends.
             return {
                 "installment_state": "epd",
                 "amount_due": epd_installment["amount_residual_currency_unsigned"],
@@ -7255,8 +7168,6 @@ class AccountMove(models.Model):
     def _can_commit():
         return not modules.module.current_test
 
-    # The label is a callable so that _() runs per request, in the caller's language,
-    # rather than once at import time.
     _IMPORT_TEMPLATES = {
         "entry": (
             lambda: _("Import Template for Misc. Operations"),
