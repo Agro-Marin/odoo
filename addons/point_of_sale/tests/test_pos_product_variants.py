@@ -86,6 +86,45 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
             login="pos_user",
         )
 
+    def test_search_variant_by_default_code(self):
+        """Searching a variant's internal reference must open that variant,
+        the way searching its barcode already does."""
+        self.size_attribute_m.default_extra_price = 5
+
+        product_template = self.env["product.template"].create(
+            {
+                "name": "A always product",
+                "uom_id": self.env.ref("uom.product_uom_unit").id,
+                "is_storable": True,
+                "taxes_id": False,
+                "available_in_pos": True,
+                "pos_categ_ids": [Command.set(self.pos_desk_misc_test.ids)],
+            }
+        )
+        self.env["product.template.attribute.line"].create(
+            {
+                "product_tmpl_id": product_template.id,
+                "attribute_id": self.size_attribute.id,
+                "value_ids": [
+                    Command.set([self.size_attribute_s.id, self.size_attribute_m.id])
+                ],
+            }
+        )
+        variant_m = product_template.product_variant_ids.filtered(
+            lambda v: (
+                self.size_attribute_m
+                in v.product_template_attribute_value_ids.product_attribute_value_id
+            )
+        )
+        variant_m.default_code = "REF-SIZE-M"
+
+        self.main_pos_config.with_user(self.pos_user).open_ui()
+        self.start_tour(
+            "/pos/ui?config_id=%d" % self.main_pos_config.id,
+            "test_search_variant_by_default_code",
+            login="pos_user",
+        )
+
     def test_integration_never_variant_price(self):
         self.no_variant_attribute_second.default_extra_price = 5
 

@@ -416,9 +416,15 @@ export class ProductScreen extends Component {
     async addProductToOrder(product) {
         const options = {};
         if (this.searchWord && product.isConfigurable()) {
-            const barcode = this.searchWord;
+            const searchWord = this.searchWord;
+            // A barcode is a machine-read identifier, so it matches as typed;
+            // an internal reference is typed by hand, so it matches either case.
+            const reference = searchWord.toLowerCase();
             const searchedProduct = product.product_variant_ids.filter(
-                (p) => p.barcode && p.barcode.includes(barcode),
+                (p) =>
+                    (p.barcode && p.barcode.includes(searchWord)) ||
+                    (p.default_code &&
+                        p.default_code.toLowerCase().includes(reference)),
             );
             if (searchedProduct.length === 1) {
                 options["presetVariant"] = searchedProduct[0];
