@@ -73,6 +73,24 @@ class TestCreateLink(unittest.TestCase):
         self.assertIn('href="http://e.com/x"', out)
         self.assertIn(">safe<", out)
 
+    def test_javascript_scheme_is_rejected(self):
+        out = create_link("javascript:alert(1)", "lbl")
+        self.assertNotIn("javascript:", out)
+        self.assertIn('href="#"', out)
+
+    def test_data_scheme_is_rejected(self):
+        out = create_link("data:text/html,<script>alert(1)</script>", "lbl")
+        self.assertNotIn("data:", out)
+        self.assertIn('href="#"', out)
+
+    def test_mailto_and_tel_are_allowed(self):
+        self.assertIn('href="mailto:a@b.com"', create_link("mailto:a@b.com", "x"))
+        self.assertIn('href="tel:+123"', create_link("tel:+123", "x"))
+
+    def test_scheme_less_relative_url_is_kept(self):
+        out = create_link("/some/path", "lbl")
+        self.assertIn('href="/some/path"', out)
+
 
 class TestHtmlKeepUrl(unittest.TestCase):
     def test_no_double_escaping(self):
