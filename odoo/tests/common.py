@@ -20,13 +20,12 @@ from odoo.tools.cache import _COUNTERS
 from odoo.tools.mail import single_email_re
 from odoo.tools.xml_utils import _check_xml
 
-from .browser import DEFAULT_SUCCESS_SIGNAL, ChromeBrowser, ChromeBrowserException
+from .browser import ChromeBrowser, ChromeBrowserException
 from .case import TestCase
-from .matchers import Approx, Like, RecordCapturer, WhitespaceInsensitive
+from .matchers import Like, RecordCapturer, WhitespaceInsensitive
 from .transaction_case import (
     TEST_CURSOR_COOKIE_NAME,
     BaseCase,
-    BlockedRequest,
     SingleTransactionCase,
     TransactionCase,
     _registry_test_lock,
@@ -44,12 +43,9 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ADMIN_USER_ID",
-    "DEFAULT_SUCCESS_SIGNAL",
     "HOST",
     "TEST_CURSOR_COOKIE_NAME",
-    "Approx",
     "BaseCase",
-    "BlockedRequest",
     "ChromeBrowser",
     "ChromeBrowserException",
     "Command",
