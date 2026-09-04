@@ -99,7 +99,7 @@ class TestWebReadRelational(common.TransactionCase):
             secret.id, returned_ids, "inaccessible co-record id must not leak"
         )
 
-    def test_many2one_to_inaccessible_target_keeps_its_value(self):
+    def test_many2one_to_inaccessible_target_keeps_its_id_and_hides_its_label(self):
         Partner = self.env["res.partner"]
         secret = Partner.create({"name": "ZZSECRET parent", "is_company": True})
         child = Partner.create({"name": "Child", "parent_id": secret.id})
@@ -126,22 +126,11 @@ class TestWebReadRelational(common.TransactionCase):
             {"parent_id": {"fields": {"display_name": {}, "phone": {}}}}
         )
         self.assertEqual(
-            res["parent_id"]["id"],
-            secret.id,
-            "a sub-field spec must not change whether the many2one reports the "
-            "value the readable record holds; without the spec web_read returns "
-            "that id already",
-        )
-        self.assertEqual(
-            res["parent_id"]["display_name"],
-            secret.display_name,
-            "the label of what a readable record points at is what web_read_group "
-            "already reports for the same value",
-        )
-        self.assertNotIn(
-            "phone",
             res["parent_id"],
-            "sub-fields of an unreadable target stay withheld",
+            {"id": secret.id},
+            "a sub-field spec must not change whether the many2one reports the "
+            "value the readable record holds, and a target a record rule hides "
+            "keeps its label and sub-fields to itself",
         )
 
     def test_many2one_to_a_private_address_hides_its_label(self):
