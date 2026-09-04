@@ -747,7 +747,14 @@ class BaseCase(TestCase):
         "datetime": [datetime(2021, 3, 4, 5, 6, 7)],
     }
 
-    _DEPENDS_PROBE_DYNAMIC = frozenset({"selection", "many2one"})
+    # Types eligible for probing beyond `_DEPENDS_PROBE_VALUES`'s static
+    # samples: used by `_depends_probe_names` to select/order candidates.
+    _DEPENDS_PROBE_EXTRA_TYPES = frozenset({"selection", "many2one"})
+    # Subset of `_DEPENDS_PROBE_EXTRA_TYPES` actually dispatched through
+    # `_depends_probe_values`'s dynamic-values branch — "many2one" is
+    # deliberately absent: it is handled by its own branch earlier in that
+    # method, which always returns first, so it would never reach this set.
+    _DEPENDS_PROBE_DYNAMIC = frozenset({"selection"})
 
     def assertDependsComplete(
         self,
@@ -805,7 +812,7 @@ class BaseCase(TestCase):
             and not (f.readonly or f.compute or f.related)
             and (
                 f.type in self._DEPENDS_PROBE_VALUES
-                or f.type in self._DEPENDS_PROBE_DYNAMIC
+                or f.type in self._DEPENDS_PROBE_EXTRA_TYPES
             )
         ]
         probes.sort(key=lambda name: fields[name].type == "many2one")
