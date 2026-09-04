@@ -241,7 +241,7 @@ def evaluate(gate: str, count: int, baseline: Baseline, mode: str) -> Verdict:
     )
 
 
-def run(argv: list[str] | None = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ratchet.py",
         description="Drift-zero ratchet for countable quality gates.",
@@ -283,6 +283,11 @@ def run(argv: list[str] | None = None) -> int:
         action="store_true",
         help="with --list, print each floor's note under it",
     )
+    return parser
+
+
+def run(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
     args = parser.parse_args(argv)
 
     if args.list:
