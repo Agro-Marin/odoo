@@ -76,6 +76,36 @@ export class PosOrderlineAccounting extends Base {
             : this.unitPrices.no_discount_total_excluded;
     }
 
+    /**
+     * Inverse of `displayPriceUnit`: given a unit price as the cashier reads it
+     * on the product screen, return the `price_unit` that produces it. The
+     * entered price is read before discount, so setting a price does not
+     * silently undo one.
+     */
+    getUnitPriceFromDisplayPriceUnit(price) {
+        const displayPriceUnit = Number(price) / this.order_id.orderSign;
+        if (!Number.isFinite(displayPriceUnit)) {
+            return 0;
+        }
+        const baseLine = this.getBaseLine({
+            quantity: 1,
+            price_unit: displayPriceUnit,
+            discount: 0,
+            special_mode:
+                this.config.iface_tax_included === "total"
+                    ? "total_included"
+                    : "total_excluded",
+        });
+        accountTaxHelpers.add_tax_details_in_base_line(baseLine, this.company, {
+            rounding_method: "round_globally",
+        });
+        // A `price_include` tax is already inside `price_unit`, so for those the
+        // tax-included total is the unit price we are after.
+        return baseLine.tax_ids[0]?.price_include
+            ? baseLine.tax_details.raw_total_included_currency
+            : baseLine.tax_details.raw_total_excluded_currency;
+    }
+
     get priceIncl() {
         return this.currency.round(
             this.prices.total_included * this.order_id.orderSign,
