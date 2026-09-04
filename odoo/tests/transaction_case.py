@@ -832,7 +832,8 @@ class BaseCase(TestCase):
             entry
             for name in self._depends_probe_names(model, probe_fields)
             for value in self._depends_probe_values(model, fields[name])
-            for entry in self._depends_probe(model, computed, name, value)
+            for target in model
+            for entry in self._depends_probe(model, computed, name, value, target)
         ]
 
     def _depends_probe_values(
@@ -866,13 +867,13 @@ class BaseCase(TestCase):
         computed: list[str],
         probe_name: str,
         value: Any,
+        target: odoo.models.BaseModel,
     ) -> list[tuple[str, str, Any, Any, Any]]:
         env = records.env
         savepoint = env.cr.savepoint(flush=False)
         try:
             env.flush_all()
             env.invalidate_all()
-            target = records[0]
             current = target[probe_name]
             if isinstance(current, odoo.models.BaseModel):
                 if current.id == value:
@@ -883,6 +884,11 @@ class BaseCase(TestCase):
                 return []
             env.invalidate_all()
             before = self._depends_read(records, computed)
+            # Written one record at a time: batching the same probe value
+            # across several sampled records at once can violate a unique
+            # constraint the model holds on this field (e.g. `res.currency`'s
+            # unique `name`), which would abort the write and mask real
+            # staleness instead of revealing it.
             target.write({probe_name: value})
             cached = self._depends_read(records, computed)
             env.flush_all()
