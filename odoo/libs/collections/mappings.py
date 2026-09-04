@@ -21,6 +21,12 @@ class ConstantMapping[T](Mapping[Any, T]):
 
 
 class ReadonlyDict[K, T](Mapping[K, T]):
+    """Guarantees the mapping itself cannot be mutated through this wrapper.
+    The guarantee is shallow only: ``__init__`` copies one level (``dict(data)``),
+    so a nested mutable value (a list, a dict) inside a "readonly" mapping
+    remains fully mutable through its own reference.
+    """
+
     __slots__ = ("_data__",)
 
     def __init__(self, data: Mapping[K, T]) -> None:
