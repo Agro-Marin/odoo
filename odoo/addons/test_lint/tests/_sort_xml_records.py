@@ -200,7 +200,16 @@ def _sort_record_fields(record: etree._Element, model: str) -> bool:
     for field in fields:
         record.remove(field)
     for index, field in enumerate(ordered):
-        field.tail = original_tails[index]
+        # A field's own tail belongs to that field and must travel with it.
+        # Remapping by new position is only safe between two purely-whitespace
+        # tails (indentation formatting); anything else stays with its field.
+        positional_tail = original_tails[index]
+        own_is_whitespace = field.tail is None or not field.tail.strip()
+        positional_is_whitespace = (
+            positional_tail is None or not positional_tail.strip()
+        )
+        if own_is_whitespace and positional_is_whitespace:
+            field.tail = positional_tail
         record.append(field)
 
     return True
