@@ -20,6 +20,50 @@ _LEADING_COLUMN_RE = re.compile(
 )
 
 
+_LEADING_PAIR_RE = re.compile(
+    r"""
+    \(\s*
+    (?P<first>\w+)               # the leading column
+    (?:\s+(?:ASC|DESC))?
+    \s*,\s*
+    (?P<second>\w+)              # the one immediately after it
+    (?:\s+(?:ASC|DESC))?
+    (?P<rest>[,)])
+    """,
+    re.VERBOSE | re.IGNORECASE,
+)
+
+
+def leading_index_pairs(model) -> set[tuple[str, str]]:
+    pairs: set[tuple[str, str]] = set()
+    for table_object in getattr(model, "_table_objects", {}).values():
+        if not isinstance(table_object, models.Index):
+            continue
+        try:
+            definition = table_object.get_definition(model.pool)
+        except Exception:
+            _logger.debug(
+                "could not render the definition of %s on %s",
+                table_object.name,
+                getattr(model, "_name", model),
+                exc_info=True,
+            )
+            continue
+        clause = re.sub(
+            r"^\s*(UNIQUE\s+)?INDEX\s*", "", definition, flags=re.IGNORECASE
+        )
+        if re.match(r"^\s*USING\s+(?!btree\b)", clause, flags=re.IGNORECASE):
+            continue
+        clause = re.sub(r"^\s*USING\s+btree\s*", "", clause, flags=re.IGNORECASE)
+        match = _LEADING_PAIR_RE.match(clause)
+        if not match:
+            continue
+        if "where" in clause[match.end() :].lower():
+            continue
+        pairs.add((match.group("first"), match.group("second")))
+    return pairs
+
+
 def leading_index_columns(model) -> set[str]:
     columns: set[str] = set()
     for table_object in getattr(model, "_table_objects", {}).values():
@@ -115,6 +159,11 @@ class TestIndex(common.TransactionCase):
             if m2o_field.index in BTREE_INDEX_PY_DEFS:
                 return True
             if m2o_field.name in leading_index_columns(comodel):
+                return True
+            model_field = getattr(m2o_field, "model_field", None)
+            if model_field and (model_field, m2o_field.name) in leading_index_pairs(
+                comodel
+            ):
                 return True
             ir_model_id = self.env["ir.model"]._get_id(comodel._name)
             modules = (
