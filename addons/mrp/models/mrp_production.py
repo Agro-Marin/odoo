@@ -3979,6 +3979,7 @@ class MrpProduction(models.Model):
             return tuple(record[key] for key in ("company_id", "name", "workcenter_id"))
 
         workorders_to_unlink = self.env["mrp.workorder"]
+        resequenced = False
         for workorder in self.workorder_ids:
             operation = operations_by_id.pop(workorder.operation_id.id, False)
             if not operation:
@@ -3995,6 +3996,17 @@ class MrpProduction(models.Model):
                     workorder.name = operation.name
             elif workorder.operation_id:
                 workorders_to_unlink |= workorder
+            if operation and workorder.sequence != operation.sequence:
+                workorder.sequence = operation.sequence
+                resequenced = True
+        if resequenced:
+            # The BoM operations were reordered, so the dependency chain still
+            # describes the old order. _link_workorders_and_moves only ever
+            # links, never unlinks, so clear it here and let the relink that
+            # follows the workorder_ids write rebuild it from the new sequences.
+            (self.workorder_ids - workorders_to_unlink).blocked_by_workorder_ids = [
+                Command.clear()
+            ]
         self.workorder_ids += self.env["mrp.workorder"].create(
             [
                 {
