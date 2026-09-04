@@ -1,3 +1,4 @@
+from odoo.fields import Command
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
 
@@ -52,3 +53,67 @@ class TestMixinMergeSidecars(TransactionCase):
             "the follower src alone had must move; only the duplicate is dropped",
         )
         self.assertFalse(src.message_partner_ids)
+
+    def test_a_reference_on_an_archived_record_is_repointed(self):
+        Action = self.env["ir.actions.act_window"]
+        src, dst = (
+            Action.create({"name": name, "res_model": "res.partner"})
+            for name in ("merge src action", "merge dst action")
+        )
+        Menu = self.env["ir.ui.menu"]
+        live, archived = (
+            Menu.create(
+                {
+                    "name": name,
+                    "action": f"ir.actions.act_window,{src.id}",
+                    "active": active,
+                }
+            )
+            for name, active in (
+                ("merge live menu", True),
+                ("merge archived menu", False),
+            )
+        )
+        self.env.flush_all()
+
+        self.wizard._update_reference_fields_generic("ir.actions.act_window", src, dst)
+        self.env.invalidate_all()
+
+        self.assertEqual(live.action, dst)
+        self.assertEqual(
+            archived.action,
+            dst,
+            "an archived record kept pointing at the source, which the merge deletes",
+        )
+
+    def test_foreign_keys_repoint_on_a_model_other_than_partner(self):
+        Tag = self.env["res.partner.tag"]
+        src, dst = (
+            Tag.create({"name": name}) for name in ("merge src tag", "merge dst tag")
+        )
+        child = Tag.create({"name": "merge child tag", "parent_id": src.id})
+        Partner = self.env["res.partner"]
+        only_src = Partner.create(
+            {"name": "tagged src", "tag_ids": [Command.set(src.ids)]}
+        )
+        both = Partner.create(
+            {"name": "tagged both", "tag_ids": [Command.set((src + dst).ids)]}
+        )
+        self.env.flush_all()
+
+        self.wizard._update_foreign_keys_generic("res.partner.tag", src, dst)
+        self.env.invalidate_all()
+
+        self.assertEqual(child.parent_id, dst, "a plain foreign key is repointed")
+        self.assertEqual(
+            only_src.tag_ids, dst, "a join row without a clash is repointed"
+        )
+        self.assertEqual(
+            both.tag_ids,
+            src + dst,
+            "a join row that would duplicate the destination is left for the "
+            "source's deletion to cascade",
+        )
+        src.unlink()
+        self.env.invalidate_all()
+        self.assertEqual(both.tag_ids, dst)

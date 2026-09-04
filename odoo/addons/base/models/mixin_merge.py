@@ -321,8 +321,10 @@ class MixinMerge(models.AbstractModel):
         Model = self.env.get(model, None)
         if Model is None:
             return
-        records = Model.sudo().search(
-            [(field_model, "=", referenced_model), (field_id, "=", src.id)]
+        records = (
+            Model.sudo()
+            .with_context(active_test=False)
+            .search([(field_model, "=", referenced_model), (field_id, "=", src.id)])
         )
         if not records:
             return
@@ -385,8 +387,10 @@ class MixinMerge(models.AbstractModel):
             if Model._abstract or field.compute is not None:
                 continue
 
-            records_ref = Model.sudo().search(  # noqa: E8507  Model varies per turn
-                [(declaration.name, "in", src_values)]
+            records_ref = (
+                Model.sudo()  # noqa: E8507  Model varies per turn
+                .with_context(active_test=False)
+                .search([(declaration.name, "in", src_values)])
             )
             if not records_ref:
                 continue
