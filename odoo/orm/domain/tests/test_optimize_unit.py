@@ -12,6 +12,7 @@ from odoo.orm.domain.ast import (
     OptimizationLevel,
 )
 from odoo.orm.primitives import NewId
+from odoo.tools import SQL
 
 _UNSET = object()
 
@@ -423,7 +424,7 @@ class TestDeepDomainSurfacesValueError(unittest.TestCase):
         # `custom & condition` died in DomainNary's max() over children
         from odoo.orm.domain.ast import DomainCustom, DomainNot
 
-        custom = DomainCustom(lambda model, alias, query: None)
+        custom = DomainCustom(lambda model, alias, query: SQL("TRUE"))
         self.assertEqual(custom._depth, 1)
         self.assertEqual((custom & Domain("a", "=", 1))._depth, 2)
         self.assertEqual(Domain.TRUE._depth, 1)
@@ -461,7 +462,7 @@ class TestPredicateHonoursOptModel(unittest.TestCase):
         other = _StubModel()
         other._name = "m2"
         again = domain._predicate_optimized(_as_model(other))
-        self.assertIsNotNone(again)
+        assert again is not None
         self.assertEqual(again._opt[1], "m2")
 
     def test_optimized_for_the_same_model_is_reused(self):

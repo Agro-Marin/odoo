@@ -28,7 +28,7 @@ def _random_graph(rng):
     # nothing a registry produces; a sparse one with a few cycles is.
     triggers = []
     for dep in rng.sample(range(n_fields), rng.randrange(1, n_fields // 2 + 1)):
-        buckets = {}
+        buckets: dict[tuple[int, ...], list] = {}
         for _ in range(rng.randrange(1, 3)):
             path = tuple(rng.randrange(n_fields) for _ in range(rng.randrange(0, 3)))
             targets = buckets.setdefault(path, [])
@@ -63,7 +63,8 @@ def test_a_field_subset_is_built_in_the_order_asked():
 
 
 def test_an_untriggered_field_is_an_empty_tree_on_both_sides():
-    triggers, meta = [(0, [([], [1])])], [(False, False, 0, 0, 0, 0)] * 3
+    triggers: list = [(0, [([], [1])])]
+    meta = [(False, False, 0, 0, 0, 0)] * 3
     assert fast.get_trigger_trees(triggers, meta, [2]) == reference(triggers, meta, [2])
     assert fast.get_trigger_trees(triggers, meta, [2]) == [(2, ([], []))]
 

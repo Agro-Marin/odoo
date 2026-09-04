@@ -375,7 +375,7 @@ def _iter_term_elements(node: etree._Element) -> Iterator[etree._Element]:
 
 
 def _text_tag_names(node: etree._Element) -> set[str]:
-    names = set()
+    names: set[str] = set()
     for el in _iter_term_elements(node):
         for text in (el.text, el.tail):
             if text:

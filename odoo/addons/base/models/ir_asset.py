@@ -40,6 +40,8 @@ from .ir_asset_paths import (
 
 _logger = getLogger(__name__)
 
+_CACHE_ASSET_LOOKUPS = "xml" not in tools.config["dev_mode"]
+
 
 @dataclass(slots=True)
 class Resolution:
@@ -223,7 +225,7 @@ class IrAsset(models.Model):
         return bundle_name, rtl, asset_type, autoprefix
 
     @tools.conditional(
-        "xml" not in tools.config["dev_mode"],
+        _CACHE_ASSET_LOOKUPS,
         tools.ormcache(
             "bundle", "tuple(sorted(assets_params.items()))", cache="assets"
         ),
@@ -250,7 +252,7 @@ class IrAsset(models.Model):
         )
 
     @api.model
-    @tools.conditional("xml" not in tools.config["dev_mode"], tools.ormcache("addons"))
+    @tools.conditional(_CACHE_ASSET_LOOKUPS, tools.ormcache("addons"))
     def _get_manifest_assets(
         self, addons: tuple[str, ...]
     ) -> Mapping[str, tuple[tuple[str, Any], ...]]:
@@ -371,9 +373,7 @@ class IrAsset(models.Model):
         return self._get_addons_installed()
 
     @api.model
-    @tools.conditional(
-        "xml" not in tools.config["dev_mode"], tools.ormcache("addons_tuple")
-    )
+    @tools.conditional(_CACHE_ASSET_LOOKUPS, tools.ormcache("addons_tuple"))
     def _get_addons_sorted_topologically(
         self, addons_tuple: tuple[str, ...]
     ) -> tuple[str, ...]:

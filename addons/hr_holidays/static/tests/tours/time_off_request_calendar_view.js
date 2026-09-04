@@ -19,7 +19,9 @@ registry.category("web_tour.tours").add("time_off_request_calendar_view", {
                 // so aim at the first Thursday of the displayed year by date.
                 const year = new Date().getFullYear();
                 const first = new Date(Date.UTC(year, 0, 1));
-                first.setUTCDate(first.getUTCDate() + ((4 - first.getUTCDay() + 7) % 7));
+                first.setUTCDate(
+                    first.getUTCDate() + ((4 - first.getUTCDay() + 7) % 7),
+                );
                 const date = first.toISOString().slice(0, 10);
                 await helpers.click(`.fc-daygrid-day[data-date="${date}"]`);
             },

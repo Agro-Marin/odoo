@@ -526,21 +526,21 @@ class Field[T](
         prefetch_ids = record._prefetch_ids
         record_id = record.id
         if isinstance(prefetch_ids, tuple) and type(field_cache) is dict:
-            result = _to_prefetch_ids(
+            scanned_ids = _to_prefetch_ids(
                 record_id, prefetch_ids, field_cache, PREFETCH_MAX
             )
-            if result is not None:
-                return record.browse(result)
+            if scanned_ids is not None:
+                return record.browse(scanned_ids)
         kind = bool(record_id)
-        result = [record_id]
+        ids_to_prefetch = [record_id]
         added = {record_id}
         for id_ in prefetch_ids:
-            if len(result) >= PREFETCH_MAX:
+            if len(ids_to_prefetch) >= PREFETCH_MAX:
                 break
             if id_ not in field_cache and id_ not in added and bool(id_) == kind:
-                result.append(id_)
+                ids_to_prefetch.append(id_)
                 added.add(id_)
-        return record.browse(result)
+        return record.browse(ids_to_prefetch)
 
     def _clear_dead_pending(self, records: ModelLike) -> None:
         env = records.env

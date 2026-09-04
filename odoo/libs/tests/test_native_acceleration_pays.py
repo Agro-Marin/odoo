@@ -65,7 +65,8 @@ _ORIGIN_IDS = tuple(i if i % 3 else NewId(i * 10) for i in range(1, N + 1))
 
 
 def _diamond_graph(depth: int):
-    triggers, meta = [], []
+    triggers: list = []
+    meta: list = []
 
     def field(m2o=False, o2m=False, name=0, inverse=0, model=0, comodel=0):
         meta.append((m2o, o2m, name, inverse, model, comodel))

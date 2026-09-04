@@ -168,9 +168,13 @@ class TestRegistry(unittest.TestCase):
         self.assertEqual([reader.name for reader in readers], ["cued_text"])
 
     def test_both_cue_formats_are_registered(self):
-        self.assertEqual(get_format("text/vtt").representation, CUES)
+        vtt = get_format("text/vtt")
+        assert vtt is not None
+        self.assertEqual(vtt.representation, CUES)
         self.assertEqual(mimetype_for("srt"), "application/x-subrip")
         self.assertEqual(extension_for("text/vtt"), "vtt")
 
     def test_a_misdeclared_subrip_alias_still_resolves(self):
-        self.assertEqual(get_format("text/srt").extension, "srt")
+        srt = get_format("text/srt")
+        assert srt is not None
+        self.assertEqual(srt.extension, "srt")

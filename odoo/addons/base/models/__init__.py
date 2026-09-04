@@ -56,6 +56,7 @@ from . import ir_fields
 
 from . import ir_qweb
 from . import ir_qweb_assets
+from . import ir_qweb_assets_esbuild
 from . import ir_qweb_fields
 
 from . import ir_http

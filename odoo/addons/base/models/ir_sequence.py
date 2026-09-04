@@ -751,6 +751,9 @@ class IrSequenceDate_Range(models.Model):
 
     @api.constrains("sequence_id", "date_from", "date_to")
     def _check_ranges_do_not_overlap(self) -> None:
+        ranges_by_sequence = self.search(
+            [("sequence_id", "in", self.sequence_id.ids)]
+        ).grouped("sequence_id")
         for rng in self:
             if rng.date_from > rng.date_to:
                 raise ValidationError(
@@ -762,14 +765,15 @@ class IrSequenceDate_Range(models.Model):
                         seq=rng.sequence_id.display_name,
                     )
                 )
-            overlapping = self.search(
-                [
-                    ("sequence_id", "=", rng.sequence_id.id),
-                    ("id", "!=", rng.id),
-                    ("date_from", "<=", rng.date_to),
-                    ("date_to", ">=", rng.date_from),
-                ],
-                limit=1,
+            overlapping = next(
+                (
+                    other
+                    for other in ranges_by_sequence.get(rng.sequence_id, self.browse())
+                    if other.id != rng.id
+                    and other.date_from <= rng.date_to
+                    and other.date_to >= rng.date_from
+                ),
+                None,
             )
             if overlapping:
                 raise ValidationError(

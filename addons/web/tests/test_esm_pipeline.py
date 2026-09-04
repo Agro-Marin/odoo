@@ -2472,7 +2472,7 @@ class TestLazyBundleRelativeImports(TransactionCase):
         )
 
     def test_payload_guard_raises_with_details(self):
-        from odoo.addons.base.models.ir_qweb_assets import EsbuildBundleError
+        from odoo.addons.base.models.ir_qweb_assets_esbuild import EsbuildBundleError
 
         fake_bundle = SimpleNamespace(
             name="mod.lazy_bundle",

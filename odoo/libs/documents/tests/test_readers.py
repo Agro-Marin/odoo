@@ -1,3 +1,4 @@
+import typing
 import unittest
 
 from odoo.libs.documents.document import (
@@ -68,7 +69,7 @@ class TestRegistry(unittest.TestCase):
                 return "x"
 
         with self.assertRaises(ValueError):
-            register_reader(_Costless())
+            register_reader(typing.cast("BaseReader", _Costless()))
 
     def test_an_unknown_representation_is_refused_at_registration(self):
         with self.assertRaises(ValueError):
@@ -106,7 +107,7 @@ class TestRegistry(unittest.TestCase):
         `document_extract/tests/test_registry_is_unambiguous.py` and runs
         post-install.
         """
-        claims = {}
+        claims: dict[tuple, list[str]] = {}
         for reader in registered_readers():
             for representation in reader.yields:
                 for mimetype in reader.mimetypes:

@@ -20,7 +20,7 @@ class AggNode(models.Model):
     @api.depends("weight", "child_ids.total")
     def _compute_total(self):
         for node in self:
-            node.total = node.weight + sum(child.total for child in node.child_ids)
+            node.total = node.weight + sum(child["total"] for child in node.child_ids)
 
 
 class _IrModelData(models.Model):

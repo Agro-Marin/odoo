@@ -1,4 +1,5 @@
 import logging
+import typing
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,10 @@ from odoo.modules.migration import (
     _get_scripts_by_version,
     _warn_unstaged_scripts,
 )
+
+if typing.TYPE_CHECKING:
+    from odoo.db import Cursor
+    from odoo.modules.module_graph import ModuleGraph
 
 
 @pytest.fixture
@@ -93,6 +98,15 @@ class _FakePkg:
         self.load_state = load_state
 
 
+def _no_cursor() -> Cursor:
+    # Indexing never reaches the cursor; only running a script would.
+    return typing.cast("Cursor", None)
+
+
+def _as_graph(packages: list[_FakePkg]) -> ModuleGraph:
+    return typing.cast("ModuleGraph", packages)
+
+
 class TestMigrationManagerDoesNotReindexDonePackages:
     def test_update_skips_a_package_already_indexed(self, monkeypatch):
         calls = []
@@ -105,7 +119,7 @@ class TestMigrationManagerDoesNotReindexDonePackages:
         monkeypatch.setattr(migration_mod, "_get_scripts_by_version", counting)
 
         graph = [_FakePkg("odoo_probe_nonexistent_module", "to upgrade")]
-        manager = MigrationManager(None, graph)
+        manager = MigrationManager(_no_cursor(), _as_graph(graph))
         assert calls, "the first index must scan the (absent) package"
         calls_after_init = len(calls)
 
@@ -125,7 +139,7 @@ class TestMigrationManagerDoesNotReindexDonePackages:
         monkeypatch.setattr(migration_mod, "_get_scripts_by_version", counting)
 
         graph = [_FakePkg("odoo_probe_nonexistent_module_a", "to upgrade")]
-        manager = MigrationManager(None, graph)
+        manager = MigrationManager(_no_cursor(), _as_graph(graph))
         calls_after_init = len(calls)
 
         graph.append(_FakePkg("odoo_probe_nonexistent_module_b", "to upgrade"))

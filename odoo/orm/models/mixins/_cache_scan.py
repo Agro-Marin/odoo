@@ -1,8 +1,17 @@
 import typing
 
 if typing.TYPE_CHECKING:
+    from collections.abc import MutableMapping
+
+    from ..._typing import IdType
     from ...fields.base import Field
     from ...runtime import Environment
+
+
+def scannable_cache(
+    field_cache: MutableMapping[IdType, typing.Any],
+) -> dict[IdType, typing.Any]:
+    return typing.cast("dict[IdType, typing.Any]", field_cache)
 
 
 def is_cache_detached(field: Field, env: Environment, captured) -> bool:

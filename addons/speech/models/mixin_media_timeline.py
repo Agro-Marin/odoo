@@ -22,7 +22,7 @@ class MixinMediaTimeline(models.AbstractModel):
         string="Media",
     )
     media_duration_ms = fields.Integer(compute="_compute_media_duration_ms")
-    has_media = fields.Boolean(compute="_compute_media_duration_ms")
+    has_media = fields.Boolean(compute="_compute_has_media")
     media_transcript = fields.Text(compute="_compute_media_transcript")
     transcription_state = fields.Selection(
         [
@@ -40,6 +40,10 @@ class MixinMediaTimeline(models.AbstractModel):
         for record in self:
             ends = record.segment_ids.mapped("end_ms")
             record.media_duration_ms = max(ends) if ends else 0
+
+    @api.depends("segment_ids")
+    def _compute_has_media(self) -> None:
+        for record in self:
             record.has_media = bool(record.segment_ids)
 
     @api.depends("segment_ids.attachment_id.speech_cues")
