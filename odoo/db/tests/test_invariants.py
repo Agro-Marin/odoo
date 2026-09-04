@@ -358,14 +358,13 @@ class TestSchemaCacheClearsHaveDistinctEffects(unittest.TestCase):
         cache = TransactionSchemaCache()
         cache.set_id_sequence("t", "t_id_seq")
         cache.set_column_types("t", ["a"], [23])
-        cache.locked_tables.add("t")
+        cache.mark_locked("t", 0)
 
         cache.invalidate_catalog_facts()
         self.assertIsNone(cache.get_id_sequence("t"))
         self.assertIsNone(cache.get_column_types("t", ["a"]))
-        self.assertEqual(
-            cache.locked_tables,
-            {"t"},
+        self.assertTrue(
+            cache.is_locked("t"),
             "DDL does not end the transaction, so the ROW EXCLUSIVE lock this "
             "cursor already took is still held",
         )
@@ -373,7 +372,7 @@ class TestSchemaCacheClearsHaveDistinctEffects(unittest.TestCase):
         cache.set_id_sequence("t", "t_id_seq")
         cache.clear()
         self.assertIsNone(cache.get_id_sequence("t"))
-        self.assertEqual(cache.locked_tables, set())
+        self.assertFalse(cache.is_locked("t"))
 
 
 class TestDdlDetectionCannotMissAHiddenStatement(unittest.TestCase):

@@ -535,9 +535,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._schema_cache.invalidate_catalog_facts()
 
     def _on_rollback_to_savepoint(self) -> None:
-        self._schema_cache.locked_tables.clear()
-        if self._schema_changed:
-            self._schema_cache.invalidate_catalog_facts()
+        self._schema_cache.release_locks_since_depth(self._savepoint_depth)
 
     def _note_stale_cached_plan(self, exc: Exception) -> bool:
         if not isinstance(exc, PG_STALE_PLAN_EXCEPTIONS):

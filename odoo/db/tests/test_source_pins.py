@@ -195,34 +195,27 @@ class TestSchemaCacheClearsHaveDistinctCallSites(unittest.TestCase):
                     {"clear"},
                 )
 
-    def test_savepoint_rollback_keeps_the_catalog_facts_unless_ddl_ran(self):
+    def test_savepoint_rollback_releases_exactly_the_tables_the_savepoint_locked(self):
         self.assertEqual(
             _calls_on(cursor.Cursor._on_rollback_to_savepoint, "_schema_cache"),
-            {"invalidate_catalog_facts"},
-            "a column type cannot change without DDL, and DDL sets "
-            "_schema_changed, so the facts are dropped only under that flag",
+            {"release_locks_since_depth"},
+            "the lock ledger and the catalog facts for tables locked at or "
+            "after this savepoint's depth are released together, per table, "
+            "regardless of whether this cursor issued DDL: dropping the real "
+            "PostgreSQL lock is what makes a foreign session's DDL visible, "
+            "not this cursor's own _schema_changed flag",
         )
         source = textwrap.dedent(
             inspect.getsource(cursor.Cursor._on_rollback_to_savepoint)
         )
-        self.assertIn(
-            "self._schema_cache.locked_tables.clear()",
-            source,
-            "the rollback releases the locks taken inside the savepoint, so "
-            "the ledger goes unconditionally",
-        )
         guards = [
             node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.If)
         ]
-        self.assertEqual(len(guards), 1, "one guard, over the catalog facts alone")
         self.assertEqual(
-            {
-                node.attr
-                for node in ast.walk(guards[0].test)
-                if isinstance(node, ast.Attribute)
-            },
-            {"_schema_changed"},
-            "the guard reads the DDL flag and nothing else",
+            len(guards),
+            0,
+            "no _schema_changed-gated branch left: the release is "
+            "unconditional and scoped by savepoint depth instead",
         )
 
 
