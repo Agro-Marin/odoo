@@ -109,15 +109,6 @@ class DeepgramClient(BaseAIClient):
         "fi",
     ]
 
-    def _get_listen_endpoint(self, model):
-        if "flux" in model.lower():
-            _logger.warning(
-                "Flux model '%s' requires /v2/listen endpoint. Current implementation uses /v1 base. This may not work correctly. Consider using nova-3 instead.",
-                model,
-            )
-            return "/listen"
-        return "/listen"
-
     def _validate_response(self, response):
         if not isinstance(response, dict):
             raise CommError(
