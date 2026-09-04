@@ -8,10 +8,11 @@ from odoo.tests import Form, users
 from odoo.tests.common import HttpCase, tagged
 from odoo.tools.misc import format_date
 
+from odoo.addons.mail.tests.common import MailCase
 from odoo.addons.mrp.tests.common import TestMrpCommon
 
 
-class TestMrpOrder(TestMrpCommon):
+class TestMrpOrder(TestMrpCommon, MailCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -255,6 +256,56 @@ class TestMrpOrder(TestMrpCommon):
         mo.action_confirm()
         self.assertEqual(mo.workorder_ids.mapped("sequence"), [0, 1, 2, 100])
 
+    def test_workorder_resequence_on_bom_update(self):
+        """Reordering the BoM operations must reorder a confirmed MO's work
+        orders when "Update BoM" is pressed."""
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_id": self.product_5.id,
+                "product_tmpl_id": self.product_5.product_tmpl_id.id,
+                "product_uom_id": self.uom_unit.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": self.product_2.id, "product_qty": 1})
+                ],
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "Cutting Machine",
+                            "workcenter_id": self.workcenter_1.id,
+                            "time_cycle": 12,
+                            "sequence": 1,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "name": "Weld Machine",
+                            "workcenter_id": self.workcenter_1.id,
+                            "time_cycle": 18,
+                            "sequence": 2,
+                        }
+                    ),
+                ],
+            }
+        )
+        mo_form = Form(self.env["mrp.production"])
+        mo_form.bom_id = bom
+        mo = mo_form.save()
+        mo.action_confirm()
+        self.assertEqual(
+            mo.workorder_ids.mapped("name"), ["Cutting Machine", "Weld Machine"]
+        )
+
+        cutting, welding = bom.operation_ids
+        cutting.sequence, welding.sequence = 2, 1
+        mo.action_update_bom()
+
+        mo.invalidate_recordset(["workorder_ids"])
+        self.assertEqual(
+            mo.workorder_ids.mapped("name"), ["Weld Machine", "Cutting Machine"]
+        )
+
     @freeze_time("2022-06-28 08:00")
     def test_end_date(self):
         mo, bom_id, _p_final, _p1, _p2 = self.generate_mo(
@@ -263,6 +314,29 @@ class TestMrpOrder(TestMrpCommon):
         bom_id.produce_delay = 5
         mo.button_mark_done()
         self.assertEqual(mo.date_end.day, 28)
+
+        # Moving the end date of a done MO is logged in the chatter.
+        self.flush_tracking()
+        with self.mock_mail_gateway(), self.mock_mail_app():
+            mo.write({"date_end": datetime(2022, 6, 29, 18, 0)})
+            self.flush_tracking()
+        self.assertMessageFields(
+            self._new_msgs,
+            {
+                "body": "",
+                "message_type": "notification",
+                "subject": False,
+                "subtype_id": self.env.ref("mail.mt_note"),
+                "tracking_values": [
+                    (
+                        "date_end",
+                        "datetime",
+                        datetime(2022, 6, 28, 8, 0),
+                        datetime(2022, 6, 29, 18, 0),
+                    ),
+                ],
+            },
+        )
 
     def test_over_consumption(self):
         mo, _bom, _p_final, _p1, _p2 = self.generate_mo(

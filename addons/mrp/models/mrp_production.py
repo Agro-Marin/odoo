@@ -553,6 +553,13 @@ class MrpProduction(models.Model):
         "Count of serial numbers",
         compute="_compute_serial_numbers_count",
     )
+    note = fields.Html(
+        "Additional Notes",
+        compute="_compute_note",
+        store=True,
+        readonly=False,
+        help="Instructions for the shop floor, seeded from the bill of materials.",
+    )
 
     _name_uniq = models.Constraint(
         "unique(name, company_id)",
@@ -1657,6 +1664,14 @@ class MrpProduction(models.Model):
             self.date_category_to_domain("date_start", date) for date in dates
         )
 
+    @api.depends("bom_id.note")
+    def _compute_note(self):
+        for production in self:
+            # An order that already carries a note keeps it: the BoM only seeds
+            # the value, it does not own it.
+            if not production.note:
+                production.note = production.bom_id.note
+
     @api.depends("lot_producing_ids", "product_tracking")
     def _compute_serial_numbers_count(self):
         for production in self:
@@ -1781,9 +1796,11 @@ class MrpProduction(models.Model):
         production_to_replan = self.filtered(lambda p: p.is_planned)
         self._update_move_warehouse_vals(vals, move_keys)
         moves_to_reassign = self._pre_write_picking_type(vals)
+        date_end_initial_values = self._pre_write_track_date_end(vals)
 
         res = super().write(vals)
 
+        self._post_write_track_date_end(date_end_initial_values)
         self._post_write(vals, production_to_replan)
         self._post_write_reassign(moves_to_reassign)
         return res
@@ -1795,6 +1812,33 @@ class MrpProduction(models.Model):
             raise UserError(
                 _("You cannot move a manufacturing order once it is cancelled or done.")
             )
+
+    def _pre_write_track_date_end(self, vals):
+        """Snapshot the closing date of the orders that are already done.
+
+        ``date_end`` is not a tracked field: while the order is open it is a
+        forecast that moves on its own, and tracking it would fill the chatter
+        with noise. Once the order is done it stops being a forecast and
+        becomes the record of when production actually finished, so from then
+        on every change to it is worth a note.
+        """
+        if "date_end" not in vals or "state" in vals:
+            return {}
+        return {
+            production: {"date_end": production.date_end}
+            for production in self.filtered(lambda p: p.state == "done")
+        }
+
+    def _post_write_track_date_end(self, initial_values):
+        if not initial_values:
+            return
+        tracked_fields = self.fields_get(["date_end"])
+        for production, initial_value in initial_values.items():
+            tracking_value_ids = production._mail_track(tracked_fields, initial_value)[
+                1
+            ]
+            if tracking_value_ids:
+                production._message_log(tracking_value_ids=tracking_value_ids)
 
     def _prepare_write_vals(self, vals):
         return self._merge_byproduct_commands(
@@ -3979,6 +4023,7 @@ class MrpProduction(models.Model):
             return tuple(record[key] for key in ("company_id", "name", "workcenter_id"))
 
         workorders_to_unlink = self.env["mrp.workorder"]
+        resequenced = False
         for workorder in self.workorder_ids:
             operation = operations_by_id.pop(workorder.operation_id.id, False)
             if not operation:
@@ -3995,6 +4040,17 @@ class MrpProduction(models.Model):
                     workorder.name = operation.name
             elif workorder.operation_id:
                 workorders_to_unlink |= workorder
+            if operation and workorder.sequence != operation.sequence:
+                workorder.sequence = operation.sequence
+                resequenced = True
+        if resequenced:
+            # The BoM operations were reordered, so the dependency chain still
+            # describes the old order. _link_workorders_and_moves only ever
+            # links, never unlinks, so clear it here and let the relink that
+            # follows the workorder_ids write rebuild it from the new sequences.
+            (self.workorder_ids - workorders_to_unlink).blocked_by_workorder_ids = [
+                Command.clear()
+            ]
         self.workorder_ids += self.env["mrp.workorder"].create(
             [
                 {
