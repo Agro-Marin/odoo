@@ -1,6 +1,6 @@
 {
   "count": 110,
-  "measured_at": "397412b877767bdae48e3d98f822c8801206a453",
+  "measured_at": "1ad4d29c24e501c111c14dc20de05869963fc07e",
   "measured_root": "",
-  "note": "Re-stamped at the branch commit after the rebase that landed it: the floor was banked inside a worktree at d71f29cc85b, which the rebase onto 28bda5ee9fa replaced. Count unchanged (110).\n\nBorn at 110 after the first slice: 129 non-test addon files imported werkzeug at c358454af87; the odoo.http exceptions re-export and a hand conversion of the base, web and mail controllers took it to 110 (12 mail controllers and 7 web controllers left, four of them for routing, send_file, FileStorage and iri_to_uri rather than exceptions)."
+  "note": "STAMP REFRESHED, NUMBER UNCHANGED. The old stamp named a commit the 2026-09-02 sync replayed away, so `--list` flagged it ORPHANED-BASE and architecture.yml exited 2 asking to be re-measured rather than comparing anything -- neither green nor red. Re-measured in a clean detached worktree of 1ad4d29c24e and it reads exactly what the floor already said, so only the stamp moves.\n\nPREVIOUS NOTE, kept because a floor that loses its history costs more than the stamp gains:\n\nRe-stamped at the branch commit after the rebase that landed it: the floor was banked inside a worktree at d71f29cc85b, which the rebase onto 28bda5ee9fa replaced. Count unchanged (110).\n\nBorn at 110 after the first slice: 129 non-test addon files imported werkzeug at c358454af87; the odoo.http exceptions re-export and a hand conversion of the base, web and mail controllers took it to 110 (12 mail controllers and 7 web controllers left, four of them for routing, send_file, FileStorage and iri_to_uri rather than exceptions)."
 }
