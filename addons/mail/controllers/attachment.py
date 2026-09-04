@@ -96,12 +96,17 @@ class AttachmentController(ThreadController):
             vals["company_id"] = company.id
         elif cids := request.cookies.get("cids"):
             active_company_ids = [int(cid) for cid in cids.split("-") if cid.isdigit()]
-            if active_company_ids:
+            allowed_company_ids = [
+                cid
+                for cid in active_company_ids
+                if cid in request.env.user.company_ids.ids
+            ]
+            if allowed_company_ids:
                 user_company_id = request.env.user.company_id.id
                 vals["company_id"] = (
                     user_company_id
-                    if user_company_id in active_company_ids
-                    else active_company_ids[0]
+                    if user_company_id in allowed_company_ids
+                    else allowed_company_ids[0]
                 )
         if is_pending and str(is_pending).lower() not in ("false", "0", ""):
             vals.update(

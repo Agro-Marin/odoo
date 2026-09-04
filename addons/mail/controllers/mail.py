@@ -273,13 +273,10 @@ class MailController(http.Controller):
     ) -> Response:
         if kwargs.get("message_id"):
             try:
-                message = (
-                    request.env["mail.message"]
-                    .sudo()
-                    .browse(int(kwargs["message_id"]))
-                    .exists()
+                message = request.env["mail.message"].search(
+                    [("id", "=", int(kwargs["message_id"]))]
                 )
-            except Exception:
+            except (ValueError, TypeError):
                 message = request.env["mail.message"]
             if message:
                 model, res_id = message.model, message.res_id

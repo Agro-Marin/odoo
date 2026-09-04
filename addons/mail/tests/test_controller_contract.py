@@ -7,7 +7,10 @@ from odoo.tests import JsonRpcException, tagged
 
 from odoo.addons.mail.controllers.webclient import WebclientController
 from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.addons.mail.tests.common_controllers import MailControllerCommon
+from odoo.addons.mail.tests.common_controllers import (
+    MailControllerAttachmentCommon,
+    MailControllerCommon,
+)
 
 
 @tagged("-at_install", "post_install", "mail_controller")
@@ -521,4 +524,64 @@ class TestMailDataBatching(MailControllerCommon):
             set(batched),
             set(isolated),
             "readonly batching must not change which models come back",
+        )
+
+
+@tagged("-at_install", "post_install", "mail_controller")
+class TestMailControllerSecurity(MailControllerAttachmentCommon):
+    def test_mail_view_does_not_reveal_a_forbidden_message_record(self):
+        channel = self.env["discuss.channel"]._create_group(
+            self.user_admin.partner_id.ids, name="Secret Group"
+        )
+        message = channel.message_post(body="secret", message_type="comment")
+        self.authenticate(None, None)
+        res = self.url_open(
+            f"/mail/view?message_id={message.id}", allow_redirects=False
+        )
+        location = res.headers.get("Location", "")
+        self.assertNotIn(
+            f"/discuss/channel/{channel.id}",
+            location,
+            "anonymous /mail/view must not resolve a private message to its channel",
+        )
+        self.assertNotIn(f"res_id={channel.id}", location)
+
+    def test_upload_ignores_a_forged_company_cookie(self):
+        other_company = self.env["res.company"].create({"name": "Forged Co"})
+        self.assertNotIn(other_company.id, self.user_employee.company_ids.ids)
+        thread = self.env["res.partner"].create(
+            {"name": "Company-less", "company_id": False}
+        )
+        self.assertFalse(
+            thread._mail_get_companies()[thread.id],
+            "the fixture thread must have no company so the cids branch is reached",
+        )
+        self.authenticate(self.user_employee.login, self.user_employee.login)
+        self.opener.cookies["cids"] = str(other_company.id)
+        attachment = (
+            self.env["ir.attachment"].sudo().browse(self._upload_attachment(thread, {}))
+        )
+        self.assertNotEqual(
+            attachment.company_id.id,
+            other_company.id,
+            "a company the user does not belong to must not be stamped from the cookie",
+        )
+
+    def test_public_user_cannot_create_a_channel_through_mail_data(self):
+        # a public visitor is not dispatched the create routes at all, so the
+        # request neither creates a channel nor aborts on the model ACL.
+        self.authenticate(None, None)
+        before = self.env["discuss.channel"].sudo().search_count([])
+        self.call_jsonrpc(
+            "/mail/data",
+            {
+                "fetch_params": [
+                    ["/discuss/create_channel", {"name": "Sneaky", "group_id": None}]
+                ]
+            },
+        )
+        self.assertEqual(
+            self.env["discuss.channel"].sudo().search_count([]),
+            before,
+            "a public user must not create a channel through /mail/data",
         )

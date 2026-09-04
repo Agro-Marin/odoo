@@ -56,19 +56,35 @@ class DiscussChannelWebclientController(WebclientController):
         if name == "discuss.channel":
             channels = request.env["discuss.channel"].search([("id", "in", params)])
             request.update_context(channels=request.env.context["channels"] | channels)
+
+    @classmethod
+    def _process_request_for_logged_in_user(
+        cls, store: Store, name: str, params: Any
+    ) -> None:
+        super()._process_request_for_logged_in_user(store, name, params)
+        if not isinstance(params, dict):
+            return
         if name == "/discuss/get_or_create_chat":
+            partners_to = to_record_ids(params.get("partners_to"))
+            if not partners_to:
+                return
             channel = request.env["discuss.channel"]._get_or_create_chat(
-                params["partners_to"], params.get("pin", True)
+                partners_to, params.get("pin", True)
             )
             store.add(channel).resolve_data_request(channel=Store.One(channel, []))
         if name == "/discuss/create_channel":
+            if not isinstance(params.get("name"), str):
+                return
             channel = request.env["discuss.channel"]._create_channel(
-                params["name"], params["group_id"]
+                params["name"], params.get("group_id")
             )
             store.add(channel).resolve_data_request(channel=Store.One(channel, []))
         if name == "/discuss/create_group":
+            partners_to = to_record_ids(params.get("partners_to"))
+            if not partners_to:
+                return
             channel = request.env["discuss.channel"]._create_group(
-                params["partners_to"],
+                partners_to,
                 params.get("default_display_mode", False),
                 params.get("name", ""),
             )
