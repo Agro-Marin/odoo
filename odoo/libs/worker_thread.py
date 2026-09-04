@@ -16,6 +16,12 @@ __all__ = [
 
 
 class WorkerThread(Protocol):
+    # Every field below is declared unconditionally present for typing
+    # purposes, but at runtime each only exists on a thread AFTER whichever
+    # setter (e.g. working_on_database) has run on it -- a fresh/untouched
+    # thread raises AttributeError on access. Callers outside this Protocol
+    # that read these fields must guard with hasattr()/getattr(default),
+    # they are not initialized eagerly anywhere.
     dbname: str | None
     uid: int | None
     url: str
