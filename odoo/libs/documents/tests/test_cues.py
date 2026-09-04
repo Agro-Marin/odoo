@@ -10,7 +10,7 @@ from odoo.libs.documents.cues import (
 )
 from odoo.libs.documents.document import Document
 from odoo.libs.documents.formats import extension_for, get_format, mimetype_for
-from odoo.libs.documents.readers import CUES, TEXT, get_readers, registered_readers
+from odoo.libs.documents.readers import CUES, TEXT, get_readers
 from odoo.libs.documents.writers import get_writers
 
 VTT = """WEBVTT
@@ -155,18 +155,3 @@ class TestRegistry(unittest.TestCase):
 
     def test_a_misdeclared_subrip_alias_still_resolves(self):
         self.assertEqual(get_format("text/srt").extension, "srt")
-
-    def test_no_two_readers_claim_one_mimetype_at_one_cost(self):
-        claims = {}
-        for reader in registered_readers():
-            for representation in reader.yields:
-                for mimetype in reader.mimetypes:
-                    key = (mimetype, representation, reader.cost)
-                    claims.setdefault(key, []).append(reader.name)
-        contested = {key: names for key, names in claims.items() if len(names) > 1}
-        self.assertEqual(
-            contested,
-            {},
-            "where two readers claim one mimetype for one representation at "
-            "one cost, module load order decides and nothing declares it",
-        )

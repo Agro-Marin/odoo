@@ -15,6 +15,7 @@ from odoo.libs.documents.readers import (
     get_readers,
     known_readers,
     register_reader,
+    registered_readers,
 )
 
 
@@ -88,6 +89,27 @@ class TestRegistry(unittest.TestCase):
             )
         finally:
             _forget(named, fallback)
+
+    def test_no_two_library_readers_claim_one_mimetype_at_one_cost(self):
+        """Where two readers claim one mimetype for one representation at one
+        cost, `get_readers` has nothing to order them by and `sorted` is stable,
+        so module load order decides and nothing declares it.
+
+        Scope is the whole of what this test can be: Tier 1 stubs the addon
+        packages, so `registered_readers()` here holds the library's own and no
+        others. The registry-wide twin, which is the one that can see two addons
+        claiming `application/pdf`, is
+        `document_extract/tests/test_registry_is_unambiguous.py` and runs
+        post-install.
+        """
+        claims = {}
+        for reader in registered_readers():
+            for representation in reader.yields:
+                for mimetype in reader.mimetypes:
+                    key = (mimetype, representation, reader.cost)
+                    claims.setdefault(key, []).append(reader.name)
+        contested = {key: names for key, names in claims.items() if len(names) > 1}
+        self.assertEqual(contested, {})
 
     def test_an_unknown_representation_is_refused_at_lookup(self):
         with self.assertRaises(ValueError):
