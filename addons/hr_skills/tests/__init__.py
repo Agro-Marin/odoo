@@ -11,5 +11,6 @@ from . import test_skill_reports
 from . import test_cv_controller
 from . import test_valid_from_migration
 from . import test_overlap_constraint
+from . import test_current_set_follows_rows
 from . import test_current_skill_set
 from . import test_printed_cv

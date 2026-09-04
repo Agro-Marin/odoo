@@ -8,13 +8,9 @@ from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools import convert
 
-_SKILL_COMMAND_FIELDS = frozenset(
-    {"current_employee_skill_ids", "certification_ids", "employee_skill_ids"}
-)
-
 
 class HrEmployee(models.Model):
-    _inherit = "hr.employee"
+    _inherit = ["mixin.hr.individual.skill.owner", "hr.employee"]
 
     resume_line_ids = fields.One2many(
         "hr.resume.line", "employee_id", string="Resume lines"
@@ -43,17 +39,31 @@ class HrEmployee(models.Model):
         compute="_compute_display_certification_page"
     )
 
-    @api.depends("employee_skill_ids")
+    def _individual_skill_field_name(self):
+        return "employee_skill_ids"
+
+    def _individual_skill_command_field_names(self):
+        return ("current_employee_skill_ids", "certification_ids", "employee_skill_ids")
+
+    @api.depends(
+        "employee_skill_ids.valid_to",
+        "employee_skill_ids.skill_id",
+        "employee_skill_ids.is_certification",
+    )
     def _compute_current_employee_skill_ids(self):
-        current_employee_skill_by_employee = (
-            self.employee_skill_ids._get_current_skills_by_employee()
+        current_by_employee = (
+            self.employee_skill_ids._current_individual_skills().grouped("employee_id")
         )
         for employee in self:
-            employee.current_employee_skill_ids = current_employee_skill_by_employee[
-                employee.id
-            ]
+            employee.current_employee_skill_ids = current_by_employee.get(
+                employee, self.env["hr.employee.skill"]
+            )
 
-    @api.depends("employee_skill_ids.skill_id", "employee_skill_ids.valid_to")
+    @api.depends(
+        "employee_skill_ids.valid_to",
+        "employee_skill_ids.skill_id",
+        "employee_skill_ids.is_certification",
+    )
     def _compute_skill_ids(self):
         for employee in self:
             employee.skill_ids = employee.current_employee_skill_ids.skill_id
@@ -65,19 +75,14 @@ class HrEmployee(models.Model):
             Domain.AND(
                 [
                     Domain("skill_id", "in", value),
-                    Domain.OR(
-                        [
-                            Domain("valid_to", "=", False),
-                            Domain("valid_to", ">=", fields.Date.today()),
-                        ]
-                    ),
+                    self.env["hr.employee.skill"]._validity_domain(fields.Date.today()),
                 ]
             )
         )
         result = Domain("employee_skill_ids", "in", current)
         return ~result if operator == "not in" else result
 
-    @api.depends("employee_skill_ids")
+    @api.depends("employee_skill_ids.is_certification")
     def _compute_certification_ids(self):
         for employee in self:
             employee.certification_ids = employee.employee_skill_ids.filtered(
@@ -88,46 +93,6 @@ class HrEmployee(models.Model):
         self.display_certification_page = bool(
             self.env["hr.skill.type"]._get_certification_type()
         )
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:
-            vals_emp_skill = (
-                vals.pop("current_employee_skill_ids", [])
-                + vals.pop("certification_ids", [])
-                + vals.get("employee_skill_ids", [])
-            )
-            if vals_emp_skill:
-                vals["employee_skill_ids"] = self.env[
-                    "hr.employee.skill"
-                ]._get_transformed_commands(vals_emp_skill, self.env["hr.employee"])
-            else:
-                vals.pop("employee_skill_ids", None)
-        return super().create(vals_list)
-
-    def write(self, vals):
-        if not (_SKILL_COMMAND_FIELDS & vals.keys()):
-            return super().write(vals)
-        vals_emp_skill = (
-            vals.pop("current_employee_skill_ids", [])
-            + vals.pop("certification_ids", [])
-            + vals.pop("employee_skill_ids", [])
-        )
-        if len(self) > 1:
-            result = super().write(vals) if vals else True
-            for employee in self:
-                employee.write(
-                    {
-                        "employee_skill_ids": self.env[
-                            "hr.employee.skill"
-                        ]._commands_for_individual(vals_emp_skill, employee)
-                    }
-                )
-            return result
-        vals["employee_skill_ids"] = self.env[
-            "hr.employee.skill"
-        ]._get_transformed_commands(vals_emp_skill, self)
-        return super().write(vals)
 
     @api.model
     def _get_required_certifications_by_job(self):

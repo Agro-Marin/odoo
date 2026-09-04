@@ -2,7 +2,6 @@
 import { onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
@@ -18,22 +17,35 @@ export class SkillsListRenderer extends CommonSkillsListRenderer {
         this.actionService = useService("action");
 
         onWillStart(async () => {
-            const res = await this.orm.searchCount("hr.skill.type", []);
-            this.anySkills = res > 0;
-            [this.user] = await this.orm.read(
-                "res.users",
-                [user.userId],
-                ["employee_ids"],
-            );
-            this.IsHrUser = await user.hasGroup("hr.group_hr_user");
-            this.userSubordinates = (
-                await this.orm.searchRead(
-                    "hr.employee",
-                    [["id", "child_of", this.user.employee_ids]],
-                    ["id"],
-                )
-            ).map((record) => record["id"]);
+            const [skillTypeCount, historyRowCount] = await Promise.all([
+                this.orm.searchCount("hr.skill.type", []),
+                this.countHistoryRows(),
+            ]);
+            this.anySkills = skillTypeCount > 0;
+            this.hasHistory = historyRowCount > 0;
         });
+    }
+
+    get employeeId() {
+        const root = this.env.model.root;
+        if (root.resModel === "hr.employee") {
+            return root.resId;
+        }
+        return root.data.employee_id?.id || false;
+    }
+
+    /**
+     * The history report carries its own record rules (HR users see everyone,
+     * a manager their subordinates), so asking it directly answers both "may I
+     * open it" and "is there anything to see" in one query.
+     */
+    async countHistoryRows() {
+        if (this.props.list.context.no_timeline || !this.employeeId) {
+            return 0;
+        }
+        return this.orm.searchCount("hr.employee.skill.history.report", [
+            ["employee_id", "=", this.employeeId],
+        ]);
     }
 
     get groupBy() {
@@ -45,8 +57,6 @@ export class SkillsListRenderer extends CommonSkillsListRenderer {
     }
 
     async openSkillsReport() {
-        const id =
-            this.env.model.root.data.id || this.env.model.root.data.employee_id.id;
         this.actionService.doAction({
             type: "ir.actions.act_window",
             name: _t("Skills Report"),
@@ -57,22 +67,12 @@ export class SkillsListRenderer extends CommonSkillsListRenderer {
                 fill_temporal: false,
             },
             target: "current",
-            domain: [["employee_id", "=", id]],
+            domain: [["employee_id", "=", this.employeeId]],
         });
     }
 
     get showTimeline() {
-        return this.SkillsRight && !this.props.list.context.no_timeline;
-    }
-
-    get SkillsRight() {
-        let isSubordinate = false;
-        if (this.env.model.root.data.employee_id) {
-            isSubordinate = this.userSubordinates.includes(
-                this.env.model.root.data.employee_id.id,
-            );
-        }
-        return this.IsHrUser || isSubordinate;
+        return this.hasHistory;
     }
 }
 

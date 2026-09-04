@@ -28,7 +28,7 @@ class HrEmployeeSkillReport(models.BaseModel):
                 """
         CREATE OR REPLACE VIEW %s AS (
             SELECT
-                row_number() OVER () AS id,
+                s.id AS id,
                 e.id AS employee_id,
                 e.company_id AS company_id,
                 v.department_id AS department_id,
@@ -37,12 +37,12 @@ class HrEmployeeSkillReport(models.BaseModel):
                 s.skill_type_id AS skill_type_id,
                 sl.level_progress / 100.0 AS level_progress,
                 sl.name AS skill_level
-            FROM hr_employee e
-            LEFT JOIN hr_version v ON e.current_version_id = v.id
-            LEFT OUTER JOIN hr_employee_skill s ON e.id = s.employee_id
-            LEFT OUTER JOIN hr_skill_level sl ON sl.id = s.skill_level_id
-            LEFT OUTER JOIN hr_skill_type st ON st.id = sl.skill_type_id
-            WHERE st.active IS True AND st.is_certification IS NOT TRUE
+            FROM hr_employee_skill s
+            JOIN hr_employee e ON e.id = s.employee_id
+            JOIN hr_skill_level sl ON sl.id = s.skill_level_id
+            JOIN hr_skill_type st ON st.id = sl.skill_type_id
+            LEFT JOIN hr_version v ON v.id = e.current_version_id
+            WHERE st.active AND st.is_certification IS NOT TRUE
               AND (s.valid_to IS NULL OR s.valid_to >= (now() AT TIME ZONE 'UTC')::date)
         )
         """,

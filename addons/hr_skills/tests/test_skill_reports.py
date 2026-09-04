@@ -379,3 +379,43 @@ class TestSkillDataMultiCompany(SkillsCase):
             .search([("employee_id", "=", employee.id)])
         )
         self.assertTrue(rows)
+
+
+@tagged("post_install", "-at_install")
+class TestReportRowIdentity(SkillsCase):
+    """A row of the skill or certification report *is* one hr.employee.skill
+    row, so it carries that row's id. row_number() gave every read a fresh
+    numbering, so the same row answered to a different id from one query to
+    the next and nothing could be opened, followed or compared across reads."""
+
+    def test_the_skill_report_row_is_the_skill_row(self):
+        employee = self.env["hr.employee"].create({"name": "Identity employee"})
+        row = self.env["hr.employee.skill"].create(
+            {
+                "employee_id": employee.id,
+                "skill_id": self.skill_piano.id,
+                "skill_level_id": self.level_expert.id,
+                "skill_type_id": self.skill_type.id,
+                "valid_from": date.today(),
+            },
+        )
+        self.env.flush_all()
+        report = self.env["hr.employee.skill.report"].browse(row.id)
+        self.assertEqual(report.employee_id, employee)
+        self.assertEqual(report.skill_id, self.skill_piano)
+
+    def test_the_certification_report_row_is_the_certification_row(self):
+        employee = self.env["hr.employee"].create({"name": "Identity holder"})
+        row = self.env["hr.employee.skill"].create(
+            {
+                "employee_id": employee.id,
+                "skill_id": self.certification.id,
+                "skill_level_id": self.level_certified.id,
+                "skill_type_id": self.certification_type.id,
+                "valid_from": date.today(),
+            },
+        )
+        self.env.flush_all()
+        report = self.env["hr.employee.certification.report"].browse(row.id)
+        self.assertEqual(report.employee_id, employee)
+        self.assertTrue(report.active)

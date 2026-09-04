@@ -20,20 +20,20 @@ export class CommonSkillsListRenderer extends ListRenderer {
         const grouped = {};
 
         for (const record of this.list.records) {
-            const data = record.data;
-            const group = data[this.groupBy];
+            const group = record.data[this.groupBy];
+            const key = group ? group.id : 0;
 
-            if (grouped[group.display_name] === undefined) {
-                grouped[group.display_name] = {
-                    id: parseInt(group.id),
-                    name: group.display_name || _t("Other"),
+            if (grouped[key] === undefined) {
+                grouped[key] = {
+                    id: group ? group.id : false,
+                    name: (group && group.display_name) || _t("Other"),
                     list: {
                         records: [],
                     },
                 };
             }
 
-            grouped[group.display_name].list.records.push(record);
+            grouped[key].list.records.push(record);
         }
         return grouped;
     }

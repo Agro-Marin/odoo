@@ -23,7 +23,6 @@ class HrSkillType(models.Model):
     levels_count = fields.Integer(
         compute="_compute_levels_count",
         store=True,
-        readonly=False,
         help="Number of levels linked to this skill type",
     )
     is_certification = fields.Boolean(

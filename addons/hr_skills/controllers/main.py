@@ -6,6 +6,26 @@ EMPLOYEE_IDS_RE = re.compile(r"^[0-9]+(,[0-9]+)*$")
 
 
 class HrEmployeeCV(Controller):
+    def _printable_employees(self, employee_ids):
+        """The employees the current user may print, or an empty recordset.
+
+        An HR user prints whichever employees they can read; anyone else prints
+        only themself. The rendering below runs as superuser, so this is the
+        only access check the report gets.
+        """
+        user = request.env.user
+        if not user._is_internal() or not (
+            isinstance(employee_ids, str) and EMPLOYEE_IDS_RE.match(employee_ids)
+        ):
+            return request.env["hr.employee"]
+        ids = [int(s) for s in employee_ids.split(",")]
+        employees = request.env["hr.employee"].browse(ids).exists()
+        if len(employees) != len(set(ids)):
+            return request.env["hr.employee"]
+        if user.has_group("hr.group_hr_user"):
+            return employees if employees.has_access("read") else employees.browse()
+        return employees if employees == user.employee_id else employees.browse()
+
     @route(["/print/cv"], type="http", auth="user")
     def print_employee_cv(
         self,
@@ -14,19 +34,8 @@ class HrEmployeeCV(Controller):
         color_secondary="#666666",
         **post,
     ):
-        if (
-            not request.env.user._is_internal()
-            or not isinstance(employee_ids, str)
-            or not EMPLOYEE_IDS_RE.match(employee_ids)
-        ):
-            return request.not_found()
-
-        ids = [int(s) for s in employee_ids.split(",")]
-        employees = request.env["hr.employee"].browse(ids)
-        if (
-            not request.env.user.has_group("hr.group_hr_user")
-            and employees.ids != request.env.user.employee_id.ids
-        ):
+        employees = self._printable_employees(employee_ids)
+        if not employees:
             return request.not_found()
 
         resume_type_education = request.env.ref(
