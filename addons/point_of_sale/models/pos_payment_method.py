@@ -23,13 +23,17 @@ class PosPaymentMethod(models.Model):
     def _is_online_payment(self):
         return False
 
+    def _default_sequence(self):
+        last = self.search([], order="sequence desc", limit=1)
+        return (last.sequence or 0) + 1
+
     name = fields.Char(
         string="Method",
         required=True,
         translate=True,
         help="Defines the name of the payment method that will be displayed in the Point of Sale when the payments are selected.",
     )
-    sequence = fields.Integer(copy=False)
+    sequence = fields.Integer(copy=False, default=_default_sequence)
     outstanding_account_id = fields.Many2one(
         "account.account",
         string="Outstanding Account",

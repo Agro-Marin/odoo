@@ -1509,6 +1509,7 @@ class PosConfig(models.Model):
                 "name": _("Cash"),
                 "journal_id": cash_journal.id,
                 "company_id": self.env.company.id,
+                "sequence": 1,
             }
         )
 
@@ -1579,7 +1580,7 @@ class PosConfig(models.Model):
                     if outstanding_account
                     else False,
                     "company_id": self.env.company.id,
-                    "sequence": 1,
+                    "sequence": 2,
                 }
             )
 
@@ -1588,6 +1589,7 @@ class PosConfig(models.Model):
         pay_later_pm = self.env["pos.payment.method"].search(
             [
                 ("journal_id", "=", False),
+                ("split_transactions", "=", True),
                 ("company_id", "in", self.env.company.parent_ids.ids),
             ]
         )
@@ -1597,7 +1599,7 @@ class PosConfig(models.Model):
                     "name": _("Customer Account"),
                     "company_id": self.env.company.id,
                     "split_transactions": True,
-                    "sequence": 2,
+                    "sequence": 4,
                 }
             )
 

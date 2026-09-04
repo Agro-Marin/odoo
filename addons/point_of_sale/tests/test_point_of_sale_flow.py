@@ -2690,6 +2690,34 @@ class TestPointOfSaleFlow(CommonPosTest):
             order.name, f"/AA - {order.pos_reference.split('-')[-1]} - 1.B"
         )
 
+    def test_default_payment_methods_are_sequenced(self):
+        """Cash, Card and Customer Account come out in that order, a new method
+        lands last, and an online-payment method is never mistaken for the
+        Customer Account one."""
+        self.env["pos.payment.method"].search([]).write({"active": False})
+
+        online_pm = self.env["pos.payment.method"].create(
+            {
+                "name": "Online Payment",
+                "company_id": self.env.company.id,
+            },
+        )
+
+        _journal, method_ids = self.pos_config_usd._create_journal_and_payment_methods()
+        methods = self.env["pos.payment.method"].browse(method_ids)
+
+        self.assertEqual(methods.mapped("name"), ["Cash", "Card", "Customer Account"])
+        self.assertEqual(methods.mapped("sequence"), [1, 2, 4])
+        self.assertNotIn(
+            online_pm,
+            methods,
+            "a method with no journal but no split_transactions is not a "
+            "customer-account method",
+        )
+
+        new_pm = self.env["pos.payment.method"].create({"name": "Quick Pay"})
+        self.assertEqual(new_pm.sequence, 5, "a new method is listed last, not first")
+
     def test_order_invoiced_customer_account_after_session_closed(self):
         order_data = {
             "line_data": [
