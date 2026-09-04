@@ -71,7 +71,10 @@ class NplusOneTracker:
         record_count: int,
         field_fingerprint: frozenset[str],
     ) -> None:
-        frame: types.FrameType | None = sys._getframe(2)
+        try:
+            frame: types.FrameType | None = sys._getframe(2)
+        except ValueError:
+            return
         while frame is not None:
             code = frame.f_code
             if (
