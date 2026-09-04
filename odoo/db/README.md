@@ -70,7 +70,7 @@ library.
   pool at the primary, and a replica host equal to the primary's is a legitimate
   way to exercise readonly routes. Treating those as two servers reinstates the
   `2 * db_maxconn` overshoot exactly. Both traps are pinned in
-  `tests/test_budget_endpoints.py`, and the key's derivation in
+  `tests/test_endpoints.py`, and the key's derivation in
   `tests/test_invariants.py`.
 
   **Both sides of that comparison must default a missing value the same way,
@@ -116,7 +116,7 @@ library.
   uses; `__init__.py` is the public surface and nothing else. The keying
   argument above is unchanged — what changed is that a test can build an
   isolated registry instead of saving, clearing and restoring `_pools` and
-  `_budgets` around every case, which is what `test_budget_endpoints.py` did for
+  `_budgets` around every case, which is what `test_endpoints.py` did for
   all thirty of them.
 
   The residual trade is unchanged where it still applies: within one server a
