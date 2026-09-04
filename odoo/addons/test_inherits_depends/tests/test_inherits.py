@@ -12,6 +12,10 @@ class TestInheritsDepends(common.TransactionCase):
         self.assertEqual(len(field), 1)
         self.assertEqual(field.module, "test_inherits")
 
+        field = IrModelData.search([("name", "=", "field_test_pallet__name")])
+        self.assertEqual(len(field), 1)
+        self.assertEqual(field.module, "test_inherits")
+
     def test_ir_model_data_inherits_depends(self):
         IrModelData = self.env["ir.model.data"]
         field = IrModelData.search([("name", "=", "field_test_unit__second_name")])
@@ -19,5 +23,9 @@ class TestInheritsDepends(common.TransactionCase):
         self.assertEqual(field.module, "test_inherits_depends")
 
         field = IrModelData.search([("name", "=", "field_test_box__second_name")])
+        self.assertEqual(len(field), 1)
+        self.assertEqual(field.module, "test_inherits_depends")
+
+        field = IrModelData.search([("name", "=", "field_test_pallet__second_name")])
         self.assertEqual(len(field), 1)
         self.assertEqual(field.module, "test_inherits_depends")
