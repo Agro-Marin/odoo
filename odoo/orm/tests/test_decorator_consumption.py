@@ -154,23 +154,9 @@ class TestConstrainsUnknownFieldWarning:
 
 
 class TestNoShippedConstraintReliesOnSu:
-    """`env.su` inside a constraint can only ever read True, so a guard on it is
-    dead code with the shape of a security check.
-
-    `_check_fields` hands every constraint `self.sudo()` unless the decorator
-    says `sudo=False` (`orm/models/mixins/_constraints.py`), which is what
-    `TestConstraintSudoSemantics` above pins. A constraint written
-    `if self.env.su: return ...` therefore returns on its first line, in every
-    database, forever — and nothing fails, because a constraint that checks
-    nothing raises nothing. One shipped this way and was found by testing the
-    behaviour rather than by reading the code: an internal user in no call could
-    create a media segment on somebody else's call history.
-
-    Reading `env.su` at all is the tell, not just guarding on it. A constraint
-    consulting it is reasoning about privilege, and under the default that
-    reasoning is either dead or vacuous. `sudo=False` is how it is made to mean
-    something.
-    """
+    # `_check_fields` hands a constraint `self.sudo()` unless the decorator says
+    # `sudo=False`, so `env.su` inside one reads True forever and a branch on it
+    # is dead. One shipped that way and no test could have caught it.
 
     ROOTS = ("odoo", "addons")
 
@@ -232,34 +218,10 @@ class TestNoShippedConstraintReliesOnSu:
         )
 
     def test_no_stored_compute_reads_su_without_declaring_compute_sudo_false(self):
-        """The same shape one hook over, and it is clean today rather than absent.
-
-        `compute_value` sudoes the records when `field.compute_sudo`
-        (`orm/fields/_field_compute.py:160`), and `compute_sudo` defaults to
-        `store` (`orm/fields/_field_setup.py:46`). So a compute on a STORED
-        field reads `env.su` as True forever, exactly as a constraint does, while
-        a compute on an unstored one is handed the user's own environment and the
-        flag means something.
-
-        Measured before this was written: three computes in `odoo` and `addons`
-        read `env.su` -- in `hr_expense` twice and `mail_group` once -- and all
-        three compute unstored fields, so all three are correct.
-
-        What this cannot see, stated rather than implied: a field whose
-        `compute=` is a callable rather than a literal name, and a field declared
-        in a class other than the one holding the method. Those are blind spots,
-        not exemptions.
-
-        The related case looks like a third and is not, which is worth writing
-        down because the reasoning is not obvious. `compute_sudo` follows
-        `related_sudo` for a related field and so defaults to True whether the
-        field is stored or not -- but a related field's compute is *generated*,
-        so there is no hand-written body in which to read the flag. Measured:
-        exactly one field in `odoo` and `addons` declares both `related=` and
-        `compute=`, and it declares `related=False`, cancelling it. What remains
-        is a field related in a parent and given a `compute=` in a child, which
-        nothing does today.
-        """
+        # `compute_sudo` defaults to `store`, so the same shape one hook over.
+        # Blind spots, not exemptions: a `compute=` given as a callable, and a
+        # field declared in another class. A related field is NOT one -- its
+        # compute is generated, so there is no body in which to read the flag.
         offenders = self._stored_compute_offenders()
         assert offenders == [], (
             "these computes read `env.su` while computing a stored field, which "
@@ -328,7 +290,8 @@ class TestNoShippedConstraintReliesOnSu:
         return found
 
     def test_the_scan_reaches_a_constraint_at_all(self):
-        """A green assertion over an empty scan is not a green tree."""
+        # The scans exclude `tests/`, and excluding a directory is how one
+        # quietly narrows to nothing and reads green forever.
         repo = Path(__file__).resolve().parents[3]
         seen = 0
         for path in (repo / "addons").rglob("*.py"):
