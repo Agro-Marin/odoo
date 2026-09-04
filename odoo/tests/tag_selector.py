@@ -83,6 +83,23 @@ class TagsSelector:
             ]
         return test._test_params
 
+    def check_and_select(self, test: Any) -> bool:
+        """Combine `check()` and `select_params()` into a single `_matcher()` call.
+
+        Equivalent to `check(test)` followed by `select_params(test)` when
+        the test is selected, but computes the matcher/matches only once.
+        """
+        matches = self._matcher(test)
+        if matches is None or not self._selects(matches):
+            test._test_params = []
+            return False
+        test._test_params = [
+            parameter
+            for test_filter, parameter in self.parameters
+            if matches(test_filter)
+        ]
+        return True
+
     def _selects(self, matches: Any) -> bool:
         if any(matches(test_filter) for test_filter in self.exclude):
             return False
