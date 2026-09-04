@@ -27,14 +27,17 @@ class ReportPosOrder(models.Model):
         readonly=True,
     )
     user_id = fields.Many2one("res.users", string="User", readonly=True)
-    price_total = fields.Float(string="Total Price", readonly=True)
-    price_sub_total = fields.Float(string="Subtotal w/o discount", readonly=True)
-    price_subtotal_excl = fields.Float(string="Subtotal w/o Tax", readonly=True)
-    total_discount = fields.Float(string="Total Discount", readonly=True)
-    average_price = fields.Float(
+    price_total = fields.Monetary(string="Total Price", readonly=True)
+    price_sub_total = fields.Monetary(string="Subtotal w/o discount", readonly=True)
+    price_subtotal_excl = fields.Monetary(string="Subtotal w/o Tax", readonly=True)
+    total_discount = fields.Monetary(string="Total Discount", readonly=True)
+    average_price = fields.Monetary(
         string="Average Price", readonly=True, aggregator="avg"
     )
     company_id = fields.Many2one("res.company", string="Company", readonly=True)
+    # Every amount above is normalised to the company currency by _select(),
+    # which divides by pos_order.currency_rate.
+    currency_id = fields.Many2one("res.currency", string="Currency", readonly=True)
     nbr_lines = fields.Integer(string="Sale Line Count", readonly=True)
     product_qty = fields.Integer(string="Product Quantity", readonly=True)
     journal_id = fields.Many2one("account.journal", string="Journal", readonly=True)
@@ -51,7 +54,7 @@ class ReportPosOrder(models.Model):
         "product.pricelist", string="Pricelist", readonly=True
     )
     session_id = fields.Many2one("pos.session", string="Session", readonly=True)
-    margin = fields.Float(string="Margin", readonly=True)
+    margin = fields.Monetary(string="Margin", readonly=True)
     payment_method_id = fields.Many2one(
         "pos.payment.method", string="Payment Method", readonly=True
     )
@@ -101,6 +104,7 @@ class ReportPosOrder(models.Model):
                 s.state AS state,
                 s.user_id AS user_id,
                 s.company_id AS company_id,
+                co.currency_id AS currency_id,
                 s.sale_journal AS journal_id,
                 l.product_id AS product_id,
                 pt.categ_id AS product_categ_id,

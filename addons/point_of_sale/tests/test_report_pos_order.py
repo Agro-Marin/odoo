@@ -133,3 +133,55 @@ class TestReportPoSOrder(TestPoSCommon):
 
         self.assertEqual(reports[0].margin, 135)
         self.assertEqual(reports[0].price_total, 135)
+
+    def test_report_pos_order_currency(self):
+        """The analysis columns are monetary, so the list and the pivot print a
+        currency symbol instead of a bare number."""
+        product1 = self.create_product("Product 1", self.categ_basic, 150)
+
+        self.open_new_session()
+        session = self.pos_session
+        self.env["pos.order"].create(
+            {
+                "session_id": session.id,
+                "lines": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "OL/0001",
+                            "product_id": product1.id,
+                            "price_unit": 150,
+                            "discount": 0,
+                            "qty": 1.0,
+                            "price_subtotal": 150,
+                            "price_subtotal_incl": 150,
+                        },
+                    )
+                ],
+                "amount_total": 150.0,
+                "amount_tax": 0.0,
+                "amount_paid": 0.0,
+                "amount_return": 0.0,
+            }
+        )
+        report = self.env["report.pos.order"]
+        for name in (
+            "price_total",
+            "price_sub_total",
+            "price_subtotal_excl",
+            "total_discount",
+            "average_price",
+            "margin",
+        ):
+            self.assertEqual(
+                report._fields[name].type,
+                "monetary",
+                f"{name} must be monetary for the report to show a currency",
+            )
+
+        row = report.sudo().search([("product_id", "=", product1.id)], order="id")
+        self.assertEqual(len(row), 1)
+        # The view normalises every amount to the company currency by dividing
+        # by pos_order.currency_rate, so that is the currency to report.
+        self.assertEqual(row.currency_id, row.company_id.currency_id)
