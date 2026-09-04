@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.fields import Domain
 
 
 class Test_Access_RightSome_Obj(models.Model):
@@ -67,7 +68,7 @@ class Test_Access_RightObj_Categ(models.Model):
     @api.model
     def search_fetch(self, domain, field_names=None, offset=0, limit=None, order=None):
         if self.env.context.get("only_media"):
-            domain = domain + [("name", "=", "Media")]  # noqa: PLR6104 (list: += would mutate the caller's domain in place)
+            domain = Domain(domain) & Domain("name", "=", "Media")
         return super().search_fetch(domain, field_names, offset, limit, order)
 
 
