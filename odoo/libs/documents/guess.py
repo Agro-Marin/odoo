@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import codecs
 
-import chardet
+try:
+    import chardet
+except ImportError:
+    chardet = None
 
 # Bytes handed to chardet per `feed` call. Only affects how often the detector
 # is asked whether it is done, not what it sees -- see `guess_encoding`.
@@ -22,6 +25,8 @@ _BOM_MAP = {
 
 
 def guess_encoding(data: bytes) -> str | None:
+    if chardet is None:
+        return None
     detector = chardet.UniversalDetector()
     for start in range(0, len(data), _ENCODING_CHUNK):
         detector.feed(data[start : start + _ENCODING_CHUNK])
