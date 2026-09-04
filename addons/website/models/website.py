@@ -1563,22 +1563,9 @@ class Website(models.Model):
         return self.browse(website_id)
 
     @api.model
+    @tools.ormcache("website_id")
     def _is_website_live(self, website_id):
-        generation = self.pool.ormcache_lrus["default"].generation
-        live = getattr(request, "_website_live_ids", None) if request else None
-        if isinstance(live, tuple) and live[0] == generation:
-            if website_id in live[1]:
-                return True
-        else:
-            live = None
-        if not self.browse(website_id).exists():
-            return False
-        if request:
-            if live is None:
-                request._website_live_ids = (generation, {website_id})
-            else:
-                live[1].add(website_id)
-        return True
+        return bool(self.browse(website_id).exists())
 
     @api.model
     @tools.ormcache("domain_name", "fallback")
