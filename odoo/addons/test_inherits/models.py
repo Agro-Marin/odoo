@@ -131,7 +131,6 @@ class TestUnstoredInheritsParent(models.Model):
         result = super()._create(data_list)
         for parent, child_id, vals in zip(result, children, data_list, strict=True):
             child = self.env["test.unstored.inherits.child"].browse(child_id)
-            child.parent_id = parent.id
             child.write(
                 {
                     **vals.get("inherited", {})["test.unstored.inherits.child"],
