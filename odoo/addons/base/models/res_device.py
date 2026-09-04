@@ -54,7 +54,7 @@ class ResDeviceLog(models.Model):
     device_type = fields.Selection(
         [("computer", "Computer"), ("mobile", "Mobile")], "Device Type"
     )
-    user_id = fields.Many2one("res.users", index="btree")
+    user_id = fields.Many2one("res.users", index="btree", ondelete="cascade")
     first_activity = fields.Datetime("First Activity")
     last_activity = fields.Datetime("Last Activity", index="btree")
     revoked = fields.Boolean(
