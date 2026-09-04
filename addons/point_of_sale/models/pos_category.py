@@ -43,6 +43,7 @@ class PosCategory(models.Model):
     )
 
     has_image = fields.Boolean(compute="_compute_has_image")
+    product_count = fields.Integer(compute="_compute_product_count")
 
     @api.model
     def _load_pos_data_domain(self, data, config):
@@ -122,6 +123,39 @@ class PosCategory(models.Model):
     def _compute_has_image(self):
         for category in self:
             category.has_image = bool(category.image_128)
+
+    def _compute_product_count(self):
+        descendants = {category: category._get_descendants() for category in self}
+        all_descendants = self.browse().union(*descendants.values())
+        products_by_category = dict(
+            self.env["product.template"]._read_group(
+                [("pos_categ_ids", "in", all_descendants.ids)],
+                ["pos_categ_ids"],
+                ["id:array_agg"],
+            )
+        )
+        for category in self:
+            # A product filed under both a parent and one of its children must
+            # count once, hence the set rather than a sum of counts.
+            products = set()
+            for descendant in descendants[category]:
+                products.update(products_by_category.get(descendant, []))
+            category.product_count = len(products)
+
+    def action_open_associated_products(self):
+        self.check_singleton()
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
+            "point_of_sale.product_template_action_pos_product"
+        )
+        context = action.get("context", {})
+        if isinstance(context, str):
+            context = self.env["ir.actions.actions"]._eval_action_context(context)
+        action["context"] = {
+            **context,
+            "search_default_pos_categ_ids": [self.id],
+            "default_pos_categ_ids": [self.id],
+        }
+        return action
 
     def _get_descendants(self):
         available_categories = self
