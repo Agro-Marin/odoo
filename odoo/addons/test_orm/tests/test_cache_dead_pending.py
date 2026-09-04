@@ -7,7 +7,7 @@ class TestDeadPendingMarkers(TransactionCase):
         record = self.env["test_orm.partial.compute"].create({"mode": mode})
         self.env.flush_all()
         self.env.invalidate_all()
-        return record.with_env(self.env)
+        return record
 
     def _marker(self, record, fname):
         field = record._fields[fname]
