@@ -231,15 +231,21 @@ class AutomationRule(models.Model):
         copy=False,
         help="Typed dependencies between this automation's steps",
     )
-    step_count = fields.Integer(
+    step_count = fields.Count(
+        "action_server_ids",
         string="Steps",
-        compute="_compute_workflow_counts",
         store=True,
         help="How many steps this automation runs",
     )
-    edge_count = fields.Integer(
+    edge_count = fields.Count(
+        "edge_ids",
+        # An edge is cascade-deleted with either endpoint, and the ORM sees that
+        # as a change to `action_server_ids` rather than to `edge_ids`, so
+        # counting only what Count counts leaves the stored value one high after
+        # a step is removed. `test_the_counts_follow_the_graph` reads exactly
+        # that sequence.
+        depends=["edge_ids", "action_server_ids"],
         string="Connections",
-        compute="_compute_workflow_counts",
         store=True,
         help="How many typed dependencies order this automation's steps",
     )
@@ -730,18 +736,6 @@ class AutomationRule(models.Model):
                 and edge.target_node_id.id in new_by_old
             ]
         )
-
-    @api.depends("action_server_ids", "edge_ids")
-    def _compute_workflow_counts(self):
-        """Counted off the one2many, not with a grouped query.
-
-        A stored compute also runs on an unsaved automation, whose steps exist
-        only in the cache; a query grouped on `automation_rule_id` would report
-        zero for exactly the record the form is showing.
-        """
-        for automation in self:
-            automation.step_count = len(automation.action_server_ids)
-            automation.edge_count = len(automation.edge_ids)
 
     @api.depends("trigger", "webhook_uuid")
     def _compute_url(self):
