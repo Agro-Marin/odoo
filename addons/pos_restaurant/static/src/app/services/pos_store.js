@@ -900,6 +900,12 @@ patch(PosStore.prototype, {
         return true;
     },
 
+    get showSaveOrderButton() {
+        // A table order is already held by its table; only a direct sale has
+        // nowhere to be parked.
+        return !this.getOrder()?.table_id && super.showSaveOrderButton;
+    },
+
     async transferOrder(orderUuid, destinationTable = null, destinationOrder = null) {
         if (!destinationTable && !destinationOrder) {
             return;

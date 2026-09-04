@@ -7,7 +7,8 @@
     max-height: 16.5rem;
 
     @include media-breakpoint-down(md) {
-        max-height: 11rem;
+        // One scrolling row, so the strip is only as tall as a button.
+        max-height: 3rem;
     }
 }
 
@@ -15,11 +16,24 @@
     --btn-border-color: #{o-token(--o-gray-200, $o-gray-200)};
     border-width: 2px;
     height: 4rem;
+    min-width: 115px;
 
+    @include media-breakpoint-down(md) {
+        height: 3rem;
+    }
+
+    .line-clamp-2,
     .line-clamp-3 {
         display: -webkit-box;
-        -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
         overflow: hidden;
+    }
+
+    .line-clamp-2 {
+        -webkit-line-clamp: 2;
+    }
+
+    .line-clamp-3 {
+        -webkit-line-clamp: 3;
     }
 }
