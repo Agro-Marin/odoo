@@ -133,6 +133,7 @@ env:
     /test_lint:TestSchemeDuplication,
     /test_lint:TestBundlesAssemble,
     /test_lint:TestSetupBundleHasNoTests,
+    /test_lint:RoutesLinter,
     /web:TestDarkBundles,
     /web:TestTokenLayer,
     /web:TestLazyBundleRelativeImports,

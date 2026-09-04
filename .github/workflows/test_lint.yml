@@ -57,7 +57,28 @@ permissions:
 
 env:
   INSTALL: test_lint
-  TEST_TAGS: /test_lint
+  # Five classes are EXCLUDED rather than run and left red. Each needs modules
+  # this lane does not install, and four of them already run in `asset_lint.yml`
+  # against an INSTALL wide enough to mean something -- they were added there and
+  # never taken out of here, so both lanes selected them and only one could pass.
+  #
+  # `RoutesLinter` is the fifth and the clearest case. It patches
+  # `_prepare_route_fragment` and counts the endpoints it sees; `base` has had no
+  # controller since 6bd71eeabdf moved its RPC endpoints out in 2024, so at this
+  # INSTALL the generator yields zero rules and the class fails on its own
+  # non-vacuity guard -- "route-linter hook was never invoked". That guard is
+  # correct and the scope is wrong: against `asset_lint.yml`'s INSTALL it checks
+  # 205 endpoints and passes.
+  #
+  # Measured on this tree: `/test_lint` alone is 5 failed of 312, and the tag
+  # below is 0 failed of 301 -- still well above the floor asserted further down.
+  TEST_TAGS: >-
+    /test_lint,
+    -:RoutesLinter,
+    -:TestAssetPathsExist,
+    -:TestBundlesAssemble,
+    -:TestOrphanAssets,
+    -:TestSetupBundleHasNoTests
   # Floor for the count gate below: a run reporting fewer than this skipped
   # rather than failed. 200 tests today; the margin absorbs a deliberate
   # removal without hiding a mass-skip. Raise it when the suite grows.
