@@ -1402,3 +1402,15 @@ msgstr ""
 #: code:addons/hr_work_entry/models/hr_work_entry.py:0
 msgid "You can't split a validated work entry."
 msgstr ""
+
+#. module: hr_work_entry
+#. odoo-python
+#: code:addons/hr_work_entry/wizard/hr_work_entry_regeneration_wizard.py:0
+msgid "The earliest available date is %s"
+msgstr ""
+
+#. module: hr_work_entry
+#. odoo-python
+#: code:addons/hr_work_entry/wizard/hr_work_entry_regeneration_wizard.py:0
+msgid "The latest available date is %s"
+msgstr ""

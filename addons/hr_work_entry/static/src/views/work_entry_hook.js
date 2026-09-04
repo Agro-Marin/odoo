@@ -5,7 +5,6 @@ import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 
 export function useWorkEntry({ getEmployeeIds, getRange, onClose }) {
-    const orm = useService("orm");
     const action = useService("action");
     const state = useState({ canRegenerate: false });
 
@@ -25,14 +24,6 @@ export function useWorkEntry({ getEmployeeIds, getRange, onClose }) {
                 },
                 onClose: onClose,
             });
-        },
-        generateWorkEntries: () => {
-            const { start, end } = getRange();
-            return orm.call("hr.employee", "generate_work_entries", [
-                [],
-                serializeDate(start),
-                serializeDate(end),
-            ]);
         },
     };
 }

@@ -1,6 +1,6 @@
-import itertools
 from collections import defaultdict
 from datetime import UTC, date, datetime, time, timedelta
+from itertools import chain
 
 from dateutil.relativedelta import relativedelta
 
@@ -11,6 +11,12 @@ from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.tools import float_is_zero, ormcache
 
+CRON_BATCH_SIZE = 100
+
+
+def _today_midnight(model):
+    return datetime.combine(fields.Date.today(), time.min)
+
 
 class HrVersion(models.Model):
     _inherit = "hr.version"
@@ -19,9 +25,8 @@ class HrVersion(models.Model):
         string="Generated From",
         readonly=True,
         required=True,
-        default=lambda self: datetime.now().replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ),
+        copy=False,
+        default=_today_midnight,
         groups="hr.group_hr_user",
         tracking=True,
     )
@@ -29,15 +34,15 @@ class HrVersion(models.Model):
         string="Generated To",
         readonly=True,
         required=True,
-        default=lambda self: datetime.now().replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ),
+        copy=False,
+        default=_today_midnight,
         groups="hr.group_hr_user",
         tracking=True,
     )
     last_generation_date = fields.Date(
         string="Last Generation Date",
         readonly=True,
+        copy=False,
         groups="hr.group_hr_user",
         tracking=True,
     )
@@ -55,18 +60,6 @@ class HrVersion(models.Model):
     """,
         groups="hr.group_hr_manager",
     )
-    work_entry_source_calendar_invalid = fields.Boolean(
-        compute="_compute_work_entry_source_calendar_invalid",
-        groups="hr.group_hr_manager",
-    )
-
-    @api.depends("work_entry_source", "resource_calendar_id")
-    def _compute_work_entry_source_calendar_invalid(self):
-        for version in self:
-            version.work_entry_source_calendar_invalid = (
-                version.work_entry_source == "calendar"
-                and not version.resource_calendar_id
-            )
 
     @ormcache()
     def _get_default_work_entry_type_id(self):
@@ -77,10 +70,19 @@ class HrVersion(models.Model):
 
     @ormcache()
     def _get_default_work_entry_type_overtime_id(self):
-        attendance = self.env.ref(
+        overtime = self.env.ref(
             "hr_work_entry.work_entry_type_overtime", raise_if_not_found=False
         )
-        return attendance.id if attendance else False
+        return overtime.id if overtime else False
+
+    def _get_work_entry_tz(self):
+        self.check_singleton()
+        return timezone(
+            self.resource_calendar_id.tz
+            or self.company_id.resource_calendar_id.tz
+            or self.employee_id.tz
+            or "UTC"
+        )
 
     def _get_leave_work_entry_type_dates(self, leave, date_from, date_to, employee):
         return self._get_leave_work_entry_type(leave)
@@ -131,25 +133,17 @@ class HrVersion(models.Model):
         assert start_dt.tzinfo and end_dt.tzinfo, "function expects localized date"
         employees_by_calendar = defaultdict(lambda: self.env["hr.employee"])
         for version in self:
-            if version.work_entry_source != "calendar":
-                continue
-            employees_by_calendar[version.resource_calendar_id] |= version.employee_id
+            if version.work_entry_source == "calendar":
+                employees_by_calendar[version.resource_calendar_id] |= (
+                    version.employee_id
+                )
         result = {}
         for calendar, employees in employees_by_calendar.items():
             if not calendar:
+                no_attendance = self.env["resource.calendar.attendance"]
                 for employee in employees:
-                    result.update(
-                        {
-                            employee.resource_id.id: Intervals(
-                                [
-                                    (
-                                        start_dt,
-                                        end_dt,
-                                        self.env["resource.calendar.attendance"],
-                                    )
-                                ]
-                            )
-                        }
+                    result[employee.resource_id.id] = Intervals(
+                        [(start_dt, end_dt, no_attendance)]
                     )
             else:
                 result.update(
@@ -157,7 +151,7 @@ class HrVersion(models.Model):
                         start_dt,
                         end_dt,
                         resources=employees.resource_id,
-                        tz=timezone(calendar.tz) if calendar.tz else UTC,
+                        tz=timezone(calendar.tz),
                     )
                 )
         return result
@@ -206,12 +200,6 @@ class HrVersion(models.Model):
                 split.append((start, stop, records))
         return split
 
-    @api.model
-    def _localize(self, dt, tz, tz_dates):
-        if (tz, dt) not in tz_dates:
-            tz_dates[tz, dt] = dt.astimezone(tz)
-        return tz_dates[tz, dt]
-
     def _get_work_entry_vals(
         self, name, interval_start, interval_stop, work_entry_type
     ):
@@ -227,65 +215,38 @@ class HrVersion(models.Model):
         }
 
     def _get_version_leave_intervals(
-        self, leaves_by_resource, attendances, start_dt, end_dt, tz_dates
+        self, leaves_by_resource, attendances, start_dt, end_dt
     ):
         self.check_singleton()
         calendar = self.resource_calendar_id
         resource = self.employee_id.resource_id
-        tz = (
-            timezone(resource.tz)
-            if self._is_fully_flexible()
-            else timezone(calendar.tz)
-        )
-        resources_list = [self.env["resource.resource"], resource]
-        leave_result = defaultdict(list)
-        work_result = defaultdict(list)
-        for leave in itertools.chain(
-            leaves_by_resource[False], leaves_by_resource[resource.id]
-        ):
-            for res in resources_list:
-                if (
-                    res
-                    and leave.calendar_id
-                    and leave.calendar_id != calendar
-                    and not leave.resource_id
-                ):
-                    continue
-                tz = tz or timezone((res or self).tz)
-                start = self._localize(start_dt, tz, tz_dates)
-                end = self._localize(end_dt, tz, tz_dates)
-                leave_interval = (
-                    max(start, leave.date_from.astimezone(tz)),
-                    min(end, leave.date_to.astimezone(tz)),
-                    leave,
-                )
-                leave_interval = self._get_valid_leave_intervals(
-                    attendances, leave_interval
-                )
-                if leave_interval:
-                    if leave.time_type == "leave":
-                        leave_result[res.id] += leave_interval
-                    else:
-                        work_result[res.id] += leave_interval
+        tz = start_dt.tzinfo
+        leave_intervals = []
+        work_intervals = []
+        for leave in chain(leaves_by_resource[False], leaves_by_resource[resource.id]):
+            if (
+                leave.calendar_id
+                and leave.calendar_id != calendar
+                and not leave.resource_id
+            ):
+                continue
+            interval = (
+                max(start_dt, leave.date_from.replace(tzinfo=UTC).astimezone(tz)),
+                min(end_dt, leave.date_to.replace(tzinfo=UTC).astimezone(tz)),
+                leave,
+            )
+            target = leave_intervals if leave.time_type == "leave" else work_intervals
+            target += self._get_valid_leave_intervals(attendances, interval)
         return (
-            Intervals(leave_result[resource.id], keep_distinct=True),
-            Intervals(work_result[resource.id], keep_distinct=True),
-            tz,
+            Intervals(leave_intervals, keep_distinct=True),
+            Intervals(work_intervals, keep_distinct=True),
         )
 
     def _get_real_leave_intervals(
-        self,
-        attendances,
-        plain_attendances,
-        leaves,
-        worked_leaves,
-        start_dt,
-        end_dt,
-        tz,
+        self, attendances, leaves, worked_leaves, start_dt, end_dt
     ):
         self.check_singleton()
         calendar = self.resource_calendar_id
-        resource = self.employee_id.resource_id
         if not calendar:
             return leaves, worked_leaves
 
@@ -297,9 +258,7 @@ class HrVersion(models.Model):
                 [l for l in worked_leaves if l[0].date() == l[1].date()],
                 keep_distinct=True,
             )
-            static_attendances = calendar._attendance_intervals_batch(
-                start_dt, end_dt, resources=resource, tz=tz
-            )[resource.id]
+            static_attendances = self._get_static_attendances(start_dt, end_dt)
             return (
                 (static_attendances & (leaves - one_day_leaves)) | one_day_leaves,
                 (static_attendances & (worked_leaves - one_day_worked_leaves))
@@ -307,16 +266,22 @@ class HrVersion(models.Model):
             )
 
         if self._has_static_work_entries() or not leaves:
+            plain_attendances = attendances - leaves - worked_leaves
             real_worked_leaves = attendances - plain_attendances - leaves
             return (
                 attendances - plain_attendances - real_worked_leaves,
                 real_worked_leaves,
             )
 
-        static_attendances = calendar._attendance_intervals_batch(
-            start_dt, end_dt, resources=resource, tz=tz
-        )[resource.id]
+        static_attendances = self._get_static_attendances(start_dt, end_dt)
         return static_attendances & leaves, static_attendances & worked_leaves
+
+    def _get_static_attendances(self, start_dt, end_dt):
+        self.check_singleton()
+        resource = self.employee_id.resource_id
+        return self.resource_calendar_id._attendance_intervals_batch(
+            start_dt, end_dt, resources=resource, tz=start_dt.tzinfo
+        )[resource.id]
 
     def _get_worked_leave_work_entry_vals(
         self, intervals, worked_leaves, bypassing_codes
@@ -349,13 +314,11 @@ class HrVersion(models.Model):
             if interval[0] == interval[1]:
                 continue
             leaves_over_interval = [
-                l
+                (l[0], l[1], interval[2])
                 for l in leaves_over_attendances
                 if l[0] >= interval[0] and l[1] <= interval[1]
             ]
-            for leave_interval in [
-                (l[0], l[1], interval[2]) for l in leaves_over_interval
-            ]:
+            for leave_interval in leaves_over_interval:
                 leave_entry_type = self._get_interval_leave_work_entry_type(
                     leave_interval, leaves, bypassing_codes
                 )
@@ -363,22 +326,14 @@ class HrVersion(models.Model):
                     leave
                     for leave in leaves
                     if leave[2].work_entry_type_id.id == leave_entry_type.id
-                ]
-                if not interval_leaves:
-                    interval_leaves = leaves
+                ] or leaves
+                name = self.employee_id.name
+                if leave_entry_type:
+                    name = "%s: %s" % (leave_entry_type.name, name)
                 vals.append(
                     {
                         **self._get_work_entry_vals(
-                            "%s%s"
-                            % (
-                                leave_entry_type.name + ": "
-                                if leave_entry_type
-                                else "",
-                                self.employee_id.name,
-                            ),
-                            leave_interval[0],
-                            leave_interval[1],
-                            leave_entry_type,
+                            name, leave_interval[0], leave_interval[1], leave_entry_type
                         ),
                         **dict(
                             self._get_more_vals_leave_interval(
@@ -390,10 +345,8 @@ class HrVersion(models.Model):
         return vals
 
     def _get_version_work_entries_values(self, date_start, date_stop):
-        start_dt = (
-            date_start.replace(tzinfo=UTC) if not date_start.tzinfo else date_start
-        )
-        end_dt = date_stop.replace(tzinfo=UTC) if not date_stop.tzinfo else date_stop
+        start_dt = self._as_utc(date_start)
+        end_dt = self._as_utc(date_stop)
         version_vals = []
         bypassing_codes = self._get_bypassing_work_entry_type_codes()
 
@@ -405,23 +358,18 @@ class HrVersion(models.Model):
         for leave in self._get_resource_calendar_leaves(start_dt, end_dt):
             leaves_by_resource[leave.resource_id.id] |= leave
 
-        tz_dates = {}
         for version in self:
+            tz = version._get_work_entry_tz()
+            local_start = start_dt.astimezone(tz)
+            local_end = end_dt.astimezone(tz)
             resource = version.employee_id.resource_id
             attendances = attendances_by_resource.get(resource.id, Intervals([]))
 
-            leaves, worked_leaves, tz = version._get_version_leave_intervals(
-                leaves_by_resource, attendances, start_dt, end_dt, tz_dates
+            leaves, worked_leaves = version._get_version_leave_intervals(
+                leaves_by_resource, attendances, local_start, local_end
             )
-            plain_attendances = attendances - leaves - worked_leaves
             real_leaves, real_worked_leaves = version._get_real_leave_intervals(
-                attendances,
-                plain_attendances,
-                leaves,
-                worked_leaves,
-                start_dt,
-                end_dt,
-                tz,
+                attendances, leaves, worked_leaves, local_start, local_end
             )
             real_attendances = self._get_real_attendances(
                 attendances, leaves, worked_leaves
@@ -447,100 +395,59 @@ class HrVersion(models.Model):
         return attendances - leaves - worked_leaves
 
     def _get_work_entries_values(self, date_start, date_stop):
-        if isinstance(date_start, datetime):
-            version_vals = self._get_version_work_entries_values(date_start, date_stop)
-        else:
-            version_vals = []
-            versions_by_tz = defaultdict(lambda: self.env["hr.version"])
-            for version in self:
-                versions_by_tz[version.resource_calendar_id.tz] += version
-            for version_tz, versions in versions_by_tz.items():
-                tz = timezone(version_tz) if version_tz else UTC
-                version_vals += versions._get_version_work_entries_values(
-                    date_start.replace(tzinfo=tz), date_stop.replace(tzinfo=tz)
-                )
-
-        mapped_version_dates = defaultdict(lambda: ([], []))
-        for x in version_vals:
-            mapped_version_dates[x["version_id"]][0].append(x["date_start"])
-            mapped_version_dates[x["version_id"]][1].append(x["date_stop"])
-
+        version_vals = self._get_version_work_entries_values(date_start, date_stop)
+        starts = defaultdict(list)
+        stops = defaultdict(list)
+        for vals in version_vals:
+            starts[vals["version_id"]].append(vals["date_start"])
+            stops[vals["version_id"]].append(vals["date_stop"])
         for version in self:
-            if version_vals:
-                dates_stop = mapped_version_dates[version.id][1]
-                if dates_stop:
-                    date_stop_max = max(dates_stop)
-                    version.date_generated_to = max(
-                        version.date_generated_to, date_stop_max
-                    )
-
-                dates_start = mapped_version_dates[version.id][0]
-                if dates_start:
-                    date_start_min = min(dates_start)
-                    version.date_generated_from = min(
-                        version.date_generated_from, date_start_min
-                    )
-
+            if version.id not in starts:
+                continue
+            version.date_generated_from = min(
+                version.date_generated_from, *starts[version.id]
+            )
+            version.date_generated_to = max(
+                version.date_generated_to, *stops[version.id]
+            )
         return version_vals
 
     def _has_static_work_entries(self):
         self.check_singleton()
         return self.work_entry_source == "calendar"
 
-    def generate_work_entries(
-        self, date_start, date_stop, force=False, record_ids=None
-    ):
-        assert not isinstance(date_start, datetime)
-        assert not isinstance(date_stop, datetime)
-
-        date_start = datetime.combine(
-            fields.Datetime.to_datetime(date_start), datetime.min.time()
-        )
-        date_stop = datetime.combine(
-            fields.Datetime.to_datetime(date_stop), datetime.max.time()
-        )
-
-        versions_by_company_tz = defaultdict(lambda: self.env["hr.version"])
-        for version in self:
-            versions_by_company_tz[
-                version.company_id,
-                (version.resource_calendar_id or version.employee_id).tz,
-            ] += version
-        utc = timezone("UTC")
+    def generate_work_entries(self, date_start, date_stop, force=False):
+        date_start = datetime.combine(fields.Date.to_date(date_start), time.min)
+        date_stop = datetime.combine(fields.Date.to_date(date_stop), time.max)
         new_work_entries = self.env["hr.work.entry"]
-        for (company, version_tz), versions in versions_by_company_tz.items():
-            tz = timezone(version_tz) if version_tz else utc
-            date_start_tz = (
-                date_start.replace(tzinfo=tz).astimezone(utc).replace(tzinfo=None)
-            )
-            date_stop_tz = (
-                date_stop.replace(tzinfo=tz).astimezone(utc).replace(tzinfo=None)
-            )
+        versions_by_company_tz = self.grouped(
+            lambda v: (v.company_id, v._get_work_entry_tz())
+        )
+        for (company, tz), versions in versions_by_company_tz.items():
             new_work_entries += (
                 versions.with_user(SUPERUSER_ID)
                 .with_company(company)
                 ._generate_work_entries(
-                    date_start_tz, date_stop_tz, force=force, record_ids=record_ids
+                    self._to_naive_utc(date_start, tz),
+                    self._to_naive_utc(date_stop, tz),
+                    force=force,
                 )
             )
         return new_work_entries
 
+    @staticmethod
+    def _to_naive_utc(local_naive, tz):
+        return local_naive.replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
+
     def _get_version_utc_bounds(self, tz, date_stop):
         self.check_singleton()
-        version_start = (
-            fields.Datetime.to_datetime(self.date_start)
-            .replace(tzinfo=tz)
-            .astimezone(UTC)
-            .replace(tzinfo=None)
+        version_start = self._to_naive_utc(
+            datetime.combine(self.date_start, time.min), tz
         )
         version_stop = (
-            datetime.combine(
-                fields.Datetime.to_datetime(self.date_end or date_stop),
-                datetime.max.time(),
-            )
-            .replace(tzinfo=tz)
-            .astimezone(UTC)
-            .replace(tzinfo=None)
+            self._to_naive_utc(datetime.combine(self.date_end, time.max), tz)
+            if self.date_end
+            else date_stop
         )
         return version_start, version_stop
 
@@ -553,15 +460,15 @@ class HrVersion(models.Model):
         return Domain(
             [
                 ("version_id", "=", self.id),
-                ("date", ">", version_stop.replace(tzinfo=UTC).astimezone(tz)),
-                ("date", "<=", date_stop.replace(tzinfo=UTC).astimezone(tz)),
+                ("date", ">", version_stop.replace(tzinfo=UTC).astimezone(tz).date()),
+                ("date", "<=", date_stop.replace(tzinfo=UTC).astimezone(tz).date()),
                 ("state", "!=", "validated"),
             ]
         )
 
-    def _get_forced_work_entries_domain(self, tz, date_from, date_to, record_ids):
+    def _get_forced_work_entries_domain(self, tz, date_from, date_to):
         self.check_singleton()
-        domain = Domain(
+        return Domain(
             [
                 ("version_id", "=", self.id),
                 ("date", ">=", date_from.replace(tzinfo=UTC).astimezone(tz).date()),
@@ -569,66 +476,60 @@ class HrVersion(models.Model):
                 ("state", "!=", "validated"),
             ]
         )
-        if record_ids:
-            domain &= Domain("id", "in", record_ids)
-        return domain
 
-    def _plan_work_entry_generation(self, date_start, date_stop, force, record_ids):
+    def _plan_work_entry_generation(self, date_start, date_stop, force):
         intervals_to_generate = defaultdict(lambda: self.env["hr.version"])
         domain_to_nullify = Domain(False)
-        for tz, versions in self.grouped("tz").items():
-            tz = timezone(tz) if tz else UTC
-            for version in versions:
-                version_start, version_stop = version._get_version_utc_bounds(
-                    tz, date_stop
+        for version in self:
+            tz = version._get_work_entry_tz()
+            version_start, version_stop = version._get_version_utc_bounds(tz, date_stop)
+            domain_to_nullify |= version._get_expired_work_entries_domain(
+                tz, version_stop, date_stop
+            )
+            if date_start > version_stop or date_stop < version_start:
+                continue
+            date_from = max(date_start, version_start)
+            date_to = min(date_stop, version_stop)
+
+            if force:
+                domain_to_nullify |= version._get_forced_work_entries_domain(
+                    tz, date_from, date_to
                 )
-                domain_to_nullify |= version._get_expired_work_entries_domain(
-                    tz, version_stop, date_stop
-                )
-                if date_start > version_stop or date_stop < version_start:
-                    continue
-                date_from = max(date_start, version_start)
-                date_to = min(date_stop, version_stop)
+                intervals_to_generate[date_from, date_to] |= version
+                continue
 
-                if force:
-                    domain_to_nullify |= version._get_forced_work_entries_domain(
-                        tz, date_from, date_to, record_ids
-                    )
-                    if not record_ids:
-                        intervals_to_generate[date_from, date_to] |= version
-                    continue
+            last_generated_from = min(version.date_generated_from, version_stop)
+            if last_generated_from > date_from:
+                version.date_generated_from = date_from
+                intervals_to_generate[date_from, last_generated_from] |= version
 
-                last_generated_from = min(version.date_generated_from, version_stop)
-                if last_generated_from > date_from:
-                    version.date_generated_from = date_from
-                    intervals_to_generate[date_from, last_generated_from] |= version
-
-                last_generated_to = max(version.date_generated_to, version_start)
-                if last_generated_to < date_to:
-                    version.date_generated_to = date_to
-                    intervals_to_generate[last_generated_to, date_to] |= version
+            last_generated_to = max(version.date_generated_to, version_start)
+            if last_generated_to < date_to:
+                version.date_generated_to = date_to
+                intervals_to_generate[last_generated_to, date_to] |= version
         return intervals_to_generate, domain_to_nullify
 
-    def _generate_work_entries(
-        self, date_start, date_stop, force=False, record_ids=None
-    ):
+    def _generate_work_entries(self, date_start, date_stop, force=False):
         assert isinstance(date_start, datetime)
         assert isinstance(date_stop, datetime)
         self = self.with_context(tracking_disable=True)
-        self.write({"last_generation_date": fields.Date.today()})
-        self.filtered(lambda c: c.date_generated_from == c.date_generated_to).write(
+        today = fields.Date.today()
+        self.filtered(lambda v: v.last_generation_date != today).write(
+            {"last_generation_date": today}
+        )
+        self.filtered(lambda v: v.date_generated_from == v.date_generated_to).write(
             {"date_generated_from": date_start, "date_generated_to": date_start}
         )
 
         intervals_to_generate, domain_to_nullify = self._plan_work_entry_generation(
-            date_start, date_stop, force, record_ids
+            date_start, date_stop, force
         )
 
         vals_list = []
         for (date_from, date_to), versions in intervals_to_generate.items():
             vals_list.extend(versions._get_work_entries_values(date_from, date_to))
 
-        if domain_to_nullify != Domain.FALSE:
+        if not domain_to_nullify.is_false():
             work_entry_null_vals = dict.fromkeys(
                 self.env[
                     "hr.work.entry.regeneration.wizard"
@@ -654,21 +555,6 @@ class HrVersion(models.Model):
             self.env["hr.work.entry.type"].browse(vals["work_entry_type_id"]).is_leave
         )
 
-    def _get_version_tz(self, version_id, tz_by_version):
-        if version_id not in tz_by_version:
-            version = self.env["hr.version"].browse(version_id)
-            tz = (
-                version.resource_calendar_id.tz
-                or version.employee_id.resource_calendar_id.tz
-                or version.company_id.resource_calendar_id.tz
-            )
-            if not tz:
-                raise UserError(
-                    self.env._("Missing timezone for work entries generation.")
-                )
-            tz_by_version[version_id] = timezone(tz)
-        return tz_by_version[version_id]
-
     @api.model
     def _split_work_entry_vals_on_local_midnight(self, vals_list, tz_by_version):
         split_vals_list = []
@@ -684,13 +570,13 @@ class HrVersion(models.Model):
                 split_vals_list.append(vals)
                 continue
 
-            tz = self._get_version_tz(vals["version_id"], tz_by_version)
+            tz = tz_by_version[vals["version_id"]]
             local_start = self._as_utc(vals["date_start"]).astimezone(tz)
             local_stop = self._as_utc(vals["date_stop"]).astimezone(tz)
 
             current = (
                 local_start + timedelta(microseconds=1)
-                if local_start.time() == datetime.max.time()
+                if local_start.time() == time.max
                 else local_start
             )
             while current < local_stop:
@@ -709,8 +595,8 @@ class HrVersion(models.Model):
                 current = segment_end + timedelta(microseconds=1)
         return split_vals_list
 
-    @api.model
-    def _as_utc(self, dt):
+    @staticmethod
+    def _as_utc(dt):
         return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
     @api.model
@@ -723,7 +609,7 @@ class HrVersion(models.Model):
             if not vals.get("date_start") or not vals.get("date_stop"):
                 continue
             period = (vals["date_start"], vals["date_stop"])
-            tz = self._get_version_tz(vals["version_id"], tz_by_version)
+            tz = tz_by_version[vals["version_id"]]
             vals["date"] = period[0].astimezone(tz).date()
             version = self.env["hr.version"].browse(vals["version_id"])
             if not self._generate_work_entries_postprocess_adapt_to_calendar(vals):
@@ -780,14 +666,17 @@ class HrVersion(models.Model):
                 vals.get("company_id", False),
             )
             if key in merged_vals:
-                merged_vals[key]["duration"] += vals.get("duration", 0.0)
+                merged_vals[key]["duration"] += vals["duration"]
             else:
                 merged_vals[key] = vals.copy()
         return list(merged_vals.values())
 
     @api.model
     def _generate_work_entries_postprocess(self, vals_list):
-        tz_by_version = {}
+        versions = self.browse({vals["version_id"] for vals in vals_list})
+        tz_by_version = {
+            version.id: version._get_work_entry_tz() for version in versions
+        }
         vals_list = self._split_work_entry_vals_on_local_midnight(
             vals_list, tz_by_version
         )
@@ -800,43 +689,36 @@ class HrVersion(models.Model):
             date_start = fields.Datetime.to_datetime(version.date_start)
             if version.date_generated_from < date_start:
                 we_to_remove = self.env["hr.work.entry"].search(
-                    [("date", "<", date_start), ("version_id", "=", version.id)]
+                    [("date", "<", version.date_start), ("version_id", "=", version.id)]
                 )
                 if we_to_remove:
                     version.date_generated_from = date_start
                     all_we_to_unlink |= we_to_remove
             if not version.date_end:
                 continue
-            date_end = datetime.combine(version.date_end, datetime.max.time())
+            date_end = datetime.combine(version.date_end, time.max)
             if version.date_generated_to > date_end:
                 we_to_remove = self.env["hr.work.entry"].search(
-                    [("date", ">", date_end), ("version_id", "=", version.id)]
+                    [("date", ">", version.date_end), ("version_id", "=", version.id)]
                 )
                 if we_to_remove:
                     version.date_generated_to = date_end
                     all_we_to_unlink |= we_to_remove
         all_we_to_unlink.unlink()
 
-    def _cancel_work_entries(self):
+    def _unlink_work_entries(self):
         if not self:
             return
         domains = []
         for version in self:
-            date_start = fields.Datetime.to_datetime(version.date_start)
-            version_domain = Domain(
-                [
-                    ("version_id", "=", version.id),
-                    ("date", ">=", date_start),
-                ]
+            version_domain = Domain("version_id", "=", version.id) & Domain(
+                "date", ">=", version.date_start
             )
             if version.date_end:
-                date_end = datetime.combine(version.date_end, datetime.max.time())
-                version_domain &= Domain("date", "<=", date_end)
+                version_domain &= Domain("date", "<=", version.date_end)
             domains.append(version_domain)
         domain = Domain.OR(domains) & Domain("state", "!=", "validated")
-        work_entries = self.env["hr.work.entry"].sudo().search(domain)
-        if work_entries:
-            work_entries.unlink()
+        self.env["hr.work.entry"].sudo().search(domain).unlink()
 
     def write(self, vals):
         result = super().write(vals)
@@ -863,7 +745,7 @@ class HrVersion(models.Model):
         return result
 
     def unlink(self):
-        self._cancel_work_entries()
+        self._unlink_work_entries()
         return super().unlink()
 
     def _recompute_work_entries(self, date_from, date_to):
@@ -903,14 +785,13 @@ class HrVersion(models.Model):
         versions_todo = versions_todo.filtered(
             lambda v: v.company_id == versions_todo[0].company_id
         )
-        BATCH_SIZE = 100
         versions_todo = versions_todo.sorted(
             key=lambda v: 1 if v._has_static_work_entries() else 100
         )
-        versions_todo[:BATCH_SIZE].generate_work_entries(
+        versions_todo[:CRON_BATCH_SIZE].generate_work_entries(
             start.date(), stop.date(), False
         )
-        if version_todo_count > BATCH_SIZE:
+        if version_todo_count > CRON_BATCH_SIZE:
             self.env.ref(
                 "hr_work_entry.ir_cron_generate_missing_work_entries"
             )._trigger()

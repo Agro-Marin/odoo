@@ -10,6 +10,11 @@ from odoo.fields import Domain
 from odoo.libs.intervals import Intervals
 from odoo.tools import float_compare
 
+CLOSED_STATES = ("validated", "cancelled")
+FIELDS_TRIGGERING_CHECK = frozenset(
+    {"date", "duration", "employee_id", "work_entry_type_id", "active"}
+)
+
 
 class HrWorkEntry(models.Model):
     _name = "hr.work.entry"
@@ -33,7 +38,9 @@ class HrWorkEntry(models.Model):
     work_entry_type_id = fields.Many2one(
         "hr.work.entry.type",
         index=True,
-        default=lambda self: self.env["hr.work.entry.type"].search([], limit=1),
+        default=lambda self: self.env.ref(
+            "hr_work_entry.work_entry_type_attendance", raise_if_not_found=False
+        ),
         domain=lambda self: self._get_work_entry_type_domain(),
     )
     display_code = fields.Char(related="work_entry_type_id.display_code")
@@ -63,9 +70,7 @@ class HrWorkEntry(models.Model):
         string="Pay rate", compute="_compute_amount_rate", store=True, readonly=False
     )
     country_id = fields.Many2one(
-        "res.country",
-        related="employee_id.company_id.country_id",
-        search="_search_country_id",
+        "res.country", related="employee_id.company_id.country_id"
     )
 
     _contract_date_start_stop_idx = models.Index(
@@ -100,24 +105,15 @@ class HrWorkEntry(models.Model):
             work_entry.amount_rate = work_entry.work_entry_type_id.amount_rate
 
     @api.onchange("employee_id", "date")
-    def _onchange_version_id(self):
-        vals = {
-            "employee_id": self.employee_id.id,
-            "date": self.date,
-        }
-        try:
-            res = self._set_current_version(vals)
-        except ValidationError:
-            return
-        if version_id := res.get("version_id"):
-            self.version_id = version_id
+    def _onchange_employee_id_date(self):
+        if self.employee_id and self.date:
+            self.version_id = self.employee_id._get_version(self.date)
 
     @api.model
-    def _set_current_version(self, vals):
+    def _complete_version_id(self, vals):
         if not vals.get("version_id") and vals.get("date") and vals.get("employee_id"):
-            employee = self.env["hr.employee"].browse(vals.get("employee_id"))
-            active_version = employee._get_version(vals["date"])
-            return dict(vals, version_id=active_version.id)
+            employee = self.env["hr.employee"].browse(vals["employee_id"])
+            vals["version_id"] = employee._get_version(vals["date"]).id
         return vals
 
     @api.model
@@ -129,23 +125,17 @@ class HrWorkEntry(models.Model):
             employee.resource_calendar_id or self.env.company.resource_calendar_id
         )
         return calendar._get_unusual_days(
-            datetime.combine(fields.Date.from_string(date_from), time.min).replace(
-                tzinfo=UTC
-            ),
-            datetime.combine(fields.Date.from_string(date_to), time.max).replace(
-                tzinfo=UTC
-            ),
+            datetime.combine(fields.Date.from_string(date_from), time.min, UTC),
+            datetime.combine(fields.Date.from_string(date_to), time.max, UTC),
             self.env.company,
         )
 
     def action_validate(self):
-        work_entries = self.filtered(
-            lambda work_entry: work_entry.state not in ("validated", "cancelled")
-        )
-        if not work_entries._check_if_error():
-            work_entries.write({"state": "validated"})
-            return True
-        return False
+        work_entries = self.filtered(lambda w: w.state not in CLOSED_STATES)
+        if work_entries._check_if_error():
+            return False
+        work_entries.write({"state": "validated"})
+        return True
 
     def action_set_to_draft(self):
         return self.write({"state": "draft"})
@@ -159,33 +149,26 @@ class HrWorkEntry(models.Model):
                 self.env._("You can't split a work entry with less than 1 hour.")
             )
         split_duration = vals["duration"]
-        if self.duration <= split_duration:
+        if not 0 < split_duration < self.duration:
             raise UserError(
                 self.env._(
                     "Split work entry duration has to be less than the existing work entry duration."
                 )
             )
-        self.duration -= split_duration
-        split_work_entry = self.copy()
-        split_work_entry.write(vals)
-        return split_work_entry.id
+        self.write({"duration": self.duration - split_duration})
+        return self.copy({**vals, "state": "draft"}).id
 
     def _check_if_error(self):
-        open_entries = self.filtered(
-            lambda w: w.state not in ("validated", "cancelled")
-        )
+        open_entries = self.filtered(lambda w: w.state not in CLOSED_STATES)
         if not open_entries:
             return False
-        undefined_type = open_entries.filtered(lambda b: not b.work_entry_type_id)
+        undefined_type = open_entries.filtered(lambda w: not w.work_entry_type_id)
         undefined_type.write({"state": "conflict"})
-        conflict = open_entries._mark_conflicting_work_entries(
-            min(open_entries.mapped("date")), max(open_entries.mapped("date"))
-        )
-        outside_calendar = open_entries._mark_leaves_outside_schedule()
-        already_validated_days = open_entries._mark_already_validated_days()
-        return bool(
-            undefined_type or conflict or outside_calendar or already_validated_days
-        )
+        dates = open_entries.mapped("date")
+        excessive = open_entries._mark_conflicting_work_entries(min(dates), max(dates))
+        outside_schedule = open_entries._mark_leaves_outside_schedule()
+        validated_days = open_entries._mark_already_validated_days()
+        return bool(undefined_type) or excessive or outside_schedule or validated_days
 
     def _mark_conflicting_work_entries(self, start, stop):
         self.flush_model(["date", "duration", "employee_id", "active", "state"])
@@ -197,7 +180,7 @@ class HrWorkEntry(models.Model):
                   AND date BETWEEN %(start)s AND %(stop)s
                   AND employee_id = ANY(%(employee_ids)s)
                 GROUP BY employee_id, date
-                HAVING 0 >= SUM(duration) OR SUM(duration) > 24
+                HAVING SUM(duration) > 24
             )
             SELECT we.id
             FROM hr_work_entry we
@@ -209,11 +192,7 @@ class HrWorkEntry(models.Model):
         """
         self.env.cr.execute(
             query,
-            {
-                "start": start,
-                "stop": stop,
-                "employee_ids": list(self.employee_id.ids),
-            },
+            {"start": start, "stop": stop, "employee_ids": self.employee_id.ids},
         )
         conflict_ids = [row[0] for row in self.env.cr.fetchall()]
         self.browse(conflict_ids).write({"state": "conflict"})
@@ -221,53 +200,48 @@ class HrWorkEntry(models.Model):
 
     def _get_leaves_entries_outside_schedule(self):
         return self.filtered(
-            lambda w: (
-                w.work_entry_type_id.is_leave
-                and w.state not in ("validated", "cancelled")
-            )
+            lambda w: w.work_entry_type_id.is_leave and w.state not in CLOSED_STATES
         )
 
     def _mark_leaves_outside_schedule(self):
-        work_entries = self._get_leaves_entries_outside_schedule()
-        entries_by_calendar = work_entries.grouped(
+        entries_by_calendar = self._get_leaves_entries_outside_schedule().grouped(
             lambda w: w.version_id.resource_calendar_id
         )
-
         outside_entries = self.env["hr.work.entry"]
         for calendar, entries in entries_by_calendar.items():
             if not calendar or calendar.flexible_hours:
                 continue
-            datetime_start = datetime.combine(min(entries.mapped("date")), time.min)
-            datetime_stop = datetime.combine(max(entries.mapped("date")), time.max)
-
-            calendar_intervals = calendar._attendance_intervals_batch(
-                datetime_start.replace(tzinfo=UTC),
-                datetime_stop.replace(tzinfo=UTC),
+            dates = entries.mapped("date")
+            attendances = calendar._attendance_intervals_batch(
+                datetime.combine(min(dates), time.min, UTC),
+                datetime.combine(max(dates), time.max, UTC),
                 tz=UTC,
             )[False]
-            entries_intervals = entries._to_intervals()
-            overlapping_entries = self._from_intervals(
-                entries_intervals & calendar_intervals
+            working_days = [start.date() for start, _stop, _records in attendances]
+            outside_entries |= entries.filtered_domain(
+                [("date", "not in", working_days)]
             )
-            outside_entries |= entries - overlapping_entries
         outside_entries.write({"state": "conflict"})
         return bool(outside_entries)
 
     def _mark_already_validated_days(self):
-        validated = self.env["hr.work.entry"].search_fetch(
-            [
-                ("state", "=", "validated"),
-                ("employee_id", "in", self.employee_id.ids),
-                ("date", ">=", min(self.mapped("date"))),
-                ("date", "<=", max(self.mapped("date"))),
-            ],
-            ["employee_id", "date"],
+        dates = self.mapped("date")
+        validated = (
+            self.env["hr.work.entry"]
+            .sudo()
+            .search_fetch(
+                [
+                    ("state", "=", "validated"),
+                    ("employee_id", "in", self.employee_id.ids),
+                    ("date", ">=", min(dates)),
+                    ("date", "<=", max(dates)),
+                ],
+                ["employee_id", "date"],
+            )
         )
         validated_days = {(w.employee_id.id, w.date) for w in validated}
         invalid_entries = self.filtered(
-            lambda w: (
-                w.state != "validated" and (w.employee_id.id, w.date) in validated_days
-            )
+            lambda w: (w.employee_id.id, w.date) in validated_days
         )
         invalid_entries.write({"state": "conflict"})
         return bool(invalid_entries)
@@ -276,8 +250,8 @@ class HrWorkEntry(models.Model):
         return Intervals(
             (
                 (
-                    datetime.combine(w.date, time.min).replace(tzinfo=UTC),
-                    datetime.combine(w.date, time.max).replace(tzinfo=UTC),
+                    datetime.combine(w.date, time.min, UTC),
+                    datetime.combine(w.date, time.max, UTC),
                     w,
                 )
                 for w in self
@@ -288,7 +262,7 @@ class HrWorkEntry(models.Model):
     @api.model
     def _from_intervals(self, intervals):
         return self.browse(
-            chain.from_iterable(recs.ids for start, end, recs in intervals)
+            chain.from_iterable(records.ids for _start, _stop, records in intervals)
         )
 
     @api.model
@@ -302,7 +276,7 @@ class HrWorkEntry(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         vals_list = [
-            self._synchronise_state_and_active(self._set_current_version(dict(vals)))
+            self._synchronise_state_and_active(self._complete_version_id(dict(vals)))
             for vals in vals_list
         ]
         employee_ids = {
@@ -323,26 +297,32 @@ class HrWorkEntry(models.Model):
         work_entries._check_if_error()
         return work_entries
 
-    def write(self, vals):
-        skip_check = not bool(
-            {"date", "duration", "employee_id", "work_entry_type_id", "active"}
-            & vals.keys()
-        )
+    def _write_needs_check(self, vals):
+        if self.env.context.get("hr_work_entry_no_check"):
+            return False
+        if vals.keys() & FIELDS_TRIGGERING_CHECK:
+            return True
         if vals.get("state") == "draft":
-            skip_check &= all(w.state == "draft" for w in self)
-        elif vals.get("state") == "cancelled":
-            skip_check &= all(w.state != "conflict" for w in self)
+            return any(w.state != "draft" for w in self)
+        if vals.get("state") == "cancelled":
+            return any(w.state == "conflict" for w in self)
+        return False
+
+    def write(self, vals):
         if vals.get("active") is True and "state" not in vals:
             self.filtered(lambda w: w.state == "cancelled").with_context(
                 hr_work_entry_no_check=True
             ).write({"state": "draft"})
         vals = self._synchronise_state_and_active(vals)
-
-        employee_ids = self.employee_id.ids
-        if vals.get("employee_id"):
-            employee_ids += [vals["employee_id"]]
-        with self._error_checking(skip=skip_check, employee_ids=employee_ids):
+        if not self._write_needs_check(vals):
             return super().write(vals)
+        employee_ids = set(self.employee_id.ids)
+        if vals.get("employee_id"):
+            employee_ids.add(vals["employee_id"])
+        siblings = self._reset_conflicts(employee_ids)
+        result = super().write(vals)
+        siblings.exists()._check_if_error()
+        return result
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_validated_work_entries(self):
@@ -353,38 +333,49 @@ class HrWorkEntry(models.Model):
 
     def unlink(self):
         employees = self.employee_id
-        with self._error_checking(employee_ids=employees.ids):
-            result = super().unlink()
+        siblings = self._reset_conflicts(employees.ids)
+        result = super().unlink()
+        siblings.exists()._check_if_error()
         employees.invalidate_recordset(["has_work_entries"])
         return result
 
     def _reset_conflicting_state(self):
         self.filtered(lambda w: w.state == "conflict").write({"state": "draft"})
 
+    def _reset_conflicts(self, employee_ids):
+        dates = self.mapped("date")
+        if not dates:
+            return self.browse()
+        return self._reset_conflicts_between(min(dates), max(dates), employee_ids)
+
+    def _reset_conflicts_between(self, start, stop, employee_ids):
+        if self.env.context.get("hr_work_entry_no_check"):
+            return self.browse()
+        siblings = (
+            self.sudo()
+            .with_context(hr_work_entry_no_check=True)
+            .search(
+                Domain("employee_id", "in", list(employee_ids))
+                & Domain("date", ">=", start)
+                & Domain("date", "<=", stop)
+                & Domain("state", "not in", CLOSED_STATES)
+            )
+        )
+        siblings._reset_conflicting_state()
+        return siblings
+
     @contextmanager
-    def _error_checking(self, start=None, stop=None, skip=False, *, employee_ids):
+    def _error_checking(self, start, stop, *, employee_ids):
+        siblings = self.browse()
+        if start and stop:
+            siblings = self._reset_conflicts_between(start, stop, employee_ids)
         try:
-            skip = skip or self.env.context.get("hr_work_entry_no_check", False)
-            start = start or min(self.mapped("date"), default=False)
-            stop = stop or max(self.mapped("date"), default=False)
-            if not skip and start and stop:
-                domain = (
-                    Domain("date", "<=", stop)
-                    & Domain("date", ">=", start)
-                    & Domain("state", "not in", ("validated", "cancelled"))
-                )
-                domain &= Domain("employee_id", "in", list(employee_ids))
-                work_entries = (
-                    self.sudo().with_context(hr_work_entry_no_check=True).search(domain)
-                )
-                work_entries._reset_conflicting_state()
             yield
         except OperationalError:
-            skip = True
+            siblings = self.browse()
             raise
         finally:
-            if not skip and start and stop:
-                work_entries.exists()._check_if_error()
+            siblings.exists()._check_if_error()
 
     def _get_work_entry_type_domain(self):
         if len(self.env.companies.country_id.ids) > 1:
@@ -394,6 +385,3 @@ class HrWorkEntry(models.Model):
             ("country_id", "=", False),
             ("country_id", "in", self.env.companies.country_id.ids),
         ]
-
-    def _search_country_id(self, operator, value):
-        return [("employee_id.company_id.partner_id.country_id", operator, value)]

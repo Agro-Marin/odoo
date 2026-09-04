@@ -42,4 +42,4 @@ export const many2ManyTagsAvatarEmployeeErrorField = {
 
 registry
     .category("fields")
-    .add("many2many_avatar_employee_class", many2ManyTagsAvatarEmployeeErrorField);
+    .add("many2many_avatar_employee_error", many2ManyTagsAvatarEmployeeErrorField);

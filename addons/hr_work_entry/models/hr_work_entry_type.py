@@ -1,10 +1,11 @@
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import ValidationError
 
 
 class HrWorkEntryType(models.Model):
     _name = "hr.work.entry.type"
     _description = "HR Work Entry Type"
+    _order = "sequence, id"
 
     name = fields.Char(required=True, translate=True)
     display_code = fields.Char(
@@ -62,7 +63,7 @@ class HrWorkEntryType(models.Model):
             "hr_work_entry.work_entry_type_attendance", raise_if_not_found=False
         )
         if attendance and attendance in self:
-            raise UserError(
+            raise ValidationError(
                 self.env._(
                     "You can't change the country of this specific work entry type."
                 )
@@ -70,7 +71,7 @@ class HrWorkEntryType(models.Model):
         if not self.env.context.get("install_mode") and self.env[
             "hr.work.entry"
         ].sudo().search_count([("work_entry_type_id", "in", self.ids)], limit=1):
-            raise UserError(
+            raise ValidationError(
                 self.env._(
                     "You can't change the Country of this work entry type cause it's currently used by the system. You need to delete related working entries first."
                 )
@@ -93,7 +94,7 @@ class HrWorkEntryType(models.Model):
                 ]
             )
             if invalid_work_entry_types:
-                raise UserError(
+                raise ValidationError(
                     self.env._(
                         "The same code cannot be associated to multiple work entry types (%s)",
                         ", ".join(sorted(set(invalid_work_entry_types.mapped("code")))),

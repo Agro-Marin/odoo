@@ -137,9 +137,6 @@ export class WorkEntryCalendarController extends CalendarController {
     onResetWorkEntries(selectedCells) {
         const records = this.getSelectedRecords(selectedCells);
         const dates = this.getDatesWithoutValidatedWorkEntry(selectedCells, records);
-        this.model.resetWorkEntries(
-            dates,
-            records.filter((r) => r.state !== "validated").map((r) => r.id),
-        );
+        this.model.resetWorkEntries(dates);
     }
 }

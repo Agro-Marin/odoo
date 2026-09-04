@@ -31,6 +31,44 @@ class TestWorkEntry(TestWorkEntryBase):
             }
         )
 
+    def _create_calendar(
+        self,
+        name,
+        morning_from,
+        morning_to,
+        afternoon_from,
+        afternoon_to,
+        tz="Europe/Brussels",
+    ):
+        attendance_vals = []
+        for dayofweek in range(5):
+            attendance_vals += [
+                {
+                    "name": "Morning",
+                    "dayofweek": str(dayofweek),
+                    "hour_from": morning_from,
+                    "hour_to": morning_to,
+                    "day_period": "morning",
+                },
+                {
+                    "name": "Afternoon",
+                    "dayofweek": str(dayofweek),
+                    "hour_from": afternoon_from,
+                    "hour_to": afternoon_to,
+                    "day_period": "afternoon",
+                },
+            ]
+        return self.env["resource.calendar"].create(
+            {
+                "name": name,
+                "tz": tz,
+                "hours_per_day": (morning_to - morning_from)
+                + (afternoon_to - afternoon_from),
+                "attendance_ids": [(5, 0, 0)]
+                + [(0, 0, vals) for vals in attendance_vals],
+            }
+        )
+
     def test_no_duplicate(self):
         self.richard_emp.generate_work_entries(self.start, self.end)
         pou1 = self.env["hr.work.entry"].search_count([])
@@ -550,246 +588,8 @@ class TestWorkEntry(TestWorkEntryBase):
         )
 
     def test_work_entry_version_changed_after_generation(self):
-        calendar_40h = self.env["resource.calendar"].create(
-            {
-                "name": "40h Calendar",
-                "tz": "Europe/Brussels",
-                "hours_per_day": 8,
-                "attendance_ids": [
-                    (5, 0, 0),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Monday Morning",
-                            "dayofweek": "0",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Monday Afternoon",
-                            "dayofweek": "0",
-                            "hour_from": 13,
-                            "hour_to": 17,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Tuesday Morning",
-                            "dayofweek": "1",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Tuesday Afternoon",
-                            "dayofweek": "1",
-                            "hour_from": 13,
-                            "hour_to": 17,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Wednesday Morning",
-                            "dayofweek": "2",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Wednesday Afternoon",
-                            "dayofweek": "2",
-                            "hour_from": 13,
-                            "hour_to": 17,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Thursday Morning",
-                            "dayofweek": "3",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Thursday Afternoon",
-                            "dayofweek": "3",
-                            "hour_from": 13,
-                            "hour_to": 17,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Friday Morning",
-                            "dayofweek": "4",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Friday Afternoon",
-                            "dayofweek": "4",
-                            "hour_from": 13,
-                            "hour_to": 17,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                ],
-            }
-        )
-        calendar_35h = self.env["resource.calendar"].create(
-            {
-                "name": "35h Calendar",
-                "tz": "Europe/Brussels",
-                "hours_per_day": 7,
-                "attendance_ids": [
-                    (5, 0, 0),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Monday Morning",
-                            "dayofweek": "0",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Monday Afternoon",
-                            "dayofweek": "0",
-                            "hour_from": 13,
-                            "hour_to": 16,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Tuesday Morning",
-                            "dayofweek": "1",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Tuesday Afternoon",
-                            "dayofweek": "1",
-                            "hour_from": 13,
-                            "hour_to": 16,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Wednesday Morning",
-                            "dayofweek": "2",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Wednesday Afternoon",
-                            "dayofweek": "2",
-                            "hour_from": 13,
-                            "hour_to": 16,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Thursday Morning",
-                            "dayofweek": "3",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Thursday Afternoon",
-                            "dayofweek": "3",
-                            "hour_from": 13,
-                            "hour_to": 16,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Friday Morning",
-                            "dayofweek": "4",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Friday Afternoon",
-                            "dayofweek": "4",
-                            "hour_from": 13,
-                            "hour_to": 16,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                ],
-            }
-        )
+        calendar_40h = self._create_calendar("40h Calendar", 7, 11, 13, 17)
+        calendar_35h = self._create_calendar("35h Calendar", 7, 11, 13, 16)
 
         employee = self.env["hr.employee"].create(
             {
@@ -835,246 +635,8 @@ class TestWorkEntry(TestWorkEntryBase):
         )
 
     def test_work_entry_version_changed_after_generation2(self):
-        calendar_40h = self.env["resource.calendar"].create(
-            {
-                "name": "40h Calendar",
-                "tz": "Europe/Brussels",
-                "hours_per_day": 8,
-                "attendance_ids": [
-                    (5, 0, 0),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Monday Morning",
-                            "dayofweek": "0",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Monday Afternoon",
-                            "dayofweek": "0",
-                            "hour_from": 13,
-                            "hour_to": 17,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Tuesday Morning",
-                            "dayofweek": "1",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Tuesday Afternoon",
-                            "dayofweek": "1",
-                            "hour_from": 13,
-                            "hour_to": 17,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Wednesday Morning",
-                            "dayofweek": "2",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Wednesday Afternoon",
-                            "dayofweek": "2",
-                            "hour_from": 13,
-                            "hour_to": 17,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Thursday Morning",
-                            "dayofweek": "3",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Thursday Afternoon",
-                            "dayofweek": "3",
-                            "hour_from": 13,
-                            "hour_to": 17,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Friday Morning",
-                            "dayofweek": "4",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Friday Afternoon",
-                            "dayofweek": "4",
-                            "hour_from": 13,
-                            "hour_to": 17,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                ],
-            }
-        )
-        calendar_35h = self.env["resource.calendar"].create(
-            {
-                "name": "35h Calendar",
-                "tz": "Europe/Brussels",
-                "hours_per_day": 7,
-                "attendance_ids": [
-                    (5, 0, 0),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Monday Morning",
-                            "dayofweek": "0",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Monday Afternoon",
-                            "dayofweek": "0",
-                            "hour_from": 13,
-                            "hour_to": 16,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Tuesday Morning",
-                            "dayofweek": "1",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Tuesday Afternoon",
-                            "dayofweek": "1",
-                            "hour_from": 13,
-                            "hour_to": 16,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Wednesday Morning",
-                            "dayofweek": "2",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Wednesday Afternoon",
-                            "dayofweek": "2",
-                            "hour_from": 13,
-                            "hour_to": 16,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Thursday Morning",
-                            "dayofweek": "3",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Thursday Afternoon",
-                            "dayofweek": "3",
-                            "hour_from": 13,
-                            "hour_to": 16,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Friday Morning",
-                            "dayofweek": "4",
-                            "hour_from": 7,
-                            "hour_to": 11,
-                            "day_period": "morning",
-                        },
-                    ),
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Friday Afternoon",
-                            "dayofweek": "4",
-                            "hour_from": 13,
-                            "hour_to": 16,
-                            "day_period": "afternoon",
-                        },
-                    ),
-                ],
-            }
-        )
+        calendar_40h = self._create_calendar("40h Calendar", 7, 11, 13, 17)
+        calendar_35h = self._create_calendar("35h Calendar", 7, 11, 13, 16)
 
         employee = self.env["hr.employee"].create(
             {

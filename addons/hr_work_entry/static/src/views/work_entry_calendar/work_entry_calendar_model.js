@@ -46,11 +46,14 @@ export class WorkEntryCalendarModel extends CalendarModel {
             },
         );
         if (userFavoritesWorkEntriesIds.length) {
-            this.userFavoritesWorkEntries = await this.orm.read(
-                "hr.work.entry.type",
+            const workEntryTypeIds = new Set(
                 userFavoritesWorkEntriesIds
                     .map((r) => r.work_entry_type_id?.[0])
                     .filter(Boolean),
+            );
+            this.userFavoritesWorkEntries = await this.orm.read(
+                "hr.work.entry.type",
+                [...workEntryTypeIds],
                 ["display_name", "display_code", "color"],
             );
             this.userFavoritesWorkEntries = this.userFavoritesWorkEntries.sort(
@@ -117,7 +120,7 @@ export class WorkEntryCalendarModel extends CalendarModel {
         return this.load();
     }
 
-    async resetWorkEntries(dates, recordIds) {
+    async resetWorkEntries(dates) {
         const cellsFormattedData = dates.map((date) => ({
             date,
             employee_id: this.meta.context.default_employee_id,
@@ -125,7 +128,7 @@ export class WorkEntryCalendarModel extends CalendarModel {
         await this.orm.call(
             "hr.work.entry.regeneration.wizard",
             "regenerate_work_entries",
-            [[], cellsFormattedData, recordIds],
+            [[], cellsFormattedData],
         );
         return this.load();
     }

@@ -14,11 +14,6 @@ class HrEmployee(models.Model):
         inherited=True,
         groups="hr.group_hr_manager",
     )
-    work_entry_source_calendar_invalid = fields.Boolean(
-        related="version_id.work_entry_source_calendar_invalid",
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
 
     def _compute_has_work_entries(self):
         with_entries = set()
@@ -36,12 +31,6 @@ class HrEmployee(models.Model):
         for employee in self:
             employee.has_work_entries = employee._origin.id in with_entries
 
-    def create_version(self, values):
-        new_version = super().create_version(values)
-        today = fields.Datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        new_version.update({"date_generated_from": today, "date_generated_to": today})
-        return new_version
-
     def action_view_work_entries(self, initial_date=False):
         self.check_singleton()
         ctx = {"default_employee_id": self.id}
@@ -57,12 +46,9 @@ class HrEmployee(models.Model):
             "domain": [("employee_id", "=", self.id)],
         }
 
-    def generate_work_entries(
-        self, date_start, date_stop, force=False, record_ids=None
-    ):
+    def generate_work_entries(self, date_start, date_stop, force=False):
         date_start = fields.Date.to_date(date_start)
         date_stop = fields.Date.to_date(date_stop)
-
         if self:
             versions = self._get_versions_with_contract_overlap_with_period(
                 date_start, date_stop
@@ -71,6 +57,4 @@ class HrEmployee(models.Model):
             versions = self._get_all_versions_with_contract_overlap_with_period(
                 date_start, date_stop
             )
-        return versions.generate_work_entries(
-            date_start, date_stop, force=force, record_ids=record_ids
-        )
+        return versions.generate_work_entries(date_start, date_stop, force=force)

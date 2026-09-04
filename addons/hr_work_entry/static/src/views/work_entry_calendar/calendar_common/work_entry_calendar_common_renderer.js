@@ -5,7 +5,7 @@ import { WorkEntryCalendarCommonPopover } from "@hr_work_entry/views/work_entry_
 export class WorkEntryCalendarCommonRenderer extends CalendarCommonRenderer {
     static eventTemplate = "hr_work_entry.WorkEntryCalendarCommonRenderer.event";
     static components = {
-        ...CalendarCommonRenderer,
+        ...CalendarCommonRenderer.components,
         Popover: WorkEntryCalendarCommonPopover,
     };
     static props = {

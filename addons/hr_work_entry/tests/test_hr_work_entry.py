@@ -1,6 +1,6 @@
 from datetime import date
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
@@ -186,51 +186,165 @@ class TestHrWorkEntry(TransactionCase):
             ]
         )
 
-    def test_regenerate_work_entries_record_ids_scoped(self):
-        work_entry_a = self.env["hr.work.entry"].create(
+    def test_reset_regenerates_the_whole_day(self):
+        self.employee_b.tz = "Europe/Brussels"
+        self.employee_b.resource_calendar_id.tz = "Europe/Brussels"
+        generated = self.employee_b.generate_work_entries(
+            date(2024, 2, 5), date(2024, 2, 9)
+        )
+        day = generated.filtered(lambda w: w.date == date(2024, 2, 6))
+        self.assertTrue(day)
+        day.write({"work_entry_type_id": self.work_entry_type.id})
+        manual = self.env["hr.work.entry"].create(
             {
-                "name": "A",
-                "work_entry_type_id": self.work_entry_type.id,
                 "employee_id": self.employee_b.id,
-                "date": date(2024, 1, 1),
-                "duration": 4,
+                "date": date(2024, 2, 6),
+                "duration": 2,
+                "work_entry_type_id": self.work_entry_type.id,
             }
         )
-        work_entry_b = self.env["hr.work.entry"].create(
-            {
-                "name": "B",
-                "work_entry_type_id": self.work_entry_type.id,
-                "employee_id": self.employee_b.id,
-                "date": date(2024, 1, 1),
-                "duration": 4,
-            }
-        )
+
         self.env["hr.work.entry.regeneration.wizard"].regenerate_work_entries(
-            slots=[{"employee_id": self.employee_b.id, "date": "2024-01-01"}],
-            record_ids=[work_entry_a.id],
+            slots=[{"employee_id": self.employee_b.id, "date": "2024-02-06"}]
         )
-        self.assertFalse(
-            work_entry_a.active,
-            "The selected work entry should have been nullified.",
-        )
-        self.assertTrue(
-            work_entry_b.active,
-            "A non-selected work entry on the same date must not be swept "
-            "into the regeneration -- only record_ids should be affected.",
-        )
-        active_entries = self.env["hr.work.entry"].search(
-            [
-                ("employee_id", "=", self.employee_b.id),
-                ("date", "=", date(2024, 1, 1)),
-                ("active", "=", True),
-            ]
+
+        self.assertFalse(day.exists().filtered("active"))
+        self.assertFalse(manual.active, "Resetting a day discards manual edits.")
+        regenerated = self.env["hr.work.entry"].search(
+            [("employee_id", "=", self.employee_b.id), ("date", "=", date(2024, 2, 6))]
         )
         self.assertEqual(
-            active_entries,
-            work_entry_b,
-            "record_ids-scoped regeneration must not recreate a duplicate "
-            "entry overlapping the untouched sibling on the same date.",
+            regenerated.work_entry_type_id,
+            self.env.ref("hr_work_entry.work_entry_type_attendance"),
+            "Resetting a day must regenerate it from the schedule. An earlier "
+            "version only archived the selected entries and left the day empty, "
+            "and a plain generation could not backfill it because the version's "
+            "generated range already covered the day.",
         )
+        self.assertEqual(sum(regenerated.mapped("duration")), 8)
+
+    def test_recompute_with_validated_entries_leaves_other_employees_alone(self):
+        self.employee_a.generate_work_entries(date(2024, 4, 1), date(2024, 4, 30))
+        other_entries = self.employee_b.generate_work_entries(
+            date(2024, 4, 1), date(2024, 4, 30)
+        )
+        validated = self.env["hr.work.entry"].search(
+            [("employee_id", "=", self.employee_a.id)], limit=1
+        )
+        validated.action_validate()
+
+        self.employee_a.version_id.write(
+            {"resource_calendar_id": self.env.company.resource_calendar_id.copy().id}
+        )
+
+        self.assertTrue(
+            all(other_entries.exists().mapped("active")),
+            "Recomputing one employee's work entries must never touch another "
+            "employee. When every selected employee is skipped for holding a "
+            "validated entry, the wizard used to call generate_work_entries on an "
+            "empty recordset, which means every employee of the database.",
+        )
+
+    def test_fully_flexible_employee_days_use_one_timezone(self):
+        company_calendar = self.env.company.resource_calendar_id
+        company_calendar.tz = "America/Los_Angeles"
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Tokyo",
+                "tz": "Asia/Tokyo",
+                "contract_date_start": "2024-01-01",
+                "date_version": "2024-01-01",
+                "resource_calendar_id": False,
+            }
+        )
+        work_entries = employee.generate_work_entries(
+            date(2024, 1, 8), date(2024, 1, 10)
+        )
+        self.assertEqual(
+            [(w.date, w.duration) for w in work_entries.sorted("date")],
+            [
+                (date(2024, 1, 8), 24.0),
+                (date(2024, 1, 9), 24.0),
+                (date(2024, 1, 10), 24.0),
+            ],
+            "A fully flexible employee has no calendar of their own, so the day "
+            "boundaries and the dates stamped on the entries must both use the "
+            "same fallback timezone (the company calendar's). Computing the "
+            "boundaries in the employee's timezone and the dates in the company "
+            "calendar's produced a 17h and a 7h entry on the neighbouring days.",
+        )
+
+    def test_new_version_starts_with_an_empty_generated_range(self):
+        self.employee_a.generate_work_entries(date(2024, 3, 1), date(2024, 3, 31))
+        first = self.employee_a.version_id
+        self.assertLess(first.date_generated_from, first.date_generated_to)
+        for version in (
+            self.employee_a.create_version({"date_version": date(2024, 3, 15)}),
+            first.copy({"date_version": date(2024, 6, 1)}),
+        ):
+            self.assertEqual(
+                version.date_generated_from,
+                version.date_generated_to,
+                "A new version has generated nothing yet; inheriting the source "
+                "version's range would make the generator skip it forever.",
+            )
+            self.assertFalse(version.last_generation_date)
+
+    def test_split_keeps_the_total_and_returns_a_draft(self):
+        entry = self.env["hr.work.entry"].create(
+            {
+                "employee_id": self.employee_b.id,
+                "date": date(2024, 5, 6),
+                "duration": 8,
+                "work_entry_type_id": self.work_entry_type.id,
+            }
+        )
+        with self.assertRaises(UserError):
+            entry.action_split({"duration": -2})
+        with self.assertRaises(UserError):
+            entry.action_split({"duration": 8})
+        other_type = self.env["hr.work.entry.type"].create(
+            {"name": "Other", "code": "OTHER_SPLIT"}
+        )
+        split = self.env["hr.work.entry"].browse(
+            entry.action_split(
+                {"duration": 3, "work_entry_type_id": other_type.id, "name": "half"}
+            )
+        )
+        self.assertEqual((entry.duration, split.duration), (5, 3))
+        self.assertEqual(split.work_entry_type_id, other_type)
+        self.assertEqual(split.name, "half")
+        self.assertEqual((entry.state, split.state), ("draft", "draft"))
+
+    def test_leave_on_a_non_working_day_conflicts_whatever_the_calendar_timezone(self):
+        leave_type = self.env.ref("hr_work_entry.work_entry_type_leave")
+        for tz in ("America/Los_Angeles", "Asia/Tokyo"):
+            calendar = self.env.company.resource_calendar_id.copy({"tz": tz})
+            employee = self.env["hr.employee"].create(
+                {
+                    "name": tz,
+                    "contract_date_start": "2024-01-01",
+                    "date_version": "2024-01-01",
+                    "resource_calendar_id": calendar.id,
+                }
+            )
+            saturday = self.env["hr.work.entry"].create(
+                {
+                    "employee_id": employee.id,
+                    "date": date(2024, 1, 13),
+                    "duration": 8,
+                    "work_entry_type_id": leave_type.id,
+                }
+            )
+            monday = self.env["hr.work.entry"].create(
+                {
+                    "employee_id": employee.id,
+                    "date": date(2024, 1, 15),
+                    "duration": 8,
+                    "work_entry_type_id": leave_type.id,
+                }
+            )
+            self.assertEqual((saturday.state, monday.state), ("conflict", "draft"), tz)
 
     def test_nullify_work_entry_tz(self):
         self.employee_a.tz = "Europe/Brussels"

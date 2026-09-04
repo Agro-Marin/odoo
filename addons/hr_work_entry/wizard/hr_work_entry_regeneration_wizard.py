@@ -68,11 +68,9 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
     @api.depends("date_from", "date_to", "employee_ids", "search_criteria_completed")
     def _compute_validated_work_entry_employee_ids(self):
         for wizard in self:
-            employee_ids = self.env["hr.employee"]
+            employees = self.env["hr.employee"]
             if wizard.search_criteria_completed:
-                validated_work_entry_by_employee = self.env[
-                    "hr.work.entry"
-                ]._read_group(
+                for [employee] in self.env["hr.work.entry"]._read_group(
                     [
                         ("employee_id", "in", wizard.employee_ids.ids),
                         ("date", ">=", wizard.date_from),
@@ -80,10 +78,9 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
                         ("state", "=", "validated"),
                     ],
                     ["employee_id"],
-                )
-                for per_employee in validated_work_entry_by_employee:
-                    employee_ids |= per_employee[0]
-            wizard.validated_work_entry_employee_ids = employee_ids
+                ):
+                    employees |= employee
+            wizard.validated_work_entry_employee_ids = employees
 
     @api.depends(
         "validated_work_entry_employee_ids",
@@ -92,10 +89,8 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
     )
     def _compute_valid(self):
         for wizard in self:
-            wizard.valid = (
-                wizard.search_criteria_completed
-                and len(wizard.employee_ids - wizard.validated_work_entry_employee_ids)
-                > 0
+            wizard.valid = wizard.search_criteria_completed and bool(
+                wizard.employee_ids - wizard.validated_work_entry_employee_ids
             )
 
     @api.depends(
@@ -116,27 +111,26 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
             )
 
     @api.onchange("date_from", "date_to", "employee_ids")
-    def _check_dates(self):
+    def _onchange_dates(self):
         for wizard in self:
             wizard.earliest_available_date_message = ""
             wizard.latest_available_date_message = ""
-            if wizard.search_criteria_completed:
-                if wizard.date_from > wizard.date_to:
-                    date_from = wizard.date_from
-                    wizard.date_from = wizard.date_to
-                    wizard.date_to = date_from
-                if (
-                    wizard.earliest_available_date
-                    and wizard.date_from < wizard.earliest_available_date
-                ):
-                    wizard.date_from = wizard.earliest_available_date
-                    wizard.earliest_available_date_message = f"The earliest available date is {self._date_to_string(wizard.earliest_available_date)}"
-                if (
-                    wizard.latest_available_date
-                    and wizard.date_to > wizard.latest_available_date
-                ):
-                    wizard.date_to = wizard.latest_available_date
-                    wizard.latest_available_date_message = f"The latest available date is {self._date_to_string(wizard.latest_available_date)}"
+            if not wizard.search_criteria_completed:
+                continue
+            if wizard.date_from > wizard.date_to:
+                wizard.date_from, wizard.date_to = wizard.date_to, wizard.date_from
+            if wizard.date_from < wizard.earliest_available_date:
+                wizard.date_from = wizard.earliest_available_date
+                wizard.earliest_available_date_message = self.env._(
+                    "The earliest available date is %s",
+                    self._date_to_string(wizard.earliest_available_date),
+                )
+            if wizard.date_to > wizard.latest_available_date:
+                wizard.date_to = wizard.latest_available_date
+                wizard.latest_available_date_message = self.env._(
+                    "The latest available date is %s",
+                    self._date_to_string(wizard.latest_available_date),
+                )
 
     @api.model
     def _date_to_string(self, date):
@@ -184,36 +178,30 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
         self.check_singleton()
         if not self.env.context.get("work_entry_skip_validation"):
             self._check_regeneration_range()
-        date_from = (
-            max(self.date_from, self.earliest_available_date)
-            if self.earliest_available_date
-            else self.date_from
-        )
-        date_to = (
-            min(self.date_to, self.latest_available_date)
-            if self.latest_available_date
-            else self.date_to
-        )
         employees = self.employee_ids - self.validated_work_entry_employee_ids
+        if not employees:
+            return self.env["hr.work.entry"]
+        date_from = max(filter(None, [self.date_from, self.earliest_available_date]))
+        date_to = min(filter(None, [self.date_to, self.latest_available_date]))
         return employees.generate_work_entries(date_from, date_to, True)
 
     @api.model
     def _group_slots_into_ranges(self, slots):
-        range_by_employee = defaultdict(list)
-        slots.sort(key=lambda d: (d["employee_id"], d["date"]))
-        for employee_id, records in groupby(slots, lambda d: d["employee_id"]):
-            dates = [fields.Date.from_string(r["date"]) for r in records]
+        employee_ids_by_range = defaultdict(list)
+        slots = sorted(slots, key=lambda d: (d["employee_id"], d["date"]))
+        for employee_id, employee_slots in groupby(slots, lambda d: d["employee_id"]):
+            dates = [fields.Date.to_date(slot["date"]) for slot in employee_slots]
             start = end = dates[0]
             for current in dates[1:]:
                 if current - end != timedelta(days=1):
-                    range_by_employee[start, end].append(employee_id)
+                    employee_ids_by_range[start, end].append(employee_id)
                     start = current
                 end = current
-            range_by_employee[start, end].append(employee_id)
-        return range_by_employee
+            employee_ids_by_range[start, end].append(employee_id)
+        return employee_ids_by_range
 
     @api.model
-    def _regenerate_slots(self, slots, record_ids=None):
+    def _regenerate_slots(self, slots):
         work_entries = self.env["hr.work.entry"]
         for (date_from, date_to), employee_ids in self._group_slots_into_ranges(
             slots
@@ -221,11 +209,11 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
             work_entries += (
                 self.env["hr.employee"]
                 .browse(employee_ids)
-                .generate_work_entries(date_from, date_to, True, record_ids=record_ids)
+                .generate_work_entries(date_from, date_to, True)
             )
         return work_entries
 
-    def regenerate_work_entries(self, slots=None, record_ids=None):
+    def regenerate_work_entries(self, slots=None):
         if slots:
-            return self._regenerate_slots(slots, record_ids=record_ids)
+            return self._regenerate_slots(slots)
         return self._regenerate_wizard_range()

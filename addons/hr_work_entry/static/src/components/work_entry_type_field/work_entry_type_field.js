@@ -87,7 +87,7 @@ export const many2OneWorkEntryTypeField = {
     ...buildM2OFieldDescription(Many2OneWorkEntryTypeField),
     fieldDependencies: [
         { name: "display_code", type: "char" },
-        { name: "color", type: "char" },
+        { name: "color", type: "integer" },
     ],
 };
 

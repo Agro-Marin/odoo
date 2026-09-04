@@ -112,3 +112,35 @@ test("the Reset button is shown to a work entry manager", async () => {
         message: "A manager must still get the regenerate action.",
     });
 });
+
+test("a work entry type used on several days is offered once as a favourite", async () => {
+    const { env } = await makeMockServer();
+    env["hr.work.entry"].create([
+        {
+            name: "Monday",
+            employee_id: 100,
+            work_entry_type_id: 1,
+            date: "2024-12-30",
+            duration: 8,
+        },
+        {
+            name: "Tuesday",
+            employee_id: 100,
+            work_entry_type_id: 1,
+            date: "2024-12-31",
+            duration: 8,
+        },
+    ]);
+    const view = await mountView({
+        type: "calendar",
+        resModel: "hr.work.entry",
+        context: { default_employee_id: 100 },
+    });
+    const controller = getCalendarController(view);
+    expect(controller.model.userFavoritesWorkEntries.map((t) => t.id)).toEqual([1], {
+        message:
+            "Favourites are grouped by type and creation day, so one type used on two " +
+            "days comes back twice; reading it twice rendered two buttons with the " +
+            "same t-key.",
+    });
+});
