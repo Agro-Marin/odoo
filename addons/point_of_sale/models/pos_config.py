@@ -396,6 +396,11 @@ class PosConfig(models.Model):
         help="Store edited orders in the backend",
         default=False,
     )
+    use_download_invoice = fields.Boolean(
+        string="Download Invoice",
+        help="Render and download the invoice PDF while the order is validated."
+        " When off, the PDF is rendered by the POS cron a few minutes later.",
+    )
     last_data_change = fields.Datetime(
         string="Last Write Date",
         readonly=True,
@@ -1139,6 +1144,7 @@ class PosConfig(models.Model):
         "iface_tipproduct",
         "default_preset_id",
         "module_pos_appointment",
+        "use_download_invoice",
     )
     def _compute_last_data_change(self):
         self.last_data_change = self.env.cr.now()

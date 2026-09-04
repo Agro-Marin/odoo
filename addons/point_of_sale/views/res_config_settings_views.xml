@@ -503,6 +503,11 @@
                                     help="Use automatic taxes mapping with Avatax">
                                     <field name="pos_module_pos_avatax" />
                                 </setting>
+                                <setting
+                                    id="pos_download_invoice"
+                                    help="The invoice PDF is rendered and downloaded while the order is validated. When off, the POS cron renders it a few minutes later.">
+                                    <field name="pos_use_download_invoice" />
+                                </setting>
                             </block>
 
                             <block title="Pricing" id="pos_pricing_section">

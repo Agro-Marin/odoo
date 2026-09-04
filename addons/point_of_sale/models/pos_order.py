@@ -189,7 +189,16 @@ class PosOrder(models.Model):
                 raise UserError(
                     _("No invoice journal configured for this POS session.")
                 )
-            self._generate_pos_order_invoice()
+            # Rendering the PDF is the slow half of invoicing and nothing on
+            # the validation path needs it: leave it to the cron unless the
+            # cashier is going to be handed the file right away.
+            should_generate_pdf = bool(
+                self.env.context.get("generate_pdf")
+                or self.config_id.use_download_invoice
+            )
+            self.with_context(
+                generate_pdf=should_generate_pdf
+            )._generate_pos_order_invoice()
 
         return self.id
 
@@ -549,6 +558,11 @@ class PosOrder(models.Model):
     source = fields.Selection(
         string="Origin", selection=[("pos", "Point of Sale")], default="pos"
     )
+    defer_invoice_pdf = fields.Boolean(
+        string="Defer Invoice PDF Generation",
+        index=True,
+        help="The invoice exists but its PDF has not been rendered yet; the POS cron will render it.",
+    )
 
     _unique_uuid = models.Constraint(
         "unique (uuid)", "An order with this uuid already exists"
@@ -772,9 +786,7 @@ class PosOrder(models.Model):
         vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
             if not vals.get("session_id"):
-                raise UserError(
-                    _("A point of sale order must belong to a session.")
-                )
+                raise UserError(_("A point of sale order must belong to a session."))
             session = self.env["pos.session"].browse(vals["session_id"])
             self._complete_values_from_session(session, vals)
         return super().create(vals_list)
@@ -1010,6 +1022,35 @@ class PosOrder(models.Model):
         action["context"] = {}
         action["domain"] = [("id", "in", self.picking_ids.ids)]
         return action
+
+    @api.model
+    def _cron_process_pos_orders(self):
+        """Entry point of the POS 5-minute cron.
+
+        It is the single scheduler for POS order background work; every task
+        gets its own method and is called from here.
+        """
+        self._process_deferred_invoice_orders()
+
+    @api.model
+    def _process_deferred_invoice_orders(self):
+        for order in self.search([("defer_invoice_pdf", "=", True)]):
+            try:
+                order.account_move.with_context(
+                    skip_invoice_sync=True
+                )._generate_and_send()
+            except (UserError, ValidationError) as e:
+                _logger.error("Error processing order %s: %s", order.name, e)
+            order.defer_invoice_pdf = False
+
+    def flush_deferred_invoice_pdf(self):
+        """Render a deferred invoice PDF now, before it is downloaded."""
+        self.check_singleton()
+        if not self.defer_invoice_pdf:
+            return False
+        self.account_move.with_context(skip_invoice_sync=True)._generate_and_send()
+        self.defer_invoice_pdf = False
+        return True
 
     def action_view_invoice(self):
         invoices = self.account_move
@@ -1680,6 +1721,8 @@ class PosOrder(models.Model):
 
         if self.env.context.get("generate_pdf", True):
             invoice.with_context(skip_invoice_sync=True)._generate_and_send()
+        else:
+            self.defer_invoice_pdf = True
 
         return invoice
 
@@ -1735,9 +1778,7 @@ class PosOrder(models.Model):
 
     @api.model
     def sync_from_ui(self, orders):
-        sync_token = randrange(
-            100_000_000
-        )
+        sync_token = randrange(100_000_000)
         _logger.info(
             "PoS synchronisation #%d started for PoS orders references: %s",
             sync_token,
@@ -2344,8 +2385,10 @@ class PosOrderLine(models.Model):
                     body + Markup("&rarr;") + str(new_qty)
                 )
             for order, bodies in bodies_per_order.items():
-                body = bodies[0] if len(bodies) == 1 else order._markup_list_message(
-                    bodies
+                body = (
+                    bodies[0]
+                    if len(bodies) == 1
+                    else order._markup_list_message(bodies)
                 )
                 order.message_post(body=order._prepare_pos_log(body))
             edited.is_edited = True

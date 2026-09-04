@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Generic POS cron, every 5 minutes.
+
+        One scheduler for every POS order background task, so a new
+        responsibility does not mean a new cron: give it a method on
+        `pos.order` and call it from `_cron_process_pos_orders`.
+    -->
+    <record id="ir_cron_process_pos_orders" model="ir.cron">
+        <field name="name">POS: Process Order Tasks</field>
+        <field name="model_id" ref="point_of_sale.model_pos_order" />
+        <field name="state">code</field>
+        <field name="code">model._cron_process_pos_orders()</field>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="True" />
+    </record>
+
+</odoo>

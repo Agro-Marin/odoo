@@ -8,7 +8,6 @@ _logger = logging.getLogger(__name__)
 
 
 class ResConfigSettings(models.TransientModel):
-
     _inherit = "res.config.settings"
 
     def _default_pos_config_id(self):
@@ -106,6 +105,9 @@ class ResConfigSettings(models.TransientModel):
     )
     pos_module_pos_avatax = fields.Boolean(
         related="pos_config_id.module_pos_avatax", readonly=False
+    )
+    pos_use_download_invoice = fields.Boolean(
+        related="pos_config_id.use_download_invoice", readonly=False
     )
     pos_is_order_printer = fields.Boolean(
         compute="_compute_pos_is_order_printer", store=True, readonly=False

@@ -18,6 +18,7 @@ from . import test_pos_robustness
 from . import test_pos_simple_orders
 from . import test_pos_simple_invoiced_orders
 from . import test_pos_basic_config
+from . import test_pos_deferred_invoice_pdf
 from . import test_pos_dashboard_graph
 from . import test_pos_products_with_tax
 from . import test_pos_margin
