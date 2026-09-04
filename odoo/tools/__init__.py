@@ -144,6 +144,7 @@ __all__ = [
     "convert_sql_import",
     "convert_xml_import",
     "discardattr",
+    "documents",
     "email_domain_extract",
     "email_domain_normalize",
     "email_normalize",

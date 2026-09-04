@@ -61,8 +61,10 @@ class TestToolsSurface(unittest.TestCase):
         self.assertEqual(
             sorted(reexported - declared),
             [],
-            "imported into odoo/tools/__init__.py but absent from __all__ — either "
-            "export it deliberately or import it under a private alias",
+            "imported into odoo/tools/__init__.py but absent from __all__. This "
+            "package declares its whole import surface, `_` included, so add it "
+            "there — a private alias is NOT an escape, this check reads aliases "
+            "too and underscore names are declared like any other",
         )
         self.assertEqual(
             sorted(declared - reexported),
