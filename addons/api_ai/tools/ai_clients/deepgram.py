@@ -371,48 +371,10 @@ class DeepgramClient(BaseAIClient):
                 list(self.TTS_VOICES.keys()),
             )
 
-        encoding = self.SPEECH_ENCODINGS.get(mimetype)
-        if encoding is None:
-            raise CommError(f"Deepgram does not write {mimetype!r}")
-
-        params = {"model": voice, **encoding}
-        if kwargs.get("sample_rate"):
-            params["sample_rate"] = kwargs["sample_rate"]
-
-        try:
-            response = self._client.post(
-                "/speak",
-                json={"text": text},
-                params=params,
-                raw=True,
-                timeout=kwargs.get("timeout") or SYNTHESIZE_TIMEOUT,
-            )
-        except CommError:
-            raise
-        except Exception as e:
-            raise CommError(f"Deepgram synthesis failed: {e!s}") from e
-
-        audio = getattr(response, "content", None)
-        if not audio:
-            raise CommError("Deepgram returned no audio")
-        return audio
-
-    def transcribe_cues(
-        self,
-        audio_bytes,
-        filename=None,
-        mimetype=None,
-        language=None,
-        prompt=None,
-        model=None,
-        **kwargs,
-    ):
-        del filename, prompt
-        options = {"utterances": True, "smart_format": True, **kwargs}
-        if language:
-            options["language"] = language
-        result = self.transcribe_file(
-            audio_bytes, mimetype=mimetype, model=model, **options
+        del text, voice, kwargs
+        raise CommError(
+            "Deepgram text_to_speech is not supported through OutboundAPIClient yet; "
+            "binary response bodies are not exposed. See t20851 follow-up.",
         )
         return self._read_cues(result)
 
@@ -451,12 +413,7 @@ class DeepgramClient(BaseAIClient):
                 list(self.TTS_VOICES.keys()),
             )
 
-        params = {"model": voice}
-
-        if kwargs.get("encoding"):
-            params["encoding"] = kwargs["encoding"]
-
-        del text, voice, kwargs, params
+        del text, voice, kwargs
         raise CommError(
             "Deepgram text_to_speech_stream is not supported through "
             "OutboundAPIClient yet; streaming responses are not exposed. "
