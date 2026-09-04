@@ -231,6 +231,93 @@ class TestNoShippedConstraintReliesOnSu:
             "user's own environment, or drop the branch."
         )
 
+    def test_no_stored_compute_reads_su_without_declaring_compute_sudo_false(self):
+        """The same shape one hook over, and it is clean today rather than absent.
+
+        `compute_value` sudoes the records when `field.compute_sudo`
+        (`orm/fields/_field_compute.py:160`), and `compute_sudo` defaults to
+        `store` (`orm/fields/_field_setup.py:46`). So a compute on a STORED
+        field reads `env.su` as True forever, exactly as a constraint does, while
+        a compute on an unstored one is handed the user's own environment and the
+        flag means something.
+
+        Measured before this was written: three computes in `odoo` and `addons`
+        read `env.su` -- in `hr_expense` twice and `mail_group` once -- and all
+        three compute unstored fields, so all three are correct.
+
+        What this cannot see, stated rather than implied: a field whose
+        `compute=` is a callable rather than a literal name, a field declared in
+        a class other than the one holding the method, and a RELATED field, whose
+        `compute_sudo` follows `related_sudo` and so defaults to True whether it
+        is stored or not. Those are blind spots, not exemptions.
+        """
+        offenders = self._stored_compute_offenders()
+        assert offenders == [], (
+            "these computes read `env.su` while computing a stored field, which "
+            "is sudoed by default, so the branch that reads it is dead:\n  "
+            + "\n  ".join(offenders)
+            + "\nDeclare `compute_sudo=False` on the field, or drop the branch."
+        )
+
+    @classmethod
+    def _stored_compute_offenders(cls) -> list[str]:
+        repo = Path(__file__).resolve().parents[3]
+        found = []
+        for root in cls.ROOTS:
+            for path in sorted((repo / root).rglob("*.py")):
+                parts = set(path.parts)
+                if "__pycache__" in parts or "tests" in parts:
+                    continue
+                try:
+                    tree = ast.parse(path.read_bytes())
+                except SyntaxError:
+                    continue
+                for klass in ast.walk(tree):
+                    if not isinstance(klass, ast.ClassDef):
+                        continue
+                    declared = {
+                        stmt.targets[0].id: {
+                            kw.arg: kw.value for kw in stmt.value.keywords
+                        }
+                        for stmt in klass.body
+                        if isinstance(stmt, ast.Assign)
+                        and isinstance(stmt.value, ast.Call)
+                        and isinstance(stmt.targets[0], ast.Name)
+                    }
+                    for node in klass.body:
+                        if not isinstance(node, ast.FunctionDef):
+                            continue
+                        if not any(
+                            ast.unparse(
+                                d.func if isinstance(d, ast.Call) else d
+                            ).endswith("depends")
+                            for d in node.decorator_list
+                        ):
+                            continue
+                        if not any(
+                            isinstance(inner, ast.Attribute) and inner.attr == "su"
+                            for inner in ast.walk(node)
+                        ):
+                            continue
+                        for name, keywords in declared.items():
+                            compute = keywords.get("compute")
+                            stored = keywords.get("store")
+                            sudo = keywords.get("compute_sudo")
+                            if not (
+                                isinstance(compute, ast.Constant)
+                                and compute.value == node.name
+                                and isinstance(stored, ast.Constant)
+                                and stored.value is True
+                            ):
+                                continue
+                            if isinstance(sudo, ast.Constant) and sudo.value is False:
+                                continue
+                            found.append(
+                                f"{path.relative_to(repo)}:{node.lineno} "
+                                f"{node.name} computes stored {name}"
+                            )
+        return found
+
     def test_the_scan_reaches_a_constraint_at_all(self):
         """A green assertion over an empty scan is not a green tree."""
         repo = Path(__file__).resolve().parents[3]
