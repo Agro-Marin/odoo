@@ -16,7 +16,7 @@ class TestMexicanPartnerIdentifiers(TransactionCase):
     Before this, an RFC lived in `res.partner.vat`, a CURP in
     `l10n_mx_edi_curp` (a `Char(size=18)` validated by nothing) and a second
     copy of both on `hr.employee`, checked for length alone. These types put
-    the rules in one place and give `_validate_code_<code>` its first use.
+    the rules in one place and give `_check_code_<code>` its first use.
     """
 
     @classmethod
