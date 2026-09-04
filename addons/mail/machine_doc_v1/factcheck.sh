@@ -791,8 +791,10 @@ assert_eq "js_deployment_layers.py gate exists" \
     "$([ -f "$ODOO/tooling/architecture/js_deployment_layers.py" ] && echo 1 || echo 0)" "1"
 assert_eq "KNOWN_VIOLATIONS is empty" \
     "$(grep -c 'KNOWN_VIOLATIONS: tuple\[Known, ...\] = ()' "$ODOO/tooling/architecture/js_deployment_layers.py")" "1"
-assert_eq "the gate is wired into architecture.yml" \
-    "$(grep -c 'js_deployment_layers.py --check' "$ODOO/.github/workflows/architecture.yml")" "1"
+# 532091ea401 deleted every workflow; the gates run by hand now, so what makes
+# this one enforced is its presence in the roster gates.md drives, not a lane.
+assert_eq "the gate is in the roster gates.md runs" \
+    "$(grep -qE '^ *js_deployment_layers ' "$ODOO/doc/architecture/gates.md" && echo 1 || echo 0)" "1"
 
 # Per-subtree JS counts DIRECTORY_MAP states. Round 3 pinned only views/ and js/, so core/,
 # discuss/ and utils/ drifted unnoticed.
