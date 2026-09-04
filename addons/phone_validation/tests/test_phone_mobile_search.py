@@ -29,3 +29,41 @@ class TestPhoneMobileSearch(TransactionCase):
             [("phone_mobile_search", "=", "+3212345678")]
         )
         self.assertIn(partner, found)
+
+    def test_negative_operator_excludes_the_record_that_matches(self):
+        """A negative search must not return the record the positive one does.
+
+        ``phone_mobile_search`` consults several columns, so negating it means
+        negating a disjunction. Spelling that out per column is what went
+        wrong: for a term in international form the negative branch compared
+        the number against both the ``00`` and the ``+`` spelling and OR'ed
+        the two refusals, which no number can fail at once -- so the condition
+        held for every row and the search returned the whole table, the exact
+        match included.
+        """
+        partner = self.env["res.partner"].create(
+            {
+                "name": "International-format contact",
+                "phone": "+3212345678",
+                "country_id": self.env.ref("base.be").id,
+            }
+        )
+        self.env.flush_all()
+
+        Partner = self.env["res.partner"]
+        self.assertIn(
+            partner,
+            Partner.search([("phone_mobile_search", "=", "+3212345678")]),
+            "the positive search is the reference: it must find the contact",
+        )
+        for operator, value in [
+            ("!=", "+3212345678"),
+            ("<>", "+3212345678"),
+            ("not in", ["+3212345678"]),
+        ]:
+            with self.subTest(operator=operator):
+                self.assertNotIn(
+                    partner,
+                    Partner.search([("phone_mobile_search", operator, value)]),
+                    "a negative search returned the contact it excludes",
+                )

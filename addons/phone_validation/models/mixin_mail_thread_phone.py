@@ -4,9 +4,19 @@ from odoo import _, api, fields, models
 from odoo.db.schema import create_index, index_exists
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
-from odoo.tools import normalize_identifier, ormcache
+from odoo.tools import SQL, normalize_identifier, ormcache
 
 PHONE_REGEX_PATTERN = r"[\s\\./\(\)\-]"
+
+# The SQL operator each domain operator compares the digits-only column with.
+# An operator absent from here is one this search cannot answer.
+_PHONE_SQL_OPERATORS = {
+    "=": SQL("="),
+    "like": SQL("LIKE"),
+    "=like": SQL("LIKE"),
+    "ilike": SQL("ILIKE"),
+    "=ilike": SQL("ILIKE"),
+}
 
 
 class MixinMailThreadPhone(models.AbstractModel):
@@ -99,10 +109,16 @@ class MixinMailThreadPhone(models.AbstractModel):
                 )
 
     def _search_phone_mobile_search(self, operator, value):
-        if operator == "not in":
-            return Domain.AND(self._search_phone_mobile_search("!=", v) for v in value)
         if operator == "in":
             return Domain.OR(self._search_phone_mobile_search("=", v) for v in value)
+        if operator in ("!=", "<>", "not in"):
+            # Negating a match spread over several columns is the framework's
+            # job: it re-asks with the inverse operator and wraps the answer in
+            # `DomainNot`, which compiles to `(...) IS NOT TRUE` -- true for a
+            # NULL column, so a record with no number still comes back. Doing
+            # it here per column is what got it wrong: see
+            # `_search_phone_mobile_not_like`, still on that shape.
+            return NotImplemented
         value = value.strip() if isinstance(value, str) else value
         phone_fields = self._phone_get_phone_mobile_search_fields()
         # TODO: remove in master. On databases not upgraded since
@@ -117,14 +133,11 @@ class MixinMailThreadPhone(models.AbstractModel):
             raise UserError(_("Missing definition of phone fields."))
 
         # search if phone/mobile is set or not
-        if (value is True or not value) and operator in ("=", "!="):
-            if value:
-                # inverse the operator
-                operator = "=" if operator == "!=" else "!="
-            op = Domain.AND if operator == "=" else Domain.OR
-            return op(
-                Domain(phone_field, operator, False) for phone_field in phone_fields
+        if (value is True or not value) and operator == "=":
+            unset = Domain.AND(
+                Domain(phone_field, "=", False) for phone_field in phone_fields
             )
+            return ~unset if value else unset
 
         if not value:
             return Domain.TRUE
@@ -133,59 +146,88 @@ class MixinMailThreadPhone(models.AbstractModel):
                 _("Please enter at least 3 characters when searching a Phone number.")
             )
 
-        sql_operator = {"=like": "LIKE", "=ilike": "ILIKE"}.get(operator, operator)
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return self._search_phone_mobile_not_like(operator, value, phone_fields)
 
+        sql_operator = _PHONE_SQL_OPERATORS.get(operator)
+        if sql_operator is None:
+            return NotImplemented  # unsupported operator
+        terms = self._phone_search_terms(operator, value)
+
+        def to_sql(model, alias, query):
+            return SQL(
+                "(%s)",
+                SQL(" OR ").join(
+                    SQL(
+                        "REGEXP_REPLACE(%s, %s, '', 'g') %s %s",
+                        model._field_to_sql(alias, phone_field, query),
+                        PHONE_REGEX_PATTERN,
+                        sql_operator,
+                        term,
+                    )
+                    for phone_field in phone_fields
+                    for term in terms
+                ),
+            )
+
+        return Domain.custom(to_sql=to_sql)
+
+    @api.model
+    def _phone_search_terms(self, operator, value):
+        """Return the digit-only forms of ``value`` a column is compared against.
+
+        An international number reaches the database either way round, as
+        ``+3248…`` or as ``0032 48…``, so both spellings are searched. ``=``
+        compares the whole number; the ``like`` family anchors on the prefix
+        for an international term and matches anywhere for a local one.
+        """
         if value.startswith(("+", "00")):
-            if operator in Domain.NEGATIVE_OPERATORS:
-                # searching on +32485112233 should also finds 0032485112233 (and vice versa)
-                # we therefore remove it from input value and search for both of them in db
-                where_str = " AND ".join(
-                    f"""model.{phone_field} IS NULL OR (
-                            REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s OR
-                            REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s
-                    )"""
-                    for phone_field in phone_fields
-                )
-            else:
-                # searching on +32485112233 should also finds 0032485112233 (and vice versa)
-                # we therefore remove it from input value and search for both of them in db
-                where_str = " OR ".join(
-                    f"""model.{phone_field} IS NOT NULL AND (
-                            REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s OR
-                            REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s
-                    )"""
-                    for phone_field in phone_fields
-                )
-            query = f"SELECT model.id FROM {self._table} model WHERE {where_str};"
-
             term = re.sub(
                 PHONE_REGEX_PATTERN, "", value[1 if value.startswith("+") else 2 :]
             )
-            if operator not in ("=", "!="):  # for like operators
+            if operator != "=":  # for like operators
                 term = f"{term}%"
-            self.env.cr.execute(
-                query,
-                (PHONE_REGEX_PATTERN, "00" + term, PHONE_REGEX_PATTERN, "+" + term)
-                * len(phone_fields),
+            return ("00" + term, "+" + term)
+        term = re.sub(PHONE_REGEX_PATTERN, "", value)
+        if operator != "=":  # for like operators
+            term = f"%{term}%"
+        return (term,)
+
+    def _search_phone_mobile_not_like(self, operator, value, phone_fields):
+        """Answer ``not like`` / ``not ilike`` the way this model always has.
+
+        Left deliberately on the old shape -- a `SELECT id` of its own, whose
+        whole result is carried back as ``id in [...]``. It also spells the
+        negation out per column, which is why an international term matches
+        everything: it refuses both the ``00`` and the ``+`` spelling and ORs
+        the two refusals, and no number can fail both at once.
+
+        Handing these two operators to the framework as well would fix that,
+        but the only test pinning today's answer lives in `test_mail_sms`,
+        outside this module. Task 30230 carries the change to both.
+        """
+        sql_operator = {"=like": "LIKE", "=ilike": "ILIKE"}.get(operator, operator)
+        if value.startswith(("+", "00")):
+            where_str = " AND ".join(
+                f"""model.{phone_field} IS NULL OR (
+                        REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s OR
+                        REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s
+                )"""
+                for phone_field in phone_fields
             )
         else:
-            if operator in Domain.NEGATIVE_OPERATORS:
-                where_str = " AND ".join(
-                    f"(model.{phone_field} IS NULL OR REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s)"
-                    for phone_field in phone_fields
-                )
-            else:
-                where_str = " OR ".join(
-                    f"(model.{phone_field} IS NOT NULL AND REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s)"
-                    for phone_field in phone_fields
-                )
-            query = f"SELECT model.id FROM {self._table} model WHERE {where_str};"
-            term = re.sub(PHONE_REGEX_PATTERN, "", value)
-            if operator not in ("=", "!="):  # for like operators
-                term = f"%{term}%"
-            self.env.cr.execute(query, (PHONE_REGEX_PATTERN, term) * len(phone_fields))
-        res = self.env.cr.fetchall()
-        return Domain("id", "in", [r[0] for r in res])
+            where_str = " AND ".join(
+                f"(model.{phone_field} IS NULL OR REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s)"
+                for phone_field in phone_fields
+            )
+        query = f"SELECT model.id FROM {self._table} model WHERE {where_str};"
+        params = tuple(
+            param
+            for term in self._phone_search_terms(operator, value)
+            for param in (PHONE_REGEX_PATTERN, term)
+        )
+        self.env.cr.execute(query, params * len(phone_fields))
+        return Domain("id", "in", [row[0] for row in self.env.cr.fetchall()])
 
     @api.depends(lambda self: self._phone_get_sanitize_triggers())
     def _compute_phone_sanitized(self):
