@@ -13,11 +13,17 @@ def _refresh_consumer_aggregates(cr, res_ids_by_model):
         cr.execute("SELECT model FROM ir_model WHERE model = %s", (model_name,))
         if not cr.fetchone():
             continue
+        # Both lookups are deliberately SQL rather than `env[model_name]._table`.
+        # Every consumer of the reservation ledger depends on `resource`, so it
+        # loads AFTER it: at this point `env.get(model_name)` is None for all of
+        # them and the refresh would silently do nothing. Measured, not assumed.
         table = model_name.replace(".", "_")
         cr.execute(
             """
             SELECT 1 FROM information_schema.columns
-             WHERE table_name = %s AND column_name = 'allocated_hours'
+             WHERE table_schema = current_schema()
+               AND table_name = %s
+               AND column_name = 'allocated_hours'
             """,
             (table,),
         )
