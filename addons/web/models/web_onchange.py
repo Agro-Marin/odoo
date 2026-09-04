@@ -66,6 +66,8 @@ class Base(models.AbstractModel):
         ]
         with self.env.protecting(protected, record):
             record.modified(list(self._fields) if first_call else todo)
+            if first_call:
+                self._onchange_compute_default_siblings(record, field_names)
             for field_name in todo:
                 field = self._fields[field_name]
                 if field.inherited:
@@ -98,6 +100,40 @@ class Base(models.AbstractModel):
             result["warning"] = warning
 
         return result
+
+    def _onchange_compute_default_siblings(
+        self, record: Any, field_names: list[str]
+    ) -> None:
+        """Compute the other outputs of a method one default already fixed.
+
+        A default is protected together with every sibling of its compute
+        method, as `write` protects a written value; without this, the
+        siblings the default did not touch would never be computed.
+        """
+        defaulted = {self._fields[fname] for fname in field_names}
+        handled = set()
+        for field in defaulted:
+            if field in handled:
+                continue
+            siblings = self.pool.field_computed.get(field) or ()
+            handled.update(siblings)
+            if all(sibling in defaulted for sibling in siblings):
+                continue
+            kept = [
+                (
+                    sibling,
+                    sibling.convert_to_cache(
+                        record[sibling.name], record, validate=False
+                    ),
+                )
+                for sibling in siblings
+                if sibling in defaulted
+            ]
+            next(
+                sibling for sibling in siblings if sibling not in defaulted
+            ).compute_value(record)
+            for sibling, value in kept:
+                sibling._update_cache(record, value)
 
     def _onchange_get_known_field_names(self, field_names: list[str]) -> list[str]:
         """`field_names` minus the ones this model does not carry, with a warning."""

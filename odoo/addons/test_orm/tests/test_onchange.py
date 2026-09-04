@@ -1498,6 +1498,22 @@ class TestComputeOnchange2(TransactionCase):
                 form.end, START + 20, "updating 'name' should recompute 'end'"
             )
 
+    def test_first_call_default_on_readonly_compute_output(self):
+        parent = self.env["test_orm.model_parent_m2o"].create({"name": "Hello"})
+        model = self.env["test_orm.model_child_m2o"].with_context(
+            default_parent_id=parent.id, default_size1=99
+        )
+        spec = {"parent_id": {}, "size1": {}, "size2": {}}
+
+        values = model.onchange({}, [], spec)["value"]
+
+        self.assertEqual(
+            values["size2"],
+            len(parent.name),
+            "a default for size1 must not silence the compute of its sibling size2",
+        )
+        self.assertEqual(values["size1"], 99, "the default for size1 must stand")
+
     def test_new_one2many_traversing_many2one_second_onchange(self):
         discussion = self.env["test_orm.discussion"].create(
             {
