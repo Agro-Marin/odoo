@@ -671,7 +671,7 @@ registry.category("web_tour.tours").add("test_preset_timing_restaurant", {
             FloorScreen.clickTable("5"),
             ProductScreen.clickDisplayedProduct("Coca-Cola"),
             ProductScreen.selectPreset("Eat in", "Takeaway"),
-            Chrome.selectPresetDateButton("06/16/2025"),
+            Chrome.selectPresetDateButton("Tomorrow"),
             Chrome.presetTimingSlotHourExists("09:00"),
             Chrome.selectPresetTimingSlotHour("11:00"),
             Dialog.isNot(),

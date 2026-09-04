@@ -2,6 +2,8 @@
 /* global QRCode */
 
 import { deserializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/translation";
 import { getDataURLFromFile } from "@web/core/utils/urls";
 import { session } from "@web/session";
 export function uuidv4() {
@@ -243,4 +245,28 @@ export function generateQRCodeDataUrl(
 
     const qr_code_svg = new XMLSerializer().serializeToString(svg);
     return "data:image/svg+xml;base64," + window.btoa(qr_code_svg);
+}
+
+/**
+ * Label a `yyyy-MM-dd` day the way a cashier reads it: Today, Tomorrow, or the
+ * weekday with the calendar date underneath.
+ *
+ * @param {string} sqlDate
+ * @returns {{dayLabel: string, monthDayLabel: string, isTodayOrTomorrow: boolean}}
+ */
+export function getDisplayDateInfo(sqlDate) {
+    const dateTime = luxon.DateTime.fromFormat(sqlDate, "yyyy-MM-dd");
+    if (!dateTime.isValid) {
+        return { dayLabel: "", monthDayLabel: "", isTodayOrTomorrow: false };
+    }
+
+    const today = luxon.DateTime.now().startOf("day");
+    const isToday = dateTime.hasSame(today, "day");
+    const isTomorrow = !isToday && dateTime.hasSame(today.plus({ days: 1 }), "day");
+
+    return {
+        isTodayOrTomorrow: isToday || isTomorrow,
+        dayLabel: isToday ? _t("Today") : isTomorrow ? _t("Tomorrow") : dateTime.toFormat("cccc"),
+        monthDayLabel: dateTime.toLocaleString({ month: "long", day: "numeric" }),
+    };
 }
