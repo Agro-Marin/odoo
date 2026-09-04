@@ -1,5 +1,5 @@
 from odoo.exceptions import UserError
-from odoo.libs.documents import Cue
+from odoo.libs.documents import CHEAP, Cue
 from odoo.tests import tagged
 
 from .common import CUE_FIXTURE, SpeechCase, StubSpeech, StubTranscription
@@ -13,6 +13,26 @@ class TestTranscription(SpeechCase):
     def test_an_engine_makes_a_recording_transcribable(self):
         self._register(StubTranscription())
         self.assertTrue(self._audio().can_transcribe)
+
+    def test_an_engine_cheaper_than_a_network_call_is_still_an_engine(self):
+        engine = StubTranscription()
+        engine.cost = CHEAP
+        self._register(engine)
+        attachment = self._audio()
+        self.assertTrue(attachment.can_transcribe)
+        attachment._transcribe()
+        self.assertEqual(attachment.speech_state, "done")
+
+    def test_a_container_naming_its_codec_is_still_that_container(self):
+        self._register(StubTranscription())
+        recorded = self.env["ir.attachment"].create(
+            {
+                "name": "call.webm",
+                "mimetype": "audio/webm;codecs=opus",
+                "raw": b"chunk",
+            }
+        )
+        self.assertTrue(recorded.can_transcribe)
 
     def test_a_spreadsheet_is_not_transcribable_even_with_an_engine(self):
         self._register(StubTranscription())
@@ -99,6 +119,51 @@ class TestTranscription(SpeechCase):
         attachment.action_transcribe()
         self.assertEqual(attachment.speech_state, "queued")
         self.assertEqual(engine.calls, [])
+
+    def test_the_queued_job_names_the_method_that_transcribes(self):
+        self._register(StubTranscription())
+        attachment = self._audio()
+        attachment.action_transcribe()
+        job = self.env["ir.job"].search(
+            [
+                ("model_name", "=", "ir.attachment"),
+                ("method_name", "=", "_job_transcribe"),
+            ]
+        )
+        self.assertTrue(job, "the action queued nothing a worker could find")
+        self.assertIn(attachment.id, job[0].record_ids)
+        self.assertEqual(job[0].channel, "speech")
+
+    def test_running_the_queued_job_transcribes_the_recording(self):
+        self._register(StubTranscription())
+        attachment = self._audio()
+        attachment.action_transcribe()
+        job = self.env["ir.job"].search(
+            [
+                ("model_name", "=", "ir.attachment"),
+                ("method_name", "=", "_job_transcribe"),
+            ],
+            limit=1,
+        )
+        target = self.env[job.model_name].browse(job.record_ids)
+        getattr(target, job.method_name)(**(job.kwargs or {}))
+        self.assertEqual(attachment.speech_state, "done")
+        self.assertEqual(
+            attachment.speech_transcript, "the invoice went out\non Tuesday"
+        )
+
+    def test_queueing_the_same_recording_twice_does_not_queue_it_twice(self):
+        self._register(StubTranscription())
+        attachment = self._audio()
+        attachment.action_transcribe()
+        attachment.action_transcribe()
+        jobs = self.env["ir.job"].search(
+            [
+                ("model_name", "=", "ir.attachment"),
+                ("method_name", "=", "_job_transcribe"),
+            ]
+        )
+        self.assertEqual(len(jobs), 1, "the identity key did not deduplicate")
 
     def test_a_transcript_is_written_back_as_webvtt(self):
         self._register(StubTranscription())

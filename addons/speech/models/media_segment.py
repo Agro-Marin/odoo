@@ -5,7 +5,7 @@ from collections import defaultdict
 from itertools import pairwise
 
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 
 if typing.TYPE_CHECKING:
     from odoo.addons.base.models.ir_attachment import IrAttachment
@@ -50,6 +50,32 @@ class MediaSegment(models.Model):
     def _compute_duration_ms(self) -> None:
         for segment in self:
             segment.duration_ms = max(segment.end_ms - segment.start_ms, 0)
+
+    @api.constrains("res_model", "res_id")
+    def _constrains_the_owner_is_writable(self) -> None:
+        # A segment puts audio into someone else's timeline, and its transcript
+        # into their record. Without this any internal user could file their own
+        # recording against a call they were never in.
+        if self.env.su:
+            return
+        for res_model, res_id in {(s.res_model, s.res_id) for s in self}:
+            if res_model not in self.env:
+                raise ValidationError(
+                    self.env._("%(model)s is not a model.", model=res_model)
+                )
+            owner = self.env[res_model].browse(res_id).exists()
+            if not owner:
+                raise ValidationError(
+                    self.env._("A media segment must belong to a record.")
+                )
+            try:
+                owner.check_access("write")
+            except AccessError as error:
+                raise ValidationError(
+                    self.env._(
+                        "You may not add media to %(name)s.", name=owner.display_name
+                    )
+                ) from error
 
     @api.constrains("res_model", "res_id", "start_ms", "end_ms")
     def _constrains_segments_do_not_overlap(self) -> None:

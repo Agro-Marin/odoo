@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from odoo import http
+from odoo.exceptions import ValidationError
 from odoo.http import BadRequest, Forbidden, Response, UnsupportedMediaType, request
 
 from odoo.addons.mail.controllers.utils import get_self_member_or_404
@@ -46,16 +47,18 @@ class CallRecordingController(http.Controller):
         attachment_sudo = (
             request.env["ir.attachment"]
             .sudo()
-            ._create_from_request_file(
-                file=ufile,
-                mimetype=mimetype,
-                res_model="mail.call.recording",
-            )
+            ._create_from_request_file(file=ufile, mimetype=mimetype)
         )
-        segment = channel_sudo._record_call_media(attachment_sudo, start, end)
+        try:
+            segment = channel_sudo._record_call_media(attachment_sudo, start, end)
+        except ValidationError:
+            attachment_sudo.unlink()
+            return request.prepare_json_response(
+                {"error": "already_being_recorded"}, status=409
+            )
         attachment_sudo.write({"res_model": "media.segment", "res_id": segment.id})
         if attachment_sudo.can_transcribe:
             attachment_sudo._transcribe_later()
-        return request.make_json_response(
+        return request.prepare_json_response(
             {"segment_id": segment.id, "attachment_id": attachment_sudo.id}
         )

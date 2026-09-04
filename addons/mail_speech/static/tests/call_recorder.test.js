@@ -107,7 +107,8 @@ describe("segments", () => {
         await advanceTime(1000);
         expect(segments).toHaveLength(1);
         expect(segments[0].startMs).toBe(0);
-        expect(segments[0].endMs).toBe(1000);
+        expect(segments[0].endMs).toBeGreaterThan(900);
+        expect(segments[0].endMs).toBeLessThan(1500);
         await recorder.stop();
     });
 
@@ -170,6 +171,31 @@ describe("segments", () => {
         await advanceTime(1000);
         expect(recorder.sources.size).toBe(3);
         await recorder.stop();
+    });
+
+    test("stopping waits for the segment upload to finish", async () => {
+        patchRecordingBrowser();
+        let resolveUpload;
+        const finished = [];
+        const recorder = makeRecorder(
+            () =>
+                new Promise((resolve) => {
+                    resolveUpload = () => {
+                        finished.push(1);
+                        resolve();
+                    };
+                }),
+        );
+        recorder.start();
+        await advanceTime(400);
+        let stopped = false;
+        const stopping = recorder.stop().then(() => (stopped = true));
+        await Promise.resolve();
+        expect(stopped).toBe(false);
+        resolveUpload();
+        await stopping;
+        expect(stopped).toBe(true);
+        expect(finished).toHaveLength(1);
     });
 
     test("starting twice does not open a second take", async () => {

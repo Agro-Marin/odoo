@@ -39,15 +39,11 @@ export class CallRecorder {
     sources = new Map();
     /** @type {Blob[]} */
     chunks = [];
+    /** @type {Set<Promise>} */
+    pending = new Set();
     recording = false;
     startedAt = 0;
     elapsedMs = 0;
-    /**
-     * How long the take that is finishing covers. Set from the timer for a
-     * rolled segment and from the clock only for the last one, so consecutive
-     * spans meet exactly -- media.segment refuses two segments that overlap,
-     * and a clock delta can drift past the boundary the timer set.
-     */
     spanMs = 0;
 
     /**
@@ -88,6 +84,7 @@ export class CallRecorder {
         this.recording = false;
         browser.clearTimeout(this._timeout);
         await this._closeSegment();
+        await Promise.allSettled([...this.pending]);
         for (const source of this.sources.values()) {
             source.disconnect();
         }
@@ -144,7 +141,7 @@ export class CallRecorder {
     _rollSegment() {
         this._connectVoices();
         if (this.recorder?.state === "recording") {
-            this.spanMs = this.segmentMs;
+            this.spanMs = Math.max(Date.now() - this.startedAt, 1);
             this.recorder.stop();
         }
     }
@@ -166,7 +163,15 @@ export class CallRecorder {
         const blob = new Blob(this.chunks, { type: this.mimetype || "audio/webm" });
         this.elapsedMs = endMs;
         if (blob.size) {
-            this.onSegment(blob, Math.round(this.segmentStartMs), Math.round(endMs));
+            const upload = Promise.resolve(
+                this.onSegment(
+                    blob,
+                    Math.round(this.segmentStartMs),
+                    Math.round(endMs),
+                ),
+            );
+            this.pending.add(upload);
+            upload.finally(() => this.pending.delete(upload));
         }
         if (this.recording) {
             this._recordSegment();

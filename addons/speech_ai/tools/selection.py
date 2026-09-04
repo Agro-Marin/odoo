@@ -11,13 +11,21 @@ TRANSCRIPTION_KIND = "audio"
 SYNTHESIS_KIND = "speech"
 
 
-def pick_model(env: Any, kind: str, optimize_for: str = "balanced") -> Any:
-    model = get_ai_orchestrator(env).select_model(kind=kind, optimize_for=optimize_for)
+def pick_model(
+    env: Any,
+    kind: str,
+    optimize_for: str = "balanced",
+    provider_code: str | None = None,
+) -> Any:
+    model = get_ai_orchestrator(env).select_model(
+        kind=kind, optimize_for=optimize_for, provider_code=provider_code
+    )
     if not model:
         _logger.info(
-            "No %s model is configured with a usable credential; speech stays "
-            "unavailable rather than failing at a vendor call",
+            "No %s model is configured with a usable credential for %s; speech "
+            "stays unavailable rather than failing at a vendor call",
             kind,
+            provider_code or "any vendor",
         )
     return model
 

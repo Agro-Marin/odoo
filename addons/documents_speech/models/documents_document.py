@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from odoo import api, fields, models
+from odoo import fields, models
 
 
 class DocumentsDocument(models.Model):
@@ -20,14 +20,3 @@ class DocumentsDocument(models.Model):
     def _speech_vtt(self) -> str:
         self.check_singleton()
         return self.attachment_id._speech_vtt()
-
-    @api.model
-    def action_read_aloud(self, text: str, folder_id: int | None = None) -> int:
-        attachment = self.env["ir.attachment"]._speech_synthesize(text)
-        document = self.create(
-            {
-                "attachment_id": attachment.id,
-                "folder_id": folder_id,
-            }
-        )
-        return document.id

@@ -55,6 +55,7 @@
 @mail/core/web/open_chat_hook  odoo enterprise
 @mail/core/web/thread_model_patch  odoo
 @mail/discuss/call/common/call_actions  odoo
+@mail/discuss/call/common/rtc_service  odoo
 @mail/discuss/call/common/thread_actions  odoo enterprise
 @mail/discuss/core/common/channel_member_list  odoo enterprise
 @mail/discuss/core/common/channel_member_model  odoo

@@ -9,6 +9,7 @@ from odoo.libs.documents import EXPENSIVE, Cue, Document, cues_as_text, extensio
 
 from ..tools.engines import (
     DEFAULT_SPEECH_MIMETYPE,
+    bare,
     can_transcribe,
     engine_error,
     synthesis_engines,
@@ -165,7 +166,7 @@ class IrAttachment(models.Model):
             raise UserError(self.env._("This attachment holds no data to transcribe."))
         return Document(
             raw,
-            self.mimetype or "",
+            bare(self.mimetype or ""),
             self.name or "",
             env=self.env,
             read_up_to=EXPENSIVE,

@@ -11,7 +11,10 @@ Speech - AI Engines
 The engines ``speech`` deliberately does not ship. Both are registered on the
 document layer, so neither is reachable by name and neither is asked for
 directly: a recording read at the ``EXPENSIVE`` ceiling reaches the reader, and
-``Document.of(text=..., mimetype="audio/mpeg")`` reaches the writer.
+``speech``'s own ``_speech_synthesize`` reaches the writer. It does the reaching
+rather than ``Document.of`` because a writer has no cost to be ordered by and no
+fall-through, so the layer would hand the work to whichever engine registered
+first, credential or not.
 
 ``ai_transcription``
     A reader of audio and video, yielding timed cues. It selects a model of kind

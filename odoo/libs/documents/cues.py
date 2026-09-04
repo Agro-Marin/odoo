@@ -18,6 +18,17 @@ _ARROW = re.compile(rf"^\s*{_STAMP}\s*-->\s*{_STAMP}\s*(?:\s.*)?$")
 _VOICE = re.compile(r"^<v(?:\.\S+)*\s+([^>]*)>(.*)$", re.DOTALL)
 _TAG = re.compile(r"</?[a-zA-Z][^>]*>")
 _NOTE = re.compile(r"^(?:NOTE|STYLE|REGION)\b")
+_BLANK = re.compile(r"\n\s*\n+")
+_NUMERIC = re.compile(r"&#(x[0-9a-fA-F]+|[0-9]+);")
+
+_REFERENCES = {
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&nbsp;": "\u00a0",
+    "&lrm;": "\u200e",
+    "&rlm;": "\u200f",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,11 +78,33 @@ def _speaker_of(text: str) -> tuple[str, str]:
     return match.group(1).strip(), match.group(2)
 
 
-def _plain(text: str) -> str:
-    return _TAG.sub("", text).strip()
+def _dereference(text: str) -> str:
+    for reference, character in _REFERENCES.items():
+        text = text.replace(reference, character)
+    return _NUMERIC.sub(
+        lambda m: chr(
+            int(m.group(1)[1:], 16) if m.group(1)[0] in "xX" else int(m.group(1))
+        ),
+        text,
+    )
 
 
-def _parse(text: str) -> list[Cue]:
+def _plain(text: str, references: bool) -> str:
+    # Tags first: a cue holding `&lt;b&gt;` means those characters, not a tag,
+    # and decoding before stripping would delete the words it wraps.
+    stripped = _TAG.sub("", text).strip()
+    return _dereference(stripped) if references else stripped
+
+
+def _escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _one_paragraph(text: str) -> str:
+    return _BLANK.sub("\n", text)
+
+
+def _parse(text: str, references: bool) -> list[Cue]:
     cues: list[Cue] = []
     for block in _blocks(text):
         if _NOTE.match(block[0]):
@@ -84,27 +117,41 @@ def _parse(text: str) -> list[Cue]:
             end = _seconds(*match.group(5, 6, 7, 8))
             body = "\n".join(block[index + 1 :])
             speaker, spoken = _speaker_of(body)
-            spoken = _plain(spoken)
+            spoken = _plain(spoken, references)
             if spoken:
-                cues.append(Cue(start, end, spoken, speaker))
+                cues.append(
+                    Cue(
+                        start,
+                        end,
+                        spoken,
+                        _dereference(speaker) if references else speaker,
+                    )
+                )
             break
     return cues
 
 
 def parse_vtt(text: str) -> list[Cue]:
-    return _parse(text)
+    return _parse(text, references=True)
 
 
 def parse_srt(text: str) -> list[Cue]:
-    return _parse(text)
+    # SubRip has no character references, so `&amp;` in one is those five
+    # characters and decoding it would put an ampersand where an author wrote a
+    # word.
+    return _parse(text, references=False)
 
 
 def _voiced(cue: Cue) -> str:
-    return f"<v {cue.speaker}>{cue.text}" if cue.speaker else cue.text
+    text = _one_paragraph(_escape(cue.text))
+    if not cue.speaker:
+        return text
+    return f"<v {_escape(cue.speaker)}>{text}"
 
 
 def _named(cue: Cue) -> str:
-    return f"{cue.speaker}: {cue.text}" if cue.speaker else cue.text
+    text = _one_paragraph(cue.text)
+    return f"{cue.speaker}: {text}" if cue.speaker else text
 
 
 def write_vtt(cues: Iterable[Cue]) -> str:

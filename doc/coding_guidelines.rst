@@ -1139,9 +1139,9 @@ Section  Population                                                  Count
 §2.4.2   … spelled ``_onchange_<field>``                               275
 §2.4.2   ``@api.ondelete`` hooks                                       167
 §2.4.2   … spelled ``_unlink_except_*``                                108
-§2.4.2   ``@api.constrains`` hooks                                     642
+§2.4.2   ``@api.constrains`` hooks                                     643
 §2.4.2   … spelled ``_check_*``                                        590
-§2.4.2   … with a first token carrying no rule                          47
+§2.4.2   … with a first token carrying no rule                          48
 §2.4.2   … binding exactly one field                                   304
 §2.4.2   … of those, spelled ``_check_<field>``                        136
 §2.4.2   Multi-field constraints named for one trigger                  57
@@ -1182,12 +1182,12 @@ Section  Population                                                  Count
 §2.4.12  ``_sync_*`` definitions                                        67
 §2.4.12  ``_synchronize_*`` definitions                                 13
 §2.4.12  ``_post_*`` definitions                                       136
-§2.4.13  Module-level functions under ``models/`` and ``wizard/``      332
+§2.4.13  Module-level functions under ``models/`` and ``wizard/``      319
 §2.4.13  Methods on plain classes in model files                       390
-§2.4.13  … such classes                                                154
-§2.4.13  Functions nested inside model methods                         571
-§2.4.14  Private method names reached from stored Python               112
-§2.4.14  … code blocks reaching them                                   121
+§2.4.13  … such classes                                                153
+§2.4.13  Functions nested inside model methods                         569
+§2.4.14  Private method names reached from stored Python               111
+§2.4.14  … code blocks reaching them                                   120
 §2.4.14  … shipped data files holding those blocks                      70
 §2.4.14  Classes implementing ``_get_report_values``                    19
 §2.4.14  … ``get_values``                                               12

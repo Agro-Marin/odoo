@@ -6,17 +6,31 @@ from typing import Any
 from odoo.libs.documents import TEXT, BaseWriter, register_writer
 
 from .selection import SYNTHESIS_KIND, pick_model, run
+from odoo.addons.api_ai.tools.ai_clients import AI_CLIENT_REGISTRY
 from odoo.addons.api_ai.tools.vendor_catalog import PROVIDERS
 
 _logger = logging.getLogger(__name__)
 
 
-def _written_mimetypes() -> frozenset[str]:
-    spoken = set()
+def written_by(vendor: str) -> frozenset[str]:
     for spec in PROVIDERS.values():
-        if spec.get("speech"):
-            spoken.update(spec.get("speech_mimetypes") or {})
-    spoken.update({"audio/mpeg", "audio/ogg", "audio/wav", "audio/flac", "audio/aac"})
+        if spec.get("speech_service") == vendor:
+            return frozenset(spec.get("speech_mimetypes") or {})
+    client = AI_CLIENT_REGISTRY.get(vendor)
+    return frozenset(getattr(client, "SPEECH_ENCODINGS", None) or ())
+
+
+def _vendors() -> frozenset[str]:
+    named = {
+        spec["speech_service"] for spec in PROVIDERS.values() if spec.get("speech")
+    }
+    return frozenset(named | set(AI_CLIENT_REGISTRY))
+
+
+def _written_mimetypes() -> frozenset[str]:
+    spoken: set[str] = set()
+    for vendor in _vendors():
+        spoken |= written_by(vendor)
     return frozenset(spoken)
 
 
@@ -32,7 +46,11 @@ class AiSpeech(BaseWriter):
         self.mimetype = mimetype
 
     def available(self, env: Any) -> bool:
-        return bool(pick_model(env, SYNTHESIS_KIND))
+        return any(
+            pick_model(env, SYNTHESIS_KIND, provider_code=vendor)
+            for vendor in _vendors()
+            if self.mimetype in written_by(vendor)
+        )
 
     def write(self, value: Any, **options: Any) -> bytes:
         env = options.get("env")

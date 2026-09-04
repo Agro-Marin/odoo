@@ -67,6 +67,21 @@ class TestParsing(unittest.TestCase):
     def test_crlf_is_read(self):
         self.assertEqual(len(parse_vtt(VTT.replace("\n", "\r\n"))), 2)
 
+    def test_character_references_are_decoded(self):
+        track = "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nTom &amp; Jerry &lt;3\n"
+        (cue,) = parse_vtt(track)
+        self.assertEqual(cue.text, "Tom & Jerry <3")
+
+    def test_a_reference_in_a_speaker_name_is_decoded_too(self):
+        track = "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n<v Ben &amp; Co>hi\n"
+        (cue,) = parse_vtt(track)
+        self.assertEqual(cue.speaker, "Ben & Co")
+
+    def test_a_reference_that_spells_a_tag_is_not_read_as_one(self):
+        track = "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n&lt;b&gt;not bold&lt;/b&gt;\n"
+        (cue,) = parse_vtt(track)
+        self.assertEqual(cue.text, "<b>not bold</b>")
+
     def test_text_carrying_no_cue_reads_as_no_cues(self):
         self.assertEqual(parse_vtt("WEBVTT\n\nnothing here at all\n"), [])
 
@@ -79,6 +94,10 @@ class TestWriting(unittest.TestCase):
     def test_srt_round_trips(self):
         cues = parse_srt(SRT)
         self.assertEqual(parse_srt(write_srt(cues)), cues)
+
+    def test_a_blank_line_inside_a_cue_survives_the_round_trip(self):
+        cues = [Cue(0.0, 1.0, "para one\n\npara two")]
+        self.assertEqual(parse_vtt(write_vtt(cues))[0].text.count("para"), 2)
 
     def test_vtt_states_its_header(self):
         self.assertTrue(write_vtt([Cue(0.0, 1.0, "hi")]).startswith("WEBVTT\n\n"))
