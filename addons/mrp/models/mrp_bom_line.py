@@ -29,6 +29,13 @@ class MrpBomLine(models.Model):
         "Parent Product Template",
         related="bom_id.product_tmpl_id",
     )
+    parent_product_id = fields.Many2one(related="bom_id.product_id")
+    parent_code = fields.Char("BoM Reference", related="bom_id.code")
+    parent_type = fields.Selection(string="BoM Type", related="bom_id.type")
+    parent_product_qty = fields.Float("BoM Quantity", related="bom_id.product_qty")
+    parent_product_uom_id = fields.Many2one(
+        string="BoM Unit", related="bom_id.product_uom_id"
+    )
     operation_id = fields.Many2one(
         "mrp.routing.workcenter",
         "Consumed in Operation",
@@ -251,6 +258,17 @@ class MrpBomLine(models.Model):
         if field.type == "selection":
             return dict(field._description_selection(self.env)).get(value, value)
         return str(value)
+
+    def action_open_parent_bom(self, *args):
+        self.check_singleton()
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "mrp.bom",
+            "res_id": self.bom_id.id,
+            "view_mode": "form",
+            "views": [(False, "form")],
+            "target": "current",
+        }
 
     def action_see_attachments(self):
         self.check_singleton()

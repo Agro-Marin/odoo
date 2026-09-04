@@ -486,6 +486,103 @@
             </field>
         </record>
         <!-- BOM Line -->
+        <record id="mrp_bom_line_action_used_in_boms" model="ir.actions.act_window">
+            <field name="name">Used in BoM</field>
+            <field name="res_model">mrp.bom.line</field>
+            <field name="path">used-in-boms</field>
+            <field name="view_mode">list</field>
+        </record>
+        <record id="mrp_bom_line_view_list" model="ir.ui.view">
+            <field name="name">mrp.bom.line.view.list</field>
+            <field name="model">mrp.bom.line</field>
+            <field name="arch" type="xml">
+                <list
+                    create="False"
+                    delete="False"
+                    action="action_open_parent_bom"
+                    type="object">
+                    <field name="parent_product_tmpl_id" string="Bill of Materials" />
+                    <field name="parent_code" optional="show" />
+                    <field name="parent_type" />
+                    <field
+                        name="parent_product_id"
+                        groups="product.group_product_variant"
+                        optional="hide" />
+                    <field
+                        name="bom_product_template_attribute_value_ids"
+                        widget="many2many_tags"
+                        options="{'no_create': True}"
+                        groups="product.group_product_variant" />
+                    <field name="parent_product_qty" optional="hide" />
+                    <field
+                        name="parent_product_uom_id"
+                        groups="uom.group_uom"
+                        optional="hide" />
+                    <field
+                        name="product_id"
+                        string="Component Variant"
+                        column_invisible="context.get('component_variant_count') == 1" />
+                    <field name="product_qty" string="Component Quantity" />
+                    <field
+                        name="product_uom_id"
+                        string="Component Unit"
+                        groups="uom.group_uom"
+                        optional="hide" />
+                    <field
+                        name="company_id"
+                        groups="base.group_multi_company"
+                        optional="show" />
+                </list>
+            </field>
+        </record>
+        <record id="mrp_bom_line_view_search" model="ir.ui.view">
+            <field name="name">mrp.bom.line.view.search</field>
+            <field name="model">mrp.bom.line</field>
+            <field name="arch" type="xml">
+                <search string="Search BoM Line">
+                    <field
+                        name="parent_code"
+                        string="Bill of Materials"
+                        filter_domain="['|', ('parent_code', 'ilike', self), ('parent_product_tmpl_id', 'ilike', self)]" />
+                    <field name="parent_product_tmpl_id" string="Product" />
+                    <filter
+                        string="Manufacturing"
+                        name="normal"
+                        domain="[('parent_type', '=', 'normal')]" />
+                    <filter
+                        string="Kit"
+                        name="phantom"
+                        domain="[('parent_type', '=', 'phantom')]" />
+                    <separator />
+                    <filter
+                        string="Active"
+                        name="bom_active"
+                        domain="[('bom_id.active', '=', True)]" />
+                    <filter
+                        string="Archived"
+                        name="bom_inactive"
+                        domain="[('bom_id.active', '=', False)]" />
+                    <group>
+                        <filter
+                            string="BoM"
+                            name="group_by_bom"
+                            context="{'group_by': 'bom_id'}" />
+                        <filter
+                            string="Product"
+                            name="group_by_product"
+                            context="{'group_by': 'parent_product_tmpl_id'}" />
+                        <filter
+                            string="BoM Type"
+                            name="group_by_type"
+                            context="{'group_by': 'parent_type'}" />
+                        <filter
+                            string="Unit"
+                            name="group_by_unit_of_measure"
+                            context="{'group_by': 'product_uom_id'}" />
+                    </group>
+                </search>
+            </field>
+        </record>
         <record id="mrp_bom_line_view_form" model="ir.ui.view">
             <field name="name">mrp.bom.line.view.form</field>
             <field name="model">mrp.bom.line</field>

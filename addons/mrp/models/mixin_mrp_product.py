@@ -47,9 +47,15 @@ class MixinMrpProduct(models.AbstractModel):
     def action_used_in_bom(self):
         self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
-            "mrp.mrp_bom_form_action"
+            "mrp.mrp_bom_line_action_used_in_boms"
         )
-        action["domain"] = [(f"bom_line_ids.{self._mrp_product_field}", "=", self.id)]
+        action["domain"] = [(self._mrp_product_field, "=", self.id)]
+        action["context"] = {
+            "component_variant_count": len(
+                self._get_mrp_variants().filtered("bom_line_ids")
+            ),
+            "search_default_bom_active": True,
+        }
         return action
 
     def action_view_mos(self):

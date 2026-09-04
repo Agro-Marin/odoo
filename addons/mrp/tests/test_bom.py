@@ -3825,6 +3825,43 @@ class TestBoM(TestMrpCommon):
         )["lines"]
         self.assertEqual(bom_overview["operations_time"], 32)
 
+    def test_used_in_bom_shows_component_quantity(self):
+        """Used In must answer how much of the component each BoM eats, which a
+        list of BoMs cannot."""
+        component = self.env["product.product"].create({"name": "Rivet"})
+        finished = self.env["product.product"].create(
+            [{"name": "Hull"}, {"name": "Mast"}]
+        )
+        self.env["mrp.bom"].create(
+            [
+                {
+                    "product_tmpl_id": product.product_tmpl_id.id,
+                    "product_qty": 1.0,
+                    "product_uom_id": product.uom_id.id,
+                    "bom_line_ids": [
+                        Command.create({"product_id": component.id, "product_qty": qty})
+                    ],
+                }
+                for product, qty in zip(finished, (3.0, 7.0), strict=True)
+            ]
+        )
+
+        for record in (component, component.product_tmpl_id):
+            with self.subTest(model=record._name):
+                action = record.action_used_in_bom()
+                self.assertEqual(action["res_model"], "mrp.bom.line")
+                lines = self.env[action["res_model"]].search(action["domain"])
+                self.assertEqual(
+                    {
+                        line.parent_product_tmpl_id.name: (
+                            line.product_qty,
+                            line.parent_product_qty,
+                        )
+                        for line in lines
+                    },
+                    {"Hull": (3.0, 1.0), "Mast": (7.0, 1.0)},
+                )
+
     def test_bom_additional_note(self):
         """The BoM's note reaches the MOs built from it, and an MO that has its
         own note keeps it when the BoM's changes."""
