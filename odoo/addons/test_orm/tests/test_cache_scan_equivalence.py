@@ -95,7 +95,7 @@ class CacheScanEquivalenceCase(TransactionCase):
 
     def test_sorted_agrees_with_the_comparator_path(self):
         for name in self._scannable(can_scan_sorted):
-            for order in (name, f"{name} desc"):
+            for order in (name, f"{name} desc", f"{name}, id desc"):
                 with self.subTest(order=order):
                     self.env.invalidate_all()
                     self.records.fetch([name])
