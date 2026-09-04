@@ -177,6 +177,12 @@ class TestPartner(MailCommon):
                 & set(tracking_values.sudo().field_id.mapped("name")),
             )
 
+    def test_write_on_a_new_record_skips_auto_subscription(self):
+        partner = self.env["res.partner"].new({"name": "Draft Guy"})
+        partner.write({"name": "Draft Guy Renamed", "user_id": self.user_admin.id})
+        self.assertEqual(partner.name, "Draft Guy Renamed")
+        self.assertFalse(partner.message_follower_ids)
+
     def test_discuss_mention_suggestions_priority(self):
         name = uuid4()
         self.env["res.partner"].create(

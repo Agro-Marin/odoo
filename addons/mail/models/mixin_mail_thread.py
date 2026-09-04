@@ -533,7 +533,8 @@ class MixinMailThread(models.AbstractModel):
 
         result = super().write(vals)
 
-        self._message_auto_subscribe_batch(dict.fromkeys(self.ids, vals))
+        stored = self.browse(self.ids)
+        stored._message_auto_subscribe_batch(dict.fromkeys(stored.ids, vals))
 
         return result
 
