@@ -1,4 +1,5 @@
 import {
+    click,
     contains,
     defineMailModels,
     openDiscuss,
@@ -6,7 +7,12 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
-import { Command, getService, serverState } from "@web/../tests/web_test_helpers";
+import {
+    Command,
+    getService,
+    onRpc,
+    serverState,
+} from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -96,6 +102,23 @@ test("a voice message no engine can read offers nothing", async () => {
     speechArrives(attachmentId, { can_transcribe: false, speech_state: "none" });
     await contains(".o-mail-VoiceTranscript");
     expect(".o-mail-VoiceTranscript button").toHaveCount(0);
+});
+
+test("asking for a transcript calls the model that queues one", async () => {
+    const pyEnv = await startServer();
+    const { channelId, attachmentId } = voiceMessageIn(pyEnv);
+    const asked = [];
+    onRpc("ir.attachment", "action_transcribe", ({ args }) => {
+        asked.push(args[0]);
+        return true;
+    });
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-VoicePlayer");
+    speechArrives(attachmentId, { can_transcribe: true, speech_state: "none" });
+    await click(".o-mail-VoiceTranscript button");
+    expect(asked).toEqual([[attachmentId]]);
+    await contains(".o-mail-VoiceTranscript button:disabled");
 });
 
 test("a transcript replaces the offer to make one", async () => {

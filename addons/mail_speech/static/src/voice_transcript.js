@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { rpc } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 
 /**
  * What a voice message says, under the player that plays it.
@@ -11,6 +11,10 @@ import { _t } from "@web/core/translation";
 export class VoiceTranscript extends Component {
     static template = "mail_speech.VoiceTranscript";
     static props = { attachment: { type: Object } };
+
+    setup() {
+        this.orm = useService("orm");
+    }
 
     /** @returns {boolean} */
     get isPending() {
@@ -30,11 +34,8 @@ export class VoiceTranscript extends Component {
 
     async onClickTranscribe() {
         this.props.attachment.speech_state = "queued";
-        await rpc("/web/dataset/call_kw", {
-            model: "ir.attachment",
-            method: "action_transcribe",
-            args: [[this.props.attachment.id]],
-            kwargs: {},
-        });
+        await this.orm.call("ir.attachment", "action_transcribe", [
+            [this.props.attachment.id],
+        ]);
     }
 }

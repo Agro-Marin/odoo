@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { rpc } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
 
 import { registerMessageAction } from "@mail/core/common/message_actions";
@@ -14,12 +13,9 @@ registerMessageAction("read-aloud", {
     icon: "fa-solid fa-volume-up",
     name: _t("Read aloud"),
     /** @param {Object} params */
-    onSelected: ({ message }) =>
-        rpc("/web/dataset/call_kw", {
-            model: "mail.message",
-            method: "action_read_aloud",
-            args: [[message.id]],
-            kwargs: {},
-        }),
+    onSelected: ({ message, store }) =>
+        store.env.services.orm.call("mail.message", "action_read_aloud", [
+            [message.id],
+        ]),
     sequence: 115,
 });
