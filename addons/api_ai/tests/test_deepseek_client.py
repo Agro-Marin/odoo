@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 
 from odoo.tests.common import TransactionCase
 
+from odoo.addons.api_ai.tests.common import credential_for
 from odoo.addons.api_ai.tools.ai_clients import get_deepseek_client
 from odoo.addons.api_transport.tools.exceptions import CommError
 from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
@@ -12,35 +13,8 @@ class TestDeepSeekClient(EncryptionKeyCase, TransactionCase):
     def setUp(self):
         super().setUp()
 
-        self.service = self.env["api.endpoint.outbound"].search(
-            [("code", "=", "deepseek")], limit=1
-        )
-        if not self.service:
-            self.service = self.env["api.endpoint.outbound"].create(
-                {
-                    "name": "DeepSeek Test",
-                    "code": "deepseek",
-                    "category": "ai",
-                    "endpoint_url": "https://api.deepseek.com/v1",
-                    "auth_type": "bearer",
-                    "active": True,
-                }
-            )
-        elif not self.service.active:
-            self.service.active = True
-
-        self.credential = self.env["credential.credential"].create(
-            {
-                "name": "DeepSeek Test Credential",
-                "endpoint_id": self.service.id,
-                "company_id": self.env.company.id,
-                "category_id": self.env.ref(
-                    "credential.credential_category_custom"
-                ).id,
-                "environment": "test",
-                "credential_value": "test_token_123",
-                "active": True,
-            }
+        self.credential = credential_for(
+            self.env, "deepseek", credential_value="test_token_123"
         )
 
     def test_validate_params_temperature_valid(self):
@@ -170,35 +144,8 @@ class TestDeepSeekVisionFix(EncryptionKeyCase, TransactionCase):
     def setUp(self):
         super().setUp()
 
-        self.service = self.env["api.endpoint.outbound"].search(
-            [("code", "=", "deepseek")], limit=1
-        )
-        if not self.service:
-            self.service = self.env["api.endpoint.outbound"].create(
-                {
-                    "name": "DeepSeek Test",
-                    "code": "deepseek",
-                    "category": "ai",
-                    "endpoint_url": "https://api.deepseek.com/v1",
-                    "auth_type": "bearer",
-                    "active": True,
-                }
-            )
-        elif not self.service.active:
-            self.service.active = True
-
-        self.credential = self.env["credential.credential"].create(
-            {
-                "name": "DeepSeek Vision Test Credential",
-                "endpoint_id": self.service.id,
-                "company_id": self.env.company.id,
-                "category_id": self.env.ref(
-                    "credential.credential_category_custom"
-                ).id,
-                "environment": "test",
-                "credential_value": "test_token_123",
-                "active": True,
-            }
+        self.credential = credential_for(
+            self.env, "deepseek", credential_value="test_token_123"
         )
 
     @patch("odoo.addons.api_ai.tools.ai_clients.base.get_api_client")
