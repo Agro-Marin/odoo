@@ -1,5 +1,8 @@
 import io
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 
 from odoo.libs.documents import CHILDREN, Document, get_readers
 from odoo.tools.pdf import OdooPdfFileWriter
@@ -74,3 +77,44 @@ class TestPdfEmbeddedFiles(unittest.TestCase):
         children = Document(pdf, "application/pdf", "bill.pdf").children
 
         self.assertEqual([c.name for c in children], ["real.xml"])
+
+
+class TestTheReaderCostsNothingToRegister(unittest.TestCase):
+    def test_importing_odoo_tools_does_not_pull_in_pypdf(self):
+        """`odoo/tools/__init__.py` imports `documents` so the reader registers,
+        and every process imports `odoo.tools` at startup. The pypdf import is
+        therefore inside `read()`, not at module scope, so a process that never
+        opens a PDF does not pay for it.
+
+        A subprocess, because this test module imports `odoo.tools.pdf` itself
+        for the writer that builds its fixtures, and an in-process assertion
+        would be reading its own import rather than the package's.
+
+        Asserted rather than commented because a comment did not survive: the
+        module was written with this reasoning in its docstring and shipped
+        without it, and hoisting the import would then cost every process a
+        dependency with nothing to object.
+        """
+        repo = Path(__file__).resolve().parents[3]
+        probe = (
+            "import odoo.tools, sys; "
+            "print('pypdf' in sys.modules, 'odoo.tools.pdf' in sys.modules)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=repo,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.split(), ["False", "False"])
+
+    def test_the_reader_registers_all_the_same(self):
+        """The other half of the pair: deferring the import must not defer the
+        registration, or the reader is absent exactly when it is needed."""
+        self.assertIn(
+            "pdf_embedded_files",
+            [r.name for r in get_readers("application/pdf", CHILDREN)],
+        )

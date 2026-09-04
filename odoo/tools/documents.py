@@ -18,6 +18,10 @@ class PdfEmbeddedFiles(BaseReader):
     def read(self, document: Any) -> list[Document]:
         from struct import error as StructError
 
+        # Deferred: every process imports `odoo.tools` at startup, and one
+        # that never opens a PDF should not pay for pypdf. Pinned by
+        # `tools/tests/test_documents_children.py`, because the comment
+        # saying so did not survive this file being written.
         from .pdf import OdooPdfFileReader, PdfReadError
 
         with io.BytesIO(document.data) as buffer:
