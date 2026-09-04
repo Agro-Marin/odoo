@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="mail_speech.VoiceTranscript">
+        <div class="o-mail-VoiceTranscript small">
+            <t t-if="props.attachment.speech_transcript">
+                <div class="o-mail-VoiceTranscript-text text-muted fst-italic"
+                     t-esc="props.attachment.speech_transcript" />
+            </t>
+            <t t-elif="props.attachment.can_transcribe">
+                <button class="btn btn-link btn-sm p-0 text-muted"
+                        type="button"
+                        t-att-disabled="isPending"
+                        t-on-click="onClickTranscribe">
+                    <i class="fa fa-file-text-o me-1" />
+                    <t t-esc="label" />
+                </button>
+            </t>
+        </div>
+    </t>
+
+</templates>
