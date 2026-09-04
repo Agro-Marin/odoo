@@ -22,7 +22,10 @@ from odoo.tools.image import image_to_base64
 
 from odoo.addons.base.models import ir_attachment as ir_attachment_module
 from odoo.addons.base.models.ir_attachment import SECURITY_FIELDS, IrAttachment
-from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
+from odoo.addons.base.tests.common import (
+    TransactionCaseWithUserDemo,
+    TransactionCaseWithUserPortal,
+)
 
 
 class TestIrAttachment(TransactionCaseWithUserDemo):
@@ -3527,6 +3530,39 @@ class TestDedupOwnership(TransactionCaseWithUserDemo):
             first.id,
             "dedup must still reuse a row under the owner the caller named",
         )
+
+
+class TestCreateUniqueAccessControl(TransactionCaseWithUserPortal):
+    def test_create_unique_denies_a_portal_user_without_comodel_access(self):
+        partner = self.env["res.partner"].create({"name": "ATT-1 host"})
+        payload = b"ATT-1-portal-cannot-read-this"
+        self.env["ir.attachment"].sudo().create(
+            {
+                "name": "seed",
+                "mimetype": "text/plain",
+                "raw": payload,
+                "res_model": "res.partner",
+                "res_id": partner.id,
+            }
+        )
+        self.env.flush_all()
+
+        with self.assertRaises(
+            AccessError,
+            msg="create_unique must not hand back a dedup match on a record "
+            "the caller cannot write to (ATT-1)",
+        ):
+            self.env["ir.attachment"].with_user(self.user_portal).create_unique(
+                [
+                    {
+                        "name": "dup",
+                        "mimetype": "text/plain",
+                        "raw": payload,
+                        "res_model": "res.partner",
+                        "res_id": partner.id,
+                    }
+                ]
+            )
 
 
 class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
