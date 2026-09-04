@@ -1,4 +1,6 @@
+import ast
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -149,3 +151,106 @@ class TestConstrainsUnknownFieldWarning:
         assert "'no_such_field'" in messages[0]
         assert "is not a field name" in messages[0]
         assert any(func._constrains == ("name", "no_such_field") for func in methods)
+
+
+class TestNoShippedConstraintReliesOnSu:
+    """`env.su` inside a constraint can only ever read True, so a guard on it is
+    dead code with the shape of a security check.
+
+    `_check_fields` hands every constraint `self.sudo()` unless the decorator
+    says `sudo=False` (`orm/models/mixins/_constraints.py`), which is what
+    `TestConstraintSudoSemantics` above pins. A constraint written
+    `if self.env.su: return ...` therefore returns on its first line, in every
+    database, forever — and nothing fails, because a constraint that checks
+    nothing raises nothing. One shipped this way and was found by testing the
+    behaviour rather than by reading the code: an internal user in no call could
+    create a media segment on somebody else's call history.
+
+    Reading `env.su` at all is the tell, not just guarding on it. A constraint
+    consulting it is reasoning about privilege, and under the default that
+    reasoning is either dead or vacuous. `sudo=False` is how it is made to mean
+    something.
+    """
+
+    ROOTS = ("odoo", "addons")
+
+    @staticmethod
+    def _declares_sudo_false(decorator) -> bool:
+        if not isinstance(decorator, ast.Call):
+            return False
+        return any(
+            keyword.arg == "sudo"
+            and isinstance(keyword.value, ast.Constant)
+            and keyword.value.value is False
+            for keyword in decorator.keywords
+        )
+
+    @classmethod
+    def _offenders(cls) -> list[str]:
+        repo = Path(__file__).resolve().parents[3]
+        found = []
+        for root in cls.ROOTS:
+            for path in sorted((repo / root).rglob("*.py")):
+                parts = set(path.parts)
+                if "__pycache__" in parts or "tests" in parts:
+                    continue
+                try:
+                    tree = ast.parse(path.read_bytes())
+                except SyntaxError:
+                    continue
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.FunctionDef):
+                        continue
+                    constrains = [
+                        d
+                        for d in node.decorator_list
+                        if ast.unparse(
+                            d.func if isinstance(d, ast.Call) else d
+                        ).endswith("constrains")
+                    ]
+                    if not constrains:
+                        continue
+                    if any(cls._declares_sudo_false(d) for d in constrains):
+                        continue
+                    if any(
+                        isinstance(inner, ast.Attribute) and inner.attr == "su"
+                        for inner in ast.walk(node)
+                    ):
+                        found.append(
+                            f"{path.relative_to(repo)}:{node.lineno} {node.name}"
+                        )
+        return found
+
+    def test_no_constraint_reads_su_without_declaring_sudo_false(self):
+        offenders = self._offenders()
+        assert offenders == [], (
+            "these constraints consult `env.su` while receiving a sudo "
+            "recordset, so the branch that reads it is dead:\n  "
+            + "\n  ".join(offenders)
+            + "\nDeclare `@api.constrains(..., sudo=False)` to be handed the "
+            "user's own environment, or drop the branch."
+        )
+
+    def test_the_scan_reaches_a_constraint_at_all(self):
+        """A green assertion over an empty scan is not a green tree."""
+        repo = Path(__file__).resolve().parents[3]
+        seen = 0
+        for path in (repo / "addons").rglob("*.py"):
+            if "__pycache__" in path.parts or "tests" in path.parts:
+                continue
+            try:
+                tree = ast.parse(path.read_bytes())
+            except SyntaxError:
+                continue
+            seen += sum(
+                1
+                for node in ast.walk(tree)
+                if isinstance(node, ast.FunctionDef)
+                and any(
+                    ast.unparse(d.func if isinstance(d, ast.Call) else d).endswith(
+                        "constrains"
+                    )
+                    for d in node.decorator_list
+                )
+            )
+        assert seen > 500, seen
