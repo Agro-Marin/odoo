@@ -60,7 +60,7 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             js_action_surface js_template_binding \
             xml_reference_coherence js_mixin_coupling edi_vocabulary \
             payment_vocabulary exchange_vocabulary credential_storage \
-            py_addon_imports \
+            py_addon_imports model_name_ownership \
             sql_placeholder module_depends_installable \
             external_dependency_pins; do
     python "tooling/architecture/$gate.py" --check || echo "FAILED: $gate"
@@ -166,6 +166,7 @@ own:
 | Gate | What it locks |
 |------|---------------|
 | `layer_check.py` | the Python layering contracts in [`module.md`](module.md#enforced-dependency-rules) |
+| `model_name_ownership.py` | one model name, one owning module, across every checkout at once. Two modules declaring the same bare `_name` is a silent **replace**, not a collision: the module the graph loads last wins the registry, the others lose their fields and methods, PostgreSQL keeps the loser's column as an orphan and retypes any column the two shared, and the install exits 0 with a warning. The question is relational, so it takes no `--addon` — the community `approval` against the enterprise `approvals*` family reads clean in either scope alone |
 | `mixin_coupling_check.py` | the `self`-call graph the import graph cannot see |
 | `js_mixin_coupling.py` | the same for JS: the `this`-call graph across `SearchModel`'s mixin chain, which produces no import edge and no cross-module member access, so every other JS gate reads it as empty |
 | `env_surface_check.py` | the Layer→runtime `env` seam, that every reached `Environment` member exists, and Layer 1's whole view of the cache: the exact count of its `env._core` reaches and the exact set of `OrmCore` members they name |
@@ -473,7 +474,7 @@ run **with** the HTTP server, because their `HttpCase` classes are the only
 end-to-end coverage of what they test and none is a tour; the rest run
 `--no-http`.
 
-`test_orm` — **1,225 test methods** under its `tests/` directory — is the addon
+`test_orm` — **1,226 test methods** under its `tests/` directory — is the addon
 written to test the ORM. Above all `test_domain_evaluator_parity.py`: the only
 check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()`
 (the in-memory predicate), with a generative suite asserting the two evaluators

@@ -45,6 +45,7 @@ _DELEGATIONS = [
     ("discard_field", "engine", "discard_field", 1, False),
     ("is_protected", "engine", "is_protected", 2, True),
     ("protected_ids", "engine", "protected_ids", 1, True),
+    ("any_protected", "engine", "any_protected", 0, True),
     ("push_protection", "engine", "push_protection", 0, False),
     ("pop_protection", "engine", "pop_protection", 0, True),
     ("protect", "engine", "protect", 2, False),

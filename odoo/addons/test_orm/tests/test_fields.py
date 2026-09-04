@@ -539,6 +539,51 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             f"ancestor's pre-write value: {stale}",
         )
 
+    def test_12_recursive_alternating_fields_survive_a_middle_first_read(self):
+        """A recursive edge that alternates between two differently-computed fields.
+
+        Computing ``alternating_up`` protects ``alternating_up`` alone, so the
+        nested read of ``parent.alternating_down`` is free to widen that field's
+        whole pending batch -- the widening the single-field case forbids.  A
+        descendant reached that way computes while its ancestor's other field is
+        still protected, so it reads the ancestor's stored, pre-write value.
+        """
+        Rec = self.env["test_orm.recursive"]
+        root = Rec.create({"name": "Root"})
+        chain = [root]
+        for i in range(6):
+            chain.append(Rec.create({"name": f"c{i}", "parent": chain[-1].id}))
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        root.name = "Renamed"
+        mid = len(chain) // 2
+        for i in [mid, *(i for i in range(len(chain)) if i != mid)]:
+            chain[i].alternating_up
+            chain[i].alternating_down
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.env.cr.execute(
+            """
+            SELECT name, alternating_up, alternating_down
+              FROM test_orm_recursive
+             WHERE id = ANY(%s)
+             ORDER BY id
+            """,
+            [[rec.id for rec in chain]],
+        )
+        stale = [
+            row
+            for row in self.env.cr.fetchall()
+            if not (row[1].startswith("Renamed") and row[2].startswith("Renamed"))
+        ]
+        self.assertFalse(
+            stale,
+            "a record computed while an ancestor's OTHER recursive field was "
+            f"mid-compute stored that ancestor's pre-write value: {stale}",
+        )
+
     def test_12_recursive_tree(self):
         foo = self.env["test_orm.recursive.tree"].create({"name": "foo"})
         self.assertEqual(foo.display_name, "foo()")

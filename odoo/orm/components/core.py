@@ -153,6 +153,9 @@ class OrmCore[F: FieldKey = FieldKey]:
     def protected_ids(self, field: F) -> frozenset[Any]:
         return self._engine.protected_ids(field)
 
+    def any_protected(self) -> bool:
+        return self._engine.any_protected()
+
     def push_protection(self) -> None:
         self._engine.push_protection()
 

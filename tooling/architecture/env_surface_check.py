@@ -40,6 +40,7 @@ LAYER1_CORE_MEMBERS: frozenset[str] = frozenset(
     {
         "add_patch",
         "all_cached_ids",
+        "any_protected",
         "all_context_cached_ids",
         "get_context_data",
         "get_context_data_or_none",

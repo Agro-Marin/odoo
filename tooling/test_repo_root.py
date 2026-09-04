@@ -150,6 +150,7 @@ class TestEveryToolAgrees:
         ("architecture", "_doc_measures"): "ROOT",
         ("architecture", "doc_restated_counts"): "ROOT",
         ("architecture", "layer_check"): "ROOT",
+        ("architecture", "model_name_ownership"): "ROOT",
         ("architecture", "js_layer_check"): "ROOT",
         ("architecture", "js_context_narrowing"): "ROOT",
         ("architecture", "py_cycle_check"): "REPO_ROOT",

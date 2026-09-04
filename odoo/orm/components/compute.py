@@ -37,6 +37,9 @@ class _ScopeStack[F: FieldKey = FieldKey]:
     def __len__(self) -> int:
         return len(self._maps)
 
+    def any_protected(self) -> bool:
+        return any(ids for m in self._maps for ids in m.values())
+
 
 class ComputeEngine[F: FieldKey = FieldKey]:
     __slots__ = ("_pending", "_protected")
@@ -92,6 +95,9 @@ class ComputeEngine[F: FieldKey = FieldKey]:
 
     def protected_ids(self, field: F) -> frozenset[Any]:
         return self._protected.get(field) or frozenset()
+
+    def any_protected(self) -> bool:
+        return self._protected.any_protected()
 
     def push_protection(self) -> None:
         self._protected.pushmap()

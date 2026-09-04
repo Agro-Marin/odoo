@@ -841,6 +841,25 @@ class TestOrmRecursive(models.Model):
         compute="_compute_context_dependent_name", recursive=True
     )
 
+    alternating_up = fields.Char(
+        compute="_compute_alternating_up", recursive=True, store=True
+    )
+    alternating_down = fields.Char(
+        compute="_compute_alternating_down", recursive=True, store=True
+    )
+
+    @api.depends("name", "parent.alternating_down")
+    def _compute_alternating_up(self):
+        for rec in self:
+            prefix = (rec.parent.alternating_down or "") + " / " if rec.parent else ""
+            rec.alternating_up = prefix + rec.name
+
+    @api.depends("name", "parent.alternating_up")
+    def _compute_alternating_down(self):
+        for rec in self:
+            prefix = (rec.parent.alternating_up or "") + " / " if rec.parent else ""
+            rec.alternating_down = prefix + rec.name
+
     @api.depends("name", "parent.full_name")
     def _compute_full_name(self):
         for rec in self:
