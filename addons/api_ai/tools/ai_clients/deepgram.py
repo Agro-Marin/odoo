@@ -355,18 +355,7 @@ class DeepgramClient(BaseAIClient):
                 list(self.TTS_VOICES.keys()),
             )
 
-        params = {"model": voice}
-
-        if kwargs.get("encoding"):
-            params["encoding"] = kwargs["encoding"]
-
-        if kwargs.get("sample_rate"):
-            params["sample_rate"] = kwargs["sample_rate"]
-
-        if kwargs.get("container"):
-            params["container"] = kwargs["container"]
-
-        del text, voice, kwargs, params
+        del text, voice, kwargs
         raise CommError(
             "Deepgram text_to_speech is not supported through OutboundAPIClient yet; "
             "binary response bodies are not exposed. See t20851 follow-up.",
@@ -380,12 +369,7 @@ class DeepgramClient(BaseAIClient):
                 list(self.TTS_VOICES.keys()),
             )
 
-        params = {"model": voice}
-
-        if kwargs.get("encoding"):
-            params["encoding"] = kwargs["encoding"]
-
-        del text, voice, kwargs, params
+        del text, voice, kwargs
         raise CommError(
             "Deepgram text_to_speech_stream is not supported through "
             "OutboundAPIClient yet; streaming responses are not exposed. "
