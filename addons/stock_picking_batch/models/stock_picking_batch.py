@@ -291,7 +291,7 @@ class StockPickingBatch(models.Model):
             lambda b: b.state == "in_progress" and not b.picking_ids
         ).action_cancel()
         if vals.get("picking_type_id"):
-            self._sanity_check()
+            self._check_pickings_are_allowed()
             for batch in batches_to_rename:
                 sequence_code = "picking.wave" if batch.is_wave else "picking.batch"
                 batch.name = self._prepare_name(
@@ -346,10 +346,10 @@ class StockPickingBatch(models.Model):
 
         self.check_singleton()
         self._check_company()
-        pickings = self.mapped("picking_ids").filtered(
+        pickings = self.picking_ids.filtered(
             lambda picking: picking.state not in ("done", "cancel")
         )
-        empty_waiting_pickings = self.mapped("picking_ids").filtered(
+        empty_waiting_pickings = self.picking_ids.filtered(
             lambda p: (
                 (p.state in ("waiting", "confirmed") and has_no_quantity(p))
                 or (p.state == "assigned" and is_empty(p))
@@ -365,7 +365,7 @@ class StockPickingBatch(models.Model):
             "pickings_to_detach": empty_waiting_pickings.ids,
             "batches_to_validate": self.ids,
         }
-        if len(empty_pickings) != len(pickings):
+        if empty_pickings != pickings:
             pickings -= empty_pickings
             context["pickings_to_detach"] += empty_pickings.ids
 
@@ -566,7 +566,7 @@ class StockPickingBatch(models.Model):
         parts = [sequence_prefix, picking_type.sequence_code, sequence_number]
         return "/".join(part for part in parts if part)
 
-    def _sanity_check(self):
+    def _check_pickings_are_allowed(self):
         for batch in self:
             if not batch.picking_ids <= batch.allowed_picking_ids:
                 erroneous_pickings = batch.picking_ids - batch.allowed_picking_ids

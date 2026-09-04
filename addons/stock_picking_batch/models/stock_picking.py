@@ -216,7 +216,7 @@ class StockPicking(models.Model):
             if vals.get("batch_id"):
                 if not picking.batch_id.picking_type_id:
                     picking.batch_id.picking_type_id = picking.picking_type_id
-                picking.batch_id._sanity_check()
+                picking.batch_id._check_pickings_are_allowed()
         return pickings
 
     def write(self, vals):
@@ -226,7 +226,7 @@ class StockPicking(models.Model):
             old_batches.filtered(lambda b: not b.picking_ids).state = "cancel"
             for batch in self.batch_id.filtered(lambda b: not b.picking_type_id):
                 batch.picking_type_id = batch.picking_ids[:1].picking_type_id
-            self.batch_id._sanity_check()
+            self.batch_id._check_pickings_are_allowed()
             self.batch_id.picking_ids.update_batch_user(self.batch_id.user_id.id)
         return res
 

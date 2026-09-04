@@ -1163,7 +1163,7 @@ Section  Population                                                  Count
 §2.4.7   ``_calculate_*`` model methods                                  7
 §2.4.7   ``_prepare_*`` definitions                                    836
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            39
-§2.4.8   ``_check_*`` definitions                                    1,155
+§2.4.8   ``_check_*`` definitions                                    1,156
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     178
