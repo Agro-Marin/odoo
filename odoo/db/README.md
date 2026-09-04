@@ -2,8 +2,9 @@
 
 Fork-specific replacement for upstream's monolithic `sql_db.py`: psycopg 3
 (server-side binding, pipeline mode) fronted by per-database
-`psycopg_pool.ConnectionPool`s. Read this before editing; module docstrings
-carry the detailed invariants — this file is the map.
+`psycopg_pool.ConnectionPool`s. Read this before editing; the detailed
+invariants live in this file, not in module docstrings — none of the `.py`
+files here carry one, so this README is the only map.
 
 ## Module map
 
@@ -291,12 +292,21 @@ library.
   schema state exists to go stale.
 - **The schema cache holds two different lifetimes**: the memoized catalog
   reads expire whenever DDL lands (`invalidate_catalog_facts`, called from
-  `invalidate_cached_plans`), but `locked_tables` — the ledger of which tables
-  this transaction has already locked — expires only where the locks themselves
+  `invalidate_cached_plans`), but the lock ledger — which tables this
+  transaction has already locked — expires only where the locks themselves
   do. DDL does not end a transaction, so the `ROW EXCLUSIVE` lock survives it
-  and re-issuing `LOCK TABLE` is a wasted round-trip; a `ROLLBACK TO SAVEPOINT`
-  *does* release locks taken inside the savepoint (verified against PG 18),
-  which is why `_on_rollback_to_savepoint` still calls the full `clear()`.
+  and re-issuing `LOCK TABLE` is a wasted round-trip. A `ROLLBACK TO SAVEPOINT`
+  *does* release locks taken inside the savepoint (verified against PG 18) —
+  but only those: a table locked before the savepoint opened keeps its real
+  lock and must keep its ledger entry too. `_on_rollback_to_savepoint` tracks
+  the savepoint depth each table was locked at
+  (`TransactionSchemaCache.mark_locked`/`is_locked`) and releases the ledger
+  entry *and* that table's cached facts together, per table, for every table
+  locked at or after the depth being rolled back to
+  (`release_locks_since_depth`) — never the whole cache, and never gated on
+  whether *this* cursor's own DDL ran: dropping the real lock is what can let
+  a concurrent session's DDL become visible, regardless of which cursor
+  issued it.
 - **One resolution of the caller's table name**: `bulk._get_table_identifier`
   splits on `.` and builds a `psycopg.sql.Identifier`, and every consumer uses
   it — `LOCK TABLE`, `COPY`, and (via `Identifier.as_string()`) the
