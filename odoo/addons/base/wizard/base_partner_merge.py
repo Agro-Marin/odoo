@@ -258,7 +258,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         deferred_values = {}
         if self._is_source_absorbed_on_merge():
             self._merge_bank_accounts(src_partners, dst_partner)
-            self._merge_identifiers(src_partners, dst_partner)
+        # Identifiers (tax IDs, national IDs, ...) are always repointed, even
+        # when not absorbing the source's other values: they are excluded from
+        # the generic FK repoint below (`_get_merge_tables_excluded`), and
+        # `res_partner_identifier.partner_id` cascades on delete, so skipping
+        # this call would silently drop them when `src_partners` is unlinked.
+        self._merge_identifiers(src_partners, dst_partner)
 
         self._update_foreign_keys(src_partners, dst_partner)
         self._update_reference_fields(src_partners, dst_partner)

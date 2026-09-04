@@ -429,9 +429,7 @@ class TestMergePartnerAbsorbSourceValues(TransactionCase):
         self.assertFalse(dst.vat, "a plain field must not be absorbed")
         self.assertFalse(dst.street, "a plain field must not be absorbed")
         self.assertFalse(dst.barcode, "a company-dependent field must not be absorbed")
-        self.assertEqual(
-            dst.tag_ids, self.tag_dst, "a many2many must not be absorbed"
-        )
+        self.assertEqual(dst.tag_ids, self.tag_dst, "a many2many must not be absorbed")
         self.assertFalse(dst.bank_ids, "a bank account must not be absorbed")
 
     def test_absorbing_a_uniqueness_constrained_value(self):
@@ -744,6 +742,30 @@ class TestMergePartnerIdentifiers(TransactionCase):
             ["ONLYONSRC", "SHARED"],
             "a distinct source value moves; a duplicate of a value the "
             "destination already holds is dropped",
+        )
+
+    def test_identifier_survives_a_merge_that_does_not_absorb_source_values(self):
+        Partner = self.env["res.partner"]
+        Identifier = self.env["res.partner.identifier"]
+        src = Partner.create({"name": "Id Src NA", "is_company": True})
+        dst = Partner.create({"name": "Id Dst NA", "is_company": True})
+        Identifier.create(
+            {"partner_id": src.id, "type_id": self.single.id, "value": "SRC010101AB1"}
+        )
+
+        wizard = self.env["base.partner.merge.automatic.wizard"].create(
+            {"absorb_source_values": False}
+        )
+        wizard._merge([src.id, dst.id], dst)
+        self.env.invalidate_all()
+
+        self.assertFalse(src.exists())
+        rows = dst.identifier_ids.filtered(lambda i: i.type_id == self.single)
+        self.assertEqual(
+            rows.value,
+            "SRC010101AB1",
+            "MOD-1: the identifier must be repointed, not dropped, even when "
+            "the merge does not absorb the source's other values",
         )
 
 
