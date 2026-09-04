@@ -246,10 +246,19 @@ class TestNoShippedConstraintReliesOnSu:
         three compute unstored fields, so all three are correct.
 
         What this cannot see, stated rather than implied: a field whose
-        `compute=` is a callable rather than a literal name, a field declared in
-        a class other than the one holding the method, and a RELATED field, whose
-        `compute_sudo` follows `related_sudo` and so defaults to True whether it
-        is stored or not. Those are blind spots, not exemptions.
+        `compute=` is a callable rather than a literal name, and a field declared
+        in a class other than the one holding the method. Those are blind spots,
+        not exemptions.
+
+        The related case looks like a third and is not, which is worth writing
+        down because the reasoning is not obvious. `compute_sudo` follows
+        `related_sudo` for a related field and so defaults to True whether the
+        field is stored or not -- but a related field's compute is *generated*,
+        so there is no hand-written body in which to read the flag. Measured:
+        exactly one field in `odoo` and `addons` declares both `related=` and
+        `compute=`, and it declares `related=False`, cancelling it. What remains
+        is a field related in a parent and given a `compute=` in a child, which
+        nothing does today.
         """
         offenders = self._stored_compute_offenders()
         assert offenders == [], (
