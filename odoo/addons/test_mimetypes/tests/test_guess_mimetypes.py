@@ -1,4 +1,5 @@
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 
 from odoo.libs.filesystem import guess_mimetype
@@ -18,7 +19,7 @@ def contents(extension):
 
 class MimeGuessingCases:
     allow_inherited_tests_method = True
-    guess_mimetype: callable
+    guess_mimetype: Callable[[bytes], str]
 
     def test_doc(self):
         self.assertEqual(
@@ -84,6 +85,12 @@ class MimeGuessingCases:
         self.assertEqual(
             self.guess_mimetype(b"\1\2\3\1\2\3\1\2\3\1\2\3\1\2\3"),
             "application/octet-stream",
+        )
+
+    def test_ico(self):
+        self.assertEqual(
+            self.guess_mimetype(b"\x00\x00\x01\x00" + b"\x00" * 18),
+            "image/x-icon",
         )
 
 
