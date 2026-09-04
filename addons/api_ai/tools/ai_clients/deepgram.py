@@ -1,5 +1,6 @@
 import logging
 
+from ..vendor_catalog import SYNTHESIZE_TIMEOUT
 from .base import BaseAIClient
 from odoo.addons.api_transport.tools.exceptions import CommError
 
@@ -356,7 +357,22 @@ class DeepgramClient(BaseAIClient):
             "protocol": "wss",
         }
 
+    SPEECH_ENCODINGS = {
+        "audio/mpeg": {"encoding": "mp3"},
+        "audio/ogg": {"encoding": "opus"},
+        "audio/flac": {"encoding": "flac"},
+        "audio/aac": {"encoding": "aac"},
+        "audio/wav": {"encoding": "linear16", "container": "wav"},
+    }
+
     def text_to_speech(self, text, voice="aura-2-asteria-en", model=None, **kwargs):
+        return self.synthesize(text, voice=voice, model=model, **kwargs)
+
+    def synthesize(self, text, voice=None, mimetype="audio/mpeg", model=None, **kwargs):
+        if not (text or "").strip():
+            raise CommError("Deepgram was given no text to speak")
+
+        voice = voice or model or "aura-2-asteria-en"
         if voice not in self.TTS_VOICES:
             _logger.warning(
                 "Voice '%s' not in known voices %s",
@@ -364,22 +380,77 @@ class DeepgramClient(BaseAIClient):
                 list(self.TTS_VOICES.keys()),
             )
 
-        params = {"model": voice}
+        encoding = self.SPEECH_ENCODINGS.get(mimetype)
+        if encoding is None:
+            raise CommError(f"Deepgram does not write {mimetype!r}")
 
-        if kwargs.get("encoding"):
-            params["encoding"] = kwargs["encoding"]
-
+        params = {"model": voice, **encoding}
         if kwargs.get("sample_rate"):
             params["sample_rate"] = kwargs["sample_rate"]
 
-        if kwargs.get("container"):
-            params["container"] = kwargs["container"]
+        try:
+            response = self._client.post(
+                "/speak",
+                json={"text": text},
+                params=params,
+                raw=True,
+                timeout=kwargs.get("timeout") or SYNTHESIZE_TIMEOUT,
+            )
+        except CommError:
+            raise
+        except Exception as e:
+            raise CommError(f"Deepgram synthesis failed: {e!s}") from e
 
-        del text, voice, kwargs, params
-        raise CommError(
-            "Deepgram text_to_speech is not supported through OutboundAPIClient yet; "
-            "binary response bodies are not exposed. See t20851 follow-up.",
+        audio = getattr(response, "content", None)
+        if not audio:
+            raise CommError("Deepgram returned no audio")
+        return audio
+
+    def transcribe_cues(
+        self,
+        audio_bytes,
+        filename=None,
+        mimetype=None,
+        language=None,
+        prompt=None,
+        model=None,
+        **kwargs,
+    ):
+        del filename, prompt
+        options = {"utterances": True, "smart_format": True, **kwargs}
+        if language:
+            options["language"] = language
+        result = self.transcribe_file(
+            audio_bytes, mimetype=mimetype, model=model, **options
         )
+        return self._read_cues(result)
+
+    @staticmethod
+    def _read_cues(result):
+        spans = []
+        for utterance in (result or {}).get("results", {}).get("utterances", []) or []:
+            text = (utterance.get("transcript") or "").strip()
+            if not text:
+                continue
+            speaker = utterance.get("speaker")
+            spans.append(
+                {
+                    "start": float(utterance.get("start") or 0.0),
+                    "end": float(utterance.get("end") or 0.0),
+                    "text": text,
+                    "speaker": f"Speaker {speaker}" if speaker is not None else "",
+                }
+            )
+        if spans:
+            return spans
+        channels = (result or {}).get("results", {}).get("channels") or []
+        alternatives = channels[0].get("alternatives") if channels else None
+        transcript = (
+            (alternatives[0].get("transcript") or "").strip() if alternatives else ""
+        )
+        if not transcript:
+            raise CommError("Deepgram returned no usable transcript")
+        return [{"start": 0.0, "end": 0.0, "text": transcript, "speaker": ""}]
 
     def text_to_speech_stream(self, text, voice="aura-2-asteria-en", **kwargs):
         if voice not in self.TTS_VOICES:

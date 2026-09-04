@@ -1,0 +1,172 @@
+import unittest
+
+from odoo.libs.documents.cues import (
+    Cue,
+    cues_as_text,
+    parse_srt,
+    parse_vtt,
+    write_srt,
+    write_vtt,
+)
+from odoo.libs.documents.document import Document
+from odoo.libs.documents.formats import extension_for, get_format, mimetype_for
+from odoo.libs.documents.readers import CUES, TEXT, get_readers, registered_readers
+from odoo.libs.documents.writers import get_writers
+
+VTT = """WEBVTT
+
+NOTE recorded by the meeting bridge
+
+1
+00:00:00.000 --> 00:00:02.500
+<v Alice>Good morning
+
+2
+00:00:02.500 --> 00:00:06.250 align:start
+Morning. Did the <b>invoice</b> go out?
+"""
+
+SRT = """1
+00:00:00,000 --> 00:00:02,500
+Alice: Good morning
+
+2
+00:00:02,500 --> 00:00:06,250
+Morning. Did the invoice go out?
+"""
+
+
+class TestParsing(unittest.TestCase):
+    def test_vtt_carries_timing_speaker_and_plain_text(self):
+        cues = parse_vtt(VTT)
+        self.assertEqual(len(cues), 2)
+        self.assertEqual(cues[0], Cue(0.0, 2.5, "Good morning", "Alice"))
+        self.assertEqual(cues[1].start, 2.5)
+        self.assertEqual(cues[1].end, 6.25)
+        self.assertEqual(cues[1].text, "Morning. Did the invoice go out?")
+        self.assertEqual(cues[1].speaker, "")
+
+    def test_a_note_block_is_not_a_cue(self):
+        self.assertTrue(all("recorded by" not in cue.text for cue in parse_vtt(VTT)))
+
+    def test_srt_reads_the_comma_separator(self):
+        cues = parse_srt(SRT)
+        self.assertEqual(len(cues), 2)
+        self.assertEqual(cues[0].start, 0.0)
+        self.assertEqual(cues[0].end, 2.5)
+
+    def test_an_hourless_stamp_is_minutes_and_seconds(self):
+        (cue,) = parse_vtt("WEBVTT\n\n01:30.500 --> 02:00.000\nlate\n")
+        self.assertEqual(cue.start, 90.5)
+        self.assertEqual(cue.end, 120.0)
+
+    def test_a_cue_with_no_words_is_dropped(self):
+        empty = "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n<i></i>\n"
+        self.assertEqual(parse_vtt(empty), [])
+
+    def test_crlf_is_read(self):
+        self.assertEqual(len(parse_vtt(VTT.replace("\n", "\r\n"))), 2)
+
+    def test_text_carrying_no_cue_reads_as_no_cues(self):
+        self.assertEqual(parse_vtt("WEBVTT\n\nnothing here at all\n"), [])
+
+
+class TestWriting(unittest.TestCase):
+    def test_vtt_round_trips(self):
+        cues = parse_vtt(VTT)
+        self.assertEqual(parse_vtt(write_vtt(cues)), cues)
+
+    def test_srt_round_trips(self):
+        cues = parse_srt(SRT)
+        self.assertEqual(parse_srt(write_srt(cues)), cues)
+
+    def test_vtt_states_its_header(self):
+        self.assertTrue(write_vtt([Cue(0.0, 1.0, "hi")]).startswith("WEBVTT\n\n"))
+
+    def test_srt_numbers_its_blocks_from_one(self):
+        written = write_srt([Cue(0.0, 1.0, "a"), Cue(1.0, 2.0, "b")])
+        self.assertEqual(written.splitlines()[0], "1")
+        self.assertIn("2\n00:00:01,000 --> 00:00:02,000", written)
+
+    def test_a_speaker_is_a_voice_tag_in_vtt_and_a_prefix_in_srt(self):
+        cue = Cue(0.0, 1.0, "hello", "Alice")
+        self.assertIn("<v Alice>hello", write_vtt([cue]))
+        self.assertIn("Alice: hello", write_srt([cue]))
+
+    def test_a_stamp_past_an_hour_keeps_its_hours(self):
+        self.assertIn("01:00:00.000", write_vtt([Cue(3600.0, 3601.0, "x")]))
+
+    def test_cues_as_text_is_the_words_alone(self):
+        self.assertEqual(
+            cues_as_text(parse_vtt(VTT)),
+            "Good morning\nMorning. Did the invoice go out?",
+        )
+
+
+class TestDocument(unittest.TestCase):
+    def test_a_vtt_document_provides_cues(self):
+        document = Document(VTT.encode(), "text/vtt", "meeting.vtt")
+        self.assertTrue(document.provides(CUES))
+        self.assertEqual(len(document.cues), 2)
+
+    def test_a_vtt_document_reads_as_the_words_alone(self):
+        document = Document(VTT.encode(), "text/vtt", "meeting.vtt")
+        self.assertEqual(
+            document.text, "Good morning\nMorning. Did the invoice go out?"
+        )
+        self.assertNotIn("00:00:00.000", document.text)
+
+    def test_an_srt_document_reads_the_same_way(self):
+        document = Document(SRT.encode(), "application/x-subrip", "film.srt")
+        self.assertEqual(len(document.cues), 2)
+        self.assertTrue(document.text.startswith("Alice: Good morning"))
+
+    def test_a_document_is_written_from_cues(self):
+        cues = [Cue(0.0, 1.5, "spoken words")]
+        document = Document.of(cues=cues, name="note")
+        self.assertEqual(document.mimetype, "text/vtt")
+        self.assertIn(b"WEBVTT", document.data)
+        self.assertEqual(document.cues, cues)
+
+    def test_cues_are_written_as_subrip_when_asked(self):
+        document = Document.of(
+            cues=[Cue(0.0, 1.0, "x")], mimetype="application/x-subrip"
+        )
+        self.assertTrue(document.data.startswith(b"1\n00:00:00,000"))
+
+    def test_a_document_written_from_cues_still_reads_as_text(self):
+        document = Document.of(cues=[Cue(0.0, 1.0, "spoken words")])
+        self.assertEqual(document.text, "spoken words")
+
+
+class TestRegistry(unittest.TestCase):
+    def test_cues_is_a_representation_readers_and_writers_can_name(self):
+        self.assertTrue(get_readers("text/vtt", CUES))
+        self.assertTrue(get_writers("text/vtt", CUES))
+
+    def test_the_text_of_a_cue_track_comes_from_a_reader_not_from_decoding(self):
+        readers = get_readers("text/vtt", TEXT)
+        self.assertEqual([reader.name for reader in readers], ["cued_text"])
+
+    def test_both_cue_formats_are_registered(self):
+        self.assertEqual(get_format("text/vtt").representation, CUES)
+        self.assertEqual(mimetype_for("srt"), "application/x-subrip")
+        self.assertEqual(extension_for("text/vtt"), "vtt")
+
+    def test_a_misdeclared_subrip_alias_still_resolves(self):
+        self.assertEqual(get_format("text/srt").extension, "srt")
+
+    def test_no_two_readers_claim_one_mimetype_at_one_cost(self):
+        claims = {}
+        for reader in registered_readers():
+            for representation in reader.yields:
+                for mimetype in reader.mimetypes:
+                    key = (mimetype, representation, reader.cost)
+                    claims.setdefault(key, []).append(reader.name)
+        contested = {key: names for key, names in claims.items() if len(names) > 1}
+        self.assertEqual(
+            contested,
+            {},
+            "where two readers claim one mimetype for one representation at "
+            "one cost, module load order decides and nothing declares it",
+        )

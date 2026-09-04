@@ -10,8 +10,8 @@ from odoo.libs.documents import (
     BaseReader,
     Document,
     register_reader,
+    unregister_reader,
 )
-from odoo.libs.documents import readers as libs_readers
 from odoo.tests.common import BaseCase, tagged
 
 from odoo.addons.document_extract.tools import PAGED
@@ -195,10 +195,8 @@ class TestReadingPagesCostsMore(BaseCase):
         return engines
 
     def _forget(self, engines):
-        for bucket in libs_readers._READERS.values():
-            for engine in engines:
-                while engine in bucket:
-                    bucket.remove(engine)
+        for engine in engines:
+            unregister_reader(engine)
 
     def test_a_scan_gets_text_when_the_caller_pays_for_it(self):
         self._install(self.Engine())

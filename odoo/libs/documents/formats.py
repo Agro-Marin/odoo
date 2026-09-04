@@ -135,3 +135,20 @@ register_format(
         label="JSON",
     )
 )
+register_format(
+    Format(
+        mimetype="text/vtt",
+        extension="vtt",
+        representation="cues",
+        label="WebVTT",
+    )
+)
+register_format(
+    Format(
+        mimetype="application/x-subrip",
+        extension="srt",
+        representation="cues",
+        accepts=frozenset({"application/x-srt", "text/srt"}),
+        label="SubRip",
+    )
+)

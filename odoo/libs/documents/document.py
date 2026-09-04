@@ -10,6 +10,7 @@ from .guess import decode, looks_like_text
 from .readers import (
     BARCODES,
     CHEAP,
+    CUES,
     DATA,
     IMAGES,
     REPRESENTATIONS,
@@ -44,6 +45,7 @@ _DEFAULT_MIMETYPES = {
     TEXT: "text/plain",
     TREE: "application/xml",
     DATA: "application/json",
+    CUES: "text/vtt",
 }
 
 
@@ -110,6 +112,7 @@ class Document:
         text: Any = None,
         tree: Any = None,
         data: Any = None,
+        cues: Any = None,
         mimetype: str = "",
         name: str = "",
         **options: Any,
@@ -126,6 +129,7 @@ class Document:
             TEXT: text,
             TREE: tree,
             DATA: data,
+            CUES: cues,
         }
         named = [rep for rep, value in given.items() if value is not None]
         if len(named) != 1:
@@ -192,6 +196,10 @@ class Document:
     @property
     def barcodes(self) -> list[str]:
         return self._derive(BARCODES) or []
+
+    @property
+    def cues(self) -> list[Any]:
+        return self._derive(CUES) or []
 
     def _is_read(self, representation: str, value: Any) -> bool:
         """Whether an answer counts as having read the document.

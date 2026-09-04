@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="discuss_call_history_view_form_speech" model="ir.ui.view">
+        <field name="name">discuss.call.history.view.form.speech</field>
+        <field name="model">discuss.call.history</field>
+        <field name="inherit_id" ref="mail.discuss_call_history_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//group" position="after">
+                <field name="has_media" invisible="1" />
+                <group string="Recording" invisible="not has_media">
+                    <field name="transcription_state" />
+                    <field name="media_duration_ms" invisible="1" />
+                    <field name="segment_ids" widget="media_timeline" nolabel="1" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

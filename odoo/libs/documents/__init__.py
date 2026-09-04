@@ -14,6 +14,14 @@ from .coerce import (
     to_datetime,
     to_float,
 )
+from .cues import (
+    Cue,
+    cues_as_text,
+    parse_srt,
+    parse_vtt,
+    write_srt,
+    write_vtt,
+)
 from .document import DEFAULT_READ_UP_TO, TEXT_MAX_CHARS, Document
 from .format import (
     ABSOLUTE,
@@ -43,8 +51,10 @@ from .formats import (
 from .guess import decode, guess_encoding
 from .layout import ALIGNMENTS, LEFT, RIGHT, Field, Layout
 from .readers import (
+    ANY,
     BARCODES,
     CHEAP,
+    CUES,
     DATA,
     EXPENSIVE,
     FREE,
@@ -57,14 +67,25 @@ from .readers import (
     get_readers,
     known_readers,
     register_reader,
+    registered_readers,
+    unregister_reader,
 )
-from .writers import BaseWriter, get_writers, known_writers, register_writer
+from .writers import (
+    BaseWriter,
+    get_writers,
+    known_writers,
+    register_writer,
+    registered_writers,
+    unregister_writer,
+)
 
 __all__ = [
     "ABSOLUTE",
     "ALIGNMENTS",
+    "ANY",
     "BARCODES",
     "CHEAP",
+    "CUES",
     "DATA",
     "DEFAULT_READ_UP_TO",
     "EXPENSIVE",
@@ -85,11 +106,13 @@ __all__ = [
     "TREE",
     "BaseReader",
     "BaseWriter",
+    "Cue",
     "Document",
     "Field",
     "Format",
     "Layout",
     "coerce",
+    "cues_as_text",
     "decode",
     "document",
     "extension_for",
@@ -114,14 +137,22 @@ __all__ = [
     "layout",
     "mimetype_for",
     "normalize_number",
+    "parse_srt",
+    "parse_vtt",
     "readers",
     "register_extension",
     "register_format",
     "register_reader",
     "register_writer",
+    "registered_readers",
+    "registered_writers",
     "strip_currency_symbol",
     "to_date",
     "to_datetime",
     "to_float",
+    "unregister_reader",
+    "unregister_writer",
+    "write_srt",
+    "write_vtt",
     "writers",
 ]

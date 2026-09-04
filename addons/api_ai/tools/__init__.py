@@ -25,6 +25,7 @@ from .json_payload import parse_json_response, strip_json_fence
 from .vendor_catalog import (
     CHAT_TIMEOUT,
     PROVIDERS,
+    SYNTHESIZE_TIMEOUT,
     TRANSCRIBE_TIMEOUT,
     audio_mimetype,
     build_anthropic_content,
@@ -33,6 +34,7 @@ from .vendor_catalog import (
     provider_selection,
     read_anthropic_content,
     read_openai_content,
+    read_whisper_segments,
     read_whisper_transcript,
 )
 
@@ -41,6 +43,7 @@ __all__ = [
     "CHAT_TIMEOUT",
     "NON_RETRYABLE_ERRORS",
     "PROVIDERS",
+    "SYNTHESIZE_TIMEOUT",
     "TRANSCRIBE_TIMEOUT",
     "AIOrchestrator",
     "BaseAIClient",
@@ -66,6 +69,7 @@ __all__ = [
     "provider_selection",
     "read_anthropic_content",
     "read_openai_content",
+    "read_whisper_segments",
     "read_whisper_transcript",
     "register_ai_client",
     "strip_json_fence",

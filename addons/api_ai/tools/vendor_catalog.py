@@ -1,5 +1,6 @@
 CHAT_TIMEOUT = 25
 TRANSCRIBE_TIMEOUT = 30
+SYNTHESIZE_TIMEOUT = 60
 
 PROVIDERS = {
     "groq": {
@@ -14,6 +15,7 @@ PROVIDERS = {
         "audio_service": "groq",
         "audio_path": "/audio/transcriptions",
         "audio_model": "whisper-large-v3-turbo",
+        "speech": None,
     },
     "gemini": {
         "label": "Google Gemini",
@@ -29,6 +31,7 @@ PROVIDERS = {
         "audio_path": "/models/{model}:generateContent",
         "audio_model": "gemini-flash-lite-latest",
         "audio_timeout": 90,
+        "speech": None,
     },
     "openai": {
         "label": "OpenAI",
@@ -41,6 +44,16 @@ PROVIDERS = {
         "audio_service": "openai",
         "audio_path": "/audio/transcriptions",
         "audio_model": "whisper-1",
+        "speech": "openai_speech",
+        "speech_service": "openai",
+        "speech_path": "/audio/speech",
+        "speech_model": "gpt-4o-mini-tts",
+        "speech_voice": "alloy",
+        "speech_mimetypes": {
+            "audio/mpeg": "mp3",
+            "audio/wav": "wav",
+            "audio/ogg": "opus",
+        },
     },
     "deepseek": {
         "label": "DeepSeek",
@@ -49,6 +62,7 @@ PROVIDERS = {
         "chat_path": "/chat/completions",
         "chat_model": "deepseek-chat",
         "audio": None,
+        "speech": None,
     },
     "moonshot": {
         "label": "Moonshot (Kimi)",
@@ -60,6 +74,7 @@ PROVIDERS = {
         "min_max_tokens": 2000,
         "chat_timeout": 60,
         "audio": None,
+        "speech": None,
     },
     "claude": {
         "label": "Anthropic (Claude)",
@@ -69,6 +84,7 @@ PROVIDERS = {
         "chat_model": "claude-sonnet-5",
         "vision": True,
         "audio": None,
+        "speech": None,
     },
 }
 
@@ -146,15 +162,42 @@ def read_anthropic_content(payload):
     return text, None
 
 
-def build_whisper_form(audio_model, language="es", prompt=None):
+def build_whisper_form(audio_model, language="es", prompt=None, response_format="text"):
     form = {
-        "response_format": "text",
+        "response_format": response_format,
         "model": audio_model,
-        "language": language,
     }
+    if language:
+        form["language"] = language
     if prompt:
         form["prompt"] = prompt
+    if response_format == "verbose_json":
+        form["timestamp_granularities[]"] = "segment"
     return form
+
+
+def read_whisper_segments(payload):
+    if not isinstance(payload, dict):
+        return None, f"expected a verbose transcript, got {type(payload).__name__}"
+    segments = payload.get("segments")
+    if segments is None:
+        text = (payload.get("text") or "").strip()
+        if not text:
+            return None, "empty transcript"
+        return [{"start": 0.0, "end": 0.0, "text": text, "speaker": ""}], None
+    spans = [
+        {
+            "start": float(segment.get("start") or 0.0),
+            "end": float(segment.get("end") or 0.0),
+            "text": (segment.get("text") or "").strip(),
+            "speaker": "",
+        }
+        for segment in segments
+        if (segment.get("text") or "").strip()
+    ]
+    if not spans:
+        return None, "empty transcript"
+    return spans, None
 
 
 def read_whisper_transcript(payload):

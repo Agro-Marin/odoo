@@ -1,6 +1,6 @@
 {
     "name": "API AI",
-    "version": "19.0.1.15.0",
+    "version": "19.0.1.16.0",
     "category": "Technical",
     "sequence": 10,
     "summary": "AI provider registry, orchestration and vendor clients",
@@ -86,6 +86,21 @@ The third is not HTTP at all and so inherits none of that.
 
 ``read_openai_content`` and ``read_anthropic_content`` in ``vendor_catalog``
 are the single reader per wire that both stacks use.
+
+Audio
+-----
+``transcribe`` returns text; ``transcribe_cues`` returns the same words with the
+moment each was said, which is what a player and a subtitle track need. Both
+wires answer the same signature. OpenAI asks Whisper for ``verbose_json`` and
+reads its segments; Deepgram asks for utterances and carries the speaker through
+where diarization gave it one.
+
+``synthesize`` is the other direction, and it is new: Deepgram's
+``text_to_speech`` had raised since it was written, on the grounds that binary
+response bodies were not exposed. They are -- ``OutboundAPIClient.request``
+takes ``raw=True`` and hands back the response -- so it now speaks, and the
+OpenAI wire speaks beside it. A vendor that writes no audio says so from the
+catalog rather than from a client.
 
 Depends on ``api_transport`` alone.
     """,

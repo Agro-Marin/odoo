@@ -1137,15 +1137,15 @@ Section  Population                                                  Count
 §2.4.1   … definitions under those names                               214
 §2.4.2   Single-field ``@api.onchange`` hooks                          382
 §2.4.2   … spelled ``_onchange_<field>``                               275
-§2.4.2   ``@api.ondelete`` hooks                                       165
+§2.4.2   ``@api.ondelete`` hooks                                       167
 §2.4.2   … spelled ``_unlink_except_*``                                108
-§2.4.2   ``@api.constrains`` hooks                                     641
+§2.4.2   ``@api.constrains`` hooks                                     642
 §2.4.2   … spelled ``_check_*``                                        590
-§2.4.2   … with a first token carrying no rule                          46
+§2.4.2   … with a first token carrying no rule                          47
 §2.4.2   … binding exactly one field                                   304
 §2.4.2   … of those, spelled ``_check_<field>``                        136
 §2.4.2   Multi-field constraints named for one trigger                  57
-§2.4.3   Non-test methods declared on a model class                 25,374
+§2.4.3   Non-test methods declared on a model class                 25,412
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               101
 §2.4.4   Model methods with an abolished verb behind a noun            137
@@ -1834,7 +1834,7 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 22.9 % of every method in this repository's
+**``_get_`` is not a default.** It is 22.8 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
 deriving and computing. The split that matters is against ``_prepare_``: 669
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
@@ -1975,8 +1975,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **357** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **254**
+**A ``bool`` return does not make a predicate** ``[review]``. **352** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **257**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -4497,7 +4497,7 @@ so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
 tail -- the tree spells that tail ``_uniq`` **86** times against ``_unique``'s
-**51**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
+**52**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**
 ``[review]``. ``_reflect_constraints`` registers each constraint as module data

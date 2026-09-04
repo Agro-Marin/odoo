@@ -7,13 +7,15 @@ from collections.abc import Callable
 from typing import Any, Protocol, runtime_checkable
 
 from .format import from_value
-from .readers import ANY, DATA, REPRESENTATIONS, ROWS, TEXT, TREE
+from .readers import ANY, CUES, DATA, REPRESENTATIONS, ROWS, TEXT, TREE
 
 __all__ = [
     "BaseWriter",
     "get_writers",
     "known_writers",
     "register_writer",
+    "registered_writers",
+    "unregister_writer",
 ]
 
 
@@ -62,6 +64,12 @@ def register_writer(writer: BaseWriter) -> BaseWriter:
     return writer
 
 
+def unregister_writer(writer: BaseWriter) -> None:
+    for writers in _WRITERS.values():
+        while writer in writers:
+            writers.remove(writer)
+
+
 def get_writers(mimetype: str, representation: str) -> tuple[BaseWriter, ...]:
     if representation not in _WRITERS:
         raise ValueError(f"Unknown representation {representation!r}")
@@ -72,6 +80,15 @@ def get_writers(mimetype: str, representation: str) -> tuple[BaseWriter, ...]:
         elif writer.applies_to(mimetype):
             named.append(writer)
     return (*named, *fallback)
+
+
+def registered_writers() -> tuple[BaseWriter, ...]:
+    """Every registered writer object, once, in registration order."""
+    seen: dict[int, BaseWriter] = {}
+    for writers in _WRITERS.values():
+        for writer in writers:
+            seen.setdefault(id(writer), writer)
+    return tuple(seen.values())
 
 
 def known_writers() -> tuple[str, ...]:
@@ -142,7 +159,21 @@ def _write_text(value: Any, **options: Any) -> bytes:
     return str(value).encode(options.get("encoding") or "utf-8")
 
 
+def _write_vtt(value: Any, **options: Any) -> bytes:
+    from .cues import write_vtt
+
+    return write_vtt(value).encode(options.get("encoding") or "utf-8")
+
+
+def _write_srt(value: Any, **options: Any) -> bytes:
+    from .cues import write_srt
+
+    return write_srt(value).encode(options.get("encoding") or "utf-8")
+
+
 register_writer(_writer("csv", "text/csv", ROWS, _write_csv))
 register_writer(_writer("json", "application/json", DATA, _write_json))
 register_writer(_writer("xml", "application/xml", TREE, _write_tree))
 register_writer(_writer("text", ANY, TEXT, _write_text))
+register_writer(_writer("vtt", "text/vtt", CUES, _write_vtt))
+register_writer(_writer("srt", "application/x-subrip", CUES, _write_srt))

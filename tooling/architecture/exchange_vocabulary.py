@@ -32,8 +32,16 @@ SKIP_DIRS = frozenset({"__pycache__", "node_modules", ".git", "tests", "migratio
 # and `l10n_co_dian`, `myinvois` and `l10n_id_efaktur_coretax` carry none of it
 # while holding the same transmission model as the ones that do.
 EXCHANGE_TOKENS = re.compile(
-    r"edi|sii|cfdi|dian|tbai|verifactu|oscu|nilvera|peppol|myinvois|nemhandel"
-    r"|sinvoice|facturae|fatturapa|efaktur|coretax|saft|clearance|einvoice",
+    # Bounded by a non-letter on each side rather than by `\b`, which cannot
+    # help here: the tokens are joined to their neighbours by underscores, so
+    # `\bedi\b` would stop matching `account_edi`, the very module this exists
+    # for. Unbounded, `edi` matched `html_editor`, `quick_edit`, `redirect` and
+    # `media`, putting 76 files with nothing to do with electronic exchange in
+    # this gate's scope.
+    r"(?:^|[^a-z])"
+    r"(?:edi|sii|cfdi|dian|tbai|verifactu|oscu|nilvera|peppol|myinvois|nemhandel"
+    r"|sinvoice|facturae|fatturapa|efaktur|coretax|saft|clearance|einvoice)"
+    r"(?:$|[^a-z])",
 )
 
 CANONICAL = ("draft", "queued", "sent", "accepted", "rejected", "expired")

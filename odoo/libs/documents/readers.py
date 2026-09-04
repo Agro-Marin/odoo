@@ -8,8 +8,10 @@ from operator import attrgetter
 from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
+    "ANY",
     "BARCODES",
     "CHEAP",
+    "CUES",
     "DATA",
     "EXPENSIVE",
     "FREE",
@@ -22,6 +24,8 @@ __all__ = [
     "get_readers",
     "known_readers",
     "register_reader",
+    "registered_readers",
+    "unregister_reader",
 ]
 
 ROWS = "rows"
@@ -30,8 +34,9 @@ TREE = "tree"
 DATA = "data"
 IMAGES = "images"
 BARCODES = "barcodes"
+CUES = "cues"
 
-REPRESENTATIONS = (ROWS, TEXT, TREE, DATA, IMAGES, BARCODES)
+REPRESENTATIONS = (ROWS, TEXT, TREE, DATA, IMAGES, BARCODES, CUES)
 
 ANY = "*"
 
@@ -94,6 +99,12 @@ def register_reader(reader: BaseReader) -> BaseReader:
     return reader
 
 
+def unregister_reader(reader: BaseReader) -> None:
+    for readers in _READERS.values():
+        while reader in readers:
+            readers.remove(reader)
+
+
 def get_readers(mimetype: str, representation: str) -> tuple[BaseReader, ...]:
     if representation not in _READERS:
         raise ValueError(f"Unknown representation {representation!r}")
@@ -106,6 +117,22 @@ def get_readers(mimetype: str, representation: str) -> tuple[BaseReader, ...]:
             named.append(reader)
     key = attrgetter("cost")
     return (*sorted(named, key=key), *sorted(fallback, key=key))
+
+
+def registered_readers() -> tuple[BaseReader, ...]:
+    """Every registered reader object, once, in registration order.
+
+    `known_readers` answers with names, which is enough to say whether one is
+    installed and not enough to ask what it claims. A caller checking that no
+    two readers claim one mimetype for one representation at the same cost --
+    where the winner is module load order and nothing declares it -- needs the
+    objects.
+    """
+    seen: dict[int, BaseReader] = {}
+    for readers in _READERS.values():
+        for reader in readers:
+            seen.setdefault(id(reader), reader)
+    return tuple(seen.values())
 
 
 def known_readers() -> tuple[str, ...]:
@@ -136,6 +163,8 @@ def _reader(
 _XML_MIMETYPES = frozenset({"application/xml", "text/xml", "application/xhtml+xml"})
 _JSON_MIMETYPES = frozenset({"application/json", "text/json"})
 _CSV_MIMETYPES = frozenset({"text/csv", "text/plain", "application/csv"})
+_VTT_MIMETYPES = frozenset({"text/vtt"})
+_SRT_MIMETYPES = frozenset({"application/x-subrip", "application/x-srt", "text/srt"})
 
 
 def _read_tree(document: Any) -> Any:
@@ -167,6 +196,37 @@ def _read_csv_rows(document: Any) -> list[list[str]]:
     return [list(row) for row in reader]
 
 
+def _read_vtt_cues(document: Any) -> Any:
+    from .cues import parse_vtt
+    from .guess import decode
+
+    try:
+        return parse_vtt(decode(document.data))
+    except UnicodeDecodeError:
+        return []
+
+
+def _read_srt_cues(document: Any) -> Any:
+    from .cues import parse_srt
+    from .guess import decode
+
+    try:
+        return parse_srt(decode(document.data))
+    except UnicodeDecodeError:
+        return []
+
+
+def _read_cued_text(document: Any) -> str:
+    from .cues import cues_as_text
+
+    return cues_as_text(document.cues)
+
+
 register_reader(_reader("xml", _XML_MIMETYPES, (TREE,), _read_tree))
 register_reader(_reader("json", _JSON_MIMETYPES, (DATA,), _read_data))
 register_reader(_reader("csv", _CSV_MIMETYPES, (ROWS,), _read_csv_rows))
+register_reader(_reader("vtt", _VTT_MIMETYPES, (CUES,), _read_vtt_cues))
+register_reader(_reader("srt", _SRT_MIMETYPES, (CUES,), _read_srt_cues))
+register_reader(
+    _reader("cued_text", _VTT_MIMETYPES | _SRT_MIMETYPES, (TEXT,), _read_cued_text)
+)

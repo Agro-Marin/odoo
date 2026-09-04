@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="ir_attachment_view_form_speech" model="ir.ui.view">
+        <field name="name">ir.attachment.view.form.speech</field>
+        <field name="model">ir.attachment</field>
+        <field name="inherit_id" ref="base.view_attachment_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <group
+                    string="Speech"
+                    invisible="not can_transcribe and speech_state == 'none'">
+                    <field name="can_transcribe" invisible="1" />
+                    <field name="speech_state" />
+                    <field name="speech_engine" invisible="speech_state != 'done'" />
+                    <field name="speech_language" invisible="speech_state != 'done'" />
+                    <field name="speech_error" invisible="speech_state != 'failed'" />
+                    <field
+                        name="speech_transcript"
+                        invisible="speech_state != 'done'"
+                        widget="text" />
+                </group>
+            </xpath>
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <button
+                        name="action_transcribe"
+                        string="Transcribe"
+                        type="object"
+                        class="btn-primary"
+                        invisible="not can_transcribe or speech_state in ('queued', 'running')" />
+                </header>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

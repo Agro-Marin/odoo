@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="speech.MediaTimelineField">
+        <div class="o_media_timeline d-flex flex-column gap-2">
+            <t t-if="!segments.length">
+                <div class="text-muted fst-italic" t-esc="emptyMessage" />
+            </t>
+            <t t-else="">
+                <video
+                    t-if="isVideo"
+                    t-ref="player"
+                    class="o_media_timeline_player w-100"
+                    controls="1"
+                    t-att-src="source"
+                    t-on-timeupdate="onTimeUpdate"
+                    t-on-ended="onEnded" />
+                <audio
+                    t-else=""
+                    t-ref="player"
+                    class="o_media_timeline_player w-100"
+                    controls="1"
+                    t-att-src="source"
+                    t-on-timeupdate="onTimeUpdate"
+                    t-on-ended="onEnded" />
+
+                <div class="d-flex align-items-center gap-2">
+                    <button
+                        class="btn btn-sm btn-secondary"
+                        type="button"
+                        t-on-click="togglePlay">
+                        <i t-att-class="state.playing ? 'fa fa-pause' : 'fa fa-play'" />
+                    </button>
+                    <span class="text-muted small" t-esc="format(state.positionMs)" />
+                    <div
+                        class="o_media_timeline_bar position-relative flex-grow-1"
+                        t-on-click="onBarClick">
+                        <div
+                            t-foreach="segments"
+                            t-as="segment"
+                            t-key="segment.id"
+                            class="o_media_timeline_segment position-absolute"
+                            t-att-style="barStyle(segment)" />
+                        <div
+                            class="o_media_timeline_head position-absolute"
+                            t-att-style="headStyle" />
+                    </div>
+                    <span class="text-muted small" t-esc="format(durationMs)" />
+                    <button
+                        class="btn btn-sm btn-link text-muted"
+                        type="button"
+                        t-on-click="cycleRate">
+                        <t t-esc="state.rate" />x
+                    </button>
+                </div>
+
+                <div t-if="cues.length" class="o_media_timeline_transcript">
+                    <div
+                        t-foreach="cues"
+                        t-as="cue"
+                        t-key="cue_index"
+                        class="o_media_timeline_cue"
+                        t-att-class="{ 'fw-bold': isCueActive(cue) }"
+                        t-on-click="() => this.onCueClick(cue)">
+                        <span t-if="cue.speaker" class="text-muted me-1">
+                            <t t-esc="cue.speaker" />:
+                        </span>
+                        <t t-esc="cue.text" />
+                    </div>
+                </div>
+            </t>
+        </div>
+    </t>
+
+</templates>
