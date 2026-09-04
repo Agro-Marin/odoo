@@ -69,7 +69,6 @@ class OdooTestResult:
     _monotonic = staticmethod(time.monotonic)
 
     _previousTestClass: type[case.TestCase] | None = None
-    _moduleSetUpFailed = False
 
     def __init__(
         self,

@@ -106,7 +106,6 @@ class TestCase(_TestCase):
     _classSetupFailed: ClassVar[bool] = False
     __unittest_skip__ = False
     __unittest_skip_why__ = ""
-    _moduleSetUpFailed = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
