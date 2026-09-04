@@ -1,6 +1,9 @@
+import logging
 import re
 from threading import RLock
 from typing import Any
+
+_logger = logging.getLogger(__name__)
 
 __all__ = [
     "check_barcode_encoding",
@@ -44,6 +47,11 @@ def _init_barcode() -> tuple[Any, str]:
         except ImportError:
             raise
         except Exception:
+            _logger.warning(
+                "Barcode font %r could not be validated; falling back to Courier.",
+                font_name,
+                exc_info=True,
+            )
             font_name = "Courier"
         _barcode_init = (barcode, font_name)
         return _barcode_init
