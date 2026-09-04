@@ -82,7 +82,7 @@ it is deferred, waiting for its target's import — not failed.
 
 | File | Purpose | Type |
 |------|---------|------|
-| `pypdf.py` | Three patches `tools/pdf` used to apply inline: `filters.decompress` tolerates a truncated deflate stream rather than raising, `DictionaryObject.get` returns its default instead of propagating `KeyError`, and `NameObject.renumber_table` gains the delimiters and control characters PDF name objects must escape | COMPAT |
+| `pypdf.py` | Two patches `tools/pdf` used to apply inline: `DictionaryObject.get` returns its default instead of propagating `KeyError`, and `NameObject.renumber_table` gains the delimiters and control characters PDF name objects must escape. (A third patch that overrode `filters.decompress` for truncated-stream tolerance was removed: stock pypdf's `decompress` already retries past a truncated tail while also enforcing `ZLIB_MAX_OUTPUT_LENGTH`, which the override did not.) | COMPAT |
 
 ### Text Processing Patches
 
