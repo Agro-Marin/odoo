@@ -673,6 +673,13 @@ _EMPTY_TAG_RE = re.compile(
     r'<\s*\/?(?:p|div|section|span|br|b|i|font)\b(?:(\s+[A-Za-z_-][A-Za-z0-9-_]*(\s*=\s*[\'"][^"\']*[\'"]))*)(?:\s*>|\s*\/\s*>)'
 )
 
+# _EMPTY_TAG_RE only strips markup for its allowlisted tags, not the payload
+# of a tag it doesn't know -- script/style content has no visible output but
+# would otherwise count as "real" leftover text below.
+_SCRIPT_STYLE_RE = re.compile(
+    r"<(script|style)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL
+)
+
 _DOCUMENT_SHELL_RE = re.compile(r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)")
 
 _SIGNATURE_BEGIN_RE = re.compile(r"((?:(?:^|\n)[-]{2}[\s]?$))")
@@ -706,7 +713,8 @@ def is_html_empty(
 ) -> bool:
     if not html_content:
         return True
-    text_content = htmllib.unescape(_EMPTY_TAG_RE.sub("", html_content))
+    without_scripts = _SCRIPT_STYLE_RE.sub("", html_content)
+    text_content = htmllib.unescape(_EMPTY_TAG_RE.sub("", without_scripts))
     return not bool(text_content.strip()) and not _ICON_RE.search(html_content)
 
 
