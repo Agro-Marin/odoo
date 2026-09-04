@@ -1233,6 +1233,11 @@ class HrEmployee(models.Model):
                 or self.mobile_phone
             )
 
+    def _get_display_name_visible_ids(self) -> set[int]:
+        if not self.env.user._is_internal():
+            return super()._get_display_name_visible_ids()
+        return set(self._ids)
+
     @api.model
     def _get_new_hire_field_name(self):
         return "create_date"

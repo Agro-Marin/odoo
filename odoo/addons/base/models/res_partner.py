@@ -873,6 +873,9 @@ class ResPartner(models.Model):
     def _compute_vat_label(self) -> None:
         self.vat_label = self.env.company.country_id.vat_label or _("Tax ID")
 
+    def _get_display_name_visible_ids(self) -> set[int]:
+        return set(self.sudo().filtered(lambda partner: partner.type != "private")._ids)
+
     @api.depends("parent_id", "type")
     def _compute_type_address_label(self) -> None:
         for partner in self:

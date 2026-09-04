@@ -896,6 +896,33 @@ class TestHrEmployee(TestHrCommon):
         self.assertNotEqual(partner.email, first_employee.work_email)
 
 
+class TestHrEmployeeDisplayNameVisibility(TransactionCase):
+    def test_a_plain_employee_reads_the_name_of_a_manager_it_cannot_read(self):
+        user = new_test_user(self.env, "plain_employee", groups="base.group_user")
+        manager = self.env["hr.employee"].create({"name": "Manager Mario"})
+        employee = self.env["hr.employee"].create(
+            {"name": "Plain Peach", "user_id": user.id, "parent_id": manager.id}
+        )
+        self.env.flush_all()
+        self.assertFalse(manager.with_user(user).has_access("read"))
+
+        [values] = employee.with_user(user).read(["parent_id"])
+        self.assertEqual(values["parent_id"], (manager.id, manager.display_name))
+        [res] = employee.with_user(user).web_read(
+            {"parent_id": {"fields": {"display_name": {}}}}
+        )
+        self.assertEqual(
+            res["parent_id"],
+            {"id": manager.id, "display_name": manager.display_name},
+        )
+
+    def test_a_portal_user_does_not_read_an_employee_name(self):
+        user = new_test_user(self.env, "portal_reader", groups="base.group_portal")
+        manager = self.env["hr.employee"].create({"name": "Manager Mario"})
+        self.env.flush_all()
+        self.assertEqual(manager.with_user(user)._get_display_name_visible_ids(), set())
+
+
 @tagged("-at_install", "post_install")
 class TestHrEmployeeLinks(HttpCase):
     def test_shared_private_link_permissions(self):

@@ -509,7 +509,7 @@ class Base(models.AbstractModel):
 
         if "display_name" in field_spec["fields"]:
             named = co_records.browse([co_id for co_id in many2one_data if co_id])
-            for rec in named.sudo():
+            for rec in named._filtered_display_name_access().sudo():
                 many2one_data[rec.id]["display_name"] = rec.display_name
 
         for values in values_list:

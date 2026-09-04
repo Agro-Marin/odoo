@@ -144,6 +144,24 @@ class TestWebReadRelational(common.TransactionCase):
             "sub-fields of an unreadable target stay withheld",
         )
 
+    def test_many2one_to_a_private_address_hides_its_label(self):
+        Partner = self.env["res.partner"]
+        subject = Partner.create({"name": "Subject"})
+        home = Partner.create(
+            {"name": "Subject Home", "type": "private", "parent_id": subject.id}
+        )
+        record = Partner.create({"name": "Points at home", "parent_id": home.id})
+        user = new_test_user(self.env, "private_address_reader")
+        self.env.flush_all()
+        self.assertNotIn(home.id, Partner.with_user(user).search([]).ids)
+
+        [res] = record.with_user(user).web_read(
+            {"parent_id": {"fields": {"display_name": {}}}}
+        )
+        self.assertEqual(res["parent_id"], {"id": home.id})
+        [values] = record.with_user(user).read(["parent_id"])
+        self.assertFalse(values["parent_id"])
+
 
 @common.tagged("post_install", "-at_install", "web_unit", "web_read")
 class TestWebResequence(common.TransactionCase):

@@ -226,7 +226,7 @@ class Many2one(_Relational):
         if target_ids := list(unique(value.id for value in values if value)):
             targets = records.env[self.comodel_name].browse(target_ids)
             try:
-                allowed_ids = set(targets._filtered_access("read")._ids)
+                allowed_ids = set(targets._filtered_display_name_access()._ids)
             except MissingError:
                 allowed_ids = None
 
@@ -239,7 +239,7 @@ class Many2one(_Relational):
                 readable = (
                     value.id in allowed_ids
                     if allowed_ids is not None
-                    else bool(value._filtered_access("read"))
+                    else bool(value._filtered_display_name_access())
                 )
                 result.append(
                     (value.id, value.sudo().display_name) if readable else False

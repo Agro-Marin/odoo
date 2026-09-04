@@ -143,6 +143,18 @@ class AccessMixin(_ModelStubs):
             return self - result[0]
         return self
 
+    def _get_display_name_visible_ids(self) -> set[int]:
+        return set()
+
+    def _filtered_display_name_access(self) -> Self:
+        readable = self._filtered_access("read")
+        hidden = self - readable
+        if not hidden:
+            return readable
+        visible_ids = hidden._get_display_name_visible_ids() & set(hidden._ids)
+        allowed_ids = set(readable._ids) | visible_ids
+        return self.browse(id_ for id_ in self._ids if id_ in allowed_ids)
+
     def _check_access(self, operation: str) -> tuple[Self, Callable] | None:
         Access = self.env["ir.model.access"]
         if not Access.check(self._name, operation, raise_exception=False):

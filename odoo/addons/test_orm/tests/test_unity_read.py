@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import Command, fields
@@ -172,10 +174,37 @@ class TestUnityRead(TransactionCase):
             ],
         )
 
-    def test_read_many2one_gives_id_name_if_you_dont_have_access(self):
-        read = self.course.with_user(self.only_course_user).web_read(
+    def test_read_many2one_hides_the_label_of_a_target_you_cannot_read(self):
+        course = self.course.with_user(self.only_course_user)
+        read = course.web_read(
             {"display_name": {}, "author_id": {"fields": {"display_name": {}}}}
         )
+        self.assertEqual(
+            read,
+            [
+                {
+                    "id": self.course.id,
+                    "display_name": "introduction to OWL",
+                    "author_id": {"id": self.author.id},
+                },
+            ],
+        )
+        values = course.read(["author_id"])
+        self.assertEqual(values[0]["author_id"], False)
+        values = course.read(["author_id"], load=None)
+        self.assertEqual(values[0]["author_id"], self.author.id)
+
+    def test_read_many2one_shows_the_label_of_a_target_that_opts_in(self):
+        course = self.course.with_user(self.only_course_user)
+        with patch.object(
+            type(self.author),
+            "_get_display_name_visible_ids",
+            lambda records: set(records._ids),
+        ):
+            read = course.web_read(
+                {"display_name": {}, "author_id": {"fields": {"display_name": {}}}}
+            )
+            values = course.read(["author_id"])
         self.assertEqual(
             read,
             [
@@ -186,12 +215,7 @@ class TestUnityRead(TransactionCase):
                 },
             ],
         )
-        values = self.course.with_user(self.only_course_user).read(["author_id"])
-        self.assertEqual(values[0]["author_id"], False)
-        values = self.course.with_user(self.only_course_user).read(
-            ["author_id"], load=None
-        )
-        self.assertEqual(values[0]["author_id"], self.author.id)
+        self.assertEqual(values[0]["author_id"], (self.author.id, "ged"))
 
     def test_many2one_respects_context(self):
         read = self.course.web_read(
