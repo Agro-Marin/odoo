@@ -159,14 +159,18 @@ FormController.discard  enterprise  :triage
 FormController.displayName  odoo enterprise  :keep
 FormController.duplicateRecord  enterprise  :triage
 FormController.getStaticActionMenuItems  odoo enterprise  :keep
-FormController.modelParams  odoo enterprise  :keep
+FormController.modelParams  enterprise  :keep
 FormController.onRecordSaved  odoo enterprise  :keep
 FormController.onWillLoadRoot  odoo  :triage
 FormController.onWillSaveRecord  odoo enterprise  :keep
 FormController.save  odoo enterprise  :keep
 FormController.saveButtonClicked  enterprise  :triage
 FormController.setup  odoo enterprise  :keep
+FormControllerWithHTMLExpander.onRecordSaved  odoo  :triage
+FormControllerWithHTMLExpander.setup  odoo enterprise  :keep
 FormRenderer.setup  odoo enterprise  :keep
+FormRendererWithHtmlExpander._canExpandHTMLField  odoo  :promote
+FormRendererWithHtmlExpander.setup  odoo  :triage
 FormViewDialog.setup  odoo enterprise  :keep
 GaugeField.formattedValue  odoo  :triage
 GaugeField.renderChart  odoo  :triage

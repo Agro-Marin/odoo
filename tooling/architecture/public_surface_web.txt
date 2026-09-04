@@ -202,6 +202,9 @@
 @web/views/calendar  odoo enterprise
 @web/views/field_arch  odoo agromarin
 @web/views/form  odoo enterprise
+@web/views/form_with_html_expander/form_controller_with_html_expander  odoo
+@web/views/form_with_html_expander/form_renderer_with_html_expander  odoo
+@web/views/form_with_html_expander/form_view_with_html_expander  odoo
 @web/views/graph  odoo enterprise
 @web/views/kanban  odoo enterprise
 @web/views/list  odoo enterprise
