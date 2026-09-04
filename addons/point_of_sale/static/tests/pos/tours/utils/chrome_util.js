@@ -43,6 +43,12 @@ export function clickMenuDropdownOption(name, { expectUnloadPage = false } = {})
         expectUnloadPage,
     };
 }
+export function checkButtonDisabled(text) {
+    return {
+        content: `Verify that the "${text}" button is disabled`,
+        trigger: `button:contains("${text}")[disabled]`,
+    };
+}
 export function existMenuOption(name) {
     return [
         clickMenuButton(),

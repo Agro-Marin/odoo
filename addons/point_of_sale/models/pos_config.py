@@ -1,6 +1,9 @@
+import json
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
+
+from babel.dates import format_date
 
 from odoo import SUPERUSER_ID, Command, _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -8,6 +11,7 @@ from odoo.http import request
 from odoo.libs.datetime import timezone
 from odoo.service.common import exp_version
 from odoo.tools import SQL, convert
+from odoo.tools.misc import get_lang
 
 from odoo.addons.point_of_sale.models.pos_printer import format_epson_certified_domain
 
@@ -392,6 +396,11 @@ class PosConfig(models.Model):
         help="Store edited orders in the backend",
         default=False,
     )
+    use_download_invoice = fields.Boolean(
+        string="Download Invoice",
+        help="Render and download the invoice PDF while the order is validated."
+        " When off, the PDF is rendered by the POS cron a few minutes later.",
+    )
     last_data_change = fields.Datetime(
         string="Last Write Date",
         readonly=True,
@@ -424,6 +433,70 @@ class PosConfig(models.Model):
     statistics_for_current_session = fields.Json(
         string="Session Statistics", compute="_compute_statistics_for_current_session"
     )
+    kanban_dashboard_graph = fields.Text(compute="_compute_kanban_dashboard_graph")
+
+    def _compute_kanban_dashboard_graph(self):
+        graph_data = self._get_sales_graph_data()
+        for config in self:
+            config.kanban_dashboard_graph = json.dumps(graph_data[config.id])
+
+    def _get_sales_graph_data(self):
+        """One point per day for the last week, per register.
+
+        Mirrors `account.journal._get_bank_cash_graph_data`, which is what the
+        `dashboard_graph` widget expects: a single series of {x, y, name}.
+        """
+
+        def prepare_graph_point(date, amount, currency):
+            name = format_date(date, "d LLLL Y", locale=locale)
+            short_name = format_date(date, "d MMM", locale=locale)
+            return {"x": short_name, "y": currency.round(amount), "name": name}
+
+        locale = get_lang(self.env).code
+        today = fields.Date.context_today(self)
+        first_day = today - timedelta(days=6)
+
+        # date_order is stored in UTC; bucket it in the reader's timezone so a
+        # late-evening sale counts on the day the cashier made it.
+        query = """
+            SELECT pos_order.config_id AS config_id,
+                   (pos_order.date_order AT TIME ZONE 'UTC' AT TIME ZONE %s)::date AS day,
+                   SUM(pos_order.amount_total) AS amount
+              FROM pos_order
+             WHERE pos_order.config_id = ANY(%s)
+               AND pos_order.state IN ('paid', 'done')
+               AND (pos_order.date_order AT TIME ZONE 'UTC' AT TIME ZONE %s)::date >= %s
+          GROUP BY config_id, day
+        """
+        timezone_name = self.env.user.tz or "UTC"
+        self.env["pos.order"].flush_model(
+            ["config_id", "date_order", "state", "amount_total"]
+        )
+        self.env.cr.execute(query, (timezone_name, self.ids, timezone_name, first_day))
+        amount_by_day_by_config = defaultdict(dict)
+        for row in self.env.cr.dictfetchall():
+            amount_by_day_by_config[row["config_id"]][row["day"]] = row["amount"]
+
+        result = {}
+        for config in self:
+            currency = config.currency_id
+            amount_by_day = amount_by_day_by_config[config.id]
+            values = [
+                prepare_graph_point(
+                    first_day + timedelta(days=offset),
+                    amount_by_day.get(first_day + timedelta(days=offset), 0),
+                    currency,
+                )
+                for offset in range(7)
+            ]
+            result[config.id] = [
+                {
+                    "values": values,
+                    "key": _("Sales Last 7 Days"),
+                    "is_sample_data": not any(point["y"] for point in values),
+                }
+            ]
+        return result
 
     def _get_next_order_refs(self, device_identifier="0"):
         next_number = self.order_backend_seq_id._next()
@@ -1071,6 +1144,7 @@ class PosConfig(models.Model):
         "iface_tipproduct",
         "default_preset_id",
         "module_pos_appointment",
+        "use_download_invoice",
     )
     def _compute_last_data_change(self):
         self.last_data_change = self.env.cr.now()

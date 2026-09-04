@@ -44,3 +44,53 @@ test("confirm payload", async () => {
         "1", // Received value is the ID of the answer `Male`, not the name.
     ]);
 });
+
+const mountRegistrationPopup = async (store) => {
+    const tickets = [store.models["event.event.ticket"].get(1)];
+    return mountPosDialog(EventRegistrationPopup, {
+        event: store.models["event.event"].get(1),
+        data: [{ qty: 1, ticket_id: tickets[0], product_id: tickets[0].product_id }],
+        getPayload: () => {},
+        close: () => {},
+    });
+};
+
+test("Confirm stays out of reach until every answer is valid", async () => {
+    const store = await setupPosEnv();
+    const comp = await mountRegistrationPopup(store);
+    const answers = comp.state.byRegistration[0].questions;
+
+    // Name, Email and Phone are mandatory and still empty.
+    expect(comp.isConfirmable).toBe(false);
+
+    answers[1] = "Test User";
+    answers[2] = "not-an-email";
+    answers[3] = "+911234567890";
+    expect(comp.isConfirmable).toBe(false);
+
+    answers[2] = "test@test.com";
+    expect(comp.isConfirmable).toBe(true);
+
+    // Too short to be a phone number.
+    answers[3] = "12";
+    expect(comp.isConfirmable).toBe(false);
+
+    answers[3] = "+91 (123) 456-7890";
+    expect(comp.isConfirmable).toBe(true);
+});
+
+test("A field is only flagged once the cashier has left it", async () => {
+    const store = await setupPosEnv();
+    const comp = await mountRegistrationPopup(store);
+    const answers = comp.state.byRegistration[0].questions;
+    const email = store.models["event.question"].get(2);
+
+    answers[2] = "not-an-email";
+    expect(comp.answerClass(email, answers, 0)).toBe("");
+
+    comp.markTouched(email.id, 0);
+    expect(comp.answerClass(email, answers, 0)).toBe("border border-danger");
+
+    answers[2] = "test@test.com";
+    expect(comp.answerClass(email, answers, 0)).toBe("");
+});

@@ -1340,3 +1340,20 @@ registry
                 Chrome.endTour(),
             ].flat(),
     });
+
+registry.category("web_tour.tours").add("test_customer_search_prefilled_on_create", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            ProductScreen.clickPartnerButton(),
+            PartnerList.searchCustomer("Test Customer"),
+            PartnerList.clickCreateButton(),
+            PartnerList.formFieldHasValue("name", "Test Customer"),
+            PartnerList.discardForm(),
+            PartnerList.searchCustomer("+(123) 45.67-89"),
+            PartnerList.clickCreateButton(),
+            PartnerList.formFieldHasValue("phone", "+(123) 45.67-89"),
+            PartnerList.discardForm(),
+        ].flat(),
+});

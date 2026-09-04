@@ -24,6 +24,7 @@
         "data/point_of_sale_tour.xml",
         "data/mail_template_data.xml",
         "data/ir_config_parameter_data.xml",
+        "data/ir_cron_data.xml",
         "wizard/pos_details.xml",
         "wizard/pos_payment.xml",
         "wizard/pos_close_session_wizard.xml",
@@ -219,6 +220,7 @@
             ),
             "partner_autocomplete/static/src/**/*",
             "google_address_autocomplete/static/src/**/*",
+            "point_of_sale/static/src/backend/pos_res_partner_view/*",
             (
                 "remove",
                 "web/static/src/**/*.dark.scss",

@@ -13,8 +13,8 @@
                     </t>
                     <div class="subpads d-flex flex-column gap-2 pt-2">
                         <Numpad t-if="!currentOrder?.isEmpty() and pos.getOrder()?.uiState.selected_orderline_uuid" class="'d-grid'" buttons="getNumpadButtons()" onClick.bind="onNumpadClick"/>
-                        <ActionpadWidget 
-                            partner="currentOrder?.getPartner()" 
+                        <ActionpadWidget
+                            partner="currentOrder?.getPartner()"
                             onClickMore.bind="displayAllControlPopup"
                             actionName.translate="Payment"
                             actionToTrigger="() => pos.pay()"
@@ -28,7 +28,7 @@
                 <div class="position-relative d-flex flex-column flex-grow-1 overflow-hidden">
                     <CategorySelector t-if="pos.productsToDisplay.length > 0 and (!ui.isSmall || !pos.scanning)" />
                     <BarcodeVideoScanner t-if="pos.scanning" t-props="barcodeVideoScannerProps" />
-                    <div t-elif="pos.productToDisplayByCateg.length > 0" class="overflow-y-auto" t-on-scroll="onScroll">
+                    <div t-elif="pos.productToDisplayByCateg.length > 0" t-ref="productsRoot" class="overflow-y-auto" t-on-scroll="onScroll">
                         <div t-foreach="pos.productToDisplayByCateg" t-as="productCateg" t-key="productCateg[0]" class="product-list d-grid gap-1 gap-lg-2 px-2 pt-0 pb-2">
                             <ProductCard
                                 t-foreach="productCateg[1]" t-as="product" t-key="product.id"
@@ -39,10 +39,8 @@
                                 color="product.color || product.pos_categ_ids?.at(-1)?.color"
                                 imageUrl="pos.config.show_product_images and this.getProductImage(product)"
                                 onClick.bind="() => this.addProductToOrder(product)"
-                                t-on-mousedown="(event) => this.onMouseDown(event, product)"
-                                t-on-mouseup="longPressHandlers.onMouseUp"
-                                t-on-touchstart="(event) => this.onTouchStart(product)"
-                                t-on-touchend="longPressHandlers.onTouchEnd"
+                                t-on-pointerdown="(event) => this.onPointerDown(event, product)"
+                                t-on-pointerup="longPressHandlers.onMouseUp"
                                 productCartQty="this.state.quantityByProductTmplId[product.id]" />
                         </div>
                     </div>

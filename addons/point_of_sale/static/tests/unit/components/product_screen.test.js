@@ -1,6 +1,7 @@
 import { expect, test } from "@odoo/hoot";
+import { queryAll } from "@odoo/hoot-dom";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
 
 import { definePosModels } from "../data/generate_model_definitions.js";
 import { setupPosEnv } from "../utils.js";
@@ -45,4 +46,50 @@ test("fastValidate", async () => {
     expect(order.payment_ids[0].payment_method_id).toEqual(fastPaymentMethod);
     expect(order.state).toBe("paid");
     expect(order.amount_paid).toBe(3.45);
+});
+
+test("product cards are wired for reordering", async () => {
+    const store = await setupPosEnv();
+    store.addNewOrder();
+    const order = store.getOrder();
+    await mountWithCleanup(ProductScreen, { props: { orderUuid: order.uuid } });
+
+    const cards = queryAll(".product-sortable");
+    expect(cards.length).toBeGreaterThan(1);
+    for (const card of cards) {
+        const product = store.models["product.template"].get(Number(card.dataset.productId));
+        expect(card.dataset.posSequence).toBe(String(product.pos_sequence));
+    }
+});
+
+test("dropping a product card renumbers only what it displaces", async () => {
+    const store = await setupPosEnv();
+    store.addNewOrder();
+    const order = store.getOrder();
+    const comp = await mountWithCleanup(ProductScreen, { props: { orderUuid: order.uuid } });
+
+    const cards = queryAll(".product-sortable");
+    const [first, second, third] = cards;
+    const idOf = (card) => Number(card.dataset.productId);
+    for (const [index, card] of [first, second, third].entries()) {
+        store.models["product.template"].get(idOf(card)).update({ pos_sequence: index + 1 });
+        card.dataset.posSequence = String(index + 1);
+    }
+
+    let written = null;
+    onRpc("product.template", "set_pos_sequence", ({ args }) => {
+        written = args[0];
+        return true;
+    });
+
+    // Drop the third card between the first and the second.
+    await comp._sortDrop({ element: third, previous: first, next: second });
+
+    expect(written).toEqual({
+        [idOf(third)]: 2,
+        [idOf(second)]: 3,
+    });
+    expect(store.models["product.template"].get(idOf(third)).pos_sequence).toBe(2);
+    expect(store.models["product.template"].get(idOf(second)).pos_sequence).toBe(3);
+    expect(store.models["product.template"].get(idOf(first)).pos_sequence).toBe(1);
 });

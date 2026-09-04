@@ -40,6 +40,13 @@ export class InvoiceButton extends Component {
             const order = orders[0];
             const accountMoveId = order.raw.account_move;
             if (accountMoveId) {
+                if (order.raw.defer_invoice_pdf) {
+                    // The cron has not rendered it yet, and the download route
+                    // would hand out a proforma instead of the invoice.
+                    await this.pos.data.call("pos.order", "flush_deferred_invoice_pdf", [
+                        orderId,
+                    ]);
+                }
                 await this.invoiceService.downloadPdf(accountMoveId);
             }
         } catch (error) {

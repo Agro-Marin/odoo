@@ -196,11 +196,23 @@ export function isValidPhone(string) {
     return pattern.test(phone);
 }
 
+/**
+ * Whether a string reads as a phone number rather than free text: digits and
+ * the punctuation people put between them, nothing else. Deliberately looser
+ * than `isValidPhone`, which validates a number we are about to dial.
+ */
+export function looksLikePhoneNumber(string) {
+    return /^\+?[\d\s.\-()]{8,18}$/.test(string.trim());
+}
+
 export function isValidEmail(email) {
     return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 export const LONG_PRESS_DURATION = session.test_mode ? 100 : 500;
+// Held on top of LONG_PRESS_DURATION for touch, so that starting to drag a
+// product card does not also open its info popup.
+export const TOUCH_DELAY = session.test_mode ? 50 : 300;
 
 export async function getImageDataUrl(imageUrl) {
     const res = await fetch(imageUrl);

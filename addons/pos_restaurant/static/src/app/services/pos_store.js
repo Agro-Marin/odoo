@@ -86,6 +86,11 @@ patch(PosStore.prototype, {
 
         return order;
     },
+    shouldAskPreset(order) {
+        // A direct sale has no table to carry the choice, so ask for it up
+        // front rather than let it default silently.
+        return order.isDirectSale && this.config.available_preset_ids.length > 1;
+    },
     async preSyncAllOrders(orders) {
         if (this.config.module_pos_restaurant) {
             for (const order of orders) {

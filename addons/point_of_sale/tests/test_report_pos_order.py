@@ -133,3 +133,46 @@ class TestReportPoSOrder(TestPoSCommon):
 
         self.assertEqual(reports[0].margin, 135)
         self.assertEqual(reports[0].price_total, 135)
+
+    def test_report_pos_order_preset(self):
+        """The analysis view exposes the order's preset, so sales can be split
+        between Eat in / Takeaway / Delivery."""
+        preset = self.env["pos.preset"].create({"name": "Takeaway"})
+        product1 = self.create_product("Product 1", self.categ_basic, 150)
+
+        self.open_new_session()
+        session = self.pos_session
+        self.env["pos.order"].create(
+            {
+                "session_id": session.id,
+                "preset_id": preset.id,
+                "lines": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "OL/0001",
+                            "product_id": product1.id,
+                            "price_unit": 150,
+                            "discount": 0,
+                            "qty": 1.0,
+                            "price_subtotal": 150,
+                            "price_subtotal_incl": 150,
+                        },
+                    )
+                ],
+                "amount_total": 150.0,
+                "amount_tax": 0.0,
+                "amount_paid": 0.0,
+                "amount_return": 0.0,
+            }
+        )
+
+        reports = (
+            self.env["report.pos.order"]
+            .sudo()
+            .search([("preset_id", "=", preset.id)], order="id")
+        )
+
+        self.assertEqual(len(reports), 1)
+        self.assertEqual(reports.product_id, product1)

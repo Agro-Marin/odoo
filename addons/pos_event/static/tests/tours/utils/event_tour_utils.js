@@ -48,6 +48,24 @@ export function answerGlobalTextQuestion(question, answer) {
     ];
 }
 
+export function confirmIsBlocked() {
+    return [
+        {
+            content: "Confirm stays disabled while an answer is missing or malformed",
+            trigger: ".modal-footer button.btn-primary:disabled",
+        },
+    ];
+}
+
+export function globalQuestionIsInvalid(question) {
+    return [
+        {
+            content: `Question ${question} is flagged as invalid`,
+            trigger: `.global_question:contains('${question}') input.border-danger`,
+        },
+    ];
+}
+
 export function pickTicket(name) {
     return [
         {

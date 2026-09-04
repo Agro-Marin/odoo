@@ -54,6 +54,14 @@ class ProductTemplate(models.Model):
         copy=False,
     )
 
+    @api.model
+    def set_pos_sequence(self, sequence_by_id):
+        """Renumber the POS display order of the templates the cashier moved."""
+        for template_id, sequence in sequence_by_id.items():
+            template = self.browse(int(template_id))
+            if template.exists():
+                template.pos_sequence = sequence
+
     def write(self, vals):
         if vals.get("public_description") and is_html_empty(vals["public_description"]):
             vals["public_description"] = ""
@@ -70,9 +78,7 @@ class ProductTemplate(models.Model):
     def set_pos_favorite(self, is_favorite):
         self.check_singleton()
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
-            raise AccessError(
-                _("Only Point of Sale users can change a POS favorite.")
-            )
+            raise AccessError(_("Only Point of Sale users can change a POS favorite."))
         if not self.available_in_pos:
             raise AccessError(
                 _(
@@ -399,7 +405,11 @@ class ProductTemplate(models.Model):
             [("id", "in", self.ids), ("available_in_pos", "=", True)],
             limit=1,
         ):
-            if self.env["pos.session"].sudo().search_count([("state", "!=", "closed")], limit=1):
+            if (
+                self.env["pos.session"]
+                .sudo()
+                .search_count([("state", "!=", "closed")], limit=1)
+            ):
                 raise UserError(
                     _(
                         "To delete a product, make sure all point of sale sessions are closed.\n\n"

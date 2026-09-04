@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, onMounted, onWillUnmount, useEffect, useState } from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useEffect, useRef, useState } from "@odoo/owl";
 import { CategorySelector } from "@point_of_sale/app/components/category_selector/category_selector";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import {
@@ -27,6 +27,8 @@ import { BarcodeVideoScanner } from "@web/components/barcode";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
+import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { AlertDialog } from "@web/ui/dialog";
@@ -118,6 +120,28 @@ export class ProductScreen extends Component {
             leading: true,
         });
 
+        this.canReorderProducts = false;
+        Promise.resolve(user.checkAccessRight("product.template", "write")).then(
+            (hasAccess) => {
+                this.canReorderProducts = hasAccess;
+            },
+        );
+        useSortable({
+            ref: useRef("productsRoot"),
+            elements: ".product-sortable",
+            cursor: "move",
+            tolerance: 10,
+            connectGroups: false,
+            enable: () => this.canReorderProducts,
+            // Events create placeholder products with fabricated ids.
+            preventDrag: (element) => isNaN(Number(element.dataset.productId)),
+            onDragStart: () => {
+                this.longPressHandlers.onMouseUp();
+                this.longPressHandlers.onTouchEnd();
+            },
+            onDrop: (params) => this._sortDrop(params),
+        });
+
         useEffect(
             () => {
                 this.state.quantityByProductTmplId = this.currentOrder?.lines?.reduce(
@@ -135,12 +159,58 @@ export class ProductScreen extends Component {
         );
     }
 
-    onMouseDown(event, product) {
-        this.longPressHandlers.onMouseDown(event, product);
+    onPointerDown(event, product) {
+        if (isNaN(Number(product.id))) {
+            return;
+        }
+        if (event.pointerType === "mouse") {
+            this.longPressHandlers.onMouseDown(event, product);
+        } else {
+            this.longPressHandlers.onTouchStart(product);
+        }
     }
 
-    onTouchStart(product) {
-        this.longPressHandlers.onTouchStart(product);
+    async _sortDrop({ element, previous, next }) {
+        const productTmplId = Number(element.dataset.productId);
+        if (isNaN(productTmplId)) {
+            return;
+        }
+
+        // Land just behind the card we were dropped after, then push the cards
+        // that would now collide with us one step on, stopping at the first
+        // one that already sorts later.
+        let sequence = 1;
+        while (previous) {
+            if (previous.dataset.posSequence) {
+                sequence = Number(previous.dataset.posSequence) + 1;
+                break;
+            }
+            previous = previous.previousElementSibling;
+        }
+
+        const sequenceById = { [productTmplId]: sequence };
+        while (next) {
+            if (next !== element) {
+                if (Number(next.dataset.posSequence) > sequence) {
+                    break;
+                }
+                sequence += 1;
+                const nextId = Number(next.dataset.productId);
+                if (!isNaN(nextId)) {
+                    sequenceById[nextId] = sequence;
+                }
+            }
+            next = next.nextElementSibling;
+        }
+
+        for (const [id, value] of Object.entries(sequenceById)) {
+            this.pos.models["product.template"]
+                .get(Number(id))
+                ?.update({ pos_sequence: value });
+        }
+        await this.pos.data.call("product.template", "set_pos_sequence", [
+            sequenceById,
+        ]);
     }
 
     getNumpadButtons() {

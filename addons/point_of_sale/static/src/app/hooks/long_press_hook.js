@@ -1,14 +1,14 @@
 /** @odoo-module native */
 import { onWillUnmount } from "@odoo/owl";
-import { LONG_PRESS_DURATION } from "@point_of_sale/utils";
+import { LONG_PRESS_DURATION, TOUCH_DELAY } from "@point_of_sale/utils";
 
 export function useLongPress(callback, delay = LONG_PRESS_DURATION) {
     let timer = null;
 
-    function startLongPress(params) {
+    function startLongPress(params, extraDelay = 0) {
         timer = setTimeout(() => {
             callback(params);
-        }, delay);
+        }, delay + extraDelay);
     }
 
     function cancelLongPress() {
@@ -28,7 +28,7 @@ export function useLongPress(callback, delay = LONG_PRESS_DURATION) {
         },
         onMouseUp: cancelLongPress,
         onTouchStart(params) {
-            startLongPress(params);
+            startLongPress(params, TOUCH_DELAY);
         },
         onTouchEnd: cancelLongPress,
         onScroll: cancelLongPress,
