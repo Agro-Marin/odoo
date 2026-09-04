@@ -24,6 +24,13 @@ class SettingsSlot[T]:
     ``provide`` setter instead; every ``installed``/``override`` caller found
     is test code, sequential or nested, never concurrent. Back ``_installed``
     with a ``contextvars.ContextVar`` first if concurrent use is ever needed.
+
+    ``is_installed``/``current`` use ``self._installed is not None`` as the
+    "was something installed" test, so a settings object where ``None`` is
+    itself a legitimate value would be indistinguishable from "nothing
+    installed" -- not exercised today, since every real settings type here
+    (``PoolSettings``/``HttpSettings``/``ServerSettings``) is a plain
+    dataclass instance, never ``None``.
     """
 
     __slots__ = ("_installed", "_name", "_source")
