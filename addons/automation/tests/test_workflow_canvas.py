@@ -1,5 +1,8 @@
+from psycopg.errors import IntegrityError
+
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase, new_test_user
+from odoo.tools import mute_logger
 
 
 class TestWorkflowCanvasState(TransactionCase):
@@ -90,6 +93,214 @@ class TestNodeSize(TestWorkflowCanvasState):
                 self.first.write({field: bounds["min"][axis] - 1})
             with self.assertRaises(ValidationError):
                 self.first.write({field: bounds["max"][axis] + 1})
+
+
+class TestStepRemoval(TestWorkflowCanvasState):
+    """The canvas offers to remove a step, so the payload has to say which.
+
+    `automation.runtime.line.action_id` is `ondelete="restrict"`, and nothing on
+    the step itself records that a run once reached it, so the client cannot
+    work this out for itself.
+    """
+
+    def _record_a_run_over(self, action):
+        runtime = self.env["automation.runtime"].create(
+            {
+                "automation_id": self.automation.id,
+                "res_model": "res.partner",
+                "res_id": self.env.user.partner_id.id,
+            }
+        )
+        return self.env["automation.runtime.line"].create(
+            {
+                "runtime_id": runtime.id,
+                "action_id": action.id,
+                "name": action.name,
+            }
+        )
+
+    def test_a_step_no_run_reached_is_offered_for_removal(self):
+        deletable = {
+            node["id"]: node["deletable"]
+            for node in self.automation.get_workflow_graph()["nodes"]
+        }
+
+        self.assertEqual(
+            deletable,
+            {self.first.id: True, self.second.id: True, self.third.id: True},
+        )
+
+    def test_a_step_a_run_reached_is_withheld(self):
+        self._record_a_run_over(self.second)
+
+        deletable = {
+            node["id"]: node["deletable"]
+            for node in self.automation.get_workflow_graph()["nodes"]
+        }
+
+        self.assertEqual(
+            deletable,
+            {self.first.id: True, self.second.id: False, self.third.id: True},
+        )
+
+    def test_the_withheld_step_is_the_one_that_cannot_be_unlinked(self):
+        """The flag's whole reason, measured rather than asserted."""
+        self._record_a_run_over(self.second)
+
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                self.second.unlink()
+
+    def test_removing_a_step_takes_the_edges_that_touch_it(self):
+        self._link(self.first, self.second)
+        self._link(self.second, self.third)
+        edge_ids = self.automation.edge_ids.ids
+
+        self.first.unlink()
+
+        self.assertEqual(len(self.automation.edge_ids), 1)
+        self.assertTrue(self.env["workflow.edge"].browse(edge_ids[1]).exists())
+
+    def test_a_run_of_another_company_still_withholds_the_step(self):
+        """The flag answers for Postgres, not for the reader's companies.
+
+        `automation.runtime.line` carries a global multi-company rule, so a
+        reader outside the run's company sees no line for it. Read without
+        `sudo` the payload offered this step for removal and the constraint then
+        refused it, which is the one shape the flag exists to prevent.
+        """
+        elsewhere = self.env["res.company"].create({"name": "Elsewhere Co"})
+        runtime = self.env["automation.runtime"].create(
+            {
+                "automation_id": self.automation.id,
+                "company_id": elsewhere.id,
+                "res_model": "res.partner",
+                "res_id": self.env.user.partner_id.id,
+            }
+        )
+        self.env["automation.runtime.line"].create(
+            {
+                "runtime_id": runtime.id,
+                "action_id": self.second.id,
+                "name": self.second.name,
+            }
+        )
+        reader = new_test_user(
+            self.env, login="canvas_outsider", groups="base.group_system"
+        )
+        self.assertNotIn(elsewhere, reader.company_ids)
+        self.assertFalse(
+            self.env["automation.runtime.line"]
+            .with_user(reader)
+            .search([("action_id", "=", self.second.id)]),
+            "the premise: the reader cannot see the line that holds the step",
+        )
+
+        deletable = {
+            node["id"]: node["deletable"]
+            for node in self.automation.with_user(reader).get_workflow_graph()["nodes"]
+        }
+
+        self.assertFalse(deletable[self.second.id])
+        self.assertTrue(deletable[self.first.id])
+        self.assertEqual(
+            self.env["automation.runtime.line"]._fields["action_id"].ondelete,
+            "restrict",
+        )
+
+    def test_the_payload_says_nothing_about_another_automations_runs(self):
+        other = self.env["automation.rule"].create(
+            {
+                "name": "Elsewhere",
+                "model_id": self.model_partner.id,
+                "trigger": "on_hand",
+            }
+        )
+        elsewhere = self.env["ir.actions.server"].create(
+            {
+                "name": "elsewhere",
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "code": "pass",
+                "automation_rule_id": other.id,
+                "usage": "automation",
+            }
+        )
+        runtime = self.env["automation.runtime"].create(
+            {
+                "automation_id": other.id,
+                "res_model": "res.partner",
+                "res_id": self.env.user.partner_id.id,
+            }
+        )
+        self.env["automation.runtime.line"].create(
+            {
+                "runtime_id": runtime.id,
+                "action_id": elsewhere.id,
+                "name": elsewhere.name,
+            }
+        )
+
+        deletable = {
+            node["id"]: node["deletable"]
+            for node in self.automation.get_workflow_graph()["nodes"]
+        }
+
+        self.assertTrue(all(deletable.values()))
+        self.assertNotIn(elsewhere.id, deletable)
+
+
+class TestStepDetail(TestWorkflowCanvasState):
+    """A typed step carries the parameter that gives its type meaning.
+
+    Without these the canvas draws "Wait" with no duration, "Approval" with
+    nobody named and "Subflow" without saying which automation it runs.
+    """
+
+    def _nodes(self):
+        return {
+            node["id"]: node for node in self.automation.get_workflow_graph()["nodes"]
+        }
+
+    def test_a_wait_step_carries_its_duration(self):
+        self.first.write({"node_type": "wait", "wait_delay": 36, "wait_unit": "hours"})
+
+        node = self._nodes()[self.first.id]
+
+        self.assertEqual((node["wait_delay"], node["wait_unit"]), (36, "hours"))
+
+    def test_an_approval_step_carries_its_approvers(self):
+        approver = new_test_user(self.env, login="canvas_approver")
+        self.first.write(
+            {
+                "node_type": "approval",
+                "approval_user_ids": [(6, 0, approver.ids)],
+                "approval_note": "Sign it",
+            }
+        )
+
+        self.assertEqual(
+            self._nodes()[self.first.id]["approver_names"],
+            approver.display_name,
+        )
+
+    def test_a_subflow_step_names_the_automation_it_runs(self):
+        target = self.env["automation.rule"].create(
+            {
+                "name": "Nightly sweep",
+                "model_id": self.model_partner.id,
+                "trigger": "on_hand",
+            }
+        )
+        self.first.write({"node_type": "subflow", "subflow_automation_id": target.id})
+
+        self.assertEqual(self._nodes()[self.first.id]["subflow_name"], "Nightly sweep")
+
+    def test_a_plain_action_step_names_no_approver_and_no_subflow(self):
+        node = self._nodes()[self.second.id]
+
+        self.assertEqual(node["approver_names"], "")
+        self.assertEqual(node["subflow_name"], "")
 
 
 class TestCanvasViewport(TestWorkflowCanvasState):

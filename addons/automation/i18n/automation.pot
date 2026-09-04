@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0+e\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-03 15:45+0000\n"
-"PO-Revision-Date: 2026-09-03 15:45+0000\n"
+"POT-Creation-Date: 2026-09-03 23:51+0000\n"
+"PO-Revision-Date: 2026-09-03 23:51+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -864,7 +864,8 @@ msgid ""
 "Drag from a step's right-edge port onto another step's left edge to connect\n"
 "                them; the port you leave from is the condition the connection carries. Drag a\n"
 "                step to move it; double-click one to open it; select a connection and press\n"
-"                Delete to remove it. A connection the engine refuses — a cycle, or a step from\n"
+"                Delete to remove it. A step carries its own remove button, unless a recorded\n"
+"                run reached it. A connection the engine refuses — a cycle, or a step from\n"
 "                another automation — is reported rather than drawn."
 msgstr ""
 
@@ -2059,6 +2060,12 @@ msgid "That connection was refused"
 msgstr ""
 
 #. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.js:0
+msgid "That step could not be removed"
+msgstr ""
+
+#. module: automation
 #. odoo-python
 #: code:addons/automation/models/automation_rule.py:0
 msgid ""
@@ -2459,6 +2466,8 @@ msgid "With Automation Rules, you can automate <em>any</em> workflow."
 msgstr ""
 
 #. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_canvas.xml:0
 #: model_terms:ir.ui.view,arch_db:automation.view_automation_form_workflow_dag
 #: model_terms:ir.ui.view,arch_db:automation.view_automation_runtime_search
 msgid "Workflow"
@@ -2621,7 +2630,25 @@ msgstr ""
 #. module: automation
 #. odoo-javascript
 #: code:addons/automation/static/src/workflow_graph.js:0
+msgid "days"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_graph.js:0
+msgid "hours"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_graph.js:0
 msgid "if"
+msgstr ""
+
+#. module: automation
+#. odoo-javascript
+#: code:addons/automation/static/src/workflow_graph.js:0
+msgid "minutes"
 msgstr ""
 
 #. module: automation

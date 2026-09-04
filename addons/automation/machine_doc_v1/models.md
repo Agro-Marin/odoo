@@ -102,6 +102,53 @@ server action model AND the workflow node definition.
 | ~~`is_ready`~~ | ~~Boolean~~ | **REMOVED in Phase 1** — use `automation.runtime.line.is_ready` |
 | ~~`error_message`~~ | ~~Text~~ | **REMOVED in Phase 1** — use `automation.runtime.line.error_message` |
 
+### What an edge draws
+
+The condition is the port an edge leaves from, so it is not written on the edge
+as well. What IS written there is `workflow.edge.label`, the reader's own
+annotation, and for an `expression` edge the `condition_expr` it evaluates when
+no label overrides it. A plain `on_success`, `on_error` or `always` edge carries
+no text, because its port already names it.
+
+This needed a capability the ported editor did not have. `FlowConnection` drew
+two paths and nothing else, so between the port and this change `label` was drawn
+nowhere while its help string said it was shown, and an `expression` edge offered
+a port reading "if" with the expression visible nowhere at all. `FlowEditor` now
+takes a `getConnectionLabel` prop, symmetric with `getConnectionClass`, and draws
+the result at the midpoint `buildConnectionGeometry` already computes.
+
+### What a typed step draws
+
+`get_workflow_graph` ships the parameter that gives each `node_type` its meaning:
+`wait_delay` and `wait_unit` for a Wait, `approver_names` for an Approval, and
+`subflow_name` for a Sub-workflow. The canvas renders one line from whichever
+applies, so a reader sees "36 hours", the approvers by name, or the automation a
+Sub-workflow runs, rather than the bare type word. A plain Action draws no such
+line. The type word alone was what the canvas showed before, which told a reader
+that a step waits without telling them how long.
+
+### Removal from the canvas
+
+`get_workflow_graph` gives every step a `deletable` flag, and the canvas offers
+its remove button only where the flag is true. The flag is a server fact rather
+than a client rule: `automation.runtime.line.action_id` is `ondelete="restrict"`,
+so a step any recorded run reached cannot be unlinked at all, and nothing on the
+step itself records that a run once reached it. `_recorded_step_ids` answers for
+every step of one automation in a single grouped read.
+
+That read is under `sudo`, and it has to be. `automation.runtime.line` carries a
+global multi-company rule, so an ordinary read returns no line for a run of a
+company the reader is not in — the flag then reads true, the canvas offers the
+button, and the constraint refuses the unlink, which is the one outcome the flag
+exists to prevent. The question is what Postgres will allow, not what this reader
+may see, so the answer must not vary with who asks.
+
+Removing a step removes the edges that touch it, through the cascade on
+`workflow.edge`'s `source_node_id` and `target_node_id`. The editor then retires
+each of those connections through the canvas's disconnect callback, which reports
+an edge its own bookkeeping has already lost as removed rather than unlinking an
+id the database has dropped.
+
 ### Execution State — Phase 1 Complete
 
 All execution state has been moved from `ir.actions.server` (definition) to

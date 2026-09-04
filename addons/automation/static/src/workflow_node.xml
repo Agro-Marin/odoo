@@ -12,6 +12,10 @@
                 <div t-if="typeLabel" class="text-muted text-capitalize">
                     <t t-esc="typeLabel"/>
                 </div>
+                <div t-if="detail" class="o_workflow_canvas_step_detail text-truncate"
+                    t-att-title="detail">
+                    <t t-esc="detail"/>
+                </div>
                 <span t-if="stateLabel" class="o_workflow_canvas_step_state badge">
                     <t t-esc="stateLabel"/>
                 </span>

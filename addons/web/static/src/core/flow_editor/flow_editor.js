@@ -51,6 +51,7 @@ const NULL_VALUE_PROP = { value: null };
  * @property {import("./flow_types").FlowSize} defaultNodeSize
  * @property {boolean} flagUnreachableNodes mark a node no source node reaches
  * @property {(connection: import("./flow_types").FlowConnection) => string | undefined} getConnectionClass
+ * @property {(connection: import("./flow_types").FlowConnection) => string | undefined} getConnectionLabel
  * @property {(node: import("./flow_types").FlowNode) => (typeof Component) | undefined} getNodeComponent
  * @property {number} gridSize
  * @property {import("./flow_types").FlowSize} maxNodeSize
@@ -89,6 +90,7 @@ export class FlowEditor extends Component {
         defaultNodeSize: DEFAULT_NODE_SIZE,
         flagUnreachableNodes: true,
         getConnectionClass: () => "",
+        getConnectionLabel: () => "",
         getNodeComponent: /** @type {() => undefined} */ (() => undefined),
         gridSize: DEFAULT_GRID_SIZE,
         maxNodeSize: DEFAULT_MAX_NODE_SIZE,
@@ -137,6 +139,10 @@ export class FlowEditor extends Component {
             optional: true,
         },
         getConnectionClass: {
+            type: Function,
+            optional: true,
+        },
+        getConnectionLabel: {
             type: Function,
             optional: true,
         },
@@ -486,6 +492,15 @@ export class FlowEditor extends Component {
     getConnectionClass(connectionId) {
         const connection = this.store.getConnection(connectionId);
         return (connection && this.props.getConnectionClass(connection)) || "";
+    }
+
+    /**
+     * @param {import("./flow_types").FlowConnectionId} connectionId
+     * @returns {string}
+     */
+    getConnectionLabel(connectionId) {
+        const connection = this.store.getConnection(connectionId);
+        return (connection && this.props.getConnectionLabel(connection)) || "";
     }
 
     get isInteracting() {

@@ -15,6 +15,7 @@
                     <t t-foreach="connectionGeometries" t-as="geometry" t-key="geometry.id">
                         <FlowConnection geometry="geometry"
                             className="getConnectionClass(geometry.id)"
+                            label="getConnectionLabel(geometry.id)"
                             selected="isConnectionSelected(geometry.id)"
                             onClick.bind="onConnectionClick"/>
                     </t>

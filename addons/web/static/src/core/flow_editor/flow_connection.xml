@@ -7,6 +7,11 @@
                 fill="none" vector-effect="non-scaling-stroke"/>
             <path class="o_flow_editor_connection_path" t-att-d="props.geometry.path"
                 fill="none" vector-effect="non-scaling-stroke"/>
+            <text t-if="props.label" class="o_flow_editor_connection_label"
+                t-att-x="props.geometry.midpoint.x" t-att-y="props.geometry.midpoint.y"
+                text-anchor="middle" dominant-baseline="central">
+                <t t-out="props.label"/>
+            </text>
         </g>
     </t>
 

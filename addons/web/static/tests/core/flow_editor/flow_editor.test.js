@@ -128,6 +128,8 @@ function makeEditor({
             canConnect: () => true,
             defaultNodeHeaderHeight: 32,
             defaultNodeSize: DEFAULT_NODE_SIZE,
+            getConnectionClass: () => "",
+            getConnectionLabel: () => "",
             gridSize: 20,
             maxNodeSize: MAX_NODE_SIZE,
             minNodeSize: MIN_NODE_SIZE,
@@ -638,6 +640,44 @@ describe("FlowEditor: connecting ports", () => {
         // - it must be swallowed instead of opening the node's configuration.
         editor.onNodeClick({ node: editor.store.getNode("a"), originalEvent: {} });
         expect(clicks).toEqual([]);
+    });
+});
+
+describe("FlowEditor: connection labels", () => {
+    test("a connection carries the label its consumer supplies", () => {
+        const edge = connection("edge", "a", "b");
+        const editor = makeEditor({
+            nodes: [node("a"), node("b")],
+            connections: [edge],
+            props: {
+                getConnectionLabel: (/** @type {any} */ c) =>
+                    c.id === "edge" ? "only for large orders" : "",
+            },
+        });
+
+        expect(editor.getConnectionLabel("edge")).toBe("only for large orders");
+    });
+
+    test("a consumer that supplies nothing leaves the connection unlabelled", () => {
+        const editor = makeEditor({
+            nodes: [node("a"), node("b")],
+            connections: [connection("edge", "a", "b")],
+            props: { getConnectionLabel: () => undefined },
+        });
+
+        expect(editor.getConnectionLabel("edge")).toBe("");
+    });
+
+    test("an unknown connection resolves to no label rather than throwing", () => {
+        const editor = makeEditor({
+            props: {
+                getConnectionLabel: () => {
+                    throw new Error("must not be asked about an absent edge");
+                },
+            },
+        });
+
+        expect(editor.getConnectionLabel("nope")).toBe("");
     });
 });
 

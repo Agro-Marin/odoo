@@ -630,12 +630,24 @@ class AutomationRule(models.Model):
             for run in runs
         ]
 
+    def _recorded_step_ids(self, nodes):
+        return {
+            action.id
+            for [action] in self.env["automation.runtime.line"]
+            .sudo()
+            ._read_group(
+                [("action_id", "in", nodes.ids)],
+                ["action_id"],
+            )
+        }
+
     @api.readonly
     def get_workflow_graph(self, runtime_id=None):
         self.check_singleton()
         nodes = self.action_server_ids.sorted("sequence")
         runtime = self._pick_runtime(runtime_id)
         state_per_action = {line.action_id.id: line.state for line in runtime.line_ids}
+        recorded_ids = self._recorded_step_ids(nodes)
         return {
             "automation_id": self.id,
             "runtime_id": runtime.id or None,
@@ -662,6 +674,13 @@ class AutomationRule(models.Model):
                     "width": node.pos_width or NODE_SIZE_DEFAULT["width"],
                     "height": node.pos_height or NODE_SIZE_DEFAULT["height"],
                     "runtime_state": state_per_action.get(node.id),
+                    "deletable": node.id not in recorded_ids,
+                    "wait_delay": node.wait_delay,
+                    "wait_unit": node.wait_unit,
+                    "approver_names": ", ".join(
+                        node.approval_user_ids.mapped("display_name")
+                    ),
+                    "subflow_name": node.subflow_automation_id.display_name or "",
                 }
                 for node in nodes
             ],

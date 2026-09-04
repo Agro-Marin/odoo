@@ -412,6 +412,92 @@ class AutomationRuleTestUi(HttpCase):
             "clicking Remove must delete the edge server-side",
         )
 
+    def test_workflow_canvas_remove_step(self):
+        """Remove a step from the canvas, and prove the withheld one is withheld.
+
+        Deleting the middle step deletes both edges through the cascade on
+        `workflow.edge`, so this is also the round trip for the editor's
+        follow-up disconnect of connections the database has already dropped.
+        """
+        model = self.env["ir.model"]._get("res.partner")
+        rule = self.env["automation.rule"].create(
+            {"name": "Canvas Remove", "model_id": model.id, "trigger": "on_hand"}
+        )
+        first, second, third = self.env["ir.actions.server"].create(
+            [
+                {
+                    "name": name,
+                    "model_id": model.id,
+                    "state": "code",
+                    "code": "pass",
+                    "automation_rule_id": rule.id,
+                    "usage": "automation",
+                }
+                for name in ("first", "second", "third")
+            ]
+        )
+        self.env["workflow.edge"].create(
+            [
+                {"source_node_id": first.id, "target_node_id": second.id},
+                {"source_node_id": second.id, "target_node_id": third.id},
+            ]
+        )
+        # A run over "third" alone, so the canvas has one step it must refuse
+        # and one it must offer -- a tour where every step is removable cannot
+        # tell the flag from a constant.
+        runtime = self.env["automation.runtime"].create(
+            {
+                "automation_id": rule.id,
+                "res_model": "res.partner",
+                "res_id": self.env.user.partner_id.id,
+            }
+        )
+        self.env["automation.runtime.line"].create(
+            {
+                "runtime_id": runtime.id,
+                "action_id": third.id,
+                "name": third.name,
+            }
+        )
+
+        self.start_tour(
+            f"/odoo/action-automation.automation_act/{rule.id}",
+            "test_workflow_canvas_remove_step",
+            login="admin",
+        )
+
+        self.assertFalse(second.exists(), "clicking remove must unlink the step")
+        rule.invalidate_recordset(["edge_ids", "action_server_ids"])
+        self.assertEqual(len(rule.edge_ids), 0)
+        self.assertEqual(rule.action_server_ids, first + third)
+
+    def test_workflow_canvas_remove_last_step(self):
+        """Removing the last step hands the canvas back to the empty message."""
+        model = self.env["ir.model"]._get("res.partner")
+        rule = self.env["automation.rule"].create(
+            {"name": "Canvas Empty", "model_id": model.id, "trigger": "on_hand"}
+        )
+        only = self.env["ir.actions.server"].create(
+            {
+                "name": "only",
+                "model_id": model.id,
+                "state": "code",
+                "code": "pass",
+                "automation_rule_id": rule.id,
+                "usage": "automation",
+            }
+        )
+
+        self.start_tour(
+            f"/odoo/action-automation.automation_act/{rule.id}",
+            "test_workflow_canvas_remove_last_step",
+            login="admin",
+        )
+
+        self.assertFalse(only.exists())
+        rule.invalidate_recordset(["action_server_ids"])
+        self.assertFalse(rule.action_server_ids)
+
     def test_workflow_canvas_drag(self):
         """Drag a step and check the move reached the database.
 

@@ -2,6 +2,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import {
     canConnect,
     conditionLabel,
+    edgeLabel,
+    stepDetail,
     draggableConditions,
     layoutWorkflow,
     linkClasses,
@@ -190,6 +192,73 @@ describe("workflow canvas layout", () => {
     });
 });
 
+describe("workflow canvas edge label", () => {
+    test("a reader's own annotation is what the edge carries", () => {
+        expect(
+            edgeLabel({ condition: "on_success", label: "only for large orders" }),
+        ).toBe("only for large orders");
+    });
+
+    test("an expression edge falls back to the expression it evaluates", () => {
+        expect(
+            edgeLabel({ condition: "expression", condition_expr: "amount > 100" }),
+        ).toBe("amount > 100");
+    });
+
+    test("an annotation outranks the expression it sits beside", () => {
+        expect(
+            edgeLabel({
+                condition: "expression",
+                condition_expr: "amount > 100",
+                label: "big ones only",
+            }),
+        ).toBe("big ones only");
+    });
+
+    test("a plain condition draws no text, because its port already says it", () => {
+        for (const condition of ["on_success", "on_error", "always"]) {
+            expect(edgeLabel({ condition })).toBe("");
+        }
+    });
+
+    test("an expression edge missing its expression draws nothing", () => {
+        expect(edgeLabel({ condition: "expression" })).toBe("");
+    });
+});
+
+describe("workflow canvas step detail", () => {
+    test("a wait step states how long it waits", () => {
+        expect(
+            stepDetail({ node_type: "wait", wait_delay: 36, wait_unit: "hours" }),
+        ).toBe("36 hours");
+        expect(
+            stepDetail({ node_type: "wait", wait_delay: 5, wait_unit: "minutes" }),
+        ).toBe("5 minutes");
+    });
+
+    test("an approval step names who must approve", () => {
+        expect(
+            stepDetail({ node_type: "approval", approver_names: "Ada, Grace" }),
+        ).toBe("Ada, Grace");
+    });
+
+    test("a sub-workflow step names the automation it runs", () => {
+        expect(
+            stepDetail({ node_type: "subflow", subflow_name: "Nightly sweep" }),
+        ).toBe("Nightly sweep");
+    });
+
+    test("a plain action step adds no second line", () => {
+        expect(stepDetail({ node_type: "action", name: "x" })).toBe("");
+        expect(stepDetail({ name: "x" })).toBe("");
+    });
+
+    test("a typed step with nothing to say stays empty rather than half-formed", () => {
+        expect(stepDetail({ node_type: "approval" })).toBe("");
+        expect(stepDetail({ node_type: "subflow" })).toBe("");
+    });
+});
+
 describe("workflow canvas payload translation", () => {
     const PAYLOAD = {
         runtime_backed: true,
@@ -245,7 +314,7 @@ describe("workflow canvas payload translation", () => {
         expect(connections[0].targetNodeId).toBe(11);
     });
 
-    test("a step points at the server action it draws, and refuses deletion", () => {
+    test("a step points at the server action it draws", () => {
         const [node] = toFlowGraph(PAYLOAD).nodes;
 
         expect(node.record).toEqual({
@@ -253,7 +322,30 @@ describe("workflow canvas payload translation", () => {
             resId: 10,
             data: { name: "first" },
         });
-        expect(node.deletable).toBe(false);
+    });
+
+    test("only the steps the payload marks deletable offer to be removed", () => {
+        const removable = {
+            ...PAYLOAD,
+            nodes: [
+                { ...PAYLOAD.nodes[0], deletable: true },
+                { ...PAYLOAD.nodes[1], deletable: false },
+            ],
+        };
+
+        const [offered, withheld] = toFlowGraph(removable).nodes;
+
+        expect(offered.deletable).toBe(true);
+        expect(withheld.deletable).toBe(false);
+    });
+
+    test("a payload that says nothing about deletion withholds it", () => {
+        // A step a recorded run reached cannot be unlinked at all, so silence
+        // has to read as "no": guessing yes offers a button that only ever
+        // produces a foreign-key error.
+        for (const node of toFlowGraph(PAYLOAD).nodes) {
+            expect(node.deletable).toBe(false);
+        }
     });
 
     test("a step carries its own size, and the default when it has none", () => {

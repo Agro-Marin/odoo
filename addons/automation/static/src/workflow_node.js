@@ -2,7 +2,7 @@
 
 import { Component } from "@odoo/owl";
 
-import { nodeClasses, runtimeStateLabel } from "./workflow_graph.js";
+import { nodeClasses, runtimeStateLabel, stepDetail } from "./workflow_graph.js";
 
 export class WorkflowNode extends Component {
     static template = "automation.WorkflowNode";
@@ -24,6 +24,10 @@ export class WorkflowNode extends Component {
 
     get stateLabel() {
         return runtimeStateLabel(this.step.runtime_state);
+    }
+
+    get detail() {
+        return stepDetail(this.step);
     }
 
     get typeLabel() {

@@ -13,6 +13,8 @@ import { Component } from "@odoo/owl";
  * @typedef FlowConnectionProps
  * @property {string} className extra classes a consumer maps onto its own domain
  * @property {import("./geometry/connections").FlowConnectionGeometry} geometry
+ * @property {string} label drawn at the connection's midpoint; a domain's own
+ *  annotation of the edge, which the editor never authors and never reads
  * @property {(params: FlowConnectionClickParams) => void} onClick
  * @property {boolean} selected
  */
@@ -22,6 +24,7 @@ export class FlowConnection extends Component {
     static template = "web.FlowConnection";
     static defaultProps = {
         className: "",
+        label: "",
         onClick: () => {},
         selected: false,
     };
@@ -32,6 +35,10 @@ export class FlowConnection extends Component {
         },
         geometry: {
             type: Object,
+        },
+        label: {
+            type: String,
+            optional: true,
         },
         onClick: {
             type: Function,

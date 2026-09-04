@@ -15,6 +15,7 @@ import { useDebounced } from "@web/core/utils/timing";
 
 import {
     canConnect,
+    edgeLabel,
     layoutWorkflow,
     linkClasses,
     toFlowGraph,
@@ -220,6 +221,10 @@ export class WorkflowCanvas extends Component {
         return linkClasses(connection.data || {});
     }
 
+    getConnectionLabel(connection) {
+        return edgeLabel(connection.data || {});
+    }
+
     /**
      * The editor's own rules already refuse a self-connection and a repeat of
      * the same two ports; this adds the one the model enforces on top of them,
@@ -265,6 +270,36 @@ export class WorkflowCanvas extends Component {
         return true;
     }
 
+    async onNodeDelete({ node }) {
+        try {
+            await this.orm.unlink("ir.actions.server", [node.id]);
+        } catch (error) {
+            this.notify(error, _t("That step could not be removed"));
+            return false;
+        }
+        this.payload.nodes = this.payload.nodes.filter((step) => step.id !== node.id);
+        this.payload.edges = this.edges.filter(
+            (edge) => edge.source !== node.id && edge.target !== node.id,
+        );
+        this.state.nodes = this.state.nodes.filter((drawn) => drawn.id !== node.id);
+        this.state.connections = this.state.connections.filter(
+            (drawn) => drawn.sourceNodeId !== node.id && drawn.targetNodeId !== node.id,
+        );
+        this.state.countNode = this.payload.nodes.length;
+        this.state.countEdge = this.edges.length;
+        if (
+            !this.state.connections.some(
+                (drawn) => drawn.id === this.state.selectedEdgeId,
+            )
+        ) {
+            this.state.selectedEdgeId = null;
+        }
+        if (!this.state.countNode) {
+            this.state.status = "empty";
+        }
+        return true;
+    }
+
     async onDrag({ phase, node, position }) {
         if (phase !== "end" || !this.isEditable || !node) {
             return;
@@ -276,8 +311,6 @@ export class WorkflowCanvas extends Component {
     }
 
     onNodeClick({ node, originalEvent }) {
-        // A second click of a double-click: the editor selects on the first,
-        // and opening on every selection would fight the reader's own drag.
         if (originalEvent.detail >= 2) {
             this.openAction(node.id);
         }

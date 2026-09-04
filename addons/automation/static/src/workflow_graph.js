@@ -39,6 +39,13 @@ export function linkClasses(edge) {
     return `o_workflow_canvas_link o_workflow_canvas_${edge.condition}`;
 }
 
+export function edgeLabel(edge) {
+    if (edge.label) {
+        return edge.label;
+    }
+    return edge.condition === "expression" ? edge.condition_expr || "" : "";
+}
+
 export function conditionLabel(condition) {
     return {
         on_success: _t("on success"),
@@ -46,6 +53,27 @@ export function conditionLabel(condition) {
         always: _t("always"),
         expression: _t("if"),
     }[condition];
+}
+
+export function waitUnitLabel(unit) {
+    return {
+        minutes: _t("minutes"),
+        hours: _t("hours"),
+        days: _t("days"),
+    }[unit];
+}
+
+export function stepDetail(step) {
+    if (step.node_type === "wait") {
+        return `${step.wait_delay} ${waitUnitLabel(step.wait_unit) || ""}`.trim();
+    }
+    if (step.node_type === "approval") {
+        return step.approver_names || "";
+    }
+    if (step.node_type === "subflow") {
+        return step.subflow_name || "";
+    }
+    return "";
 }
 
 export function runtimeStateLabel(state) {
@@ -195,7 +223,7 @@ export function toFlowGraph(payload) {
             },
             outputs: outputPortsFor(node.id, payload.edges, runtimeBacked),
             data: { ...node, label: shortName(node.name) },
-            deletable: false,
+            deletable: node.deletable === true,
         })),
         connections: payload.edges.map((edge) => ({
             id: edge.id,

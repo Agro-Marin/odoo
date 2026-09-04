@@ -916,6 +916,111 @@ registry.category("web_tour.tours").add("test_workflow_canvas_edit", {
     ],
 });
 
+registry.category("web_tour.tours").add("test_workflow_canvas_remove_step", {
+    steps: () => [
+        ...openWorkflowTab(),
+        {
+            content: "wait for the graph",
+            trigger: ".o_workflow_canvas_paper .o_workflow_canvas_link",
+            run() {
+                // "second" is the middle step, so removing it removes both
+                // edges: the cascade on workflow.edge's node fields, and the
+                // editor's follow-up disconnect for each of them.
+                assertEqual(
+                    document.querySelectorAll(
+                        ".o_workflow_canvas_paper .o_workflow_canvas_link",
+                    ).length,
+                    2,
+                );
+            },
+        },
+        {
+            content: "the step a run already reached withholds its remove button",
+            trigger: ".o_workflow_canvas_paper .o_flow_editor_node",
+            run() {
+                const withHeader = (name) =>
+                    [
+                        ...document.querySelectorAll(
+                            ".o_workflow_canvas_paper .o_flow_editor_node",
+                        ),
+                    ].find((node) =>
+                        node
+                            .querySelector(".o_workflow_canvas_step_header")
+                            ?.textContent.includes(name),
+                    );
+                assertEqual(
+                    Boolean(
+                        withHeader("third").querySelector(".o_flow_editor_node_delete"),
+                    ),
+                    false,
+                );
+                assertEqual(
+                    Boolean(
+                        withHeader("second").querySelector(
+                            ".o_flow_editor_node_delete",
+                        ),
+                    ),
+                    true,
+                );
+            },
+        },
+        {
+            content: "remove the middle step",
+            trigger:
+                ".o_flow_editor_node:has(.o_workflow_canvas_step_header:contains(second))" +
+                " .o_flow_editor_node_delete",
+            run: "click",
+        },
+        {
+            content: "the step and both of its connections are gone",
+            trigger: ".o_workflow_canvas_toolbar:contains(2 steps, 0 connections)",
+        },
+        {
+            content: "and the canvas redrew without them",
+            trigger: ".o_workflow_canvas_paper > div",
+            run() {
+                assertEqual(
+                    document.querySelectorAll(
+                        ".o_workflow_canvas_paper .o_workflow_canvas_node",
+                    ).length,
+                    2,
+                );
+                assertEqual(
+                    document.querySelectorAll(
+                        ".o_workflow_canvas_paper .o_workflow_canvas_link",
+                    ).length,
+                    0,
+                );
+            },
+        },
+    ],
+});
+
+registry.category("web_tour.tours").add("test_workflow_canvas_remove_last_step", {
+    steps: () => [
+        ...openWorkflowTab(),
+        {
+            content: "remove the only step",
+            trigger: ".o_flow_editor_node .o_flow_editor_node_delete",
+            run: "click",
+        },
+        {
+            // The editor is swapped for the widget's own guidance, which says
+            // what to do next where the editor's generic "No nodes" does not.
+            content: "the canvas gives way to the empty-workflow message",
+            trigger: ".o_workflow_canvas:contains(This automation has no steps yet)",
+            run() {
+                assertEqual(document.querySelectorAll(".o_flow_editor").length, 0);
+                assertEqual(document.querySelectorAll(".o_error_dialog").length, 0);
+            },
+        },
+        {
+            content: "and the count went with it",
+            trigger: ".o_workflow_canvas_toolbar:contains(0 steps, 0 connections)",
+        },
+    ],
+});
+
 registry.category("web_tour.tours").add("test_workflow_canvas_drag", {
     steps: () => [
         ...openWorkflowTab(),

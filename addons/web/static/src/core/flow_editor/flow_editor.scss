@@ -41,6 +41,17 @@
         stroke-width: 12px;
     }
 
+    &_connection_label {
+        fill: var(--o-gray-700, #495057);
+        font-size: 11px;
+        paint-order: stroke;
+        stroke: var(--o-view-background-color, #fff);
+        stroke-width: 4px;
+        stroke-linejoin: round;
+        pointer-events: none;
+        user-select: none;
+    }
+
     &_connection_selected &_connection_path {
         stroke: var(--o-action, #714b67);
         stroke-width: 3px;
