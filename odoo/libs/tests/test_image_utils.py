@@ -132,10 +132,6 @@ class TestAverageDominantColorStillCorrect(unittest.TestCase):
         self.assertTrue(all(band <= 175 for band in primary))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 def _png(mode: str, size: tuple[int, int] = (4, 4), color=(1, 2, 3)) -> bytes:
     buf = io.BytesIO()
     Image.new(mode, size, color if mode in ("RGB", "RGBA") else 128).save(
@@ -203,3 +199,7 @@ class TestIsImageSizeAbove(unittest.TestCase):
         self.assertFalse(is_image_size_above(png, b"P..."))
         self.assertFalse(is_image_size_above(None, png))
         self.assertFalse(is_image_size_above(png, b""))
+
+
+if __name__ == "__main__":
+    unittest.main()
