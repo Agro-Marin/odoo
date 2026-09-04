@@ -458,7 +458,6 @@ class HttpCase(TransactionCase):
                 browser.throttle(cpu_throttling)
 
             browser.navigate_to(url, wait_stop=not bool(ready))
-            atexit.callback(browser.stop)
 
             self.assertTrue(
                 browser._wait_ready(ready, timeout),
