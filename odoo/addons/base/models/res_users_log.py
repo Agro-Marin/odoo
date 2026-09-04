@@ -15,6 +15,7 @@ class ResUsersLog(models.Model):
         string="Created by",
         readonly=True,
         index=True,
+        ondelete="cascade",
     )
 
     @api.autovacuum
