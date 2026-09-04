@@ -232,7 +232,8 @@ class TestWebAssets(odoo.tests.HttpCase):
             self.url_open(
                 "/web/assets/debug/web.assets_frontend.js", allow_redirects=False
             ).status_code,
-            200,
+            404,
+            "an ESM-only bundle has no legacy js artifact to serve",
         )
         self.assertEqual(
             self.url_open(
@@ -259,7 +260,8 @@ class TestWebAssets(odoo.tests.HttpCase):
                 f"/web/assets/{website_id}/debug/web.assets_frontend.js",
                 allow_redirects=False,
             ).status_code,
-            200,
+            404,
+            "an ESM-only bundle has no legacy js artifact to serve",
         )
         self.assertEqual(
             self.url_open(
@@ -281,7 +283,8 @@ class TestWebAssets(odoo.tests.HttpCase):
                 f"/web/assets/{website_id}/any/web.assets_frontend.min.js",
                 allow_redirects=False,
             ).status_code,
-            200,
+            404,
+            "an ESM-only bundle has no legacy js artifact to serve",
         )
 
         invalid_version = "1234567"
@@ -305,23 +308,23 @@ class TestWebAssets(odoo.tests.HttpCase):
         unique = (
             self.env["ir.qweb"]
             ._get_asset_bundle("web.assets_frontend")
-            .get_version("js")
+            .get_version("css")
         )
         base_url = self.env["ir.asset"]._get_asset_bundle_url(
-            "web.assets_frontend.min.js", "%", {}
+            "web.assets_frontend.min.css", "%", {}
         )
         base_url_versioned = self.env["ir.asset"]._get_asset_bundle_url(
-            "web.assets_frontend.min.js", unique, {}
+            "web.assets_frontend.min.css", unique, {}
         )
         website_url = self.env["ir.asset"]._get_asset_bundle_url(
-            "web.assets_frontend.min.js", "%", {"website_id": website_id}
+            "web.assets_frontend.min.css", "%", {"website_id": website_id}
         )
         website_url_versioned = self.env["ir.asset"]._get_asset_bundle_url(
-            "web.assets_frontend.min.js", unique, {"website_id": website_id}
+            "web.assets_frontend.min.css", unique, {"website_id": website_id}
         )
 
         self.env["ir.attachment"].search(
-            [("url", "=like", "%web.assets_frontend.min.js")]
+            [("url", "=like", "%web.assets_frontend.min.css")]
         ).unlink()
 
         self.assertEqual(
@@ -329,7 +332,7 @@ class TestWebAssets(odoo.tests.HttpCase):
         )
         self.assertEqual(
             self.env["ir.attachment"]
-            .search([("url", "=like", "%web.assets_frontend.min.js")])
+            .search([("url", "=like", "%web.assets_frontend.min.css")])
             .mapped("url"),
             [website_url_versioned],
             "Only the website asset is expected to be present",
@@ -340,8 +343,42 @@ class TestWebAssets(odoo.tests.HttpCase):
         )
         self.assertCountEqual(
             self.env["ir.attachment"]
-            .search([("url", "=like", "%web.assets_frontend.min.js")])
+            .search([("url", "=like", "%web.assets_frontend.min.css")])
             .mapped("url"),
             [base_url_versioned, website_url_versioned],
             "the base asset must be generated alongside the surviving website one",
         )
+
+    def test_ensure_website_esm_asset(self):
+        website_id = self.env["website"].search([], limit=1, order="id asc").id
+        legacy_js_url = self.env["ir.asset"]._get_asset_bundle_url(
+            "web.assets_frontend.min.js", "%", {"website_id": website_id}
+        )
+        self.env["ir.attachment"].search(
+            [("url", "=like", "%web.assets_frontend.min.js")]
+        ).unlink()
+
+        self.assertEqual(
+            self.url_open(legacy_js_url, allow_redirects=False).status_code,
+            404,
+            "an ESM-only bundle has no legacy js artifact to serve",
+        )
+        self.assertFalse(
+            self.env["ir.attachment"].search(
+                [("url", "=like", "%web.assets_frontend.min.js")]
+            ),
+            "a refused legacy artifact must not be persisted either",
+        )
+
+        esm_urls = [
+            url
+            for url in self.env["ir.qweb"]
+            .with_context(website_id=website_id)
+            ._get_asset_urls("web.assets_frontend", css=False, js=True)
+            if url.startswith("/web/assets/esm/")
+        ]
+        self.assertTrue(esm_urls, "the frontend bundle is served as an ESM artifact")
+        for url in esm_urls:
+            self.assertEqual(
+                self.url_open(url, allow_redirects=False).status_code, 200, url
+            )
