@@ -1,4 +1,5 @@
 import ast
+import re
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -17,6 +18,8 @@ def is_cursor_expression(name: str) -> bool:
 
 
 ATTRIBUTE_WHITELIST = ("_table", "name", "lang", "id", "get_lang.code")
+
+_PERCENT_SPEC = re.compile(r"%(?:\([^)]*\))?[-+ 0#]*\d*(?:\.\d+)?[diouxXeEfFgGcrsa%]")
 
 FUNCTION_WHITELIST = frozenset(
     {
@@ -230,10 +233,14 @@ class SqlInjectionChecker:
                     isinstance(op, ast.Mod)
                     and isinstance(left, ast.Constant)
                     and isinstance(left.value, str)
-                    and "%d" in left.value
-                    and "%s" not in left.value
                 ):
-                    return True
+                    specs = [
+                        spec
+                        for spec in _PERCENT_SPEC.findall(left.value)
+                        if spec != "%%"
+                    ]
+                    if specs and all(spec == "%d" for spec in specs):
+                        return True
                 right_ok = self._is_constexpr(right, args_allowed=args_allowed)
                 return left_ok and right_ok
 
