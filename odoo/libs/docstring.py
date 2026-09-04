@@ -152,6 +152,13 @@ def iter_info_fields(doctree: nodes.document) -> Iterator[InfoField]:
 
 
 def stringify_annotation(annotation: typing.Any) -> str | None:
+    # The __origin__/isinstance(annotation, type) branches below are dead on
+    # every call path inside this module today: parse_signature always uses
+    # inspect.signature(..., annotation_format=Format.STRING), so annotation
+    # reaching this function is already a str or EMPTY, never a live type
+    # object or generic alias. Kept general-purpose (rather than trimmed to
+    # the two reachable branches) in case a caller ever passes an annotation
+    # through untouched by that Format.STRING conversion.
     if annotation is EMPTY:
         return None
     if isinstance(annotation, str):
@@ -356,12 +363,22 @@ def enhance_signature_using_docstring(signature: Signature, docstring: str) -> N
                 if param := signature.parameters.get(name):
                     param.doc = render_children_html(field.body)
             case ("type", name):
-                if (param := signature.parameters.get(name)) and not param.annotation:
+                if not field.body.children:
+                    _logger.warning(
+                        PARSE_ERROR.format(docstring, f"empty :type: field {field.raw}")
+                    )
+                elif (param := signature.parameters.get(name)) and not param.annotation:
                     param.annotation = field.body.children[0].astext().strip()
             case ("returns", ""):
                 signature.return_.doc = render_children_html(field.body)
             case ("rtype", ""):
-                if not signature.return_.annotation:
+                if not field.body.children:
+                    _logger.warning(
+                        PARSE_ERROR.format(
+                            docstring, f"empty :rtype: field {field.raw}"
+                        )
+                    )
+                elif not signature.return_.annotation:
                     signature.return_.annotation = (
                         field.body.children[0].astext().strip()
                     )
