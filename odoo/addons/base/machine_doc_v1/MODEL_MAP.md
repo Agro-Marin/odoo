@@ -1164,8 +1164,8 @@ an identifier's value is free text unique to its holder.
 - `_normalize(value)` — strip punctuation and case, so `RIFE001128IT2` and
   `RIFE-001128-IT2` compare equal. The stored `value` keeps what was typed
 - `validate(value)` — three stages cheapest first: `pattern`, then a rule
-  looked up as `_check_<code>` on this model, then `_check_hook`. Returns the
-  normalized value; raises `ValidationError`. **`_check_<code>` is a dispatch
+  looked up as `_validate_code_<code>` on this model, then `_check_hook`. Returns the
+  normalized value; raises `ValidationError`. **`_validate_code_<code>` is a dispatch
   key, not an `@api.constrains` hook** (coding_guidelines §2.4.14): the
   variable half is the `code` column, so the prefix is frozen and a
   localization adds a method rather than editing `validate`
