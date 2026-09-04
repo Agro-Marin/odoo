@@ -1352,7 +1352,11 @@ export class PosStore extends WithLazyGetterTrap {
 
         if (this.config.use_presets && !data["preset_id"]) {
             Promise.resolve(
-                this.selectPreset(this.config.default_preset_id, order),
+                this.selectPreset(
+                    this.config.default_preset_id,
+                    order,
+                    this.shouldAskPreset(order),
+                ),
             ).catch((error) => {
                 logPosMessage(
                     "Store",
@@ -1365,6 +1369,13 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         return order;
+    }
+    /**
+     * Whether the cashier has to pick the preset for this order instead of
+     * silently inheriting the default one. Overridden by pos_restaurant.
+     */
+    shouldAskPreset(order) {
+        return false;
     }
     addNewOrder(data = {}) {
         if (this.getOrder()) {
@@ -2335,8 +2346,9 @@ export class PosStore extends WithLazyGetterTrap {
             }
         }
     }
-    async selectPreset(preset = false, order = this.getOrder()) {
-        if (!preset) {
+    async selectPreset(preset = false, order = this.getOrder(), ask = false) {
+        if (!preset || ask) {
+            const fallback = preset;
             const selectionList = this.models["pos.preset"].map((preset) => ({
                 id: preset.id,
                 label: preset.name,
@@ -2344,11 +2356,14 @@ export class PosStore extends WithLazyGetterTrap {
                 item: preset,
             }));
 
-            preset = await makeAwaitable(this.dialog, SelectionPopup, {
-                title: _t("Select preset"),
-                list: selectionList,
-                size: "md",
-            });
+            // Dismissing the popup must not cost the order the preset it would
+            // have had, so fall back to the one we were asked to apply.
+            preset =
+                (await makeAwaitable(this.dialog, SelectionPopup, {
+                    title: _t("Select preset"),
+                    list: selectionList,
+                    size: "md",
+                })) || fallback;
         }
 
         if (preset) {

@@ -205,8 +205,16 @@ export function isChildTable(child) {
         trigger: table({ name: child }).trigger + ` .info.opacity-25`,
     };
 }
-export function clickNewOrder() {
-    return { trigger: ".new-order", run: "click" };
+export function clickNewOrder(presetToSelect = false) {
+    const steps = [{ trigger: ".new-order", run: "click" }];
+    if (presetToSelect) {
+        steps.push({
+            content: `click preset '${presetToSelect}' from the preset modal`,
+            trigger: `.modal-body button:contains("${presetToSelect}")`,
+            run: "click",
+        });
+    }
+    return steps;
 }
 
 export function addFloor(floorName) {
