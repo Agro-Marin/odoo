@@ -55,6 +55,7 @@ class ReportPosOrder(models.Model):
     payment_method_id = fields.Many2one(
         "pos.payment.method", string="Payment Method", readonly=True
     )
+    preset_id = fields.Many2one("pos.preset", string="Preset", readonly=True)
 
     def _select(self):
         return """
@@ -108,6 +109,7 @@ class ReportPosOrder(models.Model):
                 ps.config_id,
                 s.pricelist_id,
                 s.session_id,
+                s.preset_id,
                 s.account_move IS NOT NULL AS invoiced,
                 ((SIGN(l.qty) * SIGN(l.price_unit) * ABS(l.price_subtotal)) - COALESCE(l.total_cost,0)) / COALESCE(NULLIF(s.currency_rate, 0), 1.0) AS margin,
                 pm.payment_method_id AS payment_method_id,
