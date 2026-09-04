@@ -43,11 +43,11 @@ class MixinFormatAddress(models.AbstractModel):
                         return arch
                 for address_node in address_nodes:
                     node_arch = copy.deepcopy(sub_arch)
-                    new_address_node = node_arch.find(
-                        './/div[@class="o_address_format"]'
+                    new_address_nodes = node_arch.xpath(
+                        './/div[hasclass("o_address_format")]'
                     )
                     replacement = (
-                        new_address_node if new_address_node is not None else node_arch
+                        new_address_nodes[0] if new_address_nodes else node_arch
                     )
                     address_node.getparent().replace(address_node, replacement)
         elif address_format and not self.env.context.get("no_address_format"):

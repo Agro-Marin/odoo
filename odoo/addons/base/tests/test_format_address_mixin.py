@@ -103,6 +103,38 @@ class TestPartnerFormatAddress(FormatAddressCase):
         self.assertLess(order.index("zip"), order.index("city"))
         self.assertLess(order.index("city"), order.index("state_id"))
 
+    def test_address_view_extra_class_on_placeholder(self):
+        address_view = self.View.create(
+            {
+                "name": "addr",
+                "model": "res.partner",
+                "arch": (
+                    "<form>"
+                    '<div class="o_address_format col-6"><field name="city"/></div>'
+                    "</form>"
+                ),
+                "priority": 900,
+            }
+        )
+        self.env.company.country_id.address_view_id = address_view
+
+        form_arch = (
+            '<form><field name="id"/>'
+            '<div class="o_address_format"><field name="street"/></div></form>'
+        )
+        view = self.View.create(
+            {"name": "view", "model": "res.partner", "arch": form_arch}
+        )
+
+        arch = self.env["res.partner"].get_view(view.id)["arch"]
+        self.assertNotIn('"street"', arch)
+        self.assertIn('"city"', arch)
+        self.assertRegex(
+            arch, r'<form>.*<div class="[^"]*o_address_format[^"]*">.*</div>.*</form>'
+        )
+        tree = etree.fromstring(arch)
+        self.assertEqual(len(tree.xpath("//form")), 1)
+
     def test_non_partner_model_postprocess_fallback(self):
         model = "res.country.state"
 
