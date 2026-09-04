@@ -1,21 +1,9 @@
-"""Nothing in the registry may be chosen by module load order.
-
-`get_readers` orders by cost, and `Document._derive` falls through a reader that
-answered nothing to the next one. Both of those decide between readers that
-differ. Neither decides between two readers that claim the same mimetype for the
-same representation at the same cost: there `sorted` is stable, so the winner is
-whichever module imported first, and no module declares that.
-
-This is not hypothetical. `document_extract` reads a PDF's text with pymupdf and
-`attachment_indexation` reads the same mimetype with pdfminer.six, and the two
-agree on tokens but not on line structure. Registering the second would have
-made every database's `index_content` depend on its module graph. It was caught
-by hand; this is what catches the next one.
-
-Tagged `post_install` deliberately. The registry fills as modules import, so an
-at-install run would assert over whichever part of the graph happened to be
-loaded and pass by seeing less.
-"""
+# `get_readers` orders by cost and `_derive` falls through a reader that
+# answered nothing, so the registry decides between readers that DIFFER. Neither
+# decides between two claiming one mimetype for one representation at one cost:
+# `sorted` is stable, so module load order wins and nothing declares it.
+# `document_extract` reads a PDF with pymupdf and `attachment_indexation` with
+# pdfminer.six, which is the pair this exists for.
 
 from collections import defaultdict
 
@@ -49,6 +37,10 @@ def writer_claims(writers):
 
 @tagged("post_install", "-at_install")
 class TestRegistryIsUnambiguous(BaseCase):
+    # `post_install`: the registry fills as modules import, so an at-install run
+    # would assert over whichever part of the graph had loaded and pass by
+    # seeing less.
+
     def test_no_two_readers_claim_one_mimetype_at_one_cost(self):
         ambiguous = reader_claims(registered_readers())
 
@@ -64,15 +56,9 @@ class TestRegistryIsUnambiguous(BaseCase):
         )
 
     def test_no_two_writers_claim_one_mimetype(self):
-        """The writer side has neither of the reader side's protections.
-
-        A writer declares no cost, `get_writers` sorts by nothing, and
-        `Document.of` takes the first that claims the mimetype -- with no
-        fall-through, because a writer that cannot write has no way to say so.
-        So a writer collision is decided by load order with nothing to soften
-        it, which is why the same invariant is asserted here rather than left
-        for the reader half to imply.
-        """
+        # Not symmetry for its own sake: a writer declares no cost,
+        # `get_writers` sorts by nothing and `Document.of` takes the first, with
+        # no fall-through because a writer that cannot write cannot say so.
         ambiguous = writer_claims(registered_writers())
 
         self.assertFalse(
@@ -85,21 +71,14 @@ class TestRegistryIsUnambiguous(BaseCase):
         )
 
     def test_the_check_is_not_looking_at_an_empty_registry(self):
-        """A registry the test cannot see is a green assertion about nothing.
-
-        The library's own six are a floor that holds in any install; this
-        module's `pdf_text` proves the enumeration reaches past the library into
-        the addon the test ships in, which a count alone would not.
-        """
+        # `pdf_text` specifically, not a count: it proves the enumeration
+        # reaches past the library into the addon this test ships in.
         self.assertGreaterEqual(len(registered_readers()), 6)
         self.assertGreaterEqual(len(registered_writers()), 6)
         self.assertIn("pdf_text", [r.name for r in registered_readers()])
 
     def test_a_collision_is_actually_detected(self):
-        """The two assertions above are green, and green is what a broken check
-        also looks like. This registers the collision they exist to find --
-        pymupdf's mimetype and cost, claimed twice -- and asserts it is
-        reported, so neither can rot into passing over nothing."""
+        # Green is also what a broken check looks like.
         clash = type(
             "_Pdfminer",
             (BaseReader,),
