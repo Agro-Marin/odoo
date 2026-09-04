@@ -134,6 +134,16 @@ class TestRouting(unittest.TestCase):
             REPLICA_RETRY_TIME,
         )
 
+    def test_get_health_surfaces_lag_and_breaker_snapshots(self):
+        router = _router(lag=2.0, max_lag=30.0)
+        router.cursor(readonly=True)  # samples lag once
+        router.breaker.record_failure()
+        health = router.get_health()
+        self.assertEqual(health["lag"], router.lag.get_snapshot())
+        self.assertEqual(health["breaker"], router.breaker.get_snapshot())
+        self.assertEqual(health["lag"]["last_lag_seconds"], 2.0)
+        self.assertEqual(health["breaker"]["failures"], 1)
+
 
 class TestLagGating(unittest.TestCase):
     def test_a_current_replica_serves_reads(self):

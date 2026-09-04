@@ -46,6 +46,12 @@ class ReplicaRouter:
         )
         self.lag = lag if lag is not None else ReplicaLagGate(max_lag)
 
+    def get_health(self) -> dict:
+        return {
+            "lag": self.lag.get_snapshot(),
+            "breaker": self.breaker.get_snapshot(),
+        }
+
     def cursor(self, readonly: bool = False) -> tuple[BaseCursor, CursorMode]:
         """Return a cursor and which of the three modes it was opened in: ``"ro"`` (served from the replica), ``"ro->rw"`` (replica requested but unusable, fell back to primary), or ``"rw"``."""
         if not readonly or self.readonly is None:
