@@ -22,17 +22,20 @@ Separating them is the whole module.
 ------------
 Where formats collapse. It lives in ``odoo.libs.documents``, because deciding
 what bytes are has no business knowledge in it and every framework in this tree
-was answering it separately. This module registers the readers whose
-libraries it owns -- a PDF's text layer and its pages rendered -- and gets the
-rest. Reading a scan's characters and decoding its codes are two more readers,
-registered by the modules that own those engines.
+was answering it separately. This module registers the readers whose libraries
+it owns and gets the rest: a reader lives with its dependency, so recognising a
+scan's characters ships with the OCR engine, decoding its codes with the barcode
+engine, office containers with the indexer that already parsed them, and a PDF's
+embedded files with the layer that owns the PDF toolkit.
 
-Holds the bytes and derives ``text``, ``images``,
-``tree``, ``data``, ``rows`` and ``barcodes`` on first access, each at most once per
-ceiling -- a representation that came back empty is read again if the ceiling rises,
-and one that came back full never is. PDF,
-PNG, JPEG, WebP, GIF, BMP, XML and JSON today; a format is added by teaching
-one class to read it, and every strategy gains it.
+Holds the bytes and derives a representation on first access, each at most once
+per ceiling -- one that came back empty is read again if the ceiling rises, one
+that came back full never is. **Neither the representations nor the formats are
+listed here.** ``REPRESENTATIONS`` in ``odoo.libs.documents.readers`` is the first
+list and ``known_readers()`` the second, and prose restating either goes stale the
+first time a module registers something -- which is what happened to the version
+of this paragraph that enumerated six representations and eight formats. A
+format is added by registering one reader, and every strategy gains it.
 
 A reader declares what it costs, and a document declares the dearest reader it
 may be derived by. So a costly reader runs on two conditions and no flag of its
