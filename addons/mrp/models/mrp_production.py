@@ -1781,9 +1781,11 @@ class MrpProduction(models.Model):
         production_to_replan = self.filtered(lambda p: p.is_planned)
         self._update_move_warehouse_vals(vals, move_keys)
         moves_to_reassign = self._pre_write_picking_type(vals)
+        date_end_initial_values = self._pre_write_track_date_end(vals)
 
         res = super().write(vals)
 
+        self._post_write_track_date_end(date_end_initial_values)
         self._post_write(vals, production_to_replan)
         self._post_write_reassign(moves_to_reassign)
         return res
@@ -1795,6 +1797,33 @@ class MrpProduction(models.Model):
             raise UserError(
                 _("You cannot move a manufacturing order once it is cancelled or done.")
             )
+
+    def _pre_write_track_date_end(self, vals):
+        """Snapshot the closing date of the orders that are already done.
+
+        ``date_end`` is not a tracked field: while the order is open it is a
+        forecast that moves on its own, and tracking it would fill the chatter
+        with noise. Once the order is done it stops being a forecast and
+        becomes the record of when production actually finished, so from then
+        on every change to it is worth a note.
+        """
+        if "date_end" not in vals or "state" in vals:
+            return {}
+        return {
+            production: {"date_end": production.date_end}
+            for production in self.filtered(lambda p: p.state == "done")
+        }
+
+    def _post_write_track_date_end(self, initial_values):
+        if not initial_values:
+            return
+        tracked_fields = self.fields_get(["date_end"])
+        for production, initial_value in initial_values.items():
+            tracking_value_ids = production._mail_track(tracked_fields, initial_value)[
+                1
+            ]
+            if tracking_value_ids:
+                production._message_log(tracking_value_ids=tracking_value_ids)
 
     def _prepare_write_vals(self, vals):
         return self._merge_byproduct_commands(

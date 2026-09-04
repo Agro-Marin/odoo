@@ -345,7 +345,6 @@
                 </header>
                 <sheet>
                     <field name="reservation_state" invisible="1" />
-                    <field name="date_end" invisible="1" />
                     <field name="is_locked" invisible="1" />
                     <field name="qty_produced" invisible="1" />
                     <field name="unreserve_visible" invisible="1" />
@@ -661,6 +660,11 @@
                                     widget="stock_rescheduling_popover"
                                     invisible="not json_popover" />
                             </div>
+                            <field
+                                name="date_end"
+                                string="End Date"
+                                invisible="state != 'done'"
+                                help="Date at which production finished." />
                             <field name="components_availability_state" invisible="1" />
                             <field
                                 name="components_availability"

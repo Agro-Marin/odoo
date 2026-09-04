@@ -8,10 +8,11 @@ from odoo.tests import Form, users
 from odoo.tests.common import HttpCase, tagged
 from odoo.tools.misc import format_date
 
+from odoo.addons.mail.tests.common import MailCase
 from odoo.addons.mrp.tests.common import TestMrpCommon
 
 
-class TestMrpOrder(TestMrpCommon):
+class TestMrpOrder(TestMrpCommon, MailCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -313,6 +314,29 @@ class TestMrpOrder(TestMrpCommon):
         bom_id.produce_delay = 5
         mo.button_mark_done()
         self.assertEqual(mo.date_end.day, 28)
+
+        # Moving the end date of a done MO is logged in the chatter.
+        self.flush_tracking()
+        with self.mock_mail_gateway(), self.mock_mail_app():
+            mo.write({"date_end": datetime(2022, 6, 29, 18, 0)})
+            self.flush_tracking()
+        self.assertMessageFields(
+            self._new_msgs,
+            {
+                "body": "",
+                "message_type": "notification",
+                "subject": False,
+                "subtype_id": self.env.ref("mail.mt_note"),
+                "tracking_values": [
+                    (
+                        "date_end",
+                        "datetime",
+                        datetime(2022, 6, 28, 8, 0),
+                        datetime(2022, 6, 29, 18, 0),
+                    ),
+                ],
+            },
+        )
 
     def test_over_consumption(self):
         mo, _bom, _p_final, _p1, _p2 = self.generate_mo(
