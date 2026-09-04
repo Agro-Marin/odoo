@@ -65,6 +65,15 @@ class TestXMLAssetsBundle(FileTouchable):
             ):
                 bundle.xml()
 
+    def test_03_multiple_same_name(self):
+        self.bundle = self._get_asset("test_assetsbundle.multiple_same_name")
+        (block,) = self.bundle.xml()
+        self.assertEqual(block["type"], "templates")
+        self.assertEqual(
+            [element.get("t-name") for element, _url, _key in block["templates"]],
+            ["test_assetsbundle.multiple_name_xml"] * 2,
+        )
+
     def test_04_template_wo_name(self):
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle = self._get_asset("test_assetsbundle.wo_name")
@@ -74,15 +83,6 @@ class TestXMLAssetsBundle(FileTouchable):
                 "'Template name is missing.' in file '/test_assetsbundle/static/invalid_src/xml/template_wo_name.xml'",
             ):
                 self.bundle.xml()
-
-    def test_03_multiple_same_name(self):
-        self.bundle = self._get_asset("test_assetsbundle.multiple_same_name")
-        (block,) = self.bundle.xml()
-        self.assertEqual(block["type"], "templates")
-        self.assertEqual(
-            [element.get("t-name") for element, _url, _key in block["templates"]],
-            ["test_assetsbundle.multiple_name_xml"] * 2,
-        )
 
     def test_05_file_not_found(self):
         with mute_logger("odoo.addons.base.models.assetsbundle"):
