@@ -182,6 +182,24 @@ class TestSort(TransactionCase):
                     countries.sorted(order).mapped("name"),
                 )
 
+        # Unambiguous ASCII subset: independently-derived expected order,
+        # not just cross-checked against .sorted() as above.
+        ascii_countries = self.env["test_orm.country"].create(
+            [{"name": "Banana"}, {"name": "apple"}, {"name": "Cherry"}]
+        )
+        self.assertEqual(
+            ascii_countries.search(
+                [("id", "in", ascii_countries.ids)], order="name ASC"
+            ).mapped("name"),
+            ["Banana", "Cherry", "apple"],
+        )
+        self.assertEqual(
+            ascii_countries.search(
+                [("id", "in", ascii_countries.ids)], order="name DESC"
+            ).mapped("name"),
+            ["apple", "Cherry", "Banana"],
+        )
+
     def test_sorted_recursion(self):
         categories = self.env["test_orm.category"].search([])
         for order in [
