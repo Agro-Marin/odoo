@@ -167,6 +167,14 @@ class TestSanitizeRemovesActiveContent(unittest.TestCase):
         out = sanitize('<a href="javascript:alert(1)">x</a>')
         self.assertNotIn("javascript:", out)
 
+    def test_xml_base_is_stripped_regardless_of_sanitize_attributes(self):
+        src = '<div xml:base="javascript:alert(1)"><p>keep</p></div>'
+        for sanitize_attributes in (False, True):
+            with self.subTest(sanitize_attributes=sanitize_attributes):
+                out = html_sanitize(src, sanitize_attributes=sanitize_attributes)
+                self.assertNotIn("xml:base", out)
+                self.assertIn("keep", out)
+
     def test_ordinary_markup_survives(self):
         out = sanitize("<p><b>bold</b> and <i>italic</i></p>")
         self.assertIn("<b>bold</b>", out)
