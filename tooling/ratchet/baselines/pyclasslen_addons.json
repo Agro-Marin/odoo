@@ -1,6 +1,6 @@
 {
-  "count": 178124,
-  "measured_at": "7f821114c6c06292da06f8fe06c4fe9226707fef",
+  "count": 177760,
+  "measured_at": "4a4223bf3399c75d4de6db1501af7facaab1077e",
   "measured_root": "",
-  "note": "Re-stamped at the branch commit for the reason pyclasslen gives. Count unchanged (178124).\n\nBorn at 178124: 305 classes over the 400-line budget in the bundled addons tree as one number, led by account_move.AccountMove 7,006, mixin_mail_thread.MixinMailThread 4,770, mrp_production 4,647, stock_move 4,577, account_move_line 4,213. Driven --mode no-increase like pyfunclen_addons because the tree moves both ways constantly."
+  "note": "Re-measured after the 2026-09-04 origin syncs, which orphaned the stamp: the old floor named 7f821114c6c0, a commit two rebases have since rewritten away, so the gate exited 2 with \"re-measure\" and compared nothing rather than passing or failing. 178124 -> 177760 on a clean detached worktree of HEAD. The number is 364 BELOW the dead floor, so nothing is absorbed upward by this re-bank. What it does contain, said plainly rather than left for a green reading to imply: HrEmployee is 2709 lines and still carries the +100 that CLAUDE.md section 9 records as unbanked, and the addons/resource comment strip that made this gate read green by 800 is still what pays for it. This floor restores the ability to detect the NEXT regression; it does not settle that one.\n\nPREVIOUS NOTE, kept because a floor that loses its history costs more than the stamp gains:\n\nRe-stamped at the branch commit for the reason pyclasslen gives. Count unchanged (178124).\n\nBorn at 178124: 305 classes over the 400-line budget in the bundled addons tree as one number, led by account_move.AccountMove 7,006, mixin_mail_thread.MixinMailThread 4,770, mrp_production 4,647, stock_move 4,577, account_move_line 4,213. Driven --mode no-increase like pyfunclen_addons because the tree moves both ways constantly."
 }
