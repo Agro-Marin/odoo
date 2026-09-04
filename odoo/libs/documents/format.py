@@ -92,7 +92,10 @@ def from_float(
 
 def from_date(value: datetime.date | str, fmt: str = ISO_DATE) -> str:
     if isinstance(value, str):
-        value = datetime.date.fromisoformat(value[:10])
+        if len(value) != 10:
+            msg = f"{value!r} is not a valid date"
+            raise ValueError(msg)
+        value = datetime.date.fromisoformat(value)
     if isinstance(value, datetime.datetime):
         value = value.date()
     if not isinstance(value, datetime.date):

@@ -175,7 +175,13 @@ def to_date(value: datetime.date | str, formats: Sequence[str] = ()) -> datetime
             return datetime.datetime.strptime(text, fmt).date()
         except ValueError:
             continue
-    return datetime.date.fromisoformat(text[:10])
+    if len(text) == 10:
+        return datetime.date.fromisoformat(text)
+    try:
+        return datetime.datetime.fromisoformat(text).date()
+    except ValueError:
+        msg = f"{value!r} is not a valid date"
+        raise ValueError(msg) from None
 
 
 def to_datetime(
