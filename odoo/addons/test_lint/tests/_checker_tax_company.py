@@ -59,7 +59,7 @@ DOMAIN_METHODS = frozenset(
 DOMAIN_MESSAGE = (
     "account.tax and account.account carry company_ids (many2many), not "
     "company_id: a ('company_id', ...) domain leaf against them matches nothing "
-    "and raises. Use `*env['account.tax']._check_company_domain(company)`."
+    "and raises. Use `filtered_domain(env['account.tax']._check_company_domain(company))`."
 )
 
 
