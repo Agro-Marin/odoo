@@ -379,11 +379,11 @@ propagation delay.
 
 Two consequences worth carrying:
 
-**The tax is one query, not eight.** `get_sequences` builds a single `SELECT`
-of eight scalar subqueries, one per signalling table, so the per-request cost of
+**The tax is one query, not nine.** `get_sequences` builds a single `SELECT`
+of nine scalar subqueries, one per signalling table, so the per-request cost of
 the whole mechanism is one round trip — **1.08 ms measured from `psql`**, and
 less in-process, on a cursor already being acquired. A design that polled each
-table separately would pay eight.
+table separately would pay nine.
 
 **A quoted propagation figure belongs to a traffic level.** The 1 ms above is
 what a *busy* worker shows. The same signal reaches an idle worker in no time at

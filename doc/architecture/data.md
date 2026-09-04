@@ -63,9 +63,9 @@ Nothing may be cached per process without a database key.
 
 ## 2. The signalling tables — cross-process coordination
 
-Eight tables, one for the registry and one for each key in `CACHES_BY_KEY`
+Nine tables, one for the registry and one for each key in `CACHES_BY_KEY`
 (`default`, `assets`, `stable`, `templates`, `routing`, `groups`,
-`product_variants`), each created as:
+`product_variants`, `actions`), each created as:
 
 ```sql
 CREATE TABLE orm_signaling_<name> (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT now())
