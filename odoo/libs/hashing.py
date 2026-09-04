@@ -49,7 +49,7 @@ def _new(mt: bool = False) -> Any:
 
 
 def content_hasher() -> Any:
-    return _new() if HAS_BLAKE3 else hashlib.sha1(usedforsecurity=False)
+    return _new(mt=True) if HAS_BLAKE3 else hashlib.sha1(usedforsecurity=False)
 
 
 def content_hash(data: bytes) -> str:
