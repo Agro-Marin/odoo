@@ -466,6 +466,88 @@ class TestDeadlineEscalation(common.TransactionCase):
             "escalation contact",
         )
 
+    def _escalation_notices(self, request):
+        request.invalidate_recordset()
+        return request.message_ids.filtered(
+            lambda m: "Escalation Notice" in (m.body or ""),
+        )
+
+    def test_escalation_notice_body_is_markup(self):
+        confirmed_at = "2026-01-05 08:00:00"
+        request = self._make_urgent_pending_request(confirmed_at)
+
+        with freeze_time("2026-01-05 17:00:00"):
+            self.env["approval.request"].cron_smart_escalation()
+            self.env.flush_all()
+
+        notices = self._escalation_notices(request)
+        self.assertEqual(len(notices), 1)
+        self.assertIn(
+            "<strong>Escalation Notice</strong>",
+            notices.body,
+            "the notice must reach the reader as markup",
+        )
+        self.assertNotIn(
+            "&lt;",
+            notices.body,
+            "a translated str carrying tags is escaped by message_post and "
+            "shows the reader its own source",
+        )
+
+    def test_a_stalled_approver_escalates_once_not_every_run(self):
+        # A second approver is what keeps the archive handover from
+        # reassigning the first one: the successor it would pick is already an
+        # approver, so the archived one stays pending. That is the shape a
+        # stalled approver actually has in production.
+        self.env["approval.category.approver"].create(
+            {
+                "user_id": self.escalation_user.id,
+                "category_id": self.category_with_deadline.id,
+                "required": False,
+            }
+        )
+        confirmed_at = "2026-01-05 08:00:00"
+        request = self._make_urgent_pending_request(confirmed_at)
+        self.assertEqual(
+            len(request.approver_ids),
+            2,
+            "the scenario needs a second approver to block the handover",
+        )
+
+        with freeze_time("2026-01-05 17:00:00"):
+            self.env["approval.request"].cron_smart_escalation()
+            self.env.flush_all()
+        request.invalidate_recordset()
+        self.assertTrue(request.escalated_to_manager)
+        self.assertEqual(len(self._escalation_notices(request)), 1)
+
+        self.approver_user.write({"active": False})
+        self.env.flush_all()
+        self.assertTrue(
+            any(
+                not a._get_effective_approver().active
+                for a in request.approver_ids
+                if a.state == "pending"
+            ),
+            "the archived approver must stay pending for this scenario",
+        )
+
+        # An approver who left the company is a reason to escalate ahead of
+        # the age threshold, not a reason to escalate again on every run:
+        # nothing clears the condition, so this re-sent the same notice daily
+        # for the rest of the request's life.
+        for day in ("2026-01-06 17:00:00", "2026-01-07 17:00:00"):
+            with freeze_time(day):
+                self.env["approval.request"].cron_smart_escalation()
+                self.env.flush_all()
+
+        self.assertEqual(
+            len(self._escalation_notices(request)),
+            1,
+            "an already-escalated request must not re-escalate while a "
+            "pending approver stays archived",
+        )
+
     def test_cron_smart_escalation_escalates_falls_back_without_manager_hook(
         self,
     ):

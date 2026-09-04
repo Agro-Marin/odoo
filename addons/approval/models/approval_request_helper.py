@@ -2,6 +2,8 @@ import logging
 import time
 from typing import Any
 
+from markupsafe import Markup
+
 from odoo import api, fields, models
 from odoo.exceptions import MissingError
 
@@ -135,21 +137,28 @@ class ApprovalRequestHelper(models.Model):
         priority_label = dict(self._fields["priority"].selection)[self.priority]
         for manager, approvers in by_manager.items():
             self.message_post(
-                body=self.env._(
-                    "<p><strong>Escalation Notice</strong></p>"
-                    "<p>Approval request <strong>%(name)s</strong> has been pending for %(duration)s.</p>"
-                    "<ul>"
-                    "<li><strong>Priority:</strong> %(priority)s</li>"
-                    "<li><strong>Assigned approver(s):</strong> %(approver)s</li>"
-                    "<li><strong>Reminders sent:</strong> %(count)d</li>"
-                    "</ul>"
-                    "<p>Please follow up.</p>",
-                    name=self.name,
-                    duration=self._get_pending_duration(),
-                    priority=priority_label,
-                    approver=", ".join(sorted(approvers.user_id.mapped("name"))),
-                    count=self.reminder_count,
-                ),
+                # The markup is the template and the values are its arguments:
+                # a translated str carrying tags is escaped by message_post and
+                # reaches the reader as visible source.
+                body=Markup(
+                    self.env._(
+                        "<p><strong>Escalation Notice</strong></p>"
+                        "<p>Approval request <strong>%(name)s</strong> has been pending for %(duration)s.</p>"
+                        "<ul>"
+                        "<li><strong>Priority:</strong> %(priority)s</li>"
+                        "<li><strong>Assigned approver(s):</strong> %(approver)s</li>"
+                        "<li><strong>Reminders sent:</strong> %(count)d</li>"
+                        "</ul>"
+                        "<p>Please follow up.</p>"
+                    )
+                )
+                % {
+                    "name": self.name,
+                    "duration": self._get_pending_duration(),
+                    "priority": priority_label,
+                    "approver": ", ".join(sorted(approvers.user_id.mapped("name"))),
+                    "count": self.reminder_count,
+                },
                 subject=self.env._(
                     "Escalation: Overdue Approval - %(name)s", name=self.name
                 ),

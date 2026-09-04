@@ -86,9 +86,13 @@ class ApprovalRequestCron(models.Model):
             for a in request.approver_ids
             if a.state == "pending"
         )
-        needs_escalation = has_stalled_approver or (
-            request.date_confirmed < escalation_threshold
-            and not request.escalated_to_manager
+        # escalated_to_manager gates both triggers. A stalled approver is a
+        # reason to escalate ahead of the age threshold, not a reason to
+        # escalate again on every run: it does not clear itself, so binding it
+        # to the flag alone re-sent the same notice daily for the life of the
+        # request. Reset to draft clears the flag and re-opens escalation.
+        needs_escalation = not request.escalated_to_manager and (
+            has_stalled_approver or request.date_confirmed < escalation_threshold
         )
         if not needs_escalation:
             return request._send_reminder()
