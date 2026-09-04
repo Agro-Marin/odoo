@@ -1540,15 +1540,13 @@ class Website(models.Model):
         is_frontend_request = request and getattr(request, "is_frontend", False)
         if request and request.session.get("force_website_id"):
             forced_id = request.session["force_website_id"]
-            if self._is_forced_website_live(forced_id):
+            if self._is_website_live(forced_id):
                 return self.browse(forced_id)
             request.session.pop("force_website_id")
 
         website_id = self.env.context.get("website_id")
-        if website_id:
-            context_website = self.browse(website_id).exists()
-            if context_website:
-                return context_website
+        if website_id and self._is_website_live(website_id):
+            return self.browse(website_id)
 
         if not is_frontend_request and not fallback:
             return self.browse(False)
@@ -1565,13 +1563,21 @@ class Website(models.Model):
         return self.browse(website_id)
 
     @api.model
-    def _is_forced_website_live(self, website_id):
-        token = (website_id, self.pool.ormcache_lrus["default"].generation)
-        if getattr(request, "_website_forced_token", None) == token:
-            return True
+    def _is_website_live(self, website_id):
+        generation = self.pool.ormcache_lrus["default"].generation
+        live = getattr(request, "_website_live_ids", None) if request else None
+        if isinstance(live, tuple) and live[0] == generation:
+            if website_id in live[1]:
+                return True
+        else:
+            live = None
         if not self.browse(website_id).exists():
             return False
-        request._website_forced_token = token
+        if request:
+            if live is None:
+                request._website_live_ids = (generation, {website_id})
+            else:
+                live[1].add(website_id)
         return True
 
     @api.model

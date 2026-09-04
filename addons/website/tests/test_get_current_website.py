@@ -152,6 +152,23 @@ class TestGetCurrentWebsite(HttpCaseWithUserDemo):
         self.user_demo.website_id = website2
         self.assertFalse(rpc_login_user_demo())
 
+    def test_context_website_id_is_checked_once_per_request(self):
+        Website = self.env["website"]
+        gone = Website.create({"name": "Gone"})
+        gone_id = gone.id
+        gone.unlink()
+        with MockRequest(self.env):
+            from_context = Website.with_context(website_id=self.website.id)
+            self.assertEqual(from_context.get_current_website(), self.website)
+            with self.assertQueryCount(0):
+                for _ in range(3):
+                    self.assertEqual(from_context.get_current_website(), self.website)
+            self.assertEqual(
+                Website.with_context(website_id=gone_id).get_current_website(),
+                self.website,
+                "a stale context website_id must fall through to the domain lookup",
+            )
+
     def test_recursive_current_website(self):
         Website = self.env["website"]
         self.env["ir.rule"].create(
