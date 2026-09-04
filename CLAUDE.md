@@ -4,7 +4,7 @@ Fork of Odoo Community 19.0 (`github.com/Agro-Marin/odoo`).
 
 | Document | Role |
 |---|---|
-| `doc/architecture/module.md` | Canonical subsystem map: what the core contains, how it is layered, which dependencies are legal. CI-enforced by `tooling/architecture/`. Read before restructuring core. |
+| `doc/architecture/module.md` | Canonical subsystem map: what the core contains, how it is layered, which dependencies are legal. Enforced by `tooling/architecture/`. Read before restructuring core. |
 | `doc/architecture/ARCHITECTURE.md` | Front door indexing the above: context, design forces, cross-cutting mechanisms, where new code goes. |
 
 > **"Repo root"** = the directory containing this file. Inside it, `odoo/` is the framework core *package*, not the checkout — which is why `ruff check odoo/` measures the core and not `addons/`.
@@ -23,15 +23,15 @@ Diverged from upstream past the point where merging or cherry-picking between th
 
 ## Checkout Requirements
 
-`tooling/` resolves paths from the `odoo-bin` marker at the repo root rather than by climbing above it (`tooling/_repo_root.py`). CI checks this repo out alone.
+`tooling/` resolves paths from the `odoo-bin` marker at the repo root rather than by climbing above it (`tooling/_repo_root.py`). The tools work with this repo checked out alone.
 
 | Requirement | Detail |
 |---|---|
 | Python ≥ 3.14 | Floor is `MIN_PY_VERSION` in `odoo/release.py`, enforced at import by `odoo/init.py`. |
-| PostgreSQL | Every CI lane runs 18. |
+| PostgreSQL | 18. |
 | psycopg 3 | `psycopg[binary]>=3.3.4` with `psycopg-pool>=3.3.1` — the only driver `odoo/db/` uses. Never add a `psycopg2` import. |
-| Requirements | `pip install -r requirements.txt -r requirements-addons.txt` for runtime; `requirements-dev.txt` for the gates. The two runtime files split on ownership: `requirements.txt` is what a server process imports whatever is installed, `requirements-addons.txt` is what individual bundled addons own and declare in `external_dependencies`. A development checkout wants both; only a deployment that knows which modules it loads wants the first alone. `requirements-test.txt` pulls in both, so every test lane is unaffected. |
-| `crates/odoo_rust` | Build it into the environment, with a Rust toolchain on `PATH`. CI requires it: with `CI=true` or `ODOO_REQUIRE_NATIVE=1` its absence is an `ImportError` at `odoo/init.py`. Elsewhere its absence is a `RuntimeWarning` and the process runs on the pure-Python twins behind `odoo/libs/accel.py` — slower, not wrong. A *stale* build is still fatal (`assert_fresh`). |
+| Requirements | `pip install -r requirements.txt -r requirements-addons.txt` for runtime; `requirements-dev.txt` for the gates. The two runtime files split on ownership: `requirements.txt` is what a server process imports whatever is installed, `requirements-addons.txt` is what individual bundled addons own and declare in `external_dependencies`. A development checkout wants both; only a deployment that knows which modules it loads wants the first alone. `requirements-test.txt` pulls in both, so every test run is unaffected. |
+| `crates/odoo_rust` | Build it into the environment, with a Rust toolchain on `PATH`. With `CI=true` or `ODOO_REQUIRE_NATIVE=1` its absence is an `ImportError` at `odoo/init.py`. Elsewhere its absence is a `RuntimeWarning` and the process runs on the pure-Python twins behind `odoo/libs/accel.py` — slower, not wrong. A *stale* build is still fatal (`assert_fresh`). |
 
 ```bash
 cd crates/odoo_rust && maturin develop --release
@@ -51,7 +51,7 @@ The profile is stamped beside the source fingerprint; `odoo/libs/native.py` refu
 
 ### A stale build is worse than a missing one
 
-The pure-Python twins step in only when the extension is *absent*; a stale `.so` is imported and used. Before the freshness check, a stale build segfaulted on a cyclic `fast_clone` and silently mis-ordered timezone-aware columns; neither failure names its cause. CI never sees it — every lane builds fresh — so it is a long-lived-virtualenv problem only.
+The pure-Python twins step in only when the extension is *absent*; a stale `.so` is imported and used. Before the freshness check, a stale build segfaulted on a cyclic `fast_clone` and silently mis-ordered timezone-aware columns; neither failure names its cause. A fresh build never sees it, so it is a long-lived-virtualenv problem only.
 
 Each crate's `build.rs` stamps a CRC of its sources into the binary (`crates/odoo_build`); `odoo/libs/native.py` refuses to proceed when it disagrees with the crate on disk, naming the rebuild command. Rebuild after any `git pull` that touched `crates/`. Escape hatch: `ODOO_SKIP_RUST_FRESHNESS_CHECK=1`.
 
@@ -65,7 +65,7 @@ Each crate's `build.rs` stamps a CRC of its sources into the binary (`crates/odo
 
 Run `cargo fmt --all`, `cargo clippy --workspace`, `cargo test --workspace` from `crates/`, not from a member.
 
-`.github/workflows/rust.yml` gates `cargo fmt --all --check`, `cargo clippy --workspace -D warnings`, `cargo test --workspace`, both maturin builds, and the exported symbols — including that `odoo_rust` has **not** regained the scanner. It blocks; it does not warn.
+The crate checks are `cargo fmt --all --check`, `cargo clippy --workspace -D warnings`, `cargo test --workspace`, both maturin builds, and the exported symbols — including that `odoo_rust` has **not** regained the scanner.
 
 ## Pre-Work Check
 
@@ -90,16 +90,14 @@ Run the module's harness after changing its docs, and before believing them:
 bash addons/<module>/machine_doc_v1/factcheck.sh
 ```
 
-**And after changing its `tests/`.** A gated figure is derived from the tree, so a page counting test classes and methods is a function of `tests/`, and any commit adding or removing a test invalidates it — while every suite of the changed module still passes, because the page is checked by `machine_doc.yml` and not by the tests. Adding four tests to `addons/base` took this harness to 716/1 with `/base` green at 3,721. **A file you did not edit can be invalidated by the one you did, and no run of the changed file will say so**; the lane is blocking and unratcheted, so the cost is a red gate nobody owns.
+**And after changing its `tests/`.** A gated figure is derived from the tree, so a page counting test classes and methods is a function of `tests/`, and any commit adding or removing a test invalidates it — while every suite of the changed module still passes, because the page is checked by its harness and not by the tests. Adding four tests to `addons/base` took this harness to 716/1 with `/base` green at 3,721. **A file you did not edit can be invalidated by the one you did, and no run of the changed file will say so**; the harness is blocking and unratcheted, so the cost is a red gate nobody owns.
 
-### The machine_doc lane
+### The machine_doc harnesses
 
-`.github/workflows/machine_doc.yml` runs every harness it discovers, blocking. **The workflow is the authority on what is quarantined — never this file.**
+Every `factcheck.sh` under `odoo` and `addons` blocks.
 
-- Its `QUARANTINE` list has been empty since the lane was added (`876ba89f63b`, 2026-08-22), so every discovered harness blocks, `mail` included. The comment beside the list narrates a window that predates the file and does not mean the list holds anything. Write-up: agromarin-knowledge/research/2026-08-22-machine-doc-lane-red-since-birth.md — named in plain prose because CI checks this repository out alone.
-- Membership is checked in both directions: a quarantined harness that starts passing fails the lane too.
-- Discovery walks `odoo` and `addons` — the whole repo. It said `odoo/addons addons` until 2026-08-27, a root list rather than a walk: `odoo/tests/machine_doc_v1` sits in neither, so it shipped and was read as authoritative while the lane could not see it.
-- The lane **warns** for each machine_doc with no harness — the standing list of what is ungated. **That list is empty**: every machine doc in this repository is gated and blocking as of 2026-08-27. `base` was the last, and closing it turned up a Model Index giving `ir.mail_server` as `ir.mail.server` (no such model; the lookup raises), a BLAKE3 pointer still at `odoo/tools/hashing.py` after the libs/tools split moved it, and a TEST_TAGS.md claiming 85 test files against 126. An empty warning list is the thing to keep true, not permission to skip checking.
+- Discovery must walk the whole repo. A root list of `odoo/addons addons` missed `odoo/tests/machine_doc_v1`, which shipped and was read as authoritative while nothing could see it.
+- A machine_doc with no harness is the standing list of what is ungated. **That list is empty**: every machine doc in this repository is gated and blocking as of 2026-08-27. `base` was the last, and closing it turned up a Model Index giving `ir.mail_server` as `ir.mail.server` (no such model; the lookup raises), a BLAKE3 pointer still at `odoo/tools/hashing.py` after the libs/tools split moved it, and a TEST_TAGS.md claiming 85 test files against 126. An empty warning list is the thing to keep true, not permission to skip checking.
 
 ## Tests
 
@@ -118,7 +116,7 @@ pytest odoo/orm/tests odoo/http/tests \
 - `odoo/db/tests` and `odoo/tools/tests` are real-import suites because they reach state living in a package `__init__.py`, which the Tier-1 stubs replace with a namespace-only module.
 - Both run **from the repo root**: `testpaths` and `pythonpath = .` resolve against the rootdir located by `pytest.ini`. Started from a parent, the tree is collected as plain files and fails en masse (~1900 collection errors) rather than skipping quietly.
 
-Two suites are in no `testpaths` and run only when named (CI: `.github/workflows/service_suites.yml`):
+Two suites are in no `testpaths` and run only when named:
 
 ```bash
 ODOO_CONTRACT_REQUIRE_DEPS=1 pytest tests/contract   # needs PostgreSQL + psql + pg_dump
@@ -183,19 +181,19 @@ Sections: 1. Module Structure · 2. Python · 3. XML · 4. JavaScript (OWL) · 5
 
 Linter and formatter config, with the rationale for every suppression.
 
-- `ruff check` is **not** expected to be clean: CI runs it as a ratchet against a committed floor (`tooling/ratchet/baselines/`), and **a ratchet fails in both directions** — lowering a count without committing the new floor fails the build too.
+- `ruff check` is **not** expected to be clean: it runs as a ratchet against a committed floor (`tooling/ratchet/baselines/`), and **a ratchet fails in both directions** — lowering a count without committing the new floor fails the build too.
 - `pyfunclen_addons` is the single exception, invoked `--mode no-increase` because the bundled-addons tree is too wide to hold still; argument in *The ratchets*.
-- Ruff is one of several ratcheted gates. **The baselines directory is the list of debt and `tooling/ratchet/ratchet.py --list` is the reading** — no file states how many there are or what they hold, because a restated floor is a second copy that drifts. The guide's table is a deliberate sample, not the membership. A gate a workflow hands to `ratchet.py` with no baseline file is a **hard zero**: it passes at 0 and fails above, and `--update` is what opens a floor.
+- Ruff is one of several ratcheted gates. **The baselines directory is the list of debt and `tooling/ratchet/ratchet.py --list` is the reading** — no file states how many there are or what they hold, because a restated floor is a second copy that drifts. The guide's table is a deliberate sample, not the membership. A gate handed to `ratchet.py` with no baseline file is a **hard zero**: it passes at 0 and fails above, and `--update` is what opens a floor.
 - Per-gate scope, commands and the `--update` recipe: *The ratchets* in the guide, the canonical account. It also covers the trap that the ruff floor measures `odoo/`, not `addons/`.
-- Not in the guide: `.github/workflows/ruff.yml` lints **`tooling/` and `tests/` at a hard zero** in a separate blocking step, with no floor to absorb a new finding.
+- Not in the guide: **`tooling/` and `tests/` are linted at a hard zero**, with no floor to absorb a new finding.
 
 ### `odoo/addons/test_lint/`
 
 The fork's own AST checkers and registry gates: SQL built from non-constant values, gettext misuse, N+1 queries, ORM-facade imports, XML/manifest canonical form, asset bundles that do not assemble, UNIQUE declared over a translated (jsonb) column.
 
-Each is an exact-match ratchet, so an undone fix fails as loudly as a new offence. CI runs it in `.github/workflows/test_lint.yml` (whole module, every PR, no `paths:` filter) and `.github/workflows/asset_lint.yml` (the registry-dependent classes). The AST rules run `E8501`–`E8513`; none is advisory and none fails outright — the floor decides.
+Each is an exact-match ratchet, so an undone fix fails as loudly as a new offence. The AST rules run at the narrow scope below; the registry-dependent classes need a fuller install. The AST rules run `E8501`–`E8513`; none is advisory and none fails outright — the floor decides.
 
-**The floors are defined at the CI scope**, which is `--addons-path=odoo/addons,addons` with only `test_lint` installed. Harvest and verify them there, not against a workspace that also carries `enterprise/` — the two measure different trees, and floors taken from the larger one cannot pass in CI:
+**The floors are defined at the narrow scope**, which is `--addons-path=odoo/addons,addons` with only `test_lint` installed. Harvest and verify them there, not against a workspace that also carries `enterprise/` — the two measure different trees, and floors taken from the larger one cannot pass at the narrow scope:
 
 ```bash
 odoo-bin --addons-path=odoo/addons,addons -d <db> -i test_lint \
@@ -213,13 +211,13 @@ Gates that read the *installed registry* rather than the tree cannot be graded a
 | Gate | Behaviour at narrow scope |
 |---|---|
 | `test_docstring` | One-sided ratchet: measures 1 there, 32 on a fuller install. Do not floor it at the former. |
-| `TestSchemeDuplication` | Floors are per module; **skips** at that scope rather than passing. 24 of its 28 floors name a module `test_lint.yml` does not install, and `web` reads 91 against a floor of 136 without being able to fail. `asset_lint.yml` is its lane. |
+| `TestSchemeDuplication` | Floors are per module; **skips** at that scope rather than passing. 24 of its 28 floors name a module the narrow scope does not install, and `web` reads 91 against a floor of 136 without being able to fail. Grade it on a fuller install. |
 
-`odoo/addons/test_lint/machine_doc_v1/` is the map: two halves (`_rules.py` declares what a rule is, `_py_scan.py` runs the scan), which fixer answers to which document-identity invariant, and what each lane can and cannot measure.
+`odoo/addons/test_lint/machine_doc_v1/` is the map: two halves (`_rules.py` declares what a rule is, `_py_scan.py` runs the scan), which fixer answers to which document-identity invariant, and what each scope can and cannot measure.
 
 ### Other gates
 
-`.github/workflows/` — **check it before assuming a gate does not exist.** The suites, ratchets, architecture, doc-link, free-threading, Rust and vendored-lib lanes all live there.
+`tooling/` — **check it before assuming a gate does not exist.** The ratchets, architecture, doc-link and typecheck gates all live there; the Rust checks are the crate workspace's own `cargo` commands.
 
 ### Changing the guidelines
 

@@ -41,9 +41,8 @@ executes **`odoo/init.py`**, the framework bootstrap, in this order:
 
 Step 3 is a separate failure from step 2 and the less obvious one: a stale
 extension imports cleanly and then segfaults on a cyclic `fast_clone` and
-mis-orders timezone-aware columns, neither of which names its cause. CI never
-sees it — every lane builds the extension fresh — so it is a long-lived
-virtualenv problem only.
+mis-orders timezone-aware columns, neither of which names its cause. A fresh
+build never sees it, so it is a long-lived virtualenv problem only.
 
 The other runtime floor is enforced later and by a different subsystem:
 `db/pool.py` compares the server against `MIN_PG_VERSION` at connect time and

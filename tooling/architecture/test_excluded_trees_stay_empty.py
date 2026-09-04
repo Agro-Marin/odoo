@@ -7,12 +7,12 @@ TransactionCase, HttpCase, Form, the Chrome CDP driver, the suite runner, the
 result reporter -- production code every addon test in this repository runs on,
 excluded by the name of its directory rather than by anything about it.
 
-Four gates were onboarded to it directly, each with its own `tests` lane and
+Four gates were onboarded to it directly, each with its own `tests` scope and
 floor: sql_in_placeholder, py_count_as_boolean, py_x2many_count, py_hook_arity.
 Two were not, and this file is why. `naming_vocabulary` reports only on model
 classes and `compute_context_deps` only on field computes, and the framework
 defines neither -- it is classes and methods in quantity and not one model
-among them. A lane over it would scan every file and report on nothing, and a
+among them. A scope over it would scan every file and report on nothing, and a
 scope resolving to nothing is the defect these gates exist to prevent, not a
 way to close one. No count is restated here on purpose: the assertions below
 are the measurement, and a figure in this docstring would be a second copy of
@@ -47,9 +47,9 @@ FRAMEWORK = ROOT / "odoo" / "tests"
 ONBOARD = (
     "Onboard the gate to this tree the way sql_in_placeholder, "
     "py_count_as_boolean, py_x2many_count and py_hook_arity were: a TESTS "
-    "scope, a row in GOVERNED_ADDONS, a lane in architecture.yml and its own "
-    "floor. Do not simply delete this assertion -- it is the record of why the "
-    "lane was judged unnecessary, and that judgement has just expired."
+    "scope, a row in GOVERNED_ADDONS and its own floor. Do not simply delete "
+    "this assertion -- it is the record of why the scope was judged "
+    "unnecessary, and that judgement has just expired."
 )
 
 

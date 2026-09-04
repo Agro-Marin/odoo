@@ -54,7 +54,7 @@ are ``[review]`` because the ``ruff`` code is disabled with a rationale in
 The ratchets
 ------------
 
-``ruff check`` is not clean and CI does not require it to be. Countable gates are
+``ruff check`` is not clean and the gate does not require it to be. Countable gates are
 *ratchets*: a total measured against a committed floor in
 ``tooling/ratchet/baselines/``. Rationale: a baseline nothing enforces is a
 comment, and a floor turns any gate reducible to one number into a one-way
@@ -70,7 +70,7 @@ same PR:
 
 ``.pre-commit-config.yaml`` runs ``ruff-check --fix``, so touching a file that
 carries baseline findings can repair unrelated ones and drop the count. A green
-local commit is not a green CI run unless the floor moved with it.
+local commit is not a green gate run unless the floor moved with it.
 
 ``pyfunclen_addons`` is this repository's one ``--mode no-increase`` floor: it
 measures the whole bundled-addons tree, which moves both ways continuously. The
@@ -83,68 +83,54 @@ Thirteen of the floors, to fix the shape of the set:
 
 .. list-table::
    :header-rows: 1
-   :widths: 16 30 22 32
+   :widths: 20 40 40
 
    * - Gate
      - Command
      - Scope
-     - Workflow
    * - ruff
      - ``ruff check odoo/ --no-cache --statistics``
      - ``odoo/`` only -- a **hard zero**
-     - ``.github/workflows/ruff.yml``
    * - c901
      - ``ruff check odoo/ --no-cache --select C901 --statistics``
      - ``odoo/``, complexity > 20
-     - ``.github/workflows/ruff.yml``
    * - c901_addons
      - ``ruff check addons/ --no-cache --select C901 --statistics``
      - ``addons/``, complexity > 20
-     - ``.github/workflows/ruff.yml``
    * - mypy
      - ``mypy -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules``
      - typed packages
-     - ``py_typecheck.yml``
    * - ESLint
      - ``npx eslint . --format=json``
      - every JS/MJS the config does not ignore (vendored ``static/lib`` is) -- a **hard zero**
-     - ``lint.yml``
    * - ``tsc``
      - ``npx tsc --project tsconfig.json --noEmit``
      - all checked JS
-     - ``typecheck.yml``
    * - naming vocabulary
      - ``tooling/architecture/naming_vocabulary.py``
      - §2.4 abolished verbs
-     - ``architecture.yml``, ``unit_tests.yml``
    * - Python function length
      - ``tooling/architecture/py_function_length.py``
      - core Python, **excess lines** over 90
-     - ``architecture.yml``
    * - Python function length (addons)
      - ``tooling/architecture/py_function_length.py --addon addons``
      - all of ``addons/``, same metric, **one-sided**
-     - ``architecture.yml``
    * - JS function length
      - ``tooling/architecture/js_function_length.py``
      - ``web`` JS
-     - ``architecture.yml``
    * - JS private access
      - ``tooling/architecture/js_private_access.py``
      - ``web`` JS, cross-module
-     - ``architecture.yml``
    * - JS service shape
      - ``tooling/architecture/js_service_shape.py``
      - ``web`` JS services
-     - ``architecture.yml``
    * - JS forced render
      - ``tooling/architecture/js_forced_render.py``
      - ``web`` JS
-     - ``architecture.yml``
 
 The directory holds many more, including per-addon scopes of the same script
-(``jsfunclen_mail``, ``py_x2many_count_stock``) and per-repository scopes the
-siblings' own workflows run (``naming_enterprise``).
+(``jsfunclen_mail``, ``py_x2many_count_stock``) and per-repository scopes measured
+with ``--roots`` (``naming_enterprise``).
 ``tooling/ratchet/baselines/`` is the authoritative list of *debt* -- one JSON
 per floor above zero, and the directory is the count. A gate with no file is a
 hard zero: ``ratchet.py`` passes it at 0 and fails it above, and ``--update``
@@ -187,14 +173,14 @@ ratchet** (``LintCase.assert_ratchet``, floors in ``tooling/ratchet/baselines/``
 like every other gate): the count may not rise, and may not fall silently. No
 rule is advisory and none fails outright -- the floor is what decides.
 
-Two CI lanes. ``test_lint.yml`` installs ``base`` + ``test_lint`` and runs
-``/test_lint`` on every PR with no ``paths:`` filter, because these gates scan the
-whole tree; ``asset_lint.yml`` covers the classes needing a real registry
-(bundles, dark siblings, ESM specifiers). ``integration_tests.yml`` runs neither.
+Two scopes. Installing ``base`` + ``test_lint`` and running ``/test_lint``
+covers the AST rules, which scan the whole tree; the classes needing a real
+registry (bundles, dark siblings, ESM specifiers) need a fuller install.
 
-**Harvest a floor at the CI scope**, ``--addons-path=odoo/addons,addons`` with
+**Harvest a floor at the narrow scope**, ``--addons-path=odoo/addons,addons`` with
 only ``test_lint`` installed. A gate reading the installed registry measures a
-different tree on a fuller install, and a floor taken there cannot pass in CI:
+different tree on a fuller install, and a floor taken there cannot pass at the
+narrow scope:
 
 .. code-block:: bash
 
@@ -311,9 +297,9 @@ The registry and tree gates carry no code and are named by test.
      - Annotations that fail to resolve under PEP 649
 
 ``test_docstring`` and ``TestSchemeDuplication`` read the installed registry, so
-the narrow lane cannot grade them: the first measures 1 there against 32 on a
-fuller install, and the second **skips** rather than passing. ``asset_lint.yml``
-is their lane.
+the narrow scope cannot grade them: the first measures 1 there against 32 on a
+fuller install, and the second **skips** rather than passing. Grade them on a
+fuller install.
 
 
 Suppressing a rule
@@ -631,10 +617,8 @@ repair. Nothing about the measurement was careless; the window was the review.
   tree while anyone is dirty in it (§12) -- ``--update`` run there banks numbers
   that exist in no branch.
 
-CI: ``machine_doc.yml`` runs every discovered ``factcheck.sh``, blocking.
-Known-red harnesses sit in its ``QUARANTINE`` with a written reason and are
-checked both ways. Fork-wide assertions SKIP with a count in CI, which checks out
-this repo alone.
+Every discovered ``factcheck.sh`` runs, blocking. Fork-wide assertions SKIP
+with a count when this repo is checked out alone.
 
 ----
 
@@ -669,7 +653,7 @@ wiring scanned ``odoo/addons`` alone and left seven live bypasses in ``addons/``
 
 **Format what you write, not the file around it** ``[review]``. Every repo's
 ``.pre-commit-config.yaml`` runs ``ruff-format`` after ``ruff-check --fix`` and is
-the authority on the hook set; there is no CI gate for formatting, so the hook
+the authority on the hook set; there is no gate for formatting, so the hook
 reaches only contributors who installed it. Reformatting a file you did not
 otherwise change costs twice:
 
@@ -2797,8 +2781,8 @@ still using an abolished verb and feeds the shared ratchet; this section is
 counted rather than blocked because a backlog this size would fail every build
 and the gate would be off within a week. The sibling repositories carry their
 own floors (``naming_enterprise``, ``naming_agromarin``,
-``naming_design-themes``), measured with ``--roots`` from their cross-repo
-``architecture.yml`` and held ``--mode no-increase``; the census figures in this
+``naming_design-themes``), measured with ``--roots`` and held
+``--mode no-increase``; the census figures in this
 section still stop at this repository, so every one of them is a floor::
 
     python tooling/architecture/naming_vocabulary.py --count \
@@ -2824,7 +2808,7 @@ mirror. That buys an estimate of the work, not a veto.
   Re-sorting it is part of the rename, not a follow-up, and the toolchain splits
   in a way that hides it: ``ruff format`` leaves ``__all__`` in whatever order it
   finds, so a rename that moves a name's alphabetical position is invisible to
-  the formatter and surfaces only in ``ruff check``, which ``ruff.yml`` runs at a
+  the formatter and surfaces only in ``ruff check``, which runs at a
   **hard zero** over ``odoo/``. Verified by probe rather than by reading, since
   ``explicit-preview-rules`` makes the family selector an unreliable guide: an
   unsorted ``__all__`` under this repo's own config reports ``RUF022`` and
@@ -2901,7 +2885,7 @@ because a working copy several sessions are dirty in cannot answer the question
 at all. The procedure, and the four ways it flags something that is not a defect,
 are written up in the knowledge vault at
 agromarin-knowledge/reference/dev/verifying-a-rename.md -- named in plain prose
-because CI checks this repository out alone.
+because the doc-link gate resolves paths inside this repository alone.
 
 **A generic name is not renameable by substitution at all** ``[review]``, and the
 tell is the same one §2.4.14 uses for stored Python: ask whether the spelling
@@ -2983,8 +2967,8 @@ records alone.)
 * **This class has no failure signal at all** ``[review]``, which is why the
   sweep's root matters more here than anywhere. A missed call site fails a test;
   a missed XML ``name=`` fails at install; a missed string reaches somebody as a
-  red suite. A citation in the vault is read by no test, no gate and no CI lane
-  in any repository, so it rots in silence -- and the sweep that would catch it is
+  red suite. A citation in the vault is read by no test and no gate in any
+  repository, so it rots in silence -- and the sweep that would catch it is
   one ``cd`` above where everybody runs it.
 
 **A private method can be reached from outside the workspace**
@@ -3170,7 +3154,7 @@ attribute it reaches, and check each of them against the tree it runs against.
 * **The two directions fail differently, and only the inward one scales.** The
   outward sweep catches a rename **whose author ran it**; the inward check
   catches a rename **by anybody**, including a contributor who has never read
-  this section and a tree that is in no lane. The break the third clause records
+  this section and a tree no suite covers. The break the third clause records
   would have been caught by the inward check without anyone knowing a rename had
   happened.
 * **It belongs to the dependent, not to the sweeper**, which is what takes it out
@@ -3206,14 +3190,14 @@ not a type-checker, not a test tier, not ``grep -r --include=*.py``.
 * **Count the sites with the grep, never by eye.** Three readings of one such
   tree within an hour produced three different totals, each undercounting by a
   different file, and every reader had already looked at the code. **No figure is
-  given here on purpose**: a machine-local tree is outside every lane, so a count
+  given here on purpose**: a machine-local tree is outside every suite, so a count
   would be neither gated nor re-derivable (§1.4) -- on another machine it
   re-derives to nothing -- and the disagreement is an argument for running the
   command, not for recording its answer.
 * **A verification that does not cover the file you edited is not evidence
   about it** ``[review]``. This is the class; the three bullets under it are its
   mechanisms. **The denominator that matters is not how many tests ran but how
-  many touched the line you changed** -- a lane that never held the file, a
+  many touched the line you changed** -- a run that never held the file, a
   baseline that ran none, and a suite that ran plenty and never entered the
   method are one defect at three scales. Not a caution about carelessness:
   every instance has been a real measurement, honestly taken, pointed at the
@@ -3228,8 +3212,8 @@ not a type-checker, not a test tier, not ``grep -r --include=*.py``.
   no ``testpaths`` and runs only when named (§6). **Name the suite that covers
   the files in your diff, and check that it runs them.** At repository scale it
   is sharper still: a core change whose only failure surfaces through
-  ``enterprise/`` is invisible to every lane in this workspace, because
-  ``enterprise`` has none.
+  ``enterprise/`` is invisible to every routine suite in this workspace,
+  because nothing runs ``enterprise``'s.
 * **A mock attribute is a binding that silently ACCEPTS the rename**
   ``[review]``. The sharpest mechanism, because it is the only one that leaves a
   **green test** rather than no test. A ``MagicMock`` absorbs any attribute, so
@@ -4081,7 +4065,7 @@ load-bearing**. Their reader was ``tests/service/test_module_layout.py``, which
 parsed a "Module layout:" block out of ``odoo.service.__doc__`` — and the
 prose-and-docstring strip emptied it, so the gate passed while detecting nothing,
 failing for exactly the reason it existed to prevent. It now reads
-``doc/architecture/module.md``: a CI-enforced document rather than a docstring,
+``doc/architecture/module.md``: a gate-enforced document rather than a docstring,
 which a strip cannot empty. Verified: nothing under ``tooling/`` or ``tests/``
 reads either module's ``__doc__``, and ``service/db/listing.py`` sat at zero
 documented definitions with ``tests/service`` fully green.
@@ -5495,7 +5479,7 @@ the code it stands in for, so it cannot catch a wrong one. Write a contract test
 whenever code branches on how a dependency behaves, and assert the dependency
 directly, so a version bump fails in a test that *names the assumption*. The suite
 skips when a dependency is missing, so a green local run may have compared
-nothing; CI sets ``ODOO_CONTRACT_REQUIRE_DEPS=1``.
+nothing; set ``ODOO_CONTRACT_REQUIRE_DEPS=1`` to make a missing one fail.
 
 **Process tests** assert only what an outside observer can see: a listening port,
 a process tree, an HTTP response. The suite is deliberately tiny -- the service
@@ -6227,7 +6211,7 @@ Every new model ships explicit access rules ``[review]``. A model with no
 * ``gevent_port`` set for websockets and longpolling (``longpolling_port`` was
   removed); ``x_sendfile = True`` behind nginx or Apache; ``data_dir`` on a
   persistent, backed-up volume.
-* Python dependencies pinned with hashes; ``pip-audit`` in CI.
+* Python dependencies pinned with hashes; ``pip-audit`` run regularly.
 
 ----
 
@@ -7204,6 +7188,10 @@ One row per change, one clause. The argument lives in the section it moved.
      - 2026-08-22
      - Full rewrite into a direct, rule-first style; §2.4 gains numbered
        subsections §2.4.1--§2.4.17.
+   * - 5.43
+     - 2026-09-04
+     - Every gate runs by hand: the CI workflows are gone, and the gate table
+       and lint sections no longer name one.
    * - 5.42
      - 2026-08-22
      - §2.9.8: the constraint attribute names the columns; a rename is carried by
@@ -7352,7 +7340,7 @@ One row per change, one clause. The argument lives in the section it moved.
      - Cyclomatic complexity is gated by a ``c901`` floor separate from ``ruff``.
    * - 5.3
      - 2026-08-07
-     - ``test_lint`` runs in CI; ratchets table completed.
+     - ``test_lint`` gated; ratchets table completed.
    * - 5.2
      - 2026-08-06
      - §2.4 gains the verb vocabulary: canonical verb per operation, the

@@ -32,8 +32,6 @@ from doc_gate.coupling_view import (  # noqa: F401
 from doc_gate.gates_view import (  # noqa: F401
     TestAddonSuiteFigures,
     TestFloorMethodologyExample,
-    TestGateInventoryIsWiredShut,
-    TestTheEnforcedClaimIsBounded,
 )
 from doc_gate.module_view import (  # noqa: F401
     TestContractTable,

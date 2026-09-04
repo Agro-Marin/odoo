@@ -18,11 +18,11 @@ a question — those live at the bottom of the view that owns the subject, under
 | R1 | `Registry._relation_reflections` has an undeclared lifetime | High | 2026-08-08 | **2026-08-09** |
 | R2 | The layering is true of imports and false of the runtime graph | Medium | 2026-08-08 | — |
 | R3 | Migration stage (`pre`/`post`) is unenforced and unrecoverable | High | 2026-08-08 | — |
-| R4 | "Enforced" means structural only — 71 gates cannot see behaviour | High | 2026-08-08 | — |
+| R4 | "Enforced" means structural only — the gates cannot see behaviour | High | 2026-08-08 | — |
 | R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 | **2026-08-14** |
 | R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 | — |
 | R7 | Every measured figure is single-process | Medium | 2026-08-08 | **2026-08-28** |
-| R8 | The integration lane is headless, so the tours it selects skip as passes | High | 2026-09-02 | — |
+| R8 | Headless test runs skip the tours they select as passes | High | 2026-09-02 | — |
 | R9 | A recursive stored compute has a shape no DB-free tier can pin | Medium | 2026-09-02 | — |
 | R10 | Most gate modules state their reason nowhere | Medium | 2026-09-02 | — |
 
@@ -40,7 +40,7 @@ written up in [`module.md`](module.md#coupling-the-import-graph-cannot-see).
 
 **Cost if it broke.** Nothing declared the ordering, and nothing but an
 `AttributeError` during module installation would have caught a violation — it
-fails at install time, in the field, not in CI.
+fails at install time, in the field, not in any gate.
 
 **How it was closed.** It was **four** attributes, not one: `_post_init_queue`,
 `_foreign_keys`, `_relation_reflections` and `_is_install` shared the lifetime,
@@ -132,8 +132,8 @@ upgrade of a populated database that is a migration nobody notices did not
 happen, and it needed no schema knowledge to detect.
 `modules/migration.py::_warn_unstaged_scripts` now logs one, as a warning rather
 than an error, because an addon may legitimately keep a helper module beside its
-scripts. Measured across this repository's two addon trees — the scope CI
-reproduces, a workspace reading being whatever checkouts happened to be on
+scripts. Measured across this repository's two addon trees — the scope a checkout of
+this repository alone reproduces, a workspace reading being whatever checkouts happened to be on
 disk: **278** scripts in `migrations/` and **5** in `upgrades/`, all correctly
 prefixed, **0** dropped.
 
@@ -177,30 +177,30 @@ why this entry stays open at High rather than closing on the test above.
 
 **What.** The 71 boundary checkers read import graphs, call graphs,
 reached-member sets and documents. None executes the framework. A change can
-satisfy all 71 and both DB-free tiers and still be wrong.
+satisfy every gate and both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming
 `OrmCore`'s slots (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed
 addon tests in 2026-08 while every gate and both tiers stayed green.
 
-**Cost.** A green boundary job reads as "the framework works" when it means "the
-structure holds". Two lanes execute addon tests: the integration lane is the only
-one that runs addon tests in Python, and it runs twenty-nine suites; the JS lane
-(`js_tests.yml`, added 2026-09-01) runs the HOOT suites under both presets.
+**Cost.** A green boundary run reads as "the framework works" when it means "the
+structure holds". Two things execute addon tests: the integration suites are the
+only ones that run addon tests in Python, and the HOOT runner runs the JS suites
+under both presets.
 
-**Widened 2026-09-02: the Python lane is headless as well as narrow.** Nearly
-every one of its suites passes `--no-http` — R8 carries the figure and the
-mechanism — so what "runs addon tests" executes is the database half of each
-suite and not its browser half. An `HttpCase` class skips itself at `setUpClass`
-and is reported as skipped, never as a failure, so the lane's green covers the
-tours and the served-controller tests of a suite it names exactly as well as the
-boundary job covers behaviour: not at all. The sentence above therefore reads
+**Widened 2026-09-02: the Python runs are headless as well as narrow.** Nearly
+every integration suite is run `--no-http` — R8 carries the mechanism — so what
+"runs addon tests" executes is the database half of each suite and not its
+browser half. An `HttpCase` class skips itself at `setUpClass` and is reported
+as skipped, never as a failure, so a headless run's green covers the tours and
+the served-controller tests of a suite it names exactly as well as the boundary
+run covers behaviour: not at all. The sentence above therefore reads
 "runs the addon tests that need no server" for all but the two suites R8 names,
 and the defect class this entry opened on — green everywhere, wrong at runtime —
 has a second instance in R9, where the tier that stayed green cannot hold the
 state the defect needs.
 
-**What would close it.** Broadening the integration lane is the only lever —
+**What would close it.** Broadening the integration suites is the only lever —
 more suites, and a server under the ones already there (R8) — because adding
 structural gates cannot reach this class of defect by construction.
 
@@ -318,7 +318,7 @@ cross-process signalling path was exercised by none of the measurements.
 **Half closed 2026-08-28: contention.** [Scenario 5](qualities.md#scenario-5--contention-and-retry) runs
 `workers = 4` under prefork with sixteen concurrent writers, against a control
 at the same concurrency on different rows. Same-row contention costs ~3× the
-throughput, ~2.5× the p50 and 5–10× the p99, and turns a lane with no failures
+throughput, ~2.5× the p50 and 5–10× the p99, and turns a run with no failures
 into one losing **0.5 % of requests to an exhausted retry budget**.
 
 The result worth carrying into design is not the ratio: **the retry ladder
@@ -346,21 +346,20 @@ the retry ladder begins to converge, and the replica case — signalling read
 through a cursor that lands on a replica merely *behind* reads as "nothing has
 changed".
 
-## R8 — The integration lane is headless, so the tours it selects skip as passes
+## R8 — Headless test runs skip the tours they select as passes
 
 **What.** Every `HttpCase` — a tour, and any test that drives a browser or an
 HTTP client against the server — needs a running HTTP server, and `--no-http`
 starts none. Such a class skips itself at `setUpClass`, which never reaches
 `startTest`, so it adds nothing to the test count and the log records a skip
-where the suite's author wrote a test. **22** of the **29** suites the
-integration lane runs pass `--no-http`; `test_http` and `rpc` are the two that do
-not, and each carries a count floor set *above* what a headless run of the same
-suite reports, so that a re-added flag fails the lane instead of passing it. The
-other browser lane does not reach a tour either: `js_tests.yml` (`15fb00aab7a`)
-runs the HOOT unit suites under both presets with a passed-count floor per pass,
-and a HOOT suite mounts components against a mock server — it is the browser
+where the suite's author wrote a test. Most integration suites are run
+`--no-http`; `test_http` and `rpc` are two that are not, and each carries a
+count floor set *above* what a headless run of the same suite reports, so that a
+re-added flag fails the run instead of passing it. A HOOT run does not reach a
+tour either: it mounts components against a mock server — it is the browser
 without the framework, where a tour is the framework driven through the browser.
-Between the two lanes, a tour runs nowhere.
+Between the two, a tour runs nowhere unless someone runs the suite with a
+server.
 
 **Evidence.** `hr_holidays`'s `time_off_request_calendar_view` tour fails at its
 last step on a pristine checkout — the click that should open the new-leave
@@ -370,23 +369,22 @@ floor comment records the shape from the other side: a headless run reports
 fewer tests than a served one, and every test in the difference is an `HttpCase`
 skipped as a success. Since `c430b51ef26` the exit code does catch one edge of
 this — a post-install phase that *prepared* tests and *started none* fails the
-run, so a lane whose whole selected suite is `HttpCase` goes red — but a mixed
+run, so a run whose whole selected suite is `HttpCase` goes red — but a mixed
 suite that skips its browser half and runs its database half is exactly the
 shape the exit code still calls a pass.
 
 **Cost.** A tour regression lands green, and stays green until somebody runs the
-suite by hand with a server. Every tour in the lane's suites is coverage the lane
-claims and does not have; every `--no-http` flag is a decision that the
+suite by hand with a server. Every tour in a headless run's suites is coverage
+the run claims and does not have; every `--no-http` flag is a decision that the
 tour classes of that suite are deferred, taken once and then re-read as a pass
-on every push.
+on every run.
 
-**What would close it.** Chrome on the runner and the flag dropped suite by
+**What would close it.** Chrome on the machine and the flag dropped suite by
 suite, each drop paired with its count floor raised to the served figure — the
 `rpc` suite is the template, floor comment included. The floor is the
 load-bearing half: a flag dropped without it lets the skip come back unread, and
-a floor set from the headless count ratifies the skip. The figure above is
-measured from the workflow, so each suite that drops the flag moves it, and the
-entry closes when it reads zero.
+a floor set from the headless count ratifies the skip. The entry closes when no
+suite is run headless.
 
 ## R9 — A recursive stored compute has a shape no DB-free tier can pin
 
@@ -446,7 +444,7 @@ register held it, so the deletion left most gates stating their reason nowhere
 — the removal commit records that cost against itself. `44abc16805b` replaced
 every dangling `ADR-NNNN` token with the decision text the record had carried,
 and wrote a docstring for each gate module that had cited a record and had none.
-Today **54** of the **80** gate modules under `tooling/architecture/` carry no
+Today **53** of the **79** gate modules under `tooling/architecture/` carry no
 module docstring — a gate module being every `.py` there that is neither a test
 nor a private helper.
 

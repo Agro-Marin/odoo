@@ -303,7 +303,7 @@ columns is contention and nothing else.
 | Failed to the client | **0 of 6,400** | **32 of 6,400 (0.5 %)** |
 
 Contention on one row costs **~3× the throughput, ~2.5× the p50 and 5–10× the
-p99**, and turns a lane with no failures into one with a floor of half a percent.
+p99**, and turns a run with no failures into one with a floor of half a percent.
 
 **The retry ladder barely converges.** Every re-run logs one line, so the depth
 distribution is countable without instrumenting anything. Across both contended

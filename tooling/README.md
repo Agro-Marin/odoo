@@ -9,8 +9,8 @@ module docstring.
 Two directories here deliberately gate nothing and say so in their own README:
 `testbaseline/` (is this red mine, or was it already red?) and `patchorder/`
 (is a double-patch allowlist entry still double-patched anywhere?). Both answer
-a question CI cannot ask from the scope it runs in, which is the reason each
-is a tool rather than a lane — not an omission to be closed by adding one.
+a question no gate can ask from the scope it runs in, which is the reason each
+is a tool rather than a gate.
 
 Two scripts at this root gate nothing for a different reason: their answer
 depends on **what is installed**, so a floor over one would measure the database
@@ -47,18 +47,16 @@ exactly that state.
 `design-themes`) that version and merge independently, so the boundary gates
 run in three places, each covering what only it can see:
 
-1. **This repo's CI** (`.github/workflows/architecture.yml`) checks out this
-   repo alone. `js_public_surface.py` therefore pins its surface *per consumer
-   scope* (each pinned specifier records which checkout imports it), and a
-   repo-alone run validates only the `odoo` scope. Regenerating the pin
-   (`--update`) requires the full workspace and refuses anything less.
-2. **Sibling repos' CI** (e.g. `enterprise/.github/workflows/architecture.yml`)
-   checks out this repo alongside and re-runs `js_face_boundary`,
-   `js_public_surface`, and `named_export_coherence` with both trees present —
+1. **A run from this repo alone.** `js_public_surface.py` pins its surface
+   *per consumer scope* (each pinned specifier records which checkout imports
+   it), and a repo-alone run validates only the `odoo` scope. Regenerating the
+   pin (`--update`) requires the full workspace and refuses anything less.
+2. **A run from an assembled workspace** re-runs `js_face_boundary`,
+   `js_public_surface`, and `named_export_coherence` with every tree present —
    that is where a sibling's new deep import into `@web` internals fails.
 3. **The pre-push hook** (`cross_repo_coherence.py`, installed by the script
    above) stops a core push that removes a JS module a sibling still imports —
-   the one failure CI can only report after the fact.
+   the one failure a repo-alone run can only report after the fact.
 
 `xml_reference_coherence.py` extends the same per-scope pattern to the graph
 imports cannot see: the strings view-arch XML resolves in the JS registries

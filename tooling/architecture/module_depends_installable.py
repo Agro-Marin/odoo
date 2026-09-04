@@ -10,7 +10,7 @@ module's own suite never runs and nothing is red.
 ``--require-present`` adds the second question — a dependency no scanned root
 supplies at all — and is **off by default on purpose**. Absence is only an
 offence when the caller can assert the roots are the whole addons path: the
-odoo lane checks this repository out alone, and `addons_data_dir` can supply a
+odoo repository is often measured alone, and `addons_data_dir` can supply a
 module at runtime that no checkout carries. Pass it only from a caller that
 assembles every root a deployment loads; then it is the check that a module
 removed from one repository leaves no dependant naming it in another.

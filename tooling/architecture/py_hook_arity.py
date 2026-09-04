@@ -40,9 +40,9 @@ TESTS = "tests"
 
 SIBLING_SCOPES = ("enterprise", "agromarin", "design-themes")
 
-# Measurable with --addon, but not floored here: no workflow in this repository
+# Measurable with --addon, but not floored here: nothing in this repository
 # drives a sibling checkout, and a baseline nothing drives is a baseline nobody
-# reads. Onboard one the way naming_enterprise is, from the sibling's own lane.
+# reads.
 
 GOVERNED_ADDONS = (DEFAULT_ADDON, ALL_ADDONS, TESTS, *SIBLING_SCOPES)
 

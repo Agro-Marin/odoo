@@ -18,25 +18,20 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_scope_gate")
 EXCEPTIONS_DIR = HERE / "exceptions" / "mypy"
 BUDGETS_DIR = HERE / "budgets"
 
-# Every package of the core that a mypy lane names. The per-file locks are what
+# Every package of the core that a mypy scope names. The per-file locks are what
 # tell a file mypy found clean from a file mypy never opened, so a package with a
-# lane and no entry here is measured in aggregate only: its floor can sit at zero
-# while a file inside it goes unparsed. That is not hypothetical -- it is how
-# `-p odoo.upgrade_code` reported success over nine scripts it had not read.
-# `tools` had a lane and no entry from the day that lane was added; `api`,
-# `fields`, `models`, `_monkeypatches` and `upgrade_code` had neither until the
-# scope gap was closed.
+# scope and no entry here is measured in aggregate only: its floor can sit at
+# zero while a file inside it goes unparsed. That is not hypothetical -- it is
+# how `-p odoo.upgrade_code` reported success over nine scripts it had not read.
 #
 # Top-level modules (odoo/logutils.py and the six beside it) are NOT here and do
 # not need to be. package_of() keys on the second path component and they have
 # none, but they are named one by one with `-m`, and mypy refuses a `-m` it
 # cannot resolve: `mypy: error: Cannot find module "odoo.x"` matches the
-# ": error:" the ratchet greps, so the lane goes red rather than quietly
+# ": error:" the ratchet greps, so the run goes red rather than quietly
 # measuring six modules where it claims seven. A named module cannot be skipped
 # the way a file inside a package can, which is the whole thing per-file locking
-# defends against. What holds the NAMING itself is
-# tooling/typecheck/test_py_scope_coverage.py: a top-level module appearing with
-# no lane, or a lane naming one that has been deleted, fails there.
+# defends against.
 SCOPED_PACKAGES = (
     "orm",
     "db",

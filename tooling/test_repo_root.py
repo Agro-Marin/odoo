@@ -168,7 +168,6 @@ class TestEveryToolAgrees:
         ("architecture", "credential_storage"): "ROOT",
         ("architecture", "exchange_vocabulary"): "ROOT",
         ("architecture", "format_literals"): "ROOT",
-        ("architecture", "module_suite_lane"): "ROOT",
         ("architecture", "env_model_surface_check"): "REPO_ROOT",
         ("architecture", "model_member_surface_check"): "REPO_ROOT",
         ("architecture", "pool_surface_check"): "REPO_ROOT",

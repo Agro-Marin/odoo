@@ -1,59 +1,27 @@
 from __future__ import annotations
 
 import ast
-import io
 import json
 import re
 import sys
-from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import ratchet
 from _repo_root import find_odoo_root
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "architecture"))
 import _ast_cache
-import _consumer_scopes
 
 HERE = Path(__file__).resolve().parent
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_baseline_enforcement")
 BASELINES_DIR = HERE / "baselines"
-WORKFLOWS = ROOT / ".github" / "workflows"
-
-_INVOCATION = re.compile(r"ratchet\.py\s+([a-z0-9_]+)(?:\s+--mode\s+\S+)?\s+--count\b")
-_CONTINUATION = re.compile(r"\\\s*\n\s*")
-
-_COMMENT_LINE = re.compile(r"^[ \t]*#.*$", re.MULTILINE)
-
 _ASSERT_RATCHET = re.compile(r"assert_ratchet\(")
 
 _PY_CONSUMERS = ("odoo/addons/test_lint/tests",)
 
-SIBLING_SCOPES: tuple[str, ...] = tuple(
-    name for name, _root in _consumer_scopes.CONSUMER_ROOTS if name != "odoo"
-)
-
-
-def sibling_scope_of(gate: str) -> str | None:
-    for scope in SIBLING_SCOPES:
-        if gate.endswith(f"_{scope}"):
-            return scope
-    return None
-
 
 def recorded_floors() -> set[str]:
     return {path.stem for path in BASELINES_DIR.glob("*.json")}
-
-
-def invoked_gates() -> set[str]:
-    found: set[str] = set()
-    for path in sorted(WORKFLOWS.glob("*.yml")):
-        text = _COMMENT_LINE.sub("", path.read_text(encoding="utf-8"))
-        found.update(_INVOCATION.findall(_CONTINUATION.sub(" ", text)))
-    return found
 
 
 def _py_consumer_files() -> list[Path]:
@@ -133,16 +101,8 @@ def asserted_gates() -> set[str]:
     return found
 
 
-def enforced_gates() -> set[str]:
-    return invoked_gates() | asserted_gates()
-
-
 def test_the_discovery_finds_something():
     assert len(recorded_floors()) > 20, f"only {len(recorded_floors())} baselines found"
-    assert len(invoked_gates()) > 20, (
-        f"only {len(invoked_gates())} ratchet invocations found under {WORKFLOWS} — "
-        f"the discovery rule is broken, not the workflows"
-    )
     files = _py_consumer_files()
     assert files, f"no Python consumer found under {_PY_CONSUMERS}"
     calls = sum(
@@ -154,71 +114,6 @@ def test_the_discovery_finds_something():
         f"unenforced"
     )
     assert asserted_gates(), "the consumer scan found nothing"
-
-
-@pytest.mark.parametrize("gate", sorted(recorded_floors()))
-def test_every_floor_is_read_by_some_consumer(gate):
-    scope = sibling_scope_of(gate)
-    if scope is not None:
-        return
-    assert gate in enforced_gates(), (
-        f"baselines/{gate}.json is read by nothing — no workflow step in "
-        f"{WORKFLOWS.name}/ and no `assert_ratchet` call under "
-        f"{', '.join(_PY_CONSUMERS)}. A floor nothing runs is debt that reads "
-        f"as governed: wire it into a lane, or delete it. A floor a sibling "
-        f"repo's CI owns carries that repo's name as a suffix "
-        f"({', '.join(SIBLING_SCOPES)}) and is judged by "
-        f"test_every_sibling_scoped_floor_has_a_lane_to_be_read_by instead."
-    )
-
-
-def _run_ratchet(argv: list[str]) -> int:
-    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-        return ratchet.run(argv)
-
-
-def test_some_workflow_invocation_has_no_floor():
-    assert invoked_gates() - recorded_floors(), (
-        "every gate a workflow hands to ratchet.py carries a baseline file; "
-        "the hard-zero check below would then verify nothing"
-    )
-
-
-@pytest.mark.parametrize("gate", sorted(invoked_gates() - recorded_floors()))
-def test_every_workflow_invocation_without_a_floor_is_a_hard_zero(gate):
-    # Against the committed baselines directory, not a fixture: what is pinned
-    # is that THIS gate, as CI names it, passes at zero and fails above it.
-    for mode in ("exact", "no-increase"):
-        assert _run_ratchet([gate, "--count", "0", "--mode", mode]) == ratchet.EXIT_OK
-        assert _run_ratchet([gate, "--count", "1", "--mode", mode]) == (
-            ratchet.EXIT_DRIFT
-        ), (
-            f"a workflow runs `ratchet.py {gate} --count` with no "
-            f"baselines/{gate}.json, and a count of 1 does not fail. A gate "
-            f"with no file is a contract at zero; if it can hold debt it needs "
-            f"a file, opened with --update and a note."
-        )
-
-
-def test_every_sibling_scoped_floor_has_a_lane_to_be_read_by():
-    scoped = {g: sibling_scope_of(g) for g in recorded_floors()}
-    scoped = {g: s for g, s in scoped.items() if s is not None}
-    assert scoped, "no sibling-scoped floor found — the suffix rule has rotted"
-    for gate, scope in sorted(scoped.items()):
-        root = dict(_consumer_scopes.CONSUMER_ROOTS)[scope]
-        workflow = root / ".github" / "workflows" / "architecture.yml"
-        if not workflow.is_file():
-            if root.is_dir():
-                pytest.fail(
-                    f"{gate} is scoped to {scope}, which is checked out and has "
-                    f"no architecture.yml — so that floor is read by nothing."
-                )
-            continue
-        text = workflow.read_text(encoding="utf-8")
-        assert "tooling/" in text, (
-            f"{scope}'s architecture.yml runs no tooling gate, so {gate} is read "
-            f"by nothing."
-        )
 
 
 def test_every_baseline_parses_as_a_floor():
@@ -256,12 +151,3 @@ def test_the_python_consumer_scan_is_precise_not_a_haystack():
     assert not any(" " in name for name in found), (
         f"a message string reached the gate set: {sorted(n for n in found if ' ' in n)}"
     )
-
-
-def test_every_floor_the_python_consumer_holds_is_discovered():
-    unclaimed = {
-        gate
-        for gate in recorded_floors()
-        if sibling_scope_of(gate) is None and gate not in enforced_gates()
-    }
-    assert not unclaimed, f"no consumer found for {sorted(unclaimed)}"

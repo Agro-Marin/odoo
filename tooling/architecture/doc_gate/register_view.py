@@ -63,62 +63,6 @@ class TestRiskRegisterFigures(unittest.TestCase):
             DOC_FLAT,
         )
 
-    def test_no_page_states_a_checker_total_the_workflow_does_not_run(self) -> None:
-        expected = len(_doc_measures.workflow_gates())
-        phrasings = (
-            (
-                rf"\b(?:all|the)\s+({_doc_measures.ANY_NUMBER})\s+"
-                rf"(?:blocking\s+)?boundary\s+checkers\b"
-            ),
-            rf"\bruns\s+\*\*({_doc_measures.ANY_NUMBER})\*\*\s+blocking\s+checkers\b",
-            rf"\b({_doc_measures.ANY_NUMBER})\s+blocking\s+checkers\b",
-            rf"\bCheckers\s+outside\s+the\s+({_doc_measures.ANY_NUMBER})\b",
-            rf"\bsatisfy\s+all\s+({_doc_measures.ANY_NUMBER})\b",
-            rf"\ball\s+({_doc_measures.ANY_NUMBER})\s+are\s+structural\b",
-            rf"[-\u2014]\s*({_doc_measures.ANY_NUMBER})\s+gates\s+cannot\s+see\b",
-        )
-        wrong = [
-            f"{page}: {match.group(0)!r} states "
-            f"{_doc_measures.number_value(match.group(1))}"
-            for phrasing in phrasings
-            for page, match in _doc_measures.stated(phrasing)
-            if _doc_measures.number_value(match.group(1)) != expected
-        ]
-        blocking = expected + len(_doc_measures.self_test_only_gates())
-        wrong += [
-            f"{page}: {match.group(0)!r} states "
-            f"{_doc_measures.number_value(match.group(1))}, {blocking} block in all"
-            for page, match in _doc_measures.stated(
-                rf"\b({_doc_measures.ANY_NUMBER})\s+in\s+all\b"
-            )
-            if _doc_measures.number_value(match.group(1)) != blocking
-        ]
-        self.assertEqual(
-            [],
-            wrong,
-            f"the workflow runs {expected} checkers, {blocking} block in all, "
-            f"and a page says otherwise:\n  " + "\n  ".join(wrong),
-        )
-        self.assertTrue(
-            any(_doc_measures.stated(phrasing) for phrasing in phrasings),
-            "no page states the total any more; the phrasings have rotted",
-        )
-
-    def test_the_inventory_names_every_gate_outside_the_workflow(self) -> None:
-        outside = _doc_measures.self_test_only_gates()
-        section = DOC_FLAT.split("Checkers outside the", 1)[1].split(" is a ", 1)[0]
-        missing = [gate for gate in outside if f"`{gate}.py`" not in section]
-        self.assertEqual(
-            [],
-            missing,
-            f"blocking through the self-test step and unnamed by the page: {missing}",
-        )
-        self.assertIn(
-            f"{_doc_measures.number_word(len(outside)).capitalize()} more block",
-            DOC_FLAT,
-            f"{len(outside)} gates block outside the workflow's own steps",
-        )
-
     def test_the_index_agrees_with_the_entry_bodies(self) -> None:
         risks = (ROOT / "doc" / "architecture" / "risks.md").read_text(encoding="utf-8")
         cells = dict(

@@ -5,7 +5,7 @@ owned the contract 59 handlers under tooling/ answered a SyntaxError, a
 UnicodeDecodeError or an OSError with `continue`, `pass` or a bare `return`,
 seven more with a line on stderr that no count can reach. An unreadable file
 therefore counted as a file with no findings: it lowered every ratchet it fed,
-and `ratchet.py --update` would then invite someone to bank the drop. Three failure vectors were measured against the exact ruff.yml
+and `ratchet.py --update` would then invite someone to bank the drop. Three failure vectors were measured against the exact ruff
 commands over addons/ -- a syntax error trips ruff's `invalid-syntax`, an
 undecodable file needs E902 in the gate's select, and a file that is merely
 unreadable to one gate's own parser was caught by nothing at all.

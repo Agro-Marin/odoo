@@ -20,17 +20,9 @@ EXPECTED_SURVIVORS: dict[str, str] = {
     "TestAddonSuiteFigures.test_every_prose_figure_is_fresh": "code-only",
     "TestSignallingTables.test_the_runtime_derives_the_tables_rather_than_listing_them": "code-only",
     "TestAddonSuiteFigures.test_no_page_states_a_suite_size_the_tree_does_not_hold": "negative",
-    "TestRiskRegisterFigures.test_no_page_states_a_checker_total_the_workflow_does_not_run": "negative",
     "TestRiskRegisterFigures.test_the_index_agrees_with_the_entry_bodies": "code-only",
-    "TestReferencedArtifacts.test_a_sibling_driven_baseline_is_driven_by_its_sibling": "code-only",
     "TestCountsRestatedElsewhere.test_checker_docstring": "code-only",
     "TestCountsRestatedElsewhere.test_metadata_fan_in_figures": "code-only",
-    "TestCountsRestatedElsewhere.test_workflow_comment": "code-only",
-    "TestGateInventoryIsWiredShut.test_every_gate_step_is_blocking": "code-only",
-    "TestGateInventoryIsWiredShut.test_the_annotation_does_not_enumerate_the_steps": "code-only",
-    "TestGateInventoryIsWiredShut.test_the_premises_that_make_failure_equivalent_still_hold": "code-only",
-    "TestGateInventoryIsWiredShut.test_no_step_writes_an_output_nothing_reads": "code-only",
-    "TestGateInventoryIsWiredShut.test_no_gate_is_described_as_unwired": "negative",
     "TestHttpCallGraphIsRecoverable.test_every_named_ir_http_hook_exists": "code-only",
     "TestHttpCallGraphIsRecoverable.test_every_named_request_method_exists": "code-only",
     "TestHttpCallGraphIsRecoverable.test_the_graph_is_actually_in_it": "code-only",
@@ -52,9 +44,6 @@ EXPECTED_SURVIVORS: dict[str, str] = {
     "TestPinnedViolations.test_no_new_violations": "code-only",
     "TestPosture.test_named_monoliths_are_no_longer_monoliths": "code-only",
     "TestPosture.test_sql_db_is_gone": "code-only",
-    "TestReferencedArtifacts.test_ci_path_filter_covers_every_scanned_tree": "code-only",
-    "TestTheEnforcedClaimIsBounded.test_the_boundary_job_really_has_no_database": "code-only",
-    "TestTheEnforcedClaimIsBounded.test_each_suite_gets_its_own_database": "code-only",
 }
 
 

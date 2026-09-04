@@ -155,7 +155,7 @@ plausible wrong answer on its own:
 ### Ownership and legal direction
 
 Each package owns one concern and may only depend downward. Where a row names a
-contract, the direction is a CI gate rather than a convention.
+contract, the direction is a gate rather than a convention.
 
 | Package | Owns | Must not import | Contract |
 |---------|------|-----------------|----------|
@@ -212,7 +212,7 @@ advertised door to `SQL`. Taking it from `odoo.libs.sql` is what let
 Addon code imports **`odoo.api`, `odoo.fields`, `odoo.models`** — never
 `odoo.orm.*`. Each is an `__init__.py` re-export shim with an explicit
 `__all__`, which is what lets the ORM's internal layout move without breaking
-addon imports. `facade-boundary` fails CI on any runtime `odoo.orm.*` import
+addon imports. `facade-boundary` fails on any runtime `odoo.orm.*` import
 under either addon tree (`if TYPE_CHECKING:` exempt).
 
 The serving tier has the same rule in a different shape. `odoo.http` and
@@ -220,7 +220,7 @@ The serving tier has the same rule in a different shape. `odoo.http` and
 `odoo.http.ParamSpec`, `odoo.http.HttpExtension`, `odoo.service.get_env_str`,
 `odoo.service.get_job_real_time_budget`, `odoo.service.metrics` — and whose
 underscore-prefixed modules (`http/_params.py`, `service/_limits.py`,
-`service/_env.py`) are theirs alone. `facade-boundary` also fails CI on an
+`service/_env.py`) are theirs alone. `facade-boundary` also fails on an
 addon importing a private module of either package: a path component starting
 with `_` that resolves to a module on disk. `web`'s Prometheus endpoint read
 `odoo.service._metrics` and `_env`, `base`'s cron and job runners read
@@ -349,7 +349,7 @@ definition that runs.
 | `root-modules-are-foundational` | `odoo/exceptions.py` & `odoo/release.py` must not import `odoo.*` except `odoo.libs`. **Not** `logutils.py`, which imports `db`/`tools` and is a consumer of the stack | ✅ clean |
 
 **The eight original boundaries are clean at zero** — no tolerated exceptions.
-The gate is **drift-zero**: any *new* crossing fails CI. A genuinely unavoidable
+The gate is **drift-zero**: any *new* crossing fails it. A genuinely unavoidable
 exception must be pinned (annotated) in `layer_check.py`'s `KNOWN_VIOLATIONS`, so
 it stays visible and cannot multiply.
 
@@ -438,7 +438,7 @@ from `self.browse(…)`, `self.filtered(…)`, `self.sudo()` and the rest
 (`RECORDSET_PRODUCERS`) adds 8 edges — 105 → 113 — and is ratcheted separately
 (`recordset_max_scc` 1, `recordset_cyclic_edges` 0,
 `recordset_scc_without_base` 1). A cycle spelled through a recordset therefore
-fails CI even where the `self`-only numbers stay clean. The other four are
+fails the gate even where the `self`-only numbers stay clean. The other four are
 `self`-only: a `Field` holds no recordset of itself.
 
 Units are **file-level**, cross-checked against the runtime `BaseModel.__mro__`
@@ -448,7 +448,7 @@ rather than against themselves — and they are not the bases. It counts
 
 ```bash
 python tooling/architecture/mixin_coupling_check.py            # report
-python tooling/architecture/mixin_coupling_check.py --check    # CI
+python tooling/architecture/mixin_coupling_check.py --check    # blocking
 python tooling/architecture/mixin_coupling_check.py --explain search read
 python tooling/architecture/mixin_coupling_check.py --composition Field \
     --explain _field_convert _field_metadata

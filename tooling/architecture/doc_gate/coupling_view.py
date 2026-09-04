@@ -104,12 +104,6 @@ class TestCountsRestatedElsewhere(unittest.TestCase):
         for count in counts:
             self.assertEqual(count, len(self.bases))
 
-    def test_workflow_comment(self) -> None:
-        counts = self._mixin_counts_in(".github/workflows/architecture.yml")
-        self.assertTrue(counts, "architecture.yml no longer states the count")
-        for count in counts:
-            self.assertEqual(count, len(self.bases))
-
     def test_metadata_fan_in_figures(self) -> None:
 
         import mixin_coupling_check as mcc

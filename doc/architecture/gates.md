@@ -6,53 +6,40 @@
 
 ## Running the checks
 
-The seventy-one blocking checkers do **not** share one CLI, and a loop that
-assumes they do fails on twenty-two of them.
+The blocking checkers do **not** share one CLI, and a loop that assumes they
+do fails on the count ratchets.
 
-**Forty-three are contract gates.** Each takes bare for a human-readable
-report, `--check` for CI (exit 1 on a new violation), `--json` for a
-machine-readable one:
+**Contract gates** take bare for a human-readable report, `--check` for a
+blocking run (exit 1 on a new violation), `--json` for a machine-readable one:
 
 ```bash
 python tooling/architecture/layer_check.py           # human-readable report
-python tooling/architecture/layer_check.py --check   # CI mode: exit 1 on new violations
+python tooling/architecture/layer_check.py --check   # exit 1 on new violations
 python tooling/architecture/layer_check.py --json    # machine-readable
 ```
 
-**Twenty-eight are count ratchets.** `js_function_length`, `py_function_length`, `py_class_length`, `py_hook_arity`,
+**Count ratchets** — `js_function_length`, `py_function_length`, `py_class_length`, `py_hook_arity`,
 `py_x2many_count`, `werkzeug_in_addons`, `config_in_addons`, `sql_in_placeholder`, `py_count_as_boolean`,
 `py_shadowed_member`, `naming_vocabulary`, `naming_core_vocabulary`,
 `field_hook_naming`, `field_hook_purity`, `js_service_shape`,
 `js_vacuous_assertions`, `js_duplication`, `compute_context_deps`,
-`js_eager_mock_fixture`, `py_unresolved_calls`, `order_line_qty` and `bridge_budget` implement no
-`--check` at all — the twenty-two a `--check` loop breaks on. They print a number under `--count` and hand it
+`js_eager_mock_fixture`, `py_unresolved_calls`, `order_line_qty` and `bridge_budget` — implement no
+`--check` at all. They print a number under `--count` and hand it
 to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
-`js_forced_render`, `js_ts_check` and `translation_catalog` also implement `--check`, but CI
-drives them as ratchets, so they belong to this group. Run any of the twenty-six bare
+`js_forced_render`, `js_ts_check` and `translation_catalog` also implement `--check`, but
+are driven as ratchets, so they belong to this group. Run any of them bare
 and it reports without enforcing.
-
-Forty-three plus twenty-eight is seventy-one. All three figures derive from the
-workflow, by the assertion that divides its own list; so does the membership of
-the loop below (`test_the_reproduce_loop_is_exactly_the_contract_gates`) and,
-since a gate governing several scopes gets a CI step per scope, the scoped
-block after it (`test_the_recipe_reproduces_every_scoped_step`) — an enumerated
-list is a gate only when something independently derives the enumeration. The
-scoped block carried two of eight scoped gates by hand until that assertion
-existed, at two scopes each against twenty-four, so this recipe reproduced
-fifty-eight of the workflow's eighty-two steps and said nothing about the rest.
 
 **A figure stated twice is a figure pinned once.** Every count on these pages is
 re-derived, but an `assertIn` is satisfied by the first copy and silent about
 the second: this page said `forty-nine` in three places, and the risk register
 said `32` in a row whose own entry body said 58, all four surviving a green gate
-for weeks. The exclusions
-(`test_no_page_states_a_checker_total_the_workflow_does_not_run`,
-`test_no_page_states_a_suite_size_the_tree_does_not_hold`) read every phrasing
+for weeks. The exclusion
+(`test_no_page_states_a_suite_size_the_tree_does_not_hold`) reads every phrasing
 across all nine pages, in digits or in words.
 
-Reproduce the whole job. Self-test first, blocking, because a checker whose own
-logic is broken reports green over code it never read; then both groups in the
-workflow's order:
+Reproduce the whole set. Self-test first, blocking, because a checker whose own
+logic is broken reports green over code it never read; then both groups:
 
 ```bash
 python -m pytest tooling/architecture/ -q
@@ -111,16 +98,14 @@ translation_catalog translations
 py_unresolved_calls unresolved_calls
 naming_core_vocabulary naming_core
 orphan_depends     orphandepends
-module_suite_lane  suite_lane
 EOF
 
-# The two loops above run each checker once, at its default scope: 71 of the
-# workflow's 102 steps. A gate governing several scopes gets one step per scope,
-# and these are the other 31. The rows are the workflow's own argv, left/right of
-# the pipe, because a scope is not always spelled `--addon` and the flag is not
-# always `--count`: `js_private_access` counts a second tree with
-# `--count-cross-tree`, and `pyfunclen_addons` is the one floor driven
-# `--mode no-increase`.
+# The two loops above run each checker once, at its default scope. A gate
+# governing several scopes runs once per scope, and these are the other rows:
+# the gate's argv left of the pipe and the ratchet's right of it, because a
+# scope is not always spelled `--addon` and the flag is not always `--count`.
+# `js_private_access` counts a second tree with `--count-cross-tree`, and
+# `pyfunclen_addons` is the one floor driven `--mode no-increase`.
 while IFS='|' read -r gate floor; do
     if [ -z "$floor" ]; then
         python tooling/architecture/$gate || echo "FAILED: $gate"
@@ -164,19 +149,19 @@ sql_in_placeholder.py --addon tests --count|sql_in_placeholder_tests --count
 EOF
 ```
 
-**A local run judges more than CI does.** `js_public_surface`,
-`js_extension_surface` and `xml_reference_coherence` are scope-aware: they judge
-every consumer checkout they can see. GitHub checks out this repo alone, so CI
-judges the `odoo` scope only, while the same command in an assembled workspace
-also judges `enterprise`, `design-themes` and `agromarin` — and can fail on a
-finding belonging to a sibling repo's own workflow. Read the `scope '<name>'`
-prefix on a `[FAIL]` before concluding this tree is broken.
+**A run from an assembled workspace judges more than a run from this repository
+alone.** `js_public_surface`, `js_extension_surface` and
+`xml_reference_coherence` are scope-aware: they judge every consumer checkout
+they can see. From this repo alone that is the `odoo` scope only, while the same
+command in an assembled workspace also judges `enterprise`, `design-themes` and
+`agromarin` — and can fail on a finding belonging to a sibling repo. Read the
+`scope '<name>'` prefix on a `[FAIL]` before concluding this tree is broken.
 
 ## Quality gates beyond the boundaries
 
-The Python boundary checker is one gate among several. The
-`Architecture Boundaries` workflow runs **seventy-one** blocking checkers, after
-`pytest tooling/architecture/` self-tests them:
+The Python boundary checker is one gate among several. `pytest
+tooling/architecture/` self-tests them; each then runs as a blocking step of its
+own:
 
 | Gate | What it locks |
 |------|---------------|
@@ -213,7 +198,7 @@ The Python boundary checker is one gate among several. The
 | `js_duplication.py` | the web addon's duplicated JS, as byte-exact runs of 9+ significant lines — the one property the other JS gates cannot see, because a copied block is structurally identical to a block that belongs where it is |
 | `js_vacuous_assertions.py` | a zero-count HOOT assertion naming a class no non-test file declares — the one assertion shape a wrong selector cannot be told from a passing test |
 | `js_eager_mock_fixture.py` | a mock fixture mutating another addon's model at module scope — hoot imports every test file during collection and model definitions are job-scoped per test, so such a statement runs for every suite in the bundle EXCEPT the one that wrote it. Fifty of these cost 37 scoped failures across twelve POS addons; a hard zero with no baseline file |
-| `js_ts_check.py` | how much client source is actually type-checked, as the count of `static/src` files carrying no leading `// @ts-check`. `tsconfig.json` sets `allowJs` with `strict`, `noImplicitAny` and `strictNullChecks` all false, so the directive is the only thing that decides whether a file's JSDoc is enforced — and a file without it reports zero errors to `typecheck.yml`'s aggregate whether it is clean or wrong, which is why that floor cannot see this boundary move in either direction. The ignore list is read out of `eslint.config.mjs` rather than restated |
+| `js_ts_check.py` | how much client source is actually type-checked, as the count of `static/src` files carrying no leading `// @ts-check`. `tsconfig.json` sets `allowJs` with `strict`, `noImplicitAny` and `strictNullChecks` all false, so the directive is the only thing that decides whether a file's JSDoc is enforced — and a file without it reports zero errors to the `tsc` aggregate whether it is clean or wrong, which is why that floor cannot see this boundary move in either direction. The ignore list is read out of `eslint.config.mjs` rather than restated |
 | `py_function_length.py` | the core's Python function-length budget — ratchets *excess lines* over 90, not the offender count, because splitting one long function raises the count while lowering the excess |
 | `py_class_length.py` | the class-length budget, the mass a function budget cannot see — a class of short methods; ratchets *excess lines* over 400 per class summed over offenders, the unit `py_function_length.py` uses and for the same reason, in the same scopes (`pyclasslen` for the core, `pyclasslen_addons` for the bundled tree as one number, `--mode no-increase`) |
 | `werkzeug_in_addons.py` | a non-test addon file importing werkzeug instead of the vocabulary `odoo.http` exports — the request, the response, `@route` and the HTTP exceptions a controller raises. 129 files did at the commit before the exceptions were re-exported, restating the framework's one WSGI-toolkit dependency in every module that serves a page. Ratchets the file count, because a file is written in one vocabulary or the other; not a hard zero, because an `ir.http` override that builds converters and a routing map keeps `werkzeug.routing` legitimately |
@@ -241,15 +226,14 @@ The Python boundary checker is one gate among several. The
 | `order_line_qty.py` | writes of `product_uom_qty` on a sale or purchase order line — the field swapped meaning with `product_qty` in this fork (Appendix A) and both names survived, so writing the readonly one does not raise: `create` discards the value and the line silently becomes quantity 1, `write` lands it in the column while `product_qty` keeps its old value |
 | `edi_vocabulary.py` | module names carrying `edi`, default-deny against its allowlist — the word names fiscal clearance, partner interchange and document import alike, and the collision has already produced a refactor proposal that would have made fifteen modules depend on a queue they do not use |
 | `payment_vocabulary.py` | model names carrying `payment`, default-deny against its allowlist, plus the `_description` strings of those models against each other — the word names a settlement, a provider transaction, a method, a channel, a due schedule and more alike, and `account.payment.method` and `account.payment.method.line` shipped the same description, so the capability and its journal binding were one word and one sentence in the UI |
-| `py_addon_imports.py` | every `odoo.addons.<addon>` import a module makes at import time resolves to an addon some checked-out repository provides — the Python twin of `named_export_coherence.py`, and the half nothing asked: `agromarin/mcp_server` imported `odoo.addons.rpc.tools.preflight` when no published repository carried it, so the module could not be imported against the published fork, and both repositories' CI stayed green because each sees only its own tree |
+| `py_addon_imports.py` | every `odoo.addons.<addon>` import a module makes at import time resolves to an addon some checked-out repository provides — the Python twin of `named_export_coherence.py`, and the half nothing asked: `agromarin/mcp_server` imported `odoo.addons.rpc.tools.preflight` when no published repository carried it, so the module could not be imported against the published fork, and each repository measured alone stayed green because each sees only its own tree |
 | `sql_placeholder.py` | `IN %s`, which psycopg 3 binds as `IN $1` and Postgres refuses — moved out of `test_lint` so it can see the tooling half of the tree and every repo, not only installed addons |
 | `translation_catalog.py` | every `_()` literal against the msgids its module's `.pot` actually carries — a reflowed string still renders, in English, for every reader who asked for another language, and nothing else in the tree can see it |
 | `compute_context_deps.py` | computes resolving the acting user (`env.user`, `env.uid`, `_get_guest_from_context`) without declaring the context key that keys their cache — the ORM cannot see that a method read `env`, and a test transaction has one uid, so six `mail`/`sms` fields shipped it and `discuss.channel._broadcast` sent every member the first member's unread count |
 | `xml_reference_coherence.py` | view-arch strings (`widget=`, `js_class=`, `t-call`) against the JS registries and templates |
-| `module_depends_installable.py` | an installable module naming, in `depends`, a module marked `installable: False` — disabling a module is how a replacement holds against the next module update, and it strands every dependent silently: the graph drops them with one WARNING, leaves them in state `to install`, and `odoo-bin` exits 0, so no suite runs and no lane reddens. Indian GST reporting sat unreachable that way until a manifest was read by hand |
+| `module_depends_installable.py` | an installable module naming, in `depends`, a module marked `installable: False` — disabling a module is how a replacement holds against the next module update, and it strands every dependent silently: the graph drops them with one WARNING, leaves them in state `to install`, and `odoo-bin` exits 0, so no suite runs and nothing reddens. Indian GST reporting sat unreachable that way until a manifest was read by hand |
 | `orphan_depends.py` | an `@api.depends` carried by a method no field wires as `compute=`, `inverse=` or `search=` — the list is inert, so the field declares no dependency and answers with whatever it computed first, and Python, ruff and the registry all accept it |
 | `naming_core_vocabulary.py` | §2.4's verb vocabulary over *every* function in the core package. `naming_vocabulary.py` implements the scope as a class-membership test, so module-level functions and plain-class methods are the population it cannot see |
-| `module_suite_lane.py` | a module whose test suite no workflow lane names, so nothing ever runs it |
 | `exchange_vocabulary.py` | one exchange lifecycle, not forty-seven: `state`-shaped Selection fields across the modules that talk to a counterparty |
 | `credential_storage.py` | a third-party secret resting in a stored `Char`/`Text` field instead of the vault |
 
@@ -317,7 +301,7 @@ retirement log is the last place to keep one. A backticked path in this repo
 asserts the file exists, so only *where on the page* a name sits distinguishes a
 citation from an assertion.
 
-### Checkers outside the seventy-one
+### Checkers enforced through the self-test
 
 Five more block without appearing in the table, enforced by the
 `pytest tooling/architecture/` step rather than a `--check` invocation of their
@@ -329,11 +313,10 @@ produces it). Each carries a real-tree test —
 `test_the_real_tree_holds_the_property_today`,
 `test_the_surface_matches_the_committed_baseline`, and for the last one
 `test_every_prose_figure_is_fresh` — so a violation fails the self-test step,
-which is blocking. **Seventy-one run as steps of their own and five block through
-the self-test: seventy-six in all.** The membership of this list is derived rather
+which is blocking. The membership of this list is derived rather
 than kept: `GATES` in
-`test_every_gate_refuses_an_empty_tree.py` is the roster, and it is compared
-against the workflow's, so a gate can be in neither list only by being in no
+`test_every_gate_refuses_an_empty_tree.py` is the roster, and these pages are
+checked against it, so a gate can be in neither list only by being in no
 list at all.
 
 `doc_restated_counts.py` was outside this paragraph for as long as it existed,
@@ -342,23 +325,14 @@ which is the failure the paragraph describes: the roster in
 already called it a gate, and this page — the operator's manual for exactly this
 machinery — said three.
 
-`cross_repo_coherence.py` is a seventy-seventh checker and the only one outside CI: it
-runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub
-checks out this repo alone and the check needs the sibling checkouts. Opt-in per
-clone — `pre-commit install --hook-type pre-push`.
+`cross_repo_coherence.py` runs at the `pre-push` stage via
+`.pre-commit-config.yaml`, because a run from this repository alone cannot see
+the sibling checkouts the check needs. Opt-in per clone —
+`pre-commit install --hook-type pre-push`.
 
-`js_imports.py` is neither: no `main()`, no flags. It is the JS tokenizer
-**eleven** of the checkers parse with — the easiest thing in the directory to
-mistake for a gate, since it sits beside them and has a `test_js_imports.py`.
-Eleven and not eight, which is what counting only the table above would give:
-`js_face_boundary` and `js_registry_layering` are two of the three enforced by
-the self-test rather than a step of their own, and `cross_repo_coherence` is the
-third.
-
-**One-hundred-and-two** is how many steps CI runs the seventy-one in, each step invoking
-exactly one checker; the self-test is the step above them all. The two figures
-differ because a gate governing several scopes gets one step per scope —
-`py_function_length` alone accounts for eight.
+`js_imports.py` is neither: no `main()`, no flags. It is the JS tokenizer the
+checkers parse with — the easiest thing in the directory to mistake for a gate,
+since it sits beside them and has a `test_js_imports.py`.
 
 `model_member_surface_check.py` is the companion to `env_model_surface_check.py`:
 *which members* the core calls on addon-owned models, against the `Protocol`s in
@@ -373,9 +347,9 @@ done right: it derives the tree and compares.
 
 ## The two count ratchets beyond the boundary gates
 
-**Drift-zero count ratchet** (`tooling/ratchet/`) — turns seventy-nine tool
-counts into one-way contracts: **mypy, ruff, c901, c901_addons, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_survey, pyfunclen, pyfunclen_addons, pyclasslen, pyclasslen_addons, werkzeug_in_addons, config_in_addons, pyfunclen_mail, pyfunclen_crm, pyfunclen_survey, pyfunclen_tooling, py_x2many_count, py_x2many_count_addons, py_x2many_count_account, py_x2many_count_enterprise, py_x2many_count_agromarin, py_shadowed_member_addons, bridge_budget, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsforcedrender, jsvacuous, jstscheck, jsduplication, prettier_scss, naming, naming_enterprise, naming_agromarin, fieldhooks, hookpurity, computectx, translations, mypy_tools, service_types_untyped, orderlineqty, orderlineqty_enterprise, unresolved_calls, unresolved_calls_enterprise, unresolved_calls_agromarin, bundle_double_eval, lint_docstring, lint_gettext_developer_error, lint_gettext_placeholders, lint_gettext_repr, lint_gettext_variable, lint_missing_gettext, lint_n_plus_one_query, lint_noqa_rationale, lint_raise_unlink_override, lint_sql_injection, lint_gettext_developer_error_enterprise, lint_missing_gettext_enterprise, lint_n_plus_one_query_enterprise, lint_noqa_rationale_enterprise, lint_raise_unlink_override_enterprise, lint_sql_injection_enterprise, lint_gettext_developer_error_agromarin, lint_gettext_placeholders_agromarin, lint_gettext_repr_agromarin, lint_gettext_variable_agromarin, lint_missing_gettext_agromarin, lint_n_plus_one_query_agromarin, lint_noqa_rationale_agromarin, lint_sql_injection_agromarin, lint_noqa_rationale_design-themes, lint_record_reference, orphandepends and suite_lane**
-(floors in `tooling/ratchet/baselines/`, one JSON per gate). CI fails
+**Drift-zero count ratchet** (`tooling/ratchet/`) — turns seventy-eight tool
+counts into one-way contracts: **mypy, ruff, c901, c901_addons, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_survey, pyfunclen, pyfunclen_addons, pyclasslen, pyclasslen_addons, werkzeug_in_addons, config_in_addons, pyfunclen_mail, pyfunclen_crm, pyfunclen_survey, pyfunclen_tooling, py_x2many_count, py_x2many_count_addons, py_x2many_count_account, py_x2many_count_enterprise, py_x2many_count_agromarin, py_shadowed_member_addons, bridge_budget, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsforcedrender, jsvacuous, jstscheck, jsduplication, prettier_scss, naming, naming_enterprise, naming_agromarin, fieldhooks, hookpurity, computectx, translations, mypy_tools, service_types_untyped, orderlineqty, orderlineqty_enterprise, unresolved_calls, unresolved_calls_enterprise, unresolved_calls_agromarin, bundle_double_eval, lint_docstring, lint_gettext_developer_error, lint_gettext_placeholders, lint_gettext_repr, lint_gettext_variable, lint_missing_gettext, lint_n_plus_one_query, lint_noqa_rationale, lint_raise_unlink_override, lint_sql_injection, lint_gettext_developer_error_enterprise, lint_missing_gettext_enterprise, lint_n_plus_one_query_enterprise, lint_noqa_rationale_enterprise, lint_raise_unlink_override_enterprise, lint_sql_injection_enterprise, lint_gettext_developer_error_agromarin, lint_gettext_placeholders_agromarin, lint_gettext_repr_agromarin, lint_gettext_variable_agromarin, lint_missing_gettext_agromarin, lint_n_plus_one_query_agromarin, lint_noqa_rationale_agromarin, lint_sql_injection_agromarin, lint_noqa_rationale_design-themes, lint_record_reference and orphandepends**
+(floors in `tooling/ratchet/baselines/`, one JSON per gate). `ratchet.py` fails
 on any increase and — in the default `exact` mode — on an un-committed decrease,
 so every cleanup is locked in.
 
@@ -383,15 +357,14 @@ so every cleanup is locked in.
 `ratchet.py <gate> --count N` with no `baselines/<gate>.json` passes at 0 and
 fails on anything above it, in either mode, naming the file it did not find;
 `--update` is what opens a floor, and `--list` reads only the files, so it stays
-a list of debt rather than of every contract. Thirty-six of the counts the
-workflows hand to `ratchet.py` are held that way: **eslint, jsfunclen_stock, jsfunclen_product, pyfunclen_loyalty, pyfunclen_tests, py_x2many_count_mail, py_x2many_count_stock, py_x2many_count_project, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, py_hook_arity, py_hook_arity_addons, py_shadowed_member, py_shadowed_member_enterprise, py_shadowed_member_agromarin, py_shadowed_member_design-themes, jsserviceshape_account, jsserviceshape_stock, jseagerfixture, naming_design-themes, mypy_cli, mypy_tests, orderlineqty_agromarin, orderlineqty_design-themes, mypy_core_rest, naming_core, py_count_as_boolean_tests, py_hook_arity_tests, py_x2many_count_tests and sql_in_placeholder_tests**.
-Each was born at zero, so the file it once carried recorded no debt and no
-move — a contract wearing ratchet JSON, and `--list` reported it as a floor to
-drive down. `assert_ratchet` under `test_lint` has read an absent baseline as
-zero since it landed; this is the same rule for the workflow-driven half, and
-the enumeration above derives from the workflows
-(`test_ratchet_baselines_match_documented_gates`), so a file deleted or a
-step added fails the page rather than the lane.
+a list of debt rather than of every contract. Many of the counts handed to
+`ratchet.py` are held that way. Each was born at zero, so a file for it would
+record no debt and no move — a contract wearing ratchet JSON, and `--list`
+would report it as a floor to drive down. `assert_ratchet` under `test_lint`
+has read an absent baseline as zero since it landed; this is the same rule for
+the script-driven half, and the list of floors above derives from the baselines
+directory (`test_ratchet_baselines_match_documented_gates`), so a file deleted
+or added fails the page.
 
 `pyfunclen_addons` and `pyclasslen_addons` are the two floors invoked `--mode
 no-increase`, and the only ones whose scope is the bundled-addons tree entire. It exists because
@@ -411,7 +384,7 @@ python tooling/ratchet/ratchet.py --list   # current floors
 
 **A floor is a claim about HEAD.** This workspace is shared by several sessions,
 so the working directory carries changes that are in no commit, and a floor
-harvested from it records a number no CI run can reproduce. Because the ratchets
+harvested from it records a number no clean-tree run can reproduce. Because the ratchets
 run in `exact` mode, that fails the build in *both* directions — an unrecorded
 improvement is as red as a regression.
 
@@ -438,7 +411,7 @@ illustration of the method and is not maintained against it.
 This applies to **every** floor, and it has been rediscovered per-gate rather
 than stated once: `ruff.toml`'s header records a dirty tree mis-setting the
 `ruff` floor **twice**, `mypy` carries the same recipe for a different reason
-(CI installs mypy alone, so dependency stubs shift the count), and
+(measured with mypy alone installed, so dependency stubs shift the count), and
 `baselines/pyfunclen.json`'s note records the measurement above. Three
 statements of one rule, in three places, none of them general — the shape this
 document set exists to remove.
@@ -476,116 +449,92 @@ out to be neither: pydocstyle is no longer selected in `ruff.toml` at all, so
 the floor measured nothing. **A ratchet whose gate has been retired is inert,
 not held**, and inert is indistinguishable from held by reading. The baseline is
 deleted, and `test_ratchet_baselines_match_documented_gates` now derives the
-expected set from the gates the workflows actually drive rather than from a list
-beside it, so the next retirement fails instead of lingering.
+expected set from the baseline files on disk rather than from a list beside
+it, so the next retirement fails instead of lingering.
 
-**DB-backed integration gate** (`.github/workflows/integration_tests.yml`)
-— boots PostgreSQL 18 and runs twenty-nine suites, **each against its own
-database**:
+**DB-backed integration suites** — run against PostgreSQL 18, **each against
+its own database**:
 
-| Suite | Database | Notes |
-|---|---|---|
-| `base` | `ci_smoke` | less the excluded `TestReportsRendering` and `TestIrModelFieldsTranslation` |
-| `test_http` | `ci_http` | |
-| `test_orm` | `ci_orm` | added 2026-08-08. **1,225 test methods** under its `tests/` directory — the addon written to test the ORM, and the largest thing that was outside the lane. Above all `test_domain_evaluator_parity.py`: the only check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()` (the in-memory predicate), with a generative suite asserting the two evaluators agree *or both refuse*. No DB-free tier can see a SQL/predicate divergence |
-| `mrp` | `ci_mrp` | the first suite here that is not a `test_*` addon. Recursive BoM explosion, backorder splitting, multi-level procurement and compute chains across four models make it the deepest ORM consumer among the bundled addons; installing it gives `stock`, `product`, `uom` and `resource` their first DB-backed exercise through a real consumer |
-| `certificate` | `ci_certificate` | added 2026-08-20. Owns X.509 parsing, private-key loading and the signing API for `l10n_mx_edi`, `l10n_cl_edi`, `sign`, `account_edi_proxy_client` and fifteen more consumers, and ran in no lane at all. What it catches is not an ordinary regression: a key that signs with the wrong digest breaks fiscal submission in whichever country is downstream, silently, until a tax authority refuses the file |
-| `stock` | `ci_stock` | added 2026-08-22 — the same hole as `mrp`'s, one layer down: `mrp` installs stock and exercises it as a consumer but selects `/mrp`, so no workflow had ever run one of stock's own 1,819 tests. The 8 HttpCase tours are excluded rather than skipped silently, because `--no-http` would turn each into a success that never ran |
-| `rpc` | `ci_rpc` | added 2026-08-27. The only suite here that runs **with** the HTTP server: its three `HttpCase` classes drive real XML-RPC and `/json/2` requests through `url_open` and `ServerProxy`, so `--no-http` would skip the 25 tests that are the only end-to-end coverage of the wire format. None is a tour and none needs a browser |
-| `crm` | `ci_crm` | added 2026-08-28. Installed by exactly one workflow before this — `module_installability.yml`, which asks only whether the graph assembles and passes no `--test-enable` — so its whole suite and every one of its `assertQueryCount` pins were executed by nothing, which is how the pins came to sit well over the tree they measure. `-i crm` is the whole install set; the pins are set to the maximum of the three install shapes measured, so a community-only lane cannot pass a pin the enterprise shape would fail. The lane's own comment carries the counts |
-| `data_recycle` | `ci_recycle` | added 2026-08-28. The module whose cron archives and deletes *other* modules' records, and which ran in no lane: its suite ran only by hand, which is how it shipped a queue that acted on records after their rule had stopped selecting them, a rule with no filter that emptied the whole table, and a cron that ended its night on the first record a foreign key protected. Its two tour tests need headless Chrome, so `--no-http` skips their class and reports it as skipped rather than as a pass |
-| `mixin_report_sql`, `test_mixin_report_sql` | `ci_sql_report` | added 2026-08-28, and the cheapest lane here — the module depends on `base` alone. Its 30 tests had been run by nothing at all: this lane named seven other suites, `module_installability.yml` enables only one `test_lint` class, and pytest collects none of it because the cases are `TransactionCase` while `testpaths` holds the DB-free tiers. The suite was patching the abstract mixins in place rather than building a real report, so five correctness defects sat behind that gap; rewritten against concrete fixture models it runs 78. The fixture models and the suite that writes to them moved to `test_mixin_report_sql` on 2026-09-02, so the lane installs both halves |
-| `test_read_group` | `ci_read_group` | added 2026-08-28. The only coverage of the five `read_group/` units — `_empty`, `fill`, `format`, `mixin`, `sql` — and reachable by neither DB-free tier by construction: a `read_group` is a `GROUP BY`, and what it groups is decided by SQL the in-memory path never runs |
-| `test_access_rights` | `ci_access_rights` | added 2026-08-28. Record rules and ACLs, the one subsystem here where a wrong answer is a security answer rather than a broken one. One of its 52 skips for want of an HTTP server and is reported as skipped |
-| `hr_work_entry`, `hr_work_entry_holidays` | `ci_hr_work_entry` | added 2026-08-30 — 71 tests that ran in no workflow. The pair installs together because both live in `odoo/addons`; the three enterprise bridges cannot be in this lane. Neither module has a tour, so the `--no-http` run is the whole suite |
-| `hr_holidays` | `ci_hr_holidays` | added 2026-08-30; `--no-http` came off 2026-09-02 once the quick-create tour was repaired. With a browser the suite is 334; without one the tour classes skip via `InfrastructureUnavailable` and the floor of 300 still holds |
-| `document_extract` account branch | `ci_docext_account` | installs `document_extract_account_purchase`, whose closure is `document_extract_account` and `document_extract`; runs all three tags. 149 tests measured 2026-09-01. Split from the six-module lane so no two independent suites share a database. Not the whole family — `document_extract_ai` lives in agromarin and `document_extract_account_bank_statement` in enterprise, neither visible to this checkout, while `document_extract_barcode` and `document_extract_ocr` declare external dependencies `requirements-addons.txt` does not carry |
-| `document_extract` recruitment branch | `ci_docext_recruit` | installs `document_extract_hr_recruitment_skills`, whose closure is `document_extract_hr_recruitment`; 13 tests |
-| `document_extract` expense branch | `ci_docext_expense` | installs `document_extract_hr_expense`; 9 tests |
-| `test_base_order` | `ci_base_order` | one module: `sale` and `purchase` now arrive through `test_base_order`'s own `depends`, where they belong — without them the suite reports 67 errors, 55 of them `KeyError: 'order_lock_so'`, a scope artefact that reads exactly like a broken module. Runs `/test_base_order` and `/base_order` together because both are that one closure; 281 tests, 0 failed |
-| `approval`, `test_approval` | `ci_approval` | added 2026-08-28, and not a repair — it passes at 544 tests, one skipped for want of something the environment cannot provide. The scope is the module's own `addons/approval/machine_doc_v1/conventions.md`, which states `-i approval --test-tags '/approval'`. `approval.test.document` and the tests that write to it moved to `test_approval` on 2026-09-02, so the lane installs both halves |
-| `api_ai` | `ci_api_ai` | 181 tests. Installing it installs `api_transport` and `credential`, whose own suites stay unrun by the decision in CLAUDE.md §9.6 — naming modules in `--test-tags` rather than counting what a lane installs is what holds that line |
-| `project_hr` | `ci_project_hr` | 33 tests |
-| `exchange` | `ci_exchange` | installs `exchange`, whose closure is `mixin_encryption`; runs both tags, 86 tests |
-| `date_range` | `ci_date_range` | installs `test_date_range`, whose closure is `date_range`; runs both tags, 37 tests |
-| `account_coa` | `ci_account_coa` | 30 tests |
-| `test_performance_compare` | `ci_perf_compare` | 1 test, and it is the cheapest lane here |
-| `mail` | `ci_mail` | added 2026-09-02, split into its own database 2026-09-03: `test_mail` and `mail_group` both depend on `mail` but neither depends on the other, so no single module's closure covered a shared database and `test_each_suite_gets_its_own_database` refused it. Runs with the HTTP server up; mail's own suite had been run by no lane. Tour classes and the `mail_js` HOOT suite are excluded by tag; the `url_open` HttpCase classes run |
-| `test_mail` | `ci_test_mail` | split out 2026-09-03. The suite written for `mail`, which carries the query floors, had been run by no lane. Runs with the HTTP server up, `test_mail_js` and its tour class excluded by tag |
-| `mail_group` | `ci_mail_group` | split out 2026-09-03. The one alias owner outside the mixin, whose gateway had been broken for weeks with nobody running it, had been run by no lane. Runs with the HTTP server up; carries no tour or HOOT suite to exclude |
-| `speech` | `ci_speech` | added 2026-09-04. Installs `test_speech`, whose closure is the whole layer — `speech`, `speech_ai` and `mail_speech` — because installing any one of them alone tests a configuration nobody runs: `speech` ships no engine, `speech_ai` is the engine, `mail_speech` is the consumer that records a call. The second lane here to run **with** the HTTP server, for the same reason as `rpc`: the upload route and the two subtitle routes are `HttpCase` and none is a tour, so `--no-http` would skip the twelve tests that are the whole layer's access control. 87 tests with the server against 75 without, and the floor is set above 75 so a lane that loses the server fails rather than reporting a smaller green |
+```bash
+python odoo-bin --addons-path=odoo/addons,addons -d <db> -i <module> \
+    --test-enable --test-tags /<module> --stop-after-init
+```
 
-Adding `test_orm` paid for itself on the first run:
+The suites run this way, and what each covers: `base` (less the excluded
+`TestReportsRendering` and `TestIrModelFieldsTranslation`), `test_http`,
+`test_orm`, `mrp`, `certificate`, `stock`, `rpc`, `crm`, `data_recycle`,
+`mixin_report_sql` with `test_mixin_report_sql`, `test_read_group`,
+`test_access_rights`, `hr_work_entry` with `hr_work_entry_holidays`,
+`hr_holidays`, the three `document_extract` branches, `test_base_order`,
+`approval` with `test_approval`, `api_ai`, `project_hr`, `exchange`,
+`date_range`, `account_coa`, `test_performance_compare`, `mail`, `test_mail`,
+`mail_group` and `speech`. `rpc`, `mail`, `test_mail`, `mail_group` and `speech`
+run **with** the HTTP server, because their `HttpCase` classes are the only
+end-to-end coverage of what they test and none is a tour; the rest run
+`--no-http`.
+
+`test_orm` — **1,225 test methods** under its `tests/` directory — is the addon
+written to test the ORM. Above all `test_domain_evaluator_parity.py`: the only
+check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()`
+(the in-memory predicate), with a generative suite asserting the two evaluators
+agree *or both refuse*. No DB-free tier can see a SQL/predicate divergence.
+
+Running `test_orm` paid for itself on the first run:
 `TestBackendDifferential.test_divergence_ilike_unaccent` asserted PostgreSQL's
 `ilike` folds `Café` onto `cafe` without checking the `unaccent` extension is
-installed. Every developer database inherits it from `db_template`; CI's
+installed. Every developer database inherits it from `db_template`; a bare
 `template0` does not. It now skips on `registry.has_unaccent`.
 
-Adding `mrp` repaired a suite nobody ran: `3bcf5d144f9` deleted
+Running `mrp` repaired a suite nobody ran: `3bcf5d144f9` deleted
 `stock.move.availability` having found "no consumer anywhere in the workspace",
 missed `addons/mrp/tests/test_order.py`, which asserts on it, and left that test
 erroring — every assertion after the failing line unexecuted.
 
-Added 2026-08-28, and they were the two this page had been naming as next:
 `test_read_group` (123 test methods, the only coverage of the five
-`read_group/` units) and `test_access_rights` (54, record rules and ACLs).
-Both were green before they were gated — 123 of 123 and 52 of 52 with one
+`read_group/` units) and `test_access_rights` (54, record rules and ACLs) were
+both green before anyone ran them — 123 of 123 and 52 of 52 with one
 environment skip — so neither is a repair; they are coverage that existed and
-ran nowhere. **A suite outside the lane is a suite nobody runs**, and this page
-had said so about these two for as long as it has listed them.
-
-Nothing is now named as next. That is not the same as nothing being left: the
-lane runs eleven addons out of hundreds, and R4 is about the kind of defect no
-structural gate can reach rather than about the count.
+ran nowhere. **A suite outside the set is a suite nobody runs.**
 
 Method counts, not line counts. A suite's size is an argument about what the
-lane is missing, and raw lines churn on every edit inside it without moving that
+set is missing, and raw lines churn on every edit inside it without moving that
 argument — `test_orm` lost 68 lines between two runs an hour apart while its method
 count did not move — quoted as method, not as a size, because the size is
 stated once above and a second copy of it drifts.
 
 ### The limits of "enforced"
 
-**The integration gate is the only lane that runs addon tests in Python.** All
-seventy-one boundary checkers are structural and DB-free: they read import graphs,
-call graphs, reached-member sets and documents. A change can satisfy all
-seventy-one, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
+**The integration suites are the only thing that runs addon tests in Python.**
+The boundary checkers are structural and DB-free: they read import graphs,
+call graphs, reached-member sets and documents. A change can satisfy every one
+of them, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
 (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
 2026-08 while every gate and both DB-free tiers stayed green. Read a green
-boundary job as "the structure holds", never as "the framework works".
+boundary run as "the structure holds", never as "the framework works".
 
-**The JS suites have their own lane** (`.github/workflows/js_tests.yml`, added
-2026-09-01). Until then no lane ran them: `WebSuite` and `MobileWebSuite` in
-`addons/web/tests/test_js.py` are addon tests like any other, every integration
-lane is `--stop-after-init` and most are `--no-http`, so both classes skipped
-themselves at `setUpClass` and were reported as skipped, never as a pass and
-never as a failure. The HOOT suites were a local gate, driven by `tooling/hoot`,
-which made that runner's own advice the whole of the enforcement. The cost was
-not hypothetical: a `mobile`-tagged test in `@web/ui/dialog_service` sat failing
-from the day it landed, invisible because the desktop preset skips it by tag and
-nothing else ran it at all, and `@hr/m2x_avatar_employee` failed 6 of 11 for as
-long as nothing ran it.
+**The JS suites run through `tooling/hoot`.** `WebSuite` and `MobileWebSuite` in
+`addons/web/tests/test_js.py` are addon tests like any other, but an integration
+run that is `--stop-after-init` and `--no-http` skips both classes at
+`setUpClass` and reports them as skipped, never as a pass and never as a
+failure. `tooling/hoot/hoot-shard` — the same plan `WebSuite` runs, read from
+`test_js.py` rather than restated, one suite per page load — must run **under
+both presets**, desktop and mobile, each against its own shard databases,
+because the two presets select by tag and neither set is a superset of the
+other. Gate each pass on its own passed-test **count** as well as on the
+runner's exit code: a suite contributing zero tests under a preset is not an
+error to the runner, so a plan that narrowed to nothing would otherwise read as
+PASS. The cost of not doing so was not hypothetical: a `mobile`-tagged test in
+`@web/ui/dialog_service` sat failing from the day it landed, invisible because
+the desktop preset skips it by tag and nothing else ran it at all, and
+`@hr/m2x_avatar_employee` failed 6 of 11 for as long as nothing ran it.
 
-The lane runs `tooling/hoot/hoot-shard` — the same plan `WebSuite` runs, read
-from `test_js.py` rather than restated, one suite per page load — **under both
-presets**, desktop and mobile, each against its own shard databases, because the
-two presets select by tag and neither set is a superset of the other. Each pass
-is gated on its own passed-test **count** as well as on the runner's exit code:
-a suite contributing zero tests under a preset is not an error to the runner,
-so a plan that narrowed to nothing would otherwise read as PASS. `./hoot` still
-prints when a local selection owns tests the preset does not execute; that is
-the nudge, and the lane is now the gate.
-
-A suite outside the lane is a suite nobody runs. When you add a test addon, add
-it to the lane — **with its own database.** The suites interfere: `test_http`
+A suite outside the set is a suite nobody runs. When you add a test addon, run
+it — **with its own database.** The suites interfere: `test_http`
 depends on `mail`, whose `res_partner_views.xml` inherits
 `base.view_res_partner_filter` anchored on `<filter name="inactive">`, and
 base's `test_hard_reset_from_file_still_works` overwrites that view with a
 minimal `<search>`. The write re-validates the children, so `-i base` is 5/5
 green while `-i base,test_http` raises `ValidationError`.
-
-These gates were wired shut (mainline `push:` triggers, full façade scope,
-re-measured floors) after an audit found each one bypassable.
 
 ## Known boundary exceptions
 

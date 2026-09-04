@@ -327,26 +327,6 @@ def http_symbol_edges() -> tuple[int, ...]:
     return (edges[("serving", "features")], edges[("features", "serving")])
 
 
-def headless_integration_suites() -> tuple[int, ...]:
-    workflow = (ROOT / ".github" / "workflows" / "integration_tests.yml").read_text(
-        encoding="utf-8"
-    )
-    steps = [
-        step
-        for step in re.split(r"\n(?=\s+- name: )", workflow)
-        if step.lstrip().startswith("- name:")
-    ]
-    suites = []
-    for step in steps:
-        body = "\n".join(
-            "" if line.lstrip().startswith("#") else re.sub(r"\s#.*$", "", line)
-            for line in step.splitlines()
-        )
-        if "odoo-bin" in body and ("--test-enable" in body or "--test-tags" in body):
-            suites.append(body)
-    return (sum("--no-http" in suite for suite in suites), len(suites))
-
-
 def gate_modules_without_a_docstring() -> tuple[int, ...]:
     modules = [
         path
@@ -359,15 +339,6 @@ def gate_modules_without_a_docstring() -> tuple[int, ...]:
         if ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"))) is None
     ]
     return (len(silent), len(modules))
-
-
-def architecture_checkers() -> tuple[int, ...]:
-    workflow = (ROOT / ".github" / "workflows" / "architecture.yml").read_text(
-        encoding="utf-8"
-    )
-    return (
-        len(set(re.findall(r"python tooling/architecture/([\w.]+\.py)", workflow))),
-    )
 
 
 def py_function_length_budget() -> tuple[int, ...]:
@@ -402,29 +373,12 @@ _MEASUREMENTS: tuple[Figure, ...] = (
         _plain,
     ),
     Figure(
-        "headless_integration_suites",
-        RISKS,
-        re.compile(
-            r"\*\*(\d[\d,]*)\*\*\s+of\s+the\s+\*\*(\d[\d,]*)\*\*\s+suites\s+the\n?\s*"
-            r"integration\s+lane\s+runs\s+pass"
-        ),
-        headless_integration_suites,
-        _plain,
-    ),
-    Figure(
         "gate_modules_without_a_docstring",
         RISKS,
         re.compile(
             r"Today\s+\*\*(\d[\d,]*)\*\*\s+of\s+the\s+\*\*(\d[\d,]*)\*\*\s+gate\s+modules"
         ),
         gate_modules_without_a_docstring,
-        _plain,
-    ),
-    Figure(
-        "architecture_checkers",
-        RISKS,
-        re.compile(r"(?:all|The)\s+(\d+)\s+(?:are structural|boundary checkers|and)"),
-        architecture_checkers,
         _plain,
     ),
     Figure(

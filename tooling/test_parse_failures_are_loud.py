@@ -8,7 +8,7 @@ A handler that answers a failed read of a file on disk with `pass`, `continue`
 or an empty `return` deletes the file from the gate's population. The gate then
 reports one fewer finding, the ratchet reads that as progress and `--update`
 invites someone to bank it, and the file that broke is the one nobody hears
-about. Three ways a file can go unread were measured against the exact ruff.yml
+about. Three ways a file can go unread were measured against the exact ruff
 commands over addons/ on 2026-09-02: a syntax error trips ruff's `invalid-syntax`
 under any select; an undecodable file needs E902 named in the select, because
 ruff warns on stderr and still exits 0; and a file that is merely unreadable to

@@ -32,145 +32,13 @@ class TestReferencedArtifacts(unittest.TestCase):
                 f"ARCHITECTURE.md documents `python {script}`, which is missing",
             )
 
-    def test_referenced_workflows_exist(self) -> None:
-        workflows = re.findall(r"`\.github/workflows/([\w.-]+\.yml)`", DOC)
-        self.assertTrue(
-            workflows, "the page references no workflow; the pattern has rotted"
-        )
-        for wf in workflows:
-            self.assertTrue((ROOT / ".github" / "workflows" / wf).is_file(), wf)
-
-    def test_ci_gate_table_matches_the_workflow(self) -> None:
-
-        run_in_ci = set(_doc_measures.workflow_gates())
-        section = DOC.split("## Quality gates beyond the boundaries", 1)[1]
-        tabled = set(re.findall(r"^\| `(\w+\.py)` \|", section, re.MULTILINE))
-        self.assertEqual(tabled, run_in_ci)
-
-        stated = re.search(r"workflow runs \*\*([\w-]+)\*\* blocking checkers", DOC)
-        self.assertIsNotNone(stated, "the gate count is no longer stated")
-        self.assertEqual(NUMBER_WORDS[stated.group(1)], len(run_in_ci))
-
-    def test_ci_path_filter_covers_every_scanned_tree(self) -> None:
-
-        workflow = (ROOT / ".github" / "workflows" / "architecture.yml").read_text(
-            encoding="utf-8"
-        )
-        pr_block = workflow.split("pull_request:", 1)[1].split("permissions:", 1)[0]
-        globs = re.findall(r"^\s*- '([^']+)'", pr_block, re.MULTILINE)
-        self.assertTrue(globs, "the pull_request path filter is empty")
-
-        def to_regex(glob: str) -> re.Pattern[str]:
-            out, i = [], 0
-            while i < len(glob):
-                if glob.startswith("**/", i):
-                    out.append("(?:.*/)?")
-                    i += 3
-                elif glob.startswith("**", i):
-                    out.append(".*")
-                    i += 2
-                elif glob[i] == "*":
-                    out.append("[^/]*")
-                    i += 1
-                elif glob[i] == "?":
-                    out.append("[^/]")
-                    i += 1
-                else:
-                    out.append(re.escape(glob[i]))
-                    i += 1
-            return re.compile("^" + "".join(out) + "$")
-
-        patterns = [to_regex(g) for g in globs]
-
-        def covered(path: str) -> bool:
-            return any(p.match(path) for p in patterns)
-
-        uncovered: list[str] = []
-        for tree in ("odoo", "addons"):
-            root = ROOT / tree
-            if not root.is_dir():
-                continue
-            for child in sorted(root.iterdir()):
-                if child.name.startswith((".", "__")):
-                    continue
-                if child.is_dir():
-                    if not any(child.rglob("*.py")):
-                        continue
-                    probe = f"{tree}/{child.name}/probe.py"
-                elif child.suffix == ".py":
-                    probe = f"{tree}/{child.name}"
-                else:
-                    continue
-                if not covered(probe):
-                    uncovered.append(probe)
-
-        self.assertEqual(
-            uncovered,
-            [],
-            "these scanned paths would not retrigger architecture.yml on a PR: "
-            + ", ".join(uncovered),
-        )
-
     def test_cross_repo_checker_is_a_prepush_hook(self) -> None:
         self.assertIn("pre-commit install --hook-type pre-push", DOC_FLAT)
         config = (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
         self.assertIn("cross_repo_coherence.py", config)
         self.assertIn("stages: [pre-push]", config)
-        workflow = (ROOT / ".github" / "workflows" / "architecture.yml").read_text(
-            encoding="utf-8"
-        )
-        self.assertNotIn(
-            "python tooling/architecture/cross_repo_coherence.py",
-            workflow,
-            "cross_repo_coherence.py now runs in CI; the page says it does not",
-        )
-
-    def test_integration_gate_exclusions_are_stated(self) -> None:
-        workflow = (ROOT / ".github" / "workflows" / "integration_tests.yml").read_text(
-            encoding="utf-8"
-        )
-        tags = re.search(r"TEST_TAGS: (\S+)", workflow)
-        self.assertIsNotNone(tags, "integration_tests.yml no longer sets TEST_TAGS")
-        excluded = re.findall(r"-:(\w+)", tags.group(1))
-        self.assertTrue(excluded, "no exclusions left; simplify the prose")
-        for name in excluded:
-            self.assertIn(
-                name, DOC, f"the base suite excludes {name}; the page does not say so"
-            )
-
-    SIBLING_DRIVEN = {
-        "py_x2many_count_enterprise": "enterprise",
-        "py_x2many_count_agromarin": "agromarin",
-        "sql_in_placeholder_enterprise": "enterprise",
-        "sql_in_placeholder_agromarin": "agromarin",
-        "py_count_as_boolean_enterprise": "enterprise",
-        "py_count_as_boolean_agromarin": "agromarin",
-        "py_shadowed_member_enterprise": "enterprise",
-        "py_shadowed_member_agromarin": "agromarin",
-        "py_shadowed_member_design-themes": "design-themes",
-        "unresolved_calls_enterprise": "enterprise",
-        "unresolved_calls_agromarin": "agromarin",
-        "orderlineqty_enterprise": "enterprise",
-        "orderlineqty_agromarin": "agromarin",
-        "orderlineqty_design-themes": "design-themes",
-        "naming_enterprise": "enterprise",
-        "naming_agromarin": "agromarin",
-        "naming_design-themes": "design-themes",
-    }
 
     SIBLING_PY_LINT_SCOPES = frozenset({"enterprise", "agromarin", "design-themes"})
-
-    @staticmethod
-    def _gates_the_workflows_drive() -> set[str]:
-        driven: set[str] = set()
-        for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
-            driven.update(
-                re.findall(
-                    r"ratchet\.py (\w+)(?: --mode [\w-]+)? --count",
-                    workflow.read_text(encoding="utf-8"),
-                )
-            )
-        return driven
 
     @staticmethod
     def _gates_test_lint_drives(on_disk: set[str]) -> set[str]:
@@ -198,23 +66,6 @@ class TestReferencedArtifacts(unittest.TestCase):
             and any(name.endswith(f"_{scope}") for scope in self.SIBLING_PY_LINT_SCOPES)
         }
 
-    def test_a_sibling_driven_baseline_is_driven_by_its_sibling(self) -> None:
-        siblings = ROOT.parent
-        checked = 0
-        for gate, repo in self.SIBLING_DRIVEN.items():
-            workflow = siblings / repo / ".github" / "workflows" / "architecture.yml"
-            if not workflow.is_file():
-                continue
-            checked += 1
-            self.assertRegex(
-                workflow.read_text(encoding="utf-8"),
-                rf"ratchet\.py\s*\\?\s*{re.escape(gate)}\s+--mode\s+no-increase\s+--count",
-                f"{gate} is exempted here as driven by {repo}, and {repo}'s "
-                f"architecture.yml does not drive it as a no-increase ratchet",
-            )
-        if not checked:
-            self.skipTest("no sibling checkout beside this one")
-
     def test_ratchet_baselines_match_documented_gates(self) -> None:
         match = re.search(
             r"turns ([\w-]+) tool\s+counts into one-way contracts: "
@@ -226,39 +77,11 @@ class TestReferencedArtifacts(unittest.TestCase):
         on_disk = {
             p.stem for p in (ROOT / "tooling" / "ratchet" / "baselines").glob("*.json")
         }
-        driven = (
-            self._gates_the_workflows_drive()
-            | set(self.SIBLING_DRIVEN)
-            | self._gates_test_lint_drives(on_disk)
-            | self._gates_sibling_py_lint_drives(on_disk)
-        )
-        self.assertTrue(driven, "no workflow drives ratchet.py; the regex has rotted")
-        self.assertLessEqual(
-            on_disk, driven, "a baseline exists that no workflow drives"
-        )
         self.assertEqual(listed, on_disk, "the page's gate list is stale")
         self.assertEqual(
             NUMBER_WORDS[match.group(1)],
             len(on_disk),
             "the ratchet gate list and the count in front of it disagree",
-        )
-        # A gate a workflow hands to ratchet.py with no file is a hard zero, and
-        # the page enumerates those too, from the same derivation.
-        held = (self._gates_the_workflows_drive() | set(self.SIBLING_DRIVEN)) - on_disk
-        match = re.search(
-            r"([\w-]+) of the counts the\s+workflows hand to `ratchet\.py` are "
-            r"held that way: \*\*([^*]+)\*\*",
-            DOC,
-        )
-        self.assertIsNotNone(match, "the hard-zero gate list is no longer stated")
-        listed_held = {
-            n.strip() for n in match.group(2).replace(" and ", ", ").split(",")
-        }
-        self.assertEqual(listed_held, held, "the page's hard-zero gate list is stale")
-        self.assertEqual(
-            NUMBER_WORDS[match.group(1).lower()],
-            len(held),
-            "the hard-zero gate list and the count in front of it disagree",
         )
 
     def test_named_source_paths_exist(self) -> None:
@@ -327,9 +150,7 @@ class TestCitationsResolve(unittest.TestCase):
 
     def test_every_named_checker_is_where_the_pages_say_it_is(self) -> None:
         here = {path.name for path in self.TOOLING.glob("*.py")}
-        gates = set(_doc_measures.workflow_gates()) | {
-            f"{gate}.py" for gate in _doc_measures.self_test_only_gates()
-        }
+        gates = {f"{gate}.py" for gate in _doc_measures.gate_roster()}
         named = {name for name in re.findall(r"`([\w.]+\.py)`", DOC) if name in gates}
         self.assertTrue(named, "the pages name no gate; the regex has rotted")
         elsewhere = sorted(name for name in named if name not in here)

@@ -61,7 +61,7 @@ the project-wide count ratchet keeps measuring the same thing it always has.
 ## Use
 
 ```bash
-# Gate (what CI runs). --listFiles is required — see "unchecked" below.
+# Gate. --listFiles is required — see "unchecked" below.
 npx tsc -p tsconfig.strict.json --noEmit --listFiles > /tmp/strict.log 2>&1 || true
 python tooling/typecheck/scope_gate.py strict --log /tmp/strict.log
 
@@ -115,7 +115,7 @@ program from a tsc invocation that died on a bad config path.
 
 The exception lists are only meaningful against the `typescript` version pinned
 in `package-lock.json` (**5.9.3**); a different minor reports a different error
-set. CI uses `npm ci` for exactly this reason.
+set. Use `npm ci` for exactly this reason.
 
 Check before you regenerate — `package.json` asks for `^5.7.2`, so a
 `node_modules` populated by `npm install` rather than `npm ci` can sit on an
@@ -125,13 +125,13 @@ older minor than the lockfile:
 node_modules/.bin/tsc --version    # must match the package-lock pin
 ```
 
-Lists generated against a mismatched compiler will disagree with CI on the first
-run.
+Lists generated against a mismatched compiler will disagree with a clean
+install on the first run.
 
 ## Regenerating against the committed tree
 
 `--update` records whatever the log says, so generate it from a tree that
-matches what CI will check out. A dirty worktree — in this workspace, often
+matches HEAD. A dirty worktree — in this workspace, often
 another session's in-flight edits — silently bakes a transient state into the
 list. That is not hypothetical: a log captured mid-edit contained a `TS1003`
 syntax error whose suppression of downstream inference moved six errors across
@@ -148,7 +148,7 @@ write to the shared `.git`.
 ## Self-test
 
 `python tooling/typecheck/test_scope_gate.py` — stdlib `unittest`, no Odoo, no
-node, no DB. CI runs it before trusting any verdict, mirroring
+node, no DB. Run it before trusting any verdict, mirroring
 `tooling/ratchet/test_ratchet.py` and `tooling/architecture/test_layer_check.py`.
 
 ## Scope
@@ -159,8 +159,8 @@ node, no DB. CI runs it before trusting any verdict, mirroring
 `web` is the only gated module today. The per-module layout is what makes adding
 the next one additive — append it to `SCOPED_MODULES` in `scope_gate.py`, run
 `--update` to generate its two lists, commit both together — rather than a
-restructure. The scope lives in the script instead of on the command line so CI
-and a local run cannot disagree about what is enforced.
+restructure. The scope lives in the script instead of on the command line so two
+runs cannot disagree about what is enforced.
 
 Measured 2026-07-29 under `checkJs` at the pinned compiler, the candidates
 behind `web` are a long way from clean, which is why they stay on the
@@ -186,13 +186,12 @@ The same mechanism over `mypy`, one lock per **core package** instead of per
 addon module. Gate: `py_scope_gate.py`; scope: the six packages the `mypy`
 count floor covers (`orm`, `db`, `libs`, `http`, `service`, `modules`) plus
 `cli`; lists: `exceptions/mypy/<pkg>.txt` and `budgets/mypy-<pkg>.json`. It
-runs in `.github/workflows/py_typecheck.yml`, beside — not instead of — the
-count ratchets.
+runs beside — not instead of — the count ratchets.
 
 **`cli` is checked by a different mypy run, so the gate needs BOTH logs.**
 `odoo.cli` sits on its own count floor (`mypy_cli`, seeded at zero) rather than
-inside the six-package `mypy` total, for the reason the workflow gives for
-keeping `odoo.tools` separate: one integer over several scopes makes every move
+inside the six-package `mypy` total, for the reason `odoo.tools` is kept
+separate: one integer over several scopes makes every move
 ambiguous between them. The consequence here is that cli's `LOG:  Parsing`
 lines land in `/tmp/mypy_cli.log`, not `/tmp/mypy.log` — so a run given only
 the six-package log reports **every cli file as `unchecked`** and fails. That

@@ -62,7 +62,7 @@ a reason.
 | **Write throughput** | a loop that touches 10k records must not issue 10k `UPDATE`s | deferred writes; the flush fixpoint loop; `cr.pipeline()` |
 | **Correctness under contention** | concurrent requests must not corrupt or silently lose writes | `retrying()` on serialization/deadlock; savepoints; the RO→RW promotion |
 | **Testability without a database** | the hardest logic must be exercisable in milliseconds | `orm/components/` as pure Python; `InMemoryBackend` behind the `env.backend` port |
-| **A refactorable core** | internal layout must move without breaking hundreds of addons | the façade boundary and the layer contracts, each held at zero in CI |
+| **A refactorable core** | internal layout must move without breaking hundreds of addons | the façade boundary and the layer contracts, each held at zero by its gate |
 
 The last is this fork's addition and the reason `tooling/architecture/` exists.
 Upstream treats the core's internal shape as fixed; `19.0-marin` treats it as
@@ -79,7 +79,7 @@ Each buys something above. An argument appealing to one is already settled.
 | **Stability of core internals** | the *façade* is the public surface — `odoo.api` / `odoo.fields` / `odoo.models`, each with an explicit `__all__`; everything behind it is free to move, and the layer contracts say in which direction |
 | **Business behaviour in the core** | behaviour belonging to a business process belongs in an addon |
 | **A build step that freezes shape** | the contributor set is unknown until the module graph is loaded, so nothing resolves at import time |
-| **Database-driver portability** | psycopg 3 only — `odoo/db/` imports `psycopg` exclusively, and psycopg2 is not a declared dependency, so a stray import fails anywhere provisioned from `requirements.txt`, CI included, rather than compiling a branch that can never run. A developer virtualenv that installed it for some other reason is the exception, and there the absence does not bite |
+| **Database-driver portability** | psycopg 3 only — `odoo/db/` imports `psycopg` exclusively, and psycopg2 is not a declared dependency, so a stray import fails anywhere provisioned from `requirements.txt`, rather than compiling a branch that can never run. A developer virtualenv that installed it for some other reason is the exception, and there the absence does not bite |
 
 ## Mechanisms
 
@@ -159,11 +159,10 @@ Two subsystems document themselves deeper than any view:
 canonical, unflattened HTTP call graph.
 
 > **These documents are enforced.** The dependency rules in the module view are
-> checked by `tooling/architecture/layer_check.py`, gated in
-> `.github/workflows/architecture.yml`. The claims *about* the checkers are
-> pinned by `tooling/architecture/test_architecture_doc.py` in the same job:
+> checked by `tooling/architecture/layer_check.py`. The claims *about* the
+> checkers are pinned by `tooling/architecture/test_architecture_doc.py`:
 > contract names and row bodies, pinned counts, the mixin composition, the
-> runtime floors, the module inventories, the gate table against the workflow,
+> runtime floors, the module inventories, the gate table against the roster,
 > and every measured figure, derived from a live run of the checker that
 > produces it.
 >

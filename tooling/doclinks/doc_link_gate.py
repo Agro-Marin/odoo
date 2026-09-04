@@ -29,7 +29,6 @@ DEFAULT_BASELINE_PATH = (
 DEFAULT_SCAN_GLOBS = [
     "addons/*/machine_doc_v1/*.md",
     "odoo/**/machine_doc_v1/*.md",
-    ".github/workflows/*.yml",
     "CLAUDE.md",
     "addons/*/CLAUDE.md",
     "doc/*.md",

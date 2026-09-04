@@ -10,45 +10,19 @@ from _repo_root import find_odoo_root
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="_doc_measures")
 
 ARCH_DOCS = ROOT / "doc" / "architecture"
-WORKFLOW = ROOT / ".github" / "workflows" / "architecture.yml"
-
-_GATE = r"python tooling/architecture/([\w.]+\.py)"
-_STEP_ID = re.compile(r"^\s+id: \w+$", re.MULTILINE)
-_INVOCATION = re.compile(
-    r"tooling/architecture/([\w.]+)\.py((?:\s+--[\w-]+(?:\s+[\w.-]+)?)*)"
-)
-_SCOPE = re.compile(r"--(?:addon\s+([\w.-]+)|(cross-tree))")
 
 
-def _workflow_text() -> str:
-    return WORKFLOW.read_text(encoding="utf-8")
-
-
-def workflow_gates() -> list[str]:
-    return sorted(set(re.findall(_GATE, _workflow_text())))
-
-
-def workflow_ratchets() -> list[str]:
-    return sorted(set(re.findall(_GATE + r" --count", _workflow_text())))
-
-
-def workflow_steps() -> list[str]:
-    return _STEP_ID.split(_workflow_text())[1:]
-
-
-def workflow_scoped_steps() -> set[tuple[str, str]]:
-    found: set[tuple[str, str]] = set()
-    for body in workflow_steps():
-        run = body.split("run: |", 1)[1] if "run: |" in body else ""
-        for match in _INVOCATION.finditer(run):
-            scope = _SCOPE.search(match.group(2))
-            if scope:
-                found.add((match.group(1), scope.group(1) or "--cross-tree"))
-    return found
-
-
-def addon_scoped_gates() -> set[str]:
-    return {gate for gate, scope in workflow_scoped_steps() if scope != "--cross-tree"}
+def gate_roster() -> list[str]:
+    source = (
+        ROOT / "tooling" / "architecture" / "test_every_gate_refuses_an_empty_tree.py"
+    ).read_text(encoding="utf-8")
+    roster = next(
+        {key.value for key in node.value.keys}
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Assign)
+        and getattr(node.targets[0], "id", "") == "GATES"
+    )
+    return sorted(roster)
 
 
 def suite_methods(module: str) -> int:
@@ -163,58 +137,3 @@ def ordinal_word(value: int) -> str:
         f"{tail[:-1]}ieth" if tail.endswith("y") else f"{tail}th"
     )
     return f"{head}-{ordinal}" if head else ordinal
-
-
-_PIPE = re.compile(
-    r"python tooling/architecture/([\w.]+\.py)([^|\n]*?)"
-    r"(?:\s*\\\s*\n\s*\|\s*xargs python tooling/ratchet/ratchet\.py([^|\n]*))?$",
-    re.MULTILINE,
-)
-
-
-_SINGLE_RUN = re.compile(
-    r"python tooling/architecture/([\w.]+\.py)([^|\n]*?)--count-file\s+(\S+)\s*\|\s*tee"
-)
-_RATCHET_FROM_FILE = re.compile(
-    r"xargs python tooling/ratchet/ratchet\.py([^<\n]*)<\s*(\S+)"
-)
-
-
-def scoped_reproduce_rows() -> list[tuple[str, str]]:
-    rows: list[tuple[str, str]] = []
-    for body in workflow_steps():
-        run = body.split("run: |", 1)[1] if "run: |" in body else ""
-        if not _SCOPE.search(run):
-            continue
-        for match in _PIPE.finditer(run.replace("\\\n", "\\\n")):
-            gate_args = " ".join(match.group(2).split())
-            if "| tee" in match.group(2) or not (
-                "--count" in gate_args or "--check" in gate_args
-            ):
-                continue
-            ratchet = " ".join((match.group(3) or "").split())
-            rows.append((f"{match.group(1)} {gate_args}".strip(), ratchet))
-        ratchet_by_file = {
-            file: " ".join(args.split())
-            for args, file in _RATCHET_FROM_FILE.findall(run)
-        }
-        for gate, args, count_file in _SINGLE_RUN.findall(run):
-            gate_args = " ".join((*args.split(), "--count"))
-            rows.append((f"{gate} {gate_args}", ratchet_by_file.get(count_file, "")))
-    return sorted(set(rows))
-
-
-def self_test_only_gates() -> list[str]:
-    source = (
-        ROOT / "tooling" / "architecture" / "test_every_gate_refuses_an_empty_tree.py"
-    ).read_text(encoding="utf-8")
-    roster = next(
-        {key.value for key in node.value.keys}
-        for node in ast.walk(ast.parse(source))
-        if isinstance(node, ast.Assign)
-        and getattr(node.targets[0], "id", "") == "GATES"
-    )
-    in_ci = {gate.removesuffix(".py") for gate in workflow_gates()}
-    missing = sorted(in_ci - roster)
-    assert not missing, f"the empty-tree roster is short: {missing}"
-    return sorted(roster - in_ci)

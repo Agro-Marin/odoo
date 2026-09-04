@@ -94,7 +94,7 @@ def run(
     if args.addon in siblings and not src.is_dir():
         print(
             f"SKIP: {args.addon} is not checked out beside {root_name}; "
-            f"its own architecture.yml pairs the two and runs this there.",
+            f"run this from a workspace that holds both.",
             file=sys.stderr,
         )
         return 0

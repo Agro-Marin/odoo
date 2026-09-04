@@ -189,10 +189,10 @@ def main(argv: list[str] | None = None) -> int:
         nargs="+",
         metavar="PATH",
         help="read these paths for definitions but never report their call "
-        "sites. A sibling repository whose CI lane cannot check out the "
-        "repositories it depends on measures a count inflated by that "
-        "blindness; this reproduces the true reading locally. It is NOT what "
-        "the floor measures -- the workflow command is.",
+        "sites. A sibling repository measured without the repositories it "
+        "depends on reports a count inflated by that blindness; this "
+        "reproduces the true reading locally. It is NOT what the floor "
+        "measures -- the bare invocation is.",
     )
     parser.add_argument(
         "--roots",

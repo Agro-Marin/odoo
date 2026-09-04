@@ -96,7 +96,6 @@ class TestAuthoritativeScope:
             "addons/web/machine_doc_v1/A.md",
             "addons/mail/machine_doc_v1/A.md",
             "odoo/addons/base/machine_doc_v1/A.md",
-            ".github/workflows/x.yml",
             "CLAUDE.md",
             "tooling/hoot/README.md",
         ],

@@ -15,7 +15,6 @@ DEFAULT_BASELINE_PATH = (
 
 AUTHORITATIVE_PATHS = (
     "addons/web/machine_doc_v1/",
-    ".github/workflows/",
     "CLAUDE.md",
     "addons/web/CLAUDE.md",
     "tooling/",
@@ -152,7 +151,7 @@ def _main() -> int:
     parser.add_argument(
         "--authoritative-only",
         action="store_true",
-        help="Only show files in machine_doc/, CI workflows, and CLAUDE.md.",
+        help="Only show files in machine_doc/, tooling/, and CLAUDE.md.",
     )
     args = parser.parse_args()
 

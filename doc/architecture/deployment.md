@@ -144,7 +144,7 @@ in about a second while the worst case is unchanged.
 
 | Dependency | Why it is not optional |
 |---|---|
-| **PostgreSQL** | every cross-process signal travels through it; CI runs 18 |
+| **PostgreSQL** | every cross-process signal travels through it; 18 is the version tested against |
 | **The filestore** | attachment bytes; must be backed up *with* the database ([`data.md`](data.md#the-dual-storage-seam)) |
 | **Addons on disk** | `addons_path`; earlier entries shadow later ones |
 | **`odoo_rust`** | imported at startup; absent, the process warns and runs on the pure-Python twins behind `odoo/libs/accel.py` unless `ODOO_REQUIRE_NATIVE` or `CI` makes its absence fatal. A *stale* build is always fatal. `odoo_lint`, the sibling extension carrying the `test_lint` source scanner, is **not** a deployment dependency: it is a separate wheel that only the lint gates import |

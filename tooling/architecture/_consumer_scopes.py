@@ -16,19 +16,13 @@ CONSUMER_ROOTS: tuple[tuple[str, Path], ...] = (
 )
 
 VALIDATED_BY: dict[str, dict[str, str]] = {
-    "js_public_surface": {
-        "enterprise": "enterprise/.github/workflows/architecture.yml",
-        "agromarin": "agromarin/.github/workflows/architecture.yml",
-        "design-themes": "design-themes/.github/workflows/architecture.yml",
-    },
-    "js_extension_surface": {
-        "enterprise": "enterprise/.github/workflows/architecture.yml",
-        "agromarin": "agromarin/.github/workflows/architecture.yml",
-        "design-themes": "design-themes/.github/workflows/architecture.yml",
-    },
+    "js_public_surface": {},
+    "js_extension_surface": {},
 }
 
-UNJUDGED_SCOPES: frozenset[str] = frozenset()
+UNJUDGED_SCOPES: frozenset[str] = frozenset(
+    {"enterprise", "agromarin", "design-themes"}
+)
 
 
 def absent_scopes_line(gate: str, absent: list[str]) -> str:
@@ -37,11 +31,11 @@ def absent_scopes_line(gate: str, absent: list[str]) -> str:
     unjudged = [s for s in absent if s not in judged]
     parts = []
     if covered:
-        lanes = sorted({judged[s] for s in covered})
-        parts.append(f"  absent, re-run by {', '.join(lanes)}: {', '.join(covered)}")
+        checks = sorted({judged[s] for s in covered})
+        parts.append(f"  absent, re-run by {', '.join(checks)}: {', '.join(covered)}")
     if unjudged:
         parts.append(
-            f"  absent and judged by NO lane: {', '.join(unjudged)}"
+            f"  absent and judged by NO check: {', '.join(unjudged)}"
             f"  <- pinned here, checked nowhere"
         )
     return "\n".join(parts)

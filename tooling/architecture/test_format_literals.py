@@ -10,9 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import format_literals as gate
 
 # The floor lives here rather than in `tooling/ratchet/baselines/`, because a
-# baseline there is a promise that a workflow step drives it --
-# `test_ratchet_baselines_match_documented_gates` checks exactly that -- and this
-# gate has no step of its own. It blocks through `pytest tooling/architecture/`,
+# baseline there is a promise that something drives it and this gate has no
+# invocation of its own. It blocks through `pytest tooling/architecture/`,
 # as the four other checkers `gates.md` names outside the table do, and none of
 # them carries a baseline either.
 FLOOR = 25
