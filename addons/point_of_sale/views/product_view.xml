@@ -154,11 +154,25 @@
         sequence="10"
         groups="product.group_product_variant" />
 
+    <record id="pos_product_combo_choice_action" model="ir.actions.act_window">
+        <field name="name">Combo Choices</field>
+        <field name="res_model">product.combo</field>
+        <field name="view_id" ref="product.view_product_combo_list" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Add combo choices
+            </p><p>
+                A choice is the list a customer picks from inside a combo, so
+                one combo product can cover many combinations.
+            </p>
+        </field>
+    </record>
+
     <menuitem
         id="point_of_sale.menu_product_combo"
         name="Combo Choices"
         parent="point_of_sale.pos_config_menu_catalog"
-        action="product.action_product_combo"
+        action="point_of_sale.pos_product_combo_choice_action"
         sequence="15" />
 
     <menuitem

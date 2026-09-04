@@ -8,7 +8,7 @@
             <form string="Bills">
                 <sheet>
                     <group>
-                        <field name="name" />
+                        <field name="name" required="1" />
                         <field name="value" />
                         <field name="pos_config_ids" widget="many2many_tags" />
                     </group>
@@ -21,8 +21,8 @@
         <field name="name">pos.bill.list</field>
         <field name="model">pos.bill</field>
         <field name="arch" type="xml">
-            <list string="Bills" create="1" delete="1" editable="bottom">
-                <field name="name" />
+            <list string="Bills" create="1" delete="1" editable="bottom" sample="1">
+                <field name="name" required="1" />
                 <field name="value" />
                 <field
                     name="pos_config_ids"
@@ -36,6 +36,14 @@
         <field name="name">Coins/Bills</field>
         <field name="res_model">pos.bill</field>
         <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Add coins and bills
+            </p><p>
+                List the denominations your cashiers count, so closing a
+                session is a matter of tapping them.
+            </p>
+        </field>
     </record>
 
     <menuitem

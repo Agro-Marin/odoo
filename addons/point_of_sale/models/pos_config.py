@@ -333,8 +333,8 @@ class PosConfig(models.Model):
     other_devices = fields.Boolean(
         string="Other Devices", help="Connect devices to your PoS without an IoT Box."
     )
-    rounding_method = fields.Many2one("account.cash.rounding", string="Cash rounding")
-    cash_rounding = fields.Boolean(string="Cash Rounding")
+    rounding_method = fields.Many2one("account.cash.rounding", string="Rounding Method")
+    cash_rounding = fields.Boolean(string="Total Rounding")
     only_round_cash_method = fields.Boolean(string="Only apply rounding on cash")
     has_active_session = fields.Boolean(compute="_compute_current_session")
     manual_discount = fields.Boolean(string="Line Discounts", default=True)
@@ -748,7 +748,7 @@ class PosConfig(models.Model):
                         break
                 raise ValidationError(
                     _(
-                        "The cash rounding strategy of the point of sale %(pos)s must be: '%(value)s'",
+                        "The rounding strategy of the point of sale %(pos)s must be: '%(value)s'",
                         pos=config.name,
                         value=selection_value,
                     )
@@ -1509,6 +1509,7 @@ class PosConfig(models.Model):
                 "name": _("Cash"),
                 "journal_id": cash_journal.id,
                 "company_id": self.env.company.id,
+                "sequence": 1,
             }
         )
 
@@ -1579,7 +1580,7 @@ class PosConfig(models.Model):
                     if outstanding_account
                     else False,
                     "company_id": self.env.company.id,
-                    "sequence": 1,
+                    "sequence": 2,
                 }
             )
 
@@ -1588,6 +1589,7 @@ class PosConfig(models.Model):
         pay_later_pm = self.env["pos.payment.method"].search(
             [
                 ("journal_id", "=", False),
+                ("split_transactions", "=", True),
                 ("company_id", "in", self.env.company.parent_ids.ids),
             ]
         )
@@ -1597,7 +1599,7 @@ class PosConfig(models.Model):
                     "name": _("Customer Account"),
                     "company_id": self.env.company.id,
                     "split_transactions": True,
-                    "sequence": 2,
+                    "sequence": 4,
                 }
             )
 

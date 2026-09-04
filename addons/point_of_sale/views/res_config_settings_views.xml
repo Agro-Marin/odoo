@@ -146,7 +146,7 @@
                                     <field name="pos_auto_validate_terminal_payment" />
                                 </setting>
                                 <setting
-                                    string="Cash Rounding"
+                                    string="Total Rounding"
                                     invisible="is_kiosk_mode"
                                     documentation="/applications/sales/point_of_sale/pricing/cash_rounding.html"
                                     help="Define the smallest coinage of the currency used to pay by cash">
@@ -173,7 +173,7 @@
                                                     name="pos_only_round_cash_method"
                                                     readonly="pos_has_active_session" />
                                                 <label
-                                                    string="Only on cash methods"
+                                                    string="Apply only on cash methods"
                                                     for="pos_only_round_cash_method"
                                                     class="o_light_label" />
                                             </div>
@@ -184,7 +184,7 @@
                                             name="%(account.rounding_list_action)d"
                                             icon="oi-arrow-right"
                                             type="action"
-                                            string="Cash Roundings"
+                                            string="Roundings"
                                             class="btn-link"
                                             invisible="not group_cash_rounding" />
                                     </div>

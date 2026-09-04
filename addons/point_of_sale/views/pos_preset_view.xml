@@ -97,7 +97,7 @@
         <field name="name">pos.preset.list</field>
         <field name="model">pos.preset</field>
         <field name="arch" type="xml">
-            <list string="Presets">
+            <list string="Presets" sample="1">
                 <field name="name" />
                 <field name="use_timing" />
                 <field name="identification" />
@@ -113,6 +113,9 @@
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Add a new preset
+            </p><p>
+                A preset is a group of settings you apply to an order in one
+                click (takeaway, delivery...).
             </p>
         </field>
     </record>

@@ -253,10 +253,24 @@
         action="point_of_sale.product_pos_category_action"
         sequence="1" />
 
+    <record id="pos_product_attribute_action" model="ir.actions.act_window">
+        <field name="name">Attributes</field>
+        <field name="res_model">product.attribute</field>
+        <field name="view_id" ref="product.view_product_attribute_list" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create product attributes
+            </p><p>
+                Attributes let one product cover its variations -- a size, a
+                colour -- instead of one product per combination.
+            </p>
+        </field>
+    </record>
+
     <menuitem
         id="pos_menu_products_attribute_action"
         parent="point_of_sale.pos_menu_products_configuration"
-        action="product.action_product_attribute"
+        action="point_of_sale.pos_product_attribute_action"
         sequence="2"
         groups="product.group_product_variant" />
 
