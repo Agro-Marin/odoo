@@ -77,9 +77,19 @@ export class PartnerList extends Component {
         }
     }
     async editPartner(p = false) {
-        const partner = await this.pos.editPartner(p);
-        if (partner) {
-            this.clickPartner(partner);
+        // The search field is debounced by 300ms, so a cashier who clicks
+        // Create right after typing would otherwise lose the term.
+        const query = this.searchInputRef?.el?.value || this.state.query;
+        if (query) {
+            this.pos.partnerSearchContext = query;
+        }
+        try {
+            const partner = await this.pos.editPartner(p);
+            if (partner) {
+                this.clickPartner(partner);
+            }
+        } finally {
+            delete this.pos.partnerSearchContext;
         }
     }
     async onEnter() {
@@ -154,6 +164,8 @@ export class PartnerList extends Component {
     }
     clickPartner(partner) {
         this.props.getPayload(partner);
+        this.state.query = "";
+        delete this.pos.partnerSearchContext;
         this.props.close();
     }
     async searchPartner() {

@@ -1,4 +1,5 @@
 import { negateStep } from "@point_of_sale/../tests/generic_helpers/utils";
+import { selectButton } from "@point_of_sale/../tests/pos/tours/utils/common";
 
 export function clickPartner(name = "", { expectUnloadPage = false } = {}) {
     return {
@@ -116,8 +117,8 @@ export function checkCustomerShown(val) {
     };
 }
 
-export function searchCustomerValue(val, pressEnter = false) {
-    const steps = [
+export function searchCustomer(val) {
+    return [
         {
             isActive: ["mobile"],
             content: `Click search field`,
@@ -130,6 +131,10 @@ export function searchCustomerValue(val, pressEnter = false) {
             run: `edit ${val}`,
         },
     ];
+}
+
+export function searchCustomerValue(val, pressEnter = false) {
+    const steps = searchCustomer(val);
 
     if (pressEnter) {
         steps.push({
@@ -155,6 +160,40 @@ export function searchCustomerValue(val, pressEnter = false) {
     }
     steps.push(checkCustomerShown(val));
     return steps;
+}
+
+export function clickCreateButton() {
+    return [
+        { ...selectButton("Create"), isActive: ["desktop"] },
+        { ...selectButton("New"), isActive: ["mobile"] },
+    ];
+}
+
+export function formFieldHasValue(fieldName, expectedValue) {
+    return [
+        {
+            content: `"${fieldName}" is prefilled with "${expectedValue}"`,
+            trigger: `div[name="${fieldName}"] .o_input`,
+            run() {
+                const input = document.querySelector(`div[name="${fieldName}"] .o_input`);
+                if (input.value !== expectedValue) {
+                    throw new Error(
+                        `expected "${expectedValue}" in ${fieldName}, got "${input.value}"`,
+                    );
+                }
+            },
+        },
+    ];
+}
+
+export function discardForm() {
+    return [
+        {
+            content: "discard the customer form",
+            trigger: "button.o_form_button_cancel",
+            run: "click",
+        },
+    ];
 }
 
 export function scrollBottom() {

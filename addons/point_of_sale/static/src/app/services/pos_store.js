@@ -23,6 +23,7 @@ import { HWPrinter } from "@point_of_sale/app/utils/printer/hw_printer";
 import { WithLazyGetterTrap } from "@point_of_sale/lazy_getter";
 import {
     deduceUrl,
+    looksLikePhoneNumber,
     orderUsageUTCtoLocalUtil,
     random5Chars,
     uuidv4,
@@ -2200,7 +2201,18 @@ export class PosStore extends WithLazyGetterTrap {
      * @param {import("@point_of_sale/app/models/res_partner").ResPartner?} partner
      */
     editPartnerContext(partner) {
-        return {};
+        if (!this.partnerSearchContext) {
+            return {};
+        }
+        // A search that looks like a phone number is a phone number: the
+        // cashier typed it to find someone, not to name them.
+        const field = looksLikePhoneNumber(this.partnerSearchContext)
+            ? "phone"
+            : "name";
+        return {
+            [`default_${field}`]: this.partnerSearchContext,
+            default_focus: field,
+        };
     }
     /**
      * @param {import("@point_of_sale/app/models/res_partner").ResPartner?} partner

@@ -219,6 +219,7 @@
             ),
             "partner_autocomplete/static/src/**/*",
             "google_address_autocomplete/static/src/**/*",
+            "point_of_sale/static/src/backend/pos_res_partner_view/*",
             (
                 "remove",
                 "web/static/src/**/*.dark.scss",

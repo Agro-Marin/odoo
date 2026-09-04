@@ -437,9 +437,7 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
             }
         )
 
-        fixed_pricelist = env[
-            "product.pricelist"
-        ].create(
+        fixed_pricelist = env["product.pricelist"].create(
             {
                 "name": "Fixed",
                 "item_ids": [
@@ -2587,9 +2585,7 @@ class TestUi(TestPointOfSaleHttpCommon):
 
         setup_product_combo_items(self)
         self.office_combo.write({"list_price": 50, "taxes_id": [(6, 0, [tax_1.id])]})
-        for combo in (
-            self.office_combo.combo_ids
-        ):
+        for combo in self.office_combo.combo_ids:
             for item in combo.combo_item_ids:
                 item.product_id.taxes_id = [(6, 0, [tax_1.id])]
 
@@ -3379,7 +3375,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             login="pos_admin",
         )
 
-
         frontend_created_product = self.env["product.product"].search_count(
             [("name", "=", "Test Frontend Product")]
         )
@@ -3754,9 +3749,13 @@ class TestUi(TestPointOfSaleHttpCommon):
         for p in product.product_variant_ids:
             p.write(
                 {
-                    "barcode": f"1234{''.join(p.product_template_attribute_value_ids.mapped(lambda ptav: (
-                                ptav.name[-1]
-                            )))}",
+                    "barcode": f"1234{
+                        ''.join(
+                            p.product_template_attribute_value_ids.mapped(
+                                lambda ptav: ptav.name[-1]
+                            )
+                        )
+                    }",
                 }
             )
         self.main_pos_config.with_user(self.pos_user).open_ui()
@@ -5344,6 +5343,14 @@ class TestUi(TestPointOfSaleHttpCommon):
             )
         self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_pos_tour("test_combo_no_free_item")
+
+    def test_customer_search_prefilled_on_create(self):
+        """The search term follows the cashier into the creation form."""
+        self.pos_user.write(
+            {"group_ids": [(4, self.env.ref("base.group_partner_manager").id)]}
+        )
+        self.main_pos_config.with_user(self.pos_user).open_ui()
+        self.start_pos_tour("test_customer_search_prefilled_on_create")
 
 
 class MobileTestUi(TestUi):
