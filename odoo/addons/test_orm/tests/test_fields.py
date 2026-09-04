@@ -2701,7 +2701,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        line.with_context(prefetch_fields=False).move_id
+        self.assertEqual(line.with_context(prefetch_fields=False).move_id, move1)
 
         line.move_id = move2
         self.assertEqual(line.move_id, move2)
