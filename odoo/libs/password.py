@@ -30,6 +30,12 @@ def _pbkdf2_sha512(password: str, salt: bytes, rounds: int) -> bytes:
     )
 
 
+def _validate_rounds(rounds: int) -> int:
+    if not 0 < rounds <= _MAX_ROUNDS:
+        raise ValueError(f"pbkdf2_sha512__rounds must be in (0, {_MAX_ROUNDS}]")
+    return rounds
+
+
 def _format_hash(rounds: int, salt: bytes, checksum: bytes) -> str:
     return f"$pbkdf2-sha512${rounds}${_ab64_encode(salt)}${_ab64_encode(checksum)}"
 
@@ -61,11 +67,13 @@ class CryptContext:
         deprecated: list[str] | None = None,
         **kwargs: object,
     ) -> None:
+        if isinstance(schemes, str):
+            schemes = [schemes]
         self._schemes = list(schemes) if schemes else ["pbkdf2_sha512"]
         self._deprecated = set(deprecated) if deprecated else set()
         rounds = kwargs.get("pbkdf2_sha512__rounds", _DEFAULT_ROUNDS)
         assert isinstance(rounds, int), "pbkdf2_sha512__rounds must be an int"
-        self._rounds = rounds
+        self._rounds = _validate_rounds(rounds)
 
     def hash(self, password: str) -> str:
         return pbkdf2_sha512_hash(password, self._rounds)
@@ -73,6 +81,8 @@ class CryptContext:
     def verify(self, password: str, hash_str: str) -> bool:
         parsed = _parse_hash(hash_str)
         if parsed:
+            if "pbkdf2_sha512" not in self._schemes:
+                return False
             rounds, salt, expected = parsed
             actual = _pbkdf2_sha512(password, salt, rounds)
             return hmac.compare_digest(actual, expected)
@@ -131,7 +141,7 @@ class CryptContext:
         if "pbkdf2_sha512__rounds" in kwargs:
             new_rounds = kwargs["pbkdf2_sha512__rounds"]
             assert isinstance(new_rounds, int), "pbkdf2_sha512__rounds must be an int"
-            self._rounds = new_rounds
+            self._rounds = _validate_rounds(new_rounds)
 
     def copy(self) -> CryptContext:
         return CryptContext(
