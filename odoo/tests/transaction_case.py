@@ -189,7 +189,7 @@ def _normalise_expected(
             if vs[name] is None:
                 row[name] = False
             elif field_type in ("one2many", "many2many"):
-                row[name] = sorted(vs[name])
+                row[name] = sorted(vs[name]) if vs[name] else []
             elif field_type == "float":
                 row[name] = float(vs[name])
             elif field_type == "integer":
