@@ -89,6 +89,39 @@ class TestConfigureShops(TestPoSCommon):
                 xmlid,
             )
 
+    def test_pos_order_form_separates_customer_from_operations(self):
+        """The order form used to be one flat four-column grid mixing the
+        customer's details with the register's, plus the technical `source`."""
+        arch = etree.fromstring(
+            self.env["pos.order"].get_view(
+                self.env.ref("point_of_sale.view_pos_pos_form").id,
+                "form",
+            )["arch"],
+        )
+
+        self.assertTrue(
+            arch.xpath("//div[hasclass('oe_title')]//field[@name='name']"),
+            "the order reference reads as the record's title",
+        )
+        self.assertTrue(arch.xpath("//group[@name='order_customer_details']"))
+        self.assertTrue(arch.xpath("//group[@name='order_operational_details']"))
+        self.assertFalse(
+            arch.xpath("//group[@name='order_fields']"),
+            "the flat grid is gone",
+        )
+        self.assertEqual(
+            arch.xpath("//field[@name='user_id']")[0].get("widget"),
+            "many2one_avatar_user",
+        )
+        # Upstream drops `source`; we keep it, because pos_self_order extends
+        # it with 'mobile' and 'kiosk' and this form is where that shows.
+        self.assertTrue(arch.xpath("//field[@name='source']"))
+        # pos_restaurant xpath'd onto the group that just disappeared.
+        self.assertTrue(
+            arch.xpath("//field[@name='table_id']"),
+            "pos_restaurant's inherit still resolves",
+        )
+
     def _remove_on_payment_taxes(self):
         self.env["account.tax"].search(
             [
