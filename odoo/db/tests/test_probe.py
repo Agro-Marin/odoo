@@ -171,5 +171,79 @@ class TestTheDedupedProbeDoesNotShareATraceback(unittest.TestCase):
         )
 
 
+class TestLeaderRemovalAndCompletionAreAtomic(unittest.TestCase):
+    def test_a_second_caller_cannot_observe_the_slot_free_before_done_is_set(self):
+        import threading
+        import time
+
+        from odoo.db import probe as probe_module
+
+        pool = ConnectionPool(maxconn=8)
+        key = _normalize_dsn_key({"dbname": "atomic-check"})
+        entered_finally = threading.Event()
+        release_leader = threading.Event()
+        real_set = threading.Event.set
+        real_probe_init = probe_module._InFlightProbe.__init__
+        first_done_id: dict = {}
+
+        def tagging_init(self_probe):
+            real_probe_init(self_probe)
+            first_done_id.setdefault("id", id(self_probe.done))
+
+        def slow_set(event_self):
+            # Only the ORIGINAL leader's own done.set() is delayed here --
+            # a second caller that becomes a new leader on its own creates a
+            # brand new probe with a different `done` object, whose set()
+            # must not be slowed by this test's instrumentation too.
+            if id(event_self) == first_done_id.get("id"):
+                entered_finally.set()
+                release_leader.wait(5)
+            real_set(event_self)
+
+        def instant_probe(*_a, **_k):
+            return None
+
+        pool._probe.probe_connectable = instant_probe  # type: ignore[method-assign]
+
+        def leader():
+            pool._probe.check_connectable(key, "", {})
+
+        leader_thread = threading.Thread(target=leader, daemon=True)
+        second_returned = []
+
+        def second_caller():
+            pool._probe.check_connectable(key, "", {})
+            second_returned.append(True)
+
+        with (
+            patch.object(probe_module._InFlightProbe, "__init__", tagging_init),
+            patch.object(threading.Event, "set", slow_set),
+        ):
+            leader_thread.start()
+            self.assertTrue(
+                entered_finally.wait(5), "leader never reached the finally block"
+            )
+            # The leader is now inside the with self._lock: block, blocked in
+            # our patched set() -- del self._inflight[key] already ran, in
+            # the SAME critical section (same "with self._lock:"). A second
+            # caller must therefore block on self._lock for the whole span,
+            # not just for the del.
+            second_thread = threading.Thread(target=second_caller, daemon=True)
+            second_thread.start()
+            time.sleep(0.2)
+            self.assertEqual(
+                second_returned,
+                [],
+                "a second caller returned from check_connectable while the "
+                "leader was still inside its own del+set critical section -- "
+                "del and set() are not atomic with respect to each other",
+            )
+            release_leader.set()
+            leader_thread.join(5)
+            second_thread.join(5)
+
+        self.assertEqual(second_returned, [True])
+
+
 if __name__ == "__main__":
     unittest.main()
