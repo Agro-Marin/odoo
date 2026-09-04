@@ -218,6 +218,12 @@ msgstr ""
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/mail_template.py:0
+msgid "%(model)s has no field or attribute '%(name)s'"
+msgstr ""
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/base.py:0
 msgid "%(model_name)s.%(field_path)s does not seem to be a valid field path"
 msgstr ""
@@ -719,6 +725,14 @@ msgid "<strong>You are no longer following the document:</strong>"
 msgstr ""
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/discuss/discuss_channel.py:0
+msgid ""
+"A %(channel_type)s cannot have more than %(limit)s members. Create a group "
+"instead."
+msgstr ""
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_alias__alias_defaults
 #: model:ir.model.fields,help:mail.field_mixin_mail_alias__alias_defaults
 #: model:ir.model.fields,help:mail.field_mixin_mail_alias_optional__alias_defaults
@@ -761,6 +775,12 @@ msgstr ""
 #. odoo-python
 #: code:addons/mail/wizard/mail_compose_message.py:0
 msgid "A message can only be scheduled in monocomment mode"
+msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/mail_message.py:0
+msgid "A message can only reply to a message of the same document."
 msgstr ""
 
 #. module: mail
@@ -5648,6 +5668,18 @@ msgstr ""
 #. odoo-python
 #: code:addons/mail/models/mixin_mail_thread_blacklist.py:0
 msgid "Invalid primary email field on model %s"
+msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/mail_push_device.py:0
+msgid "Invalid push subscription expiration time %(value)s"
+msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/mail_push_device.py:0
+msgid "Invalid push subscription keys: %(reason)s"
 msgstr ""
 
 #. module: mail
@@ -12804,6 +12836,12 @@ msgstr ""
 msgid ""
 "You cannot modify %(activities_names)s target model as they are are required"
 " in various apps."
+msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/mail_message.py:0
+msgid "You cannot read the following messages: %(ids)s"
 msgstr ""
 
 #. module: mail
