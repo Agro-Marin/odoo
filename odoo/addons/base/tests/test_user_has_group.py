@@ -300,8 +300,8 @@ class TestHasGroup(TransactionCase):
 
         self.assertEqual(
             self.test_user.all_group_ids,
-            (group_0 + self.grp_portal),
-            "Here the portal group does not imply any other group, so we should only have this group.",
+            (group_0 | self.grp_portal.all_implied_ids),
+            "Only the portal group and whatever the installed modules make it imply should remain.",
         )
 
     def test_implied_groups(self):

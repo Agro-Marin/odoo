@@ -6883,6 +6883,17 @@ class ViewModifiers(ViewCase):
 
     @mute_logger("odoo.addons.base.models.ir_ui_view")
     def test_17_attrs_groups_validation(self):
+        # Every expectation below assumes the models' read access is exactly
+        # base.group_system, which any installed module may widen.
+        IrModelAccess = type(self.env["ir.model.access"])
+        system_only = (
+            self.env["res.groups"]._get_group_definitions().parse("base.group_system")
+        )
+        self.patch(
+            IrModelAccess,
+            "_get_groups_with_access",
+            lambda _self, _model_name, access_mode="read": system_only,
+        )
         test_group = self.env["res.groups"].create({"name": "test_group"})
         self.env["ir.model.data"].create(
             {
