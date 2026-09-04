@@ -4,7 +4,6 @@ import datetime
 import hmac
 import ipaddress
 import logging
-import threading
 import time
 import uuid
 from functools import wraps
@@ -44,11 +43,16 @@ _logger = logging.getLogger(__name__)
 
 MIN_ROUNDS = 600_000
 
-LOGIN_FAILURES_PRUNE_THRESHOLD = 1000
+# A fixed pbkdf2-sha512 hash at MIN_ROUNDS, verified against on every login
+# with an unknown user so that a "user not found" response costs about as
+# much as a "wrong password" one (AUTH-1) and is not distinguishable by
+# timing. The password it was derived from is never used for anything.
+_DUMMY_PASSWORD_HASH = (
+    "$pbkdf2-sha512$600000$7w4wftbyNcmfyucdH94fxA$"
+    "6gY5uDHtaWIcyKdWlT0sfnF8OhSZMjbKmB8DizAUKVRJ8HidOesEczP4wP5dSBKAZPAuoE2TuABEWSXm6XGR1Q"
+)
 
 DEBUG_GROUP = "base.group_no_one"
-
-_LOGIN_FAILURES_LOCK = threading.Lock()
 
 _UNRESOLVED_GROUPS_WARNED: set[str] = set()
 
@@ -1121,6 +1125,9 @@ class ResUsers(models.Model):
                     limit=1,
                 )
                 if not user:
+                    self._crypt_context().match_and_update(
+                        credential.get("password") or "", _DUMMY_PASSWORD_HASH
+                    )
                     raise AccessDenied
                 user = user.with_user(user).sudo()
                 auth_info = user._check_credentials(credential, user_agent_env)
@@ -1510,15 +1517,61 @@ class ResUsers(models.Model):
     def get_company_currency_id(self) -> int:
         return self.env.company.currency_id.id
 
-    @staticmethod
-    def _login_failures_map(registry: Any) -> collections.defaultdict:
-        with _LOGIN_FAILURES_LOCK:
-            failures_map = getattr(registry, "_login_failures", None)
-            if failures_map is None:
-                failures_map = registry._login_failures = collections.defaultdict(
-                    lambda: (0, datetime.datetime.min.replace(tzinfo=datetime.UTC))
-                )
-        return failures_map
+    def _get_login_failure_state(self, source: str) -> tuple[int, datetime.datetime]:
+        # Own short-lived cursor: this must reflect what every worker/process
+        # has committed, not a value cached in this process's memory (AUTH-2).
+        with self.pool.cursor() as cr:
+            cr.execute(
+                "SELECT failures, last_failure FROM res_users_login_cooldown "
+                "WHERE source = %s",
+                [source],
+            )
+            row = cr.fetchone()
+        if not row:
+            return 0, datetime.datetime.min.replace(tzinfo=datetime.UTC)
+        failures, last_failure = row
+        # Stored (like every Odoo Datetime field) as a naive value that is
+        # already UTC wall-clock; attach tzinfo rather than convert.
+        return failures, last_failure.replace(tzinfo=datetime.UTC)
+
+    def _record_login_failure(self, source: str) -> None:
+        now = datetime.datetime.now(datetime.UTC)
+        delay = int(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("base.login_cooldown_duration", 60)
+        )
+        cutoff = now - datetime.timedelta(seconds=delay)
+        # Naive UTC, not a tz-aware value: passing an aware datetime here
+        # would let Postgres apply the session's TimeZone setting on the
+        # implicit cast to this "timestamp without time zone" column,
+        # skewing it by the server's UTC offset.
+        now_naive = now.replace(tzinfo=None)
+        cutoff_naive = cutoff.replace(tzinfo=None)
+        # Own cursor, committed on its own: a failed login raises AccessDenied,
+        # which unwinds the caller's transaction without committing, so the
+        # count must not depend on that transaction succeeding.
+        with self.pool.cursor() as cr:
+            cr.execute(
+                """
+                INSERT INTO res_users_login_cooldown (source, failures, last_failure)
+                VALUES (%s, 1, %s)
+                ON CONFLICT (source) DO UPDATE
+                SET failures = res_users_login_cooldown.failures + 1,
+                    last_failure = EXCLUDED.last_failure
+                """,
+                [source, now_naive],
+            )
+            cr.execute(
+                "DELETE FROM res_users_login_cooldown WHERE last_failure < %s",
+                [cutoff_naive],
+            )
+
+    def _clear_login_failures(self, source: str) -> None:
+        with self.pool.cursor() as cr:
+            cr.execute(
+                "DELETE FROM res_users_login_cooldown WHERE source = %s", [source]
+            )
 
     @contextlib.contextmanager
     def _assert_can_auth(self, user: int | str | None = None) -> Generator[None]:
@@ -1526,11 +1579,8 @@ class ResUsers(models.Model):
             yield
             return
 
-        reg = self.env.registry
-        failures_map = self._login_failures_map(reg)
-
         source = request.httprequest.remote_addr
-        failures, previous = failures_map[source]
+        failures, previous = self._get_login_failure_state(source)
         if self._is_login_on_cooldown(failures, previous):
             _logger.warning(
                 "Login attempt ignored for %s (user %r) on %s: "
@@ -1561,22 +1611,10 @@ class ResUsers(models.Model):
         try:
             yield
         except AccessDenied:
-            now = datetime.datetime.now(datetime.UTC)
-            failures, __ = failures_map[source]
-            failures_map[source] = (failures + 1, now)
-            if len(failures_map) > LOGIN_FAILURES_PRUNE_THRESHOLD:
-                delay = int(
-                    self.env["ir.config_parameter"]
-                    .sudo()
-                    .get_param("base.login_cooldown_duration", 60)
-                )
-                cutoff = now - datetime.timedelta(seconds=delay)
-                for src, (__, last_failure) in list(failures_map.items()):
-                    if last_failure < cutoff:
-                        del failures_map[src]
+            self._record_login_failure(source)
             raise
         else:
-            failures_map.pop(source, None)
+            self._clear_login_failures(source)
 
     def _is_login_on_cooldown(self, failures: int, previous: datetime.datetime) -> bool:
         cfg = self.env["ir.config_parameter"].sudo()

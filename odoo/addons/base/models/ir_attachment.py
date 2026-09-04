@@ -1208,14 +1208,20 @@ class IrAttachment(models.Model):
 
     @api.model
     def create_unique(self, values_list: list[dict[str, Any]]) -> list[int]:
+        self.browse().check_access("create")
+
         entries: list[tuple[dict, tuple[str, int, str, Any, Any] | None]] = []
         raw_by_key: dict[tuple, bytes] = {}
         verify_collision = self._is_content_collision_check_enabled()
+        model_and_ids = defaultdict(OrderedSet)
         for values in values_list:
             if "mimetype" not in values:
                 raise UserError(_("Attachment is missing its mimetype."))
             vals, has_content = self._normalize_content_vals(dict(values))
             vals = self._prepare_contents(vals)
+            model_and_ids[self._coerce_model_name(vals.get("res_model"))].add(
+                vals.get("res_id")
+            )
             key = None
             if has_content:
                 raw = vals["raw"]
@@ -1228,6 +1234,8 @@ class IrAttachment(models.Model):
                 if verify_collision and raw_by_key.setdefault(key, raw) != raw:
                     key = None
             entries.append((vals, key))
+        if any(self._get_comodel_records_inaccessible(model_and_ids, "write")):
+            raise AccessError(_("Sorry, you are not allowed to access this document."))
 
         all_checksums = list({key[0] for _vals, key in entries if key})
         existing_by_key: dict[tuple, int] = {}

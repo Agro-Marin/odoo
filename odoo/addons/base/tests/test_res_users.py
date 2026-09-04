@@ -810,7 +810,27 @@ class TestLoginCooldown(TransactionCase):
         icp = self.env["ir.config_parameter"].sudo()
         icp.set_param("base.login_cooldown_after", "2")
         icp.set_param("base.login_cooldown_duration", "60")
-        self.addCleanup(self.env.registry.__dict__.pop, "_login_failures", None)
+        # The cooldown state is persisted through its own committed cursor
+        # (AUTH-2), independently of this test's transaction, so it must be
+        # cleaned up the same way rather than relying on rollback.
+        self.addCleanup(self._purge_cooldown_rows)
+
+    def _purge_cooldown_rows(self):
+        with self.env.registry.cursor() as cr:
+            cr.execute(
+                "DELETE FROM res_users_login_cooldown WHERE source LIKE ANY(%s)",
+                [
+                    [
+                        "8.8.8.8",
+                        "7.7.7.7",
+                        "8.8.4.4",
+                        "1.1.1.1",
+                        "9.9.9.9",
+                        "203.0.113.%",
+                        "198.51.100.%",
+                    ]
+                ],
+            )
 
     @staticmethod
     def _request(addr):
@@ -903,32 +923,67 @@ class TestLoginCooldown(TransactionCase):
         users = self.env["res.users"]
         with patch(self._REQUEST, self._request("203.0.113.7")):
             self._fail_once(users)
-        failures_map = self.env.registry._login_failures
 
-        now = datetime.now(UTC)
+        # Naive UTC, like the production code writes: an aware value here
+        # would be skewed by the session's TimeZone on the implicit cast to
+        # this "timestamp without time zone" column.
+        now = datetime.now(UTC).replace(tzinfo=None)
         stale = now - timedelta(seconds=120)
         stale_sources = [f"198.51.100.{i}" for i in range(4)]
-        for source in stale_sources:
-            failures_map[source] = (3, stale)
         fresh_source = "198.51.100.200"
-        failures_map[fresh_source] = (1, now)
+        with self.env.registry.cursor() as cr:
+            for source in stale_sources:
+                cr.execute(
+                    "INSERT INTO res_users_login_cooldown (source, failures, last_failure) "
+                    "VALUES (%s, 3, %s)",
+                    [source, stale],
+                )
+            cr.execute(
+                "INSERT INTO res_users_login_cooldown (source, failures, last_failure) "
+                "VALUES (%s, 1, %s)",
+                [fresh_source, now],
+            )
 
-        with (
-            patch(
-                "odoo.addons.base.models.res_users.LOGIN_FAILURES_PRUNE_THRESHOLD",
-                3,
-            ),
-            patch(self._REQUEST, self._request("203.0.113.8")),
-        ):
+        with patch(self._REQUEST, self._request("203.0.113.8")):
             self._fail_once(users)
 
+        with self.env.registry.cursor() as cr:
+            cr.execute("SELECT source FROM res_users_login_cooldown")
+            remaining = {row[0] for row in cr.fetchall()}
+
         for source in stale_sources:
-            self.assertNotIn(source, failures_map, "stale entry must be pruned")
-        self.assertIn(fresh_source, failures_map, "in-window entry must survive")
-        self.assertIn("203.0.113.7", failures_map)
+            self.assertNotIn(source, remaining, "stale entry must be pruned")
+        self.assertIn(fresh_source, remaining, "in-window entry must survive")
+        self.assertIn("203.0.113.7", remaining)
         self.assertIn(
-            "203.0.113.8", failures_map, "the just-failed source must be recorded"
+            "203.0.113.8", remaining, "the just-failed source must be recorded"
         )
+
+
+@tagged("post_install", "-at_install")
+class TestLoginTimingSideChannel(TransactionCase):
+    @mute_logger("odoo.addons.base.models.res_users")
+    def test_unknown_user_pays_a_dummy_hash_check(self):
+        """AUTH-1: an unknown login must not be rejected before paying the
+        same order-of-magnitude cost as a wrong-password rejection, or the
+        two are distinguishable by response time."""
+        from odoo.addons.base.models.res_users import _DUMMY_PASSWORD_HASH
+
+        with patch(
+            "odoo.libs.password.CryptContext.match_and_update",
+            return_value=(False, None),
+        ) as match_and_update:
+            with self.assertRaises(AccessDenied):
+                self.env["res.users"].sudo()._login(
+                    {
+                        "login": "auth1-no-such-user",
+                        "type": "password",
+                        "password": "whatever",
+                    },
+                    {"interactive": True},
+                )
+
+        match_and_update.assert_called_once_with("whatever", _DUMMY_PASSWORD_HASH)
 
 
 @tagged("post_install", "-at_install")

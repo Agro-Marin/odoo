@@ -1,5 +1,6 @@
 import inspect
-from unittest.mock import patch
+import ipaddress
+from unittest.mock import MagicMock, patch
 
 import requests
 from lxml import etree
@@ -10,6 +11,7 @@ from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
 from odoo.tools.safe_eval import safe_eval
 
+from odoo.addons.base.models import ir_actions_server
 from odoo.addons.base.models.ir_actions_server import _get_webhook_blocked_reason
 
 _MODULE = "odoo.addons.base.models.ir_actions_server"
@@ -333,7 +335,9 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
 
     def test_the_request_does_not_follow_redirects(self):
         action = self._webhook()
-        with patch.object(requests, "post") as post:
+        # A pinned-IP delivery (ACT-1) goes through a Session it mounts its
+        # own adapter on, not the bare requests.post() module function.
+        with patch.object(requests.Session, "post") as post:
             action.with_context(**self._ctx(self._partners(1))).run()
             self.env.cr.postcommit.run()
         self.assertIs(post.call_args.kwargs["allow_redirects"], False)
@@ -342,14 +346,80 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
     def test_the_guard_runs_again_at_delivery(self):
         action = self._webhook()
         with (
-            patch.object(requests, "post") as post,
+            patch.object(requests.Session, "post") as post,
             patch(
-                f"{_MODULE}._get_webhook_blocked_reason", side_effect=[None, "moved"]
+                f"{_MODULE}._resolve_webhook_candidates",
+                side_effect=[
+                    ("example.com", [], None),
+                    ("example.com", [], "moved"),
+                ],
             ),
         ):
             action.with_context(**self._ctx(self._partners(1))).run()
             self.env.cr.postcommit.run()
         post.assert_not_called()
+
+    def test_delivery_uses_a_session_mounted_with_the_pinned_ip(self):
+        """ACT-1: delivery must go through _PinnedIPAdapter carrying the
+        exact IP the guard just validated, not a bare requests.post() that
+        would let requests/urllib3 resolve the hostname again -- that second,
+        independent resolution is the DNS-rebinding TOCTOU."""
+        action = self._webhook()
+        mounted_adapters = {}
+
+        real_mount = requests.Session.mount
+
+        def spying_mount(self, prefix, adapter):
+            mounted_adapters[prefix] = adapter
+            return real_mount(self, prefix, adapter)
+
+        with (
+            patch(
+                f"{_MODULE}._resolve_webhook_candidates",
+                return_value=(
+                    "example.com",
+                    [ipaddress.ip_address("203.0.113.10")],
+                    None,
+                ),
+            ),
+            patch.object(requests.Session, "mount", spying_mount),
+            patch.object(requests.Session, "post", return_value=MagicMock()),
+        ):
+            action.with_context(**self._ctx(self._partners(1))).run()
+            self.env.cr.postcommit.run()
+
+        adapter = mounted_adapters.get("https://")
+        self.assertIsInstance(adapter, ir_actions_server._PinnedIPAdapter)
+        self.assertEqual(adapter._pinned_ip, "203.0.113.10")
+
+    def test_pinned_adapter_targets_the_ip_not_the_hostname(self):
+        """Unit-level proof of the adapter itself: the connection pool must
+        be keyed on the pinned IP, with the original hostname carried only
+        for TLS SNI/hostname verification -- not used to reach the peer."""
+        adapter = ir_actions_server._PinnedIPAdapter("203.0.113.10")
+        request = requests.Request(
+            "POST", "https://example.com/hook", data=b"{}"
+        ).prepare()
+        captured = {}
+
+        def fake_connection_from_host(host, port=None, scheme="http", pool_kwargs=None):
+            captured["host"] = host
+            captured["pool_kwargs"] = pool_kwargs or {}
+            raise requests.exceptions.ConnectionError("stop before a real connection")
+
+        with patch.object(
+            adapter.poolmanager, "connection_from_host", fake_connection_from_host
+        ):
+            with self.assertRaises(requests.exceptions.ConnectionError):
+                adapter.get_connection_with_tls_context(request, verify=True)
+
+        self.assertEqual(
+            captured["host"],
+            "203.0.113.10",
+            "the connection must target the validated IP, not the hostname",
+        )
+        self.assertEqual(captured["pool_kwargs"].get("server_hostname"), "example.com")
+        self.assertEqual(captured["pool_kwargs"].get("assert_hostname"), "example.com")
 
     def test_the_timeout_is_re_checked_when_the_state_becomes_webhook(self):
         action = self._action(state="code", code="pass", webhook_timeout=0)
@@ -374,13 +444,13 @@ class TestWebhookPayloadHasOneShape(ServerActionCase):
         record = self._sample_record()
         sent = {}
 
-        def fake_post(url, **kwargs):
+        def fake_post(_self, url, **kwargs):
             sent.update(kwargs)
             response = requests.Response()
             response.status_code = 200
             return response
 
-        with patch.object(requests, "post", fake_post):
+        with patch.object(requests.Session, "post", fake_post):
             action.with_context(active_model="res.partner", active_id=record.id).run()
             self.env.cr.postcommit.run()
         self.assertEqual(

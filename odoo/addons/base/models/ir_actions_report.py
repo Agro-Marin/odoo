@@ -4,6 +4,7 @@ import ipaddress
 import logging
 import mimetypes
 import re
+import socket
 import threading
 from ast import literal_eval
 from collections import deque
@@ -73,16 +74,7 @@ def _is_tls_verification_required(url: str) -> bool:
     return urlparse(url).hostname not in _LOOPBACK_HOSTS
 
 
-def _is_host_blocked(hostname: str | None) -> bool:
-    if not hostname:
-        return False
-    host = hostname.strip("[]").lower().rstrip(".")
-    if host in _LOOPBACK_HOSTS or host.endswith(_LOOPBACK_SUFFIX):
-        return True
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        return False
+def _is_ip_blocked(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     return (
         not ip.is_global
         or ip.is_private
@@ -92,6 +84,28 @@ def _is_host_blocked(hostname: str | None) -> bool:
         or ip.is_multicast
         or ip.is_unspecified
     )
+
+
+def _is_host_blocked(hostname: str | None) -> bool:
+    if not hostname:
+        return False
+    host = hostname.strip("[]").lower().rstrip(".")
+    if host in _LOOPBACK_HOSTS or host.endswith(_LOOPBACK_SUFFIX):
+        return True
+    try:
+        return _is_ip_blocked(ipaddress.ip_address(host))
+    except ValueError:
+        pass
+    try:
+        resolved = {
+            ipaddress.ip_address(info[4][0])
+            for info in socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+        }
+    except OSError:
+        # Unresolvable hostnames are not a blocking concern here: the
+        # actual fetch will fail on its own resolution attempt.
+        return False
+    return not resolved or any(_is_ip_blocked(ip) for ip in resolved)
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:

@@ -509,19 +509,38 @@ class IrCron(models.Model):
         failed_by_timeout = job.timed_out_counter >= CONSECUTIVE_TIMEOUT_FOR_FAILURE
 
         if not failed_by_timeout:
-            status = cls._run_job_within_budget(job, deadline=deadline)
-        else:
-            status = CompletionStatus.FAILED
-            cron_cr.execute(
-                """
-                UPDATE ir_cron_progress
-                SET timed_out_counter = 0
-                WHERE id = %s
-            """,
-                (job.progress_id,),
-            )
-            _logger.error("Job %r (%s) timed out", job.cron_name, job.id)
+            # The completion bookkeeping (reschedule/failure vals) is
+            # computed and committed by _run_job_within_budget itself, on
+            # the same job_cr cursor as the job body's own last unit of
+            # work (INF-2): they must land together. Recomputing and
+            # writing it here afterwards, on cron_cr, left a window where
+            # an exception between _run_job_within_budget returning and
+            # cron_cr's own commit reverted only the bookkeeping -- the
+            # job body's side effects, already committed via job_cr,
+            # stayed done, and the next pass ran the same job again.
+            cls._run_job_within_budget(job, deadline=deadline)
+            return
 
+        status = CompletionStatus.FAILED
+        cron_cr.execute(
+            """
+            UPDATE ir_cron_progress
+            SET timed_out_counter = 0
+            WHERE id = %s
+        """,
+            (job.progress_id,),
+        )
+        _logger.error("Job %r (%s) timed out", job.cron_name, job.id)
+        cls._apply_job_completion(cron_cr, ir_cron, job, status)
+
+    @classmethod
+    def _apply_job_completion(
+        cls,
+        cr: BaseCursor,
+        ir_cron: Self,
+        job: CronJob,
+        status: CompletionStatus,
+    ) -> None:
         vals = ir_cron._prepare_failure_vals(job, status)
 
         if status in (CompletionStatus.FULLY_DONE, CompletionStatus.FAILED):
@@ -529,7 +548,7 @@ class IrCron(models.Model):
         elif status == CompletionStatus.PARTIALLY_DONE:
             ir_cron._reschedule_job_asap(job)
             if NOTIFY_CRON_CHANGES:
-                cls._notify_after_commit(cron_cr)
+                cls._notify_after_commit(cr)
         else:
             raise RuntimeError(f"unreachable {status=}")
 
@@ -675,6 +694,10 @@ class IrCron(models.Model):
                 remaining,
                 time.monotonic() - start_time,
             )
+
+            # Written and committed on this same job_cr, together with the
+            # job body's own last unit of work (INF-2) -- see _run_job.
+            cls._apply_job_completion(job_cr, cron, job, status)
 
         return status
 

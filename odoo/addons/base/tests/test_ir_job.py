@@ -1235,6 +1235,74 @@ class TestIrJobClaimSnapshot(BaseCase):
             self.assertNotEqual(job_b["id"], job_a["id"])
 
     @mute_logger("odoo.db.cursor")
+    def test_a_narrower_claim_does_not_skip_past_a_wider_ones_uncommitted_pick(self):
+        """INF-1: a multi-channel claimer's LATERAL pick used to lock one
+        candidate row *per runnable channel*, even though it only ever
+        updates the single globally-best one. A concurrent claimer scoped to
+        one of the losing channels would then SKIP LOCKED past its own,
+        otherwise-free, highest-priority job and come back with nothing."""
+        with self.registry.cursor() as setup:
+            env = odoo.api.Environment(setup, common.ADMIN_USER_ID, {})
+            env["ir.job.channel"].create(
+                [
+                    {"name": "inf1_wide", "capacity": 100},
+                    {"name": "inf1_narrow", "capacity": 100},
+                ]
+            )
+            setup.execute(
+                "INSERT INTO ir_job (channel, state, priority, model_name,"
+                " method_name, user_id, max_retries, retry, create_uid,"
+                " create_date, write_uid, write_date) VALUES"
+                " ('inf1_wide','pending',1,'ir.job','_job_ping',1,5,0,1,now(),1,now()),"
+                " ('inf1_narrow','pending',10,'ir.job','_job_ping',1,5,0,1,now(),1,now())"
+            )
+            setup.commit()
+        self.addCleanup(self._clear_inf1)
+
+        with self.registry.cursor() as cr_wide, self.registry.cursor() as cr_narrow:
+            # cr_wide is entitled to both channels; its globally-best pick is
+            # the priority-1 job on inf1_wide -- but the old query also
+            # locked (without updating) the priority-10 candidate on
+            # inf1_narrow while deciding that. Its transaction stays open
+            # (no commit yet) so any lock it took is still held.
+            # serialise=False: this is INF-1's own repro condition (the
+            # advisory lock, when taken, already fully serialises claims
+            # and would deadlock this same-thread simulation).
+            job_wide = IrJob._claim_next(
+                cr_wide,
+                "inf1:wide",
+                channels=["inf1_wide", "inf1_narrow"],
+                serialise=False,
+            )
+            self.assertIsNotNone(job_wide)
+            self.assertEqual(job_wide["channel"], "inf1_wide")
+
+            # A claimer scoped to only the narrow channel must still get its
+            # own, unrelated, still-pending job.
+            job_narrow = IrJob._claim_next(
+                cr_narrow, "inf1:narrow", channels=["inf1_narrow"], serialise=False
+            )
+            cr_wide.commit()
+            cr_narrow.commit()
+
+        self.assertIsNotNone(
+            job_narrow,
+            "a claim scoped to inf1_narrow must not be skipped past its only "
+            "pending job by an unrelated, wider claim still in flight",
+        )
+        self.assertEqual(job_narrow["channel"], "inf1_narrow")
+
+    def _clear_inf1(self):
+        with self.registry.cursor() as cr:
+            cr.execute(
+                "DELETE FROM ir_job WHERE channel IN ('inf1_wide', 'inf1_narrow')"
+            )
+            cr.execute(
+                "DELETE FROM ir_job_channel WHERE name IN ('inf1_wide', 'inf1_narrow')"
+            )
+            cr.commit()
+
+    @mute_logger("odoo.db.cursor")
     def test_capacity_holds_when_every_claimer_starts_from_a_stale_snapshot(self):
         with self.registry.cursor() as setup:
             env = odoo.api.Environment(setup, common.ADMIN_USER_ID, {})
