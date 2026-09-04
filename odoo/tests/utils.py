@@ -36,8 +36,8 @@ def env_int(varname: str, default: int) -> int:
 def get_db_name() -> str:
     dbnames = odoo.tools.config["db_name"]
     worker = current_worker_thread()
-    if not dbnames and hasattr(worker, "dbname"):
-        return worker.dbname or ""
+    if not dbnames and getattr(worker, "dbname", None):
+        return worker.dbname
     if not dbnames:
         sys.exit("No database name found, please provide one with -d/--database")
     if len(dbnames) > 1:
