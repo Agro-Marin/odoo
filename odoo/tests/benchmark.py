@@ -6,7 +6,6 @@ from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from odoo.libs.worker_thread import current_worker_thread
-from odoo.tools.misc import real_time
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -314,11 +313,11 @@ class BenchmarkTimer:
 
         self.start_query_count = thread.query_count
         self.start_query_time = thread.query_time
-        self.start_time = real_time()
+        self.start_time = time.perf_counter()
         return self
 
     def __exit__(self, *args: object) -> None:
-        self.end_time = real_time()
+        self.end_time = time.perf_counter()
         thread = current_worker_thread()
         self.end_query_count = thread.query_count
         self.end_query_time = thread.query_time
