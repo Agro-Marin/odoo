@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<templates>
+    <t t-name="mrp.MrpCalendarCommonRenderer.event" t-inherit="web.CalendarCommonRenderer.event" t-inherit-mode="primary">
+        <div t-out="title" position="after">
+            <span t-if="rawRecord.product_id" class="d-block">
+                <t t-out="rawRecord.product_id[1]"/>
+                <t t-if="rawRecord.product_qty">
+                    (<t t-out="rawRecord.product_qty"/><t t-if="rawRecord.product_uom_id"> <t t-out="rawRecord.product_uom_id[1]"/></t>)
+                </t>
+            </span>
+        </div>
+    </t>
+</templates>

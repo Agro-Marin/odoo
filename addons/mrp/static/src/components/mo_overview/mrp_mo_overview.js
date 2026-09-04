@@ -97,7 +97,7 @@ export class MoOverview extends Component {
             receipts: true,
             unitCosts: false,
             moCosts: true,
-            bomCosts: true,
+            bomCosts: false,
             realCosts: true,
         };
     }

@@ -53,14 +53,17 @@
                             name="action_cancel"
                             type="object"
                             string="Cancel"
-                            confirm="Are you sure you want to cancel these manufacturing orders?" />
+                            confirm="Are you sure you want to cancel these manufacturing orders?&#10;This action cannot be undone."
+                            confirm-label="Cancel these Orders"
+                            cancel-label="Discard" />
                     </header>
                     <field name="company_id" column_invisible="True" />
                     <field
                         name="priority"
                         optional="show"
                         widget="priority"
-                        nolabel="1" />
+                        nolabel="1"
+                        width="20px" />
                     <field name="message_needaction" column_invisible="True" />
                     <field name="name" decoration-bf="1" />
                     <field name="date_start" optional="show" widget="remaining_days" />
@@ -328,8 +331,8 @@
                         string="Cancel"
                         data-hotkey="x"
                         invisible="not id or state in ('done', 'cancel')"
-                        confirm="Are you sure you want to cancel this manufacturing order?"
-                        confirm-label="Confirm"
+                        confirm="Are you sure you want to cancel this manufacturing order?&#10;This action cannot be undone."
+                        confirm-label="Cancel this Order"
                         cancel-label="Discard" />
                     <button
                         name="button_unbuild"
@@ -1118,14 +1121,18 @@
             <field name="priority" eval="2" />
             <field name="arch" type="xml">
                 <calendar
+                    js_class="mrp_calendar"
                     date_start="date_start"
                     date_stop="date_end"
                     string="Manufacturing Orders"
                     event_limit="5"
-                    quick_create="0">
+                    quick_create="0"
+                    color="product_id">
                     <field name="user_id" avatar_field="avatar_128" />
                     <field name="product_id" />
                     <field name="product_qty" />
+                    <!-- Shown next to the quantity on the day and week cards. -->
+                    <field name="product_uom_id" invisible="1" />
                 </calendar>
             </field>
         </record>
