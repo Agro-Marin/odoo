@@ -1,15 +1,6 @@
 import { router } from "@web/core/browser/router";
 import { registry } from "@web/core/registry";
-
-const _console = window.console;
-function assertEqual(actual, expected, msg = "") {
-    if (actual !== expected) {
-        const description = msg ? ` ${msg}` : "";
-        _console.error(
-            `Assert failed: expected: ${expected} ; got: ${actual}.${description}`,
-        );
-    }
-}
+import { assertEqual } from "./tour_test_utils";
 
 registry.category("web_tour.tours").add("test_company_switch_access_error", {
     steps: () => [
