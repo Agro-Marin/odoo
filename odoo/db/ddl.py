@@ -3,7 +3,7 @@ from typing import Any
 
 from psycopg import sql as _sql
 
-from .utils import get_value_marker_positions
+from .utils import get_value_marker_positions, iter_sql_code_ranges
 
 _DDL_KEYWORDS: tuple[str, ...] = (
     "CREATE",
@@ -84,10 +84,18 @@ def _is_schema_change(qs: str, leading: str | None) -> bool:
 _DICT_MARKER_RE = _re.compile(r"%(?:%|\(([^)]+)\)s)")
 
 
+def _in_code_ranges(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
+    return any(r_start <= start and end <= r_end for r_start, r_end in ranges)
+
+
 def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
     if isinstance(params, dict):
+        code_ranges = iter_sql_code_ranges(qs)
         referenced = {
-            m.group(1) for m in _DICT_MARKER_RE.finditer(qs) if m.group(1) is not None
+            m.group(1)
+            for m in _DICT_MARKER_RE.finditer(qs)
+            if m.group(1) is not None
+            and _in_code_ranges(m.start(), m.end(), code_ranges)
         }
         missing = referenced - params.keys()
         if missing:
@@ -100,7 +108,12 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
         def _replace_named_marker(m: _re.Match) -> str:
             name = m.group(1)
             if name is None:
+                # %% escapes a literal percent uniformly across the whole
+                # template, quoted or not -- this is Python %-formatting
+                # syntax, not SQL string escaping.
                 return "%"
+            if not _in_code_ranges(m.start(), m.end(), code_ranges):
+                return m.group(0)
             return _sql.quote(params[name], ctx)
 
         return _DICT_MARKER_RE.sub(_replace_named_marker, qs)

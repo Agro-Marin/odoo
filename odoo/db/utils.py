@@ -17,16 +17,66 @@ def is_maintenance_db(db_name: str, settings: PoolSettings | None = None) -> boo
     return db_name == template
 
 
+def iter_sql_code_ranges(query: str) -> list[tuple[int, int]]:
+    """Split `query` into (start, end) spans of plain SQL code, skipping
+    single/double-quoted string literals and -- / block comments.
+
+    A literal %s or %(name)s-shaped substring inside a quoted string or a
+    comment is not a real bind placeholder; scanning only within these
+    spans keeps both marker scanners (positional and named) from
+    miscounting -- or, worse, silently rewriting -- such text.
+    """
+    ranges = []
+    i, n = 0, len(query)
+    start = 0
+    while i < n:
+        c = query[i]
+        if c in ("'", '"'):
+            if i > start:
+                ranges.append((start, i))
+            quote = c
+            i += 1
+            while i < n:
+                if query[i] == quote:
+                    if i + 1 < n and query[i + 1] == quote:
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                i += 1
+            start = i
+            continue
+        if c == "-" and query[i : i + 2] == "--":
+            if i > start:
+                ranges.append((start, i))
+            nl = query.find("\n", i)
+            i = n if nl == -1 else nl
+            start = i
+            continue
+        if c == "/" and query[i : i + 2] == "/*":
+            if i > start:
+                ranges.append((start, i))
+            end_comment = query.find("*/", i + 2)
+            i = n if end_comment == -1 else end_comment + 2
+            start = i
+            continue
+        i += 1
+    if start < n:
+        ranges.append((start, n))
+    return ranges
+
+
 def get_value_marker_positions(query: str) -> list[int]:
     out = []
-    i, n = 0, len(query)
-    while i < n - 1:
-        if query[i] == "%":
-            if query[i + 1] == "s":
-                out.append(i)
-            i += 2
-        else:
-            i += 1
+    for start, end in iter_sql_code_ranges(query):
+        i = start
+        while i < end - 1:
+            if query[i] == "%":
+                if query[i + 1] == "s":
+                    out.append(i)
+                i += 2
+            else:
+                i += 1
     return out
 
 
