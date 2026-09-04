@@ -1,6 +1,8 @@
 from datetime import timedelta
 from hashlib import sha256
 
+from freezegun import freeze_time
+
 from odoo import fields
 from odoo.exceptions import AccessDenied, AccessError, ValidationError
 from odoo.fields import Command
@@ -183,3 +185,20 @@ class TestResUsersApikeys(TransactionCase):
             self.Apikeys._check_credentials(scope="rpc", key=key),
             admin.id,
         )
+
+    def test_key_expiration_is_reported_for_the_scope_it_was_issued_for(self):
+        expiration = fields.Datetime.now() + timedelta(hours=1)
+        key = self.Apikeys.with_user(self.user)._generate("rpc", "k", expiration)
+        self.assertEqual(
+            self.Apikeys._get_key_expiration(scope="rpc", key=key), expiration
+        )
+        self.assertIsNone(self.Apikeys._get_key_expiration(scope="other", key=key))
+        self.assertIsNone(self.Apikeys._get_key_expiration(scope="rpc", key="0" * 40))
+
+    def test_a_cached_key_stops_authenticating_when_it_expires(self):
+        key = self._generate(hours=1)
+        Users = self.env["res.users"]
+        Users._check_uid_passwd(self.user.id, key)
+        with freeze_time(fields.Datetime.now() + timedelta(hours=2)):
+            with self.assertRaises(AccessDenied):
+                Users._check_uid_passwd(self.user.id, key)

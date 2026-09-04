@@ -130,7 +130,7 @@ class ResUsersApikeys(models.Model):
             )
         )
         for user_id, current_key in self.env.cr.fetchall():
-            if key and KEY_CRYPT_CONTEXT.verify(key, current_key):
+            if KEY_CRYPT_CONTEXT.verify(key, current_key):
                 return user_id
         return None
 

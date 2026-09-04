@@ -6,6 +6,7 @@ from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessDenied, AccessError, UserError, ValidationError
 from odoo.fields import Command
 from odoo.http import _request_stack
+from odoo.libs.password import CryptContext, pbkdf2_sha512_hash
 from odoo.tests import (
     Form,
     HttpCase,
@@ -1944,3 +1945,126 @@ class TestCryptContextConfiguration(TransactionCase):
             context.verify("Ru!Rounds9999", hashed),
             "a rounds value above the backend cap must not lock users out",
         )
+
+
+class TestLoginPath(TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.user = new_test_user(self.env, "login_path", password="Login!Path123")
+        self.credential = {
+            "login": "login_path",
+            "password": "Login!Path123",
+            "type": "password",
+        }
+
+    def _login(self, **overrides):
+        return self.env["res.users"]._login(
+            {**self.credential, **overrides}, {"interactive": True}
+        )
+
+    def _store_raw_password(self, raw):
+        self.env.cr.execute(
+            "UPDATE res_users SET password = %s WHERE id = %s", [raw, self.user.id]
+        )
+        self.env.registry.clear_cache()
+
+    def _stored_password(self):
+        self.env.cr.execute(
+            "SELECT password FROM res_users WHERE id = %s", [self.user.id]
+        )
+        return self.env.cr.fetchone()[0]
+
+    def test_a_valid_login_answers_with_the_user(self):
+        self.assertEqual(self._login()["uid"], self.user.id)
+
+    def test_an_unknown_login_is_denied(self):
+        with self.assertRaises(AccessDenied):
+            self._login(login="nobody-here")
+
+    def test_an_archived_user_is_denied(self):
+        self.user.active = False
+        self.env.flush_all()
+        with self.assertRaises(AccessDenied):
+            self._login()
+
+    def _production_crypt_context(self):
+        return patch(
+            "odoo.addons.base.models.res_users.ResUsersPatchedInTest._crypt_context",
+            lambda user: CryptContext(
+                ["pbkdf2_sha512", "plaintext"],
+                deprecated=["auto"],
+                pbkdf2_sha512__rounds=1,
+            ),
+        )
+
+    def test_a_stored_plaintext_password_logs_in_and_is_hashed_on_the_way(self):
+        self._store_raw_password("legacy-plain")
+        with self._production_crypt_context():
+            self.assertEqual(self._login(password="legacy-plain")["uid"], self.user.id)
+        stored = self._stored_password()
+        context = self.env["res.users"]._crypt_context()
+        self.assertNotEqual(stored, "legacy-plain")
+        self.assertEqual(context.identify(stored), "pbkdf2_sha512")
+        self.assertEqual(
+            self._login(password="legacy-plain")["uid"],
+            self.user.id,
+            "the rehashed password still matches",
+        )
+
+    def test_a_hash_at_other_rounds_than_configured_is_rehashed_at_login(self):
+        context = self.env["res.users"]._crypt_context()
+        weak = pbkdf2_sha512_hash("weak-rounds", 2)
+        self.assertIsNotNone(
+            context.match_and_update("weak-rounds", weak)[1],
+            "precondition: the weak hash is one the context wants to replace",
+        )
+        self._store_raw_password(weak)
+        self._login(password="weak-rounds")
+        self.assertEqual(
+            context.match_and_update("weak-rounds", self._stored_password()),
+            (True, None),
+            "after one login the stored hash is at the configured strength",
+        )
+
+    def test_an_api_key_is_not_an_interactive_password(self):
+        key = (
+            self.env["res.users.apikeys"]
+            .with_user(self.user)
+            ._generate("rpc", "k", datetime.now() + timedelta(days=1))
+        )
+        with self.assertRaises(AccessDenied):
+            self._login(password=key)
+        auth = self.user.with_user(self.user)._check_credentials(
+            {**self.credential, "password": key}, {"interactive": False}
+        )
+        self.assertEqual(
+            auth, {"uid": self.user.id, "auth_method": "apikey", "mfa": "default"}
+        )
+
+    def test_authenticate_records_the_base_url_for_system_users_only(self):
+        ICP = self.env["ir.config_parameter"].sudo()
+        agent = {"interactive": True, "base_location": "http://from-login.test"}
+        Users = self.env["res.users"]
+
+        Users.authenticate(self.credential, agent)
+        self.assertNotEqual(ICP.get_param("web.base.url"), "http://from-login.test")
+
+        new_test_user(
+            self.env,
+            "login_path_admin",
+            password="Admin!Path123",
+            groups="base.group_system",
+        )
+        admin_credential = {
+            **self.credential,
+            "login": "login_path_admin",
+            "password": "Admin!Path123",
+        }
+        Users.authenticate(admin_credential, agent)
+        self.assertEqual(ICP.get_param("web.base.url"), "http://from-login.test")
+
+        ICP.set_param("web.base.url.freeze", "True")
+        Users.authenticate(
+            admin_credential, {**agent, "base_location": "http://later.test"}
+        )
+        self.assertEqual(ICP.get_param("web.base.url"), "http://from-login.test")
