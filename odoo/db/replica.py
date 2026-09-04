@@ -46,6 +46,12 @@ class ReplicaRouter:
         )
         self.lag = lag if lag is not None else ReplicaLagGate(max_lag)
 
+    def get_health(self) -> dict:
+        return {
+            "lag": self.lag.get_snapshot(),
+            "breaker": self.breaker.get_snapshot(),
+        }
+
     def cursor(self, readonly: bool = False) -> tuple[BaseCursor, CursorMode]:
         if not readonly or self.readonly is None:
             return self.primary.cursor(), "rw"
