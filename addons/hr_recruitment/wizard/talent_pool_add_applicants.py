@@ -40,12 +40,11 @@ class TalentPoolAddApplicants(models.TransientModel):
                 talent = applicant.with_context(no_copy_in_partner_name=True).copy(
                     {
                         "job_id": False,
-                        "talent_pool_ids": self.talent_pool_ids,
-                        "categ_ids": applicant.categ_ids + self.categ_ids,
+                        "talent_pool_ids": self.talent_pool_ids.ids,
+                        "categ_ids": (applicant.categ_ids + self.categ_ids).ids,
                     }
                 )
-                talent.write({"pool_applicant_id": talent.id})
-                applicant.write({"pool_applicant_id": talent.id})
+                applicant.pool_applicant_id = talent
                 talents += talent
         return talents
 

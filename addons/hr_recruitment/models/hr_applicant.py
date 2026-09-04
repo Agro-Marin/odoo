@@ -91,14 +91,8 @@ class HrApplicant(models.Model):
     emp_is_active = fields.Boolean(
         string="Employee Active", related="employee_id.active"
     )
-    employee_name = fields.Char(
-        related="employee_id.name",
-        string="Employee Name",
-        readonly=False,
-        tracking=False,
-    )
+    employee_name = fields.Char(related="employee_id.name", string="Employee Name")
 
-    probability = fields.Float("Probability")
     create_date = fields.Datetime("Applied on", readonly=True)
     stage_id = fields.Many2one(
         "hr.recruitment.stage",
@@ -192,12 +186,6 @@ class HrApplicant(models.Model):
         domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]",
         tracking=True,
     )
-    day_open = fields.Float(
-        compute="_compute_day", string="Days to Open", compute_sudo=True
-    )
-    day_close = fields.Float(
-        compute="_compute_day", string="Days to Close", compute_sudo=True
-    )
     delay_close = fields.Float(
         compute="_compute_delay_close",
         string="Delay to Close",
@@ -286,9 +274,15 @@ class HrApplicant(models.Model):
     pool_applicant_id = fields.Many2one("hr.applicant", index="btree_not_null")
     is_pool_applicant = fields.Boolean(compute="_compute_is_pool_applicant")
     is_applicant_in_pool = fields.Boolean(
-        compute="_compute_is_applicant_in_pool", search="_search_is_applicant_in_pool"
+        compute="_compute_talent_pool", search="_search_is_applicant_in_pool"
     )
-    talent_pool_count = fields.Integer(compute="_compute_talent_pool_count")
+    talent_pool_count = fields.Integer(compute="_compute_talent_pool")
+
+    _DUPLICATE_KEY_FIELDS = (
+        "email_normalized",
+        "partner_phone_sanitized",
+        "linkedin_profile",
+    )
 
     _email_normalized_idx = models.Index(
         "(email_normalized) WHERE email_normalized IS NOT NULL"
@@ -303,92 +297,57 @@ class HrApplicant(models.Model):
                     self.env._("Talent must belong to at least one Talent Pool.")
                 )
 
+    def _get_duplicate_key_domain(self):
+        domains = []
+        for fname in self._DUPLICATE_KEY_FIELDS:
+            values = [value for value in self.mapped(fname) if value]
+            if values:
+                domains.append(Domain(fname, "in", values))
+        return Domain.OR(domains) if domains else Domain.FALSE
+
     @api.depends(
+        "talent_pool_ids",
+        "pool_applicant_id.talent_pool_ids",
         "email_normalized",
         "partner_phone_sanitized",
         "linkedin_profile",
-        "pool_applicant_id.talent_pool_ids",
     )
-    def _compute_talent_pool_count(self):
-        pool_applicants = self.filtered("is_applicant_in_pool")
-        (self - pool_applicants).talent_pool_count = 0
-
-        if not pool_applicants:
-            return
-
-        directly_linked = pool_applicants.filtered("pool_applicant_id")
-        for applicant in directly_linked:
+    def _compute_talent_pool(self):
+        direct = self.filtered(lambda a: a.talent_pool_ids or a.pool_applicant_id)
+        for applicant in direct:
+            applicant.is_applicant_in_pool = True
             applicant.talent_pool_count = len(
                 applicant.pool_applicant_id.talent_pool_ids
             )
-
-        indirectly_linked = pool_applicants - directly_linked
-        if not indirectly_linked:
+        indirect = self - direct
+        if not indirect:
             return
 
-        all_emails = {
-            a.email_normalized for a in indirectly_linked if a.email_normalized
-        }
-        all_phones = {
-            a.partner_phone_sanitized
-            for a in indirectly_linked
-            if a.partner_phone_sanitized
-        }
-        all_linkedins = {
-            a.linkedin_profile for a in indirectly_linked if a.linkedin_profile
-        }
-
-        epl_domain = Domain.FALSE
-        if all_emails:
-            epl_domain |= Domain("email_normalized", "in", list(all_emails))
-        if all_phones:
-            epl_domain |= Domain("partner_phone_sanitized", "in", list(all_phones))
-        if all_linkedins:
-            epl_domain |= Domain("linkedin_profile", "in", list(all_linkedins))
-
-        pool_domain = Domain(
-            ["|", ("talent_pool_ids", "!=", False), ("pool_applicant_id", "!=", False)]
-        )
-        domain = pool_domain & epl_domain
-        in_pool_applicants = (
-            self.env["hr.applicant"].with_context(active_test=True).search(domain)
-        )
-
-        in_pool_emails = defaultdict(int)
-        in_pool_phones = defaultdict(int)
-        in_pool_linkedins = defaultdict(int)
-
-        for applicant in in_pool_applicants:
-            talent_pool_count = len(applicant.pool_applicant_id.talent_pool_ids)
-            if applicant.email_normalized:
-                in_pool_emails[applicant.email_normalized] = talent_pool_count
-            if applicant.partner_phone_sanitized:
-                in_pool_phones[applicant.partner_phone_sanitized] = talent_pool_count
-            if applicant.linkedin_profile:
-                in_pool_linkedins[applicant.linkedin_profile] = talent_pool_count
-
-        for applicant in indirectly_linked:
-            if (
-                applicant.email_normalized
-                and in_pool_emails[applicant.email_normalized]
-            ):
-                applicant.talent_pool_count = in_pool_emails[applicant.email_normalized]
-            elif (
-                applicant.partner_phone_sanitized
-                and in_pool_phones[applicant.partner_phone_sanitized]
-            ):
-                applicant.talent_pool_count = in_pool_phones[
-                    applicant.partner_phone_sanitized
-                ]
-            elif (
-                applicant.linkedin_profile
-                and in_pool_linkedins[applicant.linkedin_profile]
-            ):
-                applicant.talent_pool_count = in_pool_linkedins[
-                    applicant.linkedin_profile
-                ]
-            else:
-                applicant.talent_pool_count = 0
+        key_domain = indirect._get_duplicate_key_domain()
+        pool_count_by_key = {}
+        if not key_domain.is_false():
+            in_pool = self.env["hr.applicant"].search(
+                Domain.OR(
+                    [
+                        Domain("talent_pool_ids", "!=", False),
+                        Domain("pool_applicant_id", "!=", False),
+                    ]
+                )
+                & key_domain
+            )
+            for applicant in in_pool:
+                count = len(applicant.pool_applicant_id.talent_pool_ids)
+                for fname in self._DUPLICATE_KEY_FIELDS:
+                    if applicant[fname]:
+                        pool_count_by_key[fname, applicant[fname]] = count
+        for applicant in indirect:
+            matches = [
+                pool_count_by_key[fname, applicant[fname]]
+                for fname in self._DUPLICATE_KEY_FIELDS
+                if applicant[fname] and (fname, applicant[fname]) in pool_count_by_key
+            ]
+            applicant.is_applicant_in_pool = bool(matches)
+            applicant.talent_pool_count = matches[0] if matches else 0
 
     @api.depends("partner_phone")
     def _compute_partner_phone_sanitized(self):
@@ -471,9 +430,7 @@ class HrApplicant(models.Model):
                     pool_applicant_map.get(applicant.pool_applicant_id, set())
                 )
 
-            count = len(related_ids)
-
-            applicant.application_count = max(0, count)
+            applicant.application_count = len(related_ids)
 
     @api.depends("talent_pool_ids")
     def _compute_is_pool_applicant(self):
@@ -481,101 +438,16 @@ class HrApplicant(models.Model):
             applicant.is_pool_applicant = applicant.talent_pool_ids
 
     def _get_similar_applicants_domain(self, ignore_talent=False, only_talent=False):
-        domain = Domain.OR(
-            [
-                Domain("id", "in", self.ids),
-                Domain(
-                    "email_normalized",
-                    "in",
-                    [email for email in self.mapped("email_normalized") if email],
-                ),
-                Domain(
-                    "partner_phone_sanitized",
-                    "in",
-                    [
-                        phone
-                        for phone in self.mapped("partner_phone_sanitized")
-                        if phone
-                    ],
-                ),
-                Domain(
-                    "linkedin_profile",
-                    "in",
-                    [
-                        linkedin_profile
-                        for linkedin_profile in self.mapped("linkedin_profile")
-                        if linkedin_profile
-                    ],
-                ),
-                Domain(
-                    "pool_applicant_id",
-                    "in",
-                    [
-                        pool_applicant.id
-                        for pool_applicant in self.mapped("pool_applicant_id")
-                        if pool_applicant
-                    ],
-                ),
-            ]
+        domain = (
+            Domain("id", "in", self.ids)
+            | self._get_duplicate_key_domain()
+            | Domain("pool_applicant_id", "in", self.pool_applicant_id.ids)
         )
         if ignore_talent:
             domain &= Domain("talent_pool_ids", "=", False)
         if only_talent:
             domain &= Domain("talent_pool_ids", "!=", False)
         return domain
-
-    @api.depends(
-        "talent_pool_ids",
-        "pool_applicant_id",
-        "email_normalized",
-        "partner_phone_sanitized",
-        "linkedin_profile",
-    )
-    def _compute_is_applicant_in_pool(self):
-        direct = self.filtered(lambda a: a.talent_pool_ids or a.pool_applicant_id)
-        direct.is_applicant_in_pool = True
-        indirect = self - direct
-
-        if not indirect:
-            return
-
-        all_emails = {a.email_normalized for a in indirect if a.email_normalized}
-        all_phones = {
-            a.partner_phone_sanitized for a in indirect if a.partner_phone_sanitized
-        }
-        all_linkedins = {a.linkedin_profile for a in indirect if a.linkedin_profile}
-
-        epl_domain = Domain.FALSE
-        if all_emails:
-            epl_domain |= Domain("email_normalized", "in", list(all_emails))
-        if all_phones:
-            epl_domain |= Domain("partner_phone_sanitized", "in", list(all_phones))
-        if all_linkedins:
-            epl_domain |= Domain("linkedin_profile", "in", list(all_linkedins))
-
-        pool_domain = Domain(
-            ["|", ("talent_pool_ids", "!=", False), ("pool_applicant_id", "!=", False)]
-        )
-        domain = pool_domain & epl_domain
-        in_pool_applicants = (
-            self.env["hr.applicant"].with_context(active_test=True).search(domain)
-        )
-        in_pool_data = {"emails": set(), "phones": set(), "linkedins": set()}
-
-        for applicant in in_pool_applicants:
-            if applicant.email_normalized:
-                in_pool_data["emails"].add(applicant.email_normalized)
-            if applicant.partner_phone_sanitized:
-                in_pool_data["phones"].add(applicant.partner_phone_sanitized)
-            if applicant.linkedin_profile:
-                in_pool_data["linkedins"].add(applicant.linkedin_profile)
-
-        for applicant in indirect:
-            applicant.is_applicant_in_pool = (
-                applicant.email_normalized in in_pool_data["emails"]
-                or applicant.partner_phone_sanitized in in_pool_data["phones"]
-                or applicant.linkedin_profile in in_pool_data["linkedins"]
-            )
 
     def _search_is_applicant_in_pool(self, operator, value):
         if operator != "in":
@@ -632,32 +504,14 @@ class HrApplicant(models.Model):
         ]
 
     @api.depends("date_open", "date_closed")
-    def _compute_day(self):
-        for applicant in self:
-            if applicant.date_open:
-                date_create = applicant.create_date
-                date_open = applicant.date_open
-                applicant.day_open = (date_open - date_create).total_seconds() / (
-                    24.0 * 3600
-                )
-            else:
-                applicant.day_open = False
-            if applicant.date_closed:
-                date_create = applicant.create_date
-                date_closed = applicant.date_closed
-                applicant.day_close = (date_closed - date_create).total_seconds() / (
-                    24.0 * 3600
-                )
-            else:
-                applicant.day_close = False
-
-    @api.depends("day_open", "day_close")
     def _compute_delay_close(self):
         for applicant in self:
-            if applicant.date_open and applicant.day_close:
-                applicant.delay_close = applicant.day_close - applicant.day_open
+            if applicant.date_open and applicant.date_closed:
+                applicant.delay_close = (
+                    applicant.date_closed - applicant.date_open
+                ).total_seconds() / 86400
             else:
-                applicant.delay_close = False
+                applicant.delay_close = 0.0
 
     def _get_fields_rotting_depends(self):
         return super()._get_fields_rotting_depends() + [
@@ -696,7 +550,7 @@ class HrApplicant(models.Model):
             else:
                 applicant.meeting_display_text = _("Last Meeting")
 
-    @api.depends("refuse_reason_id", "date_closed")
+    @api.depends("refuse_reason_id", "date_closed", "active")
     def _compute_application_status(self):
         for applicant in self:
             if applicant.refuse_reason_id:
@@ -712,17 +566,21 @@ class HrApplicant(models.Model):
         if operator != "in":
             return NotImplemented
 
-        domains = []
-        if "refused" in value:
-            domains.append([("active", "=", True), ("refuse_reason_id", "!=", None)])
-        if "hired" in value:
-            domains.append([("active", "=", True), ("date_closed", "!=", False)])
-        if "archived" in value or False in value:
-            domains.append([("active", "=", False)])
-        if "ongoing" in value:
-            domains.append([("active", "=", True), ("date_closed", "=", False)])
-
-        return Domain.OR(domains)
+        refused = Domain("refuse_reason_id", "!=", False)
+        archived = ~refused & Domain("active", "=", False)
+        hired = (
+            ~refused & Domain("active", "=", True) & Domain("date_closed", "!=", False)
+        )
+        ongoing = (
+            ~refused & Domain("active", "=", True) & Domain("date_closed", "=", False)
+        )
+        by_status = {
+            "refused": refused,
+            "archived": archived,
+            "hired": hired,
+            "ongoing": ongoing,
+        }
+        return Domain.OR(by_status[status] for status in value if status in by_status)
 
     def _compute_attachment_number(self):
         read_group_res = self.env["ir.attachment"]._read_group(
@@ -763,26 +621,16 @@ class HrApplicant(models.Model):
 
     @api.depends("job_id")
     def _compute_stage_id(self):
-        for applicant in self:
-            if applicant.job_id:
-                if not applicant.stage_id:
-                    stage_ids = (
-                        self.env["hr.recruitment.stage"]
-                        .search(
-                            [
-                                "|",
-                                ("job_ids", "=", False),
-                                ("job_ids", "=", applicant.job_id.id),
-                                ("fold", "=", False),
-                            ],
-                            order="sequence asc",
-                            limit=1,
-                        )
-                        .ids
-                    )
-                    applicant.stage_id = stage_ids[0] if stage_ids else False
-            else:
-                applicant.stage_id = False
+        without_job = self.filtered(lambda a: not a.job_id)
+        without_job.stage_id = False
+        to_assign = (self - without_job).filtered(lambda a: not a.stage_id)
+        if not to_assign:
+            return
+        first_stage_by_job = self.env["hr.recruitment.stage"]._get_first_stage_by_job(
+            to_assign.job_id
+        )
+        for applicant in to_assign:
+            applicant.stage_id = first_stage_by_job[applicant.job_id]
 
     @api.depends("job_id")
     def _compute_user_id(self):
@@ -794,14 +642,11 @@ class HrApplicant(models.Model):
 
     @api.depends("stage_id.hired_stage")
     def _compute_date_closed(self):
+        now = fields.Datetime.now()
         for applicant in self:
-            if (
-                applicant.stage_id
-                and applicant.stage_id.hired_stage
-                and not applicant.date_closed
-            ):
-                applicant.date_closed = fields.Datetime.now()
-            if not applicant.stage_id.hired_stage:
+            if applicant.stage_id.hired_stage:
+                applicant.date_closed = applicant.date_closed or now
+            else:
                 applicant.date_closed = False
 
     def copy_data(self, default=None):
@@ -827,101 +672,80 @@ class HrApplicant(models.Model):
         for applicant in applicants:
             if applicant.talent_pool_ids and not applicant.pool_applicant_id:
                 applicant.pool_applicant_id = applicant
-
-        if applicants.interviewer_ids.partner_id - self.env.user.partner_id:
-            for applicant in applicants:
-                interviewers_to_notify = (
-                    applicant.interviewer_ids.partner_id - self.env.user.partner_id
-                )
-                notification_subject = _(
-                    "You have been assigned as an interviewer for %s",
-                    applicant.display_name,
-                )
-                notification_body = _(
-                    "You have been assigned as an interviewer for the Applicant %s",
-                    applicant.partner_name,
-                )
-                applicant.message_notify(
-                    res_id=applicant.id,
-                    model=applicant._name,
-                    partner_ids=interviewers_to_notify.ids,
-                    author_id=self.env.user.partner_id.id,
-                    email_from=self.env.user.email_formatted,
-                    subject=notification_subject,
-                    body=notification_body,
-                    email_layout_xmlid="mail.mail_notification_layout",
-                    model_description="Applicant",
-                )
+            applicant._notify_interviewers(applicant.interviewer_ids)
         return applicants
+
+    def _notify_interviewers(self, interviewers):
+        self.check_singleton()
+        partners = interviewers.partner_id - self.env.user.partner_id
+        if not partners:
+            return
+        self.message_notify(
+            partner_ids=partners.ids,
+            author_id=self.env.user.partner_id.id,
+            email_from=self.env.user.email_formatted,
+            subject=_(
+                "You have been assigned as an interviewer for %s", self.display_name
+            ),
+            body=_(
+                "You have been assigned as an interviewer for the Applicant %s",
+                self.partner_name,
+            ),
+            email_layout_xmlid="mail.mail_notification_layout",
+            model_description="Applicant",
+        )
 
     def write(self, vals):
         if vals.get("user_id"):
             vals["date_open"] = fields.Datetime.now()
         old_interviewers = self.interviewer_ids
-        applicants_by_old_stage = defaultdict(self.browse)
+        applicants_by_old_stage = {}
         if "stage_id" in vals:
             vals["date_last_stage_update"] = fields.Datetime.now()
-            if "kanban_state" not in vals:
-                vals["kanban_state"] = "normal"
+            vals.setdefault("kanban_state", "normal")
             new_stage = self.env["hr.recruitment.stage"].browse(vals["stage_id"])
-            for applicant in self:
-                applicants_by_old_stage[applicant.stage_id.id] |= applicant
-                if new_stage.hired_stage and not applicant.stage_id.hired_stage:
-                    if applicant.job_id.no_of_recruitment > 0:
-                        applicant.job_id.no_of_recruitment -= 1
-                elif not new_stage.hired_stage and applicant.stage_id.hired_stage:
-                    applicant.job_id.no_of_recruitment += 1
+            applicants_by_old_stage = self.grouped("stage_id")
+            self._update_job_recruitment_target(new_stage)
+            if len(applicants_by_old_stage) == 1:
+                vals["last_stage_id"] = self.stage_id.id
+                applicants_by_old_stage = {}
         if "kanban_state" in vals:
             vals["date_last_stage_update"] = fields.Datetime.now()
         res = super().write(vals)
-        for old_stage_id, applicants in applicants_by_old_stage.items():
-            super(HrApplicant, applicants).write({"last_stage_id": old_stage_id})
+        for old_stage, applicants in applicants_by_old_stage.items():
+            super(HrApplicant, applicants).write({"last_stage_id": old_stage.id})
 
-        for applicant in self:
-            if (
-                applicant.pool_applicant_id
-                and applicant != applicant.pool_applicant_id
-                and (not applicant.is_pool_applicant)
-            ):
-                if "email_from" in vals:
-                    applicant.pool_applicant_id.email_from = vals["email_from"]
-                if "partner_phone" in vals:
-                    applicant.pool_applicant_id.partner_phone = vals["partner_phone"]
-                if "linkedin_profile" in vals:
-                    applicant.pool_applicant_id.linkedin_profile = vals[
-                        "linkedin_profile"
-                    ]
-                if "type_id" in vals:
-                    applicant.pool_applicant_id.type_id = vals["type_id"]
+        talent_vals = {
+            fname: vals[fname]
+            for fname in ("email_from", "partner_phone", "linkedin_profile", "type_id")
+            if fname in vals
+        }
+        if talent_vals:
+            for applicant in self:
+                talent = applicant.pool_applicant_id
+                if talent and talent != applicant and not applicant.is_pool_applicant:
+                    talent.write(talent_vals)
 
         if "interviewer_ids" in vals:
             interviewers_to_clean = old_interviewers - self.interviewer_ids
             interviewers_to_clean._remove_recruitment_interviewers()
             self.sudo().interviewer_ids._create_recruitment_interviewers()
-
-            new_interviewers = self.interviewer_ids - old_interviewers - self.env.user
-            if new_interviewers:
-                for applicant in self:
-                    notification_subject = _(
-                        "You have been assigned as an interviewer for %s",
-                        applicant.display_name,
-                    )
-                    notification_body = _(
-                        "You have been assigned as an interviewer for the Applicant %s",
-                        applicant.partner_name,
-                    )
-                    applicant.message_notify(
-                        res_id=applicant.id,
-                        model=applicant._name,
-                        partner_ids=new_interviewers.partner_id.ids,
-                        author_id=self.env.user.partner_id.id,
-                        email_from=self.env.user.email_formatted,
-                        subject=notification_subject,
-                        body=notification_body,
-                        email_layout_xmlid="mail.mail_notification_layout",
-                        model_description="Applicant",
-                    )
+            new_interviewers = self.interviewer_ids - old_interviewers
+            for applicant in self:
+                applicant._notify_interviewers(new_interviewers)
         return res
+
+    def _update_job_recruitment_target(self, new_stage):
+        delta_by_job = defaultdict(int)
+        for applicant in self:
+            was_hired = applicant.stage_id.hired_stage
+            if new_stage.hired_stage and not was_hired:
+                delta_by_job[applicant.job_id] -= 1
+            elif was_hired and not new_stage.hired_stage:
+                delta_by_job[applicant.job_id] += 1
+        for job, delta in delta_by_job.items():
+            if job and delta:
+                job.no_of_recruitment = max(0, job.no_of_recruitment + delta)
 
     @api.model
     def get_empty_list_help(self, help_message):
@@ -953,35 +777,32 @@ class HrApplicant(models.Model):
 
     @api.model
     def get_view(self, view_id=None, view_type="form", **options):
-        if (
-            view_type == "form"
-            and self.env.user.has_group(
-                "hr_recruitment.group_hr_recruitment_interviewer"
-            )
-            and not self.env.user.has_group("hr_recruitment.group_hr_recruitment_user")
-        ):
+        if view_type == "form" and self.env.user._is_recruitment_interviewer_only():
             view_id = self.env.ref(
                 "hr_recruitment.hr_applicant_view_form_interviewer"
             ).id
         return super().get_view(view_id, view_type, **options)
 
-    def action_create_meeting(self):
+    def _get_or_create_partner(self):
         self.check_singleton()
-        if not self.partner_id:
-            if not self.partner_name:
-                raise UserError(_("You must define a Contact Name for this applicant."))
-            self.partner_id = self.env["res.partner"].create(
-                {
-                    "is_company": False,
-                    "name": self.partner_name,
-                    "email": self.email_from,
-                }
-            )
+        if self.partner_id:
+            return self.partner_id
+        if not self.partner_name:
+            raise UserError(_("You must define a Contact Name for this applicant."))
+        self.partner_id = self.env["res.partner"].create(
+            {
+                "is_company": False,
+                "name": self.partner_name,
+                "email": self.email_from,
+                "phone": self.partner_phone,
+            }
+        )
+        return self.partner_id
 
+    def action_create_meeting(self):
+        self._get_or_create_partner()
         partners = self.partner_id | self.department_id.manager_id.user_id.partner_id
-        if self.env.user.has_group(
-            "hr_recruitment.group_hr_recruitment_interviewer"
-        ) and not self.env.user.has_group("hr_recruitment.group_hr_recruitment_user"):
+        if self.env.user._is_recruitment_interviewer_only():
             partners |= self.env.user.partner_id
         else:
             partners |= self.user_id.partner_id
@@ -1137,9 +958,7 @@ class HrApplicant(models.Model):
     def _creation_subtype(self):
         self.check_singleton()
         if self.is_pool_applicant:
-            return self.env.ref(
-                "hr_recruitment.mt_talent_new", raise_if_not_found=False
-            )
+            return self.env.ref("hr_recruitment.mt_talent_new")
         return self.env.ref("hr_recruitment.mt_applicant_new")
 
     def _track_subtype(self, init_values):
@@ -1191,45 +1010,34 @@ class HrApplicant(models.Model):
     @api.model
     def message_new(self, msg_dict, custom_values=None):
         self = self.with_context(default_user_id=False)
-        stage = False
-        if custom_values and "job_id" in custom_values:
-            job = self.env["hr.job"].browse(custom_values["job_id"])
-            stage = job._get_first_stage()
-
         partner_name, email_from_normalized = tools.parse_contact_from_email(
             msg_dict.get("from")
         )
-
-        defaults = {
-            "partner_name": partner_name,
-        }
+        defaults = {"partner_name": partner_name}
         job_platform = (
             self.env["hr.job.platform"]
             .sudo()
             .search([("email", "=", email_from_normalized)], limit=1)
         )
-
-        if msg_dict.get("from") and not job_platform:
-            defaults["email_from"] = msg_dict.get("from")
+        if job_platform:
+            if job_platform.regex:
+                pattern = re.compile(job_platform.regex)
+                matches = pattern.findall(
+                    msg_dict.get("subject") or ""
+                ) + pattern.findall(msg_dict.get("body") or "")
+                if matches:
+                    defaults["partner_name"] = matches[0]
+            msg_dict.pop("email_from", None)
+        elif msg_dict.get("from"):
+            defaults["email_from"] = msg_dict["from"]
             defaults["partner_id"] = msg_dict.get("author_id", False)
-        if msg_dict.get("email_from") and job_platform:
-            subject_pattern = re.compile(job_platform.regex or "")
-            regex_results = re.findall(
-                subject_pattern, msg_dict.get("subject")
-            ) + re.findall(subject_pattern, msg_dict.get("body"))
-            defaults["partner_name"] = (
-                regex_results[0] if regex_results else partner_name
-            )
-            del msg_dict["email_from"]
         if msg_dict.get("priority"):
-            defaults["priority"] = msg_dict.get("priority")
-        if stage and stage.id:
-            defaults["stage_id"] = stage.id
+            defaults["priority"] = msg_dict["priority"]
         if custom_values:
             defaults.update(custom_values)
-        res = super().message_new(msg_dict, custom_values=defaults)
-        res._compute_partner_phone_email()
-        return res
+        applicant = super().message_new(msg_dict, custom_values=defaults)
+        applicant._compute_partner_phone_email()
+        return applicant
 
     def _message_post_after_hook(self, message, msg_vals):
         if self.email_from and not self.partner_id:
@@ -1270,17 +1078,7 @@ class HrApplicant(models.Model):
     def create_employee_from_applicant(self):
         self.check_singleton()
         self._check_interviewer_access()
-
-        if not self.partner_id:
-            if not self.partner_name:
-                raise UserError(_("Please provide an applicant name."))
-            self.partner_id = self.env["res.partner"].create(
-                {
-                    "is_company": False,
-                    "name": self.partner_name,
-                    "email": self.email_from,
-                }
-            )
+        self._get_or_create_partner()
 
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "hr.open_view_employee_list"
@@ -1291,24 +1089,7 @@ class HrApplicant(models.Model):
             .create(self._get_employee_create_vals())
         )
         action["res_id"] = employee.id
-        employee_attachments = self.env["ir.attachment"].search(
-            [("res_model", "=", "hr.employee"), ("res_id", "=", employee.id)]
-        )
-        unique_attachments = self.attachment_ids.filtered(
-            lambda attachment: (
-                attachment.datas not in employee_attachments.mapped("datas")
-            )
-        )
-        unique_attachments.copy({"res_model": "hr.employee", "res_id": employee.id})
-        employee.write(
-            {
-                "job_id": self.job_id.id,
-                "job_title": self.job_id.name,
-                "department_id": self.department_id.id,
-                "work_email": self.department_id.company_id.email or self.email_from,
-                "work_phone": self.department_id.company_id.phone,
-            }
-        )
+        self.attachment_ids.copy({"res_model": "hr.employee", "res_id": employee.id})
         return action
 
     def _get_employee_create_vals(self):
@@ -1331,16 +1112,14 @@ class HrApplicant(models.Model):
             "lang": address_sudo.lang,
             "department_id": self.department_id.id,
             "address_id": self.company_id.partner_id.id,
-            "work_email": self.department_id.company_id.email or self.email_from,
-            "work_phone": self.department_id.company_id.phone,
+            "work_email": self.company_id.email or self.email_from,
+            "work_phone": self.company_id.phone,
             "applicant_ids": self.ids,
             "phone": self.partner_phone,
         }
 
     def _check_interviewer_access(self):
-        if self.env.user.has_group(
-            "hr_recruitment.group_hr_recruitment_interviewer"
-        ) and not self.env.user.has_group("hr_recruitment.group_hr_recruitment_user"):
+        if self.env.user._is_recruitment_interviewer_only():
             raise UserError(_("You are not allowed to perform this action."))
 
     def archive_applicant(self):
@@ -1359,27 +1138,14 @@ class HrApplicant(models.Model):
         }
 
     def reset_applicant(self):
-        default_stage = {}
-        for job_id in self.mapped("job_id"):
-            default_stage[job_id.id] = (
-                self.env["hr.recruitment.stage"]
-                .search(
-                    [
-                        "|",
-                        ("job_ids", "=", False),
-                        ("job_ids", "=", job_id.id),
-                        ("fold", "=", False),
-                    ],
-                    order="sequence asc",
-                    limit=1,
-                )
-                .id
-            )
+        first_stage_by_job = self.env["hr.recruitment.stage"]._get_first_stage_by_job(
+            self.job_id
+        )
         for applicant in self:
             applicant.write(
                 {
-                    "stage_id": applicant.job_id.id
-                    and default_stage[applicant.job_id.id],
+                    "stage_id": first_stage_by_job.get(applicant.job_id, False)
+                    and first_stage_by_job[applicant.job_id].id,
                     "refuse_reason_id": False,
                 }
             )

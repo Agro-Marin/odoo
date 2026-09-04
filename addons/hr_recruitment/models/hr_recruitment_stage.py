@@ -61,15 +61,41 @@ class HrRecruitmentStage(models.Model):
 
     @api.model
     def default_get(self, fields):
-        if (
-            self.env.context
-            and self.env.context.get("default_job_id")
-            and not self.env.context.get("hr_recruitment_stage_mono", False)
+        if self.env.context.get("default_job_id") and not self.env.context.get(
+            "hr_recruitment_stage_mono"
         ):
             context = dict(self.env.context)
             context.pop("default_job_id")
             self = self.with_context(context)
         return super().default_get(fields)
+
+    @api.model
+    def _get_first_stage_by_job(self, jobs):
+        stages_by_job = dict(
+            self._read_group(
+                [("job_ids", "in", jobs.ids + [False]), ("fold", "=", False)],
+                ["job_ids"],
+                ["id:recordset"],
+            )
+        )
+        generic_stages = stages_by_job.get(self.env["hr.job"], self)
+        first_stage_by_job = {}
+        for job in jobs:
+            job_stages = stages_by_job.get(job, self)
+            candidates = job_stages | generic_stages
+            first_stage_by_job[job] = (
+                min(
+                    candidates,
+                    key=lambda stage: (
+                        stage.sequence,
+                        stage not in job_stages,
+                        stage.id,
+                    ),
+                )
+                if candidates
+                else self
+            )
+        return first_stage_by_job
 
     @api.depends("hired_stage")
     def _compute_is_warning_visible(self):

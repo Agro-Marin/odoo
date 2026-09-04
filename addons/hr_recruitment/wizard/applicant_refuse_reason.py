@@ -100,25 +100,21 @@ class ApplicantGetRefuseReason(models.TransientModel):
     def _compute_duplicate_applicant_ids_domain(self):
         for wizard in self:
             domain = (
-                self.applicant_ids._get_similar_applicants_domain()
-                & Domain("id", "not in", self.applicant_ids.ids)
-                & Domain(
-                    "application_status", "not in", ["hired", "refused", "archived"]
-                )
+                wizard.applicant_ids._get_similar_applicants_domain()
+                & Domain("id", "not in", wizard.applicant_ids.ids)
+                & Domain("application_status", "=", "ongoing")
             )
             wizard.duplicate_applicant_ids_domain = domain
-            wizard.duplicates_count = self.env["hr.applicant"].search_count(
-                wizard.duplicate_applicant_ids_domain
-            )
+            wizard.duplicates_count = self.env["hr.applicant"].search_count(domain)
 
     @api.depends("duplicates", "duplicate_applicant_ids_domain")
     def _compute_duplicate_applicant_ids(self):
-        if self.duplicates:
-            self.duplicate_applicant_ids = self.env["hr.applicant"].search(
-                self.duplicate_applicant_ids_domain
+        for wizard in self:
+            wizard.duplicate_applicant_ids = (
+                self.env["hr.applicant"].search(wizard.duplicate_applicant_ids_domain)
+                if wizard.duplicates
+                else self.env["hr.applicant"]
             )
-        else:
-            self.duplicate_applicant_ids = self.env["hr.applicant"]
 
     @api.depends("refuse_reason_id")
     def _compute_render_model(self):
@@ -204,12 +200,7 @@ class ApplicantGetRefuseReason(models.TransientModel):
         return {"type": "ir.actions.act_window_close"}
 
     def _get_related_original_applicants(self):
-        duplication_fields = [
-            "id",
-            "email_normalized",
-            "partner_phone_sanitized",
-            "linkedin_profile",
-        ]
+        duplication_fields = ["id", *self.env["hr.applicant"]._DUPLICATE_KEY_FIELDS]
         original_applicant_by_field_value = {field: {} for field in duplication_fields}
         related_original_applicants = {}
         for original_applicant, field in product(

@@ -61,23 +61,10 @@ class ApplicantSendMail(models.TransientModel):
             bodies = {applicant.id: self.body for applicant in self.applicant_ids}
 
         for applicant in self.applicant_ids:
-            if not applicant.partner_id:
-                applicant.partner_id = self.env["res.partner"].create(
-                    {
-                        "is_company": False,
-                        "name": applicant.partner_name,
-                        "email": applicant.email_from,
-                        "phone": applicant.partner_phone,
-                    }
-                )
-
-            attachment_ids = []
-            for attachment_id in self.attachment_ids:
-                new_attachment = attachment_id.copy(
-                    {"res_model": "hr.applicant", "res_id": applicant.id}
-                )
-                attachment_ids.append(new_attachment.id)
-
+            applicant._get_or_create_partner()
+            attachments = self.attachment_ids.copy(
+                {"res_model": "hr.applicant", "res_id": applicant.id}
+            )
             applicant.message_post(
                 author_id=self.author_id.id,
                 body=bodies[applicant.id],
@@ -85,6 +72,6 @@ class ApplicantSendMail(models.TransientModel):
                 message_type="comment",
                 partner_ids=applicant.partner_id.ids,
                 subject=subjects[applicant.id],
-                attachment_ids=attachment_ids,
+                attachment_ids=attachments.ids,
             )
         return None

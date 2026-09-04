@@ -505,3 +505,149 @@ class TestRecruitment(TransactionCase):
             "987654321",
             "Phone should have been updated on the partner.",
         )
+
+    def test_application_status_search_agrees_with_compute(self):
+        Applicant = self.env["hr.applicant"].with_context(active_test=False)
+        refuse_reason = self.env["hr.applicant.refuse.reason"].create({"name": "R"})
+        refused_archived, refused_active, archived, hired, ongoing = Applicant.create(
+            [
+                {"partner_name": "refused archived", "active": False},
+                {"partner_name": "refused active"},
+                {"partner_name": "archived", "active": False},
+                {"partner_name": "hired", "date_closed": "2026-01-01 00:00:00"},
+                {"partner_name": "ongoing"},
+            ]
+        )
+        (refused_archived | refused_active).refuse_reason_id = refuse_reason
+        expected = {
+            refused_archived: "refused",
+            refused_active: "refused",
+            archived: "archived",
+            hired: "hired",
+            ongoing: "ongoing",
+        }
+        for applicant, status in expected.items():
+            self.assertEqual(applicant.application_status, status)
+        all_ids = list(expected)
+        for status in ("refused", "archived", "hired", "ongoing"):
+            found = Applicant.search(
+                [
+                    ("application_status", "=", status),
+                    ("id", "in", [a.id for a in all_ids]),
+                ]
+            )
+            self.assertEqual(
+                set(found.ids),
+                {a.id for a, s in expected.items() if s == status},
+                f"search for {status} must return exactly the applicants computing to it",
+            )
+
+    def test_job_platform_without_regex_keeps_sender_name(self):
+        self.env["hr.job.platform"].create(
+            {"name": "Plain Platform", "email": "plain@platform.com"}
+        )
+        applicant = self.env["hr.applicant"].message_new(
+            {
+                "message_id": "plain-platform",
+                "email_from": '"Jane Roe" <plain@platform.com>',
+                "from": '"Jane Roe" <plain@platform.com>',
+                "subject": "Application received",
+                "body": None,
+            }
+        )
+        self.assertEqual(applicant.partner_name, "Jane Roe")
+        self.assertFalse(applicant.email_from)
+
+    def test_first_stage_is_shared_and_prefers_job_specific_stage(self):
+        Stage = self.env["hr.recruitment.stage"]
+        job = self.env["hr.job"].create({"name": "Tie Job"})
+        Stage.search([]).write({"sequence": 10})
+        folded = Stage.create({"name": "Folded", "sequence": 0, "fold": True})
+        generic = Stage.create({"name": "Generic", "sequence": 1})
+        specific = Stage.create({"name": "Specific", "sequence": 1, "job_ids": job.ids})
+        first = Stage._get_first_stage_by_job(job)[job]
+        self.assertEqual(first, specific)
+        self.assertNotEqual(first, folded)
+        self.assertEqual(job._get_first_stage(), specific)
+        applicant = self.env["hr.applicant"].create(
+            {"partner_name": "Tie", "job_id": job.id}
+        )
+        self.assertEqual(applicant.stage_id, specific)
+        applicant.write({"stage_id": generic.id, "active": False})
+        applicant.action_unarchive()
+        self.assertEqual(applicant.stage_id, specific)
+        self.assertEqual(applicant.last_stage_id, generic)
+
+    def test_batch_hiring_updates_recruitment_target_once_per_job(self):
+        job = self.env["hr.job"].create({"name": "Batch Job", "no_of_recruitment": 3})
+        applicants = self.env["hr.applicant"].create(
+            [{"partner_name": f"A{i}", "job_id": job.id} for i in range(2)]
+        )
+        new_stage = applicants.stage_id
+        hired = self.env["hr.recruitment.stage"].create(
+            {"name": "Hired", "sequence": 50, "hired_stage": True}
+        )
+        applicants.write({"stage_id": hired.id})
+        self.assertEqual(job.no_of_recruitment, 1)
+        self.assertEqual(applicants.mapped("last_stage_id"), new_stage)
+        self.assertTrue(all(applicants.mapped("date_closed")))
+        applicants.write({"stage_id": new_stage.id})
+        self.assertEqual(job.no_of_recruitment, 3)
+        self.assertFalse(any(applicants.mapped("date_closed")))
+        applicants.write({"stage_id": hired.id})
+        applicants.write({"stage_id": hired.id})
+        self.assertEqual(job.no_of_recruitment, 1)
+
+    def test_refuse_wizard_computes_duplicates_per_wizard(self):
+        a1, a2, b1 = self.env["hr.applicant"].create(
+            [
+                {"partner_name": "A", "email_from": "a@dup.com"},
+                {"partner_name": "A", "email_from": "a@dup.com"},
+                {"partner_name": "B", "email_from": "b@dup.com"},
+            ]
+        )
+        reason = self.env["hr.applicant.refuse.reason"].create({"name": "R"})
+        wizard_a, wizard_b = self.env["applicant.get.refuse.reason"].create(
+            [
+                {
+                    "refuse_reason_id": reason.id,
+                    "applicant_ids": a1.ids,
+                    "duplicates": True,
+                },
+                {
+                    "refuse_reason_id": reason.id,
+                    "applicant_ids": b1.ids,
+                    "duplicates": True,
+                },
+            ]
+        )
+        self.assertEqual(wizard_a.duplicates_count, 1)
+        self.assertEqual(wizard_a.duplicate_applicant_ids, a2)
+        self.assertEqual(wizard_b.duplicates_count, 0)
+        self.assertFalse(wizard_b.duplicate_applicant_ids)
+
+    def test_employee_from_applicant_gets_job_and_department(self):
+        department = self.env["hr.department"].create(
+            {"name": "Dept", "company_id": self.company.id}
+        )
+        job = self.env["hr.job"].create(
+            {
+                "name": "Job",
+                "department_id": department.id,
+                "company_id": self.company.id,
+            }
+        )
+        applicant = self.env["hr.applicant"].create(
+            {
+                "partner_name": "Newbie",
+                "email_from": "newbie@example.com",
+                "job_id": job.id,
+            }
+        )
+        action = applicant.create_employee_from_applicant()
+        employee = self.env["hr.employee"].browse(action["res_id"])
+        self.assertEqual(employee.job_id, job)
+        self.assertEqual(employee.department_id, department)
+        self.assertEqual(employee.job_title, job.name)
+        self.assertEqual(employee.work_contact_id, applicant.partner_id)
+        self.assertEqual(employee.applicant_ids, applicant)

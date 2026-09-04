@@ -25,8 +25,6 @@ class HrTalentPool(models.Model):
         default=lambda self: self.env.user,
         domain="[('share', '=', False), ('company_ids', 'in', company_id)]",
         tracking=True,
-        store=True,
-        readonly=False,
     )
     talent_ids = fields.Many2many(
         comodel_name="hr.applicant", string="Talent", groups="base.group_user"
@@ -38,12 +36,7 @@ class HrTalentPool(models.Model):
     )
     description = fields.Html(string="Talent Pool Description")
     color = fields.Integer(string="Color", default=_default_color)
-    categ_ids = fields.Many2many(
-        comodel_name="hr.applicant.category",
-        string="Tags",
-        store=True,
-        readonly=False,
-    )
+    categ_ids = fields.Many2many(comodel_name="hr.applicant.category", string="Tags")
 
     def _compute_no_of_talents(self):
         talents = self.env["hr.applicant"]._read_group(

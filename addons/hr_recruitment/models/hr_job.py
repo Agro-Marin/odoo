@@ -186,14 +186,10 @@ class HrJob(models.Model):
     @api.depends("application_ids.date_closed")
     def _compute_no_of_hired_employee(self):
         counts = dict(
-            self.env["hr.applicant"]._read_group(
-                domain=[
-                    ("job_id", "in", self.ids),
-                    ("date_closed", "!=", False),
-                    "|",
-                    ("active", "=", False),
-                    ("active", "=", True),
-                ],
+            self.env["hr.applicant"]
+            .with_context(active_test=False)
+            ._read_group(
+                domain=[("job_id", "in", self.ids), ("date_closed", "!=", False)],
                 groupby=["job_id"],
                 aggregates=["__count"],
             )
@@ -218,17 +214,11 @@ class HrJob(models.Model):
               AND COALESCE(act.active, TRUE) = TRUE
             GROUP BY app.job_id
         """,
-            {
-                "today": fields.Date.context_today(self),
-                "user_id": self.env.uid,
-                "job_ids": list(self.ids or [0]),
-            },
+            {"user_id": self.env.uid, "job_ids": list(self.ids or [0])},
         )
-        job_activities = defaultdict(dict)
-        for activity in self.env.cr.dictfetchall():
-            job_activities[activity["job_id"]] = activity["act_count"]
+        job_activities = dict(self.env.cr.fetchall())
         for job in self:
-            job.activity_count = job_activities[job.id]
+            job.activity_count = job_activities.get(job.id, 0)
 
     @api.depends("application_ids.interviewer_ids")
     def _compute_extended_interviewer_ids(self):
@@ -297,30 +287,28 @@ class HrJob(models.Model):
         for job in self:
             job.all_application_count = result.get(job.id, 0)
 
-    def _compute_application_count(self):
-        read_group_result = self.env["hr.applicant"]._read_group(
-            [("job_id", "in", self.ids)], ["job_id"], ["__count"]
-        )
-        result = {job.id: count for job, count in read_group_result}
-        for job in self:
-            job.application_count = result.get(job.id, 0)
-
-    def _compute_open_application_count(self):
-        hired_stages = self.env["hr.recruitment.stage"].search(
-            [("hired_stage", "=", True)]
-        )
-        result = dict(
-            self.env["hr.applicant"]._read_group(
-                [
-                    ("job_id", "in", self.ids),
-                    ("stage_id", "not in", hired_stages.ids),
-                ],
-                ["job_id"],
-                ["__count"],
+    def _count_applications_by_job(self, domain=()):
+        return {
+            job.id: count
+            for job, count in self.env["hr.applicant"]._read_group(
+                [("job_id", "in", self.ids), *domain], ["job_id"], ["__count"]
             )
-        )
+        }
+
+    def _compute_application_count(self):
+        counts = self._count_applications_by_job()
         for job in self:
-            job.open_application_count = result.get(job, 0)
+            job.application_count = counts.get(job.id, 0)
+
+    def _compute_applicant_hired(self):
+        counts = self._count_applications_by_job([("stage_id.hired_stage", "=", True)])
+        for job in self:
+            job.applicant_hired = counts.get(job.id, 0)
+
+    @api.depends("application_count", "applicant_hired")
+    def _compute_open_application_count(self):
+        for job in self:
+            job.open_application_count = job.application_count - job.applicant_hired
 
     def _compute_employee_count(self):
         res = {
@@ -341,62 +329,22 @@ class HrJob(models.Model):
 
     def _get_first_stage(self):
         self.check_singleton()
-        return self.env["hr.recruitment.stage"].search(
-            ["|", ("job_ids", "=", False), ("job_ids", "=", self.id)],
-            order="sequence asc",
-            limit=1,
-        )
+        return self.env["hr.recruitment.stage"]._get_first_stage_by_job(self)[self]
 
     def _compute_new_application_count(self):
-        self.env.cr.execute(
-            """
-                WITH job_stage AS (
-                    SELECT DISTINCT ON (j.id) j.id AS job_id, s.id AS stage_id, s.sequence AS sequence
-                      FROM hr_job j
-                 LEFT JOIN hr_job_hr_recruitment_stage_rel rel
-                        ON rel.hr_job_id = j.id
-                      JOIN hr_recruitment_stage s
-                        ON s.id = rel.hr_recruitment_stage_id
-                        OR s.id NOT IN (
-                                        SELECT "hr_recruitment_stage_id"
-                                          FROM "hr_job_hr_recruitment_stage_rel"
-                                         WHERE "hr_recruitment_stage_id" IS NOT NULL
-                                        )
-                     WHERE j.id = ANY(%s)
-                  ORDER BY 1, 3 asc
-                )
-                SELECT s.job_id, COUNT(a.id) AS new_applicant
-                  FROM hr_applicant a
-                  JOIN job_stage s
-                    ON s.job_id = a.job_id
-                   AND a.stage_id = s.stage_id
-                   AND a.active IS TRUE
-                 WHERE a.company_id = ANY(%s)
-                    OR a.company_id is NULL
-              GROUP BY s.job_id
-            """,
-            [list(self.ids or [0]), list(self.env.companies.ids)],
+        first_stage_by_job = self.env["hr.recruitment.stage"]._get_first_stage_by_job(
+            self
         )
-
-        new_applicant_count = dict(self.env.cr.fetchall())
+        counts = {
+            (job.id, stage.id): count
+            for job, stage, count in self.env["hr.applicant"]._read_group(
+                [("job_id", "in", self.ids)], ["job_id", "stage_id"], ["__count"]
+            )
+        }
         for job in self:
-            job.new_application_count = new_applicant_count.get(job.id, 0)
-
-    def _compute_applicant_hired(self):
-        hired_stages = self.env["hr.recruitment.stage"].search(
-            [("hired_stage", "=", True)]
-        )
-        hired_data = self.env["hr.applicant"]._read_group(
-            [
-                ("job_id", "in", self.ids),
-                ("stage_id", "in", hired_stages.ids),
-            ],
-            ["job_id"],
-            ["__count"],
-        )
-        job_hires = {job.id: count for job, count in hired_data}
-        for job in self:
-            job.applicant_hired = job_hires.get(job.id, 0)
+            job.new_application_count = counts.get(
+                (job.id, first_stage_by_job[job].id), 0
+            )
 
     @api.depends("application_count", "new_application_count")
     def _compute_old_application_count(self):
@@ -462,13 +410,9 @@ class HrJob(models.Model):
                         mail_auto_subscribe_no_notify=True
                     ).user_id = job.user_id
 
-        alias_fields = {"department_id", "user_id"}
-        if any(field for field in alias_fields if field in vals):
+        if "department_id" in vals or "user_id" in vals:
             for job in self:
-                alias_default_vals = job._alias_get_creation_values().get(
-                    "alias_defaults", "{}"
-                )
-                job.alias_defaults = alias_default_vals
+                job.alias_defaults = job._alias_get_creation_values()["alias_defaults"]
         return res
 
     def _creation_subtype(self):
@@ -525,7 +469,6 @@ class HrJob(models.Model):
 
     @api.model
     def _action_load_recruitment_scenario(self):
-
         convert_file(
             self.sudo().env,
             "hr_recruitment",

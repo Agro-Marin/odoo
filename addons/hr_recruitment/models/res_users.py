@@ -4,6 +4,12 @@ from odoo import Command, models
 class ResUsers(models.Model):
     _inherit = "res.users"
 
+    def _is_recruitment_interviewer_only(self):
+        self.check_singleton()
+        return self.has_group(
+            "hr_recruitment.group_hr_recruitment_interviewer"
+        ) and not self.has_group("hr_recruitment.group_hr_recruitment_user")
+
     def _create_recruitment_interviewers(self):
         if not self:
             return
