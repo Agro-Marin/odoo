@@ -156,4 +156,5 @@
 "access_base_enable_profiling_wizard","access.base.enable.profiling.wizard","model_base_enable_profiling_wizard","group_system",1,1,1,0
 "access_res_device","access_res_device","model_res_device","group_user",1,0,0,0
 "access_res_device_log","access_res_device_log","model_res_device_log","group_user",1,0,0,0
+"access_res_users_login_cooldown","access_res_users_login_cooldown","model_res_users_login_cooldown","group_system",1,1,1,1
 "access_properties_base_definition_group_system","access_properties_base_definition","model_properties_base_definition","group_system",1,1,1,1
