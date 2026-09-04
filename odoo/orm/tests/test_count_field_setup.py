@@ -102,3 +102,48 @@ def test_a_related_count_is_refused():
             line_count = fields.Count("line_ids", related="node_id.line_count")
 
         _registry(Line, Node, Related)
+
+
+class Edge(models.Model):
+    _name = "c.edge"
+    _module = _MOD
+    _description = "edge"
+    _log_access = False
+
+    node_id = fields.Many2one("c.node")
+    source_line_id = fields.Many2one("c.line", ondelete="cascade")
+
+
+class Graph(models.Model):
+    _name = "c.graph"
+    _module = _MOD
+    _description = "graph"
+    _log_access = False
+
+    line_ids = fields.One2many("c.line", "node_id")
+    edge_ids = fields.One2many("c.edge", "node_id")
+    narrow_count = fields.Count("edge_ids")
+    widened_count = fields.Count("edge_ids", depends=["edge_ids", "line_ids"])
+
+
+def test_a_bare_count_depends_only_on_what_it_counts():
+    """Replacing a compute with a Count silently narrows its dependency set.
+
+    `_get_attrs` defaults `_depends` to `(count_of,)`, so a hand-written
+    `@api.depends("a_ids", "b_ids")` counting `b_ids` loses the `a_ids` half the
+    moment it becomes `fields.Count("b_ids")`. Nothing at the call site shows it,
+    and it matters wherever the counted rows are cascade-deleted through the
+    other relation: the ORM attributes that change to the relation it was told
+    to ignore, and a stored count goes stale in exactly the case the field
+    exists for.
+    """
+    with model_test_env(Line, Node, Edge, Graph) as env:
+        field = env["c.graph"]._fields["narrow_count"]
+        assert tuple(field._depends) == ("edge_ids",)
+
+
+def test_a_count_accepts_a_wider_depends_than_the_field_it_counts():
+    with model_test_env(Line, Node, Edge, Graph) as env:
+        field = env["c.graph"]._fields["widened_count"]
+        assert set(field._depends) == {"edge_ids", "line_ids"}
+        assert "edge_ids" in field._depends
