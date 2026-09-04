@@ -29,9 +29,7 @@ class Test_HttpStargate(models.Model):
         store=True,
     )
     glyph_compute = fields.Image(compute="_compute_glyph_compute")
-    galaxy_picture = fields.Image(
-        related="galaxy_id.picture", attachment=True, store=False
-    )
+    galaxy_picture = fields.Image(related="galaxy_id.picture", store=False)
     availability = fields.Float(default=0.99, aggregator="avg")
     last_use_date = fields.Date()
 
