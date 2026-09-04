@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 
 
 class PosNote(models.Model):
@@ -15,6 +15,14 @@ class PosNote(models.Model):
         "unique (name)",
         "A note with this name already exists",
     )
+
+    def copy_data(self, default=None):
+        default = dict(default or {})
+        vals_list = super().copy_data(default=default)
+        if "name" not in default:
+            for note, vals in zip(self, vals_list, strict=True):
+                vals["name"] = _("%s (copy)", note.name)
+        return vals_list
 
     @api.model
     def _load_pos_data_domain(self, data, config):

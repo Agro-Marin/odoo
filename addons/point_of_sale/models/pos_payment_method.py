@@ -305,6 +305,8 @@ class PosPaymentMethod(models.Model):
         vals_list = super().copy_data(default=default)
 
         for pm, vals in zip(self, vals_list, strict=False):
+            if "name" not in default:
+                vals["name"] = _("%s (copy)", pm.name)
             if pm.journal_id and pm.journal_id.type == "cash":
                 if (
                     "journal_id" in default
@@ -312,6 +314,14 @@ class PosPaymentMethod(models.Model):
                 ) or ("journal_id" not in default):
                     vals["journal_id"] = False
         return vals_list
+
+    def copy_translations(self, new, excluded=()):
+        super().copy_translations(new, excluded=(*excluded, "name"))
+        self._copy_translations_of_renamed_field(
+            new,
+            "name",
+            lambda record, term: record.env._("%s (copy)", term),
+        )
 
     @api.constrains("payment_method_type", "journal_id", "qr_code_method")
     def _check_payment_method(self):

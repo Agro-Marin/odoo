@@ -938,6 +938,14 @@ class PosConfig(models.Model):
         if not self.company_id.account_fiscal_country_id:
             raise ValidationError(_("The company must have a fiscal country set."))
 
+    def copy_data(self, default=None):
+        default = dict(default or {})
+        vals_list = super().copy_data(default=default)
+        if "name" not in default:
+            for config, vals in zip(self, vals_list, strict=True):
+                vals["name"] = _("%s (copy)", config.name)
+        return vals_list
+
     @api.model_create_multi
     def create(self, vals_list):
         if not self._get_default_warehouse():

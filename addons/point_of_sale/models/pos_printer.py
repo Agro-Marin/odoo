@@ -1,7 +1,7 @@
 from base64 import b32encode
 from hashlib import sha256
 
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -64,6 +64,18 @@ class PosPrinter(models.Model):
         ),
         default="0.0.0.0",
     )
+
+    def copy_data(self, default=None):
+        default = dict(
+            default or {},
+            pos_config_ids=[Command.clear()],
+            epson_printer_ip="0.0.0.0",
+        )
+        vals_list = super().copy_data(default=default)
+        if "name" not in default:
+            for printer, vals in zip(self, vals_list, strict=True):
+                vals["name"] = _("%s (copy)", printer.name)
+        return vals_list
 
     @api.model
     def _load_pos_data_domain(self, data, config):
