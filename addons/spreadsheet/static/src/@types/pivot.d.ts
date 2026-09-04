@@ -9,7 +9,7 @@ declare module "@spreadsheet" {
         type: "ODOO";
         model: string;
         domain: Array;
-        context: Object;
+        context?: Object;
         actionXmlId: string;
     }
 

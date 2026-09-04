@@ -138,12 +138,11 @@ function mockSpreadsheetDataController(_request, { res_model, res_id }) {
     };
 }
 
-onRpc(
-    "/spreadsheet/data/<string:res_model>/<int:res_id>",
-    mockSpreadsheetDataController,
-);
-
 export function defineSpreadsheetModels() {
+    onRpc(
+        "/spreadsheet/data/<string:res_model>/<int:res_id>",
+        mockSpreadsheetDataController,
+    );
     defineModels(SpreadsheetModels);
 }
 

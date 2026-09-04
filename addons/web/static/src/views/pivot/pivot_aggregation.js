@@ -14,6 +14,10 @@ import { getGroupLabels, getGroupValues } from "./pivot_value_utils.js";
 /**
  * @typedef {Record<string, any>} PivotAggregateDeps
  * @property {(sortedColumn: any, config: any) => void} sortRows
+ * @property {(group: any, groupBys: string[], config: any) => any[]} [buildGroupLabels]
+ * @property {(group: any, groupBys: string[]) => any[]} [buildGroupValues]
+ * @property {(config: any) => string[]} [buildMeasureSpecs]
+ * @property {(subGroup: any, config: any, measureSpecs: string[]) => Record<string, any>} [buildMeasurements]
  */
 
 /**
@@ -44,44 +48,33 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
         groupColLabels = colSubTree.root.labels;
     }
 
-    const measureSpecs = getMeasureSpecs(config);
+    const measureSpecs = (deps.buildMeasureSpecs ?? getMeasureSpecs)(config);
+    const buildMeasurements = deps.buildMeasurements ?? getMeasurements;
+    const buildGroupValues =
+        deps.buildGroupValues ??
+        ((grp, groupBys) => getGroupValues(grp, groupBys, metaData.fields));
+    const buildGroupLabels =
+        deps.buildGroupLabels ??
+        ((grp, groupBys, cfg) => getGroupLabels(grp, groupBys, cfg, metaData.fields));
 
     groupSubdivisions.forEach((groupSubdivision) => {
         groupSubdivision.subGroups.forEach((subGroup) => {
             const rowValues = [
                 ...groupRowValues,
-                ...getGroupValues(
-                    subGroup,
-                    groupSubdivision.rowGroupBy,
-                    metaData.fields,
-                ),
+                ...buildGroupValues(subGroup, groupSubdivision.rowGroupBy),
             ];
             const rowLabels = [
                 ...groupRowLabels,
-                ...getGroupLabels(
-                    subGroup,
-                    groupSubdivision.rowGroupBy,
-                    config,
-                    metaData.fields,
-                ),
+                ...buildGroupLabels(subGroup, groupSubdivision.rowGroupBy, config),
             ];
 
             const colValues = [
                 ...groupColValues,
-                ...getGroupValues(
-                    subGroup,
-                    groupSubdivision.colGroupBy,
-                    metaData.fields,
-                ),
+                ...buildGroupValues(subGroup, groupSubdivision.colGroupBy),
             ];
             const colLabels = [
                 ...groupColLabels,
-                ...getGroupLabels(
-                    subGroup,
-                    groupSubdivision.colGroupBy,
-                    config,
-                    metaData.fields,
-                ),
+                ...buildGroupLabels(subGroup, groupSubdivision.colGroupBy, config),
             ];
 
             if (!colValues.length && rowValues.length) {
@@ -93,7 +86,7 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
 
             const key = JSON.stringify([rowValues, colValues]);
 
-            data.measurements[key] = getMeasurements(subGroup, config, measureSpecs);
+            data.measurements[key] = buildMeasurements(subGroup, config, measureSpecs);
             data.currencyIds[key] = getCurrencyIds(subGroup, config, measureSpecs);
             data.counts[key] = subGroup.__count;
 

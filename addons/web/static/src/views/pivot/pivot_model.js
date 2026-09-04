@@ -33,9 +33,20 @@ import {
     sortTree,
     stripSortedKeys,
 } from "./pivot_group_tree.js";
-import { getCellValue, getMeasureSpecs, makeCellKey } from "./pivot_measurements.js";
+import {
+    getCellValue,
+    getMeasurements,
+    getMeasureSpecs,
+    makeCellKey,
+} from "./pivot_measurements.js";
 import { getTableHeaders, getTableRows } from "./pivot_table.js";
-import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
+import {
+    getGroupBySpecs,
+    getGroupDomain,
+    normalize,
+    sanitizeLabel,
+    sanitizeValue,
+} from "./pivot_value_utils.js";
 
 /**
  * @typedef Meta
@@ -695,7 +706,114 @@ export class PivotModel extends Model {
     _prepareData(group, groupSubdivisions, config) {
         return aggregateSubdivisions(group, groupSubdivisions, config, {
             sortRows: (sortedColumn, cfg) => this._sortRows(sortedColumn, cfg),
+            buildGroupLabels: (grp, groupBys, cfg) =>
+                this._getGroupLabels(grp, groupBys, cfg),
+            buildGroupValues: (grp, groupBys) => this._getGroupValues(grp, groupBys),
+            buildMeasureSpecs: (cfg) => this._getMeasureSpecs(cfg),
+            buildMeasurements: (subGroup, cfg, specs) =>
+                this._getMeasurements(subGroup, cfg, specs),
         });
+    }
+
+    /**
+     * The aggregates a group is read with. Subclasses that key measurements by
+     * something other than the field name override this together with
+     * `_getMeasurements`, so that both sides of the store agree.
+     *
+     * @protected
+     * @param {Config} config
+     * @returns {string[]}
+     */
+    _getMeasureSpecs(config) {
+        return getMeasureSpecs(config);
+    }
+
+    /**
+     * The group values a subdivision contributes. Subclasses that store group
+     * values in a normalised form rather than the raw server form override
+     * this, so that reads and writes agree on the key.
+     *
+     * @protected
+     * @param {Object} group
+     * @param {string[]} groupBys
+     * @param {Object} fields
+     * @returns {any[]}
+     */
+    _getGroupValues(group, groupBys) {
+        return groupBys.map((gb) => this._sanitizeValue(group[this._normalize(gb)]));
+    }
+
+    /**
+     * @protected
+     * @param {Object} group
+     * @param {string[]} groupBys
+     * @param {Config} config
+     * @returns {any[]}
+     */
+    _getGroupLabels(group, groupBys, config) {
+        return groupBys.map((gb) => {
+            const groupBy = this._normalize(gb);
+            return this._sanitizeLabel(group[groupBy], groupBy, config);
+        });
+    }
+
+    /**
+     * @protected
+     * @param {string} groupBy
+     * @returns {string}
+     */
+    _normalize(groupBy) {
+        return normalize(groupBy, this.metaData.fields);
+    }
+
+    /**
+     * @protected
+     * @param {any} value
+     * @returns {any}
+     */
+    _sanitizeValue(value) {
+        return sanitizeValue(value);
+    }
+
+    /**
+     * @protected
+     * @param {any} value
+     * @param {string} groupBy
+     * @param {Config} config
+     * @returns {string | number}
+     */
+    _sanitizeLabel(value, groupBy, config) {
+        return sanitizeLabel(value, groupBy, config);
+    }
+
+    /**
+     * One measurement, addressed by its group. Subclasses that key
+     * measurements by something other than the field name override this.
+     *
+     * @protected
+     * @param {[any[], any[]]} groupId row values and column values
+     * @param {string} measureName
+     * @param {Config} config
+     * @returns {number|undefined}
+     */
+    _getCellValue(groupId, measureName, config) {
+        const data = config.data || this.data;
+        const cellKey = makeCellKey(
+            JSON.stringify(groupId[0]),
+            JSON.stringify(groupId[1]),
+        );
+        return getCellValue(cellKey, measureName, data);
+    }
+
+    /**
+     * @protected
+     * @param {Object} subGroup
+     * @param {Config} config
+     * @param {string[]} measureSpecs
+     * @returns {Record<string, any>}
+     */
+    _getMeasurements(subGroup, config, measureSpecs) {
+        return getMeasurements(subGroup, config, measureSpecs);
     }
     /**
      * @protected
@@ -714,7 +832,7 @@ export class PivotModel extends Model {
                 colValues: group.colValues,
             };
             const groupDomainValue = getGroupDomain(subGroup, config);
-            const measureSpecsList = getMeasureSpecs(config);
+            const measureSpecsList = this._getMeasureSpecs(config);
             if (!measureSpecsList.includes("__count")) {
                 measureSpecsList.push("__count");
             }
@@ -772,13 +890,16 @@ export class PivotModel extends Model {
         const metaData = config.metaData || this.metaData;
         const data = config.data || this.data;
         const colGroupValues = sortedColumn.groupId[1];
-        const colKey = JSON.stringify(colGroupValues);
         metaData.sortedColumn = sortedColumn;
 
         const sortFunction = (tree) => (subTreeKey) => {
             const subTree = tree.directSubTrees.get(subTreeKey);
-            const cellKey = makeCellKey(JSON.stringify(subTree.root.values), colKey);
-            const value = getCellValue(cellKey, sortedColumn.measure, data) || 0;
+            const value =
+                this._getCellValue(
+                    [subTree.root.values, colGroupValues],
+                    sortedColumn.measure,
+                    config,
+                ) || 0;
             return sortedColumn.order === "asc" ? value : -value;
         };
 

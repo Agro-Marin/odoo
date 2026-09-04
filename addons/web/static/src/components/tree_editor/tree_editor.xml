@@ -14,7 +14,7 @@
                             <span t-if="props.isSubTree">of:</span>
                             <span t-else="">of the following rules:</span>
                         </t>
-                        <t t-elif="node.value === '|' ? node.negate : !node.negate">
+                        <t t-elif="isUnrestrictedWhenEmpty(node)">
                             <span><span t-if="!props.isSubTree">Match </span><strong>all records</strong></span>
                         </t>
                         <t t-else="">

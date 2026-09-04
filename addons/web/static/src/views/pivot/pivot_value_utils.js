@@ -8,7 +8,7 @@ import { _t } from "@web/core/translation";
  * @param {Object} fields
  * @returns {string}
  */
-function normalize(gb, fields) {
+export function normalize(gb, fields) {
     const [fieldName, interval] = gb.split(":");
     const field = fields[fieldName];
     if (field && ["date", "datetime"].includes(field.type)) {
@@ -21,7 +21,7 @@ function normalize(gb, fields) {
  * @param {any} value
  * @returns {any}
  */
-function sanitizeValue(value) {
+export function sanitizeValue(value) {
     if (Array.isArray(value)) {
         return value[0];
     }
@@ -34,7 +34,7 @@ function sanitizeValue(value) {
  * @param {Object} config
  * @returns {string | number}
  */
-function sanitizeLabel(value, groupBy, config) {
+export function sanitizeLabel(value, groupBy, config) {
     const { metaData } = config;
     const fieldName = groupBy.split(":")[0];
     if (fieldName && metaData.fields[fieldName]) {

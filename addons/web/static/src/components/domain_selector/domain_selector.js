@@ -194,11 +194,26 @@ export class DomainSelector extends Component {
     onDomainChange(domain) {
         this.props.update(domain, true);
     }
+    /**
+     * @param {import("@web/core/tree/condition_tree").Tree|null} tree
+     * @returns {string}
+     */
+    domainFromEditorTree(tree) {
+        if (!tree) {
+            return `[]`;
+        }
+        if (tree.type === "connector" && !tree.children.length && !tree.negate) {
+            return `[]`;
+        }
+        return domainFromTree(tree);
+    }
+
     update(tree) {
         const archiveDomain = this.state.includeArchived ? ARCHIVED_DOMAIN : `[]`;
-        const domain = tree
-            ? Domain.and([domainFromTree(tree), archiveDomain]).toString()
-            : archiveDomain;
+        const domain = Domain.and([
+            this.domainFromEditorTree(tree),
+            archiveDomain,
+        ]).toString();
         this.props.update(domain);
     }
 }

@@ -254,16 +254,37 @@ function parseTranslations(translations) {
 }
 
 /**
+ * @param {any[]} a
+ * @param {any[]} b
+ * @returns {boolean}
+ */
+function isSameRouteDefinition(a, b) {
+    return a.length === b.length && a.every((part, index) => part === b[index]);
+}
+
+/**
  * @param {Partial<ServerParams>} params
  * @param {DefineOptions} [options]
  */
 function _defineParams(params, options) {
     const assign = getAssignAction(options);
     const currentParams = getCurrentParams();
-    for (const [key, value] of Object.entries(params)) {
+    const appliedParams = { ...params };
+    if (options?.mode === "add" && appliedParams.routes) {
+        appliedParams.routes = appliedParams.routes.filter(
+            (route) =>
+                !currentParams.routes.some((existing) =>
+                    isSameRouteDefinition(existing, route),
+                ),
+        );
+        if (!appliedParams.routes.length) {
+            delete appliedParams.routes;
+        }
+    }
+    for (const [key, value] of Object.entries(appliedParams)) {
         assign(currentParams, key, value);
     }
-    return MockServer.current?.configure(params);
+    return MockServer.current?.configure(appliedParams);
 }
 
 const getCurrentParams = createJobScopedGetter(

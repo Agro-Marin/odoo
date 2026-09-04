@@ -85,7 +85,7 @@ export class OdooPivot {
 
         /** @protected @type {Object} */
         this.context = omit(
-            definition.context,
+            definition.context ?? {},
             ...Object.keys(user.context),
             "pivot_measures",
             "pivot_row_groupby",
@@ -100,7 +100,7 @@ export class OdooPivot {
      * @param {OdooPivotCoreDefinition} nextDefinition
      */
     onDefinitionChange(nextDefinition) {
-        this.context = omit(nextDefinition.context, ...Object.keys(user.context));
+        this.context = omit(nextDefinition.context ?? {}, ...Object.keys(user.context));
         const actualDefinition = this.coreDefinition;
         this.coreDefinition = nextDefinition;
         if (!deepEquals(actualDefinition.sortedColumn, nextDefinition.sortedColumn)) {
@@ -619,7 +619,7 @@ export class OdooPivotRuntimeDefinition extends PivotRuntimeDefinition {
         /** @type {Domain} */
         this._domain = new Domain(definition.domain);
         /** @type {Object} */
-        this._context = definition.context;
+        this._context = definition.context ?? {};
         /** @type {string} */
         this._model = definition.model;
         for (const dimension of this.columns.concat(this.rows)) {

@@ -104,7 +104,7 @@ export class TreeEditor extends Component {
         }
         this.tree = cloneTree(props.tree);
         if (shallowEqual(this.tree, TRUE_TREE)) {
-            this.tree = connector(props.defaultConnector);
+            this.tree = connector("&");
         } else if (this.tree.type !== "connector") {
             this.tree = connector(props.defaultConnector, [this.tree]);
         }
@@ -150,6 +150,17 @@ export class TreeEditor extends Component {
             this.getConditionDescription = getConditionDescription;
         }
         return true;
+    }
+
+    /**
+     * @param {import("@web/core/tree/condition_tree").Connector} node
+     * @returns {boolean}
+     */
+    isUnrestrictedWhenEmpty(node) {
+        if (!this.props.isSubTree && !node.negate) {
+            return true;
+        }
+        return node.value === "|" ? node.negate : !node.negate;
     }
 
     /**
@@ -406,19 +417,6 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Applies `operation` to the tree and publishes the result.
-     *
-     * The parent re-renders us whenever the edit changed the tree it holds; when
-     * it did not -- re-picking the operator already in place, toggling a
-     * connector that has one child -- nothing upstream moves, so we refresh our
-     * own derived info and render.
-     *
-     * The publish is unconditional. It used to sit after the refresh, which
-     * meant a refresh that rejected (`loadFields` failing on the equivalent-tree
-     * path) dropped the user's edit *and* let the rejection escape into an
-     * un-awaited template handler. The edit is the user's; a failure to
-     * re-derive labels for it is not a reason to discard it.
-     *
      * @param {Tree} node
      * @param {() => void|Promise<void>} operation
      * @returns {Promise<void>}

@@ -7,12 +7,14 @@ import {
     addNewRule,
     clickOnButtonAddBranch,
     clickOnButtonAddRule,
+    clickOnButtonDeleteNode,
     getCurrentPath,
     label,
     openModelFieldSelectorPopover,
     selectOperator,
     SELECTORS,
     selectValue,
+    toggleArchive,
     toggleConnector,
 } from "@web/../tests/components/tree_editor/condition_tree_editor_test_helpers";
 import {
@@ -738,6 +740,32 @@ test("Add a custom filter", async () => {
 
     await toggleSearchBarMenu();
     expect(".o_filter_menu .o_menu_item:not(.o_add_custom_filter)").toHaveCount(1);
+});
+
+test("Custom filter including archived records only", async () => {
+    Foo._fields.active = fields.Boolean();
+    onRpc("/web/domain/validate", () => true);
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "foo",
+        searchMenuTypes: ["filter"],
+        searchViewId: false,
+        searchViewArch: `<search/>`,
+    });
+    await toggleSearchBarMenu();
+    await openAddCustomFilterDialog();
+
+    await clickOnButtonDeleteNode();
+    expect(".modal .o_domain_selector").toHaveText(
+        "Match all records\nInclude archived\nNew Rule",
+    );
+    expect(".modal footer button:first").not.toBeEnabled();
+
+    await toggleArchive();
+    expect(SELECTORS.condition).toHaveCount(0);
+
+    await contains(".modal footer button").click();
+    expect(getFacetTexts()).toEqual(["Active = true or false"]);
+    expect(searchBar.env.searchModel.domain).toEqual([["active", "in", [true, false]]]);
 });
 
 test("Add a custom filter containing an expression", async () => {

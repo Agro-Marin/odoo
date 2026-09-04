@@ -2745,8 +2745,55 @@ test(`delete single node in "|"`, async () => {
         defaultConnector: "|",
     });
     await clickOnButtonDeleteNode();
-    expect.verifySteps([`[(0, "=", 1)]`]);
-    expect(".o_domain_selector").toHaveText("Match no records\nNew Rule");
+    expect.verifySteps([`[]`]);
+    expect(".o_domain_selector").toHaveText("Match all records\nNew Rule");
+});
+
+test(`an emptied root means the same under either connector`, async () => {
+    await makeDomainSelector({
+        domain: `[("id", "=", 1)]`,
+        update(domain) {
+            expect.step(domain);
+        },
+        defaultConnector: "|",
+    });
+    await clickOnButtonDeleteNode();
+    expect.verifySteps([`[]`]);
+
+    await makeDomainSelector({
+        domain: `[("id", "=", 1)]`,
+        update(domain) {
+            expect.step(domain);
+        },
+        defaultConnector: "&",
+    });
+    await clickOnButtonDeleteNode();
+    expect.verifySteps([`[]`]);
+});
+
+test(`a true domain is not inverted by an "any" root`, async () => {
+    await makeDomainSelector({
+        domain: `[(1, "=", 1)]`,
+        defaultConnector: "|",
+    });
+    expect(".o_domain_selector").toHaveText("Match all records\nNew Rule");
+});
+
+test(`Include archived on a root emptied under "|"`, async () => {
+    Partner._fields.active = fields.Boolean();
+    await makeDomainSelector({
+        domain: `[("foo", "=", "test")]`,
+        defaultConnector: "|",
+        update(domain) {
+            expect.step(domain);
+        },
+    });
+    await clickOnButtonDeleteNode();
+    expect.verifySteps([`[]`]);
+
+    await toggleArchive();
+    expect(SELECTORS.condition).toHaveCount(0);
+    expect.verifySteps([`[("active", "in", [True, False])]`]);
 });
 
 test(`delete single node in "&"`, async () => {

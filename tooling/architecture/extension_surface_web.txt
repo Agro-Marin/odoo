@@ -363,8 +363,14 @@ NumericInputFieldBase.setup  odoo  :keep
 NumericInputFieldBase.value  odoo enterprise  :keep
 ORM.read  odoo  :triage
 PivotController.setup  enterprise  :keep
+PivotModel._getCellValue  odoo  :promote
+PivotModel._getGroupValues  odoo  :promote
 PivotModel._getGroupsSubdivision  odoo enterprise  :promote
+PivotModel._getMeasureSpecs  odoo  :promote
+PivotModel._getMeasurements  odoo  :promote
 PivotModel._loadData  odoo  :promote
+PivotModel._normalize  odoo  :promote
+PivotModel._sanitizeLabel  odoo  :promote
 PivotModel.load  odoo enterprise  :keep
 PivotModel.setup  odoo enterprise  :keep
 PivotRenderer.onGroupBySelected  odoo  :triage
