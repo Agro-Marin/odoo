@@ -560,7 +560,7 @@ def get_foreign_keys(
     ]
 
 
-def index_exists(cr: BaseCursor, indexname: str) -> bool:
+def index_exists(cr: RowCountReader, indexname: str) -> bool:
     cr.execute(
         SQL(
             """
