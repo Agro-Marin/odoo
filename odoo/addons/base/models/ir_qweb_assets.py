@@ -70,6 +70,10 @@ class _EsmFallbackError(_BuildDeclined):
     pass
 
 
+class _EsmReadonlyDeclined(_EsmFallbackError):
+    pass
+
+
 class _StandaloneBundleDeclined(_BuildDeclined):
     pass
 
@@ -692,6 +696,14 @@ class IrQweb(models.AbstractModel):
                     page_scope=page_scope,
                     esbuild_ok=esbuild_ok,
                 )
+            except _EsmReadonlyDeclined:
+                pre, post = self._get_native_module_nodes_cached(
+                    bundle,
+                    assets_params=assets_params,
+                    with_test_satellites=satellites,
+                    page_scope=page_scope,
+                    esbuild_ok=False,
+                )
             except _EsmFallbackError:
                 pre, post = self._get_native_module_nodes_uncached(
                     bundle,
@@ -722,7 +734,7 @@ class IrQweb(models.AbstractModel):
         esbuild_ok: bool,
     ) -> EsmNodePair:
         try:
-            return self._get_native_module_nodes_cached(
+            return self._get_esm_variant_nodes_cached(
                 bundle,
                 assets_params=assets_params,
                 with_test_satellites=with_test_satellites,
@@ -741,13 +753,74 @@ class IrQweb(models.AbstractModel):
             bundle=bundle,
             page=",".join(page_scope),
         )
-        return self._get_native_module_nodes_cached(
+        return self._get_esm_variant_nodes_cached(
             bundle,
             assets_params=assets_params,
             with_test_satellites=with_test_satellites,
             page_scope=(),
             esbuild_ok=esbuild_ok,
         )
+
+    _ESM_READONLY_DECLINES_KEY = "esm_readonly_declines"
+
+    def _is_esm_readonly_test_cursor(self) -> bool:
+        return bool(self.env.cr.readonly and _module.current_test)
+
+    def _get_esm_readonly_declines(self, bundle: str) -> set[tuple]:
+        return self.pool.ormcache_lrus["assets"].get(
+            (self._ESM_READONLY_DECLINES_KEY, bundle), set()
+        )
+
+    def _add_esm_readonly_decline(
+        self, bundle: str, variant: tuple, generation: int
+    ) -> None:
+        lru = self.pool.ormcache_lrus["assets"]
+        if lru.generation != generation:
+            return
+        key = (self._ESM_READONLY_DECLINES_KEY, bundle)
+        declines = lru.get(key)
+        if declines is None:
+            declines = set()
+            lru[key] = declines
+        declines.add(variant)
+
+    def _remove_esm_readonly_declines(self, bundle: str) -> None:
+        self.pool.ormcache_lrus["assets"].pop(
+            (self._ESM_READONLY_DECLINES_KEY, bundle), None
+        )
+
+    def _get_esm_variant_nodes_cached(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+        with_test_satellites: bool,
+        page_scope: tuple[str, ...],
+        esbuild_ok: bool,
+    ) -> EsmNodePair:
+        # A readonly test cursor cannot persist a brand-new artifact, and
+        # that does not change until one is persisted or the assets cache
+        # is cleared, so the decline is remembered for exactly that long.
+        remembered = esbuild_ok and self._is_esm_readonly_test_cursor()
+        variant = (
+            tuple(sorted((assets_params or {}).items())),
+            with_test_satellites,
+            page_scope,
+        )
+        if remembered and variant in self._get_esm_readonly_declines(bundle):
+            raise _EsmReadonlyDeclined
+        generation = self.pool.ormcache_lrus["assets"].generation
+        try:
+            return self._get_native_module_nodes_cached(
+                bundle,
+                assets_params=assets_params,
+                with_test_satellites=with_test_satellites,
+                page_scope=page_scope,
+                esbuild_ok=esbuild_ok,
+            )
+        except _EsmReadonlyDeclined:
+            if remembered:
+                self._add_esm_readonly_decline(bundle, variant, generation)
+            raise
 
     _is_import_map_node = staticmethod(is_import_map_node)
     _is_loader_shim_node = staticmethod(is_loader_shim_node)
@@ -1276,6 +1349,8 @@ class IrQweb(models.AbstractModel):
                     exc_info=True,
                 )
             if raise_on_decline:
+                if isinstance(exc, ReadOnlySqlTransaction) and self.env.cr.readonly:
+                    raise _EsmReadonlyDeclined from None
                 raise _EsmFallbackError from None
         node: dict[str, str] = {"type": "module"}
         node["src" if url else "text"] = url or code
@@ -1623,6 +1698,7 @@ class IrQweb(models.AbstractModel):
             limit=1,
         )
         if existing:
+            self._remove_esm_readonly_declines(bundle)
             log_event(
                 _attach_log,
                 logging.DEBUG,
@@ -1653,6 +1729,7 @@ class IrQweb(models.AbstractModel):
             ],
             bundle=bundle,
         )
+        self._remove_esm_readonly_declines(bundle)
         self._log_esm_artifacts_superseded(bundle, url)
         log_event(
             _attach_log,

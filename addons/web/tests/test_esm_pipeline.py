@@ -40,6 +40,7 @@ from odoo.addons.base.models.assetsbundle import AssetsBundle, _parse_odoo_modul
 from odoo.addons.base.models.ir_qweb_assets import (
     _BuildDeclined,
     _EsmFallbackError,
+    _EsmReadonlyDeclined,
     _StandaloneBundleDeclined,
 )
 
@@ -1567,6 +1568,114 @@ class TestProdNodesDeclineNotCached(TransactionCase):
         self.assertEqual(len(module_nodes), 1)
         self.assertEqual(module_nodes[0].get("text"), "CODE;")
         self.assertNotIn("src", module_nodes[0])
+
+
+@tagged("web_unit", "web_assets")
+class TestReadonlyDeclineIsRemembered(TransactionCase):
+    BUNDLE = "web.assets_web"
+
+    def setUp(self):
+        super().setUp()
+        self.env.registry.clear_cache("assets")
+        self.addCleanup(self.env.registry.clear_cache, "assets")
+        self.compiles = 0
+        self.params = self.env["ir.asset"]._prepare_assets_params()
+        IrQweb = type(self.env["ir.qweb"])
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(patch.object(ir_qweb_assets, "request", None))
+        stack.enter_context(
+            patch.object(IrQweb, "_get_dynamic_child_bundles", lambda *_a, **_k: [])
+        )
+        stack.enter_context(
+            patch.object(
+                IrQweb, "_get_esbuild_child_externals", lambda *_a, **_k: (None, {})
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                IrQweb, "_get_esm_nodes_debug", lambda *_a, **_k: ([("debug", {})], [])
+            )
+        )
+        stack.enter_context(
+            patch.object(AssetsBundle, "esbuild_native_bundle", self._compile)
+        )
+
+    def _compile(self, *_args, **_kwargs):
+        self.compiles += 1
+        return EsbuildResult(f"built{self.compiles};", None, None)
+
+    def _render(self, *, readonly=True):
+        # Rolled back like one HttpCase request (`TestCursor` takes a plain
+        # savepoint per request), which also releases the advisory lock a
+        # readonly render takes on the test cursor.
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(contextlib.closing(self.env.cr.savepoint(flush=False)))
+            if readonly:
+                stack.enter_context(patch.object(self.env.cr, "_readonly", True))
+            return self.env["ir.qweb"]._get_native_module_nodes(
+                self.BUNDLE, assets_params=self.params
+            )
+
+    def test_a_readonly_decline_is_the_fallback_signal(self):
+        with patch.object(self.env.cr, "_readonly", True):
+            with self.assertRaises(_EsmReadonlyDeclined):
+                self.env["ir.qweb"]._prepare_esm_script_node(
+                    "b.x", "export const x = 1;", {}, raise_on_decline=True
+                )
+        self.assertTrue(issubclass(_EsmReadonlyDeclined, _EsmFallbackError))
+
+    def test_the_second_readonly_render_compiles_nothing(self):
+        first = self._render()
+        self.assertEqual(self.compiles, 1)
+        self.assertEqual(first[0], [("debug", {})])
+        with self.assertNoLogs(f"{ASSET_ROOT}.attach", level=logging.WARNING):
+            again = self._render()
+        self.assertEqual(
+            self.compiles,
+            1,
+            msg="a readonly test cursor cannot persist what it compiles, so "
+            "compiling it again on the next request only burns esbuild time",
+        )
+        self.assertEqual(again, first)
+
+    def test_a_transient_decline_is_not_remembered(self):
+        attempts = []
+        with patch.object(
+            type(self.env["ir.qweb"]),
+            "_acquire_esbuild_lock",
+            lambda _self, bundle, cr=None: attempts.append(bundle) or False,
+        ):
+            self._render()
+            self._render()
+        self.assertEqual(len(attempts), 2, "lock contention is retried next time")
+        self.assertEqual(self.compiles, 0)
+
+    def test_a_readwrite_cursor_ignores_the_memo(self):
+        self._render()
+        _pre, post = self._render(readonly=False)
+        self.assertEqual(self.compiles, 2)
+        self.assertTrue(post[0][1].get("src"), "the read-write render persists")
+        self._render()
+        self.assertEqual(self.compiles, 2, "the persisted variant is now cached")
+
+    def test_a_persisted_artifact_lifts_the_memo(self):
+        self._render()
+        self.assertEqual(self.compiles, 1)
+        self.env["ir.qweb"]._save_esm_attachment(self.BUNDLE, "export const y = 2;")
+        self._render()
+        self.assertEqual(
+            self.compiles,
+            2,
+            msg="once something is persisted for the bundle, a readonly render "
+            "must compile again to find its own artifact by url",
+        )
+
+    def test_clearing_the_assets_cache_forgets_the_decline(self):
+        self._render()
+        self.env.registry.clear_cache("assets")
+        self._render()
+        self.assertEqual(self.compiles, 2)
 
 
 @tagged("web_unit", "web_assets")
