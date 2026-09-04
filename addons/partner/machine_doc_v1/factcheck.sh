@@ -134,7 +134,10 @@ else bad "TRAPS.md trap 3 names getDefaultFields, which is gone from web's debug
 
 # TRAPS trap 3 / TEST_MAP: the tour must target a field the action does not default.
 tour="$MOD/static/tests/tours/debug_menu_set_defaults.js"
-if grep -q "element_field.value = 'website'" "$tour"; then ok
+# Quote-agnostic: 5e691e7d30e reformatted this tour from single to double
+# quotes and the assertion, which spelled the literal one way, went red on a
+# tour that had not changed what it targets.
+if grep -qE "element_field\.value = [\"']website[\"']" "$tour"; then ok
 else bad "the set-defaults tour no longer targets website; TRAPS.md trap 2 and TEST_MAP.md say it does"; fi
 
 # TRAPS trap 4: phone_validation supplies the phone entry of _rec_names_search.

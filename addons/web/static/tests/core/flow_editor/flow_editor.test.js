@@ -662,7 +662,9 @@ describe("FlowEditor: connection labels", () => {
         const editor = makeEditor({
             nodes: [node("a"), node("b")],
             connections: [connection("edge", "a", "b")],
-            props: { getConnectionLabel: () => undefined },
+            props: {
+                getConnectionLabel: () => /** @type {string | undefined} */ (undefined),
+            },
         });
 
         expect(editor.getConnectionLabel("edge")).toBe("");

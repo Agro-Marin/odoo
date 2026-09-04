@@ -64,6 +64,9 @@ export class FormRenderer extends Component {
         onNotebookPageChange: () => {},
     };
 
+    /** @type {import("services").ServiceFactories["ui"]} */
+    uiService;
+
     setup() {
         useRenderCounter("form.FormRenderer");
         this.evaluateBooleanExpr = evaluateBooleanExpr;

@@ -1,6 +1,12 @@
+// @ts-check
 /** @odoo-module native */
 import { useEffect } from "@odoo/owl";
 import { ListRenderer } from "@web/views/list";
+
+/**
+ * @typedef {import("@web/model/relational_model/record").RelationalRecord} RelationalRecord
+ * @typedef {import("@web/views/list/list_column_utils").Column} Column
+ */
 
 export class SectionListRenderer extends ListRenderer {
     setup() {
@@ -20,6 +26,7 @@ export class SectionListRenderer extends ListRenderer {
         );
     }
 
+    /** @param {RelationalRecord} record */
     getColumns(record) {
         const columns = super.getColumns(record);
         if (this.isSection(record)) {
@@ -28,6 +35,7 @@ export class SectionListRenderer extends ListRenderer {
         return columns;
     }
 
+    /** @param {RelationalRecord} record */
     getRowClass(record) {
         const classNames = super.getRowClass(record).split(" ");
         if (this.isSection(record)) {
@@ -36,6 +44,7 @@ export class SectionListRenderer extends ListRenderer {
         return classNames.join(" ");
     }
 
+    /** @param {Column[]} columns */
     getSectionColumns(columns) {
         const sectionColumns = columns.filter((col) => col.widget === "handle");
         let colspan = columns.length - sectionColumns.length;
@@ -55,6 +64,7 @@ export class SectionListRenderer extends ListRenderer {
         return sectionColumns;
     }
 
+    /** @param {RelationalRecord} record */
     isSection(record) {
         return record.data.display_type === this.displayType;
     }
@@ -62,7 +72,8 @@ export class SectionListRenderer extends ListRenderer {
     buildRowApi() {
         return {
             ...super.buildRowApi(),
-            isSection: (record) => this.isSection(record),
+            isSection: (/** @type {RelationalRecord} */ record) =>
+                this.isSection(record),
         };
     }
 }

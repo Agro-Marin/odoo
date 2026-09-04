@@ -656,8 +656,8 @@ tag_count_drift=$(
 )
 assert_eq "every TEST_TAGS.md row that states a class count states the tree's" \
     "$tag_count_drift" "0"
-assert_eq "mail_controller classes (7 across 6 discuss files + mock_server_contract)" \
-    "$(grep -rhE '^@(odoo\.tests\.)?tagged\(' "$MAIL/tests" | grep -c 'mail_controller')" "10"
+assert_eq "mail_controller classes (7 in discuss/ + 3 in controller_contract + mock_server_contract)" \
+    "$(grep -rhE '^@(odoo\.tests\.)?tagged\(' "$MAIL/tests" | grep -c 'mail_controller')" "11"
 
 # Controller file count: 19, not 21 — the docs were counting the two __init__.py, which is
 # inconsistent with the models row (76, which excludes it).

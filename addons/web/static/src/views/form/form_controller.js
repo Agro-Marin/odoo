@@ -110,6 +110,8 @@ export class FormController extends ViewController {
     saveCoordinator;
     /** @type {any} */
     deleteRecordsWithConfirmation;
+    /** @type {(notebookId: string, page: string) => void} */
+    onNotebookPageChange;
 
     setup() {
         this.setupControllerServices();

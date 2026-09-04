@@ -12,7 +12,7 @@ import {
 import { getGroupLabels, getGroupValues } from "./pivot_value_utils.js";
 
 /**
- * @typedef {Record<string, any>} PivotAggregateDeps
+ * @typedef PivotAggregateDeps
  * @property {(sortedColumn: any, config: any) => void} sortRows
  * @property {(group: any, groupBys: string[], config: any) => any[]} [buildGroupLabels]
  * @property {(group: any, groupBys: string[]) => any[]} [buildGroupValues]
@@ -52,10 +52,15 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
     const buildMeasurements = deps.buildMeasurements ?? getMeasurements;
     const buildGroupValues =
         deps.buildGroupValues ??
-        ((grp, groupBys) => getGroupValues(grp, groupBys, metaData.fields));
+        ((/** @type {Object} */ grp, /** @type {string[]} */ groupBys) =>
+            getGroupValues(grp, groupBys, metaData.fields));
     const buildGroupLabels =
         deps.buildGroupLabels ??
-        ((grp, groupBys, cfg) => getGroupLabels(grp, groupBys, cfg, metaData.fields));
+        ((
+            /** @type {Object} */ grp,
+            /** @type {string[]} */ groupBys,
+            /** @type {Object} */ cfg,
+        ) => getGroupLabels(grp, groupBys, cfg, metaData.fields));
 
     groupSubdivisions.forEach((groupSubdivision) => {
         groupSubdivision.subGroups.forEach((subGroup) => {

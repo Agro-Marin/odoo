@@ -1,6 +1,6 @@
 # Directory Map
 
-> **246 entries** (240 subdirectories + `(root)`) | Maps directory → layer + responsibility
+> **248 entries** (247 subdirectories + `(root)`) | Maps directory → layer + responsibility
 >
 > Layers (Feature-Sliced Design): shared → entities → features → widgets → pages
 >
@@ -209,11 +209,13 @@
 | `views/form/form_status_indicator/` | widgets | 1 | Save/discard indicator reading `FormSaveCoordinator.status` and the dirty signal |
 | `views/form/setting/` | widgets | 1 | Individual setting row with label, help text, company-dependent icon |
 | `views/form/status_bar_buttons/` | widgets | 1 | Status-bar action buttons with overflow dropdown |
+| `views/form_with_html_expander/` | widgets | 3 | Form view whose HTML description field grows to fill the sheet on XXL viewports: controller, renderer, view definition |
 | `views/graph/` | widgets | 8 | Graph view: arch parser, model, controller, renderer (lazy `loadChartJS`), chart config, search model |
 | `views/kanban/` | widgets | 18 | Kanban view: arch parser, compiler, model wiring, renderer, record and header components, quick creates, progress-bar hook with local drag-move reconcile, sortable/keyboard hooks (selection now via the shared multi-record layer) |
 | `views/list/` | widgets | 22 | List view: arch parser, controller, renderer, per-row `ListRecordRow`, column widths and utilities, aggregates, grouping, sorting, selection, virtualization, keyboard nav/edit, focus geometry, styling |
 | `views/list/export_all/` | widgets | 1 | Cog-menu item triggering direct XLSX export of all records |
 | `views/pivot/` | widgets | 12 | Pivot view: arch parser, model, controller, renderer, group tree, aggregation, measurements, value utilities, XLSX export trigger |
+| `views/section_list/` | widgets | 2 | List renderer and one2many field rendering `line_section` records as a full-width bold title row |
 | `views/settings/` | pages | 5 | Settings form view: compiler, controller, renderer, view definition, and the Save/Discard/Stay dialog |
 | `views/settings/fields/` | pages | 2 | Settings-specific fields, including the Enterprise upgrade-prompt boolean |
 | `views/settings/fields/settings_binary_field/` | pages | 1 | BinaryField variant resolving download URLs via the related field's relation |

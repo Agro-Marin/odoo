@@ -389,6 +389,7 @@ test("editing a domain with `parent` key", async () => {
 test("edit a domain with the debug textarea", async () => {
     expect.assertions(5);
 
+    /** @type {string} */
     let newDomain;
     await makeDomainSelector({
         domain: `[("product_id", "ilike", 1)]`,
@@ -412,6 +413,7 @@ test("edit a domain with the debug textarea", async () => {
 test("set [(1, '=', 1)] or [(0, '=', 1)] as domain with the debug textarea", async () => {
     expect.assertions(11);
 
+    /** @type {string} */
     let newDomain;
     await makeDomainSelector({
         domain: `[("product_id", "ilike", 1)]`,

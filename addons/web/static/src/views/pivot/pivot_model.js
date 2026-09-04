@@ -699,7 +699,7 @@ export class PivotModel extends Model {
     }
     /**
      * @protected
-     * @param {Object} group
+     * @param {{ rowValues: any[], colValues: any[] }} group
      * @param {Object[]} groupSubdivisions
      * @param {Config} config
      */
@@ -734,9 +734,8 @@ export class PivotModel extends Model {
      * this, so that reads and writes agree on the key.
      *
      * @protected
-     * @param {Object} group
+     * @param {Record<string, any>} group
      * @param {string[]} groupBys
-     * @param {Object} fields
      * @returns {any[]}
      */
     _getGroupValues(group, groupBys) {
@@ -745,7 +744,7 @@ export class PivotModel extends Model {
 
     /**
      * @protected
-     * @param {Object} group
+     * @param {Record<string, any>} group
      * @param {string[]} groupBys
      * @param {Config} config
      * @returns {any[]}

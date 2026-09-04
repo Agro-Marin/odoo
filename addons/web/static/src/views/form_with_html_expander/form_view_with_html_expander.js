@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { formView } from "@web/views/form";

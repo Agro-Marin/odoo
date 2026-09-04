@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useEffect, useRef } from "@odoo/owl";
 import { SIZES } from "@web/ui/viewport";
@@ -61,6 +62,7 @@ export class FormRendererWithHtmlExpander extends FormRenderer {
         return ".o_form_sheet";
     }
 
+    /** @param {number} size */
     _canExpandHTMLField(size) {
         return size === SIZES.XXL;
     }

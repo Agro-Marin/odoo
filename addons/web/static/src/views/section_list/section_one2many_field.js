@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
@@ -18,5 +19,5 @@ class SectionOneToManyField extends X2ManyField {
 registry.category("fields").add("section_one2many", {
     ...x2ManyField,
     component: SectionOneToManyField,
-    additionalClasses: [...(x2ManyField.additionalClasses || []), "o_field_one2many"],
+    additionalClasses: ["o_field_one2many"],
 });
