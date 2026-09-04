@@ -1,6 +1,6 @@
 {
     "name": "POS Self Order",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Sales/Point Of Sale",
     "summary": "Addon for the POS App that allows customers to view the menu on their smartphone.",
     "author": "Odoo S.A.",
