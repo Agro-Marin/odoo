@@ -107,10 +107,14 @@ class classproperty[T]:
 
 
 class lazy_classproperty[T](classproperty[T]):
+    def __init__(self, fget: Callable[[Any], T]) -> None:
+        super().__init__(fget)
+        self._cache: dict[type | None, T] = {}
+
     def __get__(self, cls: Any, owner: type | None = None, /) -> T:
-        val = super().__get__(cls, owner)
-        setattr(owner, self.fget.__name__, val)
-        return val
+        if owner not in self._cache:
+            self._cache[owner] = super().__get__(cls, owner)
+        return self._cache[owner]
 
 
 class lazy:
