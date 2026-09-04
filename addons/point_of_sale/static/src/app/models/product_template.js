@@ -122,6 +122,14 @@ export class ProductTemplate extends ProductTemplateAccounting {
         return this.active && this.available_in_pos;
     }
 
+    get showProductImageInSelf() {
+        // The kiosk is a fixed screen laid out around the images, so its frame
+        // stays whether or not there is a picture in it. A phone has no room
+        // to spare for an empty square.
+        const config = this.models["pos.config"].getFirst();
+        return config?.self_ordering_mode === "kiosk" || Boolean(this.image_128);
+    }
+
     get searchString() {
         const fields = ["name", "default_code", "barcode"];
         const raw = fields

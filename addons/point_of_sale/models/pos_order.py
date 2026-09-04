@@ -367,6 +367,12 @@ class PosOrder(models.Model):
         default=lambda self: self.env.uid,
     )
     amount_difference = fields.Monetary(string="Difference", readonly=True)
+    # `amount_total` is already the rounded figure -- `_recompute_prices` hands
+    # the rounding method to the tax engine -- so the difference the drawer has
+    # to reconcile against is not recoverable from the totals afterwards. It is
+    # kept here as the tax engine reports it, and it is not `amount_difference`,
+    # which is over- or under-tendering.
+    amount_cash_rounding = fields.Monetary(string="Cash Rounding", readonly=True)
     amount_tax = fields.Monetary(string="Taxes", readonly=True, required=True)
     amount_total = fields.Monetary(string="Total", readonly=True, required=True)
     amount_paid = fields.Monetary(string="Paid", required=True)
@@ -740,6 +746,9 @@ class PosOrder(models.Model):
             refund_factor = -1 if order._is_refund_order() else 1
             order.amount_tax = refund_factor * tax_totals["tax_amount_currency"]
             order.amount_total = refund_factor * tax_totals["total_amount_currency"]
+            order.amount_cash_rounding = refund_factor * tax_totals.get(
+                "cash_rounding_base_amount_currency", 0.0
+            )
             order.amount_difference = order.amount_paid - order.amount_total
 
     @api.depends("lines.is_edited", "has_deleted_line")
@@ -772,9 +781,7 @@ class PosOrder(models.Model):
         vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
             if not vals.get("session_id"):
-                raise UserError(
-                    _("A point of sale order must belong to a session.")
-                )
+                raise UserError(_("A point of sale order must belong to a session."))
             session = self.env["pos.session"].browse(vals["session_id"])
             self._complete_values_from_session(session, vals)
         return super().create(vals_list)
@@ -1702,8 +1709,9 @@ class PosOrder(models.Model):
     def action_pos_order_cancel(self):
         if self.env.context.get("active_ids"):
             orders = self.browse(self.env.context.get("active_ids"))
+            today = fields.Date.context_today(self)
             order_is_in_futur = any(
-                order.preset_time and order.preset_time.date() > fields.Date.today()
+                order.preset_time and order.preset_time.date() > today
                 for order in orders
             )
             if order_is_in_futur:
@@ -1735,9 +1743,7 @@ class PosOrder(models.Model):
 
     @api.model
     def sync_from_ui(self, orders):
-        sync_token = randrange(
-            100_000_000
-        )
+        sync_token = randrange(100_000_000)
         _logger.info(
             "PoS synchronisation #%d started for PoS orders references: %s",
             sync_token,
@@ -2344,8 +2350,10 @@ class PosOrderLine(models.Model):
                     body + Markup("&rarr;") + str(new_qty)
                 )
             for order, bodies in bodies_per_order.items():
-                body = bodies[0] if len(bodies) == 1 else order._markup_list_message(
-                    bodies
+                body = (
+                    bodies[0]
+                    if len(bodies) == 1
+                    else order._markup_list_message(bodies)
                 )
                 order.message_post(body=order._prepare_pos_log(body))
             edited.is_edited = True

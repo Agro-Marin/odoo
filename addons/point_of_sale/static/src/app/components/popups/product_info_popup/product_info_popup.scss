@@ -2,3 +2,11 @@
 .section-order > div {
     grid-template-columns: fit-content(150px) minmax(0, 1fr);
 }
+
+// The financials block is the last thing in the popup for a manager and is
+// absent for a minimal employee (pos_hr), so the separator above the fold has
+// to belong to whichever block ends up last.
+.product-info-popup .modal-body > div:last-child {
+    border: none !important;
+    padding-bottom: 0 !important;
+}

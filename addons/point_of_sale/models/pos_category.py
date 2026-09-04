@@ -9,6 +9,11 @@ class PosCategory(models.Model):
     _description = "Point of Sale Category"
     _inherit = ["mixin.pos.load"]
     _order = "sequence, name"
+    # `complete_name` is searched as well as `name` so that typing a parent
+    # offers everything filed under it. `_rec_name` deliberately stays `name`:
+    # `display_name` is computed below from the translatable `name` of every
+    # ancestor, which a stored path could not stay in step with.
+    _rec_names_search = ["name", "complete_name"]
 
     @api.constrains("parent_id")
     def _check_category_recursion(self):
@@ -18,13 +23,24 @@ class PosCategory(models.Model):
     def _default_color(self):
         return random.randint(0, 10)
 
+    def _default_sequence(self):
+        return (self.search([], order="sequence desc", limit=1).sequence or 0) + 1
+
     name = fields.Char(string="Category Name", required=True, translate=True)
+    complete_name = fields.Char(
+        string="Complete Name",
+        compute="_compute_complete_name",
+        recursive=True,
+        store=True,
+        translate=True,
+    )
     parent_id = fields.Many2one("pos.category", string="Parent Category", index=True)
     child_ids = fields.One2many(
         "pos.category", "parent_id", string="Children Categories"
     )
     sequence = fields.Integer(
-        help="Gives the sequence order when displaying a list of product categories."
+        default=_default_sequence,
+        help="Gives the sequence order when displaying a list of product categories.",
     )
     image_512 = fields.Image("Image", max_width=512, max_height=512)
     image_128 = fields.Image(
@@ -79,16 +95,20 @@ class PosCategory(models.Model):
             "hour_after",
         ]
 
-    def _get_hierarchy(self) -> list[str]:
-        self.check_singleton()
-        return (self.parent_id._get_hierarchy() if self.parent_id else []) + [
-            (self.name or "")
-        ]
+    @api.depends("name", "parent_id.complete_name")
+    def _compute_complete_name(self):
+        for category in self:
+            if category.parent_id:
+                category.complete_name = (
+                    f"{category.parent_id.complete_name} / {category.name}"
+                )
+            else:
+                category.complete_name = category.name
 
-    @api.depends("parent_id")
+    @api.depends("complete_name")
     def _compute_display_name(self):
-        for cat in self:
-            cat.display_name = " / ".join(cat._get_hierarchy())
+        for category in self:
+            category.display_name = category.complete_name
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_session_open(self):

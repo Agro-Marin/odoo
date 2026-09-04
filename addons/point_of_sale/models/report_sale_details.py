@@ -93,6 +93,25 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                     )
         return total, products_sold, taxes, refund_done, refund_taxes
 
+    def _accumulate_cash_rounding(self, orders, user_currency):
+        """Sum what cash rounding added to or took off the orders.
+
+        Per order rather than as one difference over the session: a global
+        figure would hide any discrepancy that is not rounding inside it.
+        """
+        rounding_total = 0.0
+        for order in orders:
+            order_currency = order.session_id.currency_id
+            if user_currency != order_currency:
+                rounding_total += order_currency._convert(
+                    order.amount_cash_rounding,
+                    user_currency,
+                    order.company_id,
+                )
+            else:
+                rounding_total += order.amount_cash_rounding
+        return user_currency.round(rounding_total)
+
     def _serialize_products_by_category(self, products_by_category):
         categories = [
             {
@@ -132,9 +151,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
 
         configs = self.env["pos.config"].search([("id", "in", config_ids)])
         if session_ids:
-            return configs, self.env["pos.session"].search(
-                [("id", "in", session_ids)]
-            )
+            return configs, self.env["pos.session"].search([("id", "in", session_ids)])
         return configs, self.env["pos.session"].search(
             [
                 ("config_id", "in", configs.ids),
@@ -204,9 +221,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             + session.cash_real_transaction
         )
         payment["money_counted"] = session.cash_register_balance_end_real or 0
-        payment["money_difference"] = (
-            payment["money_counted"] - payment["final_count"]
-        )
+        payment["money_difference"] = payment["money_counted"] - payment["final_count"]
 
         cash_in_out_list = []
         if session.cash_register_balance_start > 0:
@@ -239,9 +254,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
 
     def _count_non_cash_payment(self, payment, diff_move, account_payments):
         if diff_move:
-            journal = (
-                self.env["pos.payment.method"].browse(payment["id"]).journal_id
-            )
+            journal = self.env["pos.payment.method"].browse(payment["id"]).journal_id
             is_loss = any(
                 line.account_id == journal.loss_account_id
                 for line in diff_move.line_ids
@@ -268,17 +281,13 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             return
 
         settled_by = account_payments.filtered(
-            lambda p, method_id=payment["id"]: (
-                p.pos_payment_method_id.id == method_id
-            )
+            lambda p, method_id=payment["id"]: p.pos_payment_method_id.id == method_id
         )
         if not settled_by:
             return
         payment["final_count"] = payment["total"]
         payment["money_counted"] = sum(settled_by.mapped("amount_signed"))
-        payment["money_difference"] = (
-            payment["money_counted"] - payment["final_count"]
-        )
+        payment["money_difference"] = payment["money_counted"] - payment["final_count"]
         payment["cash_moves"] = self._prepare_counting_difference_moves(
             payment["money_difference"], payment["money_difference"] < 0
         )
@@ -317,6 +326,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         total, products_sold, taxes, refund_done, refund_taxes = (
             self._accumulate_products_and_taxes(orders, user_currency)
         )
+        cash_rounding_total = self._accumulate_cash_rounding(orders, user_currency)
 
         taxes_info = self._get_taxes_info(taxes)
         refund_taxes_info = self._get_taxes_info(refund_taxes)
@@ -503,6 +513,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             "total_paid": totalPaymentsAmount,
             "payments_per_method": list(payments_per_method.values()),
             "show_payment_per_method": not session_ids,
+            "cash_rounding_total": cash_rounding_total,
         }
 
     def _get_product_total_amount(self, line):

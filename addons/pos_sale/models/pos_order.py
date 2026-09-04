@@ -282,6 +282,21 @@ class PosOrderLine(models.Model):
         readonly=False,
         copy=False,
     )
+    sale_order_line_name = fields.Text(related="sale_order_line_id.name")
+    has_default_product = fields.Boolean(
+        string="Settled Under the Default Product",
+        compute="_compute_has_default_product",
+        help="Set when this line carries the register's stand-in product "
+        "because the sale order line it settles had only a description.",
+    )
+
+    @api.depends("product_id", "order_id.config_id.default_product_id")
+    def _compute_has_default_product(self):
+        for line in self:
+            default_product = line.order_id.config_id.default_product_id
+            line.has_default_product = bool(default_product) and (
+                line.product_id == default_product
+            )
 
     @api.depends(
         "order_id.state",
@@ -330,7 +345,13 @@ class PosOrderLine(models.Model):
     @api.model
     def _load_pos_data_fields(self, config):
         params = super()._load_pos_data_fields(config)
-        params += ["sale_order_origin_id", "sale_order_line_id", "down_payment_details"]
+        params += [
+            "sale_order_origin_id",
+            "sale_order_line_id",
+            "down_payment_details",
+            "has_default_product",
+            "sale_order_line_name",
+        ]
         return params
 
     def _launch_stock_rule_from_pos_order_lines(self):

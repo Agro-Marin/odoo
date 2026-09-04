@@ -139,13 +139,13 @@ class SaleOrderLine(models.Model):
         field_names = self._get_fields_sale_order()
         results = []
         for sale_line in self:
-            if sale_line.product_type or (
-                sale_line.is_downpayment and sale_line.price_unit != 0
-            ):
-                product_uom_id = sale_line.product_id.uom_id
+            if not sale_line.display_type:
+                # A description-only line has no product and therefore no
+                # `product_type`; its own uom is the only one there is.
+                product_uom_id = sale_line.product_id.uom_id or sale_line.product_uom_id
                 sale_line_uom = sale_line.product_uom_id
                 item = sale_line.read(field_names, load=False)[0]
-                if sale_line.product_id.tracking != "none":
+                if sale_line.product_id and sale_line.product_id.tracking != "none":
                     move_lines = sale_line.move_ids.move_line_ids.filtered(
                         lambda ml, sale_line=sale_line: (
                             ml.product_id.id == sale_line.product_id.id

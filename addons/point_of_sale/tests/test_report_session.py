@@ -542,3 +542,123 @@ class TestReportSession(TestPoSCommon):
             95.24 * 5,
             msg="Base amount should be equal to 476.20",
         )
+
+    def test_report_reports_the_cash_rounding_applied_in_the_session(self):
+        """The X/Z report accounts for what rounding added or removed.
+
+        A register that rounds to 0.05 never takes the amount it charged: the
+        difference is real money the report has to name, or the drawer will not
+        reconcile against it.
+        """
+        rounding_method = self.env["account.cash.rounding"].create(
+            {
+                "name": "Rounding 0.05",
+                "rounding": 0.05,
+                "profit_account_id": self.company_data["default_account_revenue"].id,
+                "loss_account_id": self.company_data["default_account_expense"].id,
+            }
+        )
+        self.config.write(
+            {
+                "cash_rounding": True,
+                "rounding_method": rounding_method.id,
+                "only_round_cash_method": False,
+            }
+        )
+        tax = self.env["account.tax"].create({"name": "Tax 1", "amount": 10})
+        product = self.create_product(
+            "Product Rounding", self.categ_basic, 10.42, tax.id
+        )
+
+        self.config.open_ui()
+        session = self.config.current_session_id
+        order = self.env["pos.order"].create(
+            {
+                "company_id": self.env.company.id,
+                "session_id": session.id,
+                "lines": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "OL/0001",
+                            "product_id": product.id,
+                            "price_unit": 10.42,
+                            "qty": 1,
+                            "tax_ids": [[6, False, [tax.id]]],
+                            "price_subtotal": 10.42,
+                            "price_subtotal_incl": 11.46,
+                        },
+                    )
+                ],
+                "pricelist_id": self.config.pricelist_id.id,
+                "amount_paid": 11.45,
+                "amount_total": 11.46,
+                "amount_tax": 1.04,
+                "amount_return": 0.0,
+                "last_order_preparation_change": "{}",
+                "to_invoice": False,
+            }
+        )
+        self.make_payment(order, self.cash_pm1, 11.45)
+        # `add_payment` creates the payment without recomputing; the client's
+        # own write path calls this, and it is the tax engine that rounds.
+        order._recompute_prices()
+        session.action_pos_session_closing_control()
+
+        report = self.env["report.point_of_sale.report_saledetails"].get_sale_details(
+            session_ids=[session.id]
+        )
+        self.assertNotEqual(
+            order.amount_cash_rounding,
+            0.0,
+            "the fixture must actually have been rounded",
+        )
+        self.assertAlmostEqual(
+            report["cash_rounding_total"],
+            order.amount_cash_rounding,
+            places=2,
+            msg="the report must carry the rounding difference of every order",
+        )
+
+    def test_report_omits_the_cash_rounding_line_when_nothing_was_rounded(self):
+        """With no rounding there is nothing to report, and no empty line."""
+        product = self.create_product("Product Whole", self.categ_basic, 100)
+        self.config.open_ui()
+        session = self.config.current_session_id
+        order = self.env["pos.order"].create(
+            {
+                "company_id": self.env.company.id,
+                "session_id": session.id,
+                "lines": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "OL/0001",
+                            "product_id": product.id,
+                            "price_unit": 100,
+                            "qty": 1,
+                            "tax_ids": [[6, False, []]],
+                            "price_subtotal": 100,
+                            "price_subtotal_incl": 100,
+                        },
+                    )
+                ],
+                "pricelist_id": self.config.pricelist_id.id,
+                "amount_paid": 100.0,
+                "amount_total": 100.0,
+                "amount_tax": 0.0,
+                "amount_return": 0.0,
+                "last_order_preparation_change": "{}",
+                "to_invoice": False,
+            }
+        )
+        self.make_payment(order, self.cash_pm1, 100.0)
+        order._recompute_prices()
+        session.action_pos_session_closing_control()
+
+        report = self.env["report.point_of_sale.report_saledetails"].get_sale_details(
+            session_ids=[session.id]
+        )
+        self.assertEqual(report["cash_rounding_total"], 0.0)

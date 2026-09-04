@@ -2,14 +2,17 @@ from odoo import api, fields, models
 
 
 class LoyaltyCard(models.Model):
-    _name = 'loyalty.card'
-    _inherit = ['loyalty.card', 'mixin.pos.load']
+    _name = "loyalty.card"
+    _inherit = ["loyalty.card", "mixin.pos.load"]
 
-    source_pos_order_id = fields.Many2one('pos.order', "PoS Order Reference",
-        help="PoS order where this coupon was generated.")
+    source_pos_order_id = fields.Many2one(
+        "pos.order",
+        "PoS Order Reference",
+        help="PoS order where this coupon was generated.",
+    )
     source_pos_order_partner_id = fields.Many2one(
-        'res.partner', "PoS Order Customer",
-        related="source_pos_order_id.partner_id")
+        "res.partner", "PoS Order Customer", related="source_pos_order_id.partner_id"
+    )
 
     @api.model
     def _load_pos_data_domain(self, data, config):
@@ -17,7 +20,14 @@ class LoyaltyCard(models.Model):
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ['partner_id', 'code', 'points', 'program_id', 'expiration_date', 'write_date']
+        return [
+            "partner_id",
+            "code",
+            "points",
+            "program_id",
+            "expiration_date",
+            "write_date",
+        ]
 
     def _has_source_order(self):
         return super()._has_source_order() or bool(self.source_pos_order_id)
@@ -25,40 +35,65 @@ class LoyaltyCard(models.Model):
     def _get_default_template(self):
         self.check_singleton()
         if self.source_pos_order_id:
-            return self.env.ref('pos_loyalty.mail_coupon_template', False)
+            return self.env.ref("pos_loyalty.mail_coupon_template", False)
         return super()._get_default_template()
 
     def _mail_get_partner_fields(self, introspect_fields=False):
-        return super()._mail_get_partner_fields(introspect_fields=introspect_fields) + ['source_pos_order_partner_id']
+        return super()._mail_get_partner_fields(introspect_fields=introspect_fields) + [
+            "source_pos_order_partner_id"
+        ]
 
     def _get_signature(self):
         return self.source_pos_order_id.user_id.signature or super()._get_signature()
 
     def _compute_use_count(self):
         super()._compute_use_count()
-        read_group_res = self.env['pos.order.line']._read_group(
-            [('coupon_id', 'in', self.ids)], ['coupon_id'], ['__count'])
+        read_group_res = self.env["pos.order.line"]._read_group(
+            [("coupon_id", "in", self.ids)], ["coupon_id"], ["__count"]
+        )
         count_per_coupon = {coupon.id: count for coupon, count in read_group_res}
         for card in self:
             card.use_count += count_per_coupon.get(card.id, 0)
 
     @api.model
     def get_gift_card_status(self, gift_code, config_id):
-        card = self.search([('code', '=', gift_code)], limit=1)
-        is_valid = card.exists() and (not card.expiration_date or card.expiration_date > fields.Date.today()) and card.points > 0
-        is_valid = is_valid and (card.program_id.program_type == 'gift_card') and not card.partner_id
-        is_valid = is_valid and len([id for id in card.history_ids.mapped('order_id') if id != 0]) == 0
+        card = self.search([("code", "=", gift_code)], limit=1)
+        is_valid = (
+            card.exists()
+            and (
+                not card.expiration_date
+                or card.expiration_date > fields.Date.context_today(self)
+            )
+            and card.points > 0
+        )
+        is_valid = (
+            is_valid
+            and (card.program_id.program_type == "gift_card")
+            and not card.partner_id
+        )
+        is_valid = (
+            is_valid
+            and len([id for id in card.history_ids.mapped("order_id") if id != 0]) == 0
+        )
         card_fields = self._load_pos_data_fields(config_id)
         return {
-            'status': bool(is_valid) or not card.exists(),
-            'data': {
-                'loyalty.card': card.read(card_fields, load=False),
-            }
+            "status": bool(is_valid) or not card.exists(),
+            "data": {
+                "loyalty.card": card.read(card_fields, load=False),
+            },
         }
 
     @api.model
     def get_loyalty_card_partner_by_code(self, code):
-        return self.env['loyalty.card'].search([
-            ('code', '=', code),
-            ('program_type', '=', 'loyalty'),
-        ], limit=1).partner_id or False
+        return (
+            self.env["loyalty.card"]
+            .search(
+                [
+                    ("code", "=", code),
+                    ("program_type", "=", "loyalty"),
+                ],
+                limit=1,
+            )
+            .partner_id
+            or False
+        )

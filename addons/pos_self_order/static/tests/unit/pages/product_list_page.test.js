@@ -1,4 +1,5 @@
 import { expect, test } from "@odoo/hoot";
+import { animationFrame, queryAll } from "@odoo/hoot-dom";
 import { ProductListPage } from "@pos_self_order/app/pages/product_list_page/product_list_page";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 
@@ -64,4 +65,29 @@ test("getSubCategories and selectCategory", async () => {
     // for mobile mode
     store.config.self_ordering_mode = "mobile";
     expect(comp.getSubCategories()).toHaveLength(0);
+});
+
+test("a product with no image leaves no empty box on a phone", async () => {
+    const store = await setupSelfPosEnv();
+    const products = store.models["product.template"];
+    await mountWithCleanup(ProductListPage, {});
+
+    // The kiosk is a fixed screen laid out around the images: the frame stays
+    // even when a product has none.
+    store.config.self_ordering_mode = "kiosk";
+    await animationFrame();
+    expect(".product_img").toHaveCount(queryAll(".o_self_product_box").length);
+    expect(".product_img.d-none").toHaveCount(0);
+
+    // On a phone that frame is a full-width square of nothing.
+    store.config.self_ordering_mode = "mobile";
+    await animationFrame();
+    expect(".product_img.d-none").toHaveCount(queryAll(".product_img").length);
+
+    // A product that does have an image still shows it.
+    for (const product of products.getAll()) {
+        product.image_128 = true;
+    }
+    await animationFrame();
+    expect(".product_img.d-none").toHaveCount(0);
 });

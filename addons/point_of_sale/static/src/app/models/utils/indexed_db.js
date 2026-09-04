@@ -67,6 +67,8 @@ export default class IndexedDB {
                 "databaseEventListener",
                 `Error opening IndexedDB: ${err?.message || event.target.errorCode}`,
                 CONSOLE_COLOR,
+                [],
+                true,
             );
             if (err?.message?.includes("Connection to Indexed Database server lost")) {
                 settled = true;
@@ -213,6 +215,8 @@ export default class IndexedDB {
                                 method,
                                 `Error aborting transaction: ${e.message}`,
                                 CONSOLE_COLOR,
+                                [],
+                                true,
                             );
                             fail(firstError);
                         }
@@ -277,9 +281,11 @@ export default class IndexedDB {
         } catch (e) {
             logPosMessage(
                 "IndexedDB",
-                "getNewTransaction",
+                `getNewTransaction.${e.name}`,
                 `Error creating transaction: ${e.message}`,
                 CONSOLE_COLOR,
+                [],
+                true,
             );
             if (e.name === "InvalidStateError") {
                 this.db = null;
@@ -324,6 +330,8 @@ export default class IndexedDB {
                 "_openFailed",
                 `Giving up reconnecting to IndexedDB after ${this._reconnectAttempts} attempts (${reason})`,
                 CONSOLE_COLOR,
+                [],
+                true,
             );
             this._showReloadDialog();
             return;
@@ -342,7 +350,15 @@ export default class IndexedDB {
             }
             try {
                 this.db.transaction([this.dbStores[0][1]], "readonly").abort();
-            } catch {
+            } catch (e) {
+                logPosMessage(
+                    "IndexedDB",
+                    "visibilityProbe",
+                    e?.message || "probe transaction failed",
+                    CONSOLE_COLOR,
+                    [],
+                    true,
+                );
                 this.db = null;
                 this._attemptReconnect();
             }

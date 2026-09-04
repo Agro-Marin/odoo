@@ -234,8 +234,16 @@ export function customerIsSelected(name) {
     return [
         clickReview(),
         {
+            isActive: ["desktop"],
             content: `customer '${name}' is selected`,
             trigger: `.product-screen .set-partner:contains("${name}")`,
+        },
+        {
+            // On a phone the button is an icon, so having a customer shows as
+            // the button being active rather than as their name.
+            isActive: ["mobile"],
+            content: "customer is selected",
+            trigger: ".product-screen .set-partner.btn-outline-secondary.active",
         },
     ];
 }

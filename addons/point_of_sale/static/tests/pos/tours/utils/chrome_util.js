@@ -219,7 +219,7 @@ export function presetTimingSlotHourExists(hour) {
 }
 export function selectSlotDays(d) {
     return {
-        trigger: `.modal .d-flex.w-100.flex-wrap.gap-2.mt-2 button:nth-of-type(${d})`,
+        trigger: `.modal .preset_date_buttons:nth-of-type(${d})`,
         run: "click",
     };
 }
@@ -373,9 +373,10 @@ if (sessionStorage.getItem("pos_test_frozen_time")) {
     DateTime.now = () => DateTime.fromMillis(millis);
 }
 
-export function selectPresetDateButton(formattedDate) {
+export function selectPresetDateButton(dayLabel) {
+    // The buttons read Today / Tomorrow / the weekday, not a formatted date.
     return {
-        trigger: `.modal-body button:contains("${formattedDate}")`,
+        trigger: `.modal-body .preset_date_buttons:contains("${dayLabel}")`,
         run: "click",
     };
 }

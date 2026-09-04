@@ -14,7 +14,7 @@ import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog";
 
-import { downloadPosLogs } from "../pretty_console_log.js";
+import { downloadIdbErrors, downloadPosLogs } from "../pretty_console_log.js";
 const { DateTime } = luxon;
 
 export class DebugWidget extends Component {
@@ -184,6 +184,9 @@ export class DebugWidget extends Component {
     }
     async downloadLogs() {
         await downloadPosLogs();
+    }
+    downloadIdbErrors() {
+        downloadIdbErrors();
     }
     _onBufferUpdate({ detail: value }) {
         this.state.buffer = value;

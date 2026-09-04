@@ -2821,7 +2821,9 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     get showSaveOrderButton() {
-        return this.config.raw.trusted_config_ids.length > 0;
+        // Parking an order for later is useful on its own; a trusted register
+        // to hand it to is what makes it useful to a *second* register.
+        return true;
     }
 
     canEditPayment(order) {

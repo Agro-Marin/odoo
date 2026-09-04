@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates id="template" xml:space="preserve">
  <t t-name="point_of_sale.ProductInfoPopup">
- <Dialog>
+ <Dialog contentClass="'product-info-popup'">
  <t t-set-slot="header">
  <button t-on-click="toggleFavorite" class="border-0 bg-transparent mb-2" t-att-disabled="this.pos.cashier._role == 'minimal'">
  <i t-attf-class="fa-lg {{props.productTemplate.is_favorite ? 'fa-solid fa-star' : 'fa-regular fa-star'}}"
@@ -50,7 +50,7 @@
  <span t-esc="supplier.name" class="table-name"/>:
  </div>
  <span class="me-1 fw-bolder">
- <t t-esc="supplier.delay"/> 
+ <t t-esc="supplier.delay"/>
  Days
  </span>
  <span t-if="_hasMarginsCostsAccessRights()">
