@@ -784,6 +784,30 @@ class TestMergePartnerIdentifiers(TransactionCase):
             "destination already holds is dropped",
         )
 
+    def test_identifier_survives_a_merge_that_does_not_absorb_source_values(self):
+        Partner = self.env["res.partner"]
+        Identifier = self.env["res.partner.identifier"]
+        src = Partner.create({"name": "Id Src NA", "is_company": True})
+        dst = Partner.create({"name": "Id Dst NA", "is_company": True})
+        Identifier.create(
+            {"partner_id": src.id, "type_id": self.single.id, "value": "SRC010101AB1"}
+        )
+
+        wizard = self.env["base.partner.merge.automatic.wizard"].create(
+            {"absorb_source_values": False}
+        )
+        wizard._merge([src.id, dst.id], dst)
+        self.env.invalidate_all()
+
+        self.assertFalse(src.exists())
+        rows = dst.identifier_ids.filtered(lambda i: i.type_id == self.single)
+        self.assertEqual(
+            rows.value,
+            "SRC010101AB1",
+            "MOD-1: the identifier must be repointed, not dropped, even when "
+            "the merge does not absorb the source's other values",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestMergePartnerSingleSourceClash(SidecarTableCase):
