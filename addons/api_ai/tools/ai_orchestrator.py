@@ -261,88 +261,65 @@ class AIOrchestrator:
 
         return bool(credential)
 
-    def _optimize_selection(self, providers, strategy):
-        if not providers:
-            return self.env["ai.provider"]
+    def _optimize_by_strategy(self, records, strategy, empty, model_of, provider_of):
+        if not records:
+            return empty
 
         if strategy == "cost":
-            free_tier = providers.filtered(lambda p: p.has_free_tier)
+            free_tier = records.filtered(lambda r: provider_of(r).has_free_tier)
             if free_tier:
                 return free_tier[0]
-            return providers.sorted(
-                lambda p: p.default_model_id.cost_per_1m_input or float("inf")
+            return records.sorted(
+                lambda r: model_of(r).cost_per_1m_input or float("inf")
             )[0]
 
         if strategy == "accuracy":
-            return providers.sorted(
-                lambda p: int(p.default_model_id.accuracy_rating or "0"),
+            return records.sorted(
+                lambda r: int(model_of(r).accuracy_rating or "0"),
                 reverse=True,
             )[0]
 
         if strategy == "speed":
-            return providers.sorted(
-                lambda p: int(p.default_model_id.speed_rating or "0"),
+            return records.sorted(
+                lambda r: int(model_of(r).speed_rating or "0"),
                 reverse=True,
             )[0]
 
         if strategy == "balanced":
 
-            def balanced_score(provider):
-                model = provider.default_model_id
+            def balanced_score(record):
+                model = model_of(record)
                 accuracy = int(model.accuracy_rating or "3")
                 speed = int(model.speed_rating or "3")
-                reliability = int(provider.reliability_rating or "3")
+                reliability = int(provider_of(record).reliability_rating or "3")
 
                 cost = model.cost_per_1m_input or 0.1
                 cost_factor = max(0.1, cost / 1.0)
 
                 return (accuracy * 2 + speed + reliability) / cost_factor
 
-            return providers.sorted(balanced_score, reverse=True)[0]
+            return records.sorted(balanced_score, reverse=True)[0]
 
         _logger.warning("Unknown optimization strategy: %s", strategy)
-        return providers[0]
+        return records[0]
+
+    def _optimize_selection(self, providers, strategy):
+        return self._optimize_by_strategy(
+            providers,
+            strategy,
+            self.env["ai.provider"],
+            model_of=lambda p: p.default_model_id,
+            provider_of=lambda p: p,
+        )
 
     def _optimize_model_selection(self, ai_models, strategy):
-        if not ai_models:
-            return self.env["ai.model"]
-
-        if strategy == "cost":
-            free_tier = ai_models.filtered(lambda m: m.provider_id.has_free_tier)
-            if free_tier:
-                return free_tier[0]
-            return ai_models.sorted(
-                lambda m: m.cost_per_1m_input or float("inf"),
-            )[0]
-
-        if strategy == "accuracy":
-            return ai_models.sorted(
-                lambda m: int(m.accuracy_rating or "0"),
-                reverse=True,
-            )[0]
-
-        if strategy == "speed":
-            return ai_models.sorted(
-                lambda m: int(m.speed_rating or "0"),
-                reverse=True,
-            )[0]
-
-        if strategy == "balanced":
-
-            def balanced_score(ai_model):
-                accuracy = int(ai_model.accuracy_rating or "3")
-                speed = int(ai_model.speed_rating or "3")
-                reliability = int(ai_model.provider_id.reliability_rating or "3")
-
-                cost = ai_model.cost_per_1m_input or 0.1
-                cost_factor = max(0.1, cost / 1.0)
-
-                return (accuracy * 2 + speed + reliability) / cost_factor
-
-            return ai_models.sorted(balanced_score, reverse=True)[0]
-
-        _logger.warning("Unknown optimization strategy: %s", strategy)
-        return ai_models[0]
+        return self._optimize_by_strategy(
+            ai_models,
+            strategy,
+            self.env["ai.model"],
+            model_of=lambda m: m,
+            provider_of=lambda m: m.provider_id,
+        )
 
     def _get_client(self, provider, company_id=None):
         return provider._get_ai_client(company_id or self.env.company.id)

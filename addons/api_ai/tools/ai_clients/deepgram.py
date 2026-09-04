@@ -109,15 +109,6 @@ class DeepgramClient(BaseAIClient):
         "fi",
     ]
 
-    def _get_listen_endpoint(self, model):
-        if "flux" in model.lower():
-            _logger.warning(
-                "Flux model '%s' requires /v2/listen endpoint. Current implementation uses /v1 base. This may not work correctly. Consider using nova-3 instead.",
-                model,
-            )
-            return "/listen"
-        return "/listen"
-
     def _validate_response(self, response):
         if not isinstance(response, dict):
             raise CommError(
@@ -364,18 +355,7 @@ class DeepgramClient(BaseAIClient):
                 list(self.TTS_VOICES.keys()),
             )
 
-        params = {"model": voice}
-
-        if kwargs.get("encoding"):
-            params["encoding"] = kwargs["encoding"]
-
-        if kwargs.get("sample_rate"):
-            params["sample_rate"] = kwargs["sample_rate"]
-
-        if kwargs.get("container"):
-            params["container"] = kwargs["container"]
-
-        del text, voice, kwargs, params
+        del text, voice, kwargs
         raise CommError(
             "Deepgram text_to_speech is not supported through OutboundAPIClient yet; "
             "binary response bodies are not exposed. See t20851 follow-up.",
@@ -389,12 +369,7 @@ class DeepgramClient(BaseAIClient):
                 list(self.TTS_VOICES.keys()),
             )
 
-        params = {"model": voice}
-
-        if kwargs.get("encoding"):
-            params["encoding"] = kwargs["encoding"]
-
-        del text, voice, kwargs, params
+        del text, voice, kwargs
         raise CommError(
             "Deepgram text_to_speech_stream is not supported through "
             "OutboundAPIClient yet; streaming responses are not exposed. "
