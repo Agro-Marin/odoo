@@ -10,6 +10,7 @@
                         <i t-if="state.file.isPdf" class="fa-solid fa-file-lines" role="img" title="PDF file"/>
                         <i t-if="state.file.isText" class="fa-solid fa-file-lines" role="img" title="Text file"/>
                         <i t-if="state.file.isVideo" class="fa-solid fa-video" role="img" title="Video"/>
+                        <i t-if="state.file.isAudio" class="fa-solid fa-volume-high" role="img" title="Audio"/>
                     </div>
                     <div class="d-flex align-items-center ms-4 overflow-auto">
                         <span class="text-truncate" t-out="state.file.name"/>
@@ -43,7 +44,11 @@
                     <iframe t-if="state.file.isUrlYoutube" allow="autoplay; encrypted-media" class="o-FileViewer-view w-75 h-100 border-0" t-att-src="state.file.defaultSource" height="315" width="560"/>
                     <video t-if="state.file.isVideo" class="o-FileViewer-view w-75 h-75" t-att-class="{ 'w-100 h-100': ui.isSmall }" t-on-click.stop="" controls="controls">
                         <source t-att-data-type="state.file.mimetype" t-att-src="state.file.defaultSource"/>
+                        <track t-if="state.file.subtitlesUrl" kind="captions" default="default" t-att-src="state.file.subtitlesUrl"/>
                     </video>
+                    <audio t-if="state.file.isAudio" class="o-FileViewer-view o-FileViewer-viewAudio w-75" t-att-class="{ 'w-100': ui.isSmall }" t-on-click.stop="" controls="controls">
+                        <source t-att-data-type="state.file.mimetype" t-att-src="state.file.defaultSource"/>
+                    </audio>
                 </div>
                 <div t-if="state.file.isImage" class="position-absolute bottom-0 d-flex" role="toolbar">
                     <div class="o-FileViewer-toolbarButton p-3 rounded-0" t-on-click.stop="zoomIn" title="Zoom In (+)" role="button">

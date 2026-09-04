@@ -316,3 +316,45 @@ describe("createFileViewer", () => {
         expect(registeredViewer()).toBe(undefined);
     });
 });
+
+test("an audio recording is viewable, and is not a video", async () => {
+    // Every format below is one the speech layer transcribes. Before this was
+    // pinned, only audio/mpeg was viewable -- and it was viewable by sitting in
+    // the VIDEO set, so an mp3 opened as a full-screen black rectangle while a
+    // call recording, which is audio/webm, opened as nothing at all.
+    for (const mimetype of [
+        "audio/aac",
+        "audio/flac",
+        "audio/mp4",
+        "audio/mpeg",
+        "audio/ogg",
+        "audio/opus",
+        "audio/wav",
+        "audio/webm",
+        "audio/x-m4a",
+        "audio/x-wav",
+    ]) {
+        const file = new FileModel();
+        file.mimetype = mimetype;
+        file.name = `recording.${mimetype}`;
+        file.id = 1;
+        expect(file.isAudio).toBe(true, { message: `${mimetype} is audio` });
+        expect(file.isVideo).toBe(false, { message: `${mimetype} is not video` });
+        expect(file.isViewable).toBe(true, { message: `${mimetype} is viewable` });
+    }
+});
+
+test("a viewable recording renders a player rather than a dead Preview", async () => {
+    const AUDIO_FILE = {
+        name: "call.webm",
+        defaultSource: "about:blank",
+        downloadUrl: "/web/content/9?download=true",
+        isAudio: true,
+        isViewable: true,
+    };
+    await mountWithCleanup(FileViewer, {
+        props: { files: [AUDIO_FILE], startIndex: 0, close: () => {} },
+    });
+    expect("audio").toHaveCount(1);
+    expect("video").toHaveCount(0);
+});

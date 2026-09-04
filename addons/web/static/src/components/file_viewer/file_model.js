@@ -22,11 +22,25 @@ const TEXT_MIMETYPES = new Set([
     "text/plain",
 ]);
 
-const VIDEO_MIMETYPES = new Set([
+const AUDIO_MIMETYPES = new Set([
+    "audio/aac",
+    "audio/flac",
+    "audio/mp4",
     "audio/mpeg",
-    "video/x-matroska",
+    "audio/ogg",
+    "audio/opus",
+    "audio/wav",
+    "audio/webm",
+    "audio/x-m4a",
+    "audio/x-wav",
+]);
+
+const VIDEO_MIMETYPES = new Set([
     "video/mp4",
+    "video/ogg",
+    "video/quicktime",
     "video/webm",
+    "video/x-matroska",
 ]);
 
 /**
@@ -117,6 +131,10 @@ export const FileModelMixin = (T) =>
             return ["embed", "shorts", "v"].includes(prefix) ? id || null : null;
         }
 
+        get isAudio() {
+            return AUDIO_MIMETYPES.has(this.mimetype);
+        }
+
         get isVideo() {
             return VIDEO_MIMETYPES.has(this.mimetype);
         }
@@ -125,11 +143,16 @@ export const FileModelMixin = (T) =>
             return (
                 (this.isText ||
                     this.isImage ||
+                    this.isAudio ||
                     this.isVideo ||
                     this.isPdf ||
                     this.isUrlYoutube) &&
                 !this.uploading
             );
+        }
+
+        get subtitlesUrl() {
+            return this.id ? `/speech/attachment/${this.id}/subtitles.vtt` : "";
         }
 
         /**
