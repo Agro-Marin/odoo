@@ -1819,6 +1819,8 @@ class AccountJournal(models.Model):
         if not self:
             return self.env["account.payment.channel"]
         self.check_singleton()
+        if not payment_type:
+            return self.env["account.payment.channel"]
         if payment_type not in ("inbound", "outbound"):
             raise ValueError(f"Unknown payment type {payment_type!r}")
         return self[f"{payment_type}_payment_channel_ids"]

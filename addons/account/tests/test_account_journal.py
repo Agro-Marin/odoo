@@ -1262,6 +1262,13 @@ class TestAccountJournalCodeAndCopy(AccountTestInvoicingCommon):
         with self.assertRaises(ValueError):
             journal._get_available_payment_channels("bogus")
 
+    def test_an_unset_payment_type_has_no_channels(self):
+        journal = self.env["account.journal"].create(
+            {"name": "Bank", "type": "bank", "code": "TCD2"}
+        )
+        self.assertTrue(journal.outbound_payment_channel_ids)
+        self.assertFalse(journal._get_available_payment_channels(False))
+
     def test_no_default_account_outside_the_liquidity_types(self):
         with self.assertRaises(UserError):
             self.env["account.journal"]._create_default_account(
