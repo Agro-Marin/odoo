@@ -79,11 +79,28 @@ that matches it.
 testbaseline.py <suite> <log>                     # check
 testbaseline.py <suite> <log> --update \
     --verified-at <sha> --run-spec '<args>' --note '<why>'
+testbaseline.py <suite> <log> --update --replace --note '<why>'   # re-measure
 testbaseline.py --list                            # what is recorded
 ```
 
 Baselines are one JSON per suite in `baselines/`. That directory is the list;
 no file restates how many there are.
+
+**`--update` writes the whole file, so on a suite that already has one it is a
+replace and not a merge.** It therefore refuses without `--replace`, printing
+the standing record beside the proposed one, and refuses again if the standing
+note is non-empty and no `--note` is given. The note is the half worth guarding:
+it is where a *refuted* theory is recorded, and a refutation is the finding that
+costs most to reproduce, because nothing in the tree says somebody already tried
+it. Both refusals were added after a session seeded `account_edi_ubl_cii` while
+believing it had no baseline, and replaced one that recorded a tried-and-failed
+explanation.
+
+**Name the suite the failing test is in.** A verdict is about the suite you ask
+about and nothing else. A run installing two modules, diffed against the first
+module's baseline, reports the second module's known failure as `new` — which
+means *not in the set you named*, not *unrecorded*. The size moves too, so the
+count does not save you either.
 
 ## Scope
 

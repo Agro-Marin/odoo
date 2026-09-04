@@ -9,6 +9,7 @@ import sys
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).resolve().parent
 BASELINES_DIR = HERE / "baselines"
@@ -133,6 +134,17 @@ class Baseline:
         return path
 
 
+def _note_warning(standing: Baseline, args: Any) -> str:
+    """Named separately because losing the note is the expensive half.
+
+    A refuted theory is the finding that costs most to reproduce: nothing in the
+    tree records that somebody already tried it and it did not work.
+    """
+    if standing.note and not args.note:
+        return "  Its note would be LOST -- it is the record of what somebody already tried.\n"
+    return ""
+
+
 def canonical_suite(suite: str) -> str:
     return f"/{suite.strip('/')}"
 
@@ -238,6 +250,11 @@ def build_parser() -> argparse.ArgumentParser:
         "only reproduce under the same spec",
     )
     parser.add_argument("--note", default="", help="why these are expected")
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="overwrite a baseline that already exists, discarding what it records",
+    )
     parser.add_argument("--list", action="store_true", help="list known baselines")
     return parser
 
@@ -293,6 +310,32 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"refusing to record an unsound parse: saw {len(scan.failures)}, "
                 f"server reported {scan.reported_failed}",
+                file=sys.stderr,
+            )
+            return EXIT_USAGE
+        standing = Baseline.load(args.suite)
+        if standing is not None and not args.replace:
+            print(
+                f"{canonical_suite(args.suite)} is already recorded, and --update "
+                f"REPLACES rather than merges:\n"
+                f"  standing  {len(standing.expected)} expected of "
+                f"{standing.tests_total}, measured at "
+                f"{standing.verified_at or 'nowhere'}\n"
+                f"  proposed  {len(scan.failures)} expected of {scan.total}, "
+                f"measured at {args.verified_at or 'nowhere'}\n"
+                f"{_note_warning(standing, args)}"
+                f"  Read what it holds before deciding, then pass --replace.\n"
+                f"  A run naming several modules is wider than one suite: if the "
+                f"count moved, check you are recording the same run.",
+                file=sys.stderr,
+            )
+            return EXIT_USAGE
+        if standing is not None and standing.note and not args.note:
+            print(
+                f"refusing to drop the note {canonical_suite(args.suite)} carries. "
+                f"It is the record of what somebody already tried:\n\n"
+                f"    {standing.note}\n\n"
+                f"  Pass --note to replace it, keeping whatever of it still holds.",
                 file=sys.stderr,
             )
             return EXIT_USAGE

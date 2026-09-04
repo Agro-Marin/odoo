@@ -426,3 +426,94 @@ class MainTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReplacingAnExistingBaseline(unittest.TestCase):
+    """`--update` writes the whole file, so on an existing baseline it is a
+    replace. Nothing said so, and the note is what gets lost: a refuted theory
+    is the finding that costs most to reproduce, because nothing in the tree
+    records that somebody already tried it."""
+
+    LOG = "".join(
+        [
+            start("acc", "TestA.test_a"),
+            failure("acc", "TestA.test_a"),
+            summary(1, 0, 37),
+        ]
+    )
+
+    def _standing(self, tmp, note="the obvious theory is REFUTED: tried, no change"):
+        Baseline(
+            suite="/acc",
+            expected={"acc/TestA.test_a": "FAIL"},
+            run_spec="-u acc --test-tags /acc",
+            verified_at="26c6ccd72c7",
+            tests_total=59,
+            note=note,
+        ).save()
+
+    def _run(self, tmp, *extra):
+        log = Path(tmp) / "run.log"
+        log.write_text(self.LOG, encoding="utf-8")
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = testbaseline.main(["/acc", str(log), "--update", *extra])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_an_existing_baseline_is_not_replaced_without_saying_so(self):
+        with TemporaryDirectory() as tmp:
+            with mock.patch.object(testbaseline, "BASELINES_DIR", Path(tmp)):
+                self._standing(tmp)
+                code, _out, err = self._run(tmp)
+
+                self.assertEqual(code, EXIT_USAGE)
+                self.assertIn("--replace", err)
+                self.assertEqual(Baseline.load("/acc").tests_total, 59)
+
+    def test_the_refusal_shows_what_would_be_traded_for_what(self):
+        with TemporaryDirectory() as tmp:
+            with mock.patch.object(testbaseline, "BASELINES_DIR", Path(tmp)):
+                self._standing(tmp)
+                _code, _out, err = self._run(tmp)
+
+                self.assertIn("1 expected of 59", err)
+                self.assertIn("1 expected of 37", err)
+                self.assertIn("26c6ccd72c7", err)
+
+    def test_replacing_still_refuses_to_drop_the_note(self):
+        with TemporaryDirectory() as tmp:
+            with mock.patch.object(testbaseline, "BASELINES_DIR", Path(tmp)):
+                self._standing(tmp)
+                code, _out, err = self._run(tmp, "--replace")
+
+                self.assertEqual(code, EXIT_USAGE)
+                self.assertIn("REFUTED", err)
+                self.assertEqual(Baseline.load("/acc").tests_total, 59)
+
+    def test_replacing_with_a_note_of_your_own_goes_through(self):
+        with TemporaryDirectory() as tmp:
+            with mock.patch.object(testbaseline, "BASELINES_DIR", Path(tmp)):
+                self._standing(tmp)
+                code, _out, _err = self._run(tmp, "--replace", "--note", "re-measured")
+
+                self.assertEqual(code, EXIT_OK)
+                stored = Baseline.load("/acc")
+                self.assertEqual(stored.tests_total, 37)
+                self.assertEqual(stored.note, "re-measured")
+
+    def test_a_baseline_with_no_note_replaces_without_one(self):
+        with TemporaryDirectory() as tmp:
+            with mock.patch.object(testbaseline, "BASELINES_DIR", Path(tmp)):
+                self._standing(tmp, note="")
+                code, _out, _err = self._run(tmp, "--replace")
+
+                self.assertEqual(code, EXIT_OK)
+                self.assertEqual(Baseline.load("/acc").tests_total, 37)
+
+    def test_seeding_a_suite_that_has_none_is_untouched(self):
+        with TemporaryDirectory() as tmp:
+            with mock.patch.object(testbaseline, "BASELINES_DIR", Path(tmp)):
+                code, out, _err = self._run(tmp)
+
+                self.assertEqual(code, EXIT_OK)
+                self.assertIn("1 expected of 37", out)
