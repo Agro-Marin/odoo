@@ -112,6 +112,20 @@ class TestRecordReferences(lint_case.LintCase):
         if element.tag == "field" and (ref := element.get("ref")):
             if not _is_optional_field_ref(element):
                 cls.references.append((_qualify(module, ref), path, element.sourceline))
+        if element.tag == "menuitem":
+            # _tag_menuitem (convert.py) resolves parent/action/groups via
+            # id_get/env.ref, all defaulting raise_if_not_found=True.
+            for attribute in ("parent", "action"):
+                if value := element.get(attribute):
+                    cls.references.append(
+                        (_qualify(module, value), path, element.sourceline)
+                    )
+            for group in (element.get("groups") or "").split(","):
+                group = group.strip().removeprefix("-")
+                if group:
+                    cls.references.append(
+                        (_qualify(module, group), path, element.sourceline)
+                    )
         for attribute in ("eval", "t-value"):
             source = element.get(attribute) or ""
             optional = {m.group(1) for m in _RE_REF_CALL_OPTIONAL.finditer(source)}
