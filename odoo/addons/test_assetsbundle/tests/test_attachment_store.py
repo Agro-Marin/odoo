@@ -297,6 +297,19 @@ class TestUnlinkAttachmentsReturning(TransactionCase):
 
 
 class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
+    URL_PREFIX = "/web/assets/skiplocktest/"
+
+    def setUp(self):
+        super().setUp()
+        self._cleanup_rows()
+
+    def _cleanup_rows(self):
+        with Registry(get_db_name()).cursor() as cr:
+            cr.execute(
+                "DELETE FROM ir_attachment WHERE url LIKE %s", (self.URL_PREFIX + "%",)
+            )
+            cr.commit()
+
     def test_locked_row_survives_and_is_not_marked(self):
         db = get_db_name()
         reg = Registry(db)
@@ -509,8 +522,6 @@ class TestEsmAttachmentSidecars(TransactionCase):
 
 class TestLikePatternHasOneSpelling(TransactionCase):
     def test_the_two_sides_build_the_same_pattern(self):
-        from odoo.tools.assets.constants import ANY_UNIQUE
-
         store = AssetAttachmentStore(
             self.env,
             "web.assets_web",

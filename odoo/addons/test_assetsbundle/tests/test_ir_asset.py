@@ -597,7 +597,7 @@ class TestAssetsManifest(AddonManifestPatched):
         bundle = self.env["ir.qweb"]._get_asset_bundle("test_assetsbundle.manifest4")
         self.assertBundleJs(bundle, 1)
 
-    def test_17_other_module_remove(self):
+    def test_17b_other_module_remove(self):
         self.declare_sibling_module(
             {
                 "test_assetsbundle.manifest4": [
@@ -661,6 +661,10 @@ class TestAssetsManifest(AddonManifestPatched):
             stylesheets[0].get("href"), "http://external.css/externalstyle.css"
         )
         self.assertEqual(stylesheets[0].get("media"), "print")
+        self.assertNotEqual(
+            stylesheets[1].get("href"), "http://external.css/externalstyle.css"
+        )
+        self.assertEqual(stylesheets[1].get("media"), "print")
 
     def test_20_css_base(self):
         self.env["ir.asset"].create(
@@ -1003,8 +1007,8 @@ class TestAssetsManifest(AddonManifestPatched):
     def test_31(self):
         path_to_dummy = "../test_assetsbundle/tests/security_dummy.js"
         me = pathlib.Path(__file__).parent.absolute()
-        file_path = me.joinpath("..", path_to_dummy)
-        self.assertTrue(file_path.is_file())
+        dummy_path = me.joinpath("..", path_to_dummy)
+        self.assertTrue(dummy_path.is_file())
 
         self.env["ir.asset"].create(
             {
@@ -1028,8 +1032,8 @@ class TestAssetsManifest(AddonManifestPatched):
     def test_32_a_relative_path_in_addon(self):
         path_to_dummy = "../test_assetsbundle/tests/security_dummy.xml"
         me = pathlib.Path(__file__).parent.absolute()
-        file_path = me.joinpath("..", path_to_dummy)
-        self.assertTrue(file_path.is_file())
+        dummy_path = me.joinpath("..", path_to_dummy)
+        self.assertTrue(dummy_path.is_file())
 
         self.env["ir.asset"].create(
             {
@@ -1061,8 +1065,8 @@ class TestAssetsManifest(AddonManifestPatched):
     def test_32_b_relative_path_outside_addon(self):
         path_to_dummy = "../test_assetsbundle/tests/security_dummy.xml"
         me = pathlib.Path(__file__).parent.absolute()
-        file_path = me.joinpath("..", path_to_dummy)
-        self.assertTrue(file_path.is_file())
+        dummy_path = me.joinpath("..", path_to_dummy)
+        self.assertTrue(dummy_path.is_file())
 
         self.env["ir.asset"].create(
             {
