@@ -1353,6 +1353,20 @@ class TestConverterContracts(TransactionCase):
                     emptying._str_to_properties(field, [payload])[0][0]["value"], False
                 )
 
+    def test_a_non_finite_property_float_is_refused_like_the_column(self):
+        field = self.env["res.partner"]._fields["is_company"]
+        for raw in ("nan", "inf", "-inf"):
+            payload = {"name": "n", "type": "float", "string": "N", "value": raw}
+            with self.subTest(raw=raw):
+                with self.assertRaises(ValueError):
+                    self.converter._str_to_properties(field, [payload])
+                emptying = self.converter.with_context(
+                    import_file=True, import_set_empty_fields=["is_company.n"]
+                )
+                self.assertIs(
+                    emptying._str_to_properties(field, [payload])[0][0]["value"], False
+                )
+
     def test_the_boolean_vocabulary_is_derived_from_the_extraction_anchors(self):
         from odoo.addons.base.models.ir_fields import (
             BOOLEAN_FALSE_TERMS,

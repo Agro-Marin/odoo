@@ -512,15 +512,19 @@ class IrFieldsConverter(models.AbstractModel):
         self, field: ConvertibleField, val: Any, property_dict: dict
     ) -> tuple[Any, list]:
         try:
-            return parse_number(val, float), []
+            result = parse_number(val, float)
+            valid = math.isfinite(result)
         except ValueError, TypeError:
-            skipped = self._policy_fallback_value(field)
-            if skipped is not None:
-                return skipped, []
-            msg = self.env._(
-                "'%(value)s' does not seem to be a number for field '%(label_property)s' property (subfield of '%%(field)s' field)."
-            )
-            raise self._prepare_property_error(msg, val, property_dict) from None
+            valid = False
+        if valid:
+            return result, []
+        skipped = self._policy_fallback_value(field)
+        if skipped is not None:
+            return skipped, []
+        msg = self.env._(
+            "'%(value)s' does not seem to be a number for field '%(label_property)s' property (subfield of '%%(field)s' field)."
+        )
+        raise self._prepare_property_error(msg, val, property_dict)
 
     @api.model
     def _policy_fallback_value(self, field: ConvertibleField) -> Any:
