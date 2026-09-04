@@ -56,9 +56,12 @@ def save_test_file(
     document_type: str = "Screenshot",
     date_format: str = "%Y%m%d_%H%M%S_%f",
 ) -> None:
-    assert re.fullmatch(r"\w*_", prefix)
-    assert re.fullmatch(r"[a-z]+", extension)
-    assert re.fullmatch(r"\w+", test_name)
+    if not re.fullmatch(r"\w*_?", prefix):
+        raise ValueError(f"Invalid prefix: {prefix!r}")
+    if not re.fullmatch(r"[a-z]+", extension):
+        raise ValueError(f"Invalid extension: {extension!r}")
+    if not re.fullmatch(r"\w+", test_name):
+        raise ValueError(f"Invalid test_name: {test_name!r}")
     now = datetime.now().strftime(date_format)
     screenshots_dir = (
         pathlib.Path(odoo.tools.config["screenshots"]) / get_db_name() / "screenshots"
