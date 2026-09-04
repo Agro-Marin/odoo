@@ -54,62 +54,34 @@ class TestActionBindings(common.TransactionCase):
 
 
 class TestBindingViewFilters(common.TransactionCase):
-    def test_act_window(self):
-        A = self.env["tab.a"]
+    def test_view_filters(self):
+        for model_name, label in (("tab.a", "Action"), ("tab.b", "Record")):
+            with self.subTest(model=model_name):
+                Model = self.env[model_name]
 
-        form_act = A.get_views([(False, "form")], {"toolbar": True})["views"]["form"][
-            "toolbar"
-        ]["action"]
-        self.assertEqual(
-            [a["name"] for a in form_act],
-            ["Action 1", "Action 2", "Action 3"],
-            "forms should have all actions",
-        )
+                form_act = Model.get_views([(False, "form")], {"toolbar": True})[
+                    "views"
+                ]["form"]["toolbar"]["action"]
+                self.assertEqual(
+                    [a["name"] for a in form_act],
+                    [f"{label} 1", f"{label} 2", f"{label} 3"],
+                    "forms should have all actions",
+                )
 
-        list_act = A.get_views([(False, "list")], {"toolbar": True})["views"]["list"][
-            "toolbar"
-        ]["action"]
-        self.assertEqual(
-            [a["name"] for a in list_act],
-            ["Action 1", "Action 3"],
-            "lists should not have the form-only action",
-        )
+                list_act = Model.get_views([(False, "list")], {"toolbar": True})[
+                    "views"
+                ]["list"]["toolbar"]["action"]
+                self.assertEqual(
+                    [a["name"] for a in list_act],
+                    [f"{label} 1", f"{label} 3"],
+                    "lists should not have the form-only action",
+                )
 
-        kanban_act = A.get_views([(False, "kanban")], {"toolbar": True})["views"][
-            "kanban"
-        ]["toolbar"]["action"]
-        self.assertEqual(
-            [a["name"] for a in kanban_act],
-            ["Action 1"],
-            "kanban should only have the universal action",
-        )
-
-    def test_act_record(self):
-        B = self.env["tab.b"]
-
-        form_act = B.get_views([(False, "form")], {"toolbar": True})["views"]["form"][
-            "toolbar"
-        ]["action"]
-        self.assertEqual(
-            [a["name"] for a in form_act],
-            ["Record 1", "Record 2", "Record 3"],
-            "forms should have all actions",
-        )
-
-        list_act = B.get_views([(False, "list")], {"toolbar": True})["views"]["list"][
-            "toolbar"
-        ]["action"]
-        self.assertEqual(
-            [a["name"] for a in list_act],
-            ["Record 1", "Record 3"],
-            "lists should not have the form-only action",
-        )
-
-        kanban_act = B.get_views([(False, "kanban")], {"toolbar": True})["views"][
-            "kanban"
-        ]["toolbar"]["action"]
-        self.assertEqual(
-            [a["name"] for a in kanban_act],
-            ["Record 1"],
-            "kanban should only have the universal action",
-        )
+                kanban_act = Model.get_views([(False, "kanban")], {"toolbar": True})[
+                    "views"
+                ]["kanban"]["toolbar"]["action"]
+                self.assertEqual(
+                    [a["name"] for a in kanban_act],
+                    [f"{label} 1"],
+                    "kanban should only have the universal action",
+                )
