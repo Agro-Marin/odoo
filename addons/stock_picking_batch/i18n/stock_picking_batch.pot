@@ -286,6 +286,12 @@ msgid "Batch associated to this transfer"
 msgstr ""
 
 #. module: stock_picking_batch
+#. odoo-python
+#: code:addons/stock_picking_batch/models/stock_picking.py:0
+msgid "Batch limits cannot be negative. Leave a limit at '0' to disable it."
+msgstr ""
+
+#. module: stock_picking_batch
 #: model_terms:ir.actions.act_window,help:stock_picking_batch.action_picking_tree_wave
 #: model_terms:ir.actions.act_window,help:stock_picking_batch.stock_picking_batch_action
 msgid "Batch transfers"

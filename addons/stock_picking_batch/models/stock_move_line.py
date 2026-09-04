@@ -1,7 +1,7 @@
 from collections import defaultdict
 
-from odoo import Command, _, fields, models
-from odoo.fields import Domain
+from odoo import _, fields, models
+from odoo.fields import Command, Domain
 from odoo.tools.misc import OrderedSet
 
 
@@ -99,8 +99,7 @@ class StockMoveLine(models.Model):
             wave = self.env["stock.picking.batch"].create(
                 {
                     "is_wave": True,
-                    "picking_type_id": self.picking_type_id
-                    and self.picking_type_id[0].id,
+                    "picking_type_id": self.picking_type_id[:1].id,
                     "user_id": self.env.context.get("active_owner_id"),
                     "description": description,
                 }
@@ -125,7 +124,7 @@ class StockMoveLine(models.Model):
                 split_pickings_ids
             ) | self.env["stock.picking"].create(picking_to_wave_vals_list)
             split_pickings._add_to_wave_post_picking_split_hook()
-        if wave.picking_type_id.batch_auto_confirm:
+        if wave.picking_ids and wave.picking_type_id.batch_auto_confirm:
             wave.action_confirm()
         return self._get_add_to_wave_action(wave, notification_title)
 
@@ -155,8 +154,6 @@ class StockMoveLine(models.Model):
         wave_locs_by_picking_type = {}
         for picking_type in self.picking_type_id:
             if not picking_type.wave_group_by_location:
-                continue
-            if picking_type in wave_locs_by_picking_type:
                 continue
             wave_locs_by_picking_type[picking_type] = set(
                 picking_type.wave_location_ids.ids
@@ -203,37 +200,17 @@ class StockMoveLine(models.Model):
     def _get_potential_existing_waves(self, picking_type, batches_to_validate_ids):
         domains = [
             Domain("picking_type_id", "=", picking_type.id),
-            Domain("company_id", "in", self.mapped("company_id").ids),
+            Domain("company_id", "in", self.company_id.ids),
             Domain("is_wave", "=", True),
         ]
         if picking_type.batch_auto_confirm:
             domains.append(Domain("state", "not in", ["done", "cancel"]))
         else:
             domains.append(Domain("state", "=", "draft"))
-        if picking_type.batch_group_by_partner:
-            domains.append(
-                Domain("picking_ids.partner_id", "in", self.move_id.partner_id.ids)
-            )
-        if picking_type.batch_group_by_destination:
-            domains.append(
-                Domain(
-                    "picking_ids.partner_id.country_id",
-                    "in",
-                    self.move_id.partner_id.country_id.ids,
-                )
-            )
-        if picking_type.batch_group_by_src_loc:
-            domains.append(
-                Domain("picking_ids.location_id", "in", self.location_id.ids)
-            )
-        if picking_type.batch_group_by_dest_loc:
-            domains.append(
-                Domain(
-                    "picking_ids.location_dest_id",
-                    "in",
-                    self.location_dest_id.ids,
-                )
-            )
+        domains.extend(
+            Domain(criterion.batch_path, "in", self.mapped(criterion.line_path).ids)
+            for criterion in self._get_active_wave_criteria(picking_type).values()
+        )
         if batches_to_validate_ids:
             domains.append(Domain("id", "not in", batches_to_validate_ids))
         domains = self._get_potential_existing_waves_extra_domain(domains, picking_type)
@@ -260,6 +237,11 @@ class StockMoveLine(models.Model):
             self.env["stock.picking.batch"].browse(valid_wave_ids),
         )
 
+    def _get_active_wave_criteria(self, picking_type):
+        return picking_type._get_active_grouping_criteria(
+            picking_type._get_grouping_criteria()
+        )
+
     def _is_wave_grouping_compatible(
         self,
         wave,
@@ -268,40 +250,18 @@ class StockMoveLine(models.Model):
         nearest_parent_locations,
     ):
         self.check_singleton()
-        return not (
-            self.company_id != wave.company_id
-            or (
-                picking_type.batch_group_by_partner
-                and self.move_id.partner_id != wave.picking_ids.partner_id
-            )
-            or (
-                picking_type.batch_group_by_destination
-                and self.move_id.partner_id.country_id
-                != wave.picking_ids.partner_id.country_id
-            )
-            or (
-                picking_type.batch_group_by_src_loc
-                and self.location_id != wave.picking_ids.location_id
-            )
-            or (
-                picking_type.batch_group_by_dest_loc
-                and self.location_dest_id != wave.picking_ids.location_dest_id
-            )
-            or (
-                picking_type.wave_group_by_product
-                and self.product_id != wave.move_line_ids.product_id
-            )
-            or (
-                picking_type.wave_group_by_category
-                and self.product_id.categ_id != wave.move_line_ids.product_id.categ_id
-            )
-            or (
-                picking_type.wave_group_by_location
-                and waves_nearest_parent_locations[wave]
-                != nearest_parent_locations[self].id
-            )
-            or not self._is_potential_existing_wave_extra(wave)
-        )
+        if self.company_id != wave.company_id:
+            return False
+        for criterion in self._get_active_wave_criteria(picking_type).values():
+            if self.mapped(criterion.line_path) != wave.mapped(criterion.batch_path):
+                return False
+        if (
+            picking_type.wave_group_by_location
+            and waves_nearest_parent_locations[wave]
+            != nearest_parent_locations[self].id
+        ):
+            return False
+        return self._is_potential_existing_wave_extra(wave)
 
     def _get_matching_existing_wave(
         self,
@@ -325,14 +285,18 @@ class StockMoveLine(models.Model):
             wave_new_picking_ids = tallies["pickings"][wave]
             wave_move_ids = set(wave.move_line_ids.mapped("move_id.id"))
             wave_picking_ids = set(wave.move_line_ids.mapped("picking_id.id"))
-            if not wave._is_line_auto_mergeable(
+            adds_a_move = (
                 self.move_id.id not in wave_move_ids
                 and self.move_id.id not in wave_new_move_ids
-                and len(wave_new_move_ids) + 1,
+            )
+            adds_a_picking = (
                 self.picking_id.id not in wave_picking_ids
                 and self.picking_id.id not in wave_new_picking_ids
-                and len(wave_new_picking_ids) + 1,
-                tallies["weight"][wave]
+            )
+            if not wave._is_auto_mergeable(
+                moves=len(wave_new_move_ids) + 1 if adds_a_move else 0,
+                pickings=len(wave_new_picking_ids) + 1 if adds_a_picking else 0,
+                weight=tallies["weight"][wave]
                 + self.product_id.weight * self.quantity_product_uom,
             ):
                 continue
@@ -398,28 +362,10 @@ class StockMoveLine(models.Model):
                 ]
             )
         ]
-        if picking_type.batch_group_by_partner:
-            domains.append(
-                Domain("move_id.partner_id", "in", lines.move_id.partner_id.ids)
-            )
-        if picking_type.batch_group_by_destination:
-            domains.append(
-                Domain(
-                    "move_id.partner_id.country_id",
-                    "in",
-                    lines.move_id.partner_id.country_id.ids,
-                )
-            )
-        if picking_type.batch_group_by_src_loc:
-            domains.append(Domain("location_id", "in", lines.location_id.ids))
-        if picking_type.batch_group_by_dest_loc:
-            domains.append(Domain("location_dest_id", "in", lines.location_dest_id.ids))
-        if picking_type.wave_group_by_product:
-            domains.append(Domain("product_id", "in", lines.product_id.ids))
-        if picking_type.wave_group_by_category:
-            domains.append(
-                Domain("product_id.categ_id", "in", lines.product_id.categ_id.ids)
-            )
+        domains.extend(
+            Domain(criterion.line_path, "in", lines.mapped(criterion.line_path).ids)
+            for criterion in lines._get_active_wave_criteria(picking_type).values()
+        )
         if picking_type.wave_group_by_location:
             domains.append(
                 Domain("location_id", "child_of", picking_type.wave_location_ids.ids)
@@ -444,41 +390,20 @@ class StockMoveLine(models.Model):
         nearest_parent_locations,
     ):
         self.check_singleton()
-        return not (
-            self.id == potential_line.id
-            or self.company_id != potential_line.company_id
-            or (
-                picking_type.batch_group_by_partner
-                and self.move_id.partner_id != potential_line.move_id.partner_id
-            )
-            or (
-                picking_type.batch_group_by_destination
-                and self.move_id.partner_id.country_id
-                != potential_line.move_id.partner_id.country_id
-            )
-            or (
-                picking_type.batch_group_by_src_loc
-                and self.location_id != potential_line.location_id
-            )
-            or (
-                picking_type.batch_group_by_dest_loc
-                and self.location_dest_id != potential_line.location_dest_id
-            )
-            or (
-                picking_type.wave_group_by_product
-                and self.product_id != potential_line.product_id
-            )
-            or (
-                picking_type.wave_group_by_category
-                and self.product_id.categ_id != potential_line.product_id.categ_id
-            )
-            or (
-                picking_type.wave_group_by_location
-                and lines_nearest_parent_locations[potential_line]
-                != nearest_parent_locations[self].id
-            )
-            or not self._is_new_potential_line_extra(potential_line)
-        )
+        if self.id == potential_line.id or self.company_id != potential_line.company_id:
+            return False
+        for criterion in self._get_active_wave_criteria(picking_type).values():
+            if self.mapped(criterion.line_path) != potential_line.mapped(
+                criterion.line_path
+            ):
+                return False
+        if (
+            picking_type.wave_group_by_location
+            and lines_nearest_parent_locations[potential_line]
+            != nearest_parent_locations[self].id
+        ):
+            return False
+        return self._is_new_potential_line_extra(potential_line)
 
     def _create_new_waves_for_lines(
         self, picking_type, potential_lines, nearest_parent_locations
@@ -489,6 +414,13 @@ class StockMoveLine(models.Model):
         )
 
         while potential_lines:
+            potential_lines -= potential_lines.filtered(lambda l: l.batch_id.is_wave)
+            if not potential_lines:
+                break
+            wave_lines = potential_lines._select_lines_for_one_wave(picking_type)
+            if not wave_lines:
+                potential_lines -= potential_lines[:1]
+                continue
             new_wave = self.env["stock.picking.batch"].create(
                 {
                     "is_wave": True,
@@ -498,37 +430,32 @@ class StockMoveLine(models.Model):
                     ),
                 }
             )
-            wave_move_ids = set()
-            wave_picking_ids = set()
-            wave_weight = 0
-
-            wave_line_ids = set()
-
-            for potential_line in potential_lines:
-                if potential_line.batch_id.is_wave:
-                    continue
-                wave_move_ids.add(potential_line.move_id.id)
-                wave_picking_ids.add(potential_line.picking_id.id)
-                wave_weight += (
-                    potential_line.product_id.weight
-                    * potential_line.quantity_product_uom
-                )
-                if new_wave._is_line_auto_mergeable(
-                    len(wave_move_ids), len(wave_picking_ids), wave_weight
-                ):
-                    wave_line_ids.add(potential_line.id)
-                else:
-                    break
-            wave_lines = self.env["stock.move.line"].browse(wave_line_ids)
             wave_lines._add_to_wave(new_wave)
             potential_lines -= wave_lines
 
+    def _select_lines_for_one_wave(self, picking_type):
+        probe = self.env["stock.picking.batch"].new(
+            {"is_wave": True, "picking_type_id": picking_type.id}
+        )
+        wave_move_ids = set()
+        wave_picking_ids = set()
+        wave_weight = 0
+        wave_line_ids = OrderedSet()
+        for line in self:
+            wave_move_ids.add(line.move_id.id)
+            wave_picking_ids.add(line.picking_id.id)
+            wave_weight += line.product_id.weight * line.quantity_product_uom
+            if not probe._is_auto_mergeable(
+                moves=len(wave_move_ids),
+                pickings=len(wave_picking_ids),
+                weight=wave_weight,
+            ):
+                break
+            wave_line_ids.add(line.id)
+        return self.browse(wave_line_ids)
+
     def _auto_wave_lines_into_new_waves(self, nearest_parent_locations=False):
-        picking_types = self.picking_type_id
-        for picking_type in picking_types:
-            lines = self.filtered(
-                lambda l, picking_type=picking_type: l.picking_type_id == picking_type
-            )
+        for picking_type, lines in self.grouped(lambda l: l.picking_type_id).items():
             potential_lines, lines_nearest_parent_locations = (
                 self._get_potential_new_wave_lines(picking_type, lines)
             )
@@ -582,16 +509,17 @@ class StockMoveLine(models.Model):
 
     def _get_auto_wave_description(self, nearest_parent_location=False):
         self.check_singleton()
+        picking_type = self.picking_type_id
         description = self.picking_id._get_auto_batch_description()
-        description_items = []
-        if description:
-            description_items.append(description)
-
-        if self.picking_type_id.wave_group_by_product:
-            description_items.append(self.product_id.display_name)
-        if self.picking_type_id.wave_group_by_category:
-            description_items.append(self.product_id.categ_id.complete_name)
-        if self.picking_type_id.wave_group_by_location:
+        description_items = [description] if description else []
+        wave_criteria = picking_type._get_active_grouping_criteria(
+            picking_type._get_wave_grouping_criteria()
+        )
+        for criterion in wave_criteria.values():
+            value = self.mapped(criterion.line_path)
+            if value:
+                description_items.append(value[criterion.label_field])
+        if picking_type.wave_group_by_location and nearest_parent_location:
             description_items.append(nearest_parent_location.complete_name)
 
         return ", ".join(description_items)

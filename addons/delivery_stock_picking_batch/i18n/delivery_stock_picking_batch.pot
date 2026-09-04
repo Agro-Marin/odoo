@@ -62,6 +62,14 @@ msgid "Picking Type"
 msgstr ""
 
 #. module: delivery_stock_picking_batch
+#. odoo-python
+#: code:addons/delivery_stock_picking_batch/models/stock_picking.py:0
+msgid ""
+"The maximum batch weight cannot be negative. Leave it at '0' to disable the "
+"limit."
+msgstr ""
+
+#. module: delivery_stock_picking_batch
 #: model:ir.model,name:delivery_stock_picking_batch.model_stock_picking
 msgid "Transfer"
 msgstr ""

@@ -121,37 +121,52 @@ class StockPickingBatch(models.Model):
             )
         return None
 
-    @api.depends("picking_type_id")
+    @api.depends("picking_ids.show_lots_text")
     def _compute_show_lots_text(self):
         for batch in self:
-            batch.show_lots_text = (
-                batch.picking_ids and batch.picking_ids[0].show_lots_text
-            )
+            batch.show_lots_text = bool(batch.picking_ids[:1].show_lots_text)
 
+    @api.depends(
+        "picking_ids.move_ids.move_line_ids.quantity_product_uom",
+        "picking_ids.move_ids.move_line_ids.product_id.weight",
+        "picking_ids.move_ids.move_line_ids.product_id.volume",
+        "picking_ids.move_ids.move_line_ids.result_package_id.shipping_weight",
+        "picking_ids.move_ids.move_line_ids.result_package_id.package_type_id",
+        "picking_ids.move_ids.move_line_ids.result_package_id.package_type_id.base_weight",
+        "picking_ids.move_ids.move_line_ids.result_package_id.package_type_id.packaging_length",
+        "picking_ids.move_ids.move_line_ids.result_package_id.package_type_id.width",
+        "picking_ids.move_ids.move_line_ids.result_package_id.package_type_id.height",
+    )
     def _compute_estimated_shipping_capacity(self):
         for batch in self:
             estimated_shipping_weight = 0
             estimated_shipping_volume = 0
-            done_package_ids = set()
+            weighed_package_ids = set()
+            measured_package_ids = set()
             for pack in batch.move_line_ids.result_package_id:
-                p_type = pack.package_type_id
+                package_type = pack.package_type_id
                 if pack.shipping_weight:
                     estimated_shipping_weight += pack.shipping_weight
-                    done_package_ids.add(pack.id)
-                elif p_type:
-                    estimated_shipping_weight += p_type.base_weight or 0
+                    weighed_package_ids.add(pack.id)
+                elif package_type:
+                    estimated_shipping_weight += package_type.base_weight or 0
+                if package_type:
                     estimated_shipping_volume += (
-                        p_type.packaging_length * p_type.width * p_type.height
+                        package_type.packaging_length
+                        * package_type.width
+                        * package_type.height
                     ) / 1000.0**3
+                    measured_package_ids.add(pack.id)
             for move_line in batch.picking_ids.move_ids.move_line_ids:
-                if move_line.result_package_id.id in done_package_ids:
-                    continue
-                estimated_shipping_weight += (
-                    move_line.product_id.weight * move_line.quantity_product_uom
-                )
-                estimated_shipping_volume += (
-                    move_line.product_id.volume * move_line.quantity_product_uom
-                )
+                package_id = move_line.result_package_id.id
+                if package_id not in weighed_package_ids:
+                    estimated_shipping_weight += (
+                        move_line.product_id.weight * move_line.quantity_product_uom
+                    )
+                if package_id not in measured_package_ids:
+                    estimated_shipping_volume += (
+                        move_line.product_id.volume * move_line.quantity_product_uom
+                    )
             batch.estimated_shipping_weight = estimated_shipping_weight
             batch.estimated_shipping_volume = estimated_shipping_volume
 
@@ -159,17 +174,22 @@ class StockPickingBatch(models.Model):
     def _compute_allowed_picking_ids(self):
         allowed_picking_states = ["waiting", "confirmed", "assigned"]
 
-        for batch in self:
-            domain_states = list(allowed_picking_states)
-            if batch.state == "draft":
-                domain_states.append("draft")
+        grouped = self.grouped(
+            lambda batch: (
+                batch.company_id,
+                batch.picking_type_id,
+                batch.state == "draft",
+            )
+        )
+        for (company, picking_type, with_draft), batches in grouped.items():
+            domain_states = allowed_picking_states + (["draft"] if with_draft else [])
             domain = [
-                ("company_id", "=", batch.company_id.id),
+                ("company_id", "=", company.id),
                 ("state", "in", domain_states),
             ]
-            if batch.picking_type_id:
-                domain += [("picking_type_id", "=", batch.picking_type_id.id)]
-            batch.allowed_picking_ids = self.env["stock.picking"].search(domain)
+            if picking_type:
+                domain += [("picking_type_id", "=", picking_type.id)]
+            batches.allowed_picking_ids = self.env["stock.picking"].search(domain)
 
     @api.depends(
         "picking_ids",
@@ -229,15 +249,16 @@ class StockPickingBatch(models.Model):
             self.picking_ids.date_planned = self.date_planned
 
     def _inverse_move_line_ids(self):
-        new_move_lines = self[0].move_line_ids
-        for picking in self.picking_ids:
-            old_move_lines = picking.move_line_ids
-            picking.move_line_ids = new_move_lines.filtered(
-                lambda ml, picking=picking: ml.picking_id.id == picking.id
-            )
-            move_lines_to_unlink = old_move_lines - new_move_lines
-            if move_lines_to_unlink:
-                move_lines_to_unlink.unlink()
+        for batch in self:
+            new_move_lines = batch.move_line_ids
+            for picking in batch.picking_ids:
+                old_move_lines = picking.move_line_ids
+                picking.move_line_ids = new_move_lines.filtered(
+                    lambda ml, picking=picking: ml.picking_id.id == picking.id
+                )
+                move_lines_to_unlink = old_move_lines - new_move_lines
+                if move_lines_to_unlink:
+                    move_lines_to_unlink.unlink()
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -277,12 +298,8 @@ class StockPickingBatch(models.Model):
                     picking_type, sequence_code, batch.company_id
                 )
         if vals.get("picking_ids"):
-            batch_without_picking_type = self.filtered(
-                lambda batch: not batch.picking_type_id
-            )
-            if batch_without_picking_type:
-                picking = self.picking_ids and self.picking_ids[0]
-                batch_without_picking_type.picking_type_id = picking.picking_type_id.id
+            for batch in self.filtered(lambda batch: not batch.picking_type_id):
+                batch.picking_type_id = batch.picking_ids[:1].picking_type_id
         if "user_id" in vals:
             self.picking_ids.update_batch_user(vals["user_id"])
         return res
@@ -394,7 +411,8 @@ class StockPickingBatch(models.Model):
         return None
 
     def action_view_reception_report(self):
-        action = self.picking_ids[0].action_view_reception_report()
+        self.check_singleton()
+        action = self.picking_ids[:1].action_view_reception_report()
         action["context"] = {"default_picking_ids": self.picking_ids.ids}
         return action
 
@@ -451,16 +469,15 @@ class StockPickingBatch(models.Model):
             raise UserError(
                 _("Batch/Wave transfers with different states cannot be merged.")
             )
-        if self[0].state in ["done", "cancel"]:
+        if self[:1].state in ["done", "cancel"]:
             raise UserError(
                 _("You cannot merge done or cancelled batch/wave transfers.")
             )
 
         target_batch = self[:1]
         other_batches = self[1:]
-        earliest_batch = self.filtered(lambda b: b.date_planned).sorted(
-            key=lambda b: b.date_planned
-        )[0]
+        planned_batches = self.filtered("date_planned").sorted("date_planned")
+        earliest_batch = planned_batches[:1] or target_batch
         merged_batch_vals = earliest_batch._get_merged_batch_vals()
         target_batch.move_line_ids |= other_batches.move_line_ids
         target_batch.picking_ids |= other_batches.picking_ids
@@ -497,8 +514,7 @@ class StockPickingBatch(models.Model):
             "domain": [("id", "in", self.picking_ids.move_line_ids.ids)],
             "context": {
                 "default_company_id": self.company_id.id,
-                "default_picking_id": (self.picking_ids and self.picking_ids[0].id)
-                or False,
+                "default_picking_id": self.picking_ids[:1].id,
                 "picking_ids": self.picking_ids.ids,
                 "show_lots_text": self.show_lots_text,
                 "picking_code": self.picking_type_code,
@@ -546,8 +562,9 @@ class StockPickingBatch(models.Model):
             self.env["ir.sequence"].with_company(company_id).next_by_code(sequence_code)
             or "/"
         )
-        sequence_prefix, sequence_number = sequence.rsplit("/", 1)
-        return f"{sequence_prefix}/{picking_type.sequence_code}/{sequence_number}"
+        sequence_prefix, _, sequence_number = sequence.rpartition("/")
+        parts = [sequence_prefix, picking_type.sequence_code, sequence_number]
+        return "/".join(part for part in parts if part)
 
     def _sanity_check(self):
         for batch in self:
@@ -568,49 +585,20 @@ class StockPickingBatch(models.Model):
             return self.env.ref("stock_picking_batch.mt_batch_state")
         return super()._track_subtype(init_values)
 
-    def _is_picking_auto_mergeable(self, picking):
-        res = True
-        if self.picking_type_id.batch_max_lines:
-            res = res and (
-                len(self.move_ids) + len(picking.move_ids)
-                <= self.picking_type_id.batch_max_lines
-            )
-        if self.picking_type_id.batch_max_pickings:
-            res = res and (
-                len(self.picking_ids) + 1 <= self.picking_type_id.batch_max_pickings
-            )
-        return res
-
-    def _is_line_auto_mergeable(
-        self, num_of_moves=False, num_of_pickings=False, weight=False
-    ):
+    def _is_auto_mergeable(self, *, moves=0, pickings=0, weight=0.0):
         self.check_singleton()
-        res = True
-        if num_of_moves:
-            res = res and self._are_moves_auto_mergeable(num_of_moves)
-        if num_of_pickings:
-            res = res and self._are_pickings_auto_mergeable(num_of_pickings)
-        return res
-
-    def _are_moves_auto_mergeable(self, num_of_moves):
-        self.check_singleton()
-        res = True
-        if self.picking_type_id.batch_max_lines:
-            res = res and (
-                len(self.move_ids) + num_of_moves
-                <= self.picking_type_id.batch_max_lines
-            )
-        return res
-
-    def _are_pickings_auto_mergeable(self, num_of_pickings):
-        self.check_singleton()
-        res = True
-        if self.picking_type_id.batch_max_pickings:
-            res = res and (
-                len(self.picking_ids) + num_of_pickings
-                <= self.picking_type_id.batch_max_pickings
-            )
-        return res
+        picking_type = self.picking_type_id
+        if (
+            moves
+            and picking_type.batch_max_lines
+            and len(self.move_ids) + moves > picking_type.batch_max_lines
+        ):
+            return False
+        return not (
+            pickings
+            and picking_type.batch_max_pickings
+            and len(self.picking_ids) + pickings > picking_type.batch_max_pickings
+        )
 
     def _get_merged_batch_vals(self):
         self.check_singleton()

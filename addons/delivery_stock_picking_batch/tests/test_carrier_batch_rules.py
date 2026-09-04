@@ -1,13 +1,6 @@
-"""Tests for carrier grouping and weight limits in auto-batching.
-
-The weight-guard tests isolate this module's layer: the base
-stock_picking_batch eligibility is patched to True and the computed
-picking weight is pinned at SQL level, so only the delivery guard
-decides.
-"""
-
 from unittest.mock import patch
 
+from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
 BASE_PICKING = "odoo.addons.stock_picking_batch.models.stock_picking.StockPicking"
@@ -52,10 +45,7 @@ class TestCarrierBatchRules(TransactionCase):
             }
         )
         if weight:
-            # weight is a stored compute fed by move lines; settle the pending
-            # compute first (or it would overwrite the pin on next access),
-            # then pin it at SQL level so only this module's guard is under test.
-            picking.weight  # noqa: B018 — force the queued compute to run
+            picking.weight  # force the queued compute to run
             picking.flush_recordset(["weight"])
             self.env.cr.execute(
                 "UPDATE stock_picking SET weight = %s WHERE id = %s",
@@ -104,6 +94,22 @@ class TestCarrierBatchRules(TransactionCase):
         )
         heavy = self._picking(weight=6.0, carrier=self.carrier)  # 12 > 10
         light = self._picking(weight=3.0, carrier=self.carrier)  # 9 <= 10
-        with patch(f"{BASE_BATCH}._is_picking_auto_mergeable", return_value=True):
-            self.assertFalse(batch._is_picking_auto_mergeable(heavy))
-            self.assertTrue(batch._is_picking_auto_mergeable(light))
+        with patch(f"{BASE_BATCH}._is_auto_mergeable", return_value=True):
+            self.assertFalse(
+                batch._is_auto_mergeable(**heavy._get_auto_merge_amounts())
+            )
+            self.assertTrue(batch._is_auto_mergeable(**light._get_auto_merge_amounts()))
+
+    def test_the_carrier_key_reaches_the_wave_paths_too(self):
+        """batch_group_by_carrier is a grouping criterion, not a batch-only flag."""
+        criteria = self.picking_type._get_grouping_criteria()
+        self.assertIn("batch_group_by_carrier", criteria)
+        criterion = criteria["batch_group_by_carrier"]
+        self.assertEqual(criterion.picking_path, "carrier_id")
+        self.assertEqual(criterion.batch_path, "picking_ids.carrier_id")
+        self.assertEqual(criterion.line_path, "picking_id.carrier_id")
+
+    def test_a_negative_weight_limit_is_refused(self):
+        """The limit bounds a loop, so it may not be negative."""
+        with self.assertRaises(ValidationError):
+            self.picking_type.batch_max_weight = -1

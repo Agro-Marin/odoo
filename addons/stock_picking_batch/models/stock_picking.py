@@ -1,6 +1,20 @@
+from typing import NamedTuple
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command, Domain
+
+
+class GroupingCriterion(NamedTuple):
+    line_path: str
+    label_field: str
+    picking_path: str = ""
+
+    @property
+    def batch_path(self):
+        if self.picking_path:
+            return f"picking_ids.{self.picking_path}"
+        return f"move_line_ids.{self.line_path}"
 
 
 class StockPickingType(models.Model):
@@ -81,7 +95,9 @@ class StockPickingType(models.Model):
             record.count_picking_batch = count.get((record.id, False), 0)
 
     def action_batch(self):
-        action = self._prepare_action_by_xml_id("stock_picking_batch.stock_picking_batch_action")
+        action = self._prepare_action_by_xml_id(
+            "stock_picking_batch.stock_picking_batch_action"
+        )
         if self.env.context.get("view_mode"):
             del action["mobile_view_mode"]
             del action["views"]
@@ -89,16 +105,16 @@ class StockPickingType(models.Model):
         return action
 
     def action_wave(self):
-        return self._prepare_action_by_xml_id("stock_picking_batch.action_picking_tree_wave")
+        return self._prepare_action_by_xml_id(
+            "stock_picking_batch.action_picking_tree_wave"
+        )
 
-    @api.model
     def _is_auto_batch_grouped(self):
         self.check_singleton()
         return self.auto_batch and any(
             self[key] for key in self._get_batch_group_by_keys()
         )
 
-    @api.model
     def _is_auto_wave_grouped(self):
         self.check_singleton()
         return self.auto_batch and any(
@@ -106,27 +122,57 @@ class StockPickingType(models.Model):
         )
 
     @api.model
+    def _get_batch_grouping_criteria(self):
+        return {
+            "batch_group_by_partner": GroupingCriterion(
+                "move_id.partner_id", "name", "partner_id"
+            ),
+            "batch_group_by_destination": GroupingCriterion(
+                "move_id.partner_id.country_id", "name", "partner_id.country_id"
+            ),
+            "batch_group_by_src_loc": GroupingCriterion(
+                "location_id", "display_name", "location_id"
+            ),
+            "batch_group_by_dest_loc": GroupingCriterion(
+                "location_dest_id", "display_name", "location_dest_id"
+            ),
+        }
+
+    @api.model
+    def _get_wave_grouping_criteria(self):
+        return {
+            "wave_group_by_product": GroupingCriterion("product_id", "display_name"),
+            "wave_group_by_category": GroupingCriterion(
+                "product_id.categ_id", "complete_name"
+            ),
+        }
+
+    @api.model
+    def _get_grouping_criteria(self):
+        return {
+            **self._get_batch_grouping_criteria(),
+            **self._get_wave_grouping_criteria(),
+        }
+
+    def _get_active_grouping_criteria(self, criteria):
+        self.check_singleton()
+        return {key: criterion for key, criterion in criteria.items() if self[key]}
+
+    @api.model
     def _get_batch_group_by_keys(self):
-        return [
-            "batch_group_by_partner",
-            "batch_group_by_destination",
-            "batch_group_by_src_loc",
-            "batch_group_by_dest_loc",
-        ]
+        return list(self._get_batch_grouping_criteria())
 
     @api.model
     def _get_wave_group_by_keys(self):
-        return [
-            "wave_group_by_product",
-            "wave_group_by_category",
-            "wave_group_by_location",
-        ]
+        return [*self._get_wave_grouping_criteria(), "wave_group_by_location"]
 
     @api.model
     def _get_batch_and_wave_group_by_keys(self):
         return self._get_batch_group_by_keys() + self._get_wave_group_by_keys()
 
-    @api.constrains(lambda self: self._get_batch_group_by_keys() + ["auto_batch"])
+    @api.constrains(
+        lambda self: self._get_batch_and_wave_group_by_keys() + ["auto_batch"]
+    )
     def _check_auto_batch_group_by(self):
         group_by_keys = self._get_batch_and_wave_group_by_keys()
         for picking_type in self:
@@ -136,6 +182,16 @@ class StockPickingType(models.Model):
                 raise ValidationError(
                     _(
                         "If the Automatic Batches feature is enabled, at least one 'Group by' option must be selected."
+                    )
+                )
+
+    @api.constrains("batch_max_lines", "batch_max_pickings")
+    def _check_batch_limits(self):
+        for picking_type in self:
+            if picking_type.batch_max_lines < 0 or picking_type.batch_max_pickings < 0:
+                raise ValidationError(
+                    _(
+                        "Batch limits cannot be negative. Leave a limit at '0' to disable it."
                     )
                 )
 
@@ -159,7 +215,7 @@ class StockPicking(models.Model):
         for picking, vals in zip(pickings, vals_list, strict=True):
             if vals.get("batch_id"):
                 if not picking.batch_id.picking_type_id:
-                    picking.batch_id.picking_type_id = picking.picking_type_id[0]
+                    picking.batch_id.picking_type_id = picking.picking_type_id
                 picking.batch_id._sanity_check()
         return pickings
 
@@ -168,32 +224,11 @@ class StockPicking(models.Model):
         res = super().write(vals)
         if vals.get("batch_id"):
             old_batches.filtered(lambda b: not b.picking_ids).state = "cancel"
-            if not self.batch_id.picking_type_id:
-                self.batch_id.picking_type_id = self.picking_type_id[0]
+            for batch in self.batch_id.filtered(lambda b: not b.picking_type_id):
+                batch.picking_type_id = batch.picking_ids[:1].picking_type_id
             self.batch_id._sanity_check()
             self.batch_id.picking_ids.update_batch_user(self.batch_id.user_id.id)
         return res
-
-    def action_add_operations(self):
-        view = self.env.ref(
-            "stock_picking_batch.view_stock_move_line_list_detailed_wave"
-        )
-        return {
-            "name": _("Add Operations"),
-            "type": "ir.actions.act_window",
-            "view_mode": "list",
-            "view": view,
-            "views": [(view.id, "list")],
-            "res_model": "stock.move.line",
-            "target": "new",
-            "domain": [("picking_id", "in", self.ids), ("state", "!=", "done")],
-            "context": dict(
-                self.env.context,
-                picking_to_wave=self.ids,
-                active_wave_id=self.env.context.get("active_wave_id").id,
-                search_default_by_location=True,
-            ),
-        }
 
     def action_confirm(self):
         res = super().action_confirm()
@@ -284,7 +319,7 @@ class StockPicking(models.Model):
             .search(self._get_possible_batches_domain())
         )
         for batch in possible_batches:
-            if batch._is_picking_auto_mergeable(self):
+            if batch._is_auto_mergeable(**self._get_auto_merge_amounts()):
                 batch.picking_ids |= self
                 return batch
 
@@ -296,22 +331,20 @@ class StockPicking(models.Model):
             "company_id": self.company_id.id if self.company_id else False,
             "picking_type_id": self.picking_type_id.id,
             "description": self._get_auto_batch_description(),
+            "user_id": self.user_id.id,
         }
         for picking in possible_pickings:
             if self._is_auto_batchable(picking):
                 new_batch_data["picking_ids"].append(Command.link(picking.id))
-                new_batch = (
-                    self.env["stock.picking.batch"].sudo().create(new_batch_data)
-                )
-                if picking.picking_type_id.batch_auto_confirm:
-                    new_batch.action_confirm()
-                return new_batch
-
-        new_batch_data["user_id"] = self.user_id.id
+                break
         new_batch = self.env["stock.picking.batch"].sudo().create(new_batch_data)
         if self.picking_type_id.batch_auto_confirm:
             new_batch.action_confirm()
         return new_batch
+
+    def _get_auto_merge_amounts(self):
+        self.check_singleton()
+        return {"moves": len(self.move_ids), "pickings": 1}
 
     def _is_auto_batchable(self, picking=None):
         if self.state != "assigned":
@@ -328,6 +361,13 @@ class StockPicking(models.Model):
             res = res and self.picking_type_id.batch_max_pickings > 1
         return res
 
+    def _get_active_batch_criteria(self):
+        self.check_singleton()
+        picking_type = self.picking_type_id
+        return picking_type._get_active_grouping_criteria(
+            picking_type._get_batch_grouping_criteria()
+        )
+
     def _get_possible_pickings_domain(self):
         self.check_singleton()
         domain = [
@@ -337,14 +377,10 @@ class StockPicking(models.Model):
             ("picking_type_id", "=", self.picking_type_id.id),
             ("batch_id", "=", False),
         ]
-        if self.picking_type_id.batch_group_by_partner:
-            domain.append(("partner_id", "=", self.partner_id.id))
-        if self.picking_type_id.batch_group_by_destination:
-            domain.append(("partner_id.country_id", "=", self.partner_id.country_id.id))
-        if self.picking_type_id.batch_group_by_src_loc:
-            domain.append(("location_id", "=", self.location_id.id))
-        if self.picking_type_id.batch_group_by_dest_loc:
-            domain.append(("location_dest_id", "=", self.location_dest_id.id))
+        domain.extend(
+            (criterion.picking_path, "=", self.mapped(criterion.picking_path).id)
+            for criterion in self._get_active_batch_criteria().values()
+        )
 
         return Domain(domain)
 
@@ -362,22 +398,10 @@ class StockPicking(models.Model):
             ("company_id", "=", self.company_id.id if self.company_id else False),
             ("is_wave", "=", False),
         ]
-        if self.picking_type_id.batch_group_by_partner:
-            domain.append(("picking_ids.partner_id", "=", self.partner_id.id))
-        if self.picking_type_id.batch_group_by_destination:
-            domain.append(
-                (
-                    "picking_ids.partner_id.country_id",
-                    "=",
-                    self.partner_id.country_id.id,
-                )
-            )
-        if self.picking_type_id.batch_group_by_src_loc:
-            domain.append(("picking_ids.location_id", "=", self.location_id.id))
-        if self.picking_type_id.batch_group_by_dest_loc:
-            domain.append(
-                ("picking_ids.location_dest_id", "=", self.location_dest_id.id)
-            )
+        domain.extend(
+            (criterion.batch_path, "=", self.mapped(criterion.picking_path).id)
+            for criterion in self._get_active_batch_criteria().values()
+        )
         if self.env.context.get("batches_to_validate"):
             domain.append(("id", "not in", self.env.context.get("batches_to_validate")))
 
@@ -386,17 +410,10 @@ class StockPicking(models.Model):
     def _get_auto_batch_description(self):
         self.check_singleton()
         description_items = []
-        if self.picking_type_id.batch_group_by_partner and self.partner_id:
-            description_items.append(self.partner_id.name or "")
-        if (
-            self.picking_type_id.batch_group_by_destination
-            and self.partner_id.country_id
-        ):
-            description_items.append(self.partner_id.country_id.name)
-        if self.picking_type_id.batch_group_by_src_loc and self.location_id:
-            description_items.append(self.location_id.display_name)
-        if self.picking_type_id.batch_group_by_dest_loc and self.location_dest_id:
-            description_items.append(self.location_dest_id.display_name)
+        for criterion in self._get_active_batch_criteria().values():
+            value = self.mapped(criterion.picking_path)
+            if value:
+                description_items.append(value[criterion.label_field])
         return ", ".join(description_items)
 
     def _is_single_transfer(self):
