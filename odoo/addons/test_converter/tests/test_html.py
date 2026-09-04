@@ -3,6 +3,7 @@ import datetime
 import re
 from pathlib import Path
 
+from odoo import exceptions
 from odoo.tests import common
 from odoo.tools.misc import file_open
 
@@ -67,6 +68,12 @@ class TestIntegerExport(TestBasicExport):
 
         value = converter(42)
         self.assertEqual(value, "42")
+
+    def test_integer_invalid(self):
+        converter = self.get_converter("integer")
+
+        with self.assertRaises(ValueError):
+            converter("not-an-int")
 
 
 class TestFloatExport(TestBasicExport):
@@ -216,6 +223,16 @@ class TestMany2OneExport(TestBasicExport):
         value = converter(Sub.create({"name": "Fo<b>o</b>"}).id)
         self.assertEqual(value, "Fo&lt;b&gt;o&lt;/b&gt;")
 
+    def test_many2one_missing(self):
+        Sub = self.env["test_converter.test_model.sub"]
+        converter = self.get_converter("many2one")
+
+        missing_id = Sub.create({"name": "Gone"}).id
+        Sub.browse(missing_id).unlink()
+
+        with self.assertRaises(exceptions.MissingError):
+            converter(missing_id)
+
 
 class TestBinaryExport(TestBasicExport):
     def test_image(self):
@@ -283,6 +300,16 @@ class TestSelectionExport(TestBasicExport):
             "Qu&#39;est-ce qu&#39;il fout ce maudit pancake, tabernacle ?",
         )
 
+    def test_selection_unknown_key(self):
+        # ir.qweb.field.selection falls back to the raw key
+        # (`selection.get(value, value)`) instead of raising for a value
+        # outside the declared choices. Pinning this intentionally, so a
+        # future tightening of that fallback shows up here rather than
+        # silently changing behavior.
+        converter = self.get_converter("selection_str")
+        value = converter("ZZZ-not-a-choice")
+        self.assertEqual(value, "ZZZ-not-a-choice")
+
 
 class TestHTMLExport(TestBasicExport):
     def test_html(self):
@@ -305,12 +332,24 @@ class TestDatetimeExport(TestBasicExport):
 
         self.assertEqual(value, "05/03/2011")
 
+    def test_date_invalid(self):
+        converter = self.get_converter("date")
+
+        with self.assertRaises(ValueError):
+            converter("not-a-date")
+
     def test_datetime(self):
         converter = self.get_converter("datetime")
 
         value = converter("2011-05-03 11:12:13")
 
         self.assertEqual(value, "05/03/2011 12:12:13 AM")
+
+    def test_datetime_invalid(self):
+        converter = self.get_converter("datetime")
+
+        with self.assertRaises(ValueError):
+            converter("not-a-datetime")
 
     def test_custom_format(self):
         converter = self.get_converter("datetime")
