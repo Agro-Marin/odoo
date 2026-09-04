@@ -67,6 +67,7 @@
                 <field name="pos_session_duration" />
                 <field name="currency_id" />
                 <field name="statistics_for_current_session" />
+                <field name="kanban_dashboard_graph" />
                 <templates>
                     <t t-name="menu">
                         <div class="container dropdown-pos-config">
@@ -207,6 +208,12 @@
                                     <field name="number_of_rescue_session" /> outstanding rescue session
                                 </a>
                             </div>
+                        </div>
+                        <div class="px-2">
+                            <field
+                                name="kanban_dashboard_graph"
+                                widget="dashboard_graph"
+                                graph_type="line" />
                         </div>
                         <field
                             name="current_user_id"
