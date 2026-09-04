@@ -3026,7 +3026,7 @@ like a change that will.
 
 **A name assembled at runtime is a schema, not a name** ``[review]``. The caller
 computes the name and reaches it through ``getattr``. ``odoo/addons/base`` carries
-13 of this repository's 34, on 7 % of its model methods::
+13 of this repository's 33, on 7 % of its model methods::
 
     getattr(self, f"_run_action_{self.state}")          ir_actions_server
     getattr(self, f"_auth_method_{auth}")                ir_http
