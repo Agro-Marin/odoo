@@ -29,6 +29,27 @@ class PosConfig(models.Model):
     def _default_sol_product(self):
         return self.env.ref("pos_sale.default_sol_product", raise_if_not_found=False)
 
+    @api.model
+    def _fill_default_sol_product(self):
+        """Give every register that has none the stand-in product.
+
+        The field default only reaches registers created from here on, and the
+        ones point_of_sale ships were created before this module -- and this
+        field -- existed. Called from the post-init hook on install and from
+        `migrations/1.2` on upgrade. A register with no stand-in silently drops
+        description-only sale order lines again.
+        """
+        product = self._default_sol_product()
+        if not product:
+            return self.env["pos.config"]
+        configs = (
+            self.env["pos.config"]
+            .with_context(active_test=False)
+            .search([("default_product_id", "=", False)])
+        )
+        configs.write({"default_product_id": product.id})
+        return configs
+
     def _get_special_products(self):
         res = super()._get_special_products()
         configs = self.env["pos.config"].search([])
