@@ -15,7 +15,9 @@ from .result import OdooTestResult
 
 _logger = logging.getLogger(__name__)
 
-TEST_MODULE_NAME_PATTERN = re.compile(r"^odoo\.addons\.\w+\.tests")
+TEST_MODULE_NAME_PATTERN = re.compile(
+    r"^odoo\.(?:addons\.\w+\.(?:migrations\.|upgrades\.)?tests|upgrade\.\w+\.tests)"
+)
 
 
 def run_tests(

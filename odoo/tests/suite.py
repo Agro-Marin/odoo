@@ -49,8 +49,6 @@ class TestSuite(BaseTestSuite):
         currentClass = test.__class__
         if currentClass == previousClass:
             return
-        if result._moduleSetUpFailed:
-            return
         if currentClass.__unittest_skip__:
             return
 
@@ -166,16 +164,29 @@ class OdooSuite(TestSuite):
         )
 
     def _handleClassSetUp(self, test: TestCase, result: OdooTestResult) -> None:
-        entering = type(test) if result._previousTestClass is not type(test) else None
+        currentClass = type(test)
+        entering = None
+        if (
+            result._previousTestClass is not currentClass
+            and not currentClass.__unittest_skip__
+        ):
+            entering = currentClass
         with self._timing(result, entering, "setUpClass"):
             super()._handleClassSetUp(test, result)
 
     def _tearDownPreviousClass(
         self, test: TestCase | None, result: OdooTestResult
     ) -> None:
-        leaving = result._previousTestClass
-        if leaving is type(test):
-            leaving = None
+        previousClass = result._previousTestClass
+        currentClass = type(test) if test is not None else None
+        leaving = None
+        if (
+            previousClass
+            and previousClass is not currentClass
+            and not previousClass._classSetupFailed
+            and not previousClass.__unittest_skip__
+        ):
+            leaving = previousClass
         with self._timing(result, leaving, "tearDownClass"):
             super()._tearDownPreviousClass(test, result)
 

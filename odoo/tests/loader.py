@@ -97,10 +97,8 @@ def prepare_suite(module_names: list[str], position: str = "at_install") -> Odoo
         for module_name in module_names
         for m in get_test_modules(module_name)
         for t in get_module_test_cases(m)
-        if position_tag.check(t) and config_tags.check(t)
+        if position_tag.check(t) and config_tags.check_and_select(t)
     ]
-    for test in tests:
-        config_tags.select_params(test)
     return OdooSuite(sorted(tests, key=lambda t: getattr(t, "test_sequence", 0)))
 
 

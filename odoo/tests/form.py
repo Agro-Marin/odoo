@@ -186,8 +186,10 @@ class Form:
                     "required": field_info.get("required", False),
                     "readonly": field_info.get("readonly", False),
                 }
-            modifiers[related_field]["invisible"] = modifiers[start_field].get(
-                "invisible", False
+            modifiers[related_field]["invisible"] = _combine_bool_exprs(
+                "or",
+                modifiers[related_field].get("invisible", False),
+                modifiers[start_field].get("invisible", False),
             )
 
         return {
@@ -611,6 +613,12 @@ class O2MForm(Form):
         else:
             vals = proxy._records[index]
             self._values.update(vals)
+            # `update()` is a shallow copy: clone nested x2many values so
+            # mutating this (possibly abandoned) O2MForm's subfields cannot
+            # reach back into the parent Form's stored data.
+            for key, val in list(self._values.items()):
+                if isinstance(val, X2MValue):
+                    self._values[key] = val.copy()
             if vals.get("id"):
                 self._record = model.browse(vals["id"])
 
@@ -765,6 +773,12 @@ class X2MValue(collections.abc.Sequence):
 
     def to_list_of_vals(self) -> list[UpdateDict]:
         return list(self._data.values())
+
+    def copy(self) -> Self:
+        clone = type(self)()
+        clone._data = {id_: UpdateDict(vals) for id_, vals in self._data.items()}
+        clone._given = list(self._given)
+        return clone
 
     def to_commands(self) -> list:
         raise NotImplementedError

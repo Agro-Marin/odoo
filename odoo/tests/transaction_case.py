@@ -189,7 +189,7 @@ def _normalise_expected(
             if vs[name] is None:
                 row[name] = False
             elif field_type in ("one2many", "many2many"):
-                row[name] = sorted(vs[name])
+                row[name] = sorted(vs[name]) if vs[name] else []
             elif field_type == "float":
                 row[name] = float(vs[name])
             elif field_type == "integer":
@@ -309,9 +309,13 @@ class BaseCase(TestCase):
 
                 if retry == tests_run_count - 1:
                     super().run(cast("TestResult", result))
-                    if not result.wasSuccessful() and BaseCase._tests_run_count != 1:
+                    # Scoped to `type(self)`, not `BaseCase`: a permanent
+                    # failure disables retries for the rest of this class
+                    # only, so it never silently strips flake-tolerance from
+                    # unrelated classes running later in the same process.
+                    if not result.wasSuccessful() and type(self)._tests_run_count != 1:
                         _logger.log(RUNBOT, "Disabling auto-retry after a failed test")
-                        BaseCase._tests_run_count = 1
+                        type(self)._tests_run_count = 1
                     break
 
                 attempt.enter_context(warnings.catch_warnings())
@@ -488,7 +492,7 @@ class BaseCase(TestCase):
             self.env.invalidate_all()
         finally:
             popped_request = odoo.http._request_stack.pop()
-            if popped_request is not request:
+            if popped_request is not request and sys.exc_info()[0] is None:
                 raise Exception("Wrong request stack cleanup.")
 
     @contextmanager
@@ -743,7 +747,14 @@ class BaseCase(TestCase):
         "datetime": [datetime(2021, 3, 4, 5, 6, 7)],
     }
 
-    _DEPENDS_PROBE_DYNAMIC = frozenset({"selection", "many2one"})
+    # Types eligible for probing beyond `_DEPENDS_PROBE_VALUES`'s static
+    # samples: used by `_depends_probe_names` to select/order candidates.
+    _DEPENDS_PROBE_EXTRA_TYPES = frozenset({"selection", "many2one"})
+    # Subset of `_DEPENDS_PROBE_EXTRA_TYPES` actually dispatched through
+    # `_depends_probe_values`'s dynamic-values branch — "many2one" is
+    # deliberately absent: it is handled by its own branch earlier in that
+    # method, which always returns first, so it would never reach this set.
+    _DEPENDS_PROBE_DYNAMIC = frozenset({"selection"})
 
     def assertDependsComplete(
         self,
@@ -801,7 +812,7 @@ class BaseCase(TestCase):
             and not (f.readonly or f.compute or f.related)
             and (
                 f.type in self._DEPENDS_PROBE_VALUES
-                or f.type in self._DEPENDS_PROBE_DYNAMIC
+                or f.type in self._DEPENDS_PROBE_EXTRA_TYPES
             )
         ]
         probes.sort(key=lambda name: fields[name].type == "many2one")
@@ -821,7 +832,8 @@ class BaseCase(TestCase):
             entry
             for name in self._depends_probe_names(model, probe_fields)
             for value in self._depends_probe_values(model, fields[name])
-            for entry in self._depends_probe(model, computed, name, value)
+            for target in model
+            for entry in self._depends_probe(model, computed, name, value, target)
         ]
 
     def _depends_probe_values(
@@ -855,13 +867,13 @@ class BaseCase(TestCase):
         computed: list[str],
         probe_name: str,
         value: Any,
+        target: odoo.models.BaseModel,
     ) -> list[tuple[str, str, Any, Any, Any]]:
         env = records.env
         savepoint = env.cr.savepoint(flush=False)
         try:
             env.flush_all()
             env.invalidate_all()
-            target = records[0]
             current = target[probe_name]
             if isinstance(current, odoo.models.BaseModel):
                 if current.id == value:
@@ -872,6 +884,11 @@ class BaseCase(TestCase):
                 return []
             env.invalidate_all()
             before = self._depends_read(records, computed)
+            # Written one record at a time: batching the same probe value
+            # across several sampled records at once can violate a unique
+            # constraint the model holds on this field (e.g. `res.currency`'s
+            # unique `name`), which would abort the write and mask real
+            # staleness instead of revealing it.
             target.write({probe_name: value})
             cached = self._depends_read(records, computed)
             env.flush_all()
