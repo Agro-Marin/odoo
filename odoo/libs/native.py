@@ -3,7 +3,7 @@ import zlib
 from collections.abc import Mapping
 from pathlib import Path
 
-__all__ = ["assert_fresh", "assert_optimised", "source_crc"]
+__all__ = ["assert_fresh", "assert_optimised", "native_required", "source_crc"]
 
 SKIP_ENV = "ODOO_SKIP_RUST_FRESHNESS_CHECK"
 
