@@ -1,6 +1,9 @@
-from odoo.exceptions import UserError
+from psycopg.errors import IntegrityError
+
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 
 class TestPointOfSale(TransactionCase):
@@ -118,6 +121,20 @@ class TestPointOfSale(TransactionCase):
             {"name": "0.005 not rounded", "value": 0.005}
         )
         self.assertEqual(coin.value, 0.005)
+
+    def test_pos_bill_value_must_be_positive(self):
+        """A coin worth nothing is an inert key on the cash-count keypad."""
+        with self.assertRaises(ValidationError):
+            self.env["pos.bill"].create({"name": "Worthless", "value": 0})
+
+    def test_pos_bill_value_must_not_be_negative(self):
+        with self.assertRaises(ValidationError):
+            self.env["pos.bill"].create({"name": "Owed", "value": -5})
+
+    def test_pos_bill_name_is_required(self):
+        """A nameless coin renders as a blank key."""
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
+            self.env["pos.bill"].create({"value": 5})
 
     def test_pos_config_creates_warehouse(self):
         warehouse = self.env["stock.warehouse"].search(
