@@ -57,12 +57,7 @@ class SQL:
                 code % ()
             self.__code = code
             self.__params = ()
-            if to_flush is None:
-                self.__to_flush = ()
-            elif hasattr(to_flush, "__iter__"):
-                self.__to_flush = tuple(to_flush)
-            else:
-                self.__to_flush = (to_flush,)
+            self.__to_flush = self.__normalize_to_flush(to_flush)
             return
 
         code_list: list[str] = []
@@ -90,11 +85,7 @@ class SQL:
             else:
                 code_list.append("%s")
                 params_list.append(arg)
-        if to_flush is not None:
-            if hasattr(to_flush, "__iter__"):
-                to_flush_list.extend(to_flush)
-            else:
-                to_flush_list.append(to_flush)
+        to_flush_list.extend(self.__normalize_to_flush(to_flush))
 
         self.__code = code.replace("%%", "%%%%") % tuple(code_list)
         self.__params = tuple(params_list)
@@ -114,10 +105,18 @@ class SQL:
         self.__params = source.__params
         if to_flush is None:
             self.__to_flush = source.__to_flush
-        elif hasattr(to_flush, "__iter__"):
-            self.__to_flush = tuple(to_flush)
         else:
-            self.__to_flush = (to_flush,)
+            self.__to_flush = self.__normalize_to_flush(to_flush)
+
+    @staticmethod
+    def __normalize_to_flush(
+        to_flush: Field | Iterable[Field] | None,
+    ) -> tuple[Field, ...]:
+        if to_flush is None:
+            return ()
+        if isinstance(to_flush, (str, bytes)) or not hasattr(to_flush, "__iter__"):
+            return (to_flush,)
+        return tuple(to_flush)
 
     @property
     def code(self) -> str:
