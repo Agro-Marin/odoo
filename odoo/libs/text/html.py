@@ -716,7 +716,13 @@ def html_to_inner_content(source: str | markupsafe.Markup | None) -> str:
     return processed.strip()
 
 
+_LINK_SAFE_SCHEMES = frozenset({"http", "https", "ftp", "ftps", "mailto", "tel"})
+
+
 def create_link(url: str, label: str) -> Markup:
+    scheme = urlparse(url).scheme
+    if scheme and scheme.lower() not in _LINK_SAFE_SCHEMES:
+        url = "#"
     return Markup(
         '<a href="{}" target="_blank" rel="noreferrer noopener">{}</a>'
     ).format(url, label)
