@@ -54,6 +54,41 @@ class TestConfigureShops(TestPoSCommon):
             "Rounding Method",
         )
 
+    def test_configuration_lists_guide_an_empty_screen(self):
+        """Every POS configuration list a new shop lands on says what to put
+        there, and shows sample rows instead of a bare grid."""
+        actions = {
+            "point_of_sale.action_pos_bill": "Add coins and bills",
+            "point_of_sale.action_pos_note_model": "Create predefined notes",
+            "point_of_sale.action_pos_preset_form": "Add a new preset",
+            "point_of_sale.pos_product_attribute_action": "Create product attributes",
+            "point_of_sale.pos_product_combo_choice_action": "Add combo choices",
+        }
+        for xmlid, expected in actions.items():
+            action = self.env.ref(xmlid)
+            self.assertIn(expected, action.help or "", xmlid)
+
+        # The two new actions are POS-owned so the help does not leak into the
+        # Sales menus; the menu items must point at them, not at product's.
+        self.assertEqual(
+            self.env.ref("point_of_sale.pos_menu_products_attribute_action").action,
+            self.env.ref("point_of_sale.pos_product_attribute_action"),
+        )
+        self.assertEqual(
+            self.env.ref("point_of_sale.menu_product_combo").action,
+            self.env.ref("point_of_sale.pos_product_combo_choice_action"),
+        )
+
+        for xmlid in (
+            "point_of_sale.view_pos_bill_tree",
+            "point_of_sale.view_pos_preset_tree",
+        ):
+            self.assertEqual(
+                etree.fromstring(self.env.ref(xmlid).arch).get("sample"),
+                "1",
+                xmlid,
+            )
+
     def _remove_on_payment_taxes(self):
         self.env["account.tax"].search(
             [
