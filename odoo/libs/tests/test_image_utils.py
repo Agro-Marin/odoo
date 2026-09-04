@@ -1,12 +1,15 @@
 import base64
 import io
 import unittest
+from unittest import mock
 
 from PIL import Image
 
 from odoo.libs.image.utils import (
+    IMAGE_MAX_RESOLUTION,
     ImageDecodeError,
     ImageProcess,
+    ImageTooLargeError,
     average_dominant_color,
     base64_to_image,
     binary_to_image,
@@ -49,6 +52,20 @@ class TestOriginalFormatAlwaysDefined(unittest.TestCase):
     def test_a_truncated_webp_is_a_decode_error_not_a_passthrough(self):
         with self.assertRaises(ImageDecodeError):
             ImageProcess(TRUNCATED_WEBP)
+
+
+class TestImageTooLarge(unittest.TestCase):
+    def _oversized_image(self):
+        side = int(IMAGE_MAX_RESOLUTION**0.5) + 1000
+        return mock.Mock(spec=["size"], size=(side, side))
+
+    def test_verify_resolution_true_raises_on_oversized_image(self):
+        with mock.patch(
+            "odoo.libs.image.utils.binary_to_image",
+            return_value=self._oversized_image(),
+        ):
+            with self.assertRaises(ImageTooLargeError):
+                ImageProcess(b"\x89PNG", verify_resolution=True)
 
 
 class TestWebpIsProcessedLikeAnyOtherRaster(unittest.TestCase):
