@@ -16,10 +16,23 @@ class PosConfig(models.Model):
         string="Down Payment Product",
         help="This product will be used as down payment on a sale order.",
     )
+    default_product_id = fields.Many2one(
+        "product.product",
+        string="Default Product",
+        default=lambda self: self._default_sol_product(),
+        help="A register line always carries a product, so this one stands in "
+        "for a sale order line that has only a description. The line keeps "
+        "showing the description it came with.",
+    )
+
+    @api.model
+    def _default_sol_product(self):
+        return self.env.ref("pos_sale.default_sol_product", raise_if_not_found=False)
 
     def _get_special_products(self):
         res = super()._get_special_products()
-        return res | self.env["pos.config"].search([]).mapped("down_payment_product_id")
+        configs = self.env["pos.config"].search([])
+        return res | configs.down_payment_product_id | configs.default_product_id
 
     @api.model
     def _update_downpayment_product(self):

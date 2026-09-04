@@ -145,7 +145,10 @@
                                     </main>
                                 </t>
                             </kanban>
-                            <list string="Order lines" editable="bottom">
+                            <list
+                                name="order_line_list"
+                                string="Order lines"
+                                editable="bottom">
                                 <field name="name" column_invisible="True" />
                                 <field
                                     name="full_product_name"

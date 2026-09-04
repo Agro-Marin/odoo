@@ -13,6 +13,15 @@ patch(PosOrderline.prototype, {
             this.order_id.setShippingDate(this.sale_order_origin_id.shipping_date);
         }
     },
+    get orderDisplayProductName() {
+        if (this.has_default_product && this.sale_order_line_id) {
+            return {
+                name: this.sale_order_line_id.name,
+                attributeString: "",
+            };
+        }
+        return super.orderDisplayProductName;
+    },
     get saleDetails() {
         const down_payment_details =
             typeof this.down_payment_details === "string"

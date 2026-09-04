@@ -25,6 +25,15 @@
                             domain="[('type', '=', 'service'), '|', ('company_id', '=', company_id), ('company_id', '=', False)]"
                             context="{                                 'default_type': 'service',                                 'default_taxes_id': False,                             }" />
                     </setting>
+                    <setting
+                        id="default_product"
+                        string="Default Product"
+                        help="Stands in for a sale order line that has only a description, so that line can be settled at the register">
+                        <field
+                            name="pos_default_product_id"
+                            domain="[('type', '=', 'service'), '|', ('company_id', '=', company_id), ('company_id', '=', False)]"
+                            context="{                                 'default_type': 'service',                                 'default_taxes_id': False,                             }" />
+                    </setting>
                 </block>
             </block>
         </field>

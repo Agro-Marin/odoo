@@ -122,6 +122,10 @@ patch(PosStore.prototype, {
 
             if (line.is_downpayment) {
                 line.product_id = this.config.down_payment_product_id;
+            } else if (!line.product_id && this.config.default_product_id) {
+                // A register line always carries a product. The line keeps
+                // showing its own description -- see orderDisplayProductName.
+                line.product_id = this.config.default_product_id;
             }
 
             const taxes =

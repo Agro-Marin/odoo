@@ -10,3 +10,6 @@ class ResConfigSettings(models.TransientModel):
     pos_down_payment_product_id = fields.Many2one(
         related="pos_config_id.down_payment_product_id", readonly=False
     )
+    pos_default_product_id = fields.Many2one(
+        related="pos_config_id.default_product_id", readonly=False
+    )
