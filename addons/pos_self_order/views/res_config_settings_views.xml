@@ -236,6 +236,10 @@
             <setting id="barcode_scanner" position="attributes">
                 <attribute name="invisible">is_kiosk_mode</attribute>
             </setting>
+
+            <setting id="iface_tipproduct" position="attributes">
+                <attribute name="invisible">is_kiosk_mode</attribute>
+            </setting>
         </field>
     </record>
 

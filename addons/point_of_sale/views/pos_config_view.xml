@@ -55,6 +55,7 @@
                         class="row mt16 o_settings_container"
                         invisible="context.get('pos_config_create_mode', False)">
                         <setting
+                            id="multiple_employee_session"
                             title="Employees can scan their badge or enter a PIN to log in to a PoS session. These credentials are configurable in the *HR Settings* tab of the employee form."
                             string="Log in with Employees"
                             help="Allow to log and switch between selected Employees">
