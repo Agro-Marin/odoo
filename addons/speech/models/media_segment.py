@@ -51,7 +51,7 @@ class MediaSegment(models.Model):
         for segment in self:
             segment.duration_ms = max(segment.end_ms - segment.start_ms, 0)
 
-    @api.constrains("res_model", "res_id")
+    @api.constrains("res_model", "res_id", sudo=False)
     def _constrains_the_owner_is_writable(self) -> None:
         # A segment puts audio into someone else's timeline, and its transcript
         # into their record. Without this any internal user could file their own

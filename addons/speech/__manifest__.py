@@ -17,11 +17,18 @@ documents. Those are consumers.
 Reading speech
 --------------
 Transcription is registered as a reader of the document layer, at ``EXPENSIVE``,
-exactly as local OCR is. Two consequences follow from the cost alone and neither
-is written here: a document is derived only up to the ceiling its caller sets,
-so a recording is never transcribed by accident; and a dearer reader runs only
-where every cheaper one answered nothing, so a file that already carries a
-subtitle track is read from it rather than sent to an engine.
+exactly as local OCR is. One consequence follows from the cost alone and is not
+written anywhere: a document is derived only up to the ceiling its caller sets,
+so a recording is never transcribed by accident.
+
+The cost ladder buys nothing else here yet, and the difference is worth stating
+rather than assuming. A dearer reader does run only where every cheaper one
+answered nothing, but at ``CUES`` the only reader claiming a container mimetype
+is the engine: ``vtt`` and ``srt`` claim subtitle *files*, and nothing demuxes a
+track out of an mp4 or a mkv. So a recording that already carries subtitles is
+sent to an engine like any other. A demuxing reader below ``EXPENSIVE`` would
+change that with no change here, which is the argument for the ladder -- not a
+claim that it is already being used.
 
 The transcript is therefore not a field this module invented. It is the
 attachment's ``index_content`` -- the one place this database already puts "what

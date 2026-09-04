@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="speech_test_recording_rule_own" model="ir.rule">
+        <field name="name">speech.test.recording: only its creator may write it</field>
+        <field name="model_id" ref="model_speech_test_recording" />
+        <field name="domain_force">[("create_uid", "=", user.id)]</field>
+        <field name="perm_read" eval="False" />
+        <field name="perm_write" eval="True" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="True" />
+    </record>
+
+</odoo>

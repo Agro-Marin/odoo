@@ -62,3 +62,53 @@ class TestMediaSegment(SpeechCase):
         recording = self._recording()
         segment = recording._add_media_segment(self._audio(), 500, 2000)
         self.assertEqual(segment.duration_ms, 1500)
+
+
+class TestSegmentOwnership(SpeechCase):
+    def setUp(self):
+        super().setUp()
+        self.stranger = (
+            self.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "stranger",
+                    "login": "speech_stranger",
+                    "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+                }
+            )
+        )
+
+    def _as_stranger(self):
+        return self.env(user=self.stranger, su=False)
+
+    def test_a_stranger_may_not_file_media_against_a_record_they_cannot_write(self):
+        recording = self._recording()
+        attachment = self._audio()
+        with self.assertRaises(ValidationError):
+            self._as_stranger()["media.segment"].create(
+                {
+                    "res_model": recording._name,
+                    "res_id": recording.id,
+                    "attachment_id": attachment.id,
+                    "start_ms": 0,
+                    "end_ms": 1000,
+                }
+            )
+
+    def test_the_recorder_files_media_under_sudo_and_is_not_refused(self):
+        recording = self._recording()
+        segment = recording._add_media_segment(self._audio(), 0, 1000)
+        self.assertTrue(segment.id)
+        self.assertEqual(segment._owner(), recording)
+
+    def test_the_constraint_runs_at_all(self):
+        method = next(
+            check
+            for check in self.env["media.segment"]._constraint_methods
+            if check.__name__ == "_constrains_the_owner_is_writable"
+        )
+        self.assertFalse(
+            getattr(method, "_constrains_sudo", True),
+            "the owner check must be declared sudo=False or it never runs",
+        )
