@@ -1,7 +1,8 @@
 from odoo.exceptions import ValidationError
+from odoo.libs.documents import Cue
 from odoo.tests import tagged
 
-from .common import SpeechCase
+from .common import SpeechCase, StubTranscription
 
 
 @tagged("post_install", "-at_install")
@@ -112,3 +113,46 @@ class TestSegmentOwnership(SpeechCase):
             getattr(method, "_constrains_sudo", True),
             "the owner check must be declared sudo=False or it never runs",
         )
+
+
+class TestTheMixinDoesNotSquatAConsumersFieldNames(SpeechCase):
+    """`mixin.media.timeline` is applied to models it does not own.
+
+    A generic mixin that claims a generic field name takes over whatever the
+    consumer already declared under it, and the merge is order-independent: once
+    `compute` is in the merged attrs nothing removes it, and `store` then
+    defaults to False. The consumer's column survives, orphaned, while every
+    write to it is silently discarded.
+    """
+
+    def _owner_with_its_own_transcript(self):
+        return self.env["speech.test.call.with.own.transcript"].create({})
+
+    def test_an_owners_own_transcript_field_is_still_stored_after_the_mixin(self):
+        field = self.env["speech.test.call.with.own.transcript"]._fields["transcript"]
+        self.assertTrue(field.store)
+        self.assertFalse(field.compute)
+        self.assertFalse(field.readonly)
+
+    def test_an_owners_own_transcript_still_survives_a_write_and_a_reread(self):
+        owner = self._owner_with_its_own_transcript()
+        owner.transcript = "what the vendor was paid to produce"
+        owner.flush_recordset()
+        owner.invalidate_recordset()
+        self.assertEqual(owner.transcript, "what the vendor was paid to produce")
+
+    def test_the_mixin_offers_its_own_roll_up_under_a_namespaced_name(self):
+        owner = self._owner_with_its_own_transcript()
+        attachment = self._audio()
+        self._register(StubTranscription(cues=[Cue(0.0, 1.0, "from the segments", "")]))
+        owner._add_media_segment(attachment, 0, 1000)
+        attachment._transcribe()
+        self.assertEqual(owner.media_transcript, "from the segments")
+        self.assertFalse(owner.transcript)
+
+    def test_no_mixin_field_takes_a_bare_name_a_consumer_would_plausibly_own(self):
+        declared = set(self.env["mixin.media.timeline"]._fields) - set(
+            self.env["base"]._fields
+        )
+        squatters = {"transcript", "duration", "state", "name", "summary", "status"}
+        self.assertEqual(declared & squatters, set())

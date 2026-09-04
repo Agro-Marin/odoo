@@ -212,7 +212,7 @@ class TestTimeline(SpeechCase):
         early._transcribe()
         late._transcribe()
         self.assertEqual(
-            recording.transcript,
+            recording.media_transcript,
             "the invoice went out\non Tuesday\nthe invoice went out\non Tuesday",
         )
 

@@ -26,3 +26,15 @@ class SpeechTestRecording(models.Model):
 
     def _on_media_fully_transcribed(self) -> None:
         self.completed = True
+
+
+class SpeechTestCallWithItsOwnTranscript(models.Model):
+    _name = "speech.test.call.with.own.transcript"
+    _inherit = ["mixin.media.timeline"]
+    _description = "Speech Test Owner Declaring Its Own Transcript"
+
+    name = fields.Char(required=True, default="call")
+    transcript = fields.Text()
+    transcription_status = fields.Selection(
+        [("pending", "Pending"), ("done", "Done")], default="pending"
+    )

@@ -23,7 +23,7 @@ class MixinMediaTimeline(models.AbstractModel):
     )
     media_duration_ms = fields.Integer(compute="_compute_media_duration_ms")
     has_media = fields.Boolean(compute="_compute_media_duration_ms")
-    transcript = fields.Text(compute="_compute_transcript")
+    media_transcript = fields.Text(compute="_compute_media_transcript")
     transcription_state = fields.Selection(
         [
             ("none", "Not transcribed"),
@@ -43,13 +43,13 @@ class MixinMediaTimeline(models.AbstractModel):
             record.has_media = bool(record.segment_ids)
 
     @api.depends("segment_ids.attachment_id.speech_cues")
-    def _compute_transcript(self) -> None:
+    def _compute_media_transcript(self) -> None:
         for record in self:
             spoken = [
                 segment.attachment_id.speech_transcript
                 for segment in record.segment_ids.sorted("start_ms")
             ]
-            record.transcript = "\n".join(part for part in spoken if part)
+            record.media_transcript = "\n".join(part for part in spoken if part)
 
     @api.depends("segment_ids.attachment_id.speech_state")
     def _compute_transcription_state(self) -> None:

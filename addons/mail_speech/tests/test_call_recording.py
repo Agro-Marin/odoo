@@ -60,7 +60,7 @@ class TestCallRecording(MailCommon):
     def test_a_transcribed_call_reads_back_as_one_transcript(self):
         segment = self.channel._record_call_media(self._audio(), 0, 5000)
         segment.attachment_id._transcribe()
-        self.assertEqual(segment._owner().transcript, "can you hear me")
+        self.assertEqual(segment._owner().media_transcript, "can you hear me")
         self.assertEqual(segment._owner().transcription_state, "done")
 
     def test_what_was_said_in_a_call_is_searchable(self):
@@ -76,7 +76,7 @@ class TestCallRecording(MailCommon):
 
     def test_a_call_history_gained_the_timeline_without_declaring_it(self):
         history = self.env["discuss.call.history"]
-        for field in ("segment_ids", "transcript", "media_duration_ms", "has_media"):
+        for field in ("segment_ids", "media_transcript", "media_duration_ms", "has_media"):
             self.assertIn(field, history._fields)
 
     def test_a_chunk_that_overlaps_the_one_before_it_is_refused(self):
