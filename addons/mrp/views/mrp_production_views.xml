@@ -1121,14 +1121,18 @@
             <field name="priority" eval="2" />
             <field name="arch" type="xml">
                 <calendar
+                    js_class="mrp_calendar"
                     date_start="date_start"
                     date_stop="date_end"
                     string="Manufacturing Orders"
                     event_limit="5"
-                    quick_create="0">
+                    quick_create="0"
+                    color="product_id">
                     <field name="user_id" avatar_field="avatar_128" />
                     <field name="product_id" />
                     <field name="product_qty" />
+                    <!-- Shown next to the quantity on the day and week cards. -->
+                    <field name="product_uom_id" invisible="1" />
                 </calendar>
             </field>
         </record>
