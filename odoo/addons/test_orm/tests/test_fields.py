@@ -5394,7 +5394,7 @@ class TestComputeSudo(TransactionCaseWithUserDemo):
         )
 
 
-class test_shared_cache(TransactionCaseWithUserDemo):
+class TestSharedCache(TransactionCaseWithUserDemo):
     def test_shared_cache_computed_field(self):
 
         task = self.env["test_orm.model_shared_cache_compute_parent"].create(
