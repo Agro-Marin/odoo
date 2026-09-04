@@ -262,7 +262,15 @@ def date_range[D: (date, datetime)](
             end_key = getattr(end.tzinfo, "key", None) or getattr(
                 end.tzinfo, "zone", None
             )
-            if start_key != end_key:
+            if start_key is None and end_key is None:
+                # Fixed-offset tzinfo (datetime.timezone, dateutil tzoffset)
+                # exposes neither attribute -- both sides collapsing to None
+                # would otherwise read as "same timezone" regardless of their
+                # actual offsets, so compare those directly instead.
+                mismatched = start.utcoffset() != end.utcoffset()
+            else:
+                mismatched = start_key != end_key
+            if mismatched:
                 msg = "Timezones of start argument and end argument seem inconsistent"
                 raise ValueError(msg)
 
