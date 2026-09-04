@@ -110,7 +110,7 @@ class ReachabilityProbe:
             finally:
                 with self._lock:
                     del self._inflight[key]
-                probe.done.set()
+                    probe.done.set()
         else:
             wait_timeout = (
                 None if deadline is None else max(0.0, deadline - monotonic())

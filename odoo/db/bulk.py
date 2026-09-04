@@ -51,6 +51,7 @@ if TYPE_CHECKING:
         _cnx: psycopg.Connection
         _thread: threading.Thread
         _schema_cache: TransactionSchemaCache
+        _savepoint_depth: int
         dbname: str
 
         def execute(
@@ -141,6 +142,12 @@ def _check_copy_args(
             "reconciled with rows silently dropped by the server. "
             "Use batched INSERT ... RETURNING id for fault-tolerant "
             "inserts that need IDs."
+        )
+    if returning_ids and "id" in columns:
+        raise ValueError(
+            "copy_from: columns must not already include 'id' when "
+            "returning_ids=True — the id column is added automatically "
+            "for the pre-allocated sequence values."
         )
     if cursor.in_pipeline:
         raise _errors.NotSupportedError(
@@ -307,12 +314,14 @@ class _BulkAccessMixin:
         debug = _logger.isEnabledFor(logging.DEBUG)
         t0 = monotonic()
         counts = False
+        row_count = 0
         try:
             with obj.copy(copy_stmt) as copy:
                 if col_types:
                     copy.set_types(col_types)
                 for row in write_rows:
                     copy.write_row(row)
+                    row_count += 1
             counts = True
         except Exception as e:
             if binary:
@@ -330,6 +339,7 @@ class _BulkAccessMixin:
             self._statement_done(
                 delay,
                 counts=counts,
+                count=row_count,
                 query=render_copy_statement,
                 label="COPY",
                 hooks=hooks,
@@ -356,14 +366,14 @@ class _BulkAccessMixin:
 
     def _lock_table_for_bulk(self: _CursorInternals, table: str) -> None:
         cache = self._schema_cache
-        if table in cache.locked_tables:
+        if cache.is_locked(table):
             return
         self.execute(
             _sql.SQL("LOCK TABLE {} IN ROW EXCLUSIVE MODE").format(
                 _get_table_identifier(table)
             )
         )
-        cache.locked_tables.add(table)
+        cache.mark_locked(table, self._savepoint_depth)
 
     def _get_id_sequence(self: _CursorInternals, table: str) -> str:
         cache = self._schema_cache

@@ -37,6 +37,13 @@ _SQL_TYPE_TOKEN = re.compile(
 )
 _SQL_NAME_TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
+_BOOLEAN_TYPE_NAMES = frozenset({"BOOL", "BOOLEAN"})
+
+
+def _is_boolean_type(columntype: str) -> bool:
+    base_name = columntype.strip().split("(", 1)[0].split()[0]
+    return base_name.upper() in _BOOLEAN_TYPE_NAMES
+
 
 def _get_invalid_name_message(kind: str, value: object) -> str:
     return f"{kind} {value!r} is not a PostgreSQL name: refusing to build DDL from it"
@@ -183,13 +190,14 @@ def create_model_table(
             )
         )
     for colname, _, colcomment in columns:
-        queries.append(
-            SQL(
-                "COMMENT ON COLUMN %s IS %s",
-                SQL.identifier(tablename, colname),
-                colcomment,
+        if colcomment:
+            queries.append(
+                SQL(
+                    "COMMENT ON COLUMN %s IS %s",
+                    SQL.identifier(tablename, colname),
+                    colcomment,
+                )
             )
-        )
     cr.execute(SQL("; ").join(queries))
 
     _schema.debug("Table %r: created", tablename)
@@ -254,7 +262,7 @@ def create_column(
         SQL.identifier(tablename),
         SQL.identifier(columnname),
         SQL(columntype),
-        SQL("DEFAULT false" if columntype.upper() == "BOOLEAN" else ""),
+        SQL("DEFAULT false" if _is_boolean_type(columntype) else ""),
     )
     if comment:
         sql = SQL(
@@ -503,6 +511,7 @@ _FK_BASE_QUERY = """
     JOIN pg_attribute AS a1 ON a1.attrelid = c1.oid AND fk.conkey[1] = a1.attnum
     JOIN pg_attribute AS a2 ON a2.attrelid = c2.oid AND fk.confkey[1] = a2.attnum
    WHERE fk.contype = 'f'
+     AND array_length(fk.conkey, 1) = 1
      AND c1.relnamespace = current_schema::regnamespace
 """
 
@@ -552,7 +561,7 @@ def get_foreign_keys(
     ]
 
 
-def index_exists(cr: BaseCursor, indexname: str) -> bool:
+def index_exists(cr: RowCountReader, indexname: str) -> bool:
     cr.execute(
         SQL(
             """

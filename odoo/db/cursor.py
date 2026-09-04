@@ -249,6 +249,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._pipeline_stack: ExitStack | None = None
         self._pipeline_statements = 0
         self._pipeline_entered = False
+        self._pipeline_statement_time = 0.0
 
         self._thread = threading.current_thread()
 
@@ -435,6 +436,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 start=start,
                 hooks=hooks,
             )
+        if self._pipeline_depth:
+            self._pipeline_statement_time += delay
 
     def execute(
         self,
@@ -535,9 +538,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._schema_cache.invalidate_catalog_facts()
 
     def _on_rollback_to_savepoint(self) -> None:
-        self._schema_cache.locked_tables.clear()
-        if self._schema_changed:
-            self._schema_cache.invalidate_catalog_facts()
+        self._schema_cache.release_locks_since_depth(self._savepoint_depth)
 
     def _note_stale_cached_plan(self, exc: Exception) -> bool:
         if not isinstance(exc, PG_STALE_PLAN_EXCEPTIONS):
@@ -651,6 +652,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
         self._pipeline_depth = 1
         self._pipeline_statements = 0
+        self._pipeline_statement_time = 0.0
+        t0 = monotonic()
         try:
             with ExitStack() as stack:
                 self._pipeline_stack = stack
@@ -667,6 +670,15 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 )
             raise
         finally:
+            # Pipeline mode times each queued statement's client-side queue
+            # time only; the real round-trip cost is paid at the implicit
+            # sync when the ExitStack above closes psycopg's pipeline, a
+            # point with no timer of its own. Attribute that gap to
+            # query_time (not query_count -- it is sync cost, not a new
+            # statement) instead of leaving it permanently unaccounted.
+            sync_cost = monotonic() - t0 - self._pipeline_statement_time
+            if sync_cost > 0:
+                self._record_metrics(sync_cost, count=0)
             self._pipeline_stack = None
             self._pipeline_depth = 0
             self._pipeline_entered = False

@@ -1,3 +1,4 @@
+import threading
 import unittest
 from decimal import Decimal
 from typing import Any
@@ -40,10 +41,86 @@ class TestCopyFromValidation(unittest.TestCase):
             )
         self.assertIn("returning_ids", str(ctx.exception))
 
+    def test_returning_ids_with_id_already_in_columns_is_rejected(self):
+        with self.assertRaises(ValueError) as ctx:
+            self.bulk.copy_from("t", ["id", "a"], [(1, 2)], returning_ids=True)
+        self.assertIn("'id'", str(ctx.exception))
+
+    def test_returning_ids_without_id_in_columns_is_accepted_by_the_whitelist(self):
+        with self.assertRaises(Exception) as ctx:
+            self.bulk.copy_from("t", ["a"], [(1,)], returning_ids=True)
+        self.assertNotIsInstance(ctx.exception, ValueError)
+
     def test_on_error_stop_is_accepted_by_the_whitelist(self):
         with self.assertRaises(Exception) as ctx:
             self.bulk.copy_from("t", ["a"], [(1,)], on_error="stop")
         self.assertNotIsInstance(ctx.exception, ValueError)
+
+
+class _FakeCopyBlock:
+    def __init__(self):
+        self.rows: list = []
+
+    def set_types(self, oids):
+        pass
+
+    def write_row(self, row):
+        self.rows.append(row)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _FakeObj:
+    def copy(self, stmt):
+        return _FakeCopyBlock()
+
+
+class _FakeCursorForCopyMetrics(_BulkAccessMixin):
+    def __init__(self):
+        self._obj = _FakeObj()
+        self._thread = threading.current_thread()
+        self.statement_done_calls: list = []
+
+    def _before_statement(self):
+        pass
+
+    @property
+    def in_pipeline(self):
+        return False
+
+    def _statement_done(
+        self,
+        delay,
+        *,
+        counts,
+        query,
+        params=None,
+        count=1,
+        label="query",
+        hooks=None,
+        start=0.0,
+        debug=False,
+    ):
+        self.statement_done_calls.append(count)
+
+    def _statement_failed(self, *args, **kwargs):
+        return False
+
+
+class TestCopyFromMetrics(unittest.TestCase):
+    def test_reports_the_actual_row_count_not_a_fixed_one(self):
+        cursor = _FakeCursorForCopyMetrics()
+        cursor.copy_from("t", ["a"], [(i,) for i in range(5000)])
+        self.assertEqual(cursor.statement_done_calls, [5000])
+
+    def test_zero_written_rows_reports_zero(self):
+        cursor = _FakeCursorForCopyMetrics()
+        cursor.copy_from("t", ["a"], iter(()))
+        self.assertEqual(cursor.statement_done_calls, [0])
 
 
 class TestExecuteValuesValidation(unittest.TestCase):
