@@ -117,10 +117,6 @@ class TestHtml2Plaintext(unittest.TestCase):
         self.assertEqual(out.strip(), "")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestSanitizeRemovesActiveContent(unittest.TestCase):
     def test_script_element_is_removed(self):
         out = sanitize("<p>keep</p><script>alert(1)</script>")
@@ -140,3 +136,7 @@ class TestSanitizeRemovesActiveContent(unittest.TestCase):
         out = sanitize("<p><b>bold</b> and <i>italic</i></p>")
         self.assertIn("<b>bold</b>", out)
         self.assertIn("<i>italic</i>", out)
+
+
+if __name__ == "__main__":
+    unittest.main()

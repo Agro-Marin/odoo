@@ -82,10 +82,6 @@ class TestPrependHtmlContent(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestFromstringReturnsATreeTypedElement(unittest.TestCase):
     INPUTS = [
         "Many2one<string>",
@@ -133,3 +129,7 @@ class TestFromstringReturnsATreeTypedElement(unittest.TestCase):
 
     def test_non_ascii_in_text_was_never_the_problem(self):
         self.assertEqual(html_normalize("<p>Adiós</p>"), "<p>Adiós</p>")
+
+
+if __name__ == "__main__":
+    unittest.main()
