@@ -91,24 +91,36 @@ class PosCategory(models.Model):
         for cat in self:
             cat.display_name = " / ".join(cat._get_hierarchy())
 
+    def _get_blocking_pos_session(self, include_printers=False):
+        """Return an open session whose register loads one of these categories.
+
+        A register with `limit_categories` off loads every category, so it
+        blocks whatever the ids are -- which is also what makes an uncategorised
+        product blocked by such a register.
+
+        `include_printers` additionally catches a category a preparation printer
+        routes to: relevant when deleting the category itself, because the
+        printer configuration would be left pointing at nothing, but not when
+        archiving a product, which no printer references.
+        """
+        domain = [
+            ("state", "!=", "closed"),
+            ("company_id", "in", self.env.companies.ids),
+        ]
+        arms = [
+            ("config_id.limit_categories", "=", False),
+            ("config_id.iface_available_categ_ids", "in", self.ids),
+        ]
+        if include_printers:
+            arms.append(
+                ("config_id.printer_ids.product_categories_ids", "in", self.ids)
+            )
+        domain += ["|"] * (len(arms) - 1) + arms
+        return self.env["pos.session"].sudo().search(domain, limit=1)
+
     @api.ondelete(at_uninstall=False)
     def _unlink_except_session_open(self):
-        blocking_session = (
-            self.env["pos.session"]
-            .sudo()
-            .search(
-                [
-                    ("state", "!=", "closed"),
-                    ("company_id", "in", self.env.companies.ids),
-                    "|",
-                    "|",
-                    ("config_id.limit_categories", "=", False),
-                    ("config_id.iface_available_categ_ids", "in", self.ids),
-                    ("config_id.printer_ids.product_categories_ids", "in", self.ids),
-                ],
-                limit=1,
-            )
-        )
+        blocking_session = self._get_blocking_pos_session(include_printers=True)
         if blocking_session:
             raise UserError(
                 _(

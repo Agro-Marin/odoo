@@ -1,5 +1,4 @@
-from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo import api, fields, models
 
 
 class ProductProduct(models.Model):
@@ -36,21 +35,9 @@ class ProductProduct(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_active_pos_session(self):
-        product_ctx = dict(self.env.context or {}, active_test=False)
-        if self.env["pos.session"].sudo().search_count([("state", "!=", "closed")], limit=1):
-            if self.with_context(product_ctx).search_count(
-                [
-                    ("id", "in", self.ids),
-                    ("product_tmpl_id.available_in_pos", "=", True),
-                ],
-                limit=1,
-            ):
-                raise UserError(
-                    _(
-                        "To delete a product, make sure all point of sale sessions are closed.\n\n"
-                        "Deleting a product available in a session would be like attempting to snatch a hamburger from a customer’s hand mid-bite; chaos will ensue as ketchup and mayo go flying everywhere!",
-                    )
-                )
+        # Same question as for the template, asked once for the variants' own
+        # templates so a variant is judged by the registers that load it.
+        self.product_tmpl_id._unlink_except_open_session()
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_special_product(self):

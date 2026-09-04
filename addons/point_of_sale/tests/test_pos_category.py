@@ -1,3 +1,4 @@
+from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tests import tagged
 
@@ -50,3 +51,74 @@ class TestPosCategoryProducts(TestPoSCommon):
         self.assertEqual(action["context"]["default_pos_categ_ids"], [categ.id])
         # The action's own context must survive being extended.
         self.assertTrue(action["context"]["default_available_in_pos"])
+
+
+@tagged("post_install", "-at_install")
+class TestPosArchiveWithOpenSession(TestPoSCommon):
+    """A register that cannot sell a product should not stop us archiving it."""
+
+    def setUp(self):
+        super().setUp()
+        self.config = self.basic_config
+        self.sold_categ = self.env["pos.category"].create({"name": "Sold here"})
+        self.other_categ = self.env["pos.category"].create({"name": "Not sold here"})
+        # The open register is restricted to `sold_categ`, so nothing filed
+        # under `other_categ` is loaded by it.
+        self.config.write(
+            {
+                "limit_categories": True,
+                "iface_available_categ_ids": [Command.set(self.sold_categ.ids)],
+            }
+        )
+        self.open_new_session()
+
+    def _pos_product(self, name, categ):
+        return self.env["product.template"].create(
+            {
+                "name": name,
+                "available_in_pos": True,
+                "pos_categ_ids": [Command.set(categ.ids)],
+            }
+        )
+
+    def test_archive_product_the_open_register_cannot_sell(self):
+        product = self._pos_product("Discontinued", self.other_categ)
+        product.action_archive()
+        self.assertFalse(product.active)
+
+    def test_delete_product_the_open_register_cannot_sell(self):
+        product = self._pos_product("Discontinued", self.other_categ)
+        product.unlink()
+
+    def test_archive_product_the_open_register_sells_is_still_refused(self):
+        product = self._pos_product("On the shelf", self.sold_categ)
+        with self.assertRaises(UserError):
+            product.action_archive()
+
+    def test_archive_is_refused_when_a_register_loads_every_category(self):
+        self.config.limit_categories = False
+        product = self._pos_product("Discontinued", self.other_categ)
+        with self.assertRaises(UserError):
+            product.action_archive()
+
+    def test_delete_variant_the_open_register_cannot_sell(self):
+        product = self._pos_product("Discontinued", self.other_categ)
+        product.product_variant_ids.unlink()
+
+    def test_category_guard_still_refuses_a_loaded_category(self):
+        """The category side already worked; it must keep working."""
+        with self.assertRaises(UserError):
+            self.sold_categ.unlink()
+
+    def test_category_guard_still_refuses_a_printer_category(self):
+        printer_categ = self.env["pos.category"].create({"name": "Kitchen"})
+        printer = self.env["pos.printer"].create(
+            {
+                "name": "Kitchen printer",
+                "proxy_ip": "192.168.0.1",
+                "product_categories_ids": [Command.set(printer_categ.ids)],
+            }
+        )
+        self.config.printer_ids = [Command.set(printer.ids)]
+        with self.assertRaises(UserError):
+            printer_categ.unlink()
