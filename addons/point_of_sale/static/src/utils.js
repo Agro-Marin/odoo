@@ -196,6 +196,15 @@ export function isValidPhone(string) {
     return pattern.test(phone);
 }
 
+/**
+ * Whether a string reads as a phone number rather than free text: digits and
+ * the punctuation people put between them, nothing else. Deliberately looser
+ * than `isValidPhone`, which validates a number we are about to dial.
+ */
+export function looksLikePhoneNumber(string) {
+    return /^\+?[\d\s.\-()]{8,18}$/.test(string.trim());
+}
+
 export function isValidEmail(email) {
     return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
