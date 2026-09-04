@@ -88,6 +88,20 @@ class IrModuleCase(TransactionCase):
         self.assertEqual(module.state, "uninstalled")
 
     @mute_logger("odoo.addons.base.models.ir_module")
+    def test_upgrade_cascade_refuses_a_module_that_is_not_installed(self):
+        module = self.env["ir.module.module"].search(
+            [("state", "=", "uninstalled")], limit=1
+        )
+        with self.assertRaisesRegex(UserError, "not installed"):
+            module._upgrade_cascade()
+
+    def test_button_uninstall_refuses_server_wide_and_uninstalled_modules(self):
+        Module = self.env["ir.module.module"]
+        with self.assertRaisesRegex(UserError, "cannot be uninstalled: base"):
+            Module.search([("name", "=", "base")]).button_uninstall()
+        with self.assertRaisesRegex(UserError, "already been uninstalled"):
+            Module.search([("state", "=", "uninstalled")], limit=1).button_uninstall()
+
     def test_button_upgrade_sweeps_reverse_dependencies(self):
         Module = self.env["ir.module.module"]
         base_mod = Module.create({"name": "irmod_base", "state": "installed"})
@@ -388,6 +402,35 @@ class IrModuleConcurrencyGuardCase(TransactionCase):
         self.assertTrue(
             Module._has_pending_module_operation(),
             "the guard must read committed state, not the request snapshot",
+        )
+
+    def _guard_while_another_connection_holds(self, statement, expected):
+        with self.registry.cursor() as side_cr:
+            side_cr.execute(statement)
+            with (
+                self.env.cr.savepoint(flush=False) as savepoint,
+                patch.object(self.env.cr, "rollback", savepoint.rollback),
+                self.assertRaisesRegex(UserError, expected),
+            ):
+                self.env[
+                    "ir.module.module"
+                ]._lock_against_concurrent_module_operations()
+            side_cr.rollback()
+        self.env.cr.execute("SELECT 1")
+        self.assertEqual(
+            self.env.cr.fetchone(), (1,), "the refusal leaves the cursor usable"
+        )
+
+    def test_a_held_table_lock_reads_as_a_busy_module_operation(self):
+        self._guard_while_another_connection_holds(
+            "LOCK ir_module_module IN EXCLUSIVE MODE", "another module operation"
+        )
+
+    def test_a_locked_cron_row_reads_as_a_running_scheduled_action(self):
+        if self.env["ir.module.module"]._has_pending_module_operation():
+            self.skipTest("a module operation is already pending in this database")
+        self._guard_while_another_connection_holds(
+            "SELECT id FROM ir_cron FOR UPDATE", "scheduled action"
         )
 
     def test_guard_does_not_deadlock_against_the_lock_it_runs_under(self):
