@@ -110,6 +110,10 @@ def _is_whitelisted_argument(arg: ast.expr) -> bool:
             left
         ) or _is_raw_text(right):
             return False
+        case ast.BinOp(left=left, right=right) if _is_raw_text(left) or _is_raw_text(
+            right
+        ):
+            return False
         case ast.BinOp(left=left, right=right):
             return _is_whitelisted_argument(left) or _is_whitelisted_argument(right)
     return False
