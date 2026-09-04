@@ -46,13 +46,9 @@ class TestCursor(BaseCursor):
         self._savepoint: Savepoint | None = None
 
     def _check_cursor_readonly(self) -> None:
-        last_cursor = self._cursors_stack and self._cursors_stack[-1]
-        if (
-            last_cursor
-            and last_cursor.readonly
-            and not self.readonly
-            and last_cursor._savepoint
-        ):
+        if self.readonly:
+            return
+        if any(cursor.readonly and cursor._savepoint for cursor in self._cursors_stack):
             raise Exception("Opening a read/write test cursor from a readonly one")
 
     def _check_savepoint(self) -> None:
