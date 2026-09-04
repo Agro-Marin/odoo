@@ -510,6 +510,7 @@ _FK_BASE_QUERY = """
     JOIN pg_attribute AS a1 ON a1.attrelid = c1.oid AND fk.conkey[1] = a1.attnum
     JOIN pg_attribute AS a2 ON a2.attrelid = c2.oid AND fk.confkey[1] = a2.attnum
    WHERE fk.contype = 'f'
+     AND array_length(fk.conkey, 1) = 1
      AND c1.relnamespace = current_schema::regnamespace
 """
 
