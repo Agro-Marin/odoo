@@ -478,7 +478,12 @@ class MailMail(models.Model):
         defer_auto_delete: set[int] | None = None,
         previously_failing_ids: Collection[int] | None = None,
     ) -> None:
-        notif_mails_ids = [mail.id for mail in self if mail.is_notification]
+        # Settle pending notifications for every sent mail, not only those
+        # flagged is_notification: _mark_sending marks a mail's notifications to
+        # the exception placeholder regardless of the flag, so filtering here left
+        # a non-notification mail's notifications stuck at exception after a clean
+        # send. The search below is a no-op for mails that carry no notification.
+        notif_mails_ids = self.ids
         if notif_mails_ids:
             notifications = (
                 self.env["mail.notification"].browse(pending_notification_ids)

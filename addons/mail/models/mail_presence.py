@@ -2,6 +2,8 @@ import typing
 from datetime import timedelta
 from typing import Literal, Self
 
+from psycopg.errors import UniqueViolation
+
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.service.transaction import PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
@@ -114,7 +116,17 @@ class MailPresence(models.Model):
             values["guest_id" if user_or_guest._name == "mail.guest" else "user_id"] = (
                 user_or_guest.id
             )
-            self.env["mail.presence"].sudo().create(values)
+            try:
+                with self.env.cr.savepoint():
+                    self.env["mail.presence"].sudo().create(values)
+            except UniqueViolation:
+                # Two first polls for the same user/guest race (e.g. two tabs
+                # opening at once): both find no row and both insert, and the
+                # partial unique index rejects the second. UniqueViolation is not
+                # in PG_CONCURRENCY_EXCEPTIONS_TO_RETRY, so without this it escapes
+                # the websocket handler. Update the row the other poll created.
+                user_or_guest_sudo.invalidate_recordset(["presence_ids"])
+                user_or_guest_sudo.presence_ids.write(values)
 
     def _send_presence(
         self, im_status: str | None = None, bus_target: models.BaseModel | None = None

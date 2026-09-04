@@ -193,10 +193,11 @@ class MailMessage(models.Model):
 
         messages = self - result[0] if result else self
         if messages and (forbidden := messages._get_forbidden_access(operation)):
-            if result:
-                result = (result[0] + forbidden, result[1])
-            else:
-                result = (forbidden, lambda: forbidden._make_access_error(operation))
+            # Name the full forbidden set in the error, not just super()'s half:
+            # keeping result[1] described only result[0], so a raised error
+            # listed a subset of the records the caller was actually denied.
+            denied = (result[0] + forbidden) if result else forbidden
+            result = (denied, lambda: denied._make_access_error(operation))
         return result
 
     def _get_forbidden_access(self, operation: str) -> api.Self:
