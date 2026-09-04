@@ -45,6 +45,12 @@ def submap[K, T](mapping: Mapping[K, T], keys: Iterable[K]) -> Mapping[K, T]:
 
 
 class DotDict(dict):
+    """Dict with attribute access. A missing key returns ``None``, not
+    ``AttributeError`` -- deliberate (see test_mappings.py), so every real
+    instantiation of this class in the tree is test-support code, never
+    production data.
+    """
+
     def __getattr__(self, attrib: str) -> Any:
         val = self.get(attrib)
         return DotDict(val) if isinstance(val, dict) else val
