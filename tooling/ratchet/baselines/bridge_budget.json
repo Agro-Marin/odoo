@@ -1,6 +1,6 @@
 {
-  "count": 94,
-  "measured_at": "571c7adf732999e833a96859f41fcb6eb69d5b3a",
+  "count": 95,
+  "measured_at": "16691613dd88eec84a6ed8f0085437893b790bbf",
   "measured_root": "",
-  "note": "Opened at 94: every auto_install module in addons/ with two or more triggers and under 60 pyLOC (odoo/addons holds none). 21 of the 94 ship no Python at all. Each is a fold decision per module, not a sweep; the floor moves when one is taken.\n\nCommand: python tooling/architecture/bridge_budget.py --count"
+  "note": "UP ONE, AND THE JUDGEMENT IS THE POINT RATHER THAN THE NUMBER. The gate is a count of auto_install bridges under 60 pyLOC, and its own docstring says a fold is a decision per module taken by reading the list, with the floor as where that decision is recorded.\n\nThe new entry is documents_speech, 18 pyLOC over documents and speech. It stays a bridge because there is nowhere to fold it: into documents makes documents depend on speech, into speech makes speech depend on documents, and both are inversions of a dependency that must not exist. That is the same shape the docstring already exempts for an OPL-1 dependency kept out of an LGPL-3 parent.\n\nEntered at a9fce94c98e and unseen until now because this floor was ORPHANED-BASE, so architecture.yml exited 2 asking to be re-measured rather than comparing. Re-measured in a clean detached worktree of 16691613dd8.\n\nPREVIOUS NOTE, kept because a floor that loses its history costs more than the stamp gains:\n\nOpened at 94: every auto_install module in addons/ with two or more triggers and under 60 pyLOC (odoo/addons holds none). 21 of the 94 ship no Python at all. Each is a fold decision per module, not a sweep; the floor moves when one is taken.\n\nCommand: python tooling/architecture/bridge_budget.py --count"
 }
