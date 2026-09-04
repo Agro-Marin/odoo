@@ -37,6 +37,13 @@ _SQL_TYPE_TOKEN = re.compile(
 )
 _SQL_NAME_TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
+_BOOLEAN_TYPE_NAMES = frozenset({"BOOL", "BOOLEAN"})
+
+
+def _is_boolean_type(columntype: str) -> bool:
+    base_name = columntype.strip().split("(", 1)[0].split()[0]
+    return base_name.upper() in _BOOLEAN_TYPE_NAMES
+
 
 def _get_invalid_name_message(kind: str, value: object) -> str:
     return f"{kind} {value!r} is not a PostgreSQL name: refusing to build DDL from it"
@@ -254,7 +261,7 @@ def create_column(
         SQL.identifier(tablename),
         SQL.identifier(columnname),
         SQL(columntype),
-        SQL("DEFAULT false" if columntype.upper() == "BOOLEAN" else ""),
+        SQL("DEFAULT false" if _is_boolean_type(columntype) else ""),
     )
     if comment:
         sql = SQL(
