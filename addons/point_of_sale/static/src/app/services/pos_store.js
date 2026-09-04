@@ -791,6 +791,7 @@ export class PosStore extends WithLazyGetterTrap {
         let attributeLinesValues = attributeLines.map(
             (attr) => attr.product_template_value_ids,
         );
+        let variantProduct = null;
         if (opts.code || opts.presetVariant) {
             let product;
             if (opts.code) {
@@ -804,6 +805,7 @@ export class PosStore extends WithLazyGetterTrap {
             } else {
                 product = opts.presetVariant;
             }
+            variantProduct = product;
 
             const attrValueIds = new Set(
                 product?.product_template_attribute_value_ids?.map((v) => v.id) || [],
@@ -823,7 +825,14 @@ export class PosStore extends WithLazyGetterTrap {
             return await makeAwaitable(this.dialog, ProductConfiguratorPopup, {
                 productTemplate: pTemplate,
                 hideAlwaysVariants: opts.hideAlwaysVariants,
-                forceVariantValue: opts.forceVariantValue,
+                // The narrowing above is thrown away by the popup, which
+                // re-derives the lines from the template. Hand it the scanned
+                // variant's values so the attributes the barcode already
+                // decided arrive picked instead of falling back to the first
+                // value of each.
+                forceVariantValue:
+                    opts.forceVariantValue ||
+                    variantProduct?.product_template_attribute_value_ids,
                 line: opts.line,
             });
         }
