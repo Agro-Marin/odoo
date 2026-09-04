@@ -593,6 +593,9 @@ class TestHtmlTools(unittest.TestCase):
             '<div style="margin: 4px"></div>',
             '<p class="oe_testing"><br></p>',
             '<p><span style="font-weight: bolder;"><font style="color: rgb(255, 0, 0);" class=" "></font></span><br></p>',
+            "<script>alert(1)</script>",
+            "<style>body{color:red}</style>",
+            "<p></p><script>doStuff();</script>",
         ]
         for content in void_html_samples:
             self.assertTrue(is_html_empty(content), "Failed with %s" % content)
