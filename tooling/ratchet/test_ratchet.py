@@ -455,3 +455,64 @@ class DirtyPathsTests(unittest.TestCase):
         completed = mock.Mock(returncode=0, stdout=porcelain)
         with mock.patch.object(ratchet.subprocess, "run", return_value=completed):
             self.assertEqual(ratchet._dirty_paths(), ["odoo/orm/fields/base.py"])
+
+
+class KeepingTheNoteHistory(unittest.TestCase):
+    # `--update` demands a note and then overwrote the one the floor carried.
+    # Demanding a note is not the same as preserving one, and the summary line
+    # reads `count=5 (was 5)` either way.
+
+    OLD = "8 -> 5: three assertions named a class no non-test file declares."
+
+    def _existing(self, note=OLD):
+        return ratchet.Baseline(count=5, note=note, measured_at="abc1234")
+
+    def test_the_old_note_is_kept_below_the_new_one(self):
+        kept = ratchet._keeping_history(
+            "5 -> 4: the last one went.", self._existing(), replace=False
+        )
+
+        self.assertIn("5 -> 4: the last one went.", kept)
+        self.assertIn(ratchet.PREVIOUS_NOTE, kept)
+        self.assertIn(self.OLD, kept)
+
+    def test_a_caller_who_carried_it_by_hand_does_not_get_it_twice(self):
+        # The convention 54 of these files were written under, so the common
+        # case must be idempotent rather than doubled.
+        by_hand = f"5 -> 4.\n\n{ratchet.PREVIOUS_NOTE}\n\n{self.OLD}"
+
+        kept = ratchet._keeping_history(by_hand, self._existing(), replace=False)
+
+        self.assertEqual(kept, by_hand)
+        self.assertEqual(kept.count(self.OLD), 1)
+
+    def test_replacing_is_available_but_has_to_be_asked_for(self):
+        kept = ratchet._keeping_history("5 -> 4.", self._existing(), replace=True)
+
+        self.assertEqual(kept, "5 -> 4.")
+        self.assertNotIn(self.OLD, kept)
+
+    def test_a_floor_with_no_note_gains_no_heading(self):
+        kept = ratchet._keeping_history(
+            "first note.", self._existing(""), replace=False
+        )
+
+        self.assertEqual(kept, "first note.")
+        self.assertNotIn(ratchet.PREVIOUS_NOTE, kept)
+
+    def test_a_floor_that_does_not_exist_yet_gains_no_heading(self):
+        kept = ratchet._keeping_history("first note.", None, replace=False)
+
+        self.assertEqual(kept, "first note.")
+
+    def test_history_accumulates_rather_than_replacing_the_previous_one(self):
+        first = ratchet._keeping_history("second.", self._existing(), replace=False)
+        second = ratchet._keeping_history(
+            "third.",
+            ratchet.Baseline(count=4, note=first, measured_at="d"),
+            replace=False,
+        )
+
+        self.assertIn("third.", second)
+        self.assertIn("second.", second)
+        self.assertIn(self.OLD, second)

@@ -262,6 +262,11 @@ def run(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--note", default=None, help="note to store with --update")
     parser.add_argument(
+        "--replace-note",
+        action="store_true",
+        help="discard the note the floor already carries instead of keeping it below yours",
+    )
+    parser.add_argument(
         "--root",
         choices=("odoo", *SIBLING_REPOS),
         default=None,
@@ -320,6 +325,7 @@ def run(argv: list[str] | None = None) -> int:
         note = (
             args.note if args.note is not None else (existing.note if existing else "")
         )
+        note = _keeping_history(note, existing, replace=args.replace_note)
         path = Baseline(
             count=args.count,
             note=note,
@@ -359,6 +365,34 @@ def run(argv: list[str] | None = None) -> int:
         mark = "OK" if verdict.ok else "FAIL"
         print(f"[{mark}] {verdict.message}")
     return EXIT_OK if verdict.ok else EXIT_DRIFT
+
+
+PREVIOUS_NOTE = (
+    "PREVIOUS NOTE, kept because a floor that loses its history costs more "
+    "than the stamp gains:"
+)
+
+
+def _keeping_history(note: str, existing: Baseline | None, *, replace: bool) -> str:
+    """The new note with the old one below it, unless it is already there.
+
+    `--update` demands a note and then overwrote the one the floor carried, and
+    demanding a note is not the same as preserving one. A summary line reading
+    `count=5 (was 5)` is identical either way, so a sweep re-stamping twenty
+    floors deleted twenty accounts of how those numbers were reached and looked
+    perfect doing it. That is the only record of what somebody already tried:
+    `jsvacuous`'s floor came down 8 to 5 because three assertions named a class
+    no non-test file declares, and without it a floor of 5 is unaccountable.
+
+    Idempotent on purpose. A caller who already carried the old note forward by
+    hand -- which is the convention 54 of these files were written under -- gets
+    it back unchanged rather than twice.
+    """
+    if replace or existing is None or not existing.note.strip():
+        return note
+    if existing.note.strip() in note:
+        return note
+    return f"{note.rstrip()}\n\n{PREVIOUS_NOTE}\n\n{existing.note.strip()}"
 
 
 def _note_lines(note: str) -> list[str]:
