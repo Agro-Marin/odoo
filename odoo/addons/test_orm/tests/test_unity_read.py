@@ -728,7 +728,43 @@ class TestUnityRead(TransactionCase):
         )
 
     def test_many2many_limits_with_deleted_records(self):
-        pass
+        lesson = self.env["test_orm.lesson"].create(
+            {
+                "name": "guest day",
+                "date": fields.Date.today(),
+                "course_id": self.course.id,
+                "teacher_id": self.teacher.id,
+                "attendee_ids": [
+                    Command.create({"name": "p1"}),
+                    Command.create({"name": "p2"}),
+                    Command.create({"name": "p3"}),
+                ],
+            }
+        )
+        attendees = lesson.attendee_ids.sorted("id")
+        attendees[0].unlink()
+
+        read = lesson.web_read(
+            {
+                "attendee_ids": {
+                    "fields": {"name": {}},
+                    "limit": 2,
+                },
+            }
+        )
+
+        self.assertEqual(
+            read,
+            [
+                {
+                    "id": lesson.id,
+                    "attendee_ids": [
+                        {"id": attendees[1].id, "name": "p2"},
+                        {"id": attendees[2].id, "name": "p3"},
+                    ],
+                }
+            ],
+        )
 
     def test_many2many_respects_order(self):
         read = self.course.web_read(
