@@ -256,3 +256,71 @@ class TestOptimizeSelection(TransactionCase):
     def test_empty_recordset_returns_empty(self):
         empty = self.env["ai.provider"].browse()
         self.assertFalse(self.orch._optimize_selection(empty, "cost"))
+
+
+@tagged("post_install", "-at_install")
+class TestOptimizeModelSelection(TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.orch = AIOrchestrator(self.env)
+        one_per_provider = self.env["ai.model"]
+        seen_providers = self.env["ai.provider"]
+        for model in self.env["ai.model"].search([]):
+            if model.provider_id in seen_providers:
+                continue
+            seen_providers |= model.provider_id
+            one_per_provider |= model
+        self.models = one_per_provider[:3]
+        if len(self.models) < 3:
+            self.skipTest("need at least 3 seeded models on distinct providers")
+        self.cheap, self.accurate, self.fast = (
+            self.models[0],
+            self.models[1],
+            self.models[2],
+        )
+        self.models.provider_id.write({"has_free_tier": False})
+        self.cheap.write(
+            {"cost_per_1m_input": 0.10, "accuracy_rating": "2", "speed_rating": "2"}
+        )
+        self.accurate.write(
+            {"cost_per_1m_input": 30.0, "accuracy_rating": "5", "speed_rating": "2"}
+        )
+        self.fast.write(
+            {"cost_per_1m_input": 5.0, "accuracy_rating": "3", "speed_rating": "5"}
+        )
+
+    def test_cost_picks_the_cheapest(self):
+        self.assertEqual(
+            self.orch._optimize_model_selection(self.models, "cost"), self.cheap
+        )
+
+    def test_cost_prefers_a_free_tier(self):
+        self.accurate.provider_id.has_free_tier = True
+        try:
+            chosen = self.orch._optimize_model_selection(self.models, "cost")
+            self.assertEqual(chosen, self.accurate)
+        finally:
+            self.accurate.provider_id.has_free_tier = False
+
+    def test_accuracy_picks_the_highest_rated(self):
+        self.assertEqual(
+            self.orch._optimize_model_selection(self.models, "accuracy"),
+            self.accurate,
+        )
+
+    def test_speed_picks_the_fastest(self):
+        self.assertEqual(
+            self.orch._optimize_model_selection(self.models, "speed"), self.fast
+        )
+
+    def test_balanced_returns_one_of_the_candidates(self):
+        chosen = self.orch._optimize_model_selection(self.models, "balanced")
+        self.assertIn(chosen, self.models)
+
+    def test_unknown_strategy_falls_back_to_the_first(self):
+        chosen = self.orch._optimize_model_selection(self.models, "no-such-strategy")
+        self.assertEqual(chosen, self.models[0])
+
+    def test_empty_recordset_returns_empty(self):
+        empty = self.env["ai.model"].browse()
+        self.assertFalse(self.orch._optimize_model_selection(empty, "cost"))
