@@ -58,6 +58,10 @@ class TestBIR2307Generation(TestPhCommon):
 
         cls.other_currency = cls.setup_other_currency('EUR', rates=[('2017-01-01', 2)])
 
+    @staticmethod
+    def _cell_text(value):
+        return "" if value is None else value
+
     def test_bir_2307_company(self):
         """ Test the report """
         wizard_action = self.invoice.action_view_l10n_ph_2307_wizard()
@@ -78,7 +82,7 @@ class TestBIR2307Generation(TestPhCommon):
         wb = openpyxl.load_workbook(io.BytesIO(bir_2307))
         sheet = wb.active
         for row, values in expected_values.items():
-            row_values = [cell.value for cell in sheet[row]]
+            row_values = [self._cell_text(cell.value) for cell in sheet[row]]
             for row_value, expected_value in zip(row_values, values):
                 self.assertEqual(row_value, expected_value)
 
@@ -98,7 +102,7 @@ class TestBIR2307Generation(TestPhCommon):
 
         result = []
         for row in sheet.iter_rows(min_row=2, values_only=True):
-            result.append(list(row))
+            result.append([self._cell_text(value) for value in row])
         self.assertEqual(result, [])
 
     def test_02_simple_atc(self):
@@ -119,7 +123,7 @@ class TestBIR2307Generation(TestPhCommon):
 
         result = []
         for row in sheet.iter_rows(min_row=2, values_only=True):
-            result.append(list(row))
+            result.append([self._cell_text(value) for value in row])
         self.assertEqual(result, [
             ['01/01/2025', '123456789', '001', '', 'Cuyegkeng', 'Jose', 'Mangahas', '250 Amorsolo Street, Manila, Philippines', '+900–1-096', '', 'WI010', 1000.0, 10.0, 100.0]
         ])
@@ -144,7 +148,7 @@ class TestBIR2307Generation(TestPhCommon):
 
         result = []
         for row in sheet.iter_rows(min_row=2, values_only=True):
-            result.append(list(row))
+            result.append([self._cell_text(value) for value in row])
         self.assertEqual(result, [
             ['01/01/2025', '123456789', '001', '', 'Cuyegkeng', 'Jose', 'Mangahas', '250 Amorsolo Street, Manila, Philippines', '+900–1-096', '10% ATC', 'WI010', 1150.0, 10.0, 115.0]
         ])
@@ -168,7 +172,7 @@ class TestBIR2307Generation(TestPhCommon):
 
         result = []
         for row in sheet.iter_rows(min_row=2, values_only=True):
-            result.append(list(row))
+            result.append([self._cell_text(value) for value in row])
         # We expect the values in company currency in the file.
         self.assertEqual(result, [
             ['01/01/2025', '123456789', '001', 'JMC Company', '', '', '', '250 Amorsolo Street, Manila, Philippines', '+900–1-096', '', 'WI010', 1000.0, 10.0, 100.0]
