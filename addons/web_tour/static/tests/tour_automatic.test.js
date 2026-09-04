@@ -159,6 +159,54 @@ test("a step waits for an RPC the previous step left in flight", async () => {
     expect.verifySteps(["second step acted"]);
 });
 
+test("a step that expects the page to unload does not wait for the client to settle", async () => {
+    // The request a previous step left in flight is, for an `expectUnloadPage`
+    // step, the very one whose response navigates away: `configurator_apply`
+    // answers and its continuation redirects in the same microtask chain, so a
+    // settle-wait sitting on it lets `beforeunload` fire before this step's
+    // action has set `allowUnload`. The runner then reports the tour as
+    // missing the flag it declared. Such a step must act with the request
+    // still open.
+    class Root extends Component {
+        static components = {};
+        static template = xml /*html*/ `
+            <t>
+                <button class="button0">Button 0</button>
+                <button class="button1">Button 1</button>
+            </t>
+        `;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Root);
+
+    const pending = { data: { id: 778 }, url: "/website/configurator/apply" };
+    tourRegistry.add("tour_unload_no_settle", {
+        steps: () => [
+            {
+                trigger: ".button0",
+                run() {
+                    rpcBus.trigger(RpcEvent.REQUEST, pending);
+                },
+            },
+            {
+                trigger: ".button1",
+                expectUnloadPage: true,
+                run() {
+                    expect.step("unload step acted");
+                },
+            },
+        ],
+    });
+
+    await odoo.startTour("tour_unload_no_settle", { mode: "auto" });
+    for (let i = 0; i < 5; i++) {
+        await animationFrame();
+        await advanceTime(265);
+    }
+    expect.verifySteps(["unload step acted"]);
+    rpcBus.trigger(RpcEvent.RESPONSE, pending);
+});
+
 test("a request that never answers costs the settle budget once, not per step", async () => {
     // `RPC:REQUEST` is balanced by `RPC:RESPONSE` everywhere in `rpc.js`
     // today, aborts included, so this should not happen -- but if one ever

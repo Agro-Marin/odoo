@@ -153,7 +153,13 @@ export class TourAutomatic {
                         } else {
                             console.log(step.describeMe);
                         }
-                        await this.whenClientSettles();
+                        if (!step.expectUnloadPage) {
+                            // The RPC still in flight is the one whose
+                            // response navigates away; waiting on it here
+                            // lets `beforeunload` fire before the step's own
+                            // action has set `allowUnload`.
+                            await this.whenClientSettles();
+                        }
                     },
                 },
                 {
