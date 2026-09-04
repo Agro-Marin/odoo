@@ -159,3 +159,60 @@ class TestOneInvalidationMechanism(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertIn("ROLLBACK TO SAVEPOINT", calls[0])
         self.assertIn(sp.name, calls[0])
+
+
+class _FlushSpyCursor:
+    def __init__(self):
+        self.flush_calls = 0
+        self.savepoint_flush = []
+
+    def flush(self):
+        self.flush_calls += 1
+
+    def savepoint(self, flush=True):
+        self.savepoint_flush.append(flush)
+        if flush:
+            self.flush()
+        return Savepoint(self)
+
+    def execute(self, query, *args, **kwargs):
+        pass
+
+
+class TestGetOrCreateRowFlush(unittest.TestCase):
+    def test_default_flushes_through_the_savepoint(self):
+        from odoo.db.savepoint import get_or_create_row
+
+        cr = _FlushSpyCursor()
+        row, created = get_or_create_row(
+            cr, lambda: "row", lambda: None, conflict="row"
+        )
+        self.assertEqual((row, created), ("row", True))
+        self.assertEqual(cr.savepoint_flush, [True])
+        self.assertEqual(cr.flush_calls, 1)
+
+    def test_flush_false_opens_the_savepoint_without_flushing(self):
+        from odoo.db.savepoint import get_or_create_row
+
+        cr = _FlushSpyCursor()
+        row, created = get_or_create_row(
+            cr, lambda: "row", lambda: None, conflict="row", flush=False
+        )
+        self.assertEqual((row, created), ("row", True))
+        self.assertEqual(cr.savepoint_flush, [False])
+        self.assertEqual(cr.flush_calls, 0)
+
+    def test_flush_false_still_recovers_the_existing_row(self):
+        import psycopg.errors
+
+        from odoo.db.savepoint import get_or_create_row
+
+        def insert():
+            raise psycopg.errors.UniqueViolation
+
+        cr = _FlushSpyCursor()
+        row, created = get_or_create_row(
+            cr, insert, lambda: "existing", conflict="row", flush=False
+        )
+        self.assertEqual((row, created), ("existing", False))
+        self.assertEqual(cr.flush_calls, 0)

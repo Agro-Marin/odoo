@@ -103,11 +103,12 @@ def get_or_create_row[T](
     find: Callable[[], T],
     *,
     conflict: str,
+    flush: bool = True,
 ) -> tuple[T, bool]:
     from odoo.exceptions import ConcurrencyError
 
     try:
-        with cr.savepoint():
+        with cr.savepoint(flush=flush):
             return insert(), True
     except psycopg.errors.UniqueViolation:
         existing = find()

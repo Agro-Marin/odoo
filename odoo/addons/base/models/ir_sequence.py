@@ -4,11 +4,10 @@ from collections.abc import Collection
 from datetime import datetime, timedelta
 from typing import Any, Literal, Self
 
-import psycopg.errors
-
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
-from odoo.exceptions import ConcurrencyError, UserError, ValidationError
+from odoo.db import get_or_create_row
+from odoo.exceptions import UserError, ValidationError
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
@@ -549,17 +548,19 @@ class IrSequence(models.Model):
                 )
             )
         vals = {"date_from": date_from, "date_to": date_to, "sequence_id": self.id}
-        try:
-            with self.env.cr.savepoint(flush=False):
-                return DateRange.sudo().create(vals)
-        except psycopg.errors.UniqueViolation:
+
+        def find_covering() -> Any:
             DateRange.invalidate_model()
-            if existing := self._get_covering_date_range(date):
-                return existing
-            raise ConcurrencyError(
-                f"ir.sequence {self.id} date range {date_from}..{date_to} "
-                "was created by a concurrent transaction"
-            ) from None
+            return self._get_covering_date_range(date)
+
+        date_range, _created = get_or_create_row(
+            self.env.cr,
+            lambda: DateRange.sudo().create(vals),
+            find_covering,
+            conflict=f"ir.sequence {self.id} date range {date_from}..{date_to}",
+            flush=False,
+        )
+        return date_range
 
     def _resolve_sequence_date(self, sequence_date: Any = None) -> Any:
         return (
