@@ -367,6 +367,12 @@ class PosOrder(models.Model):
         default=lambda self: self.env.uid,
     )
     amount_difference = fields.Monetary(string="Difference", readonly=True)
+    # `amount_total` is already the rounded figure -- `_recompute_prices` hands
+    # the rounding method to the tax engine -- so the difference the drawer has
+    # to reconcile against is not recoverable from the totals afterwards. It is
+    # kept here as the tax engine reports it, and it is not `amount_difference`,
+    # which is over- or under-tendering.
+    amount_cash_rounding = fields.Monetary(string="Cash Rounding", readonly=True)
     amount_tax = fields.Monetary(string="Taxes", readonly=True, required=True)
     amount_total = fields.Monetary(string="Total", readonly=True, required=True)
     amount_paid = fields.Monetary(string="Paid", required=True)
@@ -740,6 +746,9 @@ class PosOrder(models.Model):
             refund_factor = -1 if order._is_refund_order() else 1
             order.amount_tax = refund_factor * tax_totals["tax_amount_currency"]
             order.amount_total = refund_factor * tax_totals["total_amount_currency"]
+            order.amount_cash_rounding = refund_factor * tax_totals.get(
+                "cash_rounding_base_amount_currency", 0.0
+            )
             order.amount_difference = order.amount_paid - order.amount_total
 
     @api.depends("lines.is_edited", "has_deleted_line")
