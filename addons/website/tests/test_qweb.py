@@ -232,7 +232,6 @@ class TestQweb(TransactionCaseWithUserDemo):
             )
 
         def check_website(template, name, queries):
-            queries += 1
             init = env.cr.sql_log_count
             with MockRequest(env, website=website) as request:
                 value = str(request.env["ir.qweb"]._render(template, {"doc": name}))
