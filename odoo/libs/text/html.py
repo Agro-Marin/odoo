@@ -254,8 +254,23 @@ class _Cleaner(clean.Cleaner):
     sanitize_style = False
     conditional_comments = True
 
+    # lxml's HTML parser (used throughout this module) keeps "xml:base" as a
+    # literal attribute name -- it does not resolve it to the namespaced
+    # Clark-notation key an XML parser would use.
+    _XML_BASE_ATTRS = ("xml:base", "{http://www.w3.org/XML/1998/namespace}base")
+
     def __call__(self, doc: etree._Element) -> None:
         super().__call__(doc)
+
+        # xml:base changes the base URI for relative-URL resolution within
+        # its subtree -- combined with a relative src/href elsewhere in the
+        # same fragment, an attacker-controlled xml:base can redirect those
+        # references to an attacker-controlled host. Strip it unconditionally
+        # rather than only when sanitize_attributes=True's safe_attrs
+        # allowlist happens to exclude it.
+        for el in doc.iter(tag=etree.Element):
+            for attr in self._XML_BASE_ATTRS:
+                el.attrib.pop(attr, None)
 
         if not getattr(self, "safe_attrs_only", False) and self.strip_classes:
             for el in doc.iter(tag=etree.Element):
