@@ -112,7 +112,7 @@ class NplusOneTracker:
         if not violations:
             return
 
-        lines = [f"N+1 detected ({len(violations)} call site(s)):"]
+        lines = [f"N+1 CRUD detected ({len(violations)} call site(s)):"]
         for (operation, model_name, filename, lineno), entry in violations:
             if operation in READ_OPERATIONS:
                 per_call = entry.total_records / entry.count
