@@ -86,6 +86,12 @@ class MimeGuessingCases:
             "application/octet-stream",
         )
 
+    def test_ico(self):
+        self.assertEqual(
+            self.guess_mimetype(b"\x00\x00\x01\x00" + b"\x00" * 18),
+            "image/x-icon",
+        )
+
 
 class TestMimeGuessingOdoo(BaseCase, MimeGuessingCases):
     guess_mimetype = staticmethod(_odoo_guess_mimetype)
