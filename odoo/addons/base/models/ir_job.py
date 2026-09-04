@@ -869,6 +869,44 @@ class IrJob(models.Model):
                 runnable = IrJob._runnable_channels(cr, channels)
                 if not runnable:
                     return None
+                # Pick the best candidate with a plain, lock-free SELECT
+                # (INF-1): the old single-statement UPDATE locked one
+                # candidate row *per runnable channel* via a LATERAL
+                # `FOR NO KEY UPDATE SKIP LOCKED`, even though it only ever
+                # updates the single globally-best one. The losing channels'
+                # locked-but-unmodified rows stayed locked until commit, so
+                # a concurrent worker claiming from one of those channels
+                # could SKIP LOCKED past its own, otherwise-free, highest-
+                # priority job. Locking nothing here means there is nothing
+                # for another channel's claim to skip past.
+                cr.execute(
+                    SQL(
+                        """
+                        SELECT best.id
+                        FROM unnest(%s::varchar[]) AS runnable(channel)
+                        CROSS JOIN LATERAL (
+                            SELECT j.id, j.priority, j.create_date
+                            FROM ir_job j
+                            WHERE j.state = 'pending'
+                              AND j.channel = runnable.channel
+                              AND (j.eta IS NULL
+                                   OR j.eta <= (now() AT TIME ZONE 'UTC'))
+                            ORDER BY j.priority, j.create_date, j.id
+                            LIMIT 1
+                        ) best
+                        ORDER BY best.priority, best.create_date, best.id
+                        LIMIT 1
+                        """,
+                        runnable,
+                    )
+                )
+                picked = cr.fetchone()
+                if picked is None:
+                    return None
+                # Claim it with a single targeted, single-row UPDATE. If
+                # another worker claimed it first, 0 rows match and `row`
+                # below is None -- retry the pick rather than give up, since
+                # a different job may now be the best candidate.
                 cr.execute(
                     SQL(
                         """
@@ -877,27 +915,11 @@ class IrJob(models.Model):
                             started_at = (now() AT TIME ZONE 'UTC'),
                             worker_ident = %s,
                             write_date = (now() AT TIME ZONE 'UTC')
-                        WHERE id = (
-                            SELECT best.id
-                            FROM unnest(%s::varchar[]) AS runnable(channel)
-                            CROSS JOIN LATERAL (
-                                SELECT j.id, j.priority, j.create_date
-                                FROM ir_job j
-                                WHERE j.state = 'pending'
-                                  AND j.channel = runnable.channel
-                                  AND (j.eta IS NULL
-                                       OR j.eta <= (now() AT TIME ZONE 'UTC'))
-                                ORDER BY j.priority, j.create_date, j.id
-                                LIMIT 1
-                                FOR NO KEY UPDATE SKIP LOCKED
-                            ) best
-                            ORDER BY best.priority, best.create_date, best.id
-                            LIMIT 1
-                        )
+                        WHERE id = %s AND state = 'pending'
                         RETURNING %s
                         """,
                         worker_ident,
-                        runnable,
+                        picked[0],
                         CLAIMED_COLUMNS,
                     )
                 )
@@ -913,9 +935,10 @@ class IrJob(models.Model):
                     )
                 continue
             row = cr.fetchone()
-            if row is None:
-                return None
-            return dict(zip([d.name for d in cr.description], row, strict=True))
+            if row is not None:
+                return dict(zip([d.name for d in cr.description], row, strict=True))
+            if attempt < CLAIM_MAX_ATTEMPTS:
+                continue
         raise ClaimContended(
             f"job claim lost {CLAIM_MAX_ATTEMPTS} serialization races in a row"
         )
