@@ -180,3 +180,24 @@ test("parseNumberInput reads the user's locale and reports refusals", async () =
     expect(parseNumberInput("2,5", { integer: true }).error).toMatch(/whole number/);
     expect(parseNumberInput("abc").error).toMatch(/not a number/);
 });
+
+test("a blank total falls back to the demand in the move's own unit", async () => {
+    const { move } = makeMove({ tracking: "lot" });
+    move.data.product_uom_qty = 2;
+    move.data.product_qty = 24;
+    move.data.quantity = 0;
+    onRpc("action_generate_lot_line_vals", ({ args }) => {
+        expect.step(`qty=${args[0].default_quantity} uom=${args[0].default_uom_id}`);
+        return [{ lot_name: "LOT0001" }];
+    });
+    await mountDialog(move);
+    await click("#generate_next_serial");
+    await edit("LOT0001");
+    await click("#generate_next_serial_count");
+    await edit("1");
+    await click("#generate_total_received");
+    await edit("");
+    await click(".modal-footer button.btn-primary");
+    await animationFrame();
+    expect.verifySteps(["qty=2 uom=4", "close"]);
+});

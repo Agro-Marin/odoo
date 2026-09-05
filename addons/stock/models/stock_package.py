@@ -525,11 +525,6 @@ class StockPackage(models.Model):
             )
         ]
 
-    def action_add_to_picking(self):
-        picking = self.env["stock.picking"].browse(self.env.context.get("picking_id"))
-        if picking and self:
-            picking.action_add_entire_packs(self.ids)
-
     def action_put_in_pack(
         self, *, package_id=False, package_type_id=False, package_name=False
     ):
@@ -821,7 +816,9 @@ class StockPackage(models.Model):
                 ).items()
             }
 
-        quantities = get_quantity_by_product_and_lot(self.contained_quant_ids, "quantity")
+        quantities = get_quantity_by_product_and_lot(
+            self.contained_quant_ids, "quantity"
+        )
         operations = get_quantity_by_product_and_lot(move_lines, "quantity_product_uom")
 
         return all(

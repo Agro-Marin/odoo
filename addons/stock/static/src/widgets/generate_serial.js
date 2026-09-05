@@ -148,7 +148,7 @@ export class GenerateDialog extends Component {
             return null;
         }
 
-        let qtyToProcess = move.product_qty;
+        let qtyToProcess = move.product_uom_qty;
         if (this.isLot) {
             const received = parseNumberInput(this.state.totalReceived);
             if (received.error) {
