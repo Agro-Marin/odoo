@@ -1,6 +1,6 @@
 {
     "name": "Employees",
-    "version": "1.10",
+    "version": "1.11",
     "category": "Human Resources/Employees",
     "sequence": 95,
     "summary": "Centralize employee information",
@@ -19,6 +19,7 @@
         "security/hr_security.xml",
         "security/ir.model.access.csv",
         "data/digest_data.xml",
+        "data/res_partner_identifier_type_data.xml",
         "data/report_paperformat.xml",
         "wizard/hr_departure_wizard_views.xml",
         "wizard/hr_contract_template_wizard.views.xml",

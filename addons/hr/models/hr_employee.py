@@ -270,23 +270,38 @@ class HrEmployee(models.Model):
     )
     identification_id = fields.Char(
         string="Identification No",
+        compute="_compute_identifiers",
+        inverse="_inverse_identifiers",
+        search="_search_identification_id",
+        compute_sudo=True,
         tracking=True,
         groups="hr.group_hr_user",
         help="Enter the employee's National Identification Number issued by the government (e.g., Aadhaar, SIN, NIN). This is used for official records and statutory compliance.",
     )
     ssnid = fields.Char(
         "SSN No",
+        compute="_compute_identifiers",
+        inverse="_inverse_identifiers",
+        search="_search_ssnid",
+        compute_sudo=True,
         help="Social Security Number",
         tracking=True,
         groups="hr.group_hr_user",
     )
     passport_id = fields.Char(
         "Passport No",
+        compute="_compute_identifiers",
+        inverse="_inverse_identifiers",
+        search="_search_passport_id",
+        compute_sudo=True,
         tracking=True,
         groups="hr.group_hr_user",
     )
     passport_expiration_date = fields.Date(
         "Passport Expiration Date",
+        compute="_compute_identifiers",
+        inverse="_inverse_identifiers",
+        compute_sudo=True,
         tracking=True,
         groups="hr.group_hr_user",
     )
@@ -549,8 +564,11 @@ class HrEmployee(models.Model):
     color = fields.Integer("Color Index", default=0)
     barcode = fields.Char(
         string="Badge ID",
+        compute="_compute_identifiers",
+        inverse="_inverse_identifiers",
+        search="_search_barcode",
+        compute_sudo=True,
         groups="hr.group_hr_user",
-        copy=False,
         help="ID used for employee identification.",
     )
     pin = fields.Char(
@@ -601,14 +619,23 @@ class HrEmployee(models.Model):
 
     _BARCODE_DRAW_ATTEMPTS = 32
 
-    _barcode_uniq = models.Constraint(
-        "unique (barcode)",
-        "The Badge ID must be unique, this one is already assigned to another employee.",
-    )
     _user_uniq = models.Constraint(
         "unique (user_id, company_id)",
         "A user cannot be linked to multiple employees in the same company.",
     )
+
+    @api.constrains("barcode")
+    def _check_barcode(self):
+        for employee in self:
+            if employee.barcode and not (
+                re.match(r"^[A-Za-z0-9]+$", employee.barcode)
+                and len(employee.barcode) <= 18
+            ):
+                raise ValidationError(
+                    self.env._(
+                        "The Badge ID must be alphanumeric without any accents and no longer than 18 characters."
+                    )
+                )
 
     @api.constrains("user_id", "partner_id")
     def _check_work_contact_is_the_user_partner(self):
@@ -674,20 +701,6 @@ class HrEmployee(models.Model):
                     self.env._("The PIN must be a sequence of digits.")
                 )
 
-    @api.constrains("barcode")
-    def _check_barcode(self):
-        for employee in self:
-            if employee.barcode:
-                if not (
-                    re.match(r"^[A-Za-z0-9]+$", employee.barcode)
-                    and len(employee.barcode) <= 18
-                ):
-                    raise ValidationError(
-                        self.env._(
-                            "The Badge ID must be alphanumeric without any accents and no longer than 18 characters."
-                        )
-                    )
-
     @api.model
     def new(self, values=None, origin=None, ref=None):
         if not values:
@@ -717,7 +730,10 @@ class HrEmployee(models.Model):
             return
         company = self.env["res.company"].browse(company_id)
         for vals in vals_list:
-            if vals.get("resource_calendar_id", default_calendar.id) == default_calendar.id:
+            if (
+                vals.get("resource_calendar_id", default_calendar.id)
+                == default_calendar.id
+            ):
                 vals["resource_calendar_id"] = company.resource_calendar_id.id
 
     @api.model_create_multi
@@ -815,8 +831,10 @@ class HrEmployee(models.Model):
             # with it: a calendar owned by the old company stays behind.
             company = self.env["res.company"].browse(vals["company_id"])
             moving = self.filtered(
-                lambda employee: employee.resource_calendar_id.company_id
-                and employee.resource_calendar_id.company_id != company
+                lambda employee: (
+                    employee.resource_calendar_id.company_id
+                    and employee.resource_calendar_id.company_id != company
+                )
             )
             if moving:
                 (self - moving).write(vals)
@@ -2753,6 +2771,91 @@ class HrEmployee(models.Model):
         if active_status is not None:
             resource_vals["active"] = active_status
         return resource_vals
+
+    _IDENTIFIER_TYPES = {
+        "identification_id": "NATIONAL_ID",
+        "ssnid": "SSN",
+        "passport_id": "PASSPORT",
+        "barcode": "BADGE",
+    }
+
+    @api.depends(
+        "partner_id.identifier_ids.type_id",
+        "partner_id.identifier_ids.value",
+        "partner_id.identifier_ids.valid_until",
+    )
+    def _compute_identifiers(self):
+        for employee in self:
+            by_code = {
+                identifier.type_id.code: identifier
+                for identifier in employee.partner_id.identifier_ids
+            }
+            for fname, code in self._IDENTIFIER_TYPES.items():
+                employee[fname] = by_code[code].value if code in by_code else False
+            passport = by_code.get("PASSPORT")
+            employee.passport_expiration_date = (
+                passport.valid_until if passport else False
+            )
+
+    def _inverse_identifiers(self):
+        Type = self.env["res.partner.identifier.type"].sudo()
+        types = {
+            identifier_type.code: identifier_type
+            for identifier_type in Type.search(
+                [("code", "in", list(self._IDENTIFIER_TYPES.values()))]
+            )
+        }
+        for employee in self:
+            partner = employee.partner_id.sudo()
+            by_code = {
+                identifier.type_id.code: identifier
+                for identifier in partner.identifier_ids
+            }
+            for fname, code in self._IDENTIFIER_TYPES.items():
+                value = employee[fname]
+                row = by_code.get(code)
+                vals = {"value": value}
+                if code == "PASSPORT":
+                    vals["valid_until"] = employee.passport_expiration_date
+                if not value:
+                    if row:
+                        row.unlink()
+                    continue
+                if row:
+                    changed = {k: v for k, v in vals.items() if row[k] != v}
+                    if changed:
+                        row.write(changed)
+                else:
+                    partner.identifier_ids.create(
+                        {"partner_id": partner.id, "type_id": types[code].id, **vals}
+                    )
+
+    @api.model
+    def _search_identifier(self, code, operator, value):
+        if operator in ("=", "!=") and not value:
+            has_one = "any" if operator == "!=" else "not any"
+            return [
+                ("partner_id.identifier_ids", has_one, [("type_id.code", "=", code)])
+            ]
+        return [
+            (
+                "partner_id.identifier_ids",
+                "any",
+                [("type_id.code", "=", code), ("value", operator, value)],
+            )
+        ]
+
+    def _search_identification_id(self, operator, value):
+        return self._search_identifier("NATIONAL_ID", operator, value)
+
+    def _search_ssnid(self, operator, value):
+        return self._search_identifier("SSN", operator, value)
+
+    def _search_passport_id(self, operator, value):
+        return self._search_identifier("PASSPORT", operator, value)
+
+    def _search_barcode(self, operator, value):
+        return self._search_identifier("BADGE", operator, value)
 
     def _reparent_private_address(self):
         for employee in self.sudo():

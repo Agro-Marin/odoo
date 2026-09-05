@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="partner_identifier_type_national_id" model="res.partner.identifier.type">
+            <field name="name">Identification No</field>
+            <field name="code">NATIONAL_ID</field>
+            <field name="sequence">40</field>
+            <field name="confidential" eval="True" />
+        </record>
+        <record id="partner_identifier_type_ssn" model="res.partner.identifier.type">
+            <field name="name">Social Security No</field>
+            <field name="code">SSN</field>
+            <field name="sequence">41</field>
+            <field name="confidential" eval="True" />
+        </record>
+        <record id="partner_identifier_type_passport" model="res.partner.identifier.type">
+            <field name="name">Passport No</field>
+            <field name="code">PASSPORT</field>
+            <field name="sequence">42</field>
+            <field name="confidential" eval="True" />
+        </record>
+        <record id="partner_identifier_type_badge" model="res.partner.identifier.type">
+            <field name="name">Badge ID</field>
+            <field name="code">BADGE</field>
+            <field name="sequence">43</field>
+            <field name="pattern">[A-Za-z0-9]{1,18}</field>
+        </record>
+    </data>
+</odoo>
