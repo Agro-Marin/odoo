@@ -99,7 +99,7 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
             run() {
                 const subjectValue = this.anchor.value;
                 const correctValue =
-                    "yes_model_id {{object.company_name ||| defValue}}";
+                    "yes_model_id {{object.commercial_company_name ||| defValue}}";
                 if (subjectValue !== correctValue) {
                     console.error(
                         `Email template should have "${correctValue}" in subject input (actual: ${subjectValue})`,
@@ -154,7 +154,7 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
         },
         {
             content: "Ensure the editable contain the dynamic placeholder t tag",
-            trigger: `.note-editable.odoo-editor-editable t[t-out="object.company_name"]:contains("defValue")`,
+            trigger: `.note-editable.odoo-editor-editable t[t-out="object.commercial_company_name"]:contains("defValue")`,
         },
         {
             content: 'Type "Push Notification Device" model',

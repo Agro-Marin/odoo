@@ -48,7 +48,7 @@ class TestDDT(TestSaleCommon):
             'partner_shipping_id': self.partner_a.id,
             'line_ids': [(0, 0, {'name': p.name,
                                    'product_id': p.id,
-                                   'product_uom_qty': 5,
+                                   'product_qty': 5,
                                    'price_unit': p.list_price,
                                    'tax_ids': self.company_data['default_tax_sale']})
                            for p in (
@@ -101,7 +101,7 @@ class TestDDT(TestSaleCommon):
             'partner_id': self.partner_a.id,
             'line_ids': [(0, 0, {
                                    'product_id': self.product_a.id,
-                                   'product_uom_qty': 3,
+                                   'product_qty': 3,
                                    'price_unit': self.product_a.list_price,
                                    'tax_ids': self.company_data['default_tax_sale']
                                    }

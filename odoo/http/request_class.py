@@ -194,6 +194,13 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self._cookies_memo = (sanitized, result)
         return result
 
+    @cookies.setter
+    def cookies(self, value: Any) -> None:
+        self._cookies_memo = (
+            self.registry is not None,
+            werkzeug.datastructures.ImmutableMultiDict(value),
+        )
+
     def get_default_context(self) -> dict[str, Any]:
         return {"lang": self.get_default_lang()}
 

@@ -101,7 +101,7 @@ class TestItEdiDDT(TestItEdi):
                     (0, 0, {
                         'name': product.name,
                         'product_id': product.id,
-                        'product_uom_qty': 5,
+                        'product_qty': 5,
                         'price_unit': product.list_price,
                         'tax_ids': self.tax_22
                     }) for product in self.products

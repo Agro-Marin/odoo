@@ -65,10 +65,9 @@ class LivechatController(http.Controller):
 
     @http.route('/im_livechat/emoji_bundle', type='http', auth='public', cors='*')
     def get_emoji_bundle(self):
-        bundle = 'web.assets_emoji'
-        asset = request.env["ir.qweb"]._get_asset_bundle(bundle)
-        stream = request.env['ir.binary']._get_stream_from_record(asset.js())
-        return stream.get_response()
+        # The embed runs on another origin and loads this as one classic script,
+        # so it gets the same standalone build as the embed bundle itself.
+        return self._assets_embed_js_response('web.assets_emoji')
 
     @http.route('/im_livechat/support/<int:channel_id>', type='http', auth='public')
     def support_page(self, channel_id, **kwargs):

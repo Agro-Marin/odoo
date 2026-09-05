@@ -367,7 +367,7 @@ class IrQweb(models.AbstractModel):
             bundle, css=False, assets_params=assets_params
         )
         esbuild_result, _child_bundles = self._compile_with_esbuild_locked(
-            bundle, asset_bundle, assets_params
+            bundle, asset_bundle, assets_params, standalone=True
         )
         if not esbuild_result.code:
             raise _StandaloneBundleDeclined

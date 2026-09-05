@@ -504,10 +504,27 @@ class DigestDigest(models.Model):
             # still pending after it raised, evaluating a denied KPI twice.
             digest.invalidate_recordset([value_field], flush=False)
 
+    def _get_unloaded_tip_ids(self):
+        # A tip renders its module's models; while modules are still loading,
+        # an installed module's tip exists before its models do.
+        loaded = self.env.registry.loaded_modules
+        if not loaded:
+            return []
+        return (
+            self.env["ir.model.data"]
+            .sudo()
+            .search_fetch(
+                [("model", "=", "digest.tip"), ("module", "not in", list(loaded))],
+                ["res_id"],
+            )
+            .mapped("res_id")
+        )
+
     def _get_tips(self, company, user, tips_count=1, consumed=True):
         tips = self.env["digest.tip"].search(
             [
                 ("user_ids", "not in", user.id),
+                ("id", "not in", self._get_unloaded_tip_ids()),
                 "|",
                 ("group_id", "in", user.all_group_ids.ids),
                 ("group_id", "=", False),

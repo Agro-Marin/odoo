@@ -258,6 +258,7 @@ class IrQweb(models.AbstractModel):
         asset_bundle: AssetsBundle,
         assets_params: dict[str, Any] | None,
         page_scope: tuple[str, ...] = (),
+        standalone: bool = False,
     ) -> tuple[EsbuildResult, list[AssetsBundle]]:
         empty = EsbuildResult("", None, None)
         child_bundles: list[AssetsBundle] = []
@@ -277,9 +278,17 @@ class IrQweb(models.AbstractModel):
             child_bundles = self._get_dynamic_child_bundles(
                 bundle, assets_params, debug_assets=False
             )
-            dynamic_child_specs, secondary_stubs = self._get_esbuild_child_externals(
-                bundle, asset_bundle, assets_params, child_bundles, page_scope
-            )
+            if standalone:
+                # A standalone build runs as one classic script on a page
+                # that has no parent bundle to import from, so nothing may
+                # stay external: every module it needs is bundled in.
+                dynamic_child_specs, secondary_stubs = None, {}
+            else:
+                dynamic_child_specs, secondary_stubs = (
+                    self._get_esbuild_child_externals(
+                        bundle, asset_bundle, assets_params, child_bundles, page_scope
+                    )
+                )
             result = self._compile_with_esbuild(
                 bundle, asset_bundle, dynamic_child_specs, secondary_stubs
             )
