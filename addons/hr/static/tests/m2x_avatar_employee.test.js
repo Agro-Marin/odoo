@@ -197,7 +197,16 @@ test("many2one without hr.group_hr_user", async () => {
     const { env } = await makeMockServer();
     env["m2x.avatar.employee"].create({});
     env["hr.employee"].create({ name: "babar" });
+    // "Search more..." is the overflow affordance, so it needs more records
+    // than fit: the dropdown renders SEARCH_LIMIT (7) and asks for one more to
+    // learn whether any remain. Seven or fewer and web pins its ABSENCE
+    // ("no Search more... when all matching records fit in the dropdown"), so
+    // a single employee here left this test waiting for an element that was
+    // correctly never rendered.
     env["hr.employee.public"].create({ name: "babar" });
+    for (let i = 0; i < 7; i++) {
+        env["hr.employee.public"].create({ name: `employee ${i}` });
+    }
     onRpc("web_name_search", (args) => {
         expect.step("web_name_search");
         expect(args.model).toBe("hr.employee.public");

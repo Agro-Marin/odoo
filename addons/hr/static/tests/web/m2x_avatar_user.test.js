@@ -61,7 +61,7 @@ test("avatar card preview with hr", async () => {
     await contains(".o_m2o_avatar > img").click();
     await mailContains(".o_avatar_card");
     await mailContains(
-        ".o_avatar_card span[data-tooltip='Work Location'] .fa-building-o",
+        ".o_avatar_card span[data-tooltip='Work Location'] .fa-regular.fa-building",
     );
     expect(queryAllTexts(".o_card_user_infos > *:not(.o_avatar_card_buttons)")).toEqual(
         ["Mario", "Management", "Mario@odoo.pro", "+585555555", "Odoo"],
@@ -117,7 +117,7 @@ test("avatar card preview with hr (partner_id field)", async () => {
     await contains(".o_m2o_avatar > img").click();
     await mailContains(".o_avatar_card");
     await mailContains(
-        ".o_avatar_card span[data-tooltip='Work Location'] .fa-building-o",
+        ".o_avatar_card span[data-tooltip='Work Location'] .fa-regular.fa-building",
     );
     expect(queryAllTexts(".o_card_user_infos > *:not(.o_avatar_card_buttons)")).toEqual(
         ["Mario", "Management", "Mario@odoo.pro", "+585555555", "Odoo"],
