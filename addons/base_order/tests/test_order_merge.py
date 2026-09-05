@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.exceptions import UserError
@@ -124,6 +125,59 @@ class TestOrderMergeMixin(TransactionCase):
             "source line's quantity",
         )
         self.assertEqual(sorted(remaining.mapped("product_qty")), [1.0, 2.0])
+
+    def test_collapse_matches_routes_through_the_merge_line_hook(self):
+        """Multi-candidate collapse must fold through `_merge_order_line`,
+        the same overridable hook the single-match path already uses --
+        not a second, independently-maintained aggregation policy."""
+        target = self._order(self.partner_a)
+        line_1 = self.env["sale.order.line"].create(
+            {
+                "order_id": target.id,
+                "product_id": self.product.id,
+                "product_qty": 1.0,
+                "price_unit": 100.0,
+            }
+        )
+        self.env["sale.order.line"].create(
+            {
+                "order_id": target.id,
+                "product_id": self.product.id,
+                "product_qty": 1.0,
+                "price_unit": 100.0,
+            }
+        )
+        source = self._order(self.partner_a)
+        self.env["sale.order.line"].create(
+            {
+                "order_id": source.id,
+                "product_id": self.product.id,
+                "product_qty": 1.0,
+                "price_unit": 100.0,
+            }
+        )
+
+        original = type(line_1)._merge_order_line
+        calls = []
+
+        def tracked(self, source_line):
+            calls.append((self.id, source_line.id))
+            return original(self, source_line)
+
+        with patch.object(type(line_1), "_merge_order_line", tracked):
+            (target | source).action_merge()
+
+        self.assertTrue(calls, "the multi-match fold must call _merge_order_line")
+        self.assertEqual(
+            {c[0] for c in calls},
+            {line_1.id},
+            "the surviving keeper must always be the first candidate",
+        )
+        self.assertEqual(
+            len(calls),
+            2,
+            "one call folding the duplicate target line, one folding the source line",
+        )
 
     def test_merge_metadata_deduplicates_repeated_origin(self):
         """Merging the same target again must not keep piling up duplicate

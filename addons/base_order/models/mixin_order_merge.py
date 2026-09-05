@@ -156,7 +156,8 @@ class MixinOrderMerge(models.AbstractModel):
         if len(mutual) <= 1:
             return matches[:1]
         keeper, folded = mutual[0], mutual[1:]
-        keeper.product_qty += sum(folded.mapped("product_qty"))
+        for line in folded:
+            keeper._merge_order_line(line)
         for line in folded:
             if line in candidates:
                 candidates.remove(line)
