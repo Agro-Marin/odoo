@@ -850,6 +850,26 @@ class HrEmployee(models.Model):
 
         return (allocations_leaves_consumed, to_recheck_leaves_per_leave_type)
 
+    def _get_duration_until(self, date_from, date_to):
+        self.check_singleton()
+        start_datetime = datetime.combine(date_from, time.min).replace(tzinfo=UTC)
+        end_datetime = datetime.combine(date_to, time.max).replace(tzinfo=UTC)
+        calendar = self.resource_calendar_id
+        if not calendar:
+            return {
+                "hours": float_round(
+                    (end_datetime - start_datetime).total_seconds() / 3600,
+                    precision_rounding=0.001,
+                ),
+                "days": (end_datetime - start_datetime).days + 1,
+            }
+        intervals = calendar._work_intervals_batch(
+            start_datetime, end_datetime, resources=self.resource_id
+        )
+        return calendar._get_attendance_intervals_days_data(
+            intervals[self.resource_id.id]
+        )
+
     def _get_hours_per_day(self, date_from):
         if not self:
             return 0

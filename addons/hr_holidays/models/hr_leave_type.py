@@ -1,7 +1,7 @@
 import logging
 import operator as py_operator
 from collections import defaultdict
-from datetime import UTC, date, datetime, time
+from datetime import date, datetime
 
 from dateutil.relativedelta import relativedelta
 
@@ -712,6 +712,11 @@ class HrLeaveType(models.Model):
         leave_type_requires_allocation = self.filtered(
             lambda lt: lt.requires_allocation
         )
+        expiring_duration_cache = {}
+        icon_url_by_type = {
+            leave_type: leave_type.icon_id.url
+            for leave_type in leave_type_requires_allocation.sudo()
+        }
 
         for employee in employees:
             for leave_type in leave_type_requires_allocation:
@@ -735,7 +740,7 @@ class HrLeaveType(models.Model):
                             "exceeding_duration"
                         ],
                         "request_unit": leave_type.request_unit,
-                        "icon": leave_type.sudo().icon_id.url,
+                        "icon": icon_url_by_type[leave_type],
                         "allows_negative": leave_type.allows_negative,
                         "max_allowed_negative": leave_type.max_allowed_negative,
                         "employee_company": employee.company_id.id,
@@ -805,31 +810,14 @@ class HrLeaveType(models.Model):
                     closest_allocation_expire = format_date(
                         self.env, closest_expiration_date
                     )
-                    calendar = employee.resource_calendar_id
-                    start_datetime = datetime.combine(target_date, time.min).replace(
-                        tzinfo=UTC
-                    )
-                    end_datetime = datetime.combine(
-                        closest_expiration_date, time.max
-                    ).replace(tzinfo=UTC)
-                    closest_allocation_dict = {}
-                    if not calendar:
-                        closest_allocation_dict["hours"] = float_round(
-                            (end_datetime - start_datetime).total_seconds() / 3600,
-                            precision_rounding=0.001,
-                        )
-                        closest_allocation_dict["days"] = (
-                            end_datetime - start_datetime
-                        ).days + 1
-                    else:
-                        calendar_attendance = calendar._work_intervals_batch(
-                            start_datetime, end_datetime, resources=employee.resource_id
-                        )
-                        closest_allocation_dict = (
-                            calendar._get_attendance_intervals_days_data(
-                                calendar_attendance[employee.resource_id.id]
+                    cache_key = (employee, closest_expiration_date)
+                    if cache_key not in expiring_duration_cache:
+                        expiring_duration_cache[cache_key] = (
+                            employee._get_duration_until(
+                                target_date, closest_expiration_date
                             )
                         )
+                    closest_allocation_dict = expiring_duration_cache[cache_key]
                     if leave_type.request_unit == "hour":
                         closest_allocation_duration = closest_allocation_dict["hours"]
                     else:
@@ -950,8 +938,14 @@ class HrLeaveType(models.Model):
         return False, 0
 
     def _get_carried_over_days_expiration_data(self, allocations, target_date):
+        carried_over_days_expiration_data = {
+            allocation: {"expiration_date": False, "no_expiring_days": 0}
+            for allocation in allocations
+        }
         fake_allocations = self.env["hr.leave.allocation"]
-        for allocation in allocations:
+        for allocation in allocations.filtered(
+            lambda allocation: allocation.allocation_type == "accrual"
+        ):
             fake_allocations |= (
                 self.env["hr.leave.allocation"]
                 .with_context(default_date_from=target_date)
@@ -960,8 +954,8 @@ class HrLeaveType(models.Model):
         fake_allocations.sudo().with_context(
             default_date_from=target_date
         )._process_accrual_plans(target_date, log=False)
-        carried_over_days_expiration_data = {
-            fake_allocation._origin: {
+        for fake_allocation in fake_allocations:
+            carried_over_days_expiration_data[fake_allocation._origin] = {
                 "expiration_date": fake_allocation.carried_over_days_expiration_date,
                 "no_expiring_days": max(
                     0,
@@ -969,7 +963,5 @@ class HrLeaveType(models.Model):
                     - fake_allocation.leaves_taken,
                 ),
             }
-            for fake_allocation in fake_allocations
-        }
         fake_allocations.invalidate_recordset()
         return carried_over_days_expiration_data

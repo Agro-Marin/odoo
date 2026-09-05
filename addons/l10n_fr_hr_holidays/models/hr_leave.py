@@ -135,7 +135,7 @@ class HrLeave(models.Model):
                     ('company_id', '=', company.id)
                 ])
                 for holiday in public_holidays_filtered:
-                    tz = timezone(holiday.write_uid.tz)
+                    tz = timezone(holiday.write_uid.tz or 'UTC')
                     current = holiday.date_from.replace(tzinfo=UTC).astimezone(tz).date()
                     holiday_date_to = holiday.date_to.replace(tzinfo=UTC).astimezone(tz).date()
                     while current <= holiday_date_to:

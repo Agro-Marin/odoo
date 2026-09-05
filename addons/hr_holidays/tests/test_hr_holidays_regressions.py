@@ -621,3 +621,71 @@ class TestAllocationActivitySkip(TestHrHolidaysCommon):
         )
         allocation.with_context(mail_activity_automation_skip=False).activity_update()
         self.assertEqual(allocation.activity_ids.user_id, self.user_hruser)
+
+
+@tagged("post_install", "-at_install")
+class TestDashboardConsumesLeavesOnce(TestHrHolidaysCommon):
+    def test_allocation_data_reads_consumed_leaves_once(self):
+        leave_types = self.env["hr.leave.type"].create(
+            [
+                {
+                    "name": f"Dash {index}",
+                    "requires_allocation": True,
+                    "allocation_validation_type": "no_validation",
+                    "employee_requests": True,
+                    "company_id": self.company.id,
+                }
+                for index in range(3)
+            ]
+        )
+        plan = self.env["hr.leave.accrual.plan"].create(
+            {
+                "name": "Dash plan",
+                "level_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "added_value": 1,
+                            "added_value_type": "day",
+                            "frequency": "monthly",
+                        },
+                    )
+                ],
+            }
+        )
+        for leave_type in leave_types:
+            for vals in (
+                {"number_of_days": 5, "date_to": date(2027, 1, 31)},
+                {
+                    "number_of_days": 0,
+                    "allocation_type": "accrual",
+                    "accrual_plan_id": plan.id,
+                },
+            ):
+                self.env["hr.leave.allocation"].create(
+                    {
+                        "name": "dash",
+                        "employee_id": self.employee_emp_id,
+                        "holiday_status_id": leave_type.id,
+                        "date_from": date(2026, 1, 1),
+                        **vals,
+                    }
+                ).action_approve()
+        Employee = type(self.env["hr.employee"])
+        original = Employee._get_consumed_leaves
+        calls = []
+
+        def counting(employee, *args, **kwargs):
+            calls.append(employee.ids)
+            return original(employee, *args, **kwargs)
+
+        with patch.object(Employee, "_get_consumed_leaves", counting):
+            data = leave_types.get_allocation_data(self.employee_emp)
+        self.assertEqual(len(data[self.employee_emp]), 3)
+        self.assertEqual(
+            len(calls),
+            1,
+            "simulating carry-over on the fake allocations must not recompute "
+            "the consumed leaves once per leave type",
+        )
