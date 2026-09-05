@@ -92,15 +92,16 @@ class Test_Testing_UtilitiesE(models.Model):
 
     def _inverse_count(self):
         for r in self:
-            r.write(
-                {
-                    "m2m": [
-                        Command.create({"name": str(n)})
-                        for n, v in zip_longest(range(r.count), r.m2m or [])
-                        if v is None
-                    ]
-                }
-            )
+            extra = len(r.m2m) - r.count
+            if extra > 0:
+                commands = [Command.unlink(v.id) for v in r.m2m[-extra:]]
+            else:
+                commands = [
+                    Command.create({"name": str(n)})
+                    for n, v in zip_longest(range(r.count), r.m2m or [])
+                    if v is None
+                ]
+            r.write({"m2m": commands})
 
 
 class Test_Testing_UtilitiesSub2(models.Model):

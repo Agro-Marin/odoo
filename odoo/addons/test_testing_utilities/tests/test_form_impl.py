@@ -246,6 +246,19 @@ class TestM2M(TransactionCase):
         r = f.save()
         self.assertEqual(r.m2m.mapped("name"), ["ok", "1", "2", "3", "4"])
 
+    def test_inverse_count_shrinks_m2m(self):
+        r = self.env["test_testing_utilities.e"].create({})
+        r.count = 5
+        self.assertEqual(len(r.m2m), 5)
+
+        r.count = 2
+        self.assertEqual(r.count, 2)
+        self.assertEqual(len(r.m2m), 2)
+
+        r.invalidate_recordset()
+        self.assertEqual(r.count, 2)
+        self.assertEqual(len(r.m2m), 2)
+
 
 get = itemgetter("name", "value", "v")
 
