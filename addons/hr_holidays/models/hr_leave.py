@@ -1530,9 +1530,7 @@ Versions:
                 new_leave = self.env["hr.leave"].new(leave_vals)
                 new_leave._compute_date_from_to()
                 if new_leave.date_from < new_leave.date_to:
-                    target_leave_vals.append(
-                        new_leave._convert_to_write(new_leave._cache)
-                    )
+                    target_leave_vals.append(leave_vals)
 
             if target_leave_vals:
                 vals = target_leave_vals.pop(0)

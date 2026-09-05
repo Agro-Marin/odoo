@@ -229,10 +229,9 @@ class HrVersion(models.Model):
             )[0]
             new_leave = self.env["hr.leave"].new(new_leave_vals)
             new_leave._compute_date_from_to()
-            new_leave._compute_duration()
             if new_leave.date_from < new_leave.date_to:
                 all_new_leave_origin.append(leave)
-                all_new_leave_vals.append(new_leave._convert_to_write(new_leave._cache))
+                all_new_leave_vals.append(new_leave_vals)
         return all_new_leave_origin, all_new_leave_vals
 
     def _create_all_new_leave(self, all_new_leave_origin, all_new_leave_vals):
