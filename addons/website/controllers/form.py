@@ -57,13 +57,22 @@ class WebsiteForm(http.Controller):
                     sp.closed = True
                 return res
         except (ValidationError, UserError) as e:
-            return json.dumps(
+            return self._json_response(
                 {
                     "error": e.args[0],
                 }
             )
         except IntegrityError:
-            return json.dumps(False)
+            return self._json_response(False)
+
+    @staticmethod
+    def _json_response(payload):
+        # The route is type="http", so a bare string would go out as
+        # text/html; the client's post() helper refuses to parse JSON out of
+        # an HTML-typed body (checkResponseStatus in http_service.js).
+        return request.prepare_response(
+            json.dumps(payload), [("Content-Type", "application/json")]
+        )
 
     def _handle_website_form(self, model_name, **kwargs):
         model_record = (
@@ -72,12 +81,14 @@ class WebsiteForm(http.Controller):
             .search([("model", "=", model_name), ("website_form_access", "=", True)])
         )
         if not model_record:
-            return json.dumps({"error": _("The form's specified model does not exist")})
+            return self._json_response(
+                {"error": _("The form's specified model does not exist")}
+            )
 
         try:
             data = self.extract_data(model_record, kwargs)
         except ValidationError as e:
-            return json.dumps({"error_fields": e.args[0]})
+            return self._json_response({"error_fields": e.args[0]})
 
         id_record = self.insert_record(
             request,
@@ -108,7 +119,7 @@ class WebsiteForm(http.Controller):
         request.session["form_builder_model"] = model_record.name
         request.session["form_builder_id"] = id_record
 
-        return json.dumps({"id": id_record})
+        return self._json_response({"id": id_record})
 
     _meta_label = _lt("Metadata")
 

@@ -86,12 +86,13 @@ class TestTranslation(HttpCase):
             }
         )
 
-        for user in self.env["res.users"].search([]):
-            user.lang = lang_fr.code
-        for partner in self.env["res.partner"].search([]):
-            partner.lang = lang_fr.code
-        for user in self.env["res.users"].with_context(active_test=False).search([]):
-            user.lang = lang_fr.code
+        inactive_too = {"active_test": False}
+        self.env["res.users"].with_context(**inactive_too).search(
+            []
+        ).lang = lang_fr.code
+        self.env["res.partner"].with_context(**inactive_too).search(
+            []
+        ).lang = lang_fr.code
 
     def _en_fr_db(self):
         lang_fr = self.env.ref("base.lang_fr")

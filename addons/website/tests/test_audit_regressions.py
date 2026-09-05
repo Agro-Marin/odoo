@@ -1,3 +1,4 @@
+import re
 from unittest.mock import MagicMock, patch
 
 import psycopg
@@ -949,3 +950,62 @@ class TestPageWriteKeepsAnExplicitKey(TransactionCase):
         page.write({"name": "Renamed again"})
         self.assertNotEqual(page.key, "website.explicit_key")
         self.assertTrue(page.key.startswith("website.renamed-again"), page.key)
+
+
+@tagged("post_install", "-at_install")
+class TestWebsiteFormAnswersJson(HttpCase):
+    def _post_contact_form(self):
+        page = self.url_open("/contactus").text
+        csrf = re.search(r"csrf_token\W+([0-9a-f]{64}o\d+)", page)
+        tree = html.fromstring(page)
+        form = tree.xpath("//form[@data-model_name='mail.mail']")[0]
+        data = {
+            i.get("name"): i.get("value") or ""
+            for i in form.xpath(".//input|.//textarea")
+            if i.get("name")
+        }
+        data.update(
+            name="Probe",
+            email_from="probe@example.com",
+            subject="Test",
+            description="Test",
+        )
+        if csrf:
+            data["csrf_token"] = csrf.group(1)
+        return self.url_open("/website/form/mail.mail", data=data)
+
+    def test_the_answer_is_typed_as_json_for_public_and_portal(self):
+        res = self.url_open("/website/form/mail.mail", data={"subject": "x"})
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("application/json", res.headers.get("Content-Type", ""))
+        self.assertNotIn("text/html", res.headers.get("Content-Type", ""))
+
+        res = self._post_contact_form()
+        self.assertIn("application/json", res.headers.get("Content-Type", ""))
+        self.assertTrue(res.json().get("id"), res.text)
+
+        new_test_user(
+            self.env,
+            login="form_portal",
+            password="form_portal",
+            groups="base.group_portal",
+        )
+        self.authenticate("form_portal", "form_portal")
+        res = self._post_contact_form()
+        self.assertIn("application/json", res.headers.get("Content-Type", ""))
+        self.assertTrue(res.json().get("id"), res.text)
+
+
+@tagged("post_install", "-at_install")
+class TestFormSignatureTreatsEmptyRecipientAsAbsent(TransactionCase):
+    def test_empty_and_absent_extra_recipients_sign_the_same(self):
+        from odoo.addons.website.tools import website_form_signature_payload
+
+        self.assertEqual(
+            website_form_signature_payload("to@example.com", {"email_cc": ""}),
+            website_form_signature_payload("to@example.com", {}),
+        )
+        self.assertNotEqual(
+            website_form_signature_payload("to@example.com", {"email_cc": "cc@x.com"}),
+            website_form_signature_payload("to@example.com", {}),
+        )
