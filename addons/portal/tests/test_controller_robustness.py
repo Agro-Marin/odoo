@@ -1,3 +1,5 @@
+import json
+
 from odoo.http import Request
 from odoo.tests.common import HttpCase, JsonRpcException, tagged
 
@@ -95,10 +97,25 @@ class TestPortalControllerRobustness(HttpCase):
                 "/mail/message/update_content",
                 {"message_id": "abc", "update_data": {"body": "hi"}},
             ),
-            ("/mail/update_is_internal", {"message_id": "abc", "is_internal": True}),
         ]
         for route, params in cases:
             with self.subTest(route=route):
                 with self.assertRaises(JsonRpcException) as capture:
                     self.call_jsonrpc(route, params=params)
                 self.assertNotIn("ValueError", str(capture.exception))
+
+    def test_update_is_internal_route_is_not_served(self):
+        """`/mail/update_is_internal` reached no caller; it should reach no route."""
+        self._login()
+        response = self.url_open(
+            "/mail/update_is_internal",
+            data=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "call",
+                    "params": {"message_id": 1, "is_internal": True},
+                }
+            ),
+            headers={"Content-Type": "application/json"},
+        )
+        self.assertEqual(response.status_code, 404)
