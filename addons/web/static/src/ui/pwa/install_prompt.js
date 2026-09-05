@@ -12,7 +12,7 @@ import { Dialog } from "@web/ui/dialog/dialog";
 
 export class InstallPrompt extends Component {
     static props = {
-        close: true,
+        close: Function,
     };
     static components = {
         Dialog,

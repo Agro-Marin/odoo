@@ -12,6 +12,8 @@ const effectRegistry = registry.category("effects");
 
 const EFFECT_OPTIONS = new Set(["onClose", "rootId", "sequence"]);
 
+effectRegistry.addValidation((v) => typeof v === "function");
+
 /**
  * @param {import("@web/env").OdooEnv} env
  * @param {Object} [params={}]
@@ -37,8 +39,6 @@ function rainbowMan(env, params = {}) {
     return { remove: env.services.notification.add(message) };
 }
 effectRegistry.add("rainbow_man", rainbowMan);
-
-effectRegistry.addValidation((v) => typeof v === "function");
 
 class EffectService {
     /**

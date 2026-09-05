@@ -124,10 +124,6 @@ export class Notification extends Component {
         }
     }
 
-    close() {
-        this.props.close();
-    }
-
     startNotificationTimer() {
         if (this.props.sticky) {
             return;
@@ -138,7 +134,7 @@ export class Notification extends Component {
         this.timerStart = browser.performance.now();
         this.closeTimeout = browser.setTimeout(() => {
             this.remainingDelay = 0;
-            this.close();
+            this.props.close();
         }, this.remainingDelay);
         const progressEl = this.autocloseProgress.el;
         if (progressEl) {

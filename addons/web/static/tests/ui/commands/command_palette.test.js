@@ -1812,15 +1812,57 @@ test("two commands that cannot render in one pass both lose their row", async ()
     expect.verifyErrors([/poisoned b/, /poisoned c/]);
 });
 
-test("a failing initial search is reported and closes the palette", async () => {
-    expect.errors(1);
+test("opening the palette asks each provider once", async () => {
     await mountWithCleanup(MainComponentsContainer);
+    // Let the container settle: its own post-mount render would cancel and
+    // restart a palette still starting (see the overlay entry in CLAUDE.md §4).
+    await animationFrame();
+    let calls = 0;
     getService("dialog").add(CommandPalette, {
-        config: { providers: [{ provide: () => /** @type {any} */ (undefined) }] },
+        config: {
+            providers: [
+                {
+                    provide: () => {
+                        calls++;
+                        return [{ name: "cmd a", action: () => {} }];
+                    },
+                },
+            ],
+        },
     });
     await animationFrame();
     await animationFrame();
-    expect(".o_command_palette").toHaveCount(0);
+    expect(queryAllTexts(".o_command_name")).toEqual(["cmd a"]);
+    expect(calls).toBe(1);
+});
+
+test("a failing initial search is reported and leaves the palette usable", async () => {
+    expect.errors(1);
+    await mountWithCleanup(MainComponentsContainer);
+    await animationFrame();
+    let calls = 0;
+    getService("dialog").add(CommandPalette, {
+        config: {
+            providers: [
+                {
+                    provide: () =>
+                        calls++
+                            ? [{ name: "cmd a", action: () => {} }]
+                            : /** @type {any} */ (undefined),
+                },
+            ],
+        },
+    });
+    await animationFrame();
+    await animationFrame();
+    expect(".o_command_palette").toHaveCount(1);
+    expect(".fa-circle-notch").toHaveCount(0);
+
+    await click(".o_command_palette_search input");
+    await edit("a");
+    await runAllTimers();
+    await animationFrame();
+    expect(queryAllTexts(".o_command_name")).toEqual(["cmd a"]);
     expect.verifyErrors([/Cannot read properties of undefined/]);
 });
 

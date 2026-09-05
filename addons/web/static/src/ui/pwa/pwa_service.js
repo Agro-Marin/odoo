@@ -167,7 +167,8 @@ class PwaService {
                 .querySelector("link[rel=manifest]")
                 ?.getAttribute("href");
             if (!href) {
-                return {};
+                this._manifest = {};
+                return this._manifest;
             }
             this._manifestPromise = get(href, "text", { rejectHtml: true })
                 .then((/** @type {string} */ manifest) => {

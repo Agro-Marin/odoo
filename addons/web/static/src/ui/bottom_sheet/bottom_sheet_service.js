@@ -51,7 +51,7 @@ class BottomSheetService {
      * @param {import("@odoo/owl").ComponentConstructor} component
      * @param {object} [props]
      * @param {BottomSheetServiceAddOptions} [options]
-     * @returns {() => void}
+     * @returns {(removeParams?: any) => Promise<void>}
      */
     add(target, component, props = {}, options = {}) {
         return this.present(target, component, props, options);

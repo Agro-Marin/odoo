@@ -373,7 +373,7 @@ export class CommandPalette extends Component {
         );
         this.switchNamespace(namespace);
         this.state.searchValue = searchValue;
-        this.searchValuePromise = this.search(searchValue);
+        this.searchValuePromise = this.trackSearch(this.search(searchValue));
         await this.race.add(this.searchValuePromise);
     }
 
@@ -449,9 +449,6 @@ export class CommandPalette extends Component {
         );
         this.selectCommand(this.state.commands.length ? 0 : -1);
         this.mouseSelectionActive = false;
-        this.state.emptyMessage = (
-            namespaceConfig.emptyMessage || DEFAULT_EMPTY_MESSAGE
-        ).toString();
     }
 
     /**
@@ -670,6 +667,9 @@ export class CommandPalette extends Component {
         this.state.namespace = namespace;
         this.state.placeholder = (
             namespaceConfig.placeholder || DEFAULT_PLACEHOLDER
+        ).toString();
+        this.state.emptyMessage = (
+            namespaceConfig.emptyMessage || DEFAULT_EMPTY_MESSAGE
         ).toString();
     }
 

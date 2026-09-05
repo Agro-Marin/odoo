@@ -215,7 +215,14 @@ class TooltipService {
             if (dataset.tooltipInfo) {
                 try {
                     params.info = JSON.parse(dataset.tooltipInfo);
-                } catch {}
+                } catch {
+                    if (odoo.debug) {
+                        console.warn(
+                            "[tooltip] data-tooltip-info is not JSON; ignoring it.",
+                            element,
+                        );
+                    }
+                }
             }
             if (dataset.tooltipDelay) {
                 const delay = Number.parseInt(dataset.tooltipDelay, 10);
