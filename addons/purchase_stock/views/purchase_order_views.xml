@@ -159,4 +159,28 @@
         </field>
     </record>
 
+    <!--
+        The KPI list is the one `action_purchase_order` opens (path="purchases",
+        empty domain), so it holds confirmed orders too. It is a separate record
+        from `view_purchase_order_list_2`, not an inherit of it, which is why the
+        receipt column has to be added to both.
+    -->
+    <record id="view_purchase_order_list_kpis_inherit" model="ir.ui.view">
+        <field name="name">purchase.order.list.kpis.inherit</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.view_purchase_order_list_kpis" />
+        <field name="arch" type="xml">
+            <field name="invoice_state" position="before">
+                <field name="date_effective" column_invisible="True" />
+                <field
+                    name="transfer_state"
+                    optional="hide"
+                    widget="badge"
+                    decoration-success="transfer_state=='done'"
+                    decoration-danger="date_commitment and (date_commitment &lt; date_effective or date_commitment &lt; datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and transfer_state!='done' and date_effective &lt;= date_commitment)"
+                    decoration-warning="date_commitment and date_commitment &gt;= datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and date_commitment &lt;= datetime.datetime.combine(datetime.date.today(), datetime.time(23,59,59)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and transfer_state!='done'" />
+            </field>
+        </field>
+    </record>
+
 </odoo>
