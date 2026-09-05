@@ -1521,6 +1521,7 @@ class AccountMoveLine(models.Model):
         }
 
     @api.depends("discount_date", "date_maturity")
+    @api.depends_context("tz")
     def _compute_payment_date(self):
         for line in self:
             today = fields.Date.context_today(line)
