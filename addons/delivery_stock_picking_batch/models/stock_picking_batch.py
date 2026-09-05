@@ -1,8 +1,20 @@
-from odoo import models
+from odoo import api, fields, models
 
 
 class StockPickingBatch(models.Model):
     _inherit = "stock.picking.batch"
+
+    wave_carrier_id = fields.Many2one(
+        "delivery.carrier",
+        "Wave Carrier",
+        compute="_compute_wave_grouping",
+        store=True,
+        readonly=False,
+    )
+
+    @api.depends("picking_ids.carrier_id")
+    def _compute_wave_grouping(self):
+        super()._compute_wave_grouping()
 
     def _is_auto_mergeable(self, *, moves=0, pickings=0, weight=0.0):
         if not super()._is_auto_mergeable(

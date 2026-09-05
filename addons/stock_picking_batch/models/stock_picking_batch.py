@@ -92,6 +92,59 @@ class StockPickingBatch(models.Model):
                 but this scheduled date will not be set for all transfers in batch.""",
     )
     is_wave = fields.Boolean("This batch is a wave")
+    wave_product_id = fields.Many2one(
+        "product.product",
+        "Wave Product",
+        compute="_compute_wave_grouping",
+        store=True,
+        readonly=False,
+    )
+    wave_category_id = fields.Many2one(
+        "product.category",
+        "Wave Product Category",
+        compute="_compute_wave_grouping",
+        store=True,
+        readonly=False,
+    )
+    wave_partner_id = fields.Many2one(
+        "res.partner",
+        "Wave Contact",
+        compute="_compute_wave_grouping",
+        store=True,
+        readonly=False,
+    )
+    wave_country_id = fields.Many2one(
+        "res.country",
+        "Wave Destination Country",
+        compute="_compute_wave_grouping",
+        store=True,
+        readonly=False,
+    )
+    wave_source_location_id = fields.Many2one(
+        "stock.location",
+        "Wave Source Location",
+        compute="_compute_wave_grouping",
+        store=True,
+        readonly=False,
+    )
+    wave_dest_location_id = fields.Many2one(
+        "stock.location",
+        "Wave Destination Location",
+        compute="_compute_wave_grouping",
+        store=True,
+        readonly=False,
+    )
+    wave_location_id = fields.Many2one(
+        "stock.location",
+        "Wave Location",
+        compute="_compute_wave_grouping",
+        store=True,
+        readonly=False,
+        domain="[('id', 'in', picking_type_id.wave_location_ids)]",
+        help="One of the operation type's wave locations. An empty wave declaring "
+        "its grouping values here is filled by automatic waving; once it holds "
+        "lines, the values are read from them.",
+    )
     show_lots_text = fields.Boolean(compute="_compute_show_lots_text")
     estimated_shipping_weight = fields.Float(
         "Estimated Shipping Weight",
@@ -210,6 +263,36 @@ class StockPickingBatch(models.Model):
             batch.show_check_availability = any(
                 m.state not in ["assigned", "done", "cancel"] for m in batch.move_ids
             )
+
+    @api.depends(
+        "picking_ids.move_line_ids.product_id",
+        "picking_ids.move_line_ids.product_id.categ_id",
+        "picking_ids.move_line_ids.location_id",
+        "picking_ids.partner_id",
+        "picking_ids.partner_id.country_id",
+        "picking_ids.location_id",
+        "picking_ids.location_dest_id",
+    )
+    def _compute_wave_grouping(self):
+        criteria = self.env["stock.picking.type"]._get_grouping_criteria()
+        for batch in self:
+            if not batch.move_line_ids:
+                for criterion in criteria.values():
+                    if criterion.wave_field:
+                        batch[criterion.wave_field] = batch[criterion.wave_field]
+                batch.wave_location_id = batch.wave_location_id
+                continue
+            for criterion in criteria.values():
+                if criterion.wave_field:
+                    value = batch.mapped(criterion.batch_path)
+                    batch[criterion.wave_field] = value if len(value) == 1 else False
+            picking_type = batch.picking_type_id
+            nearest = {
+                picking_type._get_nearest_wave_location(location)
+                for location in batch.move_line_ids.location_id
+                if picking_type
+            }
+            batch.wave_location_id = nearest.pop() if len(nearest) == 1 else False
 
     @api.depends("picking_ids", "picking_ids.move_line_ids")
     def _compute_move_line_ids(self):
@@ -614,11 +697,13 @@ class StockPickingBatch(models.Model):
 
     def _get_auto_wave_grouping_key(self, picking_type, nearest_parent_location):
         self.check_singleton()
-        return (
-            self.company_id,
-            *(
-                self.mapped(criterion.batch_path)
-                for criterion in picking_type._get_active_wave_criteria().values()
-            ),
-            nearest_parent_location,
-        )
+        has_lines = bool(self.move_line_ids)
+        values = []
+        for criterion in picking_type._get_active_wave_criteria().values():
+            if has_lines:
+                values.append(self.mapped(criterion.batch_path))
+            elif criterion.wave_field:
+                values.append(self[criterion.wave_field])
+            else:
+                values.append(None)
+        return (self.company_id, *values, nearest_parent_location)

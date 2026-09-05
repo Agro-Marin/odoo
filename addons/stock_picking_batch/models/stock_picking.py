@@ -9,6 +9,7 @@ class GroupingCriterion(NamedTuple):
     line_path: str
     label_field: str
     picking_path: str = ""
+    wave_field: str = ""
 
     @property
     def batch_path(self):
@@ -125,25 +126,33 @@ class StockPickingType(models.Model):
     def _get_batch_grouping_criteria(self):
         return {
             "batch_group_by_partner": GroupingCriterion(
-                "move_id.partner_id", "name", "partner_id"
+                "move_id.partner_id", "name", "partner_id", "wave_partner_id"
             ),
             "batch_group_by_destination": GroupingCriterion(
-                "move_id.partner_id.country_id", "name", "partner_id.country_id"
+                "move_id.partner_id.country_id",
+                "name",
+                "partner_id.country_id",
+                "wave_country_id",
             ),
             "batch_group_by_src_loc": GroupingCriterion(
-                "location_id", "display_name", "location_id"
+                "location_id", "display_name", "location_id", "wave_source_location_id"
             ),
             "batch_group_by_dest_loc": GroupingCriterion(
-                "location_dest_id", "display_name", "location_dest_id"
+                "location_dest_id",
+                "display_name",
+                "location_dest_id",
+                "wave_dest_location_id",
             ),
         }
 
     @api.model
     def _get_wave_grouping_criteria(self):
         return {
-            "wave_group_by_product": GroupingCriterion("product_id", "display_name"),
+            "wave_group_by_product": GroupingCriterion(
+                "product_id", "display_name", wave_field="wave_product_id"
+            ),
             "wave_group_by_category": GroupingCriterion(
-                "product_id.categ_id", "complete_name"
+                "product_id.categ_id", "complete_name", wave_field="wave_category_id"
             ),
         }
 

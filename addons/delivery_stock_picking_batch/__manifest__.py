@@ -16,6 +16,7 @@ Allows to prepare batches depending on their carrier
     ],
     "data": [
         "views/stock_picking_type_views.xml",
+        "views/stock_picking_batch_views.xml",
     ],
     "installable": True,
     "auto_install": True,

@@ -251,6 +251,19 @@
                             nolabel="1"
                             columns="2"
                             hideAddButton="1" />
+                        <group
+                            id="wave_grouping"
+                            string="Grouping"
+                            invisible="not is_wave"
+                            readonly="picking_ids">
+                            <field name="wave_product_id" />
+                            <field name="wave_category_id" />
+                            <field name="wave_partner_id" />
+                            <field name="wave_country_id" />
+                            <field name="wave_source_location_id" />
+                            <field name="wave_dest_location_id" />
+                            <field name="wave_location_id" />
+                        </group>
                     </group>
                     <notebook>
                         <page

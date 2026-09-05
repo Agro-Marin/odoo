@@ -419,3 +419,104 @@ class TestBatchAuditFixes(TransactionCase):
         second.date_planned = early
         (first | second).action_merge()
         self.assertEqual(first.date_planned, early)
+
+    def _auto_wave_type(self, **flags):
+        picking_type = self.picking_type.copy({"sequence_code": "AUDITW"})
+        picking_type.write(
+            {
+                "auto_batch": True,
+                "batch_group_by_partner": False,
+                "batch_group_by_destination": False,
+                "batch_group_by_src_loc": False,
+                "batch_group_by_dest_loc": False,
+                "wave_group_by_product": False,
+                "wave_group_by_category": False,
+                "wave_group_by_location": False,
+                **flags,
+            }
+        )
+        return picking_type
+
+    def _typed_picking(self, picking_type, product=None, location=None):
+        product = product or self.product
+        location = location or self.stock_location
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": picking_type.id,
+                "location_id": location.id,
+                "location_dest_id": self.customer_location.id,
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": product.id,
+                            "product_uom_qty": 1,
+                            "location_id": location.id,
+                            "location_dest_id": self.customer_location.id,
+                        }
+                    )
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.action_assign()
+        return picking
+
+    def test_an_empty_wave_declaring_its_product_is_filled_by_auto_waving(self):
+        picking_type = self._auto_wave_type(wave_group_by_product=True)
+        other = self.env["product.product"].create(
+            {"name": "Audit other", "is_storable": True}
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            other, self.stock_location, 10
+        )
+        declared = self.env["stock.picking.batch"].create(
+            {
+                "is_wave": True,
+                "picking_type_id": picking_type.id,
+                "wave_product_id": self.product.id,
+            }
+        )
+        stranger = self._typed_picking(picking_type, product=other)
+        self.assertNotEqual(stranger.batch_id, declared)
+        mine = self._typed_picking(picking_type)
+        self.assertEqual(mine.batch_id, declared)
+        self.assertEqual(declared.wave_product_id, self.product)
+
+    def test_an_empty_wave_with_no_declaration_is_still_never_filled(self):
+        picking_type = self._auto_wave_type(wave_group_by_product=True)
+        blank = self.env["stock.picking.batch"].create(
+            {"is_wave": True, "picking_type_id": picking_type.id}
+        )
+        picking = self._typed_picking(picking_type)
+        self.assertTrue(picking.batch_id.is_wave)
+        self.assertNotEqual(picking.batch_id, blank)
+
+    def test_the_declared_values_follow_the_lines_once_the_wave_holds_some(self):
+        picking_type = self._auto_wave_type(wave_group_by_product=True)
+        picking = self._typed_picking(picking_type)
+        wave = picking.batch_id
+        self.assertEqual(wave.wave_product_id, self.product)
+        self.assertEqual(wave.wave_partner_id, picking.partner_id)
+        self.assertEqual(wave.wave_source_location_id, self.stock_location)
+
+    def test_an_empty_wave_declaring_its_location_is_filled_by_location_waving(
+        self,
+    ):
+        shelf = self.env["stock.location"].create(
+            {"name": "Audit shelf", "location_id": self.stock_location.id}
+        )
+        self.env["stock.quant"]._update_available_quantity(self.product, shelf, 10)
+        picking_type = self._auto_wave_type(
+            wave_group_by_location=True,
+            wave_location_ids=[Command.set(shelf.ids)],
+        )
+        declared = self.env["stock.picking.batch"].create(
+            {
+                "is_wave": True,
+                "picking_type_id": picking_type.id,
+                "wave_location_id": shelf.id,
+            }
+        )
+        picking = self._typed_picking(picking_type, location=shelf)
+        self.assertEqual(picking.batch_id, declared)
+        self.assertEqual(declared.wave_location_id, shelf)

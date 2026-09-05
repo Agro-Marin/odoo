@@ -211,10 +211,12 @@ class StockMoveLine(models.Model):
             domains.append(Domain("state", "not in", ["done", "cancel"]))
         else:
             domains.append(Domain("state", "=", "draft"))
-        domains.extend(
-            Domain(criterion.batch_path, "in", self.mapped(criterion.line_path).ids)
-            for criterion in picking_type._get_active_wave_criteria().values()
-        )
+        for criterion in picking_type._get_active_wave_criteria().values():
+            ids = self.mapped(criterion.line_path).ids
+            domain = Domain(criterion.batch_path, "in", ids)
+            if criterion.wave_field:
+                domain |= Domain(criterion.wave_field, "in", ids)
+            domains.append(domain)
         if batches_to_validate_ids:
             domains.append(Domain("id", "not in", batches_to_validate_ids))
         return self.env["stock.picking.batch"].search(Domain.AND(domains))
@@ -226,15 +228,12 @@ class StockMoveLine(models.Model):
 
         valid_waves = self.env["stock.picking.batch"]
         for wave in potential_waves:
-            nearest_parent_locations = {
-                picking_type._get_nearest_wave_location(location)
-                for location in wave.move_line_ids.location_id
-            }
-            if len(nearest_parent_locations) == 1:
-                nearest_parent_location = nearest_parent_locations.pop()
-                if nearest_parent_location:
-                    waves_nearest_parent_locations[wave] = nearest_parent_location
-                    valid_waves |= wave
+            nearest_parent_location = picking_type._get_nearest_wave_location(
+                wave.wave_location_id
+            )
+            if nearest_parent_location:
+                waves_nearest_parent_locations[wave] = nearest_parent_location
+                valid_waves |= wave
         return waves_nearest_parent_locations, valid_waves
 
     def _get_auto_wave_grouping_key(self, picking_type, nearest_parent_location):
