@@ -15,7 +15,7 @@ internals such as ``odoo.tests.benchmark``, ``FieldCache``, specialised field
 * defines its own models (no shared data, deterministic state);
 * vendors its own timing + query-count harness (``tests/perfkit.py``) that
   relies solely on public, version-stable APIs (``cr.sql_log_count`` and
-  ``time.perf_counter``);
+  ``time.perf_counter_ns``);
 * imports nothing fork-specific, so the whole folder can be dropped, unchanged,
   into a vanilla 19.0 addons path and produces a comparable result file.
 
