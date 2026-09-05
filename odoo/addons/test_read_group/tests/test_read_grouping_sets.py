@@ -72,6 +72,20 @@ GROUPING_SETS_CASES = [
 ]
 
 
+def _create_aggregate_records(Model, Partner):
+    partner_1 = Partner.create({"name": "z_one"})
+    partner_2 = Partner.create({"name": "a_two"})
+    Model.create({"key": 1, "partner_id": partner_1.id, "value": 1})
+    Model.create({"key": 1, "partner_id": partner_1.id, "value": 2})
+    Model.create({"key": 1, "partner_id": partner_2.id, "value": 3})
+    Model.create({"key": 2, "partner_id": partner_2.id, "value": 4})
+    Model.create({"key": 2, "partner_id": partner_2.id})
+    Model.create({"key": 2, "value": 5})
+    Model.create({"partner_id": partner_2.id, "value": 5})
+    Model.create({"value": 6})
+    Model.create({})
+
+
 def _create_mario_luigi_tasks(env):
     User = env["test_read_group.user"]
     mario, luigi = User.create([{"name": "Mario"}, {"name": "Luigi"}])
@@ -107,17 +121,7 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
     def test_simple_read_grouping_sets(self):
         Model = self.env["test_read_group.aggregate"]
         Partner = self.env["res.partner"]
-        partner_1 = Partner.create({"name": "z_one"})
-        partner_2 = Partner.create({"name": "a_two"})
-        Model.create({"key": 1, "partner_id": partner_1.id, "value": 1})
-        Model.create({"key": 1, "partner_id": partner_1.id, "value": 2})
-        Model.create({"key": 1, "partner_id": partner_2.id, "value": 3})
-        Model.create({"key": 2, "partner_id": partner_2.id, "value": 4})
-        Model.create({"key": 2, "partner_id": partner_2.id})
-        Model.create({"key": 2, "value": 5})
-        Model.create({"partner_id": partner_2.id, "value": 5})
-        Model.create({"value": 6})
-        Model.create({})
+        _create_aggregate_records(Model, Partner)
 
         grouping_sets = [["key", "partner_id"], ["key"], ["partner_id"], []]
         expected_result = [
@@ -339,17 +343,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
     def test_simple_formatted_read_grouping_sets(self):
         Model = self.env["test_read_group.aggregate"]
         Partner = self.env["res.partner"]
-        partner_1 = Partner.create({"name": "z_one"})
-        partner_2 = Partner.create({"name": "a_two"})
-        Model.create({"key": 1, "partner_id": partner_1.id, "value": 1})
-        Model.create({"key": 1, "partner_id": partner_1.id, "value": 2})
-        Model.create({"key": 1, "partner_id": partner_2.id, "value": 3})
-        Model.create({"key": 2, "partner_id": partner_2.id, "value": 4})
-        Model.create({"key": 2, "partner_id": partner_2.id})
-        Model.create({"key": 2, "value": 5})
-        Model.create({"partner_id": partner_2.id, "value": 5})
-        Model.create({"value": 6})
-        Model.create({})
+        _create_aggregate_records(Model, Partner)
 
         grouping_sets = [["partner_id", "key"], ["key"], ["partner_id"], []]
         expected_result = [
