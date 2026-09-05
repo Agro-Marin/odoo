@@ -2206,22 +2206,32 @@ class Base_ImportImport(models.TransientModel):
         :rtype: odoo.fields.Field | None
         """
         model = self._resolve_path_model(path)
-        if model is None:
+        if not model:
             return None
         # A Properties sub-column is written `<field>.<property>`; it is the
         # `properties` field itself that carries the type.
         return self.env[model]._fields.get(path.split("/")[-1].split(".")[0])
 
     def _resolve_path_model(self, path):
-        """The model the *last* segment of ``path`` belongs to, or ``None`` if
-        the path descends through something that is not a relation.
+        """The model the *last* segment of ``path`` belongs to.
+
+        ``None`` when the path descends through something that is not a
+        relation; ``""`` when it descends through a relational *property*
+        (``properties.m2o_prop/.id``), whose comodel lives in the definition
+        record rather than in ``_fields`` and so cannot be named statically.
+        ``load`` resolves that one per row.
         """
         model = self.res_model
         for segment in path.split("/")[:-1]:
             if model not in self.env:
                 return None
-            parent = self.env[model]._fields.get(segment)
-            if parent is None or not parent.comodel_name:
+            name, _, property_name = segment.partition(".")
+            parent = self.env[model]._fields.get(name)
+            if parent is None:
+                return None
+            if parent.type == "properties":
+                return "" if property_name else None
+            if not parent.comodel_name:
                 return None
             model = parent.comodel_name
         return model if model in self.env else None
