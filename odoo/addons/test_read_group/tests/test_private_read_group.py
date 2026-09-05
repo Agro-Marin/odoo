@@ -577,13 +577,19 @@ class TestPrivateReadGroup(common.TransactionCase):
         with self.assertRaisesRegex(ValueError, "Invalid having clause '\"=\"'"):
             Model._read_group([], ["value"], having=['"="'])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError, "Invalid order '__count DESC other' for _read_group\\(\\)"
+        ):
             Model._read_group([], ["value"], order="__count DESC other")
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError, "Invalid order 'value\" DESC' for _read_group\\(\\)"
+        ):
             Model._read_group([], ["value"], order='value" DESC')
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(
+            ValueError, "Invalid order 'value ASCCC' for _read_group\\(\\)"
+        ):
             Model._read_group([], ["value"], order="value ASCCC")
 
     def test_groupby_date(self):
